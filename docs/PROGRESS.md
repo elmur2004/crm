@@ -97,3 +97,28 @@ Phase 1 — App A: ByteForce CRM (SPEC §14). Verdict: **PASS**.
 - Blockers: none.
 - Needs founder confirmation: items (1)–(9) carried, plus (10) ADR-022 additive UI
   columns; (11) ADR-024 negative to-be-collected on overpayment.
+
+## Entry 004 — 2026-08-09 — PHASE 2 GATE REPORT
+Phase 2 — App B: B-Systems CRM + Partners (SPEC §14). Verdict: **PASS**.
+
+| DoD item | Verdict | Evidence |
+|---|---|---|
+| Uploads validated & playable | PASS | Server-side extension+size+magic-byte validation (storage/index.ts); recordings play inline via authenticated /api/files with Range support; journey 3 uploads and plays an mp3; integration tests reject wrong type/content/size (Run 007) |
+| Auto-return (PP-2) verified | PASS | Integration: auto-return, max-two, edit-no-refire, outside-stage-no-fire; journey 3 sees the return + the normative History phrase (Runs 007–008) |
+| Conversion gate (PP-4) verified | PASS | Integration: incomplete gate blocks with nothing moved, complete gate converts atomically (Partner + date_joined + Converted badge); journey 3 exercises the block then converts |
+| Attribution end-to-end (PP-5) | PASS | Integration + journey 3: partner lead → CRM at matching stage, permanent "Partner: {Company}" badge on rep table, detail and board, live stage in the partner's table, A-6 unassigned bucket |
+| App B = App A clone on B-Systems data/theme (§7.1) | PASS | Shared bodies mounted on BSYSTEMS_CTX + brand-partitioned /api/b-systems; spec-guardian verdict table all-match |
+
+- Done: B-Systems CRM mount, storage abstraction + upload validation, partners
+  pipeline (services + 6-column board + prospect detail with recordings + gate) +
+  directory + attribution, integration tests (8), journey 3. Gate cross-checks:
+  spec-guardian (1 fix: PP-2 History wording now rendered; + updateProspect race
+  guard) and brand-auditor (major find: lavender-on-Paper structural text in App B —
+  fixed via new heading/link semantic tokens in both brand files per the ADR-019
+  contract, plus §4.3 typography corrections). All findings closed, suite green
+  (Runs 007–008).
+- Next steps: Phase 3 — Portal rep layer (§8.1–§8.4): landing + signup with CV +
+  login, rep CRM with dnd-kit drag & drop + server-enforced Won restriction,
+  Won Deals read view with milestone locks, Profile; P-1…P-5; journey 4; gate.
+- Blockers: none.
+- Needs founder confirmation: items (1)–(11) carried.

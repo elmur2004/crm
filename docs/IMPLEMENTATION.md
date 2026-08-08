@@ -147,6 +147,31 @@ _Format per module:_
   name). BrandLogo is a plain `img` (next/image logged aspect-ratio warnings).
 - Last updated: 2026-08-09 (Entry 003, TESTING Run 005)
 
+## App B — Partners pipeline + storage (Phase 2)
+- Location: `src/lib/services/partners.ts`, `src/lib/storage/index.ts`,
+  `src/app/api/b-systems/**`, `src/app/api/files/[id]/route.ts`,
+  `src/components/partners/**`, `src/app/(bsystems)/b-systems/(app)/**`.
+- What exists / how it works: the B-Systems CRM is a pure mount of Phase 1's
+  brand-parameterized bodies (BSYSTEMS_CTX) + the internalCrmHandlers("bsystems")
+  factory — zero duplicated logic. Partners: `applyProspectEvent` mirrors
+  applyLeadEvent on partnersConfig; **PP-2 lives in `updateProspect`** (a non-empty
+  value newly saved into number2/3 while stage=didnt_answer fires the engine's
+  number_added in the same tx; overwriting a filled slot is an edit, no re-fire —
+  max two is structural). PP-4's gate is the won_partner Zod schema, re-parsed at
+  the service layer (defense-in-depth added to BOTH event services); conversion
+  creates the Partner (dateJoined now) + converted flag in one tx. PP-5 =
+  createLead with attribution via /api/b-systems/partners/[id]/leads. Storage:
+  local driver under /uploads with opaque keys; validation = extension + size +
+  magic-byte sniff (mp3 ID3/framesync, mp4 ftyp, pdf %PDF-, doc OLE, docx PK);
+  serving ONLY via authenticated /api/files/[id] with Range support (inline
+  <audio>/<video> seeking).
+- Limitations / gotchas: `persistGroup` treats won_partner as a no-op branch — the
+  gate data is consumed by the create_partner side effect, not stored as a child
+  record (cost one debugging round). Next 16 deprecates middleware.ts: file is now
+  `src/proxy.ts` (same NextAuth wrapper, build shows "Proxy"). Stale
+  `.next/dev/types` breaks typecheck after deleting pages — `rm -r .next`.
+- Last updated: 2026-08-09 (Entry 004, TESTING Run 007)
+
 ## Kickoff verification round
 - Location: docs/ARCHITECTURE.md, docs/DECISIONS.md, branding/*/tokens.css, scaffold.
 - What exists / how it works: a 10-agent adversarial workflow (5 review dimensions ×

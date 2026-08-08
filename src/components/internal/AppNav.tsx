@@ -36,7 +36,7 @@ export function AppNav({
             <Link
               key={item.href}
               href={item.href}
-              className="px-3 py-1.5 rounded-brand-control text-sm font-medium text-brand-secondary hover:bg-brand-surface-tint"
+              className="px-3 py-1.5 rounded-brand-control text-sm font-medium text-brand-link hover:bg-brand-surface-tint"
             >
               {item.label}
             </Link>

@@ -162,7 +162,7 @@ export function ClientEditForm({
     return (
       <button
         onClick={() => setOpen(true)}
-        className="text-sm text-brand-secondary underline underline-offset-2"
+        className="text-sm text-brand-link underline underline-offset-2"
       >
         Edit
       </button>

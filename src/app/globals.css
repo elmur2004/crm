@@ -18,6 +18,8 @@
   --color-brand-on-secondary: var(--color-on-secondary);
   --color-brand-accent: var(--color-accent);
   --color-brand-on-accent: var(--color-on-accent);
+  --color-brand-heading: var(--color-heading);
+  --color-brand-link: var(--color-link);
   --color-brand-ink: var(--color-ink);
   --color-brand-muted: var(--color-muted);
   --color-brand-surface: var(--color-surface);

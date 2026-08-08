@@ -169,11 +169,14 @@ export async function applyLeadEvent(opts: {
     throw new ApiError(result.code === "won_forbidden" ? 403 : 400, result.message);
   }
 
-  /* Required group payload is mandatory and must match the engine's demand. */
+  /* Required group payload is mandatory and must match the engine's demand.
+     Re-parsed here (not only at the API boundary) — the group schemas ARE the
+     completeness gates. */
   if (result.requiredGroup) {
     if (!opts.group || opts.group.group !== result.requiredGroup.group) {
       throw new ApiError(400, `This move requires the "${result.requiredGroup.group}" fields`);
     }
+    opts.group = groupPayloadSchema.parse(opts.group);
   }
 
   await db.$transaction(async (tx) => {
@@ -325,6 +328,8 @@ export async function persistGroup(
     });
   } else if (group === "numbers") {
     // PP-1: fields revealed, nothing persisted at move time
+  } else if (group === "won_partner" && payload.group === "won_partner") {
+    // PP-4: the gate data is consumed by the create_partner side effect, not a child record
   } else {
     throw new ApiError(400, `Group payload "${payload.group}" does not match required "${group}"`);
   }

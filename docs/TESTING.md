@@ -86,3 +86,38 @@ every dashboard formula, journeys 1-5 (SPEC §13).
 - SPEC coverage touched: §4 contract (token set-equality test now covers the three
   new names automatically), §5.1 single-source stage sets, §6.4/A-1 formula.
 - Verdict: PASS — both Phase 1 auditors' findings closed.
+
+## Run 007 — 2026-08-09 — Phase 2 App B suite + E2E journey 3
+- Suites/commands: `npm run typecheck` · `npm run build` (all /b-systems +
+  /api/b-systems + /api/files routes register; middleware migrated to Next 16's
+  proxy.ts convention) · `npx vitest run` (50: engine 27 + tokens 5 + leads
+  integration 10 + partners integration 8) · `npx playwright test` (journeys 1–3).
+- Cases: vitest 50 passed / 0 failed. Playwright 3 passed / 0 failed — journey 3
+  covers: prospect with playable mp3 recording → PP-1 Didn't Answer → Number 2 saved
+  → PP-2 auto-return (history [PP-2] visible) → meeting → attended→Won gate blocks
+  on missing Key person role/Address → complete gate → Won + Converted badge (A-5) →
+  Partner in directory with Date joined → partner lead added (PP-5) → next action →
+  CRM card bears "Partner: Fawzy Logistics" → live stage in the partner's table.
+- Failures: one flaky first-run timeout in journey 3 (dev-server first-compile of
+  the new partners routes; passed on re-run and in the final serial suite).
+- SPEC coverage touched: §7.2–§7.4 end-to-end; §10.2 PP-1…PP-5 at unit +
+  integration + E2E; §15 upload rules (type/size/content-sniff, authenticated
+  serving with Range support); §13 journey 3 PASS.
+- Verdict: PASS.
+
+## Run 008 — 2026-08-09 — Phase 2 gate fixes (brand audit + spec-guardian)
+- Suites/commands: typecheck · `npx vitest run` · `npx playwright test` after:
+  spec-guardian's fix (PP-2's normative History phrase "Returned to Lead — new
+  number added" now rendered by the History panel via a trigger→phrase map; stale-
+  stage 409 guard added to updateProspect) and brand-audit's fixes (NEW semantic
+  tokens `--color-heading`/`--color-link` in both brand files — violet in ByteForce,
+  Indigo in B-Systems — replacing the text-brand-secondary misuse that rendered
+  lavender-on-Paper headings/nav/links across App B; StatCard label → meta layer,
+  KPI value → body-bold per §4.3; hand-rolled caps → text-brand-meta; hover accent
+  unified to primary; spec-reference leaks stripped from UI copy).
+- Cases: vitest 50/0 · Playwright 3/0 (journeys 1–3).
+- Failures: none.
+- SPEC coverage touched: §4.3 typography/color mapping on shared components (both
+  brands re-verified); §7.2 PP-2 user-visible wording; ADR-019 contract grew two
+  names (set-equality test enforces both files).
+- Verdict: PASS — both Phase 2 auditors' findings closed.

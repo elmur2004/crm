@@ -255,7 +255,9 @@ export function LeadEventPanel({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  /* All stage/action sets come from the engine config — never hardcoded (§5.1). */
+  /* All stage/action sets come from the engine config — never hardcoded (§5.1).
+     The role argument is inert for internal pipelines (both staff roles get the
+     same sets); the server revalidates with the true role on every event. */
   const terminal = internalCrmConfig.terminalStages.includes(stage);
   const nextActions = internalCrmConfig.nextActions(stage, "byteforce_staff");
   const attendedDestinations = internalCrmConfig.attendedDestinations("byteforce_staff");

@@ -25,7 +25,7 @@ export function BrandLogo({
     );
   }
   return (
-    <span className="font-brand-display text-brand-secondary font-bold tracking-tight text-xl">
+    <span className="font-brand-display text-brand-heading font-bold tracking-tight text-xl">
       {assets.wordmark}
     </span>
   );

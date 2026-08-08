@@ -23,6 +23,8 @@
   --color-secondary: var(--bf-violet);
   --color-on-secondary: #FFFFFF;
   --color-accent: var(--bf-orange);       /* accent = the orange, in-palette */
+  --color-heading: var(--bf-violet);      /* §4.2: violet = headings/nav structure */
+  --color-link: var(--bf-violet);         /* §4.2: violet = links */
   --color-ink: var(--bf-ink);
   --color-muted: #6B6668;                 /* tint of ink for secondary text */
   --color-surface: var(--bf-offwhite);    /* page canvas — avoid pure #FFF walls */

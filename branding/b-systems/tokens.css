@@ -30,6 +30,8 @@
   --color-secondary: var(--bs-lavender);
   --color-on-secondary: var(--bs-indigodeep); /* text on lavender = deep indigo */
   --color-accent: var(--bs-pink);          /* CTAs, badges, single-word emphasis ONLY */
+  --color-heading: var(--bs-indigo);       /* §4.3: structural type on light = Indigo */
+  --color-link: var(--bs-indigo);          /* lavender is air, never text on Paper */
   --color-ink: var(--bs-indigodeep);
   --color-muted: #5A5F8F;                  /* indigo tint for secondary text */
   --color-surface: var(--bs-paper);

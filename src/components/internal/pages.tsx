@@ -38,7 +38,7 @@ export async function DashboardBody({ ctx }: { ctx: InternalAppCtx }) {
   const d = await internalDashboard(ctx.brand);
   return (
     <div className="space-y-6">
-      <h1 className="font-brand-display text-2xl font-bold text-brand-secondary">Home</h1>
+      <h1 className="font-brand-display text-2xl font-bold text-brand-heading">Home</h1>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <StatCard label="Total leads" value={String(d.totalLeads)} />
         <StatCard label="Pipeline value" value={formatEGP(d.pipelineValue)} hint="Active stages only" />
@@ -46,7 +46,7 @@ export async function DashboardBody({ ctx }: { ctx: InternalAppCtx }) {
         <StatCard label="To be collected" value={formatEGP(d.toBeCollected)} hint="Across all clients" />
       </div>
       <div>
-        <h2 className="text-sm font-bold text-brand-muted uppercase tracking-wide mb-2">
+        <h2 className="text-brand-meta text-brand-muted mb-2">
           Leads per stage
         </h2>
         <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
@@ -72,7 +72,7 @@ export async function LeadsBody({ ctx }: { ctx: InternalAppCtx }) {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-4">
-        <h1 className="font-brand-display text-2xl font-bold text-brand-secondary">Leads</h1>
+        <h1 className="font-brand-display text-2xl font-bold text-brand-heading">Leads</h1>
         <AddRepForm apiBase={ctx.apiBase} />
       </div>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -80,7 +80,7 @@ export async function LeadsBody({ ctx }: { ctx: InternalAppCtx }) {
           <Link
             key={rep.id}
             href={`${ctx.basePath}/leads/rep/${rep.id}`}
-            className="bg-brand-surface-card border border-brand-border rounded-brand-card shadow-brand-card p-4 hover:border-brand-secondary"
+            className="bg-brand-surface-card border border-brand-border rounded-brand-card shadow-brand-card p-4 hover:border-brand-primary"
           >
             <p className="font-bold">{rep.name}</p>
             <p className="text-sm text-brand-muted mt-1">
@@ -91,7 +91,7 @@ export async function LeadsBody({ ctx }: { ctx: InternalAppCtx }) {
         {unassigned > 0 ? (
           <Link
             href={`${ctx.basePath}/leads/rep/unassigned`}
-            className="bg-brand-surface-tint border border-brand-border rounded-brand-card p-4 hover:border-brand-secondary"
+            className="bg-brand-surface-tint border border-brand-border rounded-brand-card p-4 hover:border-brand-primary"
           >
             <p className="font-bold">Unassigned (Partner leads)</p>
             <p className="text-sm text-brand-muted mt-1">{unassigned} lead{unassigned === 1 ? "" : "s"}</p>
@@ -129,7 +129,7 @@ export async function RepLeadsBody({ ctx, repId }: { ctx: InternalAppCtx; repId:
           <Link href={`${ctx.basePath}/leads`} className="text-sm text-brand-muted underline underline-offset-2">
             Back to all reps
           </Link>
-          <h1 className="font-brand-display text-2xl font-bold text-brand-secondary">
+          <h1 className="font-brand-display text-2xl font-bold text-brand-heading">
             {rep ? rep.name : "Unassigned (Partner leads)"}
           </h1>
         </div>
@@ -152,7 +152,7 @@ export async function RepLeadsBody({ ctx, repId }: { ctx: InternalAppCtx; repId:
               {leads.map((lead) => (
                 <tr key={lead.id} className="border-b border-brand-border last:border-0 hover:bg-brand-surface-tint">
                   <td className="p-3">
-                    <Link href={`${ctx.basePath}/leads/lead/${lead.id}`} className="font-medium text-brand-secondary">
+                    <Link href={`${ctx.basePath}/leads/lead/${lead.id}`} className="font-medium text-brand-link">
                       {lead.name}
                     </Link>
                     {lead.partner ? (
@@ -197,7 +197,7 @@ export async function LeadDetailBody({ ctx, leadId }: { ctx: InternalAppCtx; lea
           <Link href={`${ctx.basePath}/crm`} className="text-sm text-brand-muted underline underline-offset-2">
             Back to the CRM board
           </Link>
-          <h1 className="font-brand-display text-2xl font-bold text-brand-secondary flex items-center gap-3 flex-wrap">
+          <h1 className="font-brand-display text-2xl font-bold text-brand-heading flex items-center gap-3 flex-wrap">
             {lead.name}
             <StageBadge stage={lead.stage} />
             {lead.partner ? (
@@ -234,7 +234,7 @@ export async function LeadDetailBody({ ctx, leadId }: { ctx: InternalAppCtx; lea
           </div>
 
           <div className="bg-brand-surface-card border border-brand-border rounded-brand-card p-4">
-            <h2 className="text-sm font-bold uppercase tracking-wide text-brand-muted mb-3">
+            <h2 className="text-brand-meta text-brand-muted mb-3">
               Next action
             </h2>
             <LeadEventPanel
@@ -251,7 +251,7 @@ export async function LeadDetailBody({ ctx, leadId }: { ctx: InternalAppCtx; lea
 
         <section className="space-y-4">
           <div>
-            <h2 className="text-sm font-bold uppercase tracking-wide text-brand-muted mb-2">
+            <h2 className="text-brand-meta text-brand-muted mb-2">
               Stage records
             </h2>
             <GroupHistory
@@ -263,7 +263,7 @@ export async function LeadDetailBody({ ctx, leadId }: { ctx: InternalAppCtx; lea
             />
           </div>
           <div className="bg-brand-surface-card border border-brand-border rounded-brand-card p-4">
-            <h2 className="text-sm font-bold uppercase tracking-wide text-brand-muted mb-2">
+            <h2 className="text-brand-meta text-brand-muted mb-2">
               History
             </h2>
             <HistoryPanel entries={history} />
@@ -318,13 +318,13 @@ export async function CrmBoardBody({ ctx }: { ctx: InternalAppCtx }) {
 
   return (
     <div className="space-y-6">
-      <h1 className="font-brand-display text-2xl font-bold text-brand-secondary">CRM</h1>
+      <h1 className="font-brand-display text-2xl font-bold text-brand-heading">CRM</h1>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 items-start">
         {BOARD_STAGES.map((stage) => {
           const cards = leads.filter((l) => l.stage === stage);
           return (
             <div key={stage} className="bg-brand-surface-tint rounded-brand-card p-2 min-h-24">
-              <p className="text-xs font-bold uppercase tracking-wide text-brand-muted px-1 pb-2">
+              <p className="text-brand-meta text-brand-muted px-1 pb-2">
                 {STAGE_LABELS[stage]} ({cards.length})
               </p>
               <div className="space-y-2">
@@ -332,7 +332,7 @@ export async function CrmBoardBody({ ctx }: { ctx: InternalAppCtx }) {
                   <Link
                     key={lead.id}
                     href={`${ctx.basePath}/leads/lead/${lead.id}`}
-                    className="block bg-brand-surface-card border border-brand-border rounded-brand-card p-3 shadow-brand-card hover:border-brand-secondary"
+                    className="block bg-brand-surface-card border border-brand-border rounded-brand-card p-3 shadow-brand-card hover:border-brand-primary"
                   >
                     <p className="font-medium text-sm">{lead.name}</p>
                     <p className="text-xs text-brand-muted mt-0.5">
@@ -364,7 +364,7 @@ export async function ClientsBody({ ctx }: { ctx: InternalAppCtx }) {
   const clients = await listClients(ctx.brand);
   return (
     <div className="space-y-6">
-      <h1 className="font-brand-display text-2xl font-bold text-brand-secondary">Clients</h1>
+      <h1 className="font-brand-display text-2xl font-bold text-brand-heading">Clients</h1>
       {clients.length === 0 ? (
         <p className="text-sm text-brand-muted">No clients yet — they appear automatically when a lead is Won.</p>
       ) : (

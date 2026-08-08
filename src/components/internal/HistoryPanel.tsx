@@ -1,7 +1,12 @@
 import { formatCairo } from "@/lib/datetime";
 import { STAGE_LABELS } from "@/lib/pipeline-engine/constants";
 
-/* §5.6 — the card's History panel: actor, timestamp, from → to, trigger. */
+/* §5.6 — the card's History panel: actor, timestamp, from → to, trigger.
+   Where SPEC prescribes exact History wording, the trigger maps to that phrase. */
+
+const TRIGGER_PHRASES: Record<string, string> = {
+  "PP-2": "Returned to Lead — new number added", // §7.2 / §10.2 normative wording
+};
 
 export function HistoryPanel({
   entries,
@@ -25,6 +30,9 @@ export function HistoryPanel({
         <li key={e.id} className="text-xs text-brand-muted flex flex-wrap gap-x-2">
           <span className="text-brand-ink font-medium">{formatCairo(e.createdAt)}</span>
           <span>{e.actorLabel}</span>
+          {TRIGGER_PHRASES[e.trigger] ? (
+            <span className="text-brand-ink">{TRIGGER_PHRASES[e.trigger]}</span>
+          ) : null}
           <span>
             {e.action === "auto_transfer" ? "auto-moved" : e.action.replace(/_/g, " ")}
             {e.fromStage || e.toStage ? (
