@@ -1,0 +1,48 @@
+/* =========================================================================
+   ByteForce brand tokens — CANONICAL. Do not hardcode these values anywhere
+   else; components consume the semantic variables only.
+   Source: official "BYTEFORCE Brand Guidelines" PDF (in this folder).
+   Royal Violet is #53449B per the official book — see docs/DECISIONS.md
+   ADR-001 (supersedes #4B3B9C from an earlier design kit).
+   ========================================================================= */
+
+:root[data-brand="byteforce"] {
+  /* Brand palette */
+  --bf-orange: #F15C24;        /* Bold Orange  — primary / CTA / logo frame */
+  --bf-violet: #53449B;        /* Royal Violet — secondary / headings / nav */
+  --bf-ink:    #231F20;        /* Ink          — body text */
+  --bf-gray:   #E6E7E8;        /* Light Gray   — borders / dividers / muted */
+  --bf-offwhite: #F4F1EA;      /* Off-white    — working surface (design kit) */
+
+  /* Semantic tokens (what components actually use) */
+  --color-primary: var(--bf-orange);
+  --color-on-primary: #FFFFFF;
+  --color-secondary: var(--bf-violet);
+  --color-on-secondary: #FFFFFF;
+  --color-ink: var(--bf-ink);
+  --color-muted: #6B6668;                 /* tint of ink for secondary text */
+  --color-surface: var(--bf-offwhite);    /* page canvas — avoid pure #FFF walls */
+  --color-surface-card: #FFFFFF;          /* cards may sit white on off-white */
+  --color-border: var(--bf-gray);
+  --color-danger: #C0392B;                /* functional only (errors), used sparingly */
+  --color-success: var(--bf-violet);      /* stay in-palette: violet, not green */
+
+  /* Typography — Lama Sans everywhere (Regular 400 / Bold 700).
+     Font files: ./fonts/ (pending, A-13). "Point" display face only if supplied. */
+  --font-display: "Lama Sans", "Point", ui-sans-serif, system-ui, "Segoe UI", Arial, sans-serif;
+  --font-body:    "Lama Sans", ui-sans-serif, system-ui, "Segoe UI", Arial, sans-serif;
+  --font-mono:    ui-monospace, "Cascadia Mono", monospace;
+
+  /* Shape & effects — working defaults (not brand-mandated) */
+  --radius-card: 12px;
+  --radius-control: 8px;
+  --shadow-card: 0 1px 3px rgba(35, 31, 32, 0.10);
+  --gradient-hero: none; /* ByteForce has no gradient language — flat color blocks */
+}
+
+/* Rules encoded as comments (enforced by /brand-audit):
+   - Only the five values above appear anywhere in App A. No green/teal/blue accents.
+   - Orange = action & emphasis; Violet = structure (headings, nav, links).
+   - Bilingual EN/AR: use CSS logical properties; layouts must survive dir="rtl".
+   - No emoji in UI copy. Bubble pattern = subtle texture only, never behind body text.
+   - Logo: never rotate, recolor, stretch, add effects, or place on busy/red backgrounds. */

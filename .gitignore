@@ -1,0 +1,14 @@
+node_modules/
+.next/
+dist/
+build/
+coverage/
+playwright-report/
+test-results/
+uploads/
+*.log
+.env
+.env.*
+!.env.example
+.DS_Store
+.claude/settings.local.json

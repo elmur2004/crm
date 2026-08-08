@@ -1,0 +1,75 @@
+/* =========================================================================
+   B-Systems brand tokens — CANONICAL for Apps B (B-Systems CRM) and C
+   (Partnership Portal). Do not hardcode these values anywhere else.
+   Source: "B-Systems Brand Guidelines · Edition 01 · April 2026" (this folder).
+   Distribution rule: Indigo 60 · Lavender 28 · Pink 12. Pink is the cue,
+   never the canvas. Paper, never pure #FFFFFF.
+   ========================================================================= */
+
+:root[data-brand="bsystems"] {
+  /* The brand three */
+  --bs-indigo:   #1D267D;   /* Systems Indigo  — 60% — the anchor */
+  --bs-lavender: #D4ADFC;   /* Process Lavender — 28% — the air   */
+  --bs-pink:     #FF4F87;   /* Signal Pink      — 12% — the cue   */
+
+  /* Supporting tokens */
+  --bs-paper:        #FAFAFD;  /* default canvas — NEVER pure #FFFFFF */
+  --bs-lavendermist: #E8D4FE;  /* cards, callouts, secondary surfaces */
+  --bs-indigodeep:   #0B0F3D;  /* dramatic dark canvas + max-contrast text */
+
+  /* Gradient mid-stops (only valid inside the signature gradient) */
+  --bs-grad-mid-1: #4A2A8E;
+  --bs-grad-mid-2: #8B3A95;
+
+  /* Semantic tokens (what components actually use) */
+  --color-primary: var(--bs-indigo);
+  --color-on-primary: var(--bs-paper);
+  --color-secondary: var(--bs-lavender);
+  --color-accent: var(--bs-pink);          /* CTAs, badges, single-word emphasis ONLY */
+  --color-ink: var(--bs-indigodeep);
+  --color-muted: #5A5F8F;                  /* indigo tint for secondary text */
+  --color-surface: var(--bs-paper);
+  --color-surface-tint: var(--bs-lavendermist);
+  --color-surface-dark: var(--bs-indigodeep);
+  --color-border: #E3E1F2;                 /* indigo-tinted hairline */
+  --color-danger: var(--bs-pink);          /* stay in-palette; pink doubles as alert cue */
+  --color-success: var(--bs-indigo);       /* no green anywhere — vary palette tints */
+
+  /* Signature gradient — HERO MOMENTS ONLY (login hero, landing header,
+     cover-style panels, primary CTA moments). Never a default background.
+     135° fixed. Never radial. Never reversed — pink is the exit. */
+  --gradient-hero: linear-gradient(135deg,
+      #0B0F3D 0%, #1D267D 25%, #4A2A8E 55%, #8B3A95 75%, #FF4F87 100%);
+
+  /* Typography (Google Fonts): Raleway display / Inter body / JetBrains Mono meta */
+  --font-display: "Raleway", ui-sans-serif, system-ui, sans-serif;
+  --font-body:    "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono:    "JetBrains Mono", ui-monospace, monospace;
+
+  /* Type scale (from the brand book)
+     H1 Raleway 800/64 · H2 700/40 · H3 600/26 · H4 500/20 (tracking -2%..-3.5% on 700-800)
+     Body-lg Inter 400/17 · Body Inter 400/14 (lh 1.55) · UI Inter 500 · Data Inter 700
+     Meta JetBrains Mono 500/10-12, UPPERCASE, letter-spacing 0.22em */
+
+  /* Shape & effects — working defaults (not brand-mandated) */
+  --radius-card: 14px;
+  --radius-control: 10px;
+  --shadow-card: 0 1px 3px rgba(11, 15, 61, 0.08);
+}
+
+/* System mesh — texture over hero gradients ONLY (never behind body text,
+   never a primary graphic). White lines ~4% strength, 60-80px spacing. */
+.bs-mesh {
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+  background-size: 60px 60px;
+}
+
+/* Rules encoded as comments (enforced by /brand-audit):
+   - Pink is never a page/section background and never body text.
+   - No colors outside this file in Apps B & C — charts vary tints of the palette.
+   - Gradient only in hero components; gradient logo never sits on a gradient.
+   - Raleway above, Inter below: >2 lines of text = Inter.
+   - UI copy voice: clear, confident, structured, direct. CTAs state direct value —
+     never "discover", "unlock", "elevate". */
