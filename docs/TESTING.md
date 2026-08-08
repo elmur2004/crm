@@ -25,3 +25,34 @@ every dashboard formula, journeys 1-5 (SPEC §13).
 - SPEC coverage touched: §4.1 (data-brand root-layout structure builds), §4 token
   contract. No §10 rows yet — engine lands in Phase 0 proper.
 - Verdict: PASS — all 21 verification-workflow findings fixed with the suite green.
+
+## Run 003 — 2026-08-08 — Phase 0 foundation suite + boot/auth smoke
+- Suites/commands: `npm test` (vitest: engine transition suite + brand-token guard) ·
+  `npm run typecheck` · `npm run build` · `npx prisma db seed` (after fixing a
+  corrupted .env — see IMPLEMENTATION.md) · production-server smoke via curl.
+- Cases: 32 passed / 0 failed / 0 skipped (27 engine + 5 token-guard). Smoke: all
+  public routes 200; `data-brand` correct per route group; unauthenticated /byteforce
+  → 307 to /byteforce/login; credentials login round-trip (CSRF → POST → session)
+  renders the seeded user's name; a byteforce_staff session hitting /b-systems is
+  redirected to /b-systems/login (role isolation).
+- Failures: none.
+- SPEC coverage touched: EVERY §10 row at engine level — T-1…T-10, PP-1…PP-4
+  (+ PP-2 illegal case), P-1…P-6 (P-2 across drag/action/destination/admin_won paths);
+  illegal moves (terminal stages, drag on internal per A-7, invalid destinations).
+  PP-5 (attribution) and P-7/P-8 (milestones) are service-level — integration tests
+  land with Phases 2 and 4 respectively. §3 role isolation smoke-verified.
+- Verdict: PASS — Phase 0 foundation green.
+
+## Run 004 — 2026-08-08 — Phase 0 gate fixes (brand audit + spec-guardian)
+- Suites/commands: `npm test` · `npm run typecheck` · `npm run build` after fixing
+  the brand-auditor's 5 findings (literal fallbacks out of globals.css; neutral shell
+  styling moved to src/themes/neutral.css; mesh scoped off the landing tagline) and
+  the spec-guardian's 4 (ADR-020 terminal-wins; ADR-021 trigger convention applied
+  to partners/portal meeting outcomes; admin attended→Won now logs P-6; T-8
+  cancelled→Lost and cancelled-without-destination branches added).
+- Cases: 32 passed / 0 failed / 0 skipped (assertion count grew inside existing
+  cases; both audit re-checks clean).
+- Failures: none.
+- SPEC coverage touched: T-8 full branch coverage; ADR-021 trigger ids asserted for
+  partners (PP-3) and portal (P-3/P-5/P-6) outcomes.
+- Verdict: PASS — both gate auditors' findings closed.

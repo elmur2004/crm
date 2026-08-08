@@ -50,3 +50,26 @@ Read the latest entry at every session start; append one at every session end
   App A; (7) ADR-016 admin provisioning via seed + email login on the portal form;
   (8) ADR-018 money as Int piasters with ~21.4M EGP per-value cap (confirm typical
   deal sizes fit).
+
+## Entry 002 — 2026-08-08 — PHASE 0 GATE REPORT
+Phase 0 — Foundation (SPEC §14). Verdict: **PASS**.
+
+| DoD item | Verdict | Evidence |
+|---|---|---|
+| Repo + stack (§2) | PASS | package.json (exact versions in ARCHITECTURE §2); TESTING Runs 001–004 all green (build, typecheck, prisma generate/migrate/seed) |
+| Auth + roles (§3) | PASS | NextAuth v5 two-provider split config, guards with per-request DB re-check (ADR-017), middleware registered as Next 16 Proxy; smoke: login round-trip renders seeded user, cross-brand session redirected (Run 003) |
+| Theming wired to both token files (§4) | PASS | Route-group root layouts stamp data-brand; brand utilities resolve in built CSS; both themes demonstrable at /byteforce/login vs /b-systems/login vs /portal; brand-auditor PASS after 5 fixes (Run 004) |
+| Pipeline-engine module + unit tests | PASS | src/lib/pipeline-engine/ pure core + 3 configs; every §10 row unit-tested (27 engine cases, Runs 003–004); spec-guardian PASS after 4 fixes (ADR-020/021) |
+| Seed script scaffold | PASS | prisma/seed.ts idempotent; 4 accounts (incl. A-8 dual-role + ADR-016 seeded admin) + 4 rep cards; `prisma db seed` green |
+| ARCHITECTURE.md v1 | PASS | Completed + adversarially verified in the kickoff session (Entry 001) |
+
+- Done this session (so far): full Phase 0 as above; gate cross-checks by
+  spec-guardian and brand-auditor subagents, all findings fixed same-session
+  (ADR-020, ADR-021; brand fixes in globals.css/(home)/portal landing).
+- Next steps: Phase 1 — App A ByteForce CRM (§6): services + brand-partitioned API,
+  Leads/CRM/Clients/Dashboard UI, T-1…T-10 integration tests, journeys 1–2,
+  /brand-audit, then the Phase 1 gate.
+- Blockers: none.
+- Needs founder confirmation (carried + new): items (1)–(8) of Entry 001, plus
+  (9) ADR-020 — terminal stages win over P-1/P-6's literal "From: Any" (no un-win
+  flow in v1).

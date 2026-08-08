@@ -1,7 +1,7 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
+// Physical schema — implements docs/ARCHITECTURE.md §5 (normative design there).
+// SQLite dev / Postgres prod (ADR-002): enum-like columns are String (validated by
+// Zod + typed unions in src/lib/pipeline-engine/constants.ts); money is Int piasters
+// (ADR-018). Field groups are child records so history accumulates (SPEC §5.2, A-2).
 
 generator client {
   provider = "prisma-client"
@@ -10,4 +10,300 @@ generator client {
 
 datasource db {
   provider = "sqlite"
+}
+
+model User {
+  id           String     @id @default(cuid())
+  name         String
+  email        String?    @unique // internal staff login (ADR-008)
+  phone        String?    @unique // portal login, normalized (ADR-008)
+  passwordHash String
+  active       Boolean    @default(true) // A-4: admin can deactivate reps
+  roles        UserRole[] // A-8: one account may hold several roles
+  portalRep    PortalRep?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+}
+
+model UserRole {
+  // roles: byteforce_staff | bsystems_staff | portal_admin | portal_rep
+  userId String
+  role   String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, role])
+}
+
+model SalesRep {
+  // internal rep cards (§6.1) — not accounts
+  id             String     @id @default(cuid())
+  brand          String // byteforce | bsystems
+  name           String
+  leads          Lead[]
+  ownedFollowUps FollowUp[] // §6.2 "Owner | rep select"
+
+  @@index([brand])
+}
+
+model Lead {
+  // Apps A & B (§6.1, §7.4)
+  id          String     @id @default(cuid())
+  brand       String // byteforce | bsystems
+  salesRepId  String? // A-6: null = "Unassigned (Partner leads)"
+  source      String     @default("direct") // direct | partner (§5.5)
+  partnerId   String? // attribution — permanent once set
+  name        String
+  number      String
+  email       String?
+  type        String // cold_call | event_data | personal_connection | campaign_lead
+  description String?
+  stage       String     @default("new") // new | following_up | meeting_setting | sending_proposal | won | lost
+  salesRep    SalesRep?  @relation(fields: [salesRepId], references: [id])
+  partner     Partner?   @relation(fields: [partnerId], references: [id])
+  followUps   FollowUp[]
+  meetings    Meeting[]
+  proposals   Proposal[]
+  lostInfo    LostInfo[]
+  wonInfo     WonInfo?
+  client      Client?
+  createdAt   DateTime   @default(now()) // §7.4 "Date created"
+  updatedAt   DateTime   @updatedAt
+
+  @@index([brand, stage])
+  @@index([brand, salesRepId])
+  @@index([partnerId])
+}
+
+model FollowUp {
+  // §6.2 — history accumulates (§5.2). Exactly one parent FK set (service invariant);
+  // owner ref type matches the parent pipeline (SalesRep internal, PortalRep portal).
+  id                String           @id @default(cuid())
+  leadId            String?
+  partnerProspectId String?
+  portalDealId      String?
+  context           String // initial | after_proposal | after_meeting
+  dueAt             DateTime // ONE UTC instant; UI splits date+time in Africa/Cairo
+  method            String // call | message | visit
+  ownerSalesRepId   String?
+  ownerPortalRepId  String?
+  followingUpWith   String? // contact person
+  lead              Lead?            @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  prospect          PartnerProspect? @relation(fields: [partnerProspectId], references: [id], onDelete: Cascade)
+  deal              PortalDeal?      @relation(fields: [portalDealId], references: [id], onDelete: Cascade)
+  ownerSalesRep     SalesRep?        @relation(fields: [ownerSalesRepId], references: [id])
+  ownerPortalRep    PortalRep?       @relation(fields: [ownerPortalRepId], references: [id])
+  createdAt         DateTime         @default(now())
+}
+
+model Meeting {
+  // §6.2
+  id                 String           @id @default(cuid())
+  leadId             String?
+  partnerProspectId  String?
+  portalDealId       String?
+  arranged           Boolean          @default(false)
+  datetime           DateTime? // required once arranged (Zod)
+  mode               String? // online | offline
+  withAttendees      String?
+  technicalSupport   String?
+  outcome            String? // attended | cancelled | delayed
+  outcomeDestination String? // T-6/T-8 destination once outcome set
+  lead               Lead?            @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  prospect           PartnerProspect? @relation(fields: [partnerProspectId], references: [id], onDelete: Cascade)
+  deal               PortalDeal?      @relation(fields: [portalDealId], references: [id], onDelete: Cascade)
+  createdAt          DateTime         @default(now())
+}
+
+model Proposal {
+  // §6.2 — not used by Partners pipeline (ADR-010)
+  id             String      @id @default(cuid())
+  leadId         String?
+  portalDealId   String?
+  service        String
+  estimatedValue Int? // piasters (ADR-018)
+  sent           Boolean     @default(false) // checking fires T-5 / P-4
+  sentAt         DateTime?
+  lead           Lead?       @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  deal           PortalDeal? @relation(fields: [portalDealId], references: [id], onDelete: Cascade)
+  createdAt      DateTime    @default(now())
+}
+
+model LostInfo {
+  // §6.2 — reason required (T-4)
+  id                String           @id @default(cuid())
+  leadId            String?
+  partnerProspectId String?
+  portalDealId      String?
+  reason            String
+  lead              Lead?            @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  prospect          PartnerProspect? @relation(fields: [partnerProspectId], references: [id], onDelete: Cascade)
+  deal              PortalDeal?      @relation(fields: [portalDealId], references: [id], onDelete: Cascade)
+  createdAt         DateTime         @default(now())
+}
+
+model WonInfo {
+  // internal Won fields (§6.2, T-9)
+  id              String   @id @default(cuid())
+  leadId          String   @unique
+  estimatedValue  Int // piasters; prefilled from latest proposal (ADR-012)
+  technicalOwner  String
+  collectedAmount Int // piasters
+  lead            Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  createdAt       DateTime @default(now())
+}
+
+model Client {
+  // §6.4 — auto-created on Won (A-1)
+  id             String    @id @default(cuid())
+  brand          String
+  leadId         String?   @unique
+  name           String
+  number         String
+  service        String?
+  estimatedValue Int? // piasters
+  collected      Int? // piasters
+  toBeCollected  Int? // piasters; default estimated − collected, editable
+  dueDate        DateTime?
+  retainer       Boolean   @default(false)
+  technicalOwner String?
+  lead           Lead?     @relation(fields: [leadId], references: [id])
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([brand])
+}
+
+model PartnerProspect {
+  // App B partners pipeline (§7.2)
+  id               String       @id @default(cuid())
+  name             String
+  companyName      String
+  role             String?
+  email            String?
+  number           String
+  number2          String? // saving non-empty fires PP-2 auto-return
+  number3          String? //   (max two extra numbers)
+  businessActivity String
+  description      String?
+  stage            String       @default("lead") // lead | didnt_answer | following_up | meeting_setting | won | lost
+  converted        Boolean      @default(false) // PP-4 "Converted" badge (A-5)
+  followUps        FollowUp[]
+  meetings         Meeting[]
+  lostInfo         LostInfo[]
+  recordings       Attachment[]
+  partner          Partner?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  @@index([stage])
+}
+
+model Partner {
+  // §7.3 directory — created by PP-4 gate
+  id               String          @id @default(cuid())
+  prospectId       String          @unique
+  companyName      String
+  keyPersonName    String
+  keyPersonRole    String
+  address          String
+  number           String
+  email            String?
+  businessActivity String
+  importance       String // high | medium | low
+  dateJoined       DateTime        @default(now())
+  prospect         PartnerProspect @relation(fields: [prospectId], references: [id])
+  leads            Lead[] // §7.4 — live link, not a copy
+}
+
+model PortalRep {
+  // §8.1 — profile over a User account
+  id             String       @id @default(cuid())
+  userId         String       @unique
+  firstName      String
+  lastName       String
+  address        String
+  speciality     String
+  cv             Attachment?
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deals          PortalDeal[]
+  ownedFollowUps FollowUp[] // §6.2 owner select on portal deals
+}
+
+model PortalDeal {
+  // §8.2
+  id           String     @id @default(cuid())
+  repId        String // owner — rep isolation enforced in guards
+  name         String
+  position     String
+  number       String
+  email        String?
+  companyName  String
+  industry     String
+  requirements String?
+  stage        String     @default("leads") // leads | following_up | meeting_setting | proposal_sending | won | lost
+  rep          PortalRep  @relation(fields: [repId], references: [id])
+  followUps    FollowUp[]
+  meetings     Meeting[]
+  proposals    Proposal[]
+  lostInfo     LostInfo[]
+  wonDeal      WonDeal?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@index([repId, stage])
+}
+
+model WonDeal {
+  // §8.3 — auto-created by P-6 (admin only). Deal identity fields read via relation.
+  id              String      @id @default(cuid())
+  dealId          String      @unique
+  estimatedValue  Int? // piasters; admin-filled (§8.5.3)
+  totalCommission Int? // piasters
+  deal            PortalDeal  @relation(fields: [dealId], references: [id])
+  milestones      Milestone[]
+  createdAt       DateTime    @default(now())
+}
+
+model Milestone {
+  // §8.3/§8.5 — P-7/P-8 locking; value hidden from rep while locked (server-side redaction)
+  id          String    @id @default(cuid())
+  wonDealId   String
+  index       Int // 1-based; i+1 locked until i completed
+  value       Int // piasters
+  completed   Boolean   @default(false) // admin-only mutation
+  completedAt DateTime?
+  wonDeal     WonDeal   @relation(fields: [wonDealId], references: [id], onDelete: Cascade)
+
+  @@unique([wonDealId, index])
+}
+
+model Attachment {
+  // §9 — CVs + cold-call recordings
+  id                String           @id @default(cuid())
+  kind              String // cv | recording
+  portalRepId       String?          @unique
+  partnerProspectId String?
+  filename          String // original, sanitized
+  storageKey        String // storage-abstraction key, not a path
+  mime              String // validated: cv pdf/doc/docx ≤10MB; recording mp3/mp4 ≤50MB (§15)
+  size              Int
+  rep               PortalRep?       @relation(fields: [portalRepId], references: [id])
+  prospect          PartnerProspect? @relation(fields: [partnerProspectId], references: [id], onDelete: Cascade)
+  createdAt         DateTime         @default(now())
+}
+
+model ActivityLog {
+  // §5.6 — product feature, not just audit
+  id         String   @id @default(cuid())
+  entityType String // lead | partner_prospect | portal_deal | won_deal | client | partner
+  entityId   String
+  actorId    String? // User id; null = system/automation
+  actorLabel String // denormalized display name (survives edits)
+  action     String // stage_change | auto_transfer | create | milestone_check | milestone_uncheck | …
+  fromStage  String?
+  toStage    String?
+  trigger    String // §10 row id (T-5, PP-2, P-6, …) or verb
+  createdAt  DateTime @default(now())
+
+  @@index([entityType, entityId, createdAt])
 }

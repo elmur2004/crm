@@ -274,3 +274,32 @@ history; supersede with a new ADR.
   into components, exactly what §4.1 forbids).
 - Resolves: §4.1 semantic-token contract completeness
 - Status: Accepted
+
+## ADR-020 — 2026-08-08 — Terminal stages win over P-1/P-6's "From: Any"
+- Context: SPEC §5.1 declares won/lost terminal, but §10.3 writes P-1's and P-6's
+  From column as "Any" (the T-rows say "Any active") — internal tension the Phase 0
+  spec-guardian review flagged. The engine rejects every event from a terminal stage,
+  including an admin dragging a card out of Won.
+- Decision: Terminal semantics win — no card leaves won/lost via pipeline events in
+  v1. "From: Any" in P-1/P-6 is read as "any active". Won-deal corrections happen
+  through the admin's Won Deals management (values/milestones), not by re-staging;
+  an admin uncheck of a milestone is the sanctioned correction path (P-8's "logged"
+  reversal).
+- Alternatives considered: allowing admin-only exits from Won (invents an
+  un-specced un-win flow with cascading WonDeal cleanup semantics).
+- Resolves: §5.1/§10.3 tension — flagged for founder confirmation
+- Status: Accepted
+
+## ADR-021 — 2026-08-08 — ActivityLog.trigger cites the owning pipeline's §10 row id
+- Context: §10.2 PP-3 and §10.3 P-3 "import" T-6…T-8 logic. The engine originally
+  logged the T-row ids on partners/portal meeting outcomes, so one partners card's
+  history mixed PP-3 (actions) with T-6/T-7/T-8 (outcomes) — inconsistent with §9's
+  "trigger: §10 row id" read against the owning table. The admin attended→Won path
+  also logged P-5 though its behavior is exactly P-6.
+- Decision: trigger always cites the OWNING pipeline's row: internal outcomes →
+  T-6/T-7/T-8; partners outcomes → PP-3; portal delayed/cancelled → P-3, attended →
+  P-5 (rep destinations) or P-6 (admin → Won). Asserted in the engine unit tests.
+- Alternatives considered: citing the imported T-row everywhere (loses the
+  per-pipeline audit grouping §10's tables define).
+- Resolves: §9/§10 labeling consistency
+- Status: Accepted

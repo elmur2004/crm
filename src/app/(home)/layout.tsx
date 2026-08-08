@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "../globals.css";
+import "@/themes/neutral.css";
 
 /* Root layout for the brand-neutral entry only (ADR-007). There is deliberately
    NO top-level src/app/layout.tsx: each route group owns its <html> element so the

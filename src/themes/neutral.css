@@ -1,0 +1,9 @@
+/* Brand-neutral shell styling for the (home) route group only (ADR-007).
+   src/themes/ is inside the brand-audit allowlist — this is the sanctioned home for
+   the neutral system-font stack; components never declare font/color literals. */
+
+body {
+  font-family: ui-sans-serif, system-ui, "Segoe UI", Arial, sans-serif;
+  background-color: #ffffff; /* neutral shell only — never a branded surface */
+  color: #171717;
+}

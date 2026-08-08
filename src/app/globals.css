@@ -7,5 +7,52 @@
 
 @import "tailwindcss";
 
-/* Tailwind utility ↔ token mapping (bg-brand-primary, text-brand-ink, …) is wired
-   in Phase 0 with the ThemeProvider — see docs/ARCHITECTURE.md §6. */
+/* Tailwind ↔ token mapping (ADR-004). `inline` emits the var() reference into each
+   utility, so bg-brand-primary etc. resolve at runtime against the active
+   [data-brand] scope. Components use ONLY these brand-prefixed utilities (or the
+   semantic vars directly) — never raw values (/brand-audit). */
+@theme inline {
+  --color-brand-primary: var(--color-primary);
+  --color-brand-on-primary: var(--color-on-primary);
+  --color-brand-secondary: var(--color-secondary);
+  --color-brand-on-secondary: var(--color-on-secondary);
+  --color-brand-accent: var(--color-accent);
+  --color-brand-ink: var(--color-ink);
+  --color-brand-muted: var(--color-muted);
+  --color-brand-surface: var(--color-surface);
+  --color-brand-surface-card: var(--color-surface-card);
+  --color-brand-surface-tint: var(--color-surface-tint);
+  --color-brand-surface-dark: var(--color-surface-dark);
+  --color-brand-border: var(--color-border);
+  --color-brand-danger: var(--color-danger);
+  --color-brand-success: var(--color-success);
+  --font-brand-display: var(--font-display);
+  --font-brand-body: var(--font-body);
+  --font-brand-mono: var(--font-mono);
+  --radius-brand-card: var(--radius-card);
+  --radius-brand-control: var(--radius-control);
+  --shadow-brand-card: var(--shadow-card);
+}
+
+/* Signature gradient — hero components only (§4.3). */
+@utility bg-brand-hero {
+  background: var(--gradient-hero);
+}
+
+/* B-Systems meta type style (JetBrains Mono 500, ALL CAPS, +0.22em) — §4.3. */
+@utility text-brand-meta {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.22em;
+  font-size: 0.6875rem;
+}
+
+/* Tokens only — no literal fallbacks: a missing brand scope must fail loudly, not
+   mask itself with a white canvas (brand-audit rule 1). The brand-neutral (home)
+   shell styles itself via src/themes/neutral.css. */
+body {
+  background-color: var(--color-surface);
+  color: var(--color-ink);
+  font-family: var(--font-body);
+}

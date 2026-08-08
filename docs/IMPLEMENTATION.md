@@ -48,6 +48,62 @@ _Format per module:_
     layout — it silently kills all brand theming.
 - Last updated: 2026-08-08 (Entry 001, ADR-002…005, ADR-010…019)
 
+## Pipeline engine (Phase 0)
+- Location: `src/lib/pipeline-engine/` — constants.ts (every enum union + labels),
+  types.ts (engine contract), transition.ts (pure core), configs/{internal-crm,
+  partners,portal}.ts, index.ts barrel, transition.test.ts (every §10 row).
+- What exists / how it works: `transition(config, {stage}, event, {role})` returns
+  `{toStage, requiredGroup, sideEffects[], logTrigger, auto}` or a typed reject.
+  Events: next_action, drag (portal only), proposal_sent, meeting_outcome,
+  number_added, admin_won. The engine never touches the DB — services (Phase 1+)
+  persist the move + group + side effects in one transaction and write ActivityLog
+  from `logTrigger` (T-10). Follow-up context is derived from the ORIGIN stage
+  (T-1 "context per origin"): proposal stage → after_proposal, meeting stage →
+  after_meeting, else initial — this applies to drags too.
+- Limitations / gotchas: T-8 cancelled→Following Up also yields context
+  after_meeting (the origin rule; UI titles it "Following up after meeting").
+  PP-2's "max two extra numbers" is structural (only number2/number3 columns exist;
+  services reject when both are filled). Won gate completeness (PP-4) is enforced by
+  the Zod schema of the `won_partner` group at the service boundary, not inside the
+  pure engine.
+- Last updated: 2026-08-08 (Entry 002, TESTING Run 003)
+
+## Auth (Phase 0)
+- Location: `src/lib/auth/` — index.ts (NextAuth v5, two Credentials providers),
+  config.ts (edge-safe split config), guards.ts (ApiError, requireUser/requireRole/
+  requireBrandStaff/requirePortalAdmin/requireDealAccess, handleRoute wrapper),
+  hash.ts (bcryptjs cost 12), phone.ts (normalization + identifier kind), actions.ts
+  (login/logout server actions); src/middleware.ts (coarse gating);
+  src/app/api/auth/[...nextauth]/route.ts.
+- What exists / how it works: JWT sessions carry {userId, roles[]}; guards re-read
+  active+roles from DB per request (ADR-017). Providers enforce side separation:
+  `internal` authenticates staff roles only, `portal` authenticates portal roles only
+  (§3 "apps invisible across sides" starts at login). Middleware registers as
+  Next 16 "Proxy" from src/middleware.ts (filename still supported).
+- Limitations / gotchas: **prisma init's .env has no trailing newline** — appending
+  vars with `>>` corrupts DATABASE_URL (cost a debugging round; .env rewritten).
+  Prisma 7 requires a driver adapter: `@prisma/adapter-better-sqlite3` (export name
+  is `PrismaBetterSqlite3`, lowercase "qlite"). AUTH_SECRET is generated into .env;
+  `trustHost: true` is set for the single self-hosted deployment.
+- Last updated: 2026-08-08 (Entry 002, TESTING Run 003)
+
+## Theming (Phase 0)
+- Location: src/app/globals.css (@theme inline mapping + bg-brand-hero/text-brand-meta
+  utilities), src/app/(byteforce)/layout.tsx, src/app/(bsystems)/layout.tsx,
+  src/themes/assets.ts, src/components/shared/BrandLogo.tsx, public/brand/ (served
+  copies of branding/ logos).
+- What exists / how it works: brand-prefixed utilities (bg-brand-primary,
+  font-brand-display, rounded-brand-card, …) resolve at runtime against the active
+  [data-brand] scope — verified in the built CSS. Fonts: fontsource packages
+  (@fontsource/raleway 500-800, inter 400/500/700, jetbrains-mono 500) imported in
+  the (bsystems) root layout — @font-face under literal family names, satisfying
+  ADR-013 (refinement: files ship via npm instead of public/fonts/, same mechanism).
+  Lama Sans still pending (A-13) — branding/byteforce/fonts/ exists but is empty.
+- Limitations / gotchas: logos must be copied from branding/ to public/brand/ when
+  founder drops new files (Next serves /public only); BrandLogo renders a
+  typographic fallback for missing slots.
+- Last updated: 2026-08-08 (Entry 002)
+
 ## Kickoff verification round
 - Location: docs/ARCHITECTURE.md, docs/DECISIONS.md, branding/*/tokens.css, scaffold.
 - What exists / how it works: a 10-agent adversarial workflow (5 review dimensions ×
