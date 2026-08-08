@@ -25,3 +25,252 @@ history; supersede with a new ADR.
   official brand book wins).
 - Resolves: —
 - Status: Accepted
+
+## ADR-002 — 2026-08-08 — SQLite for local dev, PostgreSQL for production (Prisma 7)
+- Context: SPEC §2 defaults to "PostgreSQL via Prisma (SQLite acceptable for local dev)".
+  The dev machine is Windows with no Postgres service guaranteed; Phase 0 needs a
+  zero-setup database. Prisma resolved to v7.9.1, which uses `prisma.config.ts` (env-based
+  datasource url) and the new `prisma-client` generator (output `generated/prisma`,
+  gitignored).
+- Decision: `provider = "sqlite"` with `DATABASE_URL="file:./dev.db"` for all local dev
+  and testing; production deploys switch the datasource provider to `postgresql` and
+  regenerate migrations before first deploy. Schema stays within the type surface both
+  support (no Postgres-only native types without an ADR).
+- Alternatives considered: Postgres-in-Docker locally (heavier setup, blocks a cold
+  start on machines without Docker); hosted dev Postgres (network dependency, secrets in
+  dev).
+- Resolves: — (closes ARCHITECTURE.md open question "Postgres locally vs SQLite-dev")
+- Status: Accepted
+
+## ADR-003 — 2026-08-08 — NextAuth v5 beta (Auth.js) over stable v4
+- Context: SPEC §2 names "NextAuth (credentials) or equivalent session auth". npm
+  `latest` is still v4.24.15 (Pages-Router era API); v5 (`next-auth@5.0.0-beta.32`) is
+  the App-Router-native line (route-handler `handlers`, `auth()` in server components
+  and middleware) and the de-facto standard with Next.js App Router despite the beta tag.
+- Decision: next-auth v5 beta with the Credentials provider, JWT session strategy,
+  role claim in the session token, bcryptjs-hashed passwords. Pinned via package.json;
+  upgrade to a stable 5.x when published.
+- Alternatives considered: next-auth v4 (stable tag but awkward with App Router,
+  legacy API); Lucia/hand-rolled sessions (more code to audit, SPEC prefers NextAuth).
+- Resolves: —
+- Status: Accepted
+
+## ADR-004 — 2026-08-08 — Tailwind CSS v4 (CSS-first) mapped to brand tokens
+- Context: SPEC §2 wants "Tailwind driven by CSS variables (design tokens)". npm
+  resolved Tailwind v4.3.3, which is CSS-first: no tailwind.config.js; theme lives in
+  CSS via `@theme`, built through `@tailwindcss/postcss`.
+- Decision: Tailwind v4. `src/app/globals.css` imports both canonical token files
+  (scoped by `[data-brand]`, so they coexist inertly) and maps utilities to semantic
+  tokens with `@theme inline` (e.g. `--color-brand-primary: var(--color-primary)`) so
+  utilities resolve at runtime against the active `data-brand` scope. Token files in
+  `branding/` remain the only place brand values live.
+- Alternatives considered: Tailwind v3 with a JS config mapping to CSS vars (older
+  toolchain, no advantage); vanilla CSS modules (loses utility ergonomics).
+- Resolves: —
+- Status: Accepted
+
+## ADR-005 — 2026-08-08 — bcryptjs for password hashing
+- Context: SPEC §2 requires hashed passwords ("argon2/bcrypt"). Native `argon2`/`bcrypt`
+  packages need node-gyp toolchains, a recurring failure point on Windows dev machines.
+- Decision: `bcryptjs` v3 (pure JS, zero native deps), cost factor 12. The hash call
+  sits behind a small `src/lib/auth/hash.ts` wrapper so swapping to argon2 later is a
+  one-file change.
+- Alternatives considered: argon2 (stronger KDF, native build friction); node's built-in
+  `crypto.scrypt` (fine primitive but hand-rolled parameters).
+- Resolves: —
+- Status: Accepted
+
+## ADR-006 — 2026-08-08 — Founder logo files: actual filename → slot mapping
+- Context: The founder dropped two files at the repo root rather than into the
+  `branding/` drop zones: `bsystems logo.png` (gradient S-mark alone, indigo→pink) and
+  `Byteforce Logo.png` (primary lockup: orange bubble frame + violet wordmark +
+  "BY TELLING FORCE" tagline). The branding READMEs define canonical slot names and ask
+  for the mapping to be recorded as an ADR.
+- Decision: Relocated `bsystems logo.png` → `branding/b-systems/logo-mark.png`
+  (favicon / app icon / avatar slot) and `Byteforce Logo.png` →
+  `branding/byteforce/logo-horizontal.png` (primary lockup slot). Still missing and
+  awaited from the founder: B-Systems horizontal/stacked/mono lockups, ByteForce
+  mark/mono versions, Lama Sans font files (A-13 fallback stack stays active).
+- Alternatives considered: referencing the root files in place (breaks the documented
+  drop-zone contract and the asset map).
+- Resolves: part of A-13 (logos; fonts still pending)
+- Status: Accepted
+
+## ADR-007 — 2026-08-08 — Root route `/` is a brand-neutral entry
+- Context: ARCHITECTURE.md v0 left "brand-neutral entry or redirect" open. Redirecting
+  `/` to any one app would privilege a brand and confuse the other two audiences.
+- Decision: `/` is a minimal brand-neutral entry (system fonts, no brand tokens) linking
+  the three app route groups once they exist. Authenticated users are redirected by
+  role from their app's own entry point, not from `/`. Portal marketing lives at
+  `/portal` (its landing hero), not at `/`.
+- Alternatives considered: redirect to `/portal` (wrong for internal staff); host-based
+  brand detection (out of scope for v1 single deployment).
+- Resolves: —
+- Status: Accepted
+
+## ADR-008 — 2026-08-08 — Portal rep login identifier is phone + password
+- Context: SPEC §8.1 collects phone (required, unique) at sign-up and says "Log in:
+  phone + password (phone is the collected unique identifier; final choice = ADR)".
+  Email is optional in the portal data model, so it cannot be the required identifier.
+- Decision: Phone number (normalized, unique per portal user) + password is the portal
+  credential pair. Internal staff (Apps A/B) log in with email + password, which their
+  User records always carry. Phone normalization: strip spaces/dashes, store E.164-like
+  digits; changing a rep's phone stays restricted per A-10 (future ADR).
+- Alternatives considered: email login (optional field — cannot be required identifier);
+  username (an extra invented field the founder never asked for).
+- Resolves: A-4-adjacent (§8.1 note); flagged for founder confirmation
+- Status: Accepted
+
+## ADR-009 — 2026-08-08 — Milestone real-time unlock via short-interval polling in v1
+- Context: P-8 requires that checking milestone *i* unlocks milestone *i+1* "in real
+  time" for the rep; Phase 4 DoD verifies it live across two sessions. ARCHITECTURE v0
+  left poll vs SSE/websocket open.
+- Decision: v1 uses short-interval polling (≤5 s revalidation on the rep's Won Deals
+  view — SWR-style focus + interval revalidation). No websocket infrastructure; works on
+  any serverless host. The unlock itself is a single server-side transaction, so polling
+  only affects propagation latency, never correctness. SSE upgrade path noted for later.
+- Alternatives considered: SSE (cleaner push, but extra connection management for one
+  view); websockets (overkill, deployment constraints).
+- Resolves: — (closes ARCHITECTURE.md open question "poll vs SSE/websocket")
+- Status: Accepted
+
+## ADR-010 — 2026-08-08 — Partners meeting-attended destinations are Following Up / Won / Lost
+- Context: SPEC §10.2 PP-3 imports T-6 ("attended → Sending Proposals / Won / Lost /
+  Following Up"), but §7.2's Partners stage set has no proposals stage — the imported
+  destination set contains an impossible target. Found by the kickoff verification
+  workflow; SPEC §0.5 forbids resolving this silently.
+- Decision: In `configs/partners.ts`, meeting outcome `Attended` offers destinations
+  **Following Up / Won / Lost** only. A Won choice still flows through the PP-4
+  completeness gate (its From column is "Any active").
+- Alternatives considered: adding a proposals stage to the Partners pipeline (invents
+  a stage §7.2 doesn't define); letting the engine reject at runtime (worse UX, same
+  invention).
+- Resolves: §7.2/§10.2 conflict — flagged for founder confirmation
+- Status: Accepted
+
+## ADR-011 — 2026-08-08 — Internal CRMs expose a direct "Won" action from every active stage
+- Context: T-9's From column is "Any active" and §13 journey 1 enters Won from
+  Following Up, but §6.1's printed Next-action enum omits Won — the only enumerated
+  path into Won is the T-6 attended-destination. Kickoff verification flagged the gap.
+- Decision: `configs/internal-crm.ts` allows a "Won" action from every active stage in
+  Apps A & B, opening the §6.2 Won field group and firing T-9 (client auto-creation
+  per A-1) on save.
+- Alternatives considered: Won reachable only via T-6 (contradicts T-9's "Any active"
+  and makes journey 1 impossible as scripted).
+- Resolves: §6.1/§10.1 gap — flagged for founder confirmation
+- Status: Accepted
+
+## ADR-012 — 2026-08-08 — A card's Estimated value is its latest proposal's value
+- Context: §6.5/§8.5 treat "Estimated value" as one scalar per card, but proposals
+  accumulate as history (§5.2, A-2) — a card can hold several Proposal rows, and a
+  naive join double-counts in dashboard sums.
+- Decision: Estimated value of a non-Won card = `estimatedValue` of its most recent
+  Proposal by `createdAt`, 0 if none; Won cards use `WonInfo.estimatedValue`
+  (internal) / `WonDeal.estimatedValue` (portal). Applies to every dashboard formula
+  and the §6.2 Won-group prefill. Metrics test fixtures include a two-proposal lead.
+- Alternatives considered: max/sum of proposals (no spec basis, sum double-counts);
+  denormalizing a column onto the card (drifts from the history-of-record design).
+- Resolves: §6.5/§8.5 ambiguity under A-2
+- Status: Accepted
+
+## ADR-013 — 2026-08-08 — Fonts self-hosted via @font-face under literal family names
+- Context: The canonical token files reference literal families ("Raleway", "Inter",
+  "JetBrains Mono", "Lama Sans"). `next/font` registers generated scoped family names,
+  so it can never feed those tokens — B-Systems typography would silently fall back.
+  The byteforce branding README already instructs "wire through @font-face".
+- Decision: No `next/font`. `src/themes/fonts.css` declares `@font-face` under the
+  literal family names; woff2 files live in `public/fonts/` (Raleway/Inter/JetBrains
+  Mono fetched from Google Fonts at build-prep time; Lama Sans copied from
+  `branding/byteforce/fonts/` when supplied — A-13 fallback until then). Preload links
+  in each brand root layout.
+- Alternatives considered: next/font `variable` option with tokens consuming the
+  generated variables (couples canonical token files to loader internals and fights
+  `:root[data-brand]` specificity).
+- Resolves: part of A-13 wiring
+- Status: Accepted
+
+## ADR-014 — 2026-08-08 — App A keeps one functional danger red outside the five-value palette
+- Context: §4.2 says "no invented accent colors", yet the scaffolded ByteForce tokens
+  define `--color-danger: #C0392B` and the brand-audit checklist already tolerated
+  "functional danger" — SPEC, tokens, and audit disagreed, with no ADR legitimizing
+  the exception.
+- Decision: One functional error red `#C0392B` is allowed in App A for
+  validation/destructive states only — never decorative, never a surface. Orange
+  cannot signal errors (it is the primary CTA color) and §4.2's palette has no
+  functional alert hue. Token comment and audit skill wording aligned to cite this ADR.
+- Alternatives considered: ink-weighted or orange error styling (ambiguous with
+  primary actions — worse usability than a controlled exception).
+- Resolves: §4.2 conflict — flagged for founder confirmation
+- Status: Accepted
+
+## ADR-015 — 2026-08-08 — Brand-token guard test is the sole audit-allowlist exemption
+- Context: §4.4's audit rule is "no hardcoded hex/fonts outside branding/ and
+  src/themes/", but `src/lib/brand-tokens.test.ts` exists precisely to assert the
+  canonical hexes — the literal rule could never pass.
+- Decision: The audit allowlist (brand-audit skill, step 1) exempts exactly
+  `src/lib/brand-tokens.test.ts`. Any other hex/font hit outside `branding/` and
+  `src/themes/` remains a finding.
+- Alternatives considered: moving expected hexes to a fixtures file in `branding/`
+  (indirection that weakens the guard — the test should state the expected values).
+- Resolves: §4.4 audit contradiction
+- Status: Accepted
+
+## ADR-016 — 2026-08-08 — portal_admin provisioning and login (refines ADR-008)
+- Context: Sign-up creates only `portal_rep` accounts and ADR-008 made the portal
+  login phone-based — leaving `portal_admin` (§3, journey 5) with no documented login
+  or provisioning path.
+- Decision: (a) Admin accounts are provisioned by the seed script / ops in v1 — no
+  admin sign-up UI. (b) The portal login form takes one identifier field accepting a
+  rep's phone or an admin's email (resolved by shape); dual-role B-Systems accounts
+  (A-8) use their email everywhere. (c) The role⇒identifier invariant (staff ⇒ email;
+  portal_rep ⇒ phone; portal_admin ⇒ email or phone) is enforced service-side on every
+  user create/update.
+- Alternatives considered: forcing admins to carry phones (invents a requirement);
+  admin logging in only via App B then navigating (breaks journey 5's "log in" at the
+  portal and standalone-admin accounts).
+- Resolves: §3/§8.5/A-8 gap — flagged for founder confirmation
+- Status: Accepted
+
+## ADR-017 — 2026-08-08 — JWT authenticates; authorization state is re-read from DB per request
+- Context: With JWT sessions, an issued token outlives deactivation (A-4) or role
+  changes — guards trusting token claims would let a deactivated rep keep mutating
+  until expiry, violating §3's server-side enforcement.
+- Decision: `lib/auth/guards.ts` re-reads `active` + roles from the database on every
+  guarded request; the JWT contributes identity only. The deactivated-rep-rejection
+  case is part of the API-level RBAC integration tests.
+- Alternatives considered: short token maxAge (still a live window); token versioning
+  (extra machinery, same DB read in practice); DB-session strategy (heavier NextAuth
+  path, same guarantee).
+- Resolves: A-4 enforceability
+- Status: Accepted
+
+## ADR-018 — 2026-08-08 — Money stored as Int piasters (EGP minor units)
+- Context: SPEC §2 requires monetary values "stored as decimal", but the SQLite dev
+  connector (ADR-002) supports neither `Decimal` nor enums. Storing whole pounds would
+  drop piasters (e.g. 1500.50 EGP).
+- Decision: All money columns are `Int` piasters — exact decimal semantics for EGP's
+  two minor digits on both SQLite and Postgres. `src/lib/money.ts` is the only
+  pounds↔piasters converter and formatter; Zod caps values at Int32 (~21.4M EGP per
+  field). The Postgres switch may widen to BIGINT/DECIMAL by migration if the founder
+  expects larger single values.
+- Alternatives considered: whole-EGP Int (loses piasters — contradicts §2); Float
+  (unacceptable for money); BigInt piasters (serialization friction; premature for
+  expected deal sizes).
+- Resolves: §2 deviation under ADR-002's constraint — value-cap flagged for founder
+  confirmation
+- Status: Accepted
+
+## ADR-019 — 2026-08-08 — Canonical semantic token contract is identical across both brands
+- Context: The two token files had diverging semantic sets (e.g. only ByteForce had
+  `--color-surface-card`; only B-Systems had `--color-accent`) — a shared component
+  would silently hit unset variables in one brand.
+- Decision: Both brand files define the identical semantic variable set; new semantic
+  tokens must be added to both in the same change, using only in-palette values.
+  Gaps closed in this session: ByteForce gained `--color-accent` (= orange),
+  `--color-surface-tint` (= Light Gray), `--color-surface-dark` (= Ink); B-Systems
+  gained `--color-on-secondary` (= Indigo Deep), `--color-surface-card` (= Paper,
+  never #FFFFFF). Set-equality is asserted by `src/lib/brand-tokens.test.ts`.
+- Alternatives considered: per-brand fallbacks in components (scatters brand logic
+  into components, exactly what §4.1 forbids).
+- Resolves: §4.1 semantic-token contract completeness
+- Status: Accepted

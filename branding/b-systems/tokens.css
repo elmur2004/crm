@@ -21,14 +21,19 @@
   --bs-grad-mid-1: #4A2A8E;
   --bs-grad-mid-2: #8B3A95;
 
-  /* Semantic tokens (what components actually use) */
+  /* Semantic tokens (what components actually use).
+     CONTRACT: both brand files define the identical semantic set (ADR-019) —
+     shared components must never hit an unset variable in either brand.
+     Enforced by src/lib/brand-tokens.test.ts. */
   --color-primary: var(--bs-indigo);
   --color-on-primary: var(--bs-paper);
   --color-secondary: var(--bs-lavender);
+  --color-on-secondary: var(--bs-indigodeep); /* text on lavender = deep indigo */
   --color-accent: var(--bs-pink);          /* CTAs, badges, single-word emphasis ONLY */
   --color-ink: var(--bs-indigodeep);
   --color-muted: #5A5F8F;                  /* indigo tint for secondary text */
   --color-surface: var(--bs-paper);
+  --color-surface-card: var(--bs-paper);   /* cards: Paper + border/shadow — NEVER #FFF */
   --color-surface-tint: var(--bs-lavendermist);
   --color-surface-dark: var(--bs-indigodeep);
   --color-border: #E3E1F2;                 /* indigo-tinted hairline */

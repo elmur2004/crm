@@ -14,17 +14,23 @@
   --bf-gray:   #E6E7E8;        /* Light Gray   — borders / dividers / muted */
   --bf-offwhite: #F4F1EA;      /* Off-white    — working surface (design kit) */
 
-  /* Semantic tokens (what components actually use) */
+  /* Semantic tokens (what components actually use).
+     CONTRACT: both brand files define the identical semantic set (ADR-019) —
+     shared components must never hit an unset variable in either brand.
+     Enforced by src/lib/brand-tokens.test.ts. */
   --color-primary: var(--bf-orange);
   --color-on-primary: #FFFFFF;
   --color-secondary: var(--bf-violet);
   --color-on-secondary: #FFFFFF;
+  --color-accent: var(--bf-orange);       /* accent = the orange, in-palette */
   --color-ink: var(--bf-ink);
   --color-muted: #6B6668;                 /* tint of ink for secondary text */
   --color-surface: var(--bf-offwhite);    /* page canvas — avoid pure #FFF walls */
   --color-surface-card: #FFFFFF;          /* cards may sit white on off-white */
+  --color-surface-tint: var(--bf-gray);   /* muted/callout surfaces (§4.2 Light Gray) */
+  --color-surface-dark: var(--bf-ink);    /* rare dark blocks — ink, never a new hue */
   --color-border: var(--bf-gray);
-  --color-danger: #C0392B;                /* functional only (errors), used sparingly */
+  --color-danger: #C0392B;                /* functional error red — ADR-014 exemption */
   --color-success: var(--bf-violet);      /* stay in-palette: violet, not green */
 
   /* Typography — Lama Sans everywhere (Regular 400 / Bold 700).
@@ -41,7 +47,8 @@
 }
 
 /* Rules encoded as comments (enforced by /brand-audit):
-   - Only the five values above appear anywhere in App A. No green/teal/blue accents.
+   - Only the five values above (plus the functional danger red, ADR-014) appear
+     anywhere in App A. No green/teal/blue accents.
    - Orange = action & emphasis; Violet = structure (headings, nav, links).
    - Bilingual EN/AR: use CSS logical properties; layouts must survive dir="rtl".
    - No emoji in UI copy. Bubble pattern = subtle texture only, never behind body text.

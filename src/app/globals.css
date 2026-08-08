@@ -1,0 +1,11 @@
+/* Canonical brand tokens — scoped :root[data-brand="…"], so they activate ONLY when
+   a route group's root layout stamps data-brand on its <html> element (there is no
+   top-level layout; see ARCHITECTURE.md §6). Every root layout imports this file.
+   The two branding files are the ONLY place brand values may live (SPEC §4.1). */
+@import "../../branding/byteforce/tokens.css";
+@import "../../branding/b-systems/tokens.css";
+
+@import "tailwindcss";
+
+/* Tailwind utility ↔ token mapping (bg-brand-primary, text-brand-ink, …) is wired
+   in Phase 0 with the ThemeProvider — see docs/ARCHITECTURE.md §6. */

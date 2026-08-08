@@ -18,3 +18,35 @@ Read the latest entry at every session start; append one at every session end
   `branding/b-systems/` (READMEs list expected files); (2) Lama Sans font files into
   `branding/byteforce/fonts/` (A-13 fallback active until then); (3) SPEC §11 defaults
   A-1…A-13 stand unless overridden.
+
+## Entry 001 — 2026-08-08
+- Done: Kickoff session per SPEC §17. (1) Repo turned into a git repository (was not
+  one) with the scaffold as baseline commit. (2) Founder's two root-dropped logo files
+  classified and relocated into their `branding/` slots (ADR-006). (3) SPEC §2 stack
+  initialized — Next.js 16.3 App Router + TS, Tailwind v4 on the token files, Prisma
+  7.9 (SQLite dev), NextAuth 5 beta (pinned), Zod 4, dnd-kit, Vitest 4, Playwright —
+  hand-scaffolded (create-next-app refuses non-empty dirs); build, typecheck, prisma
+  generate, and tests verified green (TESTING Run 001). (4) ADR-002…009 logged for
+  every stack decision and resolved architecture question. (5) docs/ARCHITECTURE.md
+  completed to v1: route/module map, full physical schema, theming + auth design.
+  (6) A 10-agent adversarial verification workflow checked ARCHITECTURE v1 + scaffold
+  against SPEC and confirmed 21 findings; ALL fixed this session (root-layout
+  restructure into route groups, semantic token contract completed in both brand
+  files, money → Int piasters, DB-backed authorization, transition-config gaps closed)
+  and recorded as ADR-010…019; suite re-verified green (TESTING Run 002).
+- In progress: nothing mid-flight; working tree committed at session close.
+- Next steps: Founder reviews the Phase 0 plan presented at session end (SPEC §17
+  step 4). Then Phase 0 proper: prisma models from ARCHITECTURE §5 + migration + seed
+  scaffold, auth (providers, guards per ADR-016/017), brand route groups + Tailwind
+  @theme mapping + fonts.css (ADR-013), pipeline-engine module with every §10 row
+  unit-tested, `/phase-gate` before Phase 1.
+- Blockers: none hard. Founder assets still pending (see below) — Phase 0 proceeds
+  with fallbacks.
+- Needs founder confirmation: (1) remaining logo slots + Lama Sans font files into
+  `branding/` (A-13 fallback active; ADR-006 maps what arrived); (2) SPEC §11 defaults
+  A-1…A-13 stand unless overridden; (3) ADR-008 portal login = phone + password;
+  (4) ADR-010 Partners attended-destinations exclude Sending Proposals; (5) ADR-011
+  internal CRMs get a direct Won action (T-9); (6) ADR-014 functional danger red in
+  App A; (7) ADR-016 admin provisioning via seed + email login on the portal form;
+  (8) ADR-018 money as Int piasters with ~21.4M EGP per-value cap (confirm typical
+  deal sizes fit).

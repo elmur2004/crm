@@ -12,3 +12,10 @@ uploads/
 !.env.example
 .DS_Store
 .claude/settings.local.json
+
+/generated/prisma
+
+# local SQLite dev databases
+*.db
+*.db-journal
+*.tsbuildinfo

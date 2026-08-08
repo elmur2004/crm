@@ -42,6 +42,18 @@ branding/b-systems/      B-Systems tokens.css + logo drop zone + brand rules
                          /log-test /phase-gate /brand-audit
 ```
 
+## Development (stack initialized 2026-08-08 — see docs/ARCHITECTURE.md)
+
+```bash
+npm install                # deps (Node 22+)
+cp .env.example .env       # then set AUTH_SECRET; SQLite needs no setup (ADR-002)
+npm run dev                # http://localhost:3000
+npm test                   # vitest suites
+npm run typecheck          # tsc --noEmit
+npm run build              # production build
+npm run test:e2e           # Playwright journeys (from Phase 1; needs npx playwright install)
+```
+
 ## The one rule
 
 If it isn't logged in `docs/`, it didn't happen. Every session opens by reading
