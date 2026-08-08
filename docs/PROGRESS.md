@@ -73,3 +73,27 @@ Phase 0 — Foundation (SPEC §14). Verdict: **PASS**.
 - Needs founder confirmation (carried + new): items (1)–(8) of Entry 001, plus
   (9) ADR-020 — terminal stages win over P-1/P-6's literal "From: Any" (no un-win
   flow in v1).
+
+## Entry 003 — 2026-08-09 — PHASE 1 GATE REPORT
+Phase 1 — App A: ByteForce CRM (SPEC §14). Verdict: **PASS**.
+
+| DoD item | Verdict | Evidence |
+|---|---|---|
+| Every §6 field persists | PASS | createLead/updateLead/group schemas exact per §6.1–§6.2 (spec-guardian verdict table all-match); integration tests persist and read back every group |
+| All §10.1 rows tested | PASS | Engine unit tests (27) + service integration tests (10) + journeys — T-1…T-10 each named; TESTING Runs 005–006 |
+| Dashboard formulas verified | PASS | metrics.ts vs §6.5 fixture test with known numbers (incl. ADR-012 no-double-count); journey 1 asserts live numbers |
+| Journeys 1–2 pass | PASS | Playwright 2/2 against dedicated seeded e2e.db (Runs 005–006) |
+| Branded per §4.2 | PASS | brand-auditor: checks 1/3/4 fully clean; its 4 findings fixed same-session (semantic contract gained on-success/on-danger/on-accent in both brands) |
+
+- Done: full App A — services (single-write-path applyLeadEvent, atomic side
+  effects + ActivityLog), brand-partitioned /api/byteforce, complete UI (dashboard,
+  rep cards → leads table → lead detail with conditional groups + history, 5-column
+  board, clients), integration tests, journeys 1–2. Gate cross-checks by
+  spec-guardian + brand-auditor; all findings fixed (ADR-022/023/024; config-derived
+  UI lists; concurrency stage guard).
+- Next steps: Phase 2 — App B: /b-systems mount of the shared internal-CRM bodies +
+  Partners Pipeline (§7.2 incl. uploads), Partners directory, attribution (PP-1…PP-5),
+  journey 3, gate.
+- Blockers: none.
+- Needs founder confirmation: items (1)–(9) carried, plus (10) ADR-022 additive UI
+  columns; (11) ADR-024 negative to-be-collected on overpayment.

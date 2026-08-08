@@ -31,7 +31,10 @@
   --color-surface-dark: var(--bf-ink);    /* rare dark blocks — ink, never a new hue */
   --color-border: var(--bf-gray);
   --color-danger: #C0392B;                /* functional error red — ADR-014 exemption */
+  --color-on-danger: #FFFFFF;
   --color-success: var(--bf-violet);      /* stay in-palette: violet, not green */
+  --color-on-success: #FFFFFF;
+  --color-on-accent: #FFFFFF;             /* text on orange */
 
   /* Typography — Lama Sans everywhere (Regular 400 / Bold 700).
      Font files: ./fonts/ (pending, A-13). "Point" display face only if supplied. */

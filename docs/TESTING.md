@@ -56,3 +56,33 @@ every dashboard formula, journeys 1-5 (SPEC §13).
 - SPEC coverage touched: T-8 full branch coverage; ADR-021 trigger ids asserted for
   partners (PP-3) and portal (P-3/P-5/P-6) outcomes.
 - Verdict: PASS — both gate auditors' findings closed.
+
+## Run 005 — 2026-08-09 — Phase 1 App A suite + E2E journeys 1–2
+- Suites/commands: `npm run typecheck` · `npm run build` (all App A routes register) ·
+  `npm test` (vitest: engine 27 + token guard 5 + service integration 10 = 42) ·
+  `npx playwright test` (journeys 1–2 against a dedicated seeded e2e.db, serial).
+- Cases: vitest 42 passed / 0 failed. Playwright 2 passed / 0 failed:
+  journey 1 (add rep → add lead → T-1 follow-up → T-2 meeting → T-6 attended→proposal
+  → T-5 sent→auto follow-up with "Following up after proposal" → T-9 Won with
+  prefilled estimate → A-1 client card with mapped values → §6.5 dashboard numbers
+  exact on fresh DB) and journey 2 (T-4 lost with required reason → dashboard deltas).
+- Failures: one transient in journey 1 (an over-narrow Playwright locator on the
+  clients page — fixed to page-level assertions; the product behavior was correct).
+- SPEC coverage touched: §6.1–§6.5 end-to-end; §10.1 T-1…T-10 at unit + integration +
+  E2E levels; §13 journeys 1 and 2 PASS.
+- Verdict: PASS.
+
+## Run 006 — 2026-08-09 — Phase 1 gate fixes (brand audit + spec-guardian)
+- Suites/commands: `npm run typecheck` · `npx vitest run` · `npx playwright test`
+  after fixing brand-audit findings (on-success/on-danger/on-accent added to the
+  semantic contract in BOTH token files + @theme map; StageBadge/portal CTAs use
+  them; font-brand-mono in HistoryPanel; RTL-safe back links and mirrored arrow) and
+  spec-guardian findings (UI stage/action/destination lists now derived from
+  internalCrmConfig; to-be-collected unclamped in both paths (ADR-024); in-transaction
+  stage guard against racing submits; ADR-022/023 sanction the additive columns and
+  the two-step Sent flow).
+- Cases: vitest 42/0 · Playwright journeys 2/0.
+- Failures: none.
+- SPEC coverage touched: §4 contract (token set-equality test now covers the three
+  new names automatically), §5.1 single-source stage sets, §6.4/A-1 formula.
+- Verdict: PASS — both Phase 1 auditors' findings closed.

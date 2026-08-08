@@ -104,6 +104,49 @@ _Format per module:_
   typographic fallback for missing slots.
 - Last updated: 2026-08-08 (Entry 002)
 
+## App A services + API (Phase 1)
+- Location: `src/lib/services/` (groups, leads, clients, sales-reps, metrics,
+  activity), `src/lib/api/internal-crm.ts` (brand-fixed route-handler factory),
+  `src/app/api/byteforce/**`, `src/lib/api-error.ts`.
+- What exists / how it works: `applyLeadEvent` is the single write path for every
+  pipeline move — engine transition → mandatory group payload (Zod, groups.ts) →
+  one `$transaction` persisting move + group child record + side effects +
+  ActivityLog. Event pre-writes: `proposal_sent` marks the latest unsent proposal;
+  `meeting_outcome` stamps outcome/destination on the latest meeting;
+  `meeting_reschedule` updates its datetime and RESETS outcome to null. A-1 client
+  mapping lives in `createClientFromWon` (service ← latest proposal, toBeCollected =
+  est − collected, upsert by leadId). Metrics implement §6.5 with ADR-012.
+- Limitations / gotchas:
+  - **Commit model**: every transition commits event + required group in ONE
+    mutation; cancel = no request. Consequence: a proposal cannot be created
+    already-sent — the UI saves it unsent, then "Mark as sent" fires `proposal_sent`
+    with the after-proposal follow-up form (T-5's §5.3 narrative preserved).
+  - ApiError lives in `src/lib/api-error.ts` NOT in guards — importing guards pulls
+    the NextAuth runtime, which vitest cannot load (`next/server` resolution).
+  - Integration tests: dedicated `file:./test.db` via vitest env + globalSetup
+    migrate deploy; `fileParallelism: false` and 30s timeouts (SQLite-on-Windows
+    transactions are slow, ~1-3s per multi-write test).
+- Last updated: 2026-08-09 (Entry 003, TESTING Run 005)
+
+## App A UI (Phase 1)
+- Location: `src/components/internal/` (pages.tsx server bodies, LeadEventPanel,
+  GroupHistory, HistoryPanel, forms, AppNav), `src/components/shared/` (StatCard,
+  StageBadge, BrandLogo), `src/app/(byteforce)/byteforce/(app)/**`.
+- What exists / how it works: page bodies are brand-parameterized server components
+  (`InternalAppCtx {brand, basePath, apiBase}`) — Phase 2 mounts the SAME bodies
+  under /b-systems. The `(app)` subgroup carries the nav layout + page-level auth;
+  login stays outside it. LeadEventPanel implements §6.1/§6.2's conditional groups:
+  next-action select opens the target stage's form; stage-contextual panels surface
+  §5.3 events (Mark-as-sent when an unsent proposal exists in Sending Proposals;
+  outcome panel when the latest arranged meeting lacks an outcome). E2E: dedicated
+  e2e.db on port 3100, serial journeys, absolute assertions in journey 1 (fresh DB),
+  delta assertions in journey 2.
+- Limitations / gotchas: money inputs are pounds converted client-side via
+  money.ts (`toPiasters`) before POST; keep new forms consistent. Rep-leads route
+  uses /leads/rep/[repId] and /leads/lead/[leadId] (one dynamic slot per segment
+  name). BrandLogo is a plain `img` (next/image logged aspect-ratio warnings).
+- Last updated: 2026-08-09 (Entry 003, TESTING Run 005)
+
 ## Kickoff verification round
 - Location: docs/ARCHITECTURE.md, docs/DECISIONS.md, branding/*/tokens.css, scaffold.
 - What exists / how it works: a 10-agent adversarial workflow (5 review dimensions ×

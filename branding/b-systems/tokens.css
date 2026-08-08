@@ -38,7 +38,10 @@
   --color-surface-dark: var(--bs-indigodeep);
   --color-border: #E3E1F2;                 /* indigo-tinted hairline */
   --color-danger: var(--bs-pink);          /* stay in-palette; pink doubles as alert cue */
+  --color-on-danger: var(--bs-paper);
   --color-success: var(--bs-indigo);       /* no green anywhere — vary palette tints */
+  --color-on-success: var(--bs-paper);
+  --color-on-accent: var(--bs-paper);      /* text on pink CTAs — never pink body text */
 
   /* Signature gradient — HERO MOMENTS ONLY (login hero, landing header,
      cover-style panels, primary CTA moments). Never a default background.

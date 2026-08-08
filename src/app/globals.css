@@ -17,6 +17,7 @@
   --color-brand-secondary: var(--color-secondary);
   --color-brand-on-secondary: var(--color-on-secondary);
   --color-brand-accent: var(--color-accent);
+  --color-brand-on-accent: var(--color-on-accent);
   --color-brand-ink: var(--color-ink);
   --color-brand-muted: var(--color-muted);
   --color-brand-surface: var(--color-surface);
@@ -25,7 +26,9 @@
   --color-brand-surface-dark: var(--color-surface-dark);
   --color-brand-border: var(--color-border);
   --color-brand-danger: var(--color-danger);
+  --color-brand-on-danger: var(--color-on-danger);
   --color-brand-success: var(--color-success);
+  --color-brand-on-success: var(--color-on-success);
   --font-brand-display: var(--font-display);
   --font-brand-body: var(--font-body);
   --font-brand-mono: var(--font-mono);

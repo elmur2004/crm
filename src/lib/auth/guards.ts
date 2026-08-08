@@ -7,14 +7,8 @@ import type { Brand, Role } from "@/lib/pipeline-engine/constants";
    JWT contributes identity only. Failures throw ApiError, which handleRoute maps to
    401/403 JSON. */
 
-export class ApiError extends Error {
-  constructor(
-    public status: number,
-    message: string,
-  ) {
-    super(message);
-  }
-}
+export { ApiError } from "@/lib/api-error";
+import { ApiError } from "@/lib/api-error";
 
 export type CurrentUser = {
   id: string;

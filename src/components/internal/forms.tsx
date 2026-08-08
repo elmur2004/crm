@@ -1,0 +1,274 @@
+"use client";
+
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { LEAD_TYPES, LEAD_TYPE_LABELS } from "@/lib/pipeline-engine/constants";
+import { toPiasters, toPounds } from "@/lib/money";
+
+/* Client-side forms for the internal CRMs (Apps A & B) — POST to the brand's API
+   namespace, refresh on success. Tokens-only styling. */
+
+const inputCls =
+  "w-full border border-brand-border rounded-brand-control px-3 py-2 bg-brand-surface-card text-sm";
+const labelCls = "block text-sm font-medium mb-1";
+const btnPrimary =
+  "bg-brand-primary text-brand-on-primary rounded-brand-control px-4 py-2 text-sm font-medium disabled:opacity-50";
+
+function useSubmit() {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  async function submit(url: string, method: string, body: unknown, onDone?: () => void) {
+    setBusy(true);
+    setError(null);
+    const res = await fetch(url, {
+      method,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    setBusy(false);
+    if (!res.ok) {
+      const data = (await res.json().catch(() => null)) as { error?: string } | null;
+      setError(data?.error ?? "Something went wrong");
+      return false;
+    }
+    onDone?.();
+    router.refresh();
+    return true;
+  }
+  return { busy, error, submit };
+}
+
+export function AddRepForm({ apiBase }: { apiBase: string }) {
+  const { busy, error, submit } = useSubmit();
+  const [open, setOpen] = useState(false);
+  if (!open) {
+    return (
+      <button onClick={() => setOpen(true)} className={btnPrimary}>
+        Add sales rep
+      </button>
+    );
+  }
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        const fd = new FormData(e.currentTarget);
+        void submit(`${apiBase}/reps`, "POST", { name: String(fd.get("name")) }, () =>
+          setOpen(false),
+        );
+      }}
+      className="flex items-end gap-2"
+    >
+      <label className="block">
+        <span className={labelCls}>Rep name</span>
+        <input type="text" name="name" required className={inputCls} />
+      </label>
+      <button type="submit" disabled={busy} className={btnPrimary}>
+        Add
+      </button>
+      {error ? <p className="text-sm text-brand-danger">{error}</p> : null}
+    </form>
+  );
+}
+
+export function AddLeadForm({ apiBase, salesRepId }: { apiBase: string; salesRepId?: string }) {
+  const { busy, error, submit } = useSubmit();
+  const [open, setOpen] = useState(false);
+  if (!open) {
+    return (
+      <button onClick={() => setOpen(true)} className={btnPrimary}>
+        Add lead
+      </button>
+    );
+  }
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        const fd = new FormData(e.currentTarget);
+        void submit(
+          `${apiBase}/leads`,
+          "POST",
+          {
+            salesRepId,
+            name: String(fd.get("name")),
+            number: String(fd.get("number")),
+            email: String(fd.get("email") || "") || undefined,
+            type: String(fd.get("type")),
+            description: String(fd.get("description") || "") || undefined,
+          },
+          () => setOpen(false),
+        );
+      }}
+      className="border border-brand-border rounded-brand-card p-4 space-y-3 bg-brand-surface-card"
+    >
+      <p className="text-sm font-bold">New lead</p>
+      {error ? <p className="text-sm text-brand-danger">{error}</p> : null}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <label className="block">
+          <span className={labelCls}>Name</span>
+          <input type="text" name="name" required className={inputCls} />
+        </label>
+        <label className="block">
+          <span className={labelCls}>Number</span>
+          <input type="tel" name="number" required className={inputCls} />
+        </label>
+        <label className="block">
+          <span className={labelCls}>Email</span>
+          <input type="email" name="email" className={inputCls} />
+        </label>
+        <label className="block">
+          <span className={labelCls}>Type</span>
+          <select name="type" required className={inputCls}>
+            {LEAD_TYPES.map((t) => (
+              <option key={t} value={t}>
+                {LEAD_TYPE_LABELS[t]}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+      <label className="block">
+        <span className={labelCls}>Description</span>
+        <textarea name="description" rows={2} className={inputCls} />
+      </label>
+      <button type="submit" disabled={busy} className={btnPrimary}>
+        Save lead
+      </button>
+    </form>
+  );
+}
+
+export function ClientEditForm({
+  apiBase,
+  client,
+}: {
+  apiBase: string;
+  client: {
+    id: string;
+    service: string | null;
+    estimatedValue: number | null;
+    collected: number | null;
+    toBeCollected: number | null;
+    dueDate: Date | null;
+    retainer: boolean;
+    technicalOwner: string | null;
+  };
+}) {
+  const { busy, error, submit } = useSubmit();
+  const [open, setOpen] = useState(false);
+  if (!open) {
+    return (
+      <button
+        onClick={() => setOpen(true)}
+        className="text-sm text-brand-secondary underline underline-offset-2"
+      >
+        Edit
+      </button>
+    );
+  }
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        const fd = new FormData(e.currentTarget);
+        const num = (k: string) => {
+          const v = String(fd.get(k) || "");
+          return v ? toPiasters(v) : null;
+        };
+        void submit(
+          `${apiBase}/clients/${client.id}`,
+          "PATCH",
+          {
+            service: String(fd.get("service") || "") || null,
+            estimatedValue: num("estimatedValue"),
+            collected: num("collected"),
+            toBeCollected: num("toBeCollected"),
+            dueDate: String(fd.get("dueDate") || "") || null,
+            retainer: fd.get("retainer") === "on",
+            technicalOwner: String(fd.get("technicalOwner") || "") || null,
+          },
+          () => setOpen(false),
+        );
+      }}
+      className="mt-2 space-y-2"
+    >
+      {error ? <p className="text-sm text-brand-danger">{error}</p> : null}
+      <label className="block">
+        <span className={labelCls}>Service</span>
+        <input type="text" name="service" defaultValue={client.service ?? ""} className={inputCls} />
+      </label>
+      <div className="grid grid-cols-3 gap-2">
+        <label className="block">
+          <span className={labelCls}>Estimated</span>
+          <input
+            type="number"
+            name="estimatedValue"
+            min="0"
+            step="0.01"
+            defaultValue={client.estimatedValue != null ? toPounds(client.estimatedValue) : undefined}
+            className={inputCls}
+          />
+        </label>
+        <label className="block">
+          <span className={labelCls}>Collected</span>
+          <input
+            type="number"
+            name="collected"
+            min="0"
+            step="0.01"
+            defaultValue={client.collected != null ? toPounds(client.collected) : undefined}
+            className={inputCls}
+          />
+        </label>
+        <label className="block">
+          <span className={labelCls}>To be collected</span>
+          <input
+            type="number"
+            name="toBeCollected"
+            min="0"
+            step="0.01"
+            defaultValue={client.toBeCollected != null ? toPounds(client.toBeCollected) : undefined}
+            className={inputCls}
+          />
+        </label>
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <label className="block">
+          <span className={labelCls}>Collection due date</span>
+          <input
+            type="date"
+            name="dueDate"
+            defaultValue={client.dueDate ? client.dueDate.toISOString().slice(0, 10) : undefined}
+            className={inputCls}
+          />
+        </label>
+        <label className="block">
+          <span className={labelCls}>Technical owner</span>
+          <input
+            type="text"
+            name="technicalOwner"
+            defaultValue={client.technicalOwner ?? ""}
+            className={inputCls}
+          />
+        </label>
+      </div>
+      <label className="flex items-center gap-2 text-sm">
+        <input type="checkbox" name="retainer" defaultChecked={client.retainer} /> Retainer
+      </label>
+      <div className="flex gap-2">
+        <button type="submit" disabled={busy} className={btnPrimary}>
+          Save
+        </button>
+        <button
+          type="button"
+          onClick={() => setOpen(false)}
+          className="border border-brand-border rounded-brand-control px-4 py-2 text-sm text-brand-muted"
+        >
+          Cancel
+        </button>
+      </div>
+    </form>
+  );
+}

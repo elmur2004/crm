@@ -49,7 +49,7 @@ export default async function PortalLogin({
           </label>
           <button
             type="submit"
-            className="w-full bg-brand-accent text-brand-surface rounded-brand-control py-2 font-medium"
+            className="w-full bg-brand-accent text-brand-on-accent rounded-brand-control py-2 font-medium"
           >
             Log in
           </button>

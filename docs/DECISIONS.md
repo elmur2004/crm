@@ -303,3 +303,45 @@ history; supersede with a new ADR.
   per-pipeline audit grouping §10's tables define).
 - Resolves: §9/§10 labeling consistency
 - Status: Accepted
+
+## ADR-022 — 2026-08-09 — Additive UI columns beyond §6's printed minimal shapes
+- Context: SPEC §6.1 prints the leads table as exactly Name | Number | Type and the
+  lead detail without a created date; the Phase 1 UI added a Stage column and a
+  "Date created" line, and the client edit form leaves Name/Number display-only.
+  Spec-guardian flagged the silent additions (§0.5/§12.3).
+- Decision: Additive, information-only columns/fields that surface data the schema
+  already holds are sanctioned where they aid §1's core flow: Stage on the internal
+  leads tables, Date created in the lead detail, and read-only identity fields on the
+  client edit form (identity edits flow from the lead per A-1's mapping). Nothing
+  printed in SPEC is removed or renamed.
+- Alternatives considered: strict literalism (hides the pipeline state exactly where
+  reps triage leads).
+- Resolves: §6.1/§6.4 silence — flagged for founder confirmation
+- Status: Accepted
+
+## ADR-023 — 2026-08-09 — One-mutation commit model; proposal "Sent" is a two-step flow
+- Context: §5.1 moves a card when the user selects an action AND completes the field
+  group; §5.4 reverts a cancelled drop. To make cancel always mean "nothing
+  happened", every transition commits event + required group in ONE mutation. A
+  proposal can therefore not be created already-sent — T-5's auto-move fires from a
+  dedicated "Mark as sent" step that carries the after-proposal follow-up form.
+- Decision: The §6.2 proposal group saves unsent; checking Sent is the separate
+  `proposal_sent` event (engine T-5/P-4) whose form collects the "Following up after
+  proposal" group. Server rejects `sent:true` at creation with a guiding message.
+  All §5.3 semantics (auto-move, group opens, data retained) are preserved and
+  tested (unit, integration, journey 1).
+- Alternatives considered: two chained transitions in one request (compound
+  rollback semantics, unclear cancel meaning).
+- Resolves: §6.2 Sent-checkbox mechanics
+- Status: Accepted
+
+## ADR-024 — 2026-08-09 — To-be-collected = estimated − collected, unclamped
+- Context: A-1 defines the client default as "to-be-collected = estimated −
+  collected" with no floor; the update path had clamped at 0 while the T-9 creation
+  path did not (spec-guardian D3).
+- Decision: Both paths apply the literal formula, unclamped. An overpayment shows as
+  a negative to-be-collected — visible truth over silent clamping. The field stays
+  editable (A-1).
+- Alternatives considered: clamping at 0 (hides overpayments — invents behavior).
+- Resolves: §6.4/A-1 edge — flagged for founder confirmation
+- Status: Accepted

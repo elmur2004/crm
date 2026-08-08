@@ -26,7 +26,7 @@ export default function PortalLanding() {
         <div className="mt-10 flex justify-center gap-4">
           <Link
             href="/portal/signup"
-            className="bg-brand-accent text-brand-surface rounded-brand-control px-6 py-3 font-medium"
+            className="bg-brand-accent text-brand-on-accent rounded-brand-control px-6 py-3 font-medium"
           >
             Sign up
           </Link>

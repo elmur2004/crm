@@ -100,10 +100,14 @@ export async function seed() {
   console.log("Seed complete.");
 }
 
-seed()
-  .then(() => db.$disconnect())
-  .catch(async (e) => {
-    console.error(e);
-    await db.$disconnect();
-    process.exit(1);
-  });
+/* Auto-run only when executed directly (prisma db seed / tsx prisma/seed.ts);
+   e2e/setup-db.ts imports seed() and drives it itself. */
+if (process.argv[1]?.replace(/\\/g, "/").endsWith("prisma/seed.ts")) {
+  seed()
+    .then(() => db.$disconnect())
+    .catch(async (e) => {
+      console.error(e);
+      await db.$disconnect();
+      process.exit(1);
+    });
+}

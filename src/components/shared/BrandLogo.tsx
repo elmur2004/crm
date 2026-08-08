@@ -1,4 +1,3 @@
-import Image from "next/image";
 import { BRAND_ASSETS } from "@/themes/assets";
 import type { Brand } from "@/lib/pipeline-engine/constants";
 
@@ -18,15 +17,11 @@ export function BrandLogo({
   const src = variant === "mark" ? assets.logoMark : (assets.logoHorizontal ?? assets.logoMark);
 
   if (src) {
+    /* Plain img: the founder PNGs are small static assets; a fixed height with
+       auto width preserves the lockup's aspect ratio (never stretch — §4). */
+    // eslint-disable-next-line @next/next/no-img-element
     return (
-      <Image
-        src={src}
-        alt={`${assets.wordmark} logo`}
-        height={height}
-        width={Math.round(height * (variant === "mark" ? 1 : 3))}
-        style={{ height, width: "auto" }}
-        priority
-      />
+      <img src={src} alt={`${assets.wordmark} logo`} style={{ height, width: "auto" }} />
     );
   }
   return (
