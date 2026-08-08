@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { BrandLogo } from "@/components/shared/BrandLogo";
 
-/* Portal landing (§8.1) — Phase 0 placeholder carrying the signature gradient +
-   mesh hero; the full landing experience is finished in Phase 3. */
+/* Portal landing (§8.1) — the signature gradient + mesh hero with the two entry
+   actions (Sign up / Log in). */
 
 export const metadata = { title: "B-Systems Partnership Programme" };
 

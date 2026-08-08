@@ -16,11 +16,11 @@ export function PortalNav({
 }) {
   return (
     <header className="border-b border-brand-border bg-brand-surface-card">
-      <div className="max-w-6xl mx-auto px-4 py-3 flex items-center gap-6">
+      <div className="max-w-6xl mx-auto px-4 py-3 flex items-center gap-x-6 gap-y-2 flex-wrap">
         <Link href={homeHref} className="shrink-0">
           <BrandLogo brand="bsystems" variant="mark" height={32} />
         </Link>
-        <nav className="flex gap-1 flex-1">
+        <nav className="flex gap-1 flex-1 flex-wrap">
           {items.map((item) => (
             <Link
               key={item.href}

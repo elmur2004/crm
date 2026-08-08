@@ -190,3 +190,21 @@ every dashboard formula, journeys 1-5 (SPEC §13).
 - Verdict: PASS — Phase 4 auditors closed. Carried to Phase 5: rep-session 403
   route tests for /api/portal/admin/** (§15 "reps cannot touch milestones" proven),
   seed finalization incl. a won deal with milestones.
+
+## Run 013 — 2026-08-09 — Phase 5 hardening: FULL suite (unit + integration + 12 E2E)
+- Suites/commands: `npm run typecheck` · `npm run build` · `npx vitest run` (61) ·
+  `npx playwright test` — 12 tests: journeys 1–5 + security-rbac (3) + qa-sweep (4).
+- Cases: vitest 61/0 · Playwright 12/0. New suites this phase:
+  **security-rbac** — rep→admin-route 403s (milestone check, won-deal values,
+  milestone define — the §15 "reps cannot touch milestones" clause proven at the
+  raw API), rep→foreign-deal 403 (PATCH + event, deal untouched), portal↔internal
+  invisibility (page redirects + API 403s), cross-brand API 403.
+  **qa-sweep** — every major screen, all four §15 viewports (1440/1024/768/390):
+  zero console errors, ≤1px horizontal overflow, per role.
+- Failures during development, all fixed: BUG-002 (dnd-kit hydration mismatch →
+  stable DndContext id), BUG-003 (header nav overflow at 390px → flex-wrap), and
+  two seed-collision test repairs (journey 1 dashboard → deltas; journey 5 manager
+  interactions scoped to its card via data-won-deal).
+- SPEC coverage touched: §15 security + responsive + console clauses; §13 seed
+  fixture list final (verified by the suite running against it).
+- Verdict: PASS — full suite green against the final seed.

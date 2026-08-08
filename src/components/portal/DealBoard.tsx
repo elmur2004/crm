@@ -189,7 +189,8 @@ export function DealBoard({
         </p>
       ) : null}
 
-      <DndContext sensors={sensors} onDragEnd={onDragEnd}>
+      {/* stable id — dnd-kit's auto-increment ids mismatch between SSR and client */}
+      <DndContext id="deal-board" sensors={sensors} onDragEnd={onDragEnd}>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3 items-start">
           {PORTAL_STAGES.map((stage) => (
             <Column

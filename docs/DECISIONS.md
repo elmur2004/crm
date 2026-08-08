@@ -369,3 +369,19 @@ history; supersede with a new ADR.
   information).
 - Resolves: §8.2/§6.2 shape reuse — flagged for founder confirmation
 - Status: Accepted
+
+## ADR-027 — 2026-08-09 — Font files ship via fontsource (mechanism note to ADR-013)
+- Context: ADR-013 decided self-hosted @font-face under the literal family names,
+  describing hand-managed files in public/fonts/. The shipped mechanism uses
+  fontsource npm packages imported in the (bsystems) root layout — the same
+  @font-face-with-literal-names contract, files delivered through npm instead of a
+  manual download step. The final spec-guardian review asked for the refinement to
+  be recorded rather than left as doc drift.
+- Decision: fontsource is the sanctioned delivery mechanism for the Google-hosted
+  faces (Raleway/Inter/JetBrains Mono). ADR-013's core (literal family names, no
+  next/font) is unchanged. Lama Sans, when supplied, is wired with plain @font-face
+  per the byteforce README.
+- Alternatives considered: scripted downloads into public/fonts/ (build-prep step
+  and update burden with no contract difference).
+- Resolves: — (refines ADR-013)
+- Status: Accepted

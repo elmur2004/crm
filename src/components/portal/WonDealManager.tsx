@@ -51,7 +51,10 @@ export function WonDealManager({ wonDeal }: { wonDeal: AdminWonDeal }) {
   }
 
   return (
-    <div className="bg-brand-surface-card border border-brand-border rounded-brand-card shadow-brand-card p-4 space-y-4">
+    <div
+      data-won-deal={wonDeal.dealName}
+      className="bg-brand-surface-card border border-brand-border rounded-brand-card shadow-brand-card p-4 space-y-4"
+    >
       <div>
         <p className="font-brand-display font-bold">{wonDeal.dealName}</p>
         <p className="text-sm text-brand-muted">

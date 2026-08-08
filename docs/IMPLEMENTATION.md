@@ -216,6 +216,22 @@ _Format per module:_
   sanity rail ("unlimited" in spirit).
 - Last updated: 2026-08-09 (Entry 006, TESTING Run 011)
 
+## Hardening round (Phase 5)
+- Location: prisma/seed.ts (final §13 fixtures), e2e/security-rbac.spec.ts,
+  e2e/qa-sweep.spec.ts, README.md, src/app/(bsystems)/icon.png.
+- What exists / how it works: seed is idempotent via a sentinel lead; ships both
+  brands populated across every stage (+ A-1 clients), a converted partner with an
+  A-6 unassigned attributed lead, and a won portal deal with milestones (M1
+  checked → M2 unlocked, M3 locked). Security spec proves every §15 RBAC clause at
+  the raw API; QA sweep asserts clean consoles + no horizontal overflow at all
+  four §15 widths for every role.
+- Limitations / gotchas: **journeys must never assert absolute dashboard numbers**
+  — the seed populates every stage, so assert deltas (journey 1 was converted).
+  E2E interactions with the won-deal manager must scope via `[data-won-deal]`
+  (two manager cards exist post-seed). dnd-kit needs a stable `DndContext id` or
+  SSR hydration mismatches spam the console (BUG-002).
+- Last updated: 2026-08-09 (Entry 007, TESTING Run 013)
+
 ## Kickoff verification round
 - Location: docs/ARCHITECTURE.md, docs/DECISIONS.md, branding/*/tokens.css, scaffold.
 - What exists / how it works: a 10-agent adversarial workflow (5 review dimensions ×

@@ -87,14 +87,223 @@ export async function seed() {
   });
 
   // Internal sales-rep cards (§6.1) — idempotent by (brand, name)
+  const repIds: Record<string, string> = {};
   for (const [brand, names] of [
     ["byteforce", ["Laila Mostafa", "Ahmed Samir"]],
     ["bsystems", ["Nour El-Din", "Mona Khalil"]],
   ] as const) {
     for (const name of names) {
-      const existing = await db.salesRep.findFirst({ where: { brand, name } });
-      if (!existing) await db.salesRep.create({ data: { brand, name } });
+      let rep = await db.salesRep.findFirst({ where: { brand, name } });
+      if (!rep) rep = await db.salesRep.create({ data: { brand, name } });
+      repIds[`${brand}:${name}`] = rep.id;
     }
+  }
+
+  /* ---- §13 demo fixtures: every screen renders meaningfully on first run. ----
+     Idempotence: skip the whole block when the sentinel lead already exists. */
+  const sentinel = await db.lead.findFirst({ where: { name: "Cairo Grand Hotels" } });
+  if (!sentinel) {
+    const log = (
+      entityType: string,
+      entityId: string,
+      action: string,
+      trigger: string,
+      fromStage?: string,
+      toStage?: string,
+    ) =>
+      db.activityLog.create({
+        data: {
+          entityType,
+          entityId,
+          actorId: null,
+          actorLabel: "Seed",
+          action,
+          fromStage: fromStage ?? null,
+          toStage: toStage ?? null,
+          trigger,
+        },
+      });
+
+    /* Leads across all stages for BOTH internal brands. */
+    for (const brand of ["byteforce", "bsystems"] as const) {
+      const rep1 = repIds[`${brand}:${brand === "byteforce" ? "Laila Mostafa" : "Nour El-Din"}`]!;
+      const rep2 = repIds[`${brand}:${brand === "byteforce" ? "Ahmed Samir" : "Mona Khalil"}`]!;
+      const mk = (data: {
+        name: string;
+        number: string;
+        type: string;
+        stage: string;
+        repId: string;
+      }) =>
+        db.lead.create({
+          data: {
+            brand,
+            salesRepId: data.repId,
+            name: data.name,
+            number: data.number,
+            type: data.type,
+            stage: data.stage,
+          },
+        });
+
+      const prefix = brand === "byteforce" ? "Cairo" : "Delta";
+      await mk({ name: `${prefix} Fresh Foods`, number: "0221000001", type: "cold_call", stage: "new", repId: rep1 });
+
+      const fu = await mk({ name: `${prefix} Textiles`, number: "0221000002", type: "event_data", stage: "following_up", repId: rep1 });
+      await db.followUp.create({
+        data: { leadId: fu.id, context: "initial", dueAt: new Date("2026-08-20T07:00:00Z"), method: "call", followingUpWith: "Procurement lead" },
+      });
+      await log("lead", fu.id, "stage_change", "T-1", "new", "following_up");
+
+      const meet = await mk({ name: `${prefix} Logistics`, number: "0221000003", type: "personal_connection", stage: "meeting_setting", repId: rep2 });
+      await db.meeting.create({
+        data: { leadId: meet.id, arranged: true, datetime: new Date("2026-08-25T12:00:00Z"), mode: "online", withAttendees: "CEO + CTO" },
+      });
+      await log("lead", meet.id, "stage_change", "T-2", "new", "meeting_setting");
+
+      const prop = await mk({ name: `${prefix} Grand Hotels`, number: "0221000004", type: "campaign_lead", stage: "sending_proposal", repId: rep2 });
+      await db.proposal.create({
+        data: { leadId: prop.id, service: "Annual marketing retainer", estimatedValue: 350_000_00, sent: false },
+      });
+      await log("lead", prop.id, "stage_change", "T-3", "new", "sending_proposal");
+
+      const won = await mk({ name: `${prefix} Medical Group`, number: "0221000005", type: "personal_connection", stage: "won", repId: rep1 });
+      await db.proposal.create({
+        data: { leadId: won.id, service: "Brand launch package", estimatedValue: 500_000_00, sent: true, sentAt: new Date("2026-08-01T10:00:00Z") },
+      });
+      await db.wonInfo.create({
+        data: { leadId: won.id, estimatedValue: 500_000_00, technicalOwner: "Tarek Nabil", collectedAmount: 200_000_00 },
+      });
+      await db.client.create({
+        data: {
+          brand,
+          leadId: won.id,
+          name: `${prefix} Medical Group`,
+          number: "0221000005",
+          service: "Brand launch package",
+          estimatedValue: 500_000_00,
+          collected: 200_000_00,
+          toBeCollected: 300_000_00,
+          dueDate: new Date("2026-10-01T00:00:00Z"),
+          retainer: brand === "byteforce",
+          technicalOwner: "Tarek Nabil",
+        },
+      });
+      await log("lead", won.id, "stage_change", "T-9", "sending_proposal", "won");
+
+      const lost = await mk({ name: `${prefix} Motors`, number: "0221000006", type: "cold_call", stage: "lost", repId: rep2 });
+      await db.lostInfo.create({ data: { leadId: lost.id, reason: "Went with an in-house team" } });
+      await log("lead", lost.id, "stage_change", "T-4", "new", "lost");
+    }
+
+    /* Partners pipeline (App B): one prospect per stage + a CONVERTED partner
+       with attributed leads (§13). */
+    const prospectStages: Array<[string, string]> = [
+      ["Nile Imports", "lead"],
+      ["Giza Steel", "didnt_answer"],
+      ["Suez Shipping", "following_up"],
+      ["Aswan Agritech", "meeting_setting"],
+      ["Luxor Analytics", "lost"],
+    ];
+    for (const [company, stage] of prospectStages) {
+      const p = await db.partnerProspect.create({
+        data: {
+          name: "Key Contact",
+          companyName: company,
+          number: "0231000001",
+          businessActivity: "Trading",
+          stage,
+          ...(stage === "didnt_answer" ? { number2: null } : {}),
+        },
+      });
+      if (stage === "following_up") {
+        await db.followUp.create({
+          data: { partnerProspectId: p.id, context: "initial", dueAt: new Date("2026-08-22T08:00:00Z"), method: "visit" },
+        });
+      }
+      if (stage === "meeting_setting") {
+        await db.meeting.create({
+          data: { partnerProspectId: p.id, arranged: true, datetime: new Date("2026-08-28T13:00:00Z"), mode: "offline" },
+        });
+      }
+      if (stage === "lost") {
+        await db.lostInfo.create({ data: { partnerProspectId: p.id, reason: "Not interested in partnership" } });
+      }
+    }
+
+    const wonProspect = await db.partnerProspect.create({
+      data: {
+        name: "Hassan Ali",
+        companyName: "Alexandria Trading House",
+        number: "0231000009",
+        businessActivity: "Wholesale distribution",
+        stage: "won",
+        converted: true,
+      },
+    });
+    const partner = await db.partner.create({
+      data: {
+        prospectId: wonProspect.id,
+        companyName: "Alexandria Trading House",
+        keyPersonName: "Hassan Ali",
+        keyPersonRole: "Managing Partner",
+        address: "14 Corniche Rd, Alexandria",
+        number: "0231000009",
+        businessActivity: "Wholesale distribution",
+        importance: "high",
+      },
+    });
+    await log("partner", partner.id, "create", "PP-4");
+    const partnerLead = await db.lead.create({
+      data: {
+        brand: "bsystems",
+        salesRepId: null, // A-6 unassigned bucket
+        source: "partner",
+        partnerId: partner.id,
+        name: "Referred Wholesale Client",
+        number: "0231000010",
+        type: "personal_connection",
+        stage: "following_up",
+      },
+    });
+    await db.followUp.create({
+      data: { leadId: partnerLead.id, context: "initial", dueAt: new Date("2026-08-21T09:00:00Z"), method: "call" },
+    });
+    await log("lead", partnerLead.id, "create", "PP-5");
+
+    /* Portal: the seeded rep gets deals across stages + a WON DEAL WITH
+       MILESTONES (M1 checked → M2 unlocked, M3 locked). */
+    const seededRep = await db.portalRep.findFirstOrThrow({
+      where: { user: { phone: "01001234567" } },
+    });
+    const mkDeal = (name: string, company: string, stage: string) =>
+      db.portalDeal.create({
+        data: {
+          repId: seededRep.id,
+          name,
+          position: "Decision maker",
+          number: "0109000001",
+          companyName: company,
+          industry: "Services",
+          stage,
+        },
+      });
+    await mkDeal("Fresh Deal", "Startup One", "leads");
+    const dealFu = await mkDeal("Follow-up Deal", "Growth Co", "following_up");
+    await db.followUp.create({
+      data: { portalDealId: dealFu.id, context: "initial", dueAt: new Date("2026-08-23T10:00:00Z"), method: "message", ownerPortalRepId: seededRep.id },
+    });
+    const dealWon = await mkDeal("Enterprise Win", "Enterprise LLC", "won");
+    const wonDeal = await db.wonDeal.create({
+      data: { dealId: dealWon.id, estimatedValue: 900_000_00, totalCommission: 90_000_00 },
+    });
+    await db.milestone.create({
+      data: { wonDealId: wonDeal.id, index: 1, value: 400_000_00, completed: true, completedAt: new Date("2026-08-05T09:00:00Z") },
+    });
+    await db.milestone.create({ data: { wonDealId: wonDeal.id, index: 2, value: 300_000_00 } });
+    await db.milestone.create({ data: { wonDealId: wonDeal.id, index: 3, value: 200_000_00 } });
+    await log("won_deal", wonDeal.id, "create", "P-6");
+    await log("won_deal", wonDeal.id, "milestone_check", "P-8");
   }
 
   console.log("Seed complete.");

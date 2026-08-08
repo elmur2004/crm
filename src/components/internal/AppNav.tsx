@@ -27,11 +27,11 @@ export function AppNav({
   const logoutTo = `${basePath}/login`;
   return (
     <header className="border-b border-brand-border bg-brand-surface-card">
-      <div className="max-w-6xl mx-auto px-4 py-3 flex items-center gap-6">
+      <div className="max-w-6xl mx-auto px-4 py-3 flex items-center gap-x-6 gap-y-2 flex-wrap">
         <Link href={basePath} className="shrink-0">
           <BrandLogo brand={brand} variant={brand === "bsystems" ? "mark" : "horizontal"} height={36} />
         </Link>
-        <nav className="flex gap-1 flex-1">
+        <nav className="flex gap-1 flex-1 flex-wrap">
           {items.map((item) => (
             <Link
               key={item.href}

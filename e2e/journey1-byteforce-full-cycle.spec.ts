@@ -7,6 +7,11 @@ import { expect, test } from "@playwright/test";
 
 test.describe.configure({ mode: "serial" });
 
+async function tile(page: import("@playwright/test").Page, label: string): Promise<number> {
+  const text = await page.getByText(label).locator("..").locator("p").nth(1).textContent();
+  return Number((text ?? "0").replace(/[^\d.]/g, "") || "0");
+}
+
 test("journey 1: ByteForce full cycle to Won", async ({ page }) => {
   /* Log in as ByteForce staff. */
   await page.goto("/byteforce/login");
@@ -14,6 +19,12 @@ test("journey 1: ByteForce full cycle to Won", async ({ page }) => {
   await page.getByLabel("Password").fill("byteforce123");
   await page.getByRole("button", { name: "Log in" }).click();
   await expect(page).toHaveURL(/\/byteforce$/);
+
+  /* Dashboard baseline — the seed populates every stage, so assert deltas. */
+  const totalBefore = await tile(page, "Total leads");
+  const pipelineBefore = await tile(page, "Pipeline value");
+  const wonValueBefore = await tile(page, "Won value");
+  const collectBefore = await tile(page, "To be collected");
 
   /* Add a sales rep (§6.1 — reps unlimited). */
   await page.goto("/byteforce/leads");
@@ -85,10 +96,11 @@ test("journey 1: ByteForce full cycle to Won", async ({ page }) => {
   await expect(page.getByText("EGP 2,000")).toBeVisible(); // collected
   await expect(page.getByText("EGP 3,000")).toBeVisible(); // to be collected = 5000 − 2000
 
-  /* Dashboard numbers (§6.5) — fresh DB: this is the only lead. */
+  /* Dashboard numbers (§6.5) — deltas over the seeded baseline: +1 lead, won
+     value +5000, to-be-collected +3000, pipeline unchanged (the lead ended Won). */
   await page.goto("/byteforce");
-  await expect(page.getByText("Total leads").locator("..").getByText("1", { exact: true })).toBeVisible();
-  await expect(page.getByText("Won value").locator("..").getByText("EGP 5,000")).toBeVisible();
-  await expect(page.getByText("To be collected").locator("..").getByText("EGP 3,000")).toBeVisible();
-  await expect(page.getByText("Pipeline value").locator("..").getByText("EGP 0", { exact: true })).toBeVisible();
+  expect(await tile(page, "Total leads")).toBe(totalBefore + 1);
+  expect(await tile(page, "Won value")).toBe(wonValueBefore + 5000);
+  expect(await tile(page, "To be collected")).toBe(collectBefore + 3000);
+  expect(await tile(page, "Pipeline value")).toBe(pipelineBefore);
 });

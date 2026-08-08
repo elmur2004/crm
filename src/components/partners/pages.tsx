@@ -46,7 +46,7 @@ export async function PartnersPipelineBody() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-4 flex-wrap">
-        <h1 className="font-brand-display text-2xl font-bold">Partners Pipeline</h1>
+        <h1 className="font-brand-display text-2xl font-bold text-brand-heading">Partners Pipeline</h1>
         <AddProspectForm />
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3 items-start">
@@ -106,7 +106,7 @@ export async function ProspectDetailBody({ prospectId }: { prospectId: string })
         >
           Back to the pipeline
         </Link>
-        <h1 className="font-brand-display text-2xl font-bold flex items-center gap-3 flex-wrap">
+        <h1 className="font-brand-display text-2xl font-bold text-brand-heading flex items-center gap-3 flex-wrap">
           {prospect.companyName}
           <StageBadge stage={prospect.stage} />
           {prospect.converted ? (
@@ -235,7 +235,7 @@ export async function PartnersDirectoryBody() {
   const partners = await listPartners();
   return (
     <div className="space-y-6">
-      <h1 className="font-brand-display text-2xl font-bold">Partners</h1>
+      <h1 className="font-brand-display text-2xl font-bold text-brand-heading">Partners</h1>
       {partners.length === 0 ? (
         <p className="text-sm text-brand-muted">
           No partners yet — they appear automatically when a pipeline card is Won.
@@ -278,7 +278,7 @@ export async function PartnerDetailBody({ partnerId }: { partnerId: string }) {
           Back to all partners
         </Link>
         <div className="flex items-baseline justify-between gap-4 flex-wrap">
-          <h1 className="font-brand-display text-2xl font-bold">{partner.companyName}</h1>
+          <h1 className="font-brand-display text-2xl font-bold text-brand-heading">{partner.companyName}</h1>
           <p className="text-brand-meta text-brand-muted">
             Date joined: {formatCairoDate(partner.dateJoined)}
           </p>
@@ -309,7 +309,7 @@ export async function PartnerDetailBody({ partnerId }: { partnerId: string }) {
 
       <div className="space-y-3">
         <div className="flex items-center justify-between gap-4 flex-wrap">
-          <h2 className="font-brand-display text-lg font-bold">Leads from this partner</h2>
+          <h2 className="font-brand-display text-lg font-bold text-brand-heading">Leads from this partner</h2>
           <PartnerAddLead partnerId={partner.id} reps={reps.map((r) => ({ id: r.id, name: r.name }))} />
         </div>
         {partner.leads.length === 0 ? (

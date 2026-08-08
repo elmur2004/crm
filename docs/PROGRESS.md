@@ -168,3 +168,58 @@ Phase 4 — App C: Admin layer (SPEC §14). Verdict: **PASS**.
   pass, final /brand-audit, docs final, Global DoD (§15) walk + gate.
 - Blockers: none.
 - Needs founder confirmation: items (1)–(12) carried.
+
+## Entry 007 — 2026-08-09 — PHASE 5 GATE REPORT + GLOBAL DoD (§15) WALK
+Phase 5 — Hardening & handover (SPEC §14). Verdict: **PASS**. Project verdict:
+**GLOBAL DoD MET** (pending founder sign-offs listed below).
+
+Phase 5 DoD: full E2E suite green (12/12 — journeys 1–5, security-rbac ×3,
+qa-sweep ×4; Run 013); seed data final (§13 fixture list complete, idempotent);
+README final (cold start / run / test / deploy + demo accounts); docs at final
+state (ARCHITECTURE v2 corrected to shipped reality, CHANGELOG per phase,
+ADR-000–027); final /brand-audit **PASS** (five Low/Info advisories, heading-token
+polish applied); final spec-guardian review closed (its two "blocking" items were
+this very entry + Run 013 landing mid-review; ARCHITECTURE drift, the stale landing
+comment, and the ADR-013 mechanism note all fixed; .env.example confirmed tracked).
+
+### Global DoD checklist (SPEC §15)
+- [x] Every field/enum/screen/rule in §6–§10 implemented; no stubs/TODOs on shipped
+      paths — per-phase spec-guardian verdict tables (Entries 002–006) + final
+      review item 1 (grep clean; three random fields traced schema→service→UI).
+- [x] All §10 transitions covered by automated tests; §13 journeys 1–5 pass —
+      engine tests name every row; integration suites cover the §13 obligations;
+      Runs 011/013.
+- [x] Dashboard/table formulas proven against fixtures — §6.5 + §8.5.1 + §8.5.4
+      fixture tests with known numbers (incl. ADR-012 no-double-count); journey
+      delta assertions live.
+- [x] RBAC server-side, proven per clause — foreign-rep 403 (deal untouched), rep
+      Won 403 (all four vectors, incl. raw API), rep milestone 403 (all three admin
+      endpoints), portal↔internal invisibility + brand partition (security-rbac).
+- [x] Uploads validated/stored/retrievable; recordings play inline — magic-byte +
+      size + extension server-side, authenticated Range serving; journey 3.
+- [x] ActivityLog on every transition + privileged action; History panels on
+      internal, partners, and portal details.
+- [x] Theming §4.4 — zero hardcoded brand values; both official systems applied;
+      final brand audit PASS ("zero brand bleed").
+- [x] RTL-ready (A-12) — zero physical-direction utilities; mirrored glyphs.
+- [x] docs/ complete and current — ARCHITECTURE v2, DECISIONS ADR-000–027 (every
+      applied A-* has an ADR), TESTING Runs 001–013, BUGS (3: two fixed, BUG-001
+      open-with-reason as a tooling flake), PROGRESS Entries 000–007, CHANGELOG.
+- [x] Seed + README cold start — §13 fixture list complete; README verified against
+      the shipped scripts; .env.example tracked.
+- [x] Security basics — bcryptjs(12), JWT + per-request DB authorization (ADR-017),
+      Zod on every mutation (re-parsed in services), upload sanitization, no
+      secrets in repo (.env/uploads/dbs gitignored).
+- [x] No console errors; responsive at 1440/1024/768/390; empty states — qa-sweep
+      asserts all three per role on every major screen (Run 013).
+
+- Done: final seed, security-rbac + qa-sweep suites, BUG-002/003 found+fixed,
+  README, ARCHITECTURE v2 corrections, CHANGELOG, ADR-027, brand heading polish,
+  B-Systems favicon.
+- Next steps: founder review. Open founder items: the "Needs founder confirmation"
+  thread (1)–(12) — chiefly the pending brand assets (remaining logo slots + Lama
+  Sans files) and the ADR defaults; BUG-001 (vitest collection flake) may be closed
+  as tooling noise or chased upstream; production deploy needs the ADR-002 Postgres
+  switch + real AUTH_SECRET.
+- Blockers: none.
+- Needs founder confirmation: items (1)–(12) carried (see Entries 001–005).

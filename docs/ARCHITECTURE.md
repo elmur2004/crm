@@ -1,7 +1,7 @@
 # Architecture — living document
 
-Status: **v1** — completed in the kickoff session (2026-08-08) per SPEC §17.
-Update on every structural change. Decisions that shape this file get ADRs
+Status: **v2** — v1 (kickoff, 2026-08-08) updated through Phase 5 (2026-08-09);
+describes the SHIPPED system. Decisions that shape this file get ADRs
 (`docs/DECISIONS.md`); physical-schema decisions are recorded inline in §5.
 
 ## 1. System overview
@@ -26,12 +26,13 @@ pipeline-engine module (§4 below; contract in `.claude/skills/pipeline-engine/S
 | Styling | Tailwind CSS v4 (CSS-first) on CSS-variable brand tokens | tailwindcss 4.3.3 + @tailwindcss/postcss (ADR-004) |
 | Database | Prisma ORM; SQLite dev / PostgreSQL prod | prisma 7.9.1, `prisma-client` generator → `generated/prisma` (ADR-002) |
 | Auth | NextAuth v5 (Auth.js) credentials, JWT sessions | next-auth 5.0.0-beta.32 (ADR-003) |
-| Password hashing | bcryptjs (cost 12) behind `src/lib/auth/hash.ts` | bcryptjs 3.0.3 (ADR-005) — wrapper lands Phase 0 |
+| Password hashing | bcryptjs (cost 12) behind `src/lib/auth/hash.ts` | bcryptjs 3.0.3 (ADR-005) |
 | Validation | Zod on every mutation, server-side | zod 4.4.3 |
-| Kanban DnD | dnd-kit (Portal only, v1 — A-7) | @dnd-kit/core 6.3.1 |
-| Testing | Vitest (unit/integration) + Playwright (E2E) | vitest 4.1.10 · @playwright/test 1.62.1 |
-| Uploads | local `/uploads` behind a storage abstraction (S3-ready) | — (Phase 2/3 implement drivers) |
-| Money / time | EGP integer piasters (ADR-018); UTC storage, Africa/Cairo display | — (`src/lib/money.ts`, `src/lib/datetime.ts` land Phase 0) |
+| Kanban DnD | dnd-kit (Portal only, v1 — A-7); stable DndContext id (BUG-002) | @dnd-kit/core 6.3.1 |
+| Testing | Vitest (unit/integration, test.db) + Playwright (journeys 1–5 + security + QA sweep, e2e.db) | vitest 4.1.10 · @playwright/test 1.62.1 |
+| Uploads | `src/lib/storage/` — local driver to `/uploads`, opaque keys, magic-byte validation, authenticated serving w/ Range | shipped Phase 2 |
+| Money / time | EGP integer piasters (ADR-018) via `src/lib/money.ts`; UTC storage, Africa/Cairo display via `src/lib/datetime.ts` | shipped Phase 0 |
+| DB driver | Prisma 7 driver adapter | @prisma/adapter-better-sqlite3 (prod: @prisma/adapter-pg, one-file swap in db.ts) |
 
 Scaffolding note: `create-next-app` refuses a non-empty repo, so the app skeleton was
 hand-written (package.json, tsconfig, configs, `src/app/`) — see IMPLEMENTATION.md.
@@ -78,9 +79,13 @@ swap — brand bleed is structurally impossible.
 /portal/admin              admin layer (§8.5)
   /dashboard  /crm         combined | per-rep toggle
   /won-deals  /sales-team  milestone management | team table
-/api/byteforce/…           App A data — requireRole(byteforce_staff)
-/api/b-systems/…           App B data (CRM + partners) — requireRole(bsystems_staff)
-/api/portal/…              App C data — portal roles (+ /api/portal/admin/… admin-only)
+/api/byteforce/…           App A data — requireBrandStaff("byteforce")
+/api/b-systems/…           App B data (CRM + partners pipeline + partner leads)
+/api/portal/…              App C — signup (public), deals + events (owner-or-admin),
+                           won-deals (redacted), profile
+/api/portal/admin/…        won-deal values, milestone define/check — requirePortalAdmin
+/api/files/[id]            authenticated file serving (recordings → bsystems staff;
+                           CVs → owning rep or admin), Range support
 ```
 
 API namespaces are **brand-partitioned**: the brand/app a handler serves is derived
@@ -122,25 +127,29 @@ src/
                              through the PP-4 gate); portal excludes Won for reps
                              everywhere (P-2)
       transition.ts          pure fn: (card, event, ctx) → {nextStage, requiredGroup,
-                             sideEffects[]} | REJECT     ← every SPEC §10 row
-      side-effects.ts        atomic effect executors: client auto-create (T-9),
-                             partner directory create (PP-4), partner-lead → CRM
-                             attribution (PP-5), WonDeal create (P-6), milestone
-                             unlock (P-8) — each writes ActivityLog in the same tx
+                             sideEffects[]} | REJECT     ← every SPEC §10 row.
+                             Side-effect DESCRIPTORS only — their executors live in
+                             the services (createClientFromWon in leads.ts, partner
+                             creation in partners.ts, WonDeal in portal-deals.ts),
+                             each atomic with the move + ActivityLog
     auth/                    NextAuth v5 config: two Credentials providers
                              (internal: email+password · portal: phone+password,
                              ADR-008), JWT sessions carrying user id + roles[],
                              `guards.ts` (requireRole / requireDealOwner / …) used by
                              EVERY route handler — UI hiding is never the barrier
-    services/                use-case layer the API routes call: leads.ts, clients.ts,
-                             partners.ts, portal-deals.ts, won-deals.ts, milestones.ts
-                             — owns transactions; calls engine + prisma + storage.
-                             won-deals.ts owns the rep-facing serializer: milestones
-                             past the first incomplete index are returned WITHOUT
-                             their `value` (locked values are redacted server-side,
-                             not just hidden in UI — asserted by the P-7 API test)
-    metrics/                 tested query per dashboard formula (§6.5, §8.5);
-                             fixtures with known expected numbers in tests
+    services/                use-case layer the API routes call (as shipped):
+                             groups.ts (Zod gates for every §6.2/§7.2 field group),
+                             leads.ts (applyLeadEvent + persistGroup + A-1 client
+                             creation), clients.ts, sales-reps.ts, metrics.ts (§6.5),
+                             partners.ts (PP rows incl. PP-2 in updateProspect),
+                             portal-deals.ts (applyDealEvent, ADR-026 owner stamp),
+                             portal-reps.ts (signup/profile), won-deals.ts (REDACTING
+                             rep serializer — locked milestone values never leave the
+                             server), milestones.ts (P-7/P-8, sequential order),
+                             portal-admin.ts (§8.5 formulas), activity.ts (in-tx log)
+                             (dashboard queries: services/metrics.ts for §6.5,
+                             services/portal-admin.ts for §8.5 — each formula has a
+                             fixture test with known expected numbers)
     storage/                 Storage interface (put/getStream/delete/url) +
                              LocalDriver → /uploads (gitignored); validation:
                              CV pdf/doc/docx ≤ 10 MB · recordings mp3/mp4 ≤ 50 MB
@@ -485,15 +494,16 @@ model ActivityLog {                         // §5.6 — product feature, not ju
    **Semantic token contract (ADR-019):** both brand files define the *identical*
    semantic variable set (asserted by `src/lib/brand-tokens.test.ts`) so a shared
    component can never hit an unset variable in one brand.
-4. **Fonts (ADR-013)** — self-hosted `@font-face` declarations under the **literal
-   family names the tokens already use** ("Raleway", "Inter", "JetBrains Mono",
-   "Lama Sans"), declared in `src/themes/fonts.css` with files under `public/fonts/`
-   (B-Systems faces downloaded from Google Fonts; Lama Sans copied from
-   `branding/byteforce/fonts/` when the founder supplies it — A-13 fallback until
-   then). `next/font` is deliberately NOT used: it registers generated scoped family
-   names that the canonical token files could never reference. This matches the
-   byteforce README's "wire through @font-face" instruction. Preload hints for the
-   woff2 files go in each brand root layout.
+4. **Fonts (ADR-013, mechanism per ADR-027)** — self-hosted `@font-face` under the
+   **literal family names the tokens already use**. Shipped mechanism: fontsource
+   packages (`@fontsource/raleway` 500–800, `@fontsource/inter` 400/500/700,
+   `@fontsource/jetbrains-mono` 500) imported in the `(bsystems)` root layout —
+   npm-delivered `@font-face` files, same contract as hand-managed `public/fonts/`.
+   `next/font` is deliberately NOT used (it registers generated scoped family names
+   the canonical tokens could never reference). Lama Sans still pending (A-13):
+   the token fallback stack applies; when files land in
+   `branding/byteforce/fonts/`, add plain `@font-face` declarations per the
+   byteforce README.
 5. **Assets** — founder files per ADR-006: `branding/b-systems/logo-mark.png`
    (gradient S-mark), `branding/byteforce/logo-horizontal.png` (primary lockup).
    `src/themes/assets.ts` exports the per-brand asset map; components never reference
@@ -515,12 +525,13 @@ model ActivityLog {                         // §5.6 — product feature, not ju
   `active` and roles **from the database on every guarded request** (ADR-017) — a
   deactivated rep (A-4 kill-switch) or a revoked role is rejected on the next request,
   not at token expiry. The deactivated-rep-403 case joins the P-2 integration tests.
-- Middleware does coarse route-group gating only (wrong-role → app login/403).
-  **Every route handler independently re-checks** via guards: `requireRole` (with the
-  route-derived brand scope, §3), `requireDealOwner(dealId)` — which admits the owning
-  rep **or any `portal_admin`** (owner-or-admin semantics: §3 grants admin "everything
-  a rep can, plus"; a rep hitting another rep's deal gets 403, integration-tested),
-  and `requireAdmin` for Won moves + all milestone mutations.
+- Middleware (Next 16: `src/proxy.ts`) does coarse route-group gating only.
+  **Every route handler independently re-checks** via guards (shipped names in
+  `lib/auth/guards.ts`): `requireRole`/`requireBrandStaff` (route-derived brand
+  scope, §3), `requireDealAccess(dealId)` — admits the owning rep **or any
+  `portal_admin`** (owner-or-admin: §3's "everything a rep can, plus"; a rep on a
+  foreign deal gets 403, tested), and `requirePortalAdmin` for Won-deal management
+  + all milestone mutations.
 - **portal_admin provisioning (ADR-016):** sign-up creates `portal_rep` accounts only.
   Admin accounts come from the seed script (and ops) in v1 — there is no admin
   sign-up. Dual-role B-Systems accounts (A-8) carry both `bsystems_staff` and

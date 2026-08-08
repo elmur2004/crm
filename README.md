@@ -1,62 +1,83 @@
-# ByteForce × B-Systems Sales Platform — Project Starter
+# ByteForce × B-Systems Sales Platform
 
-One platform, two brands, three applications:
-ByteForce CRM (internal) · B-Systems CRM + Partners (internal) · B-Systems Partnership Portal (external reps + admin).
+One platform, two brands, three applications in a single Next.js deployment:
 
-`SPEC.md` is the single source of truth: full product specification, business rules, testing plan,
-build phases, and Definition of Done. Everything else in this folder exists to make an AI coding
-agent build it correctly and keep the context clean across sessions.
+| App | URL space | Brand | Users |
+|---|---|---|---|
+| ByteForce CRM | `/byteforce` | ByteForce | Internal ByteForce team |
+| B-Systems CRM + Partners | `/b-systems` | B-Systems | Internal B-Systems team |
+| Partnership Portal | `/portal` (+ `/portal/admin`) | B-Systems | External sales reps + admin |
 
-## How to start
+`SPEC.md` is the single source of truth (product spec, business rules, testing plan,
+Definition of Done). The living project memory is in `docs/` — architecture, ADRs,
+test log, bugs, progress. If it isn't logged there, it didn't happen.
 
-**Claude Code** — open a terminal in this folder and run `claude`. `CLAUDE.md` loads automatically.
-Say: `/session-start` (or paste the kickoff prompt from SPEC.md §17).
+## Setup (cold start)
 
-**Antigravity (or any other agentic IDE)** — open this folder as the workspace. `AGENTS.md` carries
-the same operating rules; if the IDE doesn't auto-load it, paste the kickoff prompt from SPEC.md §17
-as your first message.
+Requirements: Node 22+, npm. No database server needed — dev runs on SQLite (ADR-002).
 
-## Before the first coding session
+```bash
+npm install
+cp .env.example .env            # then set AUTH_SECRET (e.g. `openssl rand -base64 32`)
+npx prisma migrate dev          # creates dev.db and applies migrations
+npx prisma db seed              # demo data: both brands + portal (see accounts below)
+npm run dev                     # http://localhost:3000
+```
 
-1. Drop the logo files into `branding/byteforce/` and `branding/b-systems/` (each folder's README
-   lists the expected files — any format is fine, the agent adapts to what it finds).
-2. If you have the Lama Sans font files (ByteForce), put them in `branding/byteforce/fonts/`.
-   B-Systems fonts (Raleway, Inter, JetBrains Mono) come from Google Fonts — nothing to add.
-3. That's it. Everything else is specified.
+### Demo accounts (dev seed)
+
+| App | Login at | Identifier | Password |
+|---|---|---|---|
+| ByteForce CRM | /byteforce/login | sara@byteforce.example | byteforce123 |
+| B-Systems CRM | /b-systems/login | omar@b-systems.example | bsystems123 |
+| Portal admin | /portal/login | admin@b-systems.example | admin123 |
+| Portal rep | /portal/login | 01001234567 | partner123 |
+
+## Test
+
+```bash
+npm test               # vitest — engine unit + service integration (dedicated test.db)
+npm run typecheck      # tsc --noEmit
+npx playwright install chromium   # once
+npm run test:e2e       # Playwright — SPEC §13 journeys 1–5 + security RBAC + QA sweep
+                       # (dedicated e2e.db on port 3100; reset + reseeded per run)
+```
+
+## Deploy
+
+```bash
+npm run build && npm run start
+```
+
+- Set `AUTH_SECRET` and `DATABASE_URL` in the environment.
+- Production database: switch `prisma/schema.prisma`'s datasource provider to
+  `postgresql`, install `@prisma/adapter-pg` and swap it in `src/lib/db.ts`
+  (one file), then regenerate migrations against Postgres (ADR-002).
+- Uploads live in `./uploads` behind a storage abstraction (`src/lib/storage/`);
+  point an S3-compatible driver at the same interface for cloud storage.
+
+## Architecture in one paragraph
+
+Brand theming is structural: each route group owns its `<html data-brand="…">`, and
+all brand values live in `branding/*/tokens.css` consumed through semantic
+`brand-*` Tailwind utilities — components never hardcode colors or fonts. All four
+pipelines (two internal CRMs, the partners pipeline, the portal) run on one pure
+transition engine (`src/lib/pipeline-engine/`) whose SPEC §10 rows are each
+unit-tested; services execute engine results atomically with their side effects and
+activity log. Permissions are enforced server-side on every route (role + brand +
+ownership guards re-read from the DB per request). Full details:
+`docs/ARCHITECTURE.md`.
 
 ## Folder map
 
 ```
-SPEC.md                  Master specification + process contract + kickoff prompt (§17)
-CLAUDE.md                Claude Code project memory (auto-loaded)
-AGENTS.md                Same operating rules for Antigravity / other agents
-docs/                    Living project logs — architecture, decisions (ADRs), testing,
-                         bugs, progress, changelog. Append-only. The project's memory.
-branding/byteforce/      ByteForce tokens.css + logo drop zone + brand rules
-branding/b-systems/      B-Systems tokens.css + logo drop zone + brand rules
-.claude/
-  settings.json          Pre-approved safe permissions for Claude Code
-  agents/                Subagents: spec-guardian, qa-runner, brand-auditor, docs-keeper
-  skills/                Brand + pipeline + logging knowledge, and workflow skills that
-                         double as slash commands: /session-start /session-end /log-adr
-                         /log-test /phase-gate /brand-audit
+SPEC.md                  Master specification + process contract (immutable)
+docs/                    Living logs: ARCHITECTURE, DECISIONS (ADRs), TESTING,
+                         BUGS, IMPLEMENTATION, PROGRESS, CHANGELOG
+branding/                Canonical brand tokens + founder logo/font drop zones
+src/lib/pipeline-engine/ The shared engine — stages, transitions, configs
+src/lib/services/        Use-case layer (transactions, side effects, activity log)
+src/app/                 Route groups per app + brand-partitioned /api namespaces
+e2e/                     Playwright: journeys 1–5, security RBAC, QA sweep
+.claude/                 Agent tooling: skills, subagents, permissions
 ```
-
-## Development (stack initialized 2026-08-08 — see docs/ARCHITECTURE.md)
-
-```bash
-npm install                # deps (Node 22+)
-cp .env.example .env       # then set AUTH_SECRET; SQLite needs no setup (ADR-002)
-npm run dev                # http://localhost:3000
-npm test                   # vitest suites
-npm run typecheck          # tsc --noEmit
-npm run build              # production build
-npm run test:e2e           # Playwright journeys (from Phase 1; needs npx playwright install)
-```
-
-## The one rule
-
-If it isn't logged in `docs/`, it didn't happen. Every session opens by reading
-`docs/PROGRESS.md` and closes by writing to it. Every assumption becomes an ADR.
-Every test run is recorded. That is how the context stays clean and consistent
-from the first session to the last.

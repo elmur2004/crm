@@ -88,22 +88,20 @@ test("journey 5: admin runs the Won pipeline; milestone locks update live for th
   );
   await expect(admin.locator('[data-stage="won"]').getByText("Milestone Deal")).toBeVisible();
 
-  /* Won Deals management: values + 3 milestones (P-7). */
+  /* Won Deals management: values + 3 milestones (P-7) — scoped to THIS deal's
+     manager card (the seed ships another won deal). */
   await admin.goto("/portal/admin/won-deals");
-  const manager = admin
-    .locator("div")
-    .filter({ has: admin.getByText("Milestone Deal") })
-    .last();
-  await admin.getByLabel("Estimated value (EGP)").fill("10000");
-  await admin.getByLabel("Total commission (EGP)").fill("1000");
-  await admin.getByRole("button", { name: "Save values" }).click();
-  await expect(admin.getByLabel("Number of milestones")).toHaveValue("3");
-  await admin.getByLabel("Milestone 1 value (EGP)").fill("4000");
-  await admin.getByLabel("Milestone 2 value (EGP)").fill("3500");
-  await admin.getByLabel("Milestone 3 value (EGP)").fill("2500");
-  await admin.getByRole("button", { name: "Save milestones" }).click();
-  await expect(admin.getByLabel("Milestone 1", { exact: true })).toBeVisible();
-  void manager;
+  const manager = admin.locator('[data-won-deal="Milestone Deal"]');
+  await expect(manager).toBeVisible();
+  await manager.getByLabel("Estimated value (EGP)").fill("10000");
+  await manager.getByLabel("Total commission (EGP)").fill("1000");
+  await manager.getByRole("button", { name: "Save values" }).click();
+  await expect(manager.getByLabel("Number of milestones")).toHaveValue("3");
+  await manager.getByLabel("Milestone 1 value (EGP)").fill("4000");
+  await manager.getByLabel("Milestone 2 value (EGP)").fill("3500");
+  await manager.getByLabel("Milestone 3 value (EGP)").fill("2500");
+  await manager.getByRole("button", { name: "Save milestones" }).click();
+  await expect(manager.getByLabel("Milestone 1", { exact: true })).toBeVisible();
 
   /* Rep's OPEN Won Deals page: M1 visible, M2/M3 locked with values absent. */
   await rep.goto("/portal/won-deals");
@@ -114,8 +112,8 @@ test("journey 5: admin runs the Won pipeline; milestone locks update live for th
 
   /* Admin checks Milestone 1 (P-8) — controlled input: click, then await the
      round-tripped state. The rep's page unlocks M2 live (≤5s poll). */
-  await admin.getByLabel("Milestone 1", { exact: true }).click();
-  await expect(admin.getByLabel("Milestone 1", { exact: true })).toBeChecked({
+  await manager.getByLabel("Milestone 1", { exact: true }).click();
+  await expect(manager.getByLabel("Milestone 1", { exact: true })).toBeChecked({
     timeout: 10_000,
   });
   await expect(rep.getByText("EGP 3,500")).toBeVisible({ timeout: 15_000 });
