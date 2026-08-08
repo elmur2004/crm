@@ -122,3 +122,26 @@ Phase 2 — App B: B-Systems CRM + Partners (SPEC §14). Verdict: **PASS**.
   Won Deals read view with milestone locks, Profile; P-1…P-5; journey 4; gate.
 - Blockers: none.
 - Needs founder confirmation: items (1)–(11) carried.
+
+## Entry 005 — 2026-08-09 — PHASE 3 GATE REPORT
+Phase 3 — App C: Portal, rep layer (SPEC §14). Verdict: **PASS**.
+
+| DoD item | Verdict | Evidence |
+|---|---|---|
+| Rep isolation enforced server-side + proven | PASS | requireDealAccess on deal routes; listing scoped to session portalRepId (hardened, Run 010); deal detail ownership check; integration test scopes won-deals per rep; journey 4 proves another rep's deal invisible |
+| Won restriction enforced server-side + proven | PASS | Engine wonRoles=[portal_admin]; ALL FOUR rep vectors (drag, action, admin_won, attended-destination) rejected 403 at service layer with nothing moved (Runs 009–010); journey 4 asserts the UI block AND a raw API 403 (§13's API-level requirement) |
+| §8.1–§8.4 complete | PASS | Landing (gradient+mesh hero) with Sign up/Log in; §8.1 sign-up exact incl. CV validation + auto sign-in (ADR-025); dnd-kit board with §5.4 drop-opens-group/cancel-reverts; Won Deals read view with server-REDACTED milestone locks + 5s polling (ADR-009); profile with CV download/replace + password change (A-10) |
+| P-1…P-5 tested | PASS | Engine unit (Phase 0) + service integration (7 cases incl. P-4 auto-move, P-6 exactly-once, redaction progression) + journey 4 |
+| Journey 4 passes | PASS | Playwright 4/4 (Runs 009–010) |
+
+- Done: full portal rep layer — services, API, UI (signup w/ auto-login, dnd-kit
+  board, milestone-locked Won Deals, profile), 8 integration tests, journey 4.
+  Gate cross-checks: brand-auditor PASS-with-findings (3 fixed: btnAccent, modal
+  arrow RTL, tagline color role); spec-guardian 4 low fixes closed (ADR-025/026,
+  listDeals hardening, 4th P-2 vector). BUG-001 filed (vitest collection flake).
+- Next steps: Phase 4 — admin layer (§8.5): dashboard, combined/per-rep CRM with
+  admin Won, Won Deals management with milestone define/check, Sales Team table;
+  P-6…P-8 integration; journey 5; gate.
+- Blockers: none.
+- Needs founder confirmation: items (1)–(11) carried, plus (12) ADR-026 implicit
+  portal follow-up owner.

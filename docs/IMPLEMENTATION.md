@@ -172,6 +172,31 @@ _Format per module:_
   `.next/dev/types` breaks typecheck after deleting pages — `rm -r .next`.
 - Last updated: 2026-08-09 (Entry 004, TESTING Run 007)
 
+## Portal rep layer (Phase 3)
+- Location: `src/lib/services/{portal-deals,won-deals,portal-reps}.ts`,
+  `src/app/api/portal/**`, `src/components/portal/**`,
+  `src/app/(bsystems)/portal/**` (landing, login, signup, (rep) group).
+- What exists / how it works: `applyDealEvent` mirrors the other event services on
+  portalConfig — the caller's REAL role reaches the engine, so P-2 is enforced in
+  the engine + service + API (403), never UI-only. Drag & drop: dnd-kit board;
+  a drop opens the target stage's modal form and NOTHING commits until submit
+  (cancel = revert, §5.4/ADR-023); Won column visible to reps but a drop shows the
+  clear block message. WonDeal (P-6) created exactly-once via the create_won_deal
+  side effect. **Milestone redaction lives in `won-deals.ts`'s serializer** —
+  locked values leave the server as null; the rep list polls /api/portal/won-deals
+  every 5 s (ADR-009). Sign-up: CV validated BEFORE the user tx; CV deleted from
+  storage if the tx fails; then the user logs in at /portal/login (?created=1
+  banner). Profile: basics + CV replace + password change; phone shown, not
+  editable (A-10).
+- Limitations / gotchas: portal group forms live in
+  `src/components/portal/groupForms.tsx` — a deliberate small duplication of the
+  internal panel's fields (different config, no owner select — owner is the rep,
+  stamped via ownerPortalRepId). dnd-kit drags in Playwright: grab the card
+  CONTAINER (`[data-deal-card]`), not the inner link, and cross the 6px activation
+  distance before travelling. LOG_ENTITY_TYPES gained "portal_rep" (additive to
+  §9's list) for signup/profile events.
+- Last updated: 2026-08-09 (Entry 005, TESTING Run 009)
+
 ## Kickoff verification round
 - Location: docs/ARCHITECTURE.md, docs/DECISIONS.md, branding/*/tokens.css, scaffold.
 - What exists / how it works: a 10-agent adversarial workflow (5 review dimensions ×

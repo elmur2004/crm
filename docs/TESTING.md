@@ -121,3 +121,37 @@ every dashboard formula, journeys 1-5 (SPEC §13).
   brands re-verified); §7.2 PP-2 user-visible wording; ADR-019 contract grew two
   names (set-equality test enforces both files).
 - Verdict: PASS — both Phase 2 auditors' findings closed.
+
+## Run 009 — 2026-08-09 — Phase 3 portal rep suite + E2E journey 4
+- Suites/commands: `npm run build` (portal routes register) · `npx vitest run`
+  (57: +7 portal integration) · `npx playwright test` (journeys 1–4, serial).
+- Cases: vitest 57 passed / 0 failed. Playwright 4 passed / 0 failed — journey 4
+  covers: seeded rep's fixture deal → sign up with CV (validated pdf) → phone
+  login (ADR-008) → rep isolation (other rep's deal invisible) → create deal →
+  P-1 drag with the stage form (confirm commits) → cancel reverts a drop → P-2
+  drag-to-Won blocked with the clear message in UI → **P-2 at API level: raw POST
+  of a Won drag returns 403** (§13 obligation) → deal detail shows accumulated
+  groups + [P-1] history.
+- Failures: one selector bug in journey 4's first run (drag grabbed the card's
+  inner link → navigation; fixed with a card-container test hook).
+- SPEC coverage touched: §8.1–§8.4 end-to-end; §10.3 P-1…P-6 at unit/integration
+  (P-2 all three vectors 403 + nothing moves; P-4 auto-move; P-6 WonDeal
+  exactly-once; milestone REDACTION asserts locked values are null in the
+  serializer output — P-7 read side; won-deals rep scoping); §15 CV rules.
+- Verdict: PASS.
+
+## Run 010 — 2026-08-09 — Phase 3 gate fixes (brand audit + spec-guardian)
+- Suites/commands: typecheck · `npx vitest run` (57) · `npx playwright test` (4)
+  after: spec-guardian fixes — sign-up now auto-signs the rep in per §8.1
+  (ADR-025; journey 4 verifies the landing AND the explicit login), implicit
+  portal follow-up owner ADR'd (ADR-026), `listDeals` hardened to require a
+  non-null repId (§3 isolation defense-in-depth), and the 4th P-2 vector
+  (attended→won as rep) added at the service layer; brand-audit fixes — dedicated
+  btnAccent (conflicting utilities removed), DealBoard modal arrow RTL-mirrored,
+  landing tagline off lavender-as-text.
+- Cases: vitest 57/0 · Playwright 4/0. (vitest's intermittent "no tests"
+  collection flake filed as BUG-001.)
+- Failures: none.
+- SPEC coverage touched: §8.1 landing, §10.3 P-2 (4th vector), §3 isolation.
+- Verdict: PASS — both Phase 3 auditors' findings closed (brand audit was already
+  PASS-with-findings).

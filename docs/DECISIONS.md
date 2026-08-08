@@ -345,3 +345,27 @@ history; supersede with a new ADR.
 - Alternatives considered: clamping at 0 (hides overpayments — invents behavior).
 - Resolves: §6.4/A-1 edge — flagged for founder confirmation
 - Status: Accepted
+
+## ADR-025 — 2026-08-09 — Sign-up signs the rep in ("lands in their portal", §8.1)
+- Context: §8.1 says "On success the rep lands in their portal"; the first
+  implementation redirected to the login page instead, which the Phase 3
+  spec-guardian flagged as unsanctioned drift.
+- Decision: After a successful sign-up the client immediately signs the new
+  account in through the portal provider with the just-registered credentials and
+  lands on /portal/crm. The login page remains for returning reps (§13 journey 4
+  verifies both paths).
+- Alternatives considered: explicit login after sign-up (an extra step §8.1's text
+  doesn't describe).
+- Resolves: §8.1 sign-up landing
+- Status: Accepted
+
+## ADR-026 — 2026-08-09 — Portal follow-up owner is the deal's rep, implicit
+- Context: §6.2's follow-up group has "Owner | rep select", and §8.2 reuses "the
+  same shapes". In the portal a rep sees only themself — a one-option select is
+  noise. SPEC and §11 are silent on portal owner semantics.
+- Decision: Portal follow-up forms render no owner select; the server stamps
+  `ownerPortalRepId` with the deal's rep. Internal CRMs keep the real rep select.
+- Alternatives considered: a disabled single-option select (clutter, no
+  information).
+- Resolves: §8.2/§6.2 shape reuse — flagged for founder confirmation
+- Status: Accepted

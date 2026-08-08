@@ -106,6 +106,7 @@ export const LOG_ENTITY_TYPES = [
   "lead",
   "partner_prospect",
   "portal_deal",
+  "portal_rep", // profile-space events (signup, edits) — additive to §9's list
   "won_deal",
   "client",
   "partner",

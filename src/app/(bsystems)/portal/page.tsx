@@ -20,7 +20,7 @@ export default function PortalLanding() {
             Programme
           </h1>
         </div>
-        <p className="mt-4 text-brand-secondary">
+        <p className="mt-4 text-brand-on-primary opacity-80">
           Run your own pipeline. Close with our systems.
         </p>
         <div className="mt-10 flex justify-center gap-4">
