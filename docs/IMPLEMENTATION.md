@@ -197,6 +197,25 @@ _Format per module:_
   §9's list) for signup/profile events.
 - Last updated: 2026-08-09 (Entry 005, TESTING Run 009)
 
+## Portal admin layer (Phase 4)
+- Location: `src/lib/services/{milestones,portal-admin}.ts`,
+  `src/app/api/portal/admin/**`, `src/components/portal/{WonDealManager,
+  DealDetailView}.tsx`, `src/app/(bsystems)/portal/admin/**`.
+- What exists / how it works: milestones service enforces SEQUENTIAL order (check i
+  requires i−1 completed; uncheck only the last completed — ADR-020's logged
+  correction); redefinition blocked once any milestone is checked; A-11 sum
+  mismatch returns a warning the UI shows non-blockingly. Admin dashboard applies
+  ADR-012 per-card estimated value (won → WonDeal.estimatedValue, else latest
+  proposal). Combined/per-rep board reuses DealBoard with isAdmin (drag into Won =
+  P-6). DealDetailView is the shared §8.2 detail body for rep and admin shells.
+  Admins hitting the rep CRM without a profile are redirected to /portal/admin.
+- Limitations / gotchas: the milestone checkbox is a CONTROLLED input — Playwright
+  must .click() and await toBeChecked(), not .check(). Journey 5 is self-contained
+  (creates its own rep/deal) and asserts dashboard tiles as DELTAS — keep it that
+  way so journey order never matters. defineMilestones caps at 100 values as a
+  sanity rail ("unlimited" in spirit).
+- Last updated: 2026-08-09 (Entry 006, TESTING Run 011)
+
 ## Kickoff verification round
 - Location: docs/ARCHITECTURE.md, docs/DECISIONS.md, branding/*/tokens.css, scaffold.
 - What exists / how it works: a 10-agent adversarial workflow (5 review dimensions ×

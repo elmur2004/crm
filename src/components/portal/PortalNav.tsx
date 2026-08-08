@@ -8,14 +8,16 @@ import { logout } from "@/lib/auth/actions";
 export function PortalNav({
   userName,
   items,
+  homeHref = "/portal/crm",
 }: {
   userName: string;
   items: Array<{ href: string; label: string }>;
+  homeHref?: string;
 }) {
   return (
     <header className="border-b border-brand-border bg-brand-surface-card">
       <div className="max-w-6xl mx-auto px-4 py-3 flex items-center gap-6">
-        <Link href="/portal/crm" className="shrink-0">
+        <Link href={homeHref} className="shrink-0">
           <BrandLogo brand="bsystems" variant="mark" height={32} />
         </Link>
         <nav className="flex gap-1 flex-1">

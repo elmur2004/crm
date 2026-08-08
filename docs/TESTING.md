@@ -155,3 +155,38 @@ every dashboard formula, journeys 1-5 (SPEC §13).
 - SPEC coverage touched: §8.1 landing, §10.3 P-2 (4th vector), §3 isolation.
 - Verdict: PASS — both Phase 3 auditors' findings closed (brand audit was already
   PASS-with-findings).
+
+## Run 011 — 2026-08-09 — Phase 4 admin suite + E2E journey 5 (FULL journey suite green)
+- Suites/commands: `npm run build` · `npx vitest run` (61: +4 admin integration) ·
+  `npx playwright test` — ALL FIVE §13 journeys pass serially.
+- Cases: vitest 61/0. Playwright 5/0 — journey 5 covers: admin email login through
+  the portal identifier field (ADR-016) → dashboard baseline → rep signs up + creates
+  a deal in a SECOND live browser session → combined CRM with rep-labeled cards +
+  per-rep filter → admin drags the deal into Won (P-6) → Won Deals management: values
+  + 3 generated milestones (P-7) → rep's open page shows Milestone 1's value only,
+  2 & 3 locked with values ABSENT from the payload → admin checks Milestone 1 (P-8)
+  → the rep's page unlocks Milestone 2 LIVE via the ≤5s poll without a reload (the
+  Phase 4 DoD's two-session verification) → Sales Team row exact → dashboard deltas
+  exact.
+- Failures during development: three journey-5 iterations (suite-order data coupling
+  → made self-contained; controlled-checkbox .check() → .click()+toBeChecked;
+  baseline read after fixture creation → reordered). Final suite clean.
+- SPEC coverage touched: §8.5.1–§8.5.4 formulas at integration + E2E; P-6/P-7/P-8
+  (incl. A-11 non-blocking warning, sequential order, uncheck-as-correction logged
+  per ADR-020); §13 journeys 1–5 ALL PASS.
+- Verdict: PASS.
+
+## Run 012 — 2026-08-09 — Phase 4 gate fix (spec-guardian)
+- Suites/commands: typecheck · `npx vitest run` (61) · `npx playwright test` (5)
+  after the one required fix: **ownerPortalRepId is now server-stamped from
+  `deal.repId` in applyDealEvent** (ADR-026/§3 — it had been client-supplied,
+  letting a rep post an arbitrary owner id and leaving admin-initiated follow-ups
+  ownerless); the client no longer sends any owner id. Brand audit was already a
+  clean PASS (one info note on table-header typography, no action).
+- Cases: vitest 61/0 · Playwright 5/0.
+- Failures: none.
+- SPEC coverage touched: §6.2 Owner semantics under ADR-026, §3 server-side
+  enforcement.
+- Verdict: PASS — Phase 4 auditors closed. Carried to Phase 5: rep-session 403
+  route tests for /api/portal/admin/** (§15 "reps cannot touch milestones" proven),
+  seed finalization incl. a won deal with milestones.

@@ -145,3 +145,26 @@ Phase 3 — App C: Portal, rep layer (SPEC §14). Verdict: **PASS**.
 - Blockers: none.
 - Needs founder confirmation: items (1)–(11) carried, plus (12) ADR-026 implicit
   portal follow-up owner.
+
+## Entry 006 — 2026-08-09 — PHASE 4 GATE REPORT
+Phase 4 — App C: Admin layer (SPEC §14). Verdict: **PASS**.
+
+| DoD item | Verdict | Evidence |
+|---|---|---|
+| Milestone lock/unlock verified LIVE across two sessions | PASS | Journey 5: admin + rep in separate browser contexts; the rep's open page unlocks Milestone 2 via the ≤5s poll with no reload after the admin checks Milestone 1 (Runs 011–012) |
+| All admin formulas verified | PASS | §8.5.1 dashboard + §8.5.4 sales-team fixtures with known numbers (admin.integration.test.ts); journey 5 asserts live tiles as deltas + the exact team row |
+| §8.5 complete (dashboard, combined/per-rep CRM, Won Deals mgmt, Sales Team) | PASS | All four sections built; spec-guardian verdict table all-match after 1 fix |
+| P-6…P-8 tested | PASS | P-6 exactly-once + logged; P-7 generation/A-11 warning/redefinition rules; P-8 sequential check + logged uncheck (ADR-020) at unit + integration + E2E |
+
+- Done: milestones + admin services (sequential P-8 order both directions),
+  admin API (requirePortalAdmin throughout), admin UI (dashboard, combined/per-rep
+  board with admin Won-drag, Won Deals manager, Sales Team), 4 integration tests,
+  journey 5 (self-contained, two live sessions). Gate: brand-auditor clean PASS;
+  spec-guardian 1 required fix applied — ownerPortalRepId now SERVER-stamped from
+  the deal (had been client-supplied; ADR-026/§3).
+- Next steps: Phase 5 — hardening & handover: full E2E suite green (already),
+  rep-session 403 tests for admin routes (§15), seed data final (incl. won deal
+  with milestones), README (setup/run/test/deploy), responsive/empty-state QA
+  pass, final /brand-audit, docs final, Global DoD (§15) walk + gate.
+- Blockers: none.
+- Needs founder confirmation: items (1)–(12) carried.

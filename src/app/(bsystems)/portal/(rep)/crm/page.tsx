@@ -12,7 +12,10 @@ export const metadata = { title: "CRM — Partnership Portal" };
 
 export default async function PortalCrm() {
   const user = await requirePageRole("/portal/login", "portal_rep", "portal_admin");
-  if (!user.portalRepId) redirect("/portal"); // admins get their own CRM (§8.5, Phase 4)
+  if (!user.portalRepId) {
+    // profile-less admins land in their own section (§8.5)
+    redirect(user.roles.includes("portal_admin") ? "/portal/admin" : "/portal");
+  }
   const deals = await listDeals(user.portalRepId);
 
   const boardDeals: BoardDeal[] = deals.map((d) => ({
@@ -42,7 +45,6 @@ export default async function PortalCrm() {
       <DealBoard
         deals={boardDeals}
         isAdmin={false}
-        ownerPortalRepId={user.portalRepId ?? undefined}
         detailBase="/portal/crm"
       />
     </div>

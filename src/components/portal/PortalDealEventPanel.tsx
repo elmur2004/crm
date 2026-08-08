@@ -25,14 +25,12 @@ export function PortalDealEventPanel({
   dealId,
   stage,
   isAdmin,
-  ownerPortalRepId,
   hasUnsentProposal,
   pendingMeeting,
 }: {
   dealId: string;
   stage: string;
   isAdmin: boolean;
-  ownerPortalRepId?: string;
   hasUnsentProposal: boolean;
   pendingMeeting: boolean;
 }) {
@@ -111,7 +109,7 @@ export function PortalDealEventPanel({
               e.preventDefault();
               void submit({
                 event: { type: "proposal_sent" },
-                group: followUpFromForm(new FormData(e.currentTarget), ownerPortalRepId),
+                group: followUpFromForm(new FormData(e.currentTarget)),
               });
             }}
             className="space-y-3"
@@ -191,7 +189,7 @@ export function PortalDealEventPanel({
                       event: { type: "meeting_outcome", outcome, destination },
                       group: groupForPortalStage(destination, new FormData(e.currentTarget), {
                         arranged,
-                        ownerPortalRepId,
+                        
                       }),
                     });
                   }}
@@ -229,7 +227,7 @@ export function PortalDealEventPanel({
                 event: { type: "next_action", action },
                 group: groupForPortalStage(action, new FormData(e.currentTarget), {
                   arranged,
-                  ownerPortalRepId,
+                  
                 }),
               });
             }}

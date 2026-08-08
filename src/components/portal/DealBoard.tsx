@@ -120,12 +120,10 @@ function Column({
 export function DealBoard({
   deals,
   isAdmin,
-  ownerPortalRepId,
   detailBase,
 }: {
   deals: BoardDeal[];
   isAdmin: boolean;
-  ownerPortalRepId?: string;
   detailBase: string;
 }) {
   const router = useRouter();
@@ -232,7 +230,7 @@ export function DealBoard({
                     event: { type: "drag", to: pendingDrop.to },
                     group: groupForPortalStage(pendingDrop.to, fd, {
                       arranged,
-                      ownerPortalRepId,
+                      
                     }),
                   },
                   pendingDrop.dealId,

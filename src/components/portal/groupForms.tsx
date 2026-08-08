@@ -4,8 +4,8 @@ import { FOLLOW_UP_METHODS, MEETING_MODES } from "@/lib/pipeline-engine/constant
 import { toPiasters } from "@/lib/money";
 
 /* §8.2 — portal stage group forms ("the same shapes" as §6.2). The follow-up
-   Owner is the rep themself (ownerPortalRepId stamped by the caller), so no
-   owner select renders here. */
+   Owner is the deal's rep, stamped SERVER-SIDE in applyDealEvent (ADR-026) —
+   no owner select renders here and no owner id leaves the client. */
 
 export const inputCls =
   "w-full border border-brand-border rounded-brand-control px-3 py-2 bg-brand-surface-card text-sm";
@@ -126,14 +126,13 @@ export function LostFields() {
 
 /* form-data → group payload builders */
 
-export function followUpFromForm(fd: FormData, ownerPortalRepId?: string) {
+export function followUpFromForm(fd: FormData) {
   return {
     group: "follow_up" as const,
     data: {
       date: String(fd.get("date")),
       time: String(fd.get("time")),
       method: String(fd.get("method")) as "call" | "message" | "visit",
-      ownerPortalRepId,
       followingUpWith: String(fd.get("followingUpWith") || "") || undefined,
     },
   };
@@ -173,9 +172,9 @@ export function lostFromForm(fd: FormData) {
 export function groupForPortalStage(
   target: string,
   fd: FormData,
-  opts: { arranged: boolean; ownerPortalRepId?: string },
+  opts: { arranged: boolean },
 ) {
-  if (target === "following_up") return followUpFromForm(fd, opts.ownerPortalRepId);
+  if (target === "following_up") return followUpFromForm(fd);
   if (target === "meeting_setting") return meetingFromForm(fd, opts.arranged);
   if (target === "proposal_sending") return proposalFromForm(fd);
   if (target === "lost") return lostFromForm(fd);

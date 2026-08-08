@@ -160,6 +160,12 @@ export async function applyDealEvent(opts: {
       throw new ApiError(400, `This move requires the "${result.requiredGroup.group}" fields`);
     }
     opts.group = groupPayloadSchema.parse(opts.group);
+    /* ADR-026 / §3: the follow-up owner is ALWAYS the deal's rep — server-stamped,
+       never trusted from the client (covers admin-initiated moves too). */
+    if (opts.group.group === "follow_up") {
+      opts.group.data.ownerPortalRepId = deal.repId;
+      opts.group.data.ownerSalesRepId = undefined;
+    }
   }
 
   await db.$transaction(async (tx) => {
