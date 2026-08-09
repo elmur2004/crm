@@ -1,51 +1,63 @@
 import { expect, test, type Page } from "@playwright/test";
 
-/* §15 Global DoD security proofs, at the API level (not UI):
-   - reps cannot touch milestones or admin won-deal management (403)
-   - reps cannot mutate another rep's deals (403)
-   - internal apps are invisible to portal roles and vice versa
-   - staff cannot cross brands through the partitioned API namespaces
-   Runs after the journeys (alphabetical) but is self-sufficient via seeds. */
+/* §15 Global DoD security proofs at the API level, V2 edition:
+   - agents cannot touch admin surfaces (milestones, statements, users, documents)
+   - an agent cannot mutate another agent's lead
+   - internal sales cannot touch agent-owned leads (bucket rule) nor admin APIs
+   - brands stay partitioned; role walls hold on pages and APIs alike */
 
-async function portalLogin(page: Page, identifier: string, password: string) {
+async function login(page: Page, identifier: string, password: string, landing: RegExp) {
   await page.goto("/login");
   await page.getByLabel("Email or phone").fill(identifier);
   await page.getByLabel("Password").fill(password);
   await page.getByRole("button", { name: "Sign in" }).click();
-  await page.waitForURL(/\/portal\/(crm|admin)/);
+  await page.waitForURL(landing);
 }
 
-test("reps cannot touch milestones or admin management (server-side 403)", async ({ page }) => {
-  await portalLogin(page, "01001234567", "partner123"); // seeded rep Karim
+test("agents cannot touch admin surfaces (server-side 403)", async ({ page }) => {
+  await login(page, "01001234567", "partner123", /\/b-systems\/crm$/); // seeded agent Karim
 
-  /* Guard fires before id resolution — any id proves the wall. */
-  const milestone = await page.request.patch("/api/portal/admin/milestones/any-id", {
+  /* Guards fire before id resolution — any id proves the wall. */
+  const milestone = await page.request.patch("/api/b-systems/milestones/any-id", {
     data: { completed: true },
   });
   expect(milestone.status()).toBe(403);
 
-  const values = await page.request.patch("/api/portal/admin/won-deals/any-id", {
-    data: { estimatedValue: 1 },
+  const statement = await page.request.post("/api/b-systems/statements", {
+    data: { milestoneId: "any-id" },
   });
-  expect(values.status()).toBe(403);
+  expect(statement.status()).toBe(403);
 
-  const define = await page.request.post("/api/portal/admin/won-deals/any-id/milestones", {
-    data: { values: [1] },
+  const users = await page.request.post("/api/b-systems/users", {
+    data: { name: "x", email: "x@x.example", password: "12345678", roles: ["bsystems_admin"] },
   });
-  expect(define.status()).toBe(403);
+  expect(users.status()).toBe(403);
+
+  const deactivate = await page.request.patch("/api/b-systems/users/any-id", {
+    data: { active: false },
+  });
+  expect(deactivate.status()).toBe(403);
+
+  const documents = await page.request.post("/api/b-systems/won-leads/any-id/documents", {
+    multipart: { kind: "contract", file: { name: "c.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.7") } },
+  });
+  expect(documents.status()).toBe(403);
+
+  const prospects = await page.request.post("/api/b-systems/partners-pipeline", {
+    data: { name: "x", companyName: "x", number: "1", businessActivity: "x" },
+  });
+  expect(prospects.status()).toBe(403);
 });
 
-test("a rep cannot mutate another rep's deal (API 403/404, nothing changes)", async ({
-  browser,
-}) => {
-  /* Rep B signs up via the public API. */
-  const repB = await browser.newContext();
-  const pageB = await repB.newPage();
+test("an agent cannot mutate another agent's lead (403, nothing changes)", async ({ browser }) => {
+  /* Agent B signs up via the public API. */
+  const ctxB = await browser.newContext();
+  const pageB = await ctxB.newPage();
   await pageB.goto("/portal/signup");
-  const signup = await pageB.request.post("/api/portal/signup", {
+  const signup = await pageB.request.post("/api/b-systems/signup", {
     multipart: {
       firstName: "Isolated",
-      lastName: "Rep",
+      lastName: "Agent",
       phone: "01717171717",
       address: "1 Far St",
       speciality: "Sales",
@@ -59,67 +71,87 @@ test("a rep cannot mutate another rep's deal (API 403/404, nothing changes)", as
     },
   });
   expect(signup.status()).toBe(201);
-  await portalLogin(pageB, "01717171717", "isolated123");
+  await login(pageB, "01717171717", "isolated123", /\/b-systems\/crm$/);
 
-  /* Rep A (seeded Karim) owns a seeded deal — find its id via A's own board. */
-  const repA = await browser.newContext();
-  const pageA = await repA.newPage();
-  await portalLogin(pageA, "01001234567", "partner123");
-  await pageA.goto("/portal/crm");
+  /* Agent A (seeded Karim) owns "Follow-up Deal" — find its id on A's own board. */
+  const ctxA = await browser.newContext();
+  const pageA = await ctxA.newPage();
+  await login(pageA, "01001234567", "partner123", /\/b-systems\/crm$/);
   const href = await pageA
-    .locator('[data-stage="leads"] a[href^="/portal/crm/"]')
-    .first()
+    .getByRole("link", { name: "Follow-up Deal" })
     .getAttribute("href");
-  const dealId = href!.split("/").pop()!;
+  const leadId = href!.split("/").pop()!;
 
-  /* Rep B attacks A's deal: field edit + stage event both rejected. */
-  const patch = await pageB.request.patch(`/api/portal/deals/${dealId}`, {
+  /* Agent B attacks A's lead: field edit + stage event + ready-flag all rejected. */
+  const patch = await pageB.request.patch(`/api/b-systems/leads/${leadId}`, {
     data: { name: "Hijacked" },
   });
   expect(patch.status()).toBe(403);
-  const event = await pageB.request.post(`/api/portal/deals/${dealId}/event`, {
+  const event = await pageB.request.post(`/api/b-systems/leads/${leadId}/event`, {
     data: { event: { type: "drag", to: "lost" } },
   });
   expect(event.status()).toBe(403);
+  const ready = await pageB.request.post(`/api/b-systems/leads/${leadId}/ready`);
+  expect(ready.status()).toBe(403);
+  /* B cannot even VIEW A's lead. */
+  await pageB.goto(`/b-systems/crm/lead/${leadId}`);
+  await expect(pageB.getByText(/could not be found|404/i).first()).toBeVisible();
 
-  /* A's deal is untouched. */
+  /* A's lead is untouched. */
   await pageA.reload();
-  await expect(pageA.locator(`a[href="/portal/crm/${dealId}"]`)).toBeVisible();
+  await expect(pageA.getByRole("link", { name: "Follow-up Deal" })).toBeVisible();
 
-  await repA.close();
-  await repB.close();
+  await ctxA.close();
+  await ctxB.close();
 });
 
-test("internal apps invisible to portal roles; portal invisible to staff; brands partitioned", async ({
+test("internal sales: internal bucket only, no admin APIs; brands stay partitioned", async ({
   browser,
 }) => {
-  /* Portal rep cannot reach internal apps (redirected) nor their APIs (403). */
-  const rep = await browser.newContext();
-  const repPage = await rep.newPage();
-  await portalLogin(repPage, "01001234567", "partner123");
-  await repPage.goto("/byteforce");
-  await expect(repPage).toHaveURL(/\/login/);
-  const bfApi = await repPage.request.post("/api/byteforce/reps", { data: { name: "x" } });
+  /* Find an agent-owned lead id (Karim's own board). */
+  const agent = await browser.newContext();
+  const agentPage = await agent.newPage();
+  await login(agentPage, "01001234567", "partner123", /\/b-systems\/crm$/);
+  const href = await agentPage
+    .getByRole("link", { name: "Follow-up Deal" })
+    .getAttribute("href");
+  const agentLeadId = href!.split("/").pop()!;
+
+  /* Internal sales (omar): agent-bucket lead mutations are rejected. */
+  const sales = await browser.newContext();
+  const salesPage = await sales.newPage();
+  await login(salesPage, "omar@b-systems.example", "bsystems123", /\/b-systems\/crm$/);
+  const crossBucket = await salesPage.request.patch(`/api/b-systems/leads/${agentLeadId}`, {
+    data: { name: "Poached" },
+  });
+  expect(crossBucket.status()).toBe(403);
+  const adminApi = await salesPage.request.patch("/api/b-systems/users/any-id", {
+    data: { active: false },
+  });
+  expect(adminApi.status()).toBe(403);
+  const partnersApi = await salesPage.request.post("/api/b-systems/partners-pipeline", {
+    data: { name: "x", companyName: "x", number: "1", businessActivity: "x" },
+  });
+  expect(partnersApi.status()).toBe(403); // V2: Partnership CRM is admin-only
+
+  /* Agents cannot reach ByteForce (page redirect + API 403). */
+  await agentPage.goto("/byteforce");
+  await expect(agentPage).toHaveURL(/\/login/);
+  const bfApi = await agentPage.request.post("/api/byteforce/reps", { data: { name: "x" } });
   expect(bfApi.status()).toBe(403);
 
-  /* ByteForce staff cannot reach B-Systems (page redirect + API 403) nor the portal APIs. */
+  /* ByteForce staff cannot reach B-Systems (page redirect + API 403). */
   const staff = await browser.newContext();
   const staffPage = await staff.newPage();
-  await staffPage.goto("/login");
-  await staffPage.getByLabel("Email or phone").fill("sara@byteforce.example");
-  await staffPage.getByLabel("Password").fill("byteforce123");
-  await staffPage.getByRole("button", { name: "Sign in" }).click();
-  await staffPage.waitForURL(/\/byteforce$/);
-
+  await login(staffPage, "sara@byteforce.example", "byteforce123", /\/byteforce$/);
   await staffPage.goto("/b-systems");
   await expect(staffPage).toHaveURL(/\/login/);
   const crossBrand = await staffPage.request.post("/api/b-systems/leads", {
     data: { name: "x", number: "1", type: "cold_call" },
   });
   expect(crossBrand.status()).toBe(403);
-  const portalApi = await staffPage.request.get("/api/portal/won-deals");
-  expect(portalApi.status()).toBe(403);
 
-  await rep.close();
+  await agent.close();
+  await sales.close();
   await staff.close();
 });

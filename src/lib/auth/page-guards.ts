@@ -12,3 +12,16 @@ export async function requirePageRole(loginPath: string, ...roles: Role[]): Prom
     redirect(loginPath);
   }
 }
+
+/* V2 — admin-only B-Systems pages: other B-Systems roles bounce to their board. */
+export async function requireBsAdminPage(): Promise<CurrentUser> {
+  const user = await requirePageRole(
+    "/login",
+    "bsystems_admin",
+    "bsystems_sales",
+    "bsystems_agent",
+    "bsystems_partner",
+  );
+  if (!user.roles.includes("bsystems_admin")) redirect("/b-systems/crm");
+  return user;
+}

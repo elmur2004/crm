@@ -208,3 +208,27 @@ every dashboard formula, journeys 1-5 (SPEC §13).
 - SPEC coverage touched: §15 security + responsive + console clauses; §13 seed
   fixture list final (verified by the suite running against it).
 - Verdict: PASS — full suite green against the final seed.
+
+## Run 014 — 2026-08-09 — V2 restructure verification (V2-P5): full suite
+- Suites/commands: `npm run typecheck` (tsc clean) · `npm run build` (production
+  build green; stage tokens verified in the emitted CSS) · `npx vitest run`
+  (60, 5 files) · `npx playwright test` (12).
+- Cases: vitest 60 passed / 0 failed · Playwright 12 passed / 0 failed /
+  0 skipped. New this round: **bsystems.integration.test.ts** (12 V2 cases) —
+  B-9 confirm-win creates WonDeal + ordered milestones; agent Won forbidden;
+  won-lead delete blocked; B-RTC flag + broadcast notification idempotent;
+  agent day-only follow-up defaults 09:00 Cairo; agent meeting request notifies
+  admins with details; B-4 form-free proposal return for agents; commission
+  visibility matrix (closer sees / sales never / locked milestones redacted);
+  statements end-to-end (waiting → ST-0001 → pending payment → paid with PNG
+  proof; PDF proof rejected; duplicate statement 409); PP-4 account
+  provisioning with auto password; impersonation token mint/verify/tamper/
+  expiry + deactivated refusal. Playwright: journeys 1–5 (incl. rewritten
+  agent + admin-win cycles), security-rbac V2 walls, qa-sweep across all
+  roles/viewports.
+- Failures: none.
+- SPEC coverage touched: V2 rows per docs/REQUIREMENTS-V2.md — B-4, B-9, B-RTC,
+  PP-4 (account provisioning), commission visibility, statements,
+  impersonation; §13 journeys 1–5 (3/4/5 rewritten for the unified /b-systems
+  app) + security-rbac + qa-sweep.
+- Verdict: PASS — V2 full suite green.

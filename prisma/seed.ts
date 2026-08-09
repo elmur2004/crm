@@ -213,7 +213,7 @@ export async function seed() {
           number: "0231000001",
           businessActivity: "Trading",
           stage,
-          ...(stage === "didnt_answer" ? { number2: null } : {}),
+          ...(stage === "didnt_answer" ? { nonAnsweringNumbers: '["0231000001"]' } : {}),
         },
       });
       if (stage === "following_up") {

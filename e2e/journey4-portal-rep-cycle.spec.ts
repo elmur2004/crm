@@ -1,44 +1,30 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
-/* SPEC §13 journey 4 — Portal rep cycle:
-   sign up with CV → log in → create deal → drag through stages with field groups →
-   attempt drag into Won is blocked → sees only own deals. Includes the API-level
-   P-2 assertion (§13: "server-side rejection of a rep setting Won (API level)"). */
+/* V2 journey 4 — Agent cycle on the UNIFIED B-Systems board (the portal is gone):
+   sign up with CV → land on /b-systems/crm → sees only own leads → add a lead →
+   drag through stages with the LIGHT forms (day-only follow-up, no owner/with) →
+   Won is blocked in UI and at the API → meeting request shows the WhatsApp
+   confirmation → mark ready to close flags the card. */
 
 const PDF = Buffer.concat([Buffer.from("%PDF-1.7 journey"), Buffer.alloc(1024, 4)]);
 
 async function dragTo(page: Page, card: Locator, column: Locator) {
   const from = (await card.boundingBox())!;
   const to = (await column.boundingBox())!;
-  /* grab the card's lower edge (away from its link) and cross the pointer-sensor
-     activation distance before travelling */
-  await page.mouse.move(from.x + from.width / 2, from.y + from.height - 8);
+  /* grab the card's middle-right edge — clear of the top-left link AND the
+     bottom "Mark ready to close" button (both stop pointer propagation) — and
+     cross the pointer-sensor activation distance before travelling */
+  await page.mouse.move(from.x + from.width - 10, from.y + from.height / 2);
   await page.mouse.down();
-  await page.mouse.move(from.x + from.width / 2 + 12, from.y + from.height + 4, { steps: 4 });
+  await page.mouse.move(from.x + from.width - 10, from.y + from.height / 2 + 12, { steps: 4 });
   await page.mouse.move(to.x + to.width / 2, to.y + 60, { steps: 14 });
   await page.mouse.up();
 }
 
-test("journey 4: portal rep signs up, works the board, cannot reach Won, sees only own deals", async ({
+test("journey 4: agent signs up, works the unified board, cannot reach Won, sees only own leads", async ({
   page,
 }) => {
-  /* Seeded rep Karim creates a deal first — the isolation fixture. */
-  await page.goto("/login");
-  await page.getByLabel("Email or phone").fill("01001234567");
-  await page.getByLabel("Password").fill("partner123");
-  await page.getByRole("button", { name: "Sign in" }).click();
-  await expect(page).toHaveURL(/\/portal\/crm$/);
-  await page.getByRole("button", { name: "Add deal" }).click();
-  await page.getByLabel("Name", { exact: true }).fill("Karim Secret Deal");
-  await page.getByLabel("Position").fill("CEO");
-  await page.getByLabel("Number", { exact: true }).fill("0107770000");
-  await page.getByLabel("Company name").fill("Karim Co");
-  await page.getByLabel("Industry").fill("Retail");
-  await page.getByRole("button", { name: "Save deal" }).click();
-  await expect(page.getByText("Karim Secret Deal")).toBeVisible();
-  await page.getByRole("button", { name: "Log out" }).click();
-
-  /* Sign up with CV (§8.1). */
+  /* Sign up with CV (§8.1 — unchanged in V2). */
   await page.goto("/portal");
   await page.getByRole("link", { name: "Sign up" }).click();
   await page.getByLabel("First name").fill("Nadia");
@@ -53,70 +39,83 @@ test("journey 4: portal rep signs up, works the board, cannot reach Won, sees on
   await page.getByLabel("Confirm password").fill("nadia12345");
   await page.getByRole("button", { name: "Sign up" }).click();
 
-  /* §8.1: on success the rep lands in their portal (auto sign-in, ADR-025). */
-  await expect(page).toHaveURL(/\/portal\/crm$/);
+  /* V2: on success the agent lands on the unified board (auto sign-in, ADR-025). */
+  await expect(page).toHaveURL(/\/b-systems\/crm$/);
 
-  /* §13's explicit login step: log out, log in with the phone identifier (ADR-008). */
+  /* Explicit login round-trip with the phone identifier (ADR-008/028). */
   await page.getByRole("button", { name: "Log out" }).click();
   await page.goto("/login");
   await page.getByLabel("Email or phone").fill("01212121212");
   await page.getByLabel("Password").fill("nadia12345");
   await page.getByRole("button", { name: "Sign in" }).click();
-  await expect(page).toHaveURL(/\/portal\/crm$/);
+  await expect(page).toHaveURL(/\/b-systems\/crm$/);
 
-  /* Rep isolation: Karim's deal is invisible (§3). */
-  await expect(page.getByText("Karim Secret Deal")).toHaveCount(0);
+  /* Agent isolation: the seeded agent Karim's leads are invisible (§3). */
+  await expect(page.getByText("Fresh Deal")).toHaveCount(0);
+  await expect(page.getByText("Follow-up Deal")).toHaveCount(0);
 
-  /* Create a deal (§8.2 fields). */
-  await page.getByRole("button", { name: "Add deal" }).click();
+  /* Create a lead (V2 §1 fields — the ex-portal deal shape). */
+  await page.getByRole("button", { name: "Add lead" }).click();
   await page.getByLabel("Name", { exact: true }).fill("Nadia Prospect");
-  await page.getByLabel("Position").fill("Operations Lead");
   await page.getByLabel("Number", { exact: true }).fill("0108880000");
+  await page.getByLabel("Position").fill("Operations Lead");
   await page.getByLabel("Company name").fill("Prospect GmbH");
   await page.getByLabel("Industry").fill("Manufacturing");
-  await page.getByRole("button", { name: "Save deal" }).click();
+  await page.getByRole("button", { name: "Save lead" }).click();
   const card = page.locator('[data-deal-card="Nadia Prospect"]');
   await expect(card).toBeVisible();
 
-  /* P-1: drag Leads → Following Up; the stage's field group opens; confirm commits. */
+  /* Drag New → Following Up; the LIGHT form opens: day only, NO time field. */
   await dragTo(page, card, page.locator('[data-stage="following_up"]'));
   await expect(page.getByText("Complete this stage's details to confirm the move")).toBeVisible();
+  await expect(page.getByLabel("Follow-up date")).toBeVisible();
+  await expect(page.getByLabel("Follow-up time")).toHaveCount(0); // V2 §3 light form
+  await expect(page.getByLabel("Owner")).toHaveCount(0);
   await page.getByLabel("Follow-up date").fill("2026-10-01");
-  await page.getByLabel("Follow-up time").fill("10:00");
   await page.getByLabel("Method").selectOption("call");
   await page.getByRole("button", { name: "Confirm move" }).click();
   await expect(
     page.locator('[data-stage="following_up"]').getByText("Nadia Prospect"),
   ).toBeVisible();
 
-  /* Cancel reverts: drag to Proposal Sending, cancel the form, card stays put. */
-  await dragTo(page, card, page.locator('[data-stage="proposal_sending"]'));
+  /* Cancel reverts: drag to Sending Proposal, cancel the form, card stays put. */
+  await dragTo(page, card, page.locator('[data-stage="sending_proposal"]'));
   await expect(page.getByText("Complete this stage's details to confirm the move")).toBeVisible();
   await page.getByRole("button", { name: "Cancel" }).click();
   await expect(
     page.locator('[data-stage="following_up"]').getByText("Nadia Prospect"),
   ).toBeVisible();
 
-  /* P-2 (UI): drag into Won is blocked with the clear message. */
+  /* Won is blocked in the UI with a clear message. */
   await dragTo(page, card, page.locator('[data-stage="won"]'));
-  await expect(page.getByText("Only the portal admin can move a deal to Won.")).toBeVisible();
+  await expect(page.getByText("Only an admin can confirm a win.")).toBeVisible();
   await expect(page.locator('[data-stage="won"]').getByText("Nadia Prospect")).toHaveCount(0);
 
-  /* P-2 (API level, §13): the raw endpoint rejects a rep's Won attempt with 403. */
+  /* …and at the API (server-side, §3/V2 §11). */
   const dealHref = await page
     .locator('[data-stage="following_up"]')
     .getByRole("link", { name: "Nadia Prospect" })
     .getAttribute("href");
-  const dealId = dealHref!.split("/").pop()!;
-  const apiResponse = await page.request.post(`/api/portal/deals/${dealId}/event`, {
+  const leadId = dealHref!.split("/").pop()!;
+  const apiResponse = await page.request.post(`/api/b-systems/leads/${leadId}/event`, {
     data: { event: { type: "drag", to: "won" } },
   });
   expect(apiResponse.status()).toBe(403);
-  const body = (await apiResponse.json()) as { error: string };
-  expect(body.error).toContain("admin");
 
-  /* The deal detail shows the accumulated group history. */
-  await page.locator('[data-stage="following_up"]').getByRole("link", { name: "Nadia Prospect" }).click();
-  await expect(page.getByText("Following up", { exact: true })).toBeVisible();
-  await expect(page.getByText("[P-1]")).toBeVisible();
+  /* Lead detail: the meeting Q&A flow ends in the WhatsApp confirmation (V2 §3). */
+  await page.goto(`/b-systems/crm/lead/${leadId}`);
+  await page.getByLabel("Next action").selectOption("meeting_setting");
+  await expect(page.getByText("Did you agree with the client on a time?")).toBeVisible();
+  await page.getByLabel("Date", { exact: true }).fill("2026-10-05");
+  await page.getByLabel("Time", { exact: true }).fill("14:00");
+  await page.getByLabel("Mode").selectOption("online");
+  await page.getByText("Do you need a technical colleague with you?").click();
+  await page.getByRole("button", { name: "Save & move" }).click();
+  await expect(
+    page.getByText("Your request was received — we'll confirm on WhatsApp."),
+  ).toBeVisible();
+
+  /* Mark ready to close — always available, flags the card (V2 §3). */
+  await page.getByRole("button", { name: "Mark ready to close" }).click();
+  await expect(page.getByText("Ready to close").first()).toBeVisible();
 });

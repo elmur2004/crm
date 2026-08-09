@@ -65,7 +65,7 @@ export const STAGE_LABELS: Record<string, string> = {
   didnt_answer: "Didn't Answer",
   following_up: "Following Up",
   meeting_setting: "Meeting Setting",
-  sending_proposal: "Sending Proposal",
+  sending_proposal: "Sending Proposals",
   negotiation: "Negotiation",
   won: "Won",
   lost: "Lost",

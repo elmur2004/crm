@@ -1,7 +1,9 @@
 import { PartnersPipelineBody } from "@/components/partners/pages";
+import { requireBsAdminPage } from "@/lib/auth/page-guards";
 
-export const metadata = { title: "Partners Pipeline — B-Systems CRM" };
+export const metadata = { title: "Partnership CRM — B-Systems CRM" };
 
-export default function Page() {
+export default async function Page() {
+  await requireBsAdminPage();
   return <PartnersPipelineBody />;
 }

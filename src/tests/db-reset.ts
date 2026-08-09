@@ -4,10 +4,10 @@ import { db } from "@/lib/db";
 
 export async function resetDb(): Promise<void> {
   await db.activityLog.deleteMany();
-  await db.statement.deleteMany(); // references Milestone (restrict) — first
+  await db.attachment.deleteMany(); // references Statement/WonDeal/PortalRep — first
+  await db.statement.deleteMany(); // references Milestone (restrict)
   await db.milestone.deleteMany();
   await db.wonDeal.deleteMany();
-  await db.attachment.deleteMany();
   await db.followUp.deleteMany();
   await db.meeting.deleteMany();
   await db.proposal.deleteMany();

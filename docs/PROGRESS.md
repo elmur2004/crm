@@ -250,3 +250,33 @@ comment, and the ADR-013 mechanism note all fixed; .env.example confirmed tracke
 - Needs founder confirmation: items (1)–(12) carried; (13) ADR-028 consolidated
   login replacing per-app pages (founder-directed — confirm the landing-priority
   order suits dual-role accounts).
+
+## Entry 009 — 2026-08-09 — V2 restructure — UI + verification complete (V2-P4/P5)
+- Done: (1) V2-P4 UI shipped — role-aware B-Systems shell replacing the portal
+  (per-role navs: admin 10 sections; sales CRM + Won Leads; agents/partners
+  CRM / Won Leads / Payments / Profile); NotificationsBell polling
+  /api/b-systems/notifications; colored draggable board
+  (src/components/bsystems/BsBoard.tsx) with per-stage token tints + role-aware
+  drop forms (roleForms.tsx); BsEventPanel with the agent meeting Q&A → WhatsApp
+  confirmation copy; unified lead detail at /b-systems/crm/lead/[leadId] (admin
+  edit/copy/delete); and all V2 sections — Home (agent/partner counts + external
+  pipeline chart), Leads (owner-bucket filter), Won Leads (+ admin detail with
+  sequential milestone checks and proposal/contract uploads), Agents
+  (Detailed/Pipeline), Registrations, Statements (Waiting → Generate → Create
+  ST-#### → Mark paid with proof image), Users (create/deactivate/impersonate),
+  Payments, Profile (agent full / partner read-only + password change); profile
+  APIs re-homed to /api/b-systems/profile*. (2) Partner pages gated admin-only
+  server-side (requireBsAdminPage); ByteForce untouched. (3) V2-P5 verification —
+  tsc clean; production build green; stage tokens verified in the emitted CSS
+  (utilities resolve against the brand scopes; Tailwind's @layer theme
+  self-reference is inert because the unlayered brand token definitions win);
+  vitest 60/60 incl. a new 12-test V2 integration suite
+  (src/lib/services/bsystems.integration.test.ts); Playwright 12/12 after
+  rewriting journeys 3/4/5 + security-rbac + qa-sweep for the unified
+  /b-systems app (TESTING Run 014; V2 scope per ADR-030).
+- In progress: none.
+- Next steps: founder review of the [A]-marked V2 defaults in
+  docs/REQUIREMENTS-V2.md.
+- Blockers: none.
+- Needs founder confirmation: items (1)–(13) carried (see Entries 001–008);
+  (14) the [A]-marked defaults in docs/REQUIREMENTS-V2.md still stand.

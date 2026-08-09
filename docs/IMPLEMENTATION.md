@@ -254,3 +254,33 @@ _Format per module:_
 - Limitations / gotchas: all other logo slots and the Lama Sans font files are still
   pending from the founder (A-13 fallback stack active in tokens.css).
 - Last updated: 2026-08-08 (ADR-006)
+
+## V2 restructure — verification round (V2-P4/P5)
+- Location: src/lib/services/leads.ts, src/tests/db-reset.ts,
+  playwright.config.ts, src/lib/pipeline-engine/constants.ts (STAGE_LABELS),
+  e2e drag helper, built-CSS theme layering.
+- What exists / how it works: notes discovered while shipping the V2-P4 UI and
+  running the V2-P5 verification round (Entry 009, TESTING Run 014, ADR-030).
+- Limitations / gotchas:
+  - **leadEventSchema was missing the "drag" event variant** the board sends;
+    the V1 portal had its own schema, so this only surfaced when the unified
+    board reused /api/b-systems/leads/[id]/event. Added
+    `z.object({type:"drag", to})` to the union (src/lib/services/leads.ts).
+  - **src/tests/db-reset.ts deletion order**: Attachment must be deleted BEFORE
+    Statement (payment-proof attachments FK-reference statements); the old
+    order poisoned every later reset once a proof row existed.
+  - **playwright.config.ts webServer now runs `prisma migrate deploy` before
+    `next build`**: Playwright boots the webServer before globalSetup, and the
+    build prerenders pages that query the database, so e2e.db must be migrated
+    first.
+  - **STAGE_LABELS.sending_proposal restored to "Sending Proposals"** — the V2
+    constants rewrite had renamed it and broke ByteForce journey assertions;
+    SPEC v1 naming is normative for ByteForce.
+  - **E2E drag helper grabs the card's middle-right edge**: the card's top-left
+    link and the new bottom "Mark ready to close" button both stop pointer
+    propagation, so bottom-edge grabs were flaky.
+  - **Tailwind `@theme inline` same-name self-reference (--color-stage-*)
+    confirmed benign** in the built CSS: the reference is emitted inside
+    @layer theme, and the unlayered :root[data-brand] token definitions always
+    win.
+- Last updated: 2026-08-09 (Entry 009, TESTING Run 014, ADR-030)

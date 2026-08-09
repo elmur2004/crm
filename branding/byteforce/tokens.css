@@ -44,6 +44,25 @@
   --font-body:    "Lama Sans", ui-sans-serif, system-ui, "Segoe UI", Arial, sans-serif;
   --font-mono:    ui-monospace, "Cascadia Mono", monospace;
 
+  /* Per-stage board tints (V2) — TINTS of the two brand hues + neutrals only.
+     Accent = the column's header bar / edge; tint = the column well. */
+  --color-stage-intake: color-mix(in srgb, var(--bf-gray) 45%, var(--bf-offwhite));
+  --color-stage-intake-accent: var(--bf-gray);
+  --color-stage-following: color-mix(in srgb, var(--bf-violet) 10%, var(--bf-offwhite));
+  --color-stage-following-accent: var(--bf-violet);
+  --color-stage-meeting: color-mix(in srgb, var(--bf-orange) 12%, var(--bf-offwhite));
+  --color-stage-meeting-accent: var(--bf-orange);
+  --color-stage-proposal: color-mix(in srgb, var(--bf-violet) 18%, var(--bf-offwhite));
+  --color-stage-proposal-accent: color-mix(in srgb, var(--bf-violet) 70%, var(--bf-offwhite));
+  --color-stage-negotiation: color-mix(in srgb, var(--bf-orange) 22%, var(--bf-offwhite));
+  --color-stage-negotiation-accent: color-mix(in srgb, var(--bf-orange) 75%, var(--bf-offwhite));
+  --color-stage-didnt-answer: color-mix(in srgb, var(--bf-ink) 8%, var(--bf-offwhite));
+  --color-stage-didnt-answer-accent: color-mix(in srgb, var(--bf-ink) 45%, var(--bf-offwhite));
+  --color-stage-won: color-mix(in srgb, var(--bf-violet) 30%, var(--bf-offwhite));
+  --color-stage-won-accent: var(--bf-violet);
+  --color-stage-lost: color-mix(in srgb, var(--bf-ink) 14%, var(--bf-offwhite));
+  --color-stage-lost-accent: var(--color-danger);
+
   /* Shape & effects — working defaults (not brand-mandated) */
   --radius-card: 12px;
   --radius-control: 8px;

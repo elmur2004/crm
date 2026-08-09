@@ -16,7 +16,9 @@ export default defineConfig({
     /* Production server: Next 16 allows only ONE dev server per project, and the
        founder's dev instance may be running. `next build` writes .next (dev uses
        .next/dev — no clash). */
-    command: "npx next build && npx next start -p 3100",
+    /* migrate FIRST: the webServer boots before globalSetup, and `next build`
+       prerenders pages that query the database (V2 columns must exist). */
+    command: "npx prisma migrate deploy && npx next build && npx next start -p 3100",
     url: "http://localhost:3100",
     reuseExistingServer: false,
     timeout: 300_000,

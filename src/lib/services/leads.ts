@@ -214,6 +214,7 @@ export function latestProposalValue(
 export const leadEventSchema = z.object({
   event: z.discriminatedUnion("type", [
     z.object({ type: z.literal("next_action"), action: z.string() }),
+    z.object({ type: z.literal("drag"), to: z.string() }), // V2 §2.3 board
     z.object({ type: z.literal("proposal_sent") }),
     z.object({
       type: z.literal("meeting_outcome"),

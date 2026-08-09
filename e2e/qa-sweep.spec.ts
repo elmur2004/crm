@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 
-/* §15 Global DoD sweep: no console errors; no horizontal overflow at
+/* §15 Global DoD sweep, V2 edition: no console errors; no horizontal overflow at
    1440 / 1024 / 768 / 390 px on every major screen, per role. */
 
 const VIEWPORTS = [1440, 1024, 768, 390];
@@ -41,52 +41,58 @@ test("ByteForce screens: clean console, no horizontal overflow", async ({ page }
   expect(errors).toEqual([]);
 });
 
-test("B-Systems screens: clean console, no horizontal overflow", async ({ page }) => {
-  const errors: string[] = [];
-  collectErrors(page, errors);
-  await page.goto("/login");
-  await page.getByLabel("Email or phone").fill("omar@b-systems.example");
-  await page.getByLabel("Password").fill("bsystems123");
-  await page.getByRole("button", { name: "Sign in" }).click();
-  await page.waitForURL(/\/b-systems$/);
-  await sweep(page, errors, [
-    "/b-systems",
-    "/b-systems/leads",
-    "/b-systems/crm",
-    "/b-systems/clients",
-    "/b-systems/partners-pipeline",
-    "/b-systems/partners",
-  ]);
-  expect(errors).toEqual([]);
-});
-
-test("Portal rep + public screens: clean console, no horizontal overflow", async ({ page }) => {
-  const errors: string[] = [];
-  collectErrors(page, errors);
-  await sweep(page, errors, ["/portal", "/login", "/portal/signup"]);
-  await page.setViewportSize({ width: 1440, height: 900 });
-  await page.goto("/login");
-  await page.getByLabel("Email or phone").fill("01001234567");
-  await page.getByLabel("Password").fill("partner123");
-  await page.getByRole("button", { name: "Sign in" }).click();
-  await page.waitForURL(/\/portal\/crm/);
-  await sweep(page, errors, ["/portal/crm", "/portal/won-deals", "/portal/profile"]);
-  expect(errors).toEqual([]);
-});
-
-test("Portal admin screens: clean console, no horizontal overflow", async ({ page }) => {
+test("B-Systems admin: all ten sections clean at every width", async ({ page }) => {
   const errors: string[] = [];
   collectErrors(page, errors);
   await page.goto("/login");
   await page.getByLabel("Email or phone").fill("admin@b-systems.example");
   await page.getByLabel("Password").fill("admin123");
   await page.getByRole("button", { name: "Sign in" }).click();
-  await page.waitForURL(/\/portal\/admin$/);
+  await page.waitForURL(/\/b-systems$/);
   await sweep(page, errors, [
-    "/portal/admin",
-    "/portal/admin/crm",
-    "/portal/admin/won-deals",
-    "/portal/admin/sales-team",
+    "/b-systems",
+    "/b-systems/leads",
+    "/b-systems/crm",
+    "/b-systems/won-leads",
+    "/b-systems/partners-pipeline",
+    "/b-systems/partners",
+    "/b-systems/agents",
+    "/b-systems/registrations",
+    "/b-systems/statements",
+    "/b-systems/users",
+  ]);
+  expect(errors).toEqual([]);
+});
+
+test("B-Systems internal sales: CRM + Won Leads clean", async ({ page }) => {
+  const errors: string[] = [];
+  collectErrors(page, errors);
+  await page.goto("/login");
+  await page.getByLabel("Email or phone").fill("omar@b-systems.example");
+  await page.getByLabel("Password").fill("bsystems123");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await page.waitForURL(/\/b-systems\/crm$/);
+  await sweep(page, errors, ["/b-systems/crm", "/b-systems/won-leads"]);
+  expect(errors).toEqual([]);
+});
+
+test("B-Systems agent + public screens: clean console, no horizontal overflow", async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  collectErrors(page, errors);
+  await sweep(page, errors, ["/", "/login", "/portal", "/portal/signup"]);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/login");
+  await page.getByLabel("Email or phone").fill("01001234567");
+  await page.getByLabel("Password").fill("partner123");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await page.waitForURL(/\/b-systems\/crm$/);
+  await sweep(page, errors, [
+    "/b-systems/crm",
+    "/b-systems/won-leads",
+    "/b-systems/payments",
+    "/b-systems/profile",
   ]);
   expect(errors).toEqual([]);
 });

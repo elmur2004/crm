@@ -330,7 +330,7 @@ export async function PartnerDetailBody({ partnerId }: { partnerId: string }) {
                   <tr key={lead.id} className="border-b border-brand-border last:border-0">
                     <td className="p-3">
                       <Link
-                        href={`/b-systems/leads/lead/${lead.id}`}
+                        href={`/b-systems/crm/lead/${lead.id}`}
                         className="font-medium text-brand-primary"
                       >
                         {lead.name}

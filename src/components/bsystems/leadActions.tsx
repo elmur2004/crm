@@ -1,0 +1,306 @@
+"use client";
+
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { btnGhost, btnPrimary, inputCls, labelCls } from "@/components/portal/groupForms";
+import { LEAD_TYPES, LEAD_TYPE_LABELS } from "@/lib/pipeline-engine/constants";
+
+/* V2 §2.2 — admin lead actions: edit any field, copy the lead's data, delete. */
+
+export interface EditableLead {
+  id: string;
+  name: string;
+  number: string;
+  email: string | null;
+  type: string;
+  description: string | null;
+  position: string | null;
+  companyName: string | null;
+  industry: string | null;
+  requirements: string | null;
+}
+
+export function CopyLeadButton({ lead }: { lead: EditableLead }) {
+  const [copied, setCopied] = useState(false);
+  const text = [
+    `Name: ${lead.name}`,
+    `Number: ${lead.number}`,
+    lead.email ? `Email: ${lead.email}` : null,
+    lead.position ? `Position: ${lead.position}` : null,
+    lead.companyName ? `Company: ${lead.companyName}` : null,
+    lead.industry ? `Industry: ${lead.industry}` : null,
+    lead.requirements ? `Requirements: ${lead.requirements}` : null,
+    lead.description ? `Notes: ${lead.description}` : null,
+  ]
+    .filter(Boolean)
+    .join("\n");
+  return (
+    <button
+      type="button"
+      onClick={async () => {
+        await navigator.clipboard.writeText(text);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      }}
+      className={btnGhost}
+    >
+      {copied ? "Copied!" : "Copy data"}
+    </button>
+  );
+}
+
+export function DeleteLeadButton({ leadId }: { leadId: string }) {
+  const router = useRouter();
+  const [confirming, setConfirming] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  if (!confirming) {
+    return (
+      <button
+        type="button"
+        onClick={() => setConfirming(true)}
+        className="border border-brand-danger text-brand-danger rounded-brand-control px-4 py-2 text-sm font-medium"
+      >
+        Delete lead
+      </button>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-2">
+      {error ? <span className="text-sm text-brand-danger">{error}</span> : null}
+      <button
+        type="button"
+        disabled={busy}
+        onClick={async () => {
+          setBusy(true);
+          setError(null);
+          const res = await fetch(`/api/b-systems/leads/${leadId}`, { method: "DELETE" });
+          setBusy(false);
+          if (!res.ok) {
+            const data = (await res.json().catch(() => null)) as { error?: string } | null;
+            setError(data?.error ?? "Delete failed");
+            return;
+          }
+          router.push("/b-systems/crm");
+          router.refresh();
+        }}
+        className="bg-brand-danger text-brand-on-danger rounded-brand-control px-4 py-2 text-sm font-medium disabled:opacity-50"
+      >
+        Yes, delete permanently
+      </button>
+      <button type="button" onClick={() => setConfirming(false)} className={btnGhost}>
+        Keep it
+      </button>
+    </span>
+  );
+}
+
+/* V2 — every role adds leads from the board; the API buckets by role
+   (admin→admin bucket, agent/partner→their own, sales→internal). */
+export function BsAddLeadForm() {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  if (!open) {
+    return (
+      <button type="button" onClick={() => setOpen(true)} className={btnPrimary}>
+        Add lead
+      </button>
+    );
+  }
+  return (
+    <div className="fixed inset-0 z-40 bg-brand-surface-dark/60 flex items-center justify-center p-4">
+      <form
+        onSubmit={async (e) => {
+          e.preventDefault();
+          const fd = new FormData(e.currentTarget);
+          setBusy(true);
+          setError(null);
+          const res = await fetch("/api/b-systems/leads", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              name: String(fd.get("name")),
+              number: String(fd.get("number")),
+              email: String(fd.get("email") || "") || undefined,
+              type: String(fd.get("type")),
+              position: String(fd.get("position") || "") || undefined,
+              companyName: String(fd.get("companyName") || "") || undefined,
+              industry: String(fd.get("industry") || "") || undefined,
+              requirements: String(fd.get("requirements") || "") || undefined,
+              description: String(fd.get("description") || "") || undefined,
+            }),
+          });
+          setBusy(false);
+          if (!res.ok) {
+            const data = (await res.json().catch(() => null)) as { error?: string } | null;
+            setError(data?.error ?? "Something went wrong");
+            return;
+          }
+          setOpen(false);
+          router.refresh();
+        }}
+        className="bg-brand-surface rounded-brand-card shadow-brand-card p-6 w-full max-w-lg max-h-[85vh] overflow-y-auto space-y-3"
+      >
+        <p className="text-sm font-bold">New lead</p>
+        {error ? <p className="text-sm text-brand-danger">{error}</p> : null}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <label className="block">
+            <span className={labelCls}>Name</span>
+            <input type="text" name="name" required className={inputCls} />
+          </label>
+          <label className="block">
+            <span className={labelCls}>Number</span>
+            <input type="tel" name="number" required className={inputCls} />
+          </label>
+          <label className="block">
+            <span className={labelCls}>Email</span>
+            <input type="email" name="email" className={inputCls} />
+          </label>
+          <label className="block">
+            <span className={labelCls}>Type</span>
+            <select name="type" className={inputCls}>
+              {LEAD_TYPES.map((t) => (
+                <option key={t} value={t}>
+                  {LEAD_TYPE_LABELS[t]}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="block">
+            <span className={labelCls}>Position</span>
+            <input type="text" name="position" className={inputCls} />
+          </label>
+          <label className="block">
+            <span className={labelCls}>Company name</span>
+            <input type="text" name="companyName" className={inputCls} />
+          </label>
+          <label className="block sm:col-span-2">
+            <span className={labelCls}>Industry</span>
+            <input type="text" name="industry" className={inputCls} />
+          </label>
+        </div>
+        <label className="block">
+          <span className={labelCls}>Requirements</span>
+          <textarea name="requirements" rows={2} className={inputCls} />
+        </label>
+        <label className="block">
+          <span className={labelCls}>Notes</span>
+          <textarea name="description" rows={2} className={inputCls} />
+        </label>
+        <div className="flex gap-2">
+          <button type="submit" disabled={busy} className={btnPrimary}>
+            Save lead
+          </button>
+          <button type="button" onClick={() => setOpen(false)} className={btnGhost}>
+            Cancel
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+export function EditLeadForm({ lead }: { lead: EditableLead }) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  if (!open) {
+    return (
+      <button type="button" onClick={() => setOpen(true)} className={btnPrimary}>
+        Edit lead
+      </button>
+    );
+  }
+  return (
+    <form
+      onSubmit={async (e) => {
+        e.preventDefault();
+        const fd = new FormData(e.currentTarget);
+        setBusy(true);
+        setError(null);
+        const res = await fetch(`/api/b-systems/leads/${lead.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: String(fd.get("name")),
+            number: String(fd.get("number")),
+            email: String(fd.get("email") || "") || undefined,
+            type: String(fd.get("type")),
+            position: String(fd.get("position") || "") || undefined,
+            companyName: String(fd.get("companyName") || "") || undefined,
+            industry: String(fd.get("industry") || "") || undefined,
+            requirements: String(fd.get("requirements") || "") || undefined,
+            description: String(fd.get("description") || "") || undefined,
+          }),
+        });
+        setBusy(false);
+        if (!res.ok) {
+          const data = (await res.json().catch(() => null)) as { error?: string } | null;
+          setError(data?.error ?? "Something went wrong");
+          return;
+        }
+        setOpen(false);
+        router.refresh();
+      }}
+      className="border border-brand-border rounded-brand-card p-4 space-y-3 bg-brand-surface-card w-full"
+    >
+      <p className="text-sm font-bold">Edit lead</p>
+      {error ? <p className="text-sm text-brand-danger">{error}</p> : null}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <label className="block">
+          <span className={labelCls}>Name</span>
+          <input type="text" name="name" required defaultValue={lead.name} className={inputCls} />
+        </label>
+        <label className="block">
+          <span className={labelCls}>Number</span>
+          <input type="tel" name="number" required defaultValue={lead.number} className={inputCls} />
+        </label>
+        <label className="block">
+          <span className={labelCls}>Email</span>
+          <input type="email" name="email" defaultValue={lead.email ?? ""} className={inputCls} />
+        </label>
+        <label className="block">
+          <span className={labelCls}>Type</span>
+          <select name="type" defaultValue={lead.type} className={inputCls}>
+            {LEAD_TYPES.map((t) => (
+              <option key={t} value={t}>
+                {LEAD_TYPE_LABELS[t]}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="block">
+          <span className={labelCls}>Position</span>
+          <input type="text" name="position" defaultValue={lead.position ?? ""} className={inputCls} />
+        </label>
+        <label className="block">
+          <span className={labelCls}>Company</span>
+          <input type="text" name="companyName" defaultValue={lead.companyName ?? ""} className={inputCls} />
+        </label>
+        <label className="block">
+          <span className={labelCls}>Industry</span>
+          <input type="text" name="industry" defaultValue={lead.industry ?? ""} className={inputCls} />
+        </label>
+      </div>
+      <label className="block">
+        <span className={labelCls}>Requirements</span>
+        <textarea name="requirements" rows={2} defaultValue={lead.requirements ?? ""} className={inputCls} />
+      </label>
+      <label className="block">
+        <span className={labelCls}>Notes</span>
+        <textarea name="description" rows={2} defaultValue={lead.description ?? ""} className={inputCls} />
+      </label>
+      <div className="flex gap-2">
+        <button type="submit" disabled={busy} className={btnPrimary}>
+          Save
+        </button>
+        <button type="button" onClick={() => setOpen(false)} className={btnGhost}>
+          Cancel
+        </button>
+      </div>
+    </form>
+  );
+}

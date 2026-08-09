@@ -61,6 +61,26 @@
      Body-lg Inter 400/17 · Body Inter 400/14 (lh 1.55) · UI Inter 500 · Data Inter 700
      Meta JetBrains Mono 500/10-12, UPPERCASE, letter-spacing 0.22em */
 
+  /* Per-stage board tints (V2) — tints of the brand three + Paper only (§4.3
+     "charts and status colors vary tints of the palette"). Pink appears only as
+     the LOST accent cue, never a column surface. */
+  --color-stage-intake: color-mix(in srgb, var(--bs-lavender) 14%, var(--bs-paper));
+  --color-stage-intake-accent: var(--bs-lavender);
+  --color-stage-following: color-mix(in srgb, var(--bs-lavender) 30%, var(--bs-paper));
+  --color-stage-following-accent: color-mix(in srgb, var(--bs-lavender) 80%, var(--bs-indigo));
+  --color-stage-meeting: color-mix(in srgb, var(--bs-indigo) 10%, var(--bs-paper));
+  --color-stage-meeting-accent: var(--bs-indigo);
+  --color-stage-proposal: color-mix(in srgb, var(--bs-indigo) 17%, var(--bs-paper));
+  --color-stage-proposal-accent: color-mix(in srgb, var(--bs-indigo) 70%, var(--bs-lavender));
+  --color-stage-negotiation: color-mix(in srgb, var(--bs-grad-mid-2) 16%, var(--bs-paper));
+  --color-stage-negotiation-accent: var(--bs-grad-mid-2);
+  --color-stage-didnt-answer: color-mix(in srgb, var(--bs-indigodeep) 8%, var(--bs-paper));
+  --color-stage-didnt-answer-accent: var(--bs-indigodeep);
+  --color-stage-won: color-mix(in srgb, var(--bs-indigo) 26%, var(--bs-paper));
+  --color-stage-won-accent: var(--bs-indigo);
+  --color-stage-lost: color-mix(in srgb, var(--bs-indigodeep) 12%, var(--bs-paper));
+  --color-stage-lost-accent: var(--bs-pink);
+
   /* Shape & effects — working defaults (not brand-mandated) */
   --radius-card: 14px;
   --radius-control: 10px;

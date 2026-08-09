@@ -30,7 +30,7 @@ export function ProfileEditForm({
         const fd = new FormData(e.currentTarget);
         setBusy(true);
         setError(null);
-        const res = await fetch("/api/portal/profile", {
+        const res = await fetch("/api/b-systems/profile", {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -97,7 +97,7 @@ export function CvReplaceForm() {
         fd.append("cv", cv);
         setBusy(true);
         setError(null);
-        const res = await fetch("/api/portal/profile/cv", { method: "POST", body: fd });
+        const res = await fetch("/api/b-systems/profile/cv", { method: "POST", body: fd });
         setBusy(false);
         if (!res.ok) {
           const data = (await res.json().catch(() => null)) as { error?: string } | null;
@@ -134,7 +134,7 @@ export function PasswordChangeForm() {
         setBusy(true);
         setError(null);
         setDone(false);
-        const res = await fetch("/api/portal/profile/password", {
+        const res = await fetch("/api/b-systems/profile/password", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
