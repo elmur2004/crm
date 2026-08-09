@@ -13,10 +13,13 @@ export default defineConfig({
     trace: "retain-on-failure",
   },
   webServer: {
-    command: "npm run dev -- --port 3100",
+    /* Production server: Next 16 allows only ONE dev server per project, and the
+       founder's dev instance may be running. `next build` writes .next (dev uses
+       .next/dev — no clash). */
+    command: "npx next build && npx next start -p 3100",
     url: "http://localhost:3100",
     reuseExistingServer: false,
-    timeout: 120_000,
+    timeout: 300_000,
     env: { DATABASE_URL: "file:./e2e.db" },
   },
 });

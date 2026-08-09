@@ -7,7 +7,7 @@ export const metadata = { title: "Won Deals — Portal Admin" };
 /* §8.5.3 — every won deal regardless of rep. */
 
 export default async function AdminWonDeals() {
-  await requirePageRole("/portal/login", "portal_admin");
+  await requirePageRole("/login", "portal_admin");
   const wonDeals = await listWonDealsForAdmin();
 
   const items: AdminWonDeal[] = wonDeals.map((w) => ({

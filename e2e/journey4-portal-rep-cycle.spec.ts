@@ -23,10 +23,10 @@ test("journey 4: portal rep signs up, works the board, cannot reach Won, sees on
   page,
 }) => {
   /* Seeded rep Karim creates a deal first — the isolation fixture. */
-  await page.goto("/portal/login");
-  await page.getByLabel("Phone number").fill("01001234567");
+  await page.goto("/login");
+  await page.getByLabel("Email or phone").fill("01001234567");
   await page.getByLabel("Password").fill("partner123");
-  await page.getByRole("button", { name: "Log in" }).click();
+  await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page).toHaveURL(/\/portal\/crm$/);
   await page.getByRole("button", { name: "Add deal" }).click();
   await page.getByLabel("Name", { exact: true }).fill("Karim Secret Deal");
@@ -58,10 +58,10 @@ test("journey 4: portal rep signs up, works the board, cannot reach Won, sees on
 
   /* §13's explicit login step: log out, log in with the phone identifier (ADR-008). */
   await page.getByRole("button", { name: "Log out" }).click();
-  await page.goto("/portal/login");
-  await page.getByLabel("Phone number").fill("01212121212");
+  await page.goto("/login");
+  await page.getByLabel("Email or phone").fill("01212121212");
   await page.getByLabel("Password").fill("nadia12345");
-  await page.getByRole("button", { name: "Log in" }).click();
+  await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page).toHaveURL(/\/portal\/crm$/);
 
   /* Rep isolation: Karim's deal is invisible (§3). */

@@ -3,63 +3,46 @@
 import { AuthError } from "next-auth";
 import { redirect } from "next/navigation";
 import { signIn, signOut } from "@/lib/auth";
+import { db } from "@/lib/db";
+import { identifierKind, normalizePhone } from "./phone";
+import type { Role } from "@/lib/pipeline-engine/constants";
 
-/* Login/logout server actions. Auth flows are the one place server actions are used
-   (business mutations are route handlers — ARCHITECTURE §3). On bad credentials the
-   user returns to the login page with ?error=1; NEXT_REDIRECT rethrows are the
-   framework's success path. */
+/* Consolidated sign-in (ADR-028): one action, one page. After authentication the
+   user lands where their roles point. NOTE: auth() cannot see the just-set session
+   cookie within the same request, so the landing roles are read from the DB. */
 
-async function runSignIn(
-  provider: "internal" | "portal",
-  payload: Record<string, string>,
-  redirectTo: string,
-  loginPath: string,
-): Promise<never> {
+const LANDING_PRIORITY: Array<[Role, string]> = [
+  ["byteforce_staff", "/byteforce"],
+  ["bsystems_staff", "/b-systems"],
+  ["platform_admin", "/byteforce"], // ADR-029 (entity switcher round)
+  ["portal_admin", "/portal/admin"],
+  ["portal_rep", "/portal/crm"],
+];
+
+function landingFor(roles: Role[]): string {
+  for (const [role, target] of LANDING_PRIORITY) {
+    if (roles.includes(role)) return target;
+  }
+  return "/login?error=1";
+}
+
+export async function login(formData: FormData): Promise<void> {
+  const identifier = String(formData.get("identifier") ?? "");
+  const password = String(formData.get("password") ?? "");
   try {
-    await signIn(provider, { ...payload, redirectTo });
+    await signIn("unified", { identifier, password, redirect: false });
   } catch (err) {
     if (err instanceof AuthError) {
-      redirect(`${loginPath}?error=1`);
+      redirect("/login?error=1");
     }
-    throw err; // NEXT_REDIRECT on success
+    throw err;
   }
-  redirect(redirectTo);
-}
-
-export async function byteforceLogin(formData: FormData): Promise<void> {
-  await runSignIn(
-    "internal",
-    {
-      email: String(formData.get("email") ?? ""),
-      password: String(formData.get("password") ?? ""),
-    },
-    "/byteforce",
-    "/byteforce/login",
-  );
-}
-
-export async function bsystemsLogin(formData: FormData): Promise<void> {
-  await runSignIn(
-    "internal",
-    {
-      email: String(formData.get("email") ?? ""),
-      password: String(formData.get("password") ?? ""),
-    },
-    "/b-systems",
-    "/b-systems/login",
-  );
-}
-
-export async function portalLogin(formData: FormData): Promise<void> {
-  await runSignIn(
-    "portal",
-    {
-      identifier: String(formData.get("identifier") ?? ""),
-      password: String(formData.get("password") ?? ""),
-    },
-    "/portal/crm",
-    "/portal/login",
-  );
+  const where =
+    identifierKind(identifier) === "email"
+      ? { email: identifier.trim().toLowerCase() }
+      : { phone: normalizePhone(identifier) };
+  const user = await db.user.findUnique({ where: where as never, include: { roles: true } });
+  redirect(landingFor((user?.roles.map((r) => r.role) ?? []) as Role[]));
 }
 
 export async function logout(redirectTo: string): Promise<void> {

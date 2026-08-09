@@ -4,10 +4,10 @@ import { expect, test } from "@playwright/test";
    Runs after journey 1 (serial): asserts by delta where journey 1 left state. */
 
 test("journey 2: ByteForce lost path with reason", async ({ page }) => {
-  await page.goto("/byteforce/login");
-  await page.getByLabel("Email").fill("sara@byteforce.example");
+  await page.goto("/login");
+  await page.getByLabel("Email or phone").fill("sara@byteforce.example");
   await page.getByLabel("Password").fill("byteforce123");
-  await page.getByRole("button", { name: "Log in" }).click();
+  await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page).toHaveURL(/\/byteforce$/);
 
   /* Read current dashboard numbers for delta assertions. */

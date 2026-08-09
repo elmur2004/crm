@@ -385,3 +385,40 @@ history; supersede with a new ADR.
   and update burden with no contract difference).
 - Resolves: — (refines ADR-013)
 - Status: Accepted
+
+## ADR-028 — 2026-08-09 — ONE consolidated sign-in page (founder-directed)
+- Context: The founder hit "wrong password" using valid portal-admin credentials on
+  an internal login page — the role-partitioned providers (ADR-016) rejected valid
+  accounts on the "wrong" surface. The founder directed: one consolidated sign-in
+  for the whole platform.
+- Decision: A single `/login` page and ONE unified credentials provider: identifier
+  (email or phone, resolved by shape) + password, no role filtering at login. After
+  sign-in, users land by role priority (byteforce_staff → /byteforce,
+  bsystems_staff → /b-systems, portal_admin → /portal/admin, portal_rep →
+  /portal/crm). Which apps a session can SEE remains fully enforced by middleware +
+  per-request guards (§3, ADR-017) — login-surface partitioning added confusion,
+  not security. Legacy per-app login URLs redirect to /login. The page is
+  brand-neutral (both logos) with styles in the sanctioned src/themes/neutral.css;
+  its final visual design comes from the design round (docs/DESIGN-BRIEF.md).
+- Alternatives considered: keeping per-app pages with better error copy (the trap
+  remains); auto-detecting the intended app from the identifier (magic, brittle).
+- Resolves: supersedes the login-surface aspects of ADR-016 and §8.1's dedicated
+  portal login page (its "Log in" action now targets /login). Founder-directed.
+- Status: Accepted
+
+## ADR-029 — 2026-08-09 — Per-entity user access + platform_admin (design round pending)
+- Context: The founder requires that creating a user assigns which entities they
+  can see/control (ByteForce, B-Systems, or both), with an admin who sees both and
+  manages users. The multi-role model (A-8/ADR-000) already carries per-entity
+  staff roles; a `platform_admin` role is added (reserved in constants) for
+  both-entity visibility + user management.
+- Decision: Entity access = the byteforce_staff / bsystems_staff roles;
+  `platform_admin` grants both plus the user-management screen (create user with
+  entity checkboxes, deactivate/reactivate) and a company switcher in the app
+  header. UI/UX ships after the founder's design round (docs/DESIGN-BRIEF.md §3.2
+  specifies it for the designer); guards/nav/service implementation follows the
+  approved design.
+- Alternatives considered: separate account per entity (splits identity, fights
+  A-8); an entities junction table (redundant with roles).
+- Resolves: founder requirement — implementation deferred to the design round
+- Status: Accepted (implementation pending design)

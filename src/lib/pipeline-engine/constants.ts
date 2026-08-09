@@ -8,6 +8,7 @@ export const ROLES = [
   "bsystems_staff",
   "portal_admin",
   "portal_rep",
+  "platform_admin", // ADR-029: sees/controls BOTH companies + manages users
 ] as const;
 export type Role = (typeof ROLES)[number];
 

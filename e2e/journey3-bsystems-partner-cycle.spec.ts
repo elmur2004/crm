@@ -9,10 +9,10 @@ const MP3 = Buffer.concat([Buffer.from("ID3"), Buffer.alloc(4096, 1)]);
 
 test("journey 3: B-Systems partner acquisition to attributed CRM lead", async ({ page }) => {
   /* Log in as B-Systems staff. */
-  await page.goto("/b-systems/login");
-  await page.getByLabel("Email").fill("omar@b-systems.example");
+  await page.goto("/login");
+  await page.getByLabel("Email or phone").fill("omar@b-systems.example");
   await page.getByLabel("Password").fill("bsystems123");
-  await page.getByRole("button", { name: "Log in" }).click();
+  await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page).toHaveURL(/\/b-systems$/);
 
   /* Create the prospect (§7.2 Lead stage fields). */

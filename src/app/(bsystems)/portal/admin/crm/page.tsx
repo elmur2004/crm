@@ -15,7 +15,7 @@ export default async function AdminCrm({
 }: {
   searchParams: Promise<{ rep?: string }>;
 }) {
-  await requirePageRole("/portal/login", "portal_admin");
+  await requirePageRole("/login", "portal_admin");
   const { rep: repFilter } = await searchParams;
   const [allDeals, reps] = await Promise.all([listAllDeals(), listPortalReps()]);
   const deals = repFilter ? allDeals.filter((d) => d.rep.id === repFilter) : allDeals;

@@ -8,10 +8,10 @@ import { expect, test, type Page } from "@playwright/test";
    Runs after the journeys (alphabetical) but is self-sufficient via seeds. */
 
 async function portalLogin(page: Page, identifier: string, password: string) {
-  await page.goto("/portal/login");
-  await page.getByLabel("Phone number").fill(identifier);
+  await page.goto("/login");
+  await page.getByLabel("Email or phone").fill(identifier);
   await page.getByLabel("Password").fill(password);
-  await page.getByRole("button", { name: "Log in" }).click();
+  await page.getByRole("button", { name: "Sign in" }).click();
   await page.waitForURL(/\/portal\/(crm|admin)/);
 }
 
@@ -98,21 +98,21 @@ test("internal apps invisible to portal roles; portal invisible to staff; brands
   const repPage = await rep.newPage();
   await portalLogin(repPage, "01001234567", "partner123");
   await repPage.goto("/byteforce");
-  await expect(repPage).toHaveURL(/\/byteforce\/login/);
+  await expect(repPage).toHaveURL(/\/login/);
   const bfApi = await repPage.request.post("/api/byteforce/reps", { data: { name: "x" } });
   expect(bfApi.status()).toBe(403);
 
   /* ByteForce staff cannot reach B-Systems (page redirect + API 403) nor the portal APIs. */
   const staff = await browser.newContext();
   const staffPage = await staff.newPage();
-  await staffPage.goto("/byteforce/login");
-  await staffPage.getByLabel("Email").fill("sara@byteforce.example");
+  await staffPage.goto("/login");
+  await staffPage.getByLabel("Email or phone").fill("sara@byteforce.example");
   await staffPage.getByLabel("Password").fill("byteforce123");
-  await staffPage.getByRole("button", { name: "Log in" }).click();
+  await staffPage.getByRole("button", { name: "Sign in" }).click();
   await staffPage.waitForURL(/\/byteforce$/);
 
   await staffPage.goto("/b-systems");
-  await expect(staffPage).toHaveURL(/\/b-systems\/login/);
+  await expect(staffPage).toHaveURL(/\/login/);
   const crossBrand = await staffPage.request.post("/api/b-systems/leads", {
     data: { name: "x", number: "1", type: "cold_call" },
   });

@@ -223,3 +223,30 @@ comment, and the ADR-013 mechanism note all fixed; .env.example confirmed tracke
   switch + real AUTH_SECRET.
 - Blockers: none.
 - Needs founder confirmation: items (1)–(12) carried (see Entries 001–005).
+
+## Entry 008 — 2026-08-09 — Consolidated sign-in + design-round handoff
+- Done: (1) Diagnosed the founder's "wrong password": the portal-admin credentials
+  were VALID — the role-partitioned login providers rejected valid accounts on the
+  "wrong" app's page. (2) Built the consolidated sign-in (ADR-028): ONE /login for
+  every account (email-or-phone + password), role-based landing, legacy login URLs
+  redirect, portal sign-up auto-login flows through it; neutral design with both
+  brand logos (styles in the sanctioned neutral.css). Fixed a real subtlety:
+  auth() cannot see the just-set session cookie in the same request — landing roles
+  are read from the DB. (3) TESTING: full suite green after the migration —
+  vitest 61/0, Playwright 12/12; E2E now runs against a PRODUCTION server on :3100
+  (Next 16 allows one dev server per project and the founder's is live).
+  (4) Wrote docs/DESIGN-BRIEF.md — the complete self-contained system spec for the
+  founder's design round (Claude Design): every screen, both brand systems, the
+  §5 interaction rules, and the founder's new asks (consolidated sign-in polish,
+  per-entity user management + company switcher, per-stage colored draggable
+  boards). (5) ADR-028 (consolidated login) + ADR-029 (platform_admin + entity
+  access — implementation deferred to the design round; role reserved in
+  constants).
+- In progress: none — awaiting the founder's design round output.
+- Next steps: founder feeds DESIGN-BRIEF.md to Claude Design, tweaks, returns the
+  approved design → implement it (boards' per-stage colors + internal drag & drop,
+  user management UI, switcher, sign-in polish) under ADR-029/030 discipline.
+- Blockers: awaiting founder's design deliverable.
+- Needs founder confirmation: items (1)–(12) carried; (13) ADR-028 consolidated
+  login replacing per-app pages (founder-directed — confirm the landing-priority
+  order suits dual-role accounts).

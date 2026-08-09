@@ -11,7 +11,7 @@ export const metadata = { title: "CRM — Partnership Portal" };
    the combined boards in their own section, Phase 4). */
 
 export default async function PortalCrm() {
-  const user = await requirePageRole("/portal/login", "portal_rep", "portal_admin");
+  const user = await requirePageRole("/login", "portal_rep", "portal_admin");
   if (!user.portalRepId) {
     // profile-less admins land in their own section (§8.5)
     redirect(user.roles.includes("portal_admin") ? "/portal/admin" : "/portal");

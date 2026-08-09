@@ -24,7 +24,7 @@ export function AppNav({
     { href: `${basePath}/clients`, label: "Clients" },
     ...extraItems,
   ];
-  const logoutTo = `${basePath}/login`;
+  const logoutTo = "/login"; // ADR-028
   return (
     <header className="border-b border-brand-border bg-brand-surface-card">
       <div className="max-w-6xl mx-auto px-4 py-3 flex items-center gap-x-6 gap-y-2 flex-wrap">

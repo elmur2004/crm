@@ -6,7 +6,7 @@ import { requirePageRole } from "@/lib/auth/page-guards";
 export default async function PortalAdminLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  const user = await requirePageRole("/portal/login", "portal_admin");
+  const user = await requirePageRole("/login", "portal_admin");
   return (
     <>
       <PortalNav

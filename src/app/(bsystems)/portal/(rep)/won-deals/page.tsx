@@ -9,7 +9,7 @@ export const metadata = { title: "Won Deals — Partnership Portal" };
    and the list polls for admin unlocks (ADR-009). */
 
 export default async function WonDeals() {
-  const user = await requirePageRole("/portal/login", "portal_rep", "portal_admin");
+  const user = await requirePageRole("/login", "portal_rep", "portal_admin");
   if (!user.portalRepId) redirect("/portal/crm");
   const wonDeals = await repWonDeals(user.portalRepId);
 

@@ -14,10 +14,10 @@ async function tile(page: import("@playwright/test").Page, label: string): Promi
 
 test("journey 1: ByteForce full cycle to Won", async ({ page }) => {
   /* Log in as ByteForce staff. */
-  await page.goto("/byteforce/login");
-  await page.getByLabel("Email").fill("sara@byteforce.example");
+  await page.goto("/login");
+  await page.getByLabel("Email or phone").fill("sara@byteforce.example");
   await page.getByLabel("Password").fill("byteforce123");
-  await page.getByRole("button", { name: "Log in" }).click();
+  await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page).toHaveURL(/\/byteforce$/);
 
   /* Dashboard baseline — the seed populates every stage, so assert deltas. */

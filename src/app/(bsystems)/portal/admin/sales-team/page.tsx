@@ -8,7 +8,7 @@ export const metadata = { title: "Sales Team — Portal Admin" };
 /* §8.5.4 — the team table, every column per the spec. */
 
 export default async function SalesTeam() {
-  await requirePageRole("/portal/login", "portal_admin");
+  await requirePageRole("/login", "portal_admin");
   const rows = await salesTeamTable();
 
   return (

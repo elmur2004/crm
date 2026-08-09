@@ -34,10 +34,10 @@ test("journey 5: admin runs the Won pipeline; milestone locks update live for th
 
   /* Admin session first: email login (ADR-016) and dashboard BASELINE before the
      journey's own data exists — the final assertions are deltas. */
-  await admin.goto("/portal/login");
-  await admin.getByLabel("Phone number").fill("admin@b-systems.example");
+  await admin.goto("/login");
+  await admin.getByLabel("Email or phone").fill("admin@b-systems.example");
   await admin.getByLabel("Password").fill("admin123");
-  await admin.getByRole("button", { name: "Log in" }).click();
+  await admin.getByRole("button", { name: "Sign in" }).click();
   await expect(admin).toHaveURL(/\/portal\/admin$/);
   const leadsBefore = await tileNumber(admin, "Total leads");
   const estimatedBefore = await tileNumber(admin, "Total estimated value");

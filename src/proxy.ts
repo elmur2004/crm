@@ -11,17 +11,16 @@ import type { Role } from "@/lib/pipeline-engine/constants";
 const { auth } = NextAuth(authConfig);
 
 const PUBLIC_PATHS = [
-  /^\/byteforce\/login/,
+  /^\/byteforce\/login/, // legacy paths — pages redirect to /login (ADR-028)
   /^\/b-systems\/login/,
   /^\/portal$/,
   /^\/portal\/login/,
   /^\/portal\/signup/,
 ];
 
-function loginPathFor(pathname: string): string {
-  if (pathname.startsWith("/byteforce")) return "/byteforce/login";
-  if (pathname.startsWith("/b-systems")) return "/b-systems/login";
-  return "/portal/login";
+/* ADR-028: one consolidated sign-in for every app. */
+function loginPathFor(): string {
+  return "/login";
 }
 
 function allowed(pathname: string, roles: Role[]): boolean {
@@ -41,13 +40,13 @@ export default auth((req) => {
   const roles = (req.auth?.user?.roles ?? []) as Role[];
   if (!req.auth?.user) {
     const url = req.nextUrl.clone();
-    url.pathname = loginPathFor(pathname);
+    url.pathname = loginPathFor();
     url.search = "";
     return NextResponse.redirect(url);
   }
   if (!allowed(pathname, roles)) {
     const url = req.nextUrl.clone();
-    url.pathname = loginPathFor(pathname);
+    url.pathname = loginPathFor();
     url.search = "";
     return NextResponse.redirect(url);
   }

@@ -6,7 +6,7 @@ import { requirePageRole } from "@/lib/auth/page-guards";
 export default async function BSystemsAppLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  const user = await requirePageRole("/b-systems/login", "bsystems_staff");
+  const user = await requirePageRole("/login", "bsystems_staff");
   return (
     <>
       <AppNav

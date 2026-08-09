@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { portalLogin } from "@/lib/auth/actions";
+import { login } from "@/lib/auth/actions";
 import { btnAccent, inputCls, labelCls } from "./groupForms";
 
 export function SignupForm() {
@@ -23,11 +23,11 @@ export function SignupForm() {
           return;
         }
         /* §8.1: "On success the rep lands in their portal" (ADR-025) — sign the
-           new account in with the credentials just registered. */
-        const login = new FormData();
-        login.set("identifier", String(fd.get("phone")));
-        login.set("password", String(fd.get("password")));
-        await portalLogin(login);
+           new account in through the consolidated flow (ADR-028). */
+        const creds = new FormData();
+        creds.set("identifier", String(fd.get("phone")));
+        creds.set("password", String(fd.get("password")));
+        await login(creds);
       }}
       className="space-y-3"
     >

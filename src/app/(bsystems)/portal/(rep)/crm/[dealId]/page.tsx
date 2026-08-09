@@ -8,7 +8,7 @@ export const metadata = { title: "Deal — Partnership Portal" };
 
 export default async function DealDetail({ params }: { params: Promise<{ dealId: string }> }) {
   const { dealId } = await params;
-  const user = await requirePageRole("/portal/login", "portal_rep", "portal_admin");
+  const user = await requirePageRole("/login", "portal_rep", "portal_admin");
   const isAdmin = user.roles.includes("portal_admin");
 
   let data;

@@ -31,7 +31,7 @@ export default function PortalLanding() {
             Sign up
           </Link>
           <Link
-            href="/portal/login"
+            href="/login"
             className="border border-brand-secondary text-brand-on-primary rounded-brand-control px-6 py-3 font-medium"
           >
             Log in

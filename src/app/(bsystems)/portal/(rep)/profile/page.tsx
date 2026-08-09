@@ -9,7 +9,7 @@ export const metadata = { title: "Profile — Partnership Portal" };
    change (A-10). */
 
 export default async function Profile() {
-  const user = await requirePageRole("/portal/login", "portal_rep", "portal_admin");
+  const user = await requirePageRole("/login", "portal_rep", "portal_admin");
   let profile;
   try {
     profile = await getRepProfile(user.id);

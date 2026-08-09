@@ -24,7 +24,7 @@ declare module "next-auth" {
 export const authConfig = {
   session: { strategy: "jwt", maxAge: 24 * 60 * 60 }, // 24h; DB re-check per request (ADR-017)
   trustHost: true, // single self-hosted deployment
-  pages: { signIn: "/" }, // per-app sign-in pages; guards redirect appropriately
+  pages: { signIn: "/login" }, // ONE consolidated sign-in page (ADR-028)
   providers: [], // filled in auth/index.ts (node runtime)
   callbacks: {
     jwt({ token, user }) {

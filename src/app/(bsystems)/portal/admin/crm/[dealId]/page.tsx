@@ -12,7 +12,7 @@ export default async function AdminDealDetail({
   params: Promise<{ dealId: string }>;
 }) {
   const { dealId } = await params;
-  await requirePageRole("/portal/login", "portal_admin");
+  await requirePageRole("/login", "portal_admin");
 
   let data;
   try {

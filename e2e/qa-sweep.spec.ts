@@ -32,10 +32,10 @@ async function sweep(page: Page, errors: string[], paths: string[]) {
 test("ByteForce screens: clean console, no horizontal overflow", async ({ page }) => {
   const errors: string[] = [];
   collectErrors(page, errors);
-  await page.goto("/byteforce/login");
-  await page.getByLabel("Email").fill("sara@byteforce.example");
+  await page.goto("/login");
+  await page.getByLabel("Email or phone").fill("sara@byteforce.example");
   await page.getByLabel("Password").fill("byteforce123");
-  await page.getByRole("button", { name: "Log in" }).click();
+  await page.getByRole("button", { name: "Sign in" }).click();
   await page.waitForURL(/\/byteforce$/);
   await sweep(page, errors, ["/byteforce", "/byteforce/leads", "/byteforce/crm", "/byteforce/clients"]);
   expect(errors).toEqual([]);
@@ -44,10 +44,10 @@ test("ByteForce screens: clean console, no horizontal overflow", async ({ page }
 test("B-Systems screens: clean console, no horizontal overflow", async ({ page }) => {
   const errors: string[] = [];
   collectErrors(page, errors);
-  await page.goto("/b-systems/login");
-  await page.getByLabel("Email").fill("omar@b-systems.example");
+  await page.goto("/login");
+  await page.getByLabel("Email or phone").fill("omar@b-systems.example");
   await page.getByLabel("Password").fill("bsystems123");
-  await page.getByRole("button", { name: "Log in" }).click();
+  await page.getByRole("button", { name: "Sign in" }).click();
   await page.waitForURL(/\/b-systems$/);
   await sweep(page, errors, [
     "/b-systems",
@@ -63,12 +63,12 @@ test("B-Systems screens: clean console, no horizontal overflow", async ({ page }
 test("Portal rep + public screens: clean console, no horizontal overflow", async ({ page }) => {
   const errors: string[] = [];
   collectErrors(page, errors);
-  await sweep(page, errors, ["/portal", "/portal/login", "/portal/signup"]);
+  await sweep(page, errors, ["/portal", "/login", "/portal/signup"]);
   await page.setViewportSize({ width: 1440, height: 900 });
-  await page.goto("/portal/login");
-  await page.getByLabel("Phone number").fill("01001234567");
+  await page.goto("/login");
+  await page.getByLabel("Email or phone").fill("01001234567");
   await page.getByLabel("Password").fill("partner123");
-  await page.getByRole("button", { name: "Log in" }).click();
+  await page.getByRole("button", { name: "Sign in" }).click();
   await page.waitForURL(/\/portal\/crm/);
   await sweep(page, errors, ["/portal/crm", "/portal/won-deals", "/portal/profile"]);
   expect(errors).toEqual([]);
@@ -77,10 +77,10 @@ test("Portal rep + public screens: clean console, no horizontal overflow", async
 test("Portal admin screens: clean console, no horizontal overflow", async ({ page }) => {
   const errors: string[] = [];
   collectErrors(page, errors);
-  await page.goto("/portal/login");
-  await page.getByLabel("Phone number").fill("admin@b-systems.example");
+  await page.goto("/login");
+  await page.getByLabel("Email or phone").fill("admin@b-systems.example");
   await page.getByLabel("Password").fill("admin123");
-  await page.getByRole("button", { name: "Log in" }).click();
+  await page.getByRole("button", { name: "Sign in" }).click();
   await page.waitForURL(/\/portal\/admin$/);
   await sweep(page, errors, [
     "/portal/admin",

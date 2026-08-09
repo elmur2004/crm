@@ -4,7 +4,7 @@ import { requirePageRole } from "@/lib/auth/page-guards";
 export default async function ByteForceAppLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  const user = await requirePageRole("/byteforce/login", "byteforce_staff");
+  const user = await requirePageRole("/login", "byteforce_staff");
   return (
     <>
       <AppNav brand="byteforce" basePath="/byteforce" userName={user.name} />

@@ -22,3 +22,105 @@ body {
   color: #888888;
   font-size: 0.875rem;
 }
+
+/* ---- consolidated sign-in (ADR-028) — neutral, both brands present as logos ---- */
+
+.login-shell {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  background:
+    linear-gradient(180deg, #fafafa 0%, #f0f0f2 100%);
+}
+
+.login-card {
+  width: 100%;
+  max-width: 24rem;
+  background: #ffffff;
+  border: 1px solid #e2e2e6;
+  border-radius: 14px;
+  box-shadow: 0 8px 30px rgba(20, 20, 30, 0.08);
+  padding: 2rem;
+}
+
+.login-logos {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.login-logo-divider {
+  width: 1px;
+  height: 28px;
+  background: #e2e2e6;
+}
+
+.login-card h1 {
+  font-size: 1.375rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+.login-card > .neutral-muted {
+  text-align: center;
+  margin-top: 0.25rem;
+}
+
+.login-error {
+  margin-top: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 8px;
+  background: #fdecea;
+  color: #8a1c12;
+  font-size: 0.875rem;
+}
+
+.login-form {
+  margin-top: 1.25rem;
+  display: grid;
+  gap: 0.875rem;
+}
+
+.login-form label {
+  display: grid;
+  gap: 0.3rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.login-form input {
+  border: 1px solid #d4d4d8;
+  border-radius: 8px;
+  padding: 0.55rem 0.75rem;
+  font-size: 0.9375rem;
+}
+
+.login-form input:focus {
+  outline: 2px solid #17171a;
+  outline-offset: 1px;
+}
+
+.login-form button {
+  margin-top: 0.25rem;
+  background: #17171a;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  padding: 0.65rem;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.login-form button:hover {
+  background: #2c2c31;
+}
+
+.login-foot {
+  margin-top: 1.25rem;
+  text-align: center;
+}

@@ -26,12 +26,15 @@ npm run dev                     # http://localhost:3000
 
 ### Demo accounts (dev seed)
 
-| App | Login at | Identifier | Password |
+Everyone signs in at **`/login`** (one consolidated page, ADR-028) with an email or
+phone; each account lands in its own app.
+
+| Account | Identifier | Password | Lands in |
 |---|---|---|---|
-| ByteForce CRM | /byteforce/login | sara@byteforce.example | byteforce123 |
-| B-Systems CRM | /b-systems/login | omar@b-systems.example | bsystems123 |
-| Portal admin | /portal/login | admin@b-systems.example | admin123 |
-| Portal rep | /portal/login | 01001234567 | partner123 |
+| ByteForce staff | sara@byteforce.example | byteforce123 | /byteforce |
+| B-Systems staff (+portal admin) | omar@b-systems.example | bsystems123 | /b-systems |
+| Portal admin | admin@b-systems.example | admin123 | /portal/admin |
+| Portal rep | 01001234567 | partner123 | /portal/crm |
 
 ## Test
 
