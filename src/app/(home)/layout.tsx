@@ -8,6 +8,7 @@ import "@fontsource/jetbrains-mono/700.css";
 import "@fontsource/raleway/700.css";
 import "@fontsource/raleway/800.css";
 import "../globals.css";
+import "@/themes/design-system.css";
 import "@/themes/neutral.css";
 
 /* Root layout for the brand-neutral entry only (ADR-007). There is deliberately

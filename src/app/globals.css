@@ -7,10 +7,9 @@
 
 @import "tailwindcss";
 
-/* The prototype's shared component layer (Claude Design handoff, applied per
-   docs/DESIGN-APPLICATION-SPEC.md §2) — token-driven, brand values never appear
-   in it. Lives in src/themes/ (brand-audit allowlist). */
-@import "../themes/design-system.css";
+/* The prototype's shared component layer (src/themes/design-system.css) is
+   imported by each root layout as a module import — Turbopack's dev PostCSS
+   pass cannot resolve plain-CSS @imports after the tailwindcss one. */
 
 /* Tailwind ↔ token mapping (ADR-004). `inline` emits the var() reference into each
    utility, so bg-brand-primary etc. resolve at runtime against the active

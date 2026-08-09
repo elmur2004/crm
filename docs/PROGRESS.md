@@ -360,3 +360,36 @@ comment, and the ADR-013 mechanism note all fixed; .env.example confirmed tracke
   login. Caveat: the seed re-asserts this password on any future
   production seed run, so either change the seed value or avoid
   re-running seed in production once live.
+
+## Entry 013 — 2026-08-09 — Root redirect, motion layer, full backup/restore
+- Done: (1) Dev-server fix: Turbopack could not resolve design-system.css via
+  a CSS @import placed after the tailwindcss import — theme CSS moved to
+  module imports in the three root layouts (dev + prod verified).
+  (2) Founder directive: the platform root `/` now redirects straight to
+  /login — the hub page is removed from the flow. (3) Motion layer in
+  design-system.css: staggered entry rise on page content, hover lifts on
+  tiles/cards, pressed states on buttons/nav, focus border transitions,
+  timeline stagger — all opacity/transform only, fully disabled under
+  prefers-reduced-motion; board drag cards keep their tuned transition.
+  (4) Full backup/restore per ADR-032: service (src/lib/services/backup.ts),
+  admin API route (/api/b-systems/backup), Export/Import controls on the
+  admin Home; integration test proves export → full wipe (db + files) →
+  import restores rows, relations, ids, dates, uploads, and logs the import.
+  (5) Verification: tsc clean, vitest 62/62 (2 new backup tests),
+  Playwright 12/12 (TESTING Run 016).
+- In progress: R23 portal marketing copy draft — still with the founder for
+  sign-off (carried from Entry 011).
+- Next steps: on copy approval, build the deferred /portal landing sections
+  (R23); obtain founder confirmation on Lama Sans intermediate cuts
+  (R5/A-13); founder to set a secure storage routine for backup exports
+  (they contain password hashes — ADR-032); change the admin password after
+  first production login (Entry 012 flag).
+- Blockers: none.
+- Needs founder confirmation: (a) Lama Sans intermediate cuts (R5/A-13);
+  (b) the portal marketing copy draft (pending approval, R23); (c) the
+  standing REQUIREMENTS-V2 [A] defaults and the carried items thread —
+  items (1)–(14), see Entries 001–009; (d) password123 is a weak production
+  credential — change it after first production login (see Entry 012's
+  caveat on seed re-runs); (e) NEW — ADR-032 backup exports embed password
+  hashes and every uploaded file: the file itself is a secret; store
+  backups securely (restricted access, ideally encrypted at rest).

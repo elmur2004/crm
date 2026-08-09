@@ -323,3 +323,33 @@ _Format per module:_
   once the live password is changed, either change the seed value or
   don't re-run seed in production.
 - Last updated: 2026-08-09 (Entry 012)
+
+## Full-system backup/restore (ADR-032)
+- Location: src/lib/services/backup.ts, /api/b-systems/backup route
+  (GET export / POST import, requireBsAdmin), Export/Import controls on
+  the admin Home, backup integration test.
+- What exists / how it works: export serializes every table's rows verbatim
+  (ids preserved) plus every uploaded file base64-embedded into one JSON
+  document; import validates version/app, then one transaction deletes all
+  rows in FK-safe reverse order and re-inserts parent-first; file blobs
+  restore after the commit.
+- Limitations / gotchas:
+  - The backup insert/delete MODEL order lists must stay in sync with
+    prisma/schema.prisma AND src/tests/db-reset.ts whenever models are
+    added — a model missing from the lists silently drops its data from
+    backups.
+  - Prisma coerces ISO-8601 strings back into DateTime columns on insert,
+    so backups need no custom date revival.
+- Last updated: 2026-08-09 (Entry 013, TESTING Run 016, ADR-032)
+
+## Theme CSS delivery under Turbopack dev
+- Location: src/themes/*.css and the three root layouts (their CSS module
+  imports).
+- What exists / how it works: Turbopack-dev cannot resolve plain-CSS
+  @imports placed after the tailwindcss import (production build tolerated
+  it; dev did not) — theme CSS files (e.g. design-system.css) are therefore
+  imported as modules from the root layouts instead of via CSS @import.
+- Limitations / gotchas: keep new theme CSS files on the module-import
+  path; do not reintroduce plain-CSS @import chains after the tailwindcss
+  import.
+- Last updated: 2026-08-09 (Entry 013, TESTING Run 016)

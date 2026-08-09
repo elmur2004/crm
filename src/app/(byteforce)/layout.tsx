@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "@fontsource/jetbrains-mono/500.css";
 import "@fontsource/jetbrains-mono/700.css";
 import "../globals.css";
+import "@/themes/design-system.css";
 
 /* App A root layout — stamps data-brand="byteforce" on <html>, activating the
    ByteForce token scope (branding/byteforce/tokens.css). Lama Sans loads here via

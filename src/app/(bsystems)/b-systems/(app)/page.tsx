@@ -5,6 +5,7 @@ import { adminHome } from "@/lib/services/bsystems-admin";
 import { BSYSTEMS_STAGES, STAGE_LABELS } from "@/lib/pipeline-engine/constants";
 import { formatEGP } from "@/lib/money";
 import { StatCard } from "@/components/shared/StatCard";
+import { BackupControls } from "@/components/bsystems/backup";
 import { stageAccent, stageKey } from "@/components/bsystems/stageColors";
 
 export const metadata = { title: "Home — B-Systems CRM" };
@@ -41,6 +42,9 @@ export default async function BSystemsHomePage() {
         <div>
           <p className="u-eyebrow">B-SYSTEMS · HOME</p>
           <h1 className="u-h1">Home</h1>
+        </div>
+        <div className="page-actions">
+          <BackupControls />
         </div>
       </div>
       <div className="tile-grid">

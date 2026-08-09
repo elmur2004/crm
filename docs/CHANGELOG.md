@@ -7,6 +7,8 @@
 - Design system applied from the approved Claude Design prototype (ADR-031):
   new token sheet, dark B-Systems chrome, entity switcher, redesigned
   login/hub.
+- Full admin backup/restore (ADR-032), animated UI motion layer, root now
+  opens sign-in directly.
 
 ## Phase 5 — Hardening & handover (2026-08-09)
 - Final demo seed: both brands populated across every stage, a converted partner

@@ -508,3 +508,31 @@ supersede; ADR-031 stays Accepted):
   copy drafted and awaiting founder sign-off before the sections are built.
 Still open from ADR-031's flags: Lama Sans intermediate cuts (R5/A-13) and the
 R23 copy sign-off — carried in PROGRESS (Entry 011).
+
+## ADR-032 — 2026-08-09 — Full-system backup: one JSON file, replace-all restore
+- Context: Founder directive — the admin needs an Export/Import pair such that
+  importing an export restores the system EXACTLY, even onto a fully wiped
+  database.
+- Decision:
+  - Format: one JSON file `{ version, app, exportedAt, tables, files }` —
+    every table's rows verbatim (ids preserved, so ALL relations and the
+    admin's own session survive a restore), plus every uploaded file
+    base64-embedded, keyed by its storage key.
+  - Restore semantics: REPLACE-ALL — one transaction deletes everything in
+    FK-safe reverse order, then re-inserts in parent-first order; file blobs
+    are restored after the commit (a bad blob never aborts the data restore).
+    The version/app fields are validated; a newer-version file is refused;
+    failed validation changes nothing.
+  - Admin-only (requireBsAdmin) at /api/b-systems/backup (GET export,
+    POST import); UI on the admin Home with an explicit "replaces ALL current
+    data" confirm.
+  - The export contains password hashes — the file itself is a secret;
+    flagged for the founder: store backups securely.
+  - Every import writes a `backup_import` activity-log row on top of the
+    restored log.
+- Alternatives considered: none recorded — the Export/Import pair is
+  founder-directed, and merge-style import semantics cannot satisfy "restores
+  the system exactly onto a fully wiped database".
+- Resolves: — (founder directive; the secure-backup-storage flag joins the
+  "Needs founder confirmation" thread, PROGRESS Entry 013)
+- Status: Accepted

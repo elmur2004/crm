@@ -470,6 +470,53 @@ textarea.field-input { min-height: 74px; resize: vertical; font-family: var(--fo
 .avatar-lg { width: 46px; height: 46px; border-radius: 12px; display: grid; place-items: center; background: var(--color-accent); color: var(--color-on-accent); font: 700 16px var(--font-body); flex: none; }
 .file-icon { width: 34px; height: 34px; border-radius: 8px; display: grid; place-items: center; background: var(--color-surface-tint); color: var(--color-link); font: 700 9.5px var(--font-mono); flex: none; }
 
+/* ---------- motion layer (founder: "the system is so rigid") ----------
+   Entry rise on page content, soft hover lifts, pressed states — all subtle,
+   all disabled under prefers-reduced-motion. Opacity/transform only (no layout
+   thrash); the one-shot entry settles in ~.24s. */
+@keyframes ds-rise {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+.page > * { animation: ds-rise .24s ease-out both; }
+.page > *:nth-child(2) { animation-delay: .04s; }
+.page > *:nth-child(3) { animation-delay: .08s; }
+.page > *:nth-child(n + 4) { animation-delay: .12s; }
+
+/* .bcard keeps its own tuned .12s transition (drag must track the cursor) */
+.tile, .ecard, .card, .action-pill, .hub-card,
+.btn-primary, .btn-ghost, .btn-danger, .btn-accent,
+.nav-item, .switcher-seg, .bell, .row-toggle, .field-input, .dropzone {
+  transition:
+    background-color .15s ease, border-color .15s ease, color .15s ease,
+    box-shadow .18s ease, transform .18s ease, opacity .15s ease;
+}
+.tile:hover, .ecard:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-card), 0 10px 26px color-mix(in srgb, var(--color-surface-dark) 8%, transparent);
+}
+.bcard:hover { box-shadow: 0 4px 14px rgba(0, 0, 0, 0.09); }
+.btn-primary:active, .btn-ghost:active, .btn-accent:active, .btn-danger:active,
+.action-pill:active, .nav-item:active, .switcher-seg:active { transform: scale(.97); }
+.field-input:focus { border-color: var(--color-primary); }
+.table tbody tr { transition: background-color .12s ease; }
+.stage-cell, .fields-cell { transition: background-color .15s ease; }
+.stage-cell:hover { background: var(--color-surface); }
+.ms-row { transition: background-color .15s ease, border-color .15s ease; }
+.bell-menu, .bell-menu > * { animation: ds-pop-in .16s ease-out both; }
+.tl-row { animation: ds-rise .22s ease-out both; }
+.tl-row:nth-child(2) { animation-delay: .03s; }
+.tl-row:nth-child(3) { animation-delay: .06s; }
+.tl-row:nth-child(n + 4) { animation-delay: .09s; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    animation-delay: 0ms !important;
+    transition-duration: .01ms !important;
+  }
+}
+
 /* ---------- responsive hardening (founder rule: every page adapts to any width) ---------- */
 @media (max-width: 640px) {
   .page, .page--detail { padding: 16px 14px 36px; }

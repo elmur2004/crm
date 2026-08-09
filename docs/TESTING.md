@@ -248,3 +248,18 @@ every dashboard formula, journeys 1-5 (SPEC §13).
   Playwright suite); §15 responsive/clean-console clauses (768px overflow
   fix); ADR-019 token-contract guard.
 - Verdict: PASS — restyle verified green.
+
+## Run 016 — 2026-08-09 — Backup/restore + motion layer + root-redirect round
+- Suites/commands: `npm run typecheck` (tsc clean) · `npx vitest run` (62 —
+  incl. the new backup.integration.test.ts) · `npx playwright test` (12 —
+  full suite with the motion layer, root redirect, and backup UI live).
+- Cases: vitest 62 passed / 0 failed / 0 skipped · Playwright 12 passed /
+  0 failed / 0 skipped.
+- Failures: none.
+- SPEC coverage touched: ADR-032 backup round-trip — new
+  backup.integration.test.ts proves export → full wipe (db + files) →
+  import restores rows, relations, ids, dates, and uploads and writes the
+  backup_import log row; invalid-file rejection with nothing deleted. §13
+  journeys 1–5 + security-rbac + qa-sweep re-verified with the motion
+  layer, the `/` → /login redirect, and the admin backup controls live.
+- Verdict: PASS.
