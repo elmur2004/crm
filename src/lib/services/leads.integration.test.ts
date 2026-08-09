@@ -261,7 +261,7 @@ describe("internal CRM service transitions", () => {
         event: { type: "next_action", action: "following_up" },
         group: followUpGroup(),
         actor,
-        role: "bsystems_staff",
+        role: "bsystems_admin",
       }),
     ).rejects.toThrow(/not found/i);
   });

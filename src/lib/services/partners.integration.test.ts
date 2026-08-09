@@ -2,11 +2,13 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/lib/db";
 import { resetDb } from "@/tests/db-reset";
 import {
+  addAlternativeNumbers,
   addRecording,
   applyProspectEvent,
   createProspect,
   getPartnerDetail,
   getProspectDetail,
+  parseNumbers,
   updateProspect,
 } from "./partners";
 import { applyLeadEvent, createLead } from "./leads";
@@ -18,7 +20,7 @@ import type { Actor } from "./activity";
    into the CRM, upload validation (type/size) for recordings. */
 
 const actor: Actor = { id: null, label: "Test B-Staff" };
-const role = "bsystems_staff" as const;
+const role = "bsystems_admin" as const;
 
 function makeProspect() {
   return createProspect(
@@ -47,58 +49,65 @@ beforeEach(async () => {
 });
 
 describe("Partners pipeline (§10.2)", () => {
-  it("PP-1: didn't answer reveals the number slots and moves the card", async () => {
+  it("PP-1 (V2 §6): didn't answer records the dialed number(s) into non-answering", async () => {
     const p = await makeProspect();
     const r = await applyProspectEvent({
       prospectId: p.id,
       event: { type: "next_action", action: "didnt_answer" },
+      group: { group: "numbers", data: { dialedNumbers: ["0223456789"] } },
       actor,
       role,
     });
     expect(r.toStage).toBe("didnt_answer");
+    const { prospect } = await getProspectDetail(p.id);
+    expect(parseNumbers(prospect.nonAnsweringNumbers)).toEqual(["0223456789"]);
   });
 
-  it("PP-2: a new number on a Didn't-Answer card auto-returns it to Lead — twice max, edits don't re-fire", async () => {
+  it("PP-2 (V2 §6): alternative numbers auto-return the card to Lead — unbounded loop", async () => {
     const p = await makeProspect();
     await applyProspectEvent({
       prospectId: p.id,
       event: { type: "next_action", action: "didnt_answer" },
+      group: { group: "numbers", data: { dialedNumbers: ["0223456789"] } },
       actor,
       role,
     });
 
-    /* First extra number → auto-return. */
-    let updated = await updateProspect(p.id, { number2: "0101111111" }, actor, role);
+    /* One alternative number → auto-return. */
+    let updated = await addAlternativeNumbers(p.id, ["0101111111"], actor, role);
     expect(updated.stage).toBe("lead");
+    expect(parseNumbers(updated.alternativeNumbers)).toEqual(["0101111111"]);
     const log1 = await db.activityLog.findFirst({
       where: { entityType: "partner_prospect", entityId: p.id, trigger: "PP-2" },
     });
-    expect(log1).toBeTruthy();
     expect(log1!.action).toBe("auto_transfer");
 
-    /* Back to Didn't Answer; editing the SAME slot is not a new number. */
+    /* Loop again: back to Didn't Answer, add TWO more — no cap (V2). */
     await applyProspectEvent({
       prospectId: p.id,
       event: { type: "next_action", action: "didnt_answer" },
+      group: { group: "numbers", data: { dialedNumbers: ["0101111111"] } },
       actor,
       role,
     });
-    updated = await updateProspect(p.id, { number2: "0102222222" }, actor, role);
-    expect(updated.stage).toBe("didnt_answer"); // no re-fire on edit
-
-    /* Second extra number (slot 3) → auto-return again (max two, structural). */
-    updated = await updateProspect(p.id, { number3: "0103333333" }, actor, role);
+    updated = await addAlternativeNumbers(p.id, ["0102222222", "0103333333"], actor, role);
     expect(updated.stage).toBe("lead");
+    expect(parseNumbers(updated.alternativeNumbers)).toEqual([
+      "0101111111",
+      "0102222222",
+      "0103333333",
+    ]);
+    expect(parseNumbers(updated.nonAnsweringNumbers)).toEqual(["0223456789", "0101111111"]);
     const pp2Count = await db.activityLog.count({
       where: { entityType: "partner_prospect", entityId: p.id, trigger: "PP-2" },
     });
     expect(pp2Count).toBe(2);
   });
 
-  it("PP-2 does not fire outside Didn't Answer", async () => {
+  it("PP-2 does not fire outside Didn't Answer (numbers can be added any time)", async () => {
     const p = await makeProspect();
-    const updated = await updateProspect(p.id, { number2: "0104444444" }, actor, role);
-    expect(updated.stage).toBe("lead"); // was already lead; no transition logged
+    const updated = await addAlternativeNumbers(p.id, ["0104444444"], actor, role);
+    expect(updated.stage).toBe("lead"); // was already lead; numbers stored, no transition
     const pp2 = await db.activityLog.findFirst({
       where: { entityType: "partner_prospect", entityId: p.id, trigger: "PP-2" },
     });
@@ -184,7 +193,7 @@ describe("Partners pipeline (§10.2)", () => {
       "bsystems",
       { name: "Referred Corp", number: "0109999999", type: "personal_connection" },
       actor,
-      { partnerId: partner.id },
+      { attribution: { partnerId: partner.id } },
     );
     expect(lead.source).toBe("partner");
     expect(lead.partnerId).toBe(partner.id);

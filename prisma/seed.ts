@@ -57,7 +57,7 @@ export async function seed() {
     name: "Omar Farouk",
     email: "omar@b-systems.example",
     password: "bsystems123",
-    roles: ["bsystems_staff", "portal_admin"],
+    roles: ["bsystems_sales"],
   });
 
   // ADR-016: portal admins are seeded, never self-signed-up
@@ -65,14 +65,14 @@ export async function seed() {
     name: "Portal Admin",
     email: "admin@b-systems.example",
     password: "admin123",
-    roles: ["portal_admin"],
+    roles: ["bsystems_admin"],
   });
 
   const repUser = await upsertUser({
     name: "Karim Adel",
     phone: "01001234567",
     password: "partner123",
-    roles: ["portal_rep"],
+    roles: ["bsystems_agent"],
   });
   await db.portalRep.upsert({
     where: { userId: repUser.id },
@@ -271,38 +271,63 @@ export async function seed() {
     });
     await log("lead", partnerLead.id, "create", "PP-5");
 
-    /* Portal: the seeded rep gets deals across stages + a WON DEAL WITH
-       MILESTONES (M1 checked → M2 unlocked, M3 locked). */
-    const seededRep = await db.portalRep.findFirstOrThrow({
-      where: { user: { phone: "01001234567" } },
-    });
-    const mkDeal = (name: string, company: string, stage: string) =>
-      db.portalDeal.create({
+    /* V2: the seeded AGENT gets unified B-Systems leads across stages + a WON
+       lead with the V2 milestone plan (M1 checked, dated, with commissions). */
+    const agentUser = await db.user.findFirstOrThrow({ where: { phone: "01001234567" } });
+    const seededRep = await db.portalRep.findFirstOrThrow({ where: { userId: agentUser.id } });
+    const mkAgentLead = (name: string, company: string, stage: string) =>
+      db.lead.create({
         data: {
-          repId: seededRep.id,
+          brand: "bsystems",
+          ownerType: "agent",
+          ownerUserId: agentUser.id,
           name,
-          position: "Decision maker",
           number: "0109000001",
+          type: "personal_connection",
+          position: "Decision maker",
           companyName: company,
           industry: "Services",
           stage,
         },
       });
-    await mkDeal("Fresh Deal", "Startup One", "leads");
-    const dealFu = await mkDeal("Follow-up Deal", "Growth Co", "following_up");
+    await mkAgentLead("Fresh Deal", "Startup One", "new");
+    const dealFu = await mkAgentLead("Follow-up Deal", "Growth Co", "following_up");
     await db.followUp.create({
-      data: { portalDealId: dealFu.id, context: "initial", dueAt: new Date("2026-08-23T10:00:00Z"), method: "message", ownerPortalRepId: seededRep.id },
+      data: { leadId: dealFu.id, context: "initial", dueAt: new Date("2026-08-23T10:00:00Z"), method: "message", ownerPortalRepId: seededRep.id },
     });
-    const dealWon = await mkDeal("Enterprise Win", "Enterprise LLC", "won");
+    const dealNeg = await mkAgentLead("Negotiation Deal", "Talks Co", "negotiation");
+    await db.negotiationNote.create({
+      data: { leadId: dealNeg.id, note: "Discussing scope reduction to fit budget." },
+    });
+    const dealWon = await mkAgentLead("Enterprise Win", "Enterprise LLC", "won");
     const wonDeal = await db.wonDeal.create({
-      data: { dealId: dealWon.id, estimatedValue: 900_000_00, totalCommission: 90_000_00 },
+      data: {
+        leadId: dealWon.id,
+        estimatedValue: 900_000_00,
+        totalCommissionPercent: 10_00, // 10.00%
+        contractDate: new Date("2026-08-01T00:00:00Z"),
+      },
     });
     await db.milestone.create({
-      data: { wonDealId: wonDeal.id, index: 1, value: 400_000_00, completed: true, completedAt: new Date("2026-08-05T09:00:00Z") },
+      data: {
+        wonDealId: wonDeal.id, index: 1, value: 400_000_00, commissionValue: 40_000_00,
+        expectedStart: new Date("2026-08-10T00:00:00Z"), expectedEnd: new Date("2026-09-10T00:00:00Z"),
+        completed: true, completedAt: new Date("2026-08-05T09:00:00Z"),
+      },
     });
-    await db.milestone.create({ data: { wonDealId: wonDeal.id, index: 2, value: 300_000_00 } });
-    await db.milestone.create({ data: { wonDealId: wonDeal.id, index: 3, value: 200_000_00 } });
-    await log("won_deal", wonDeal.id, "create", "P-6");
+    await db.milestone.create({
+      data: {
+        wonDealId: wonDeal.id, index: 2, value: 300_000_00, commissionValue: 30_000_00,
+        expectedStart: new Date("2026-09-11T00:00:00Z"), expectedEnd: new Date("2026-10-10T00:00:00Z"),
+      },
+    });
+    await db.milestone.create({
+      data: {
+        wonDealId: wonDeal.id, index: 3, value: 200_000_00, commissionValue: 20_000_00,
+        expectedStart: new Date("2026-10-11T00:00:00Z"), expectedEnd: new Date("2026-11-10T00:00:00Z"),
+      },
+    });
+    await log("won_deal", wonDeal.id, "create", "B-9");
     await log("won_deal", wonDeal.id, "milestone_check", "P-8");
   }
 

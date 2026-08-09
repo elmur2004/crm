@@ -122,24 +122,26 @@ export function ProspectEventPanel({
   reps,
   pendingMeeting,
   defaults,
+  cardNumbers,
 }: {
   prospectId: string;
   stage: string;
   reps: Rep[];
   pendingMeeting: boolean;
   defaults: { companyName: string; name: string; role: string | null; number: string; email: string | null; businessActivity: string };
+  /** all numbers on the card (primary + alternatives) — V2 §6 dialed selection */
+  cardNumbers: string[];
 }) {
   const router = useRouter();
   const [action, setAction] = useState("");
   const [outcome, setOutcome] = useState("");
   const [destination, setDestination] = useState("");
-  const [arranged, setArranged] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const terminal = partnersConfig.terminalStages.includes(stage);
-  const nextActions = partnersConfig.nextActions(stage, "bsystems_staff");
-  const attendedDestinations = partnersConfig.attendedDestinations("bsystems_staff");
+  const nextActions = partnersConfig.nextActions(stage, "bsystems_admin");
+  const attendedDestinations = partnersConfig.attendedDestinations("bsystems_admin");
   const cancelledDestinations = [partnersConfig.followUpStage, partnersConfig.lostStage];
 
   async function submit(body: unknown) {
@@ -178,15 +180,14 @@ export function ProspectEventPanel({
   function groupForTarget(target: string, fd: FormData) {
     if (target === "following_up") return followUpFromForm(fd);
     if (target === "meeting_setting")
+      /* V2 §6 — partners meeting is simplified: date + time + mode only. */
       return {
         group: "meeting" as const,
         data: {
-          arranged,
-          date: arranged ? String(fd.get("date")) : undefined,
-          time: arranged ? String(fd.get("time")) : undefined,
-          mode: arranged ? (String(fd.get("mode")) as "online" | "offline") : undefined,
-          withAttendees: String(fd.get("withAttendees") || "") || undefined,
-          technicalSupport: String(fd.get("technicalSupport") || "") || undefined,
+          arranged: true,
+          date: String(fd.get("date")),
+          time: String(fd.get("time")),
+          mode: String(fd.get("mode")) as "online" | "offline",
         },
       };
     if (target === "lost")
@@ -205,54 +206,40 @@ export function ProspectEventPanel({
           importance: String(fd.get("importance")) as "high" | "medium" | "low",
         },
       };
-    return undefined; // didnt_answer — numbers revealed, no payload
+    if (target === "didnt_answer") {
+      // V2 §6: record WHICH number(s) went unanswered
+      const dialed = fd.getAll("dialedNumbers").map(String).filter(Boolean);
+      return { group: "numbers" as const, data: { dialedNumbers: dialed } };
+    }
+    return undefined;
   }
 
   function fieldsForTarget(target: string) {
     if (target === "following_up") return <FollowUpFields reps={reps} />;
     if (target === "meeting_setting")
+      /* V2 §6 — simplified: date + time + online/offline. */
       return (
         <>
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={arranged}
-              onChange={(e) => setArranged(e.target.checked)}
-            />
-            <span className="text-sm font-medium">Arranged?</span>
+          <div className="grid grid-cols-2 gap-3">
+            <label className="block">
+              <span className={labelCls}>Date</span>
+              <input type="date" name="date" required className={inputCls} />
+            </label>
+            <label className="block">
+              <span className={labelCls}>Time</span>
+              <input type="time" name="time" required className={inputCls} />
+            </label>
+          </div>
+          <label className="block">
+            <span className={labelCls}>Mode</span>
+            <select name="mode" required className={inputCls}>
+              {MEETING_MODES.map((m) => (
+                <option key={m} value={m}>
+                  {m === "online" ? "Online" : "Offline"}
+                </option>
+              ))}
+            </select>
           </label>
-          {arranged ? (
-            <>
-              <div className="grid grid-cols-2 gap-3">
-                <label className="block">
-                  <span className={labelCls}>Date</span>
-                  <input type="date" name="date" required className={inputCls} />
-                </label>
-                <label className="block">
-                  <span className={labelCls}>Time</span>
-                  <input type="time" name="time" required className={inputCls} />
-                </label>
-              </div>
-              <label className="block">
-                <span className={labelCls}>Mode</span>
-                <select name="mode" required className={inputCls}>
-                  {MEETING_MODES.map((m) => (
-                    <option key={m} value={m}>
-                      {m === "online" ? "Online" : "Offline"}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="block">
-                <span className={labelCls}>With</span>
-                <input type="text" name="withAttendees" className={inputCls} />
-              </label>
-              <label className="block">
-                <span className={labelCls}>Technical support</span>
-                <input type="text" name="technicalSupport" className={inputCls} />
-              </label>
-            </>
-          ) : null}
         </>
       );
     if (target === "lost")
@@ -265,10 +252,19 @@ export function ProspectEventPanel({
     if (target === "won") return <WonGateFields defaults={defaults} />;
     if (target === "didnt_answer")
       return (
-        <p className="text-sm text-brand-muted">
-          The card moves to Didn&apos;t Answer and reveals the Number 2 / Number 3 fields on
-          this page. Saving a new number returns it to Lead automatically.
-        </p>
+        <div className="space-y-2">
+          <p className="text-sm font-medium">Number dialed — which number(s) went unanswered?</p>
+          {cardNumbers.map((n) => (
+            <label key={n} className="flex items-center gap-2 text-sm">
+              <input type="checkbox" name="dialedNumbers" value={n} defaultChecked={cardNumbers.length === 1} />
+              {n}
+            </label>
+          ))}
+          <p className="text-xs text-brand-muted">
+            New numbers are NOT required now — add them any time from “Alternative
+            numbers”; doing so returns the card to Lead automatically.
+          </p>
+        </div>
       );
     return null;
   }

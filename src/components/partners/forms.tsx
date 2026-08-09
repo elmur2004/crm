@@ -94,38 +94,32 @@ export function AddProspectForm() {
   );
 }
 
-/* PP-1/PP-2 — the extra number slots, revealed in Didn't Answer. Saving a new
-   non-empty number auto-returns the card to Lead (server-side). */
-export function NumberSlots({
+/* V2 §6 — add ALTERNATIVE numbers, any count, any time. From Didn't Answer the
+   save auto-returns the card to Lead (server-side PP-2). */
+export function AlternativeNumbersForm({
   prospectId,
-  number2,
-  number3,
-  revealed,
+  inDidntAnswer,
 }: {
   prospectId: string;
-  number2: string | null;
-  number3: string | null;
-  revealed: boolean;
+  inDidntAnswer: boolean;
 }) {
   const router = useRouter();
+  const [fields, setFields] = useState<string[]>([""]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  if (!revealed && !number2 && !number3) return null;
 
   return (
     <form
       onSubmit={async (e) => {
         e.preventDefault();
-        const fd = new FormData(e.currentTarget);
+        const numbers = fields.map((n) => n.trim()).filter(Boolean);
+        if (numbers.length === 0) return;
         setBusy(true);
         setError(null);
-        const res = await fetch(`/api/b-systems/partners-pipeline/${prospectId}`, {
-          method: "PATCH",
+        const res = await fetch(`/api/b-systems/partners-pipeline/${prospectId}/numbers`, {
+          method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            number2: String(fd.get("number2") || ""),
-            number3: String(fd.get("number3") || ""),
-          }),
+          body: JSON.stringify({ numbers }),
         });
         setBusy(false);
         if (!res.ok) {
@@ -133,30 +127,46 @@ export function NumberSlots({
           setError(data?.error ?? "Something went wrong");
           return;
         }
+        setFields([""]);
         router.refresh();
       }}
       className="space-y-2"
     >
-      <p className="text-sm font-bold">Extra numbers</p>
-      {revealed ? (
+      <p className="text-sm font-bold">Alternative numbers</p>
+      {inDidntAnswer ? (
         <p className="text-xs text-brand-muted">
-          Saving a new number returns this card to Lead automatically.
+          Saving new number(s) returns this card to Lead automatically. You can also add
+          them later — nothing is required now.
         </p>
       ) : null}
       {error ? <p className="text-sm text-brand-danger">{error}</p> : null}
-      <div className="grid grid-cols-2 gap-2">
-        <label className="block">
-          <span className={labelCls}>Number 2</span>
-          <input type="tel" name="number2" defaultValue={number2 ?? ""} className={inputCls} />
-        </label>
-        <label className="block">
-          <span className={labelCls}>Number 3</span>
-          <input type="tel" name="number3" defaultValue={number3 ?? ""} className={inputCls} />
-        </label>
+      {fields.map((value, i) => (
+        <input
+          key={i}
+          type="tel"
+          value={value}
+          aria-label={`New number ${i + 1}`}
+          placeholder="New number"
+          onChange={(e) => {
+            const next = [...fields];
+            next[i] = e.target.value;
+            setFields(next);
+          }}
+          className={inputCls}
+        />
+      ))}
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={() => setFields([...fields, ""])}
+          className="border border-brand-border rounded-brand-control px-3 py-2 text-sm text-brand-muted"
+        >
+          Add another number
+        </button>
+        <button type="submit" disabled={busy} className={btnPrimary}>
+          Save numbers
+        </button>
       </div>
-      <button type="submit" disabled={busy} className={btnPrimary}>
-        Save numbers
-      </button>
     </form>
   );
 }

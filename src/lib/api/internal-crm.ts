@@ -1,6 +1,6 @@
 import { handleRoute, requireBrandStaff } from "@/lib/auth/guards";
 import type { Brand } from "@/lib/pipeline-engine/constants";
-import { staffRoleForBrand } from "@/lib/auth/guards";
+import { staffRolesForBrand } from "@/lib/auth/guards";
 import {
   applyLeadEvent,
   createLead,
@@ -53,7 +53,7 @@ export function internalCrmHandlers(brand: Brand) {
         event: input.event as EngineEvent,
         group: input.group,
         actor: { id: user.id, label: user.name },
-        role: staffRoleForBrand(brand),
+        role: staffRolesForBrand(brand)[0]!, // byteforce_staff (factory serves ByteForce only in V2)
       });
       return Response.json(result);
     }),

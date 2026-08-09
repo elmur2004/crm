@@ -9,6 +9,7 @@ import { groupPayloadSchema, type GroupPayload, type WonPartnerInput } from "./g
 import { persistGroup } from "./leads";
 import { writeLog, type Actor } from "./activity";
 import { validateAndStore } from "@/lib/storage";
+import { hashPassword } from "@/lib/auth/hash";
 
 /* App B Partners pipeline (§7.2–§7.3, §10.2). applyProspectEvent mirrors
    applyLeadEvent on the partners config; updateProspect fires PP-2's auto-return
@@ -25,10 +26,17 @@ export const createProspectSchema = z.object({
   description: z.string().max(2000).optional(),
 });
 
-export const updateProspectSchema = createProspectSchema.partial().extend({
-  number2: z.string().max(50).optional(),
-  number3: z.string().max(50).optional(),
-});
+export const updateProspectSchema = createProspectSchema.partial();
+
+/* V2 §6 — unbounded alternative numbers; JSON-array helpers. */
+export function parseNumbers(json: string): string[] {
+  try {
+    const arr = JSON.parse(json) as unknown;
+    return Array.isArray(arr) ? arr.filter((n): n is string => typeof n === "string") : [];
+  } catch {
+    return [];
+  }
+}
 
 export async function createProspect(
   input: z.infer<typeof createProspectSchema>,
@@ -83,35 +91,13 @@ export async function getProspectDetail(prospectId: string) {
   return { prospect, history };
 }
 
-/**
- * §7.2 base-field edits + the PP-2 trigger: a non-empty value newly saved into
- * Number 2 or Number 3 while the card sits in Didn't Answer auto-returns it to
- * Lead ("Returned to Lead — new number added"). Max two extra numbers is
- * structural (only the two slots exist); overwriting a filled slot is an edit,
- * not a new number.
- */
 export async function updateProspect(
   prospectId: string,
   input: z.infer<typeof updateProspectSchema>,
   actor: Actor,
-  role: Role,
 ) {
   const prospect = await getProspect(prospectId);
-
-  const newNumber2 = input.number2 !== undefined && input.number2 !== "" && !prospect.number2;
-  const newNumber3 = input.number3 !== undefined && input.number3 !== "" && !prospect.number3;
-  const firesPP2 = prospect.stage === "didnt_answer" && (newNumber2 || newNumber3);
-
   return db.$transaction(async (tx) => {
-    /* Same stale-stage guard as applyProspectEvent — PP-2's from-stage must still
-       hold inside the transaction. */
-    const fresh = await tx.partnerProspect.findUniqueOrThrow({
-      where: { id: prospect.id },
-      select: { stage: true },
-    });
-    if (fresh.stage !== prospect.stage) {
-      throw new ApiError(409, "This card just moved — reload and try again");
-    }
     await tx.partnerProspect.update({
       where: { id: prospect.id },
       data: {
@@ -120,18 +106,57 @@ export async function updateProspect(
         ...(input.role !== undefined && { role: input.role ?? null }),
         ...(input.email !== undefined && { email: input.email ?? null }),
         ...(input.number !== undefined && { number: input.number }),
-        ...(input.number2 !== undefined && { number2: input.number2 || null }),
-        ...(input.number3 !== undefined && { number3: input.number3 || null }),
         ...(input.businessActivity !== undefined && { businessActivity: input.businessActivity }),
         ...(input.description !== undefined && { description: input.description ?? null }),
       },
     });
+    await writeLog(tx, {
+      entityType: "partner_prospect",
+      entityId: prospect.id,
+      actor,
+      action: "update",
+      trigger: "edit",
+    });
+    return tx.partnerProspect.findUniqueOrThrow({ where: { id: prospect.id } });
+  });
+}
 
-    if (firesPP2) {
+/**
+ * V2 §6 — adding alternative number(s), any count, any time. If the card sits in
+ * Didn't Answer, the addition AUTO-RETURNS it to Lead (PP-2, "Returned to Lead —
+ * new number added"); the numbers land in `alternativeNumbers` (the failed number
+ * was recorded into `nonAnsweringNumbers` at the Didn't-Answer move).
+ */
+export async function addAlternativeNumbers(
+  prospectId: string,
+  numbers: string[],
+  actor: Actor,
+  role: Role,
+) {
+  const clean = numbers.map((n) => n.trim()).filter(Boolean);
+  if (clean.length === 0) throw new ApiError(400, "Enter at least one number");
+  const prospect = await getProspect(prospectId);
+
+  return db.$transaction(async (tx) => {
+    const fresh = await tx.partnerProspect.findUniqueOrThrow({
+      where: { id: prospect.id },
+      select: { stage: true, alternativeNumbers: true },
+    });
+    if (fresh.stage !== prospect.stage) {
+      throw new ApiError(409, "This card just moved — reload and try again");
+    }
+    const existing = parseNumbers(fresh.alternativeNumbers);
+    const merged = [...existing, ...clean.filter((n) => !existing.includes(n))];
+    await tx.partnerProspect.update({
+      where: { id: prospect.id },
+      data: { alternativeNumbers: JSON.stringify(merged) },
+    });
+
+    if (prospect.stage === "didnt_answer") {
       const result = transition(
         partnersConfig,
         { stage: prospect.stage },
-        { type: "number_added", slot: newNumber2 ? 2 : 3 },
+        { type: "number_added", slot: 2 },
         { role },
       );
       if (!result.ok) throw new ApiError(400, result.message);
@@ -154,7 +179,7 @@ export async function updateProspect(
         entityId: prospect.id,
         actor,
         action: "update",
-        trigger: "edit",
+        trigger: "numbers_added",
       });
     }
     return tx.partnerProspect.findUniqueOrThrow({ where: { id: prospect.id } });
@@ -188,9 +213,9 @@ export async function applyProspectEvent(opts: {
   if (!result.ok) throw new ApiError(400, result.message);
 
   /* PP-4's completeness gate lives in the won_partner schema — re-parsed at the
-     service layer so it can never be bypassed. The numbers group (PP-1) carries no
-     payload: the fields are revealed, not collected, at move time. */
-  if (result.requiredGroup && result.requiredGroup.group !== "numbers") {
+     service layer so it can never be bypassed. V2 §6: the numbers group (PP-1)
+     now CARRIES the dialed-number selection. */
+  if (result.requiredGroup) {
     if (!opts.group || opts.group.group !== result.requiredGroup.group) {
       throw new ApiError(400, `This move requires the "${result.requiredGroup.group}" fields`);
     }
@@ -218,6 +243,23 @@ export async function applyProspectEvent(opts: {
       });
     }
 
+    /* V2 §6: moving to Didn't Answer records WHICH number(s) went unanswered. */
+    if (result.requiredGroup?.group === "numbers" && opts.group?.group === "numbers") {
+      const current = await tx.partnerProspect.findUniqueOrThrow({
+        where: { id: prospect.id },
+        select: { nonAnsweringNumbers: true },
+      });
+      const existing = parseNumbers(current.nonAnsweringNumbers);
+      const merged = [
+        ...existing,
+        ...opts.group.data.dialedNumbers.filter((n) => !existing.includes(n)),
+      ];
+      await tx.partnerProspect.update({
+        where: { id: prospect.id },
+        data: { nonAnsweringNumbers: JSON.stringify(merged) },
+      });
+    }
+
     await persistGroup(
       tx,
       { partnerProspectId: prospect.id },
@@ -241,9 +283,41 @@ export async function applyProspectEvent(opts: {
         // PP-4: gate satisfied (won_partner schema) → Partner in the directory,
         // date_joined = now; card stays in Won with the Converted badge (A-5).
         const gate = (opts.group as { group: "won_partner"; data: WonPartnerInput }).data;
+
+        /* V2 §8 — auto-provision the partner ACCOUNT: password =
+           "{CompanyName}@Bsystemspartnership" (spaces stripped), email = the one
+           on record. No email → partner created without a login (admin adds the
+           email in Users later). */
+        let partnerUserId: string | null = null;
+        if (gate.email) {
+          const existingUser = await tx.user.findUnique({ where: { email: gate.email } });
+          if (!existingUser) {
+            const autoPassword = `${gate.companyName.replace(/\s+/g, "")}@Bsystemspartnership`;
+            const user = await tx.user.create({
+              data: {
+                name: gate.companyName,
+                email: gate.email,
+                passwordHash: await hashPassword(autoPassword),
+              },
+            });
+            await tx.userRole.create({ data: { userId: user.id, role: "bsystems_partner" } });
+            partnerUserId = user.id;
+            await writeLog(tx, {
+              entityType: "user",
+              entityId: user.id,
+              actor: opts.actor,
+              action: "create",
+              trigger: "partner_account",
+            });
+          } else {
+            partnerUserId = existingUser.id;
+          }
+        }
+
         const partner = await tx.partner.create({
           data: {
             prospectId: prospect.id,
+            userId: partnerUserId,
             companyName: gate.companyName,
             keyPersonName: gate.keyPersonName,
             keyPersonRole: gate.keyPersonRole,

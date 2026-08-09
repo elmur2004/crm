@@ -12,11 +12,11 @@ import type { Role } from "@/lib/pipeline-engine/constants";
    cookie within the same request, so the landing roles are read from the DB. */
 
 const LANDING_PRIORITY: Array<[Role, string]> = [
+  ["bsystems_admin", "/b-systems"],
   ["byteforce_staff", "/byteforce"],
-  ["bsystems_staff", "/b-systems"],
-  ["platform_admin", "/byteforce"], // ADR-029 (entity switcher round)
-  ["portal_admin", "/portal/admin"],
-  ["portal_rep", "/portal/crm"],
+  ["bsystems_sales", "/b-systems/crm"],
+  ["bsystems_agent", "/b-systems/crm"],
+  ["bsystems_partner", "/b-systems/crm"],
 ];
 
 function landingFor(roles: Role[]): string {
@@ -47,4 +47,26 @@ export async function login(formData: FormData): Promise<void> {
 
 export async function logout(redirectTo: string): Promise<void> {
   await signOut({ redirectTo });
+}
+
+/* V2 §2.10 — admin opens any account directly (no re-login). */
+export async function impersonate(targetUserId: string): Promise<void> {
+  const { requireRole } = await import("@/lib/auth/guards");
+  const { mintImpersonationToken } = await import("@/lib/services/users");
+  const adminUser = await requireRole("bsystems_admin");
+  const token = await mintImpersonationToken(targetUserId, {
+    id: adminUser.id,
+    label: adminUser.name,
+  });
+  try {
+    await signIn("impersonation", { token, redirect: false });
+  } catch (err) {
+    if (err instanceof AuthError) redirect("/b-systems/users?error=impersonation");
+    throw err;
+  }
+  const target = await db.user.findUnique({
+    where: { id: targetUserId },
+    include: { roles: true },
+  });
+  redirect(landingFor((target?.roles.map((r) => r.role) ?? []) as Role[]));
 }

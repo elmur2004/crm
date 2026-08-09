@@ -2,13 +2,13 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { PARTNER_STAGES, STAGE_LABELS } from "@/lib/pipeline-engine/constants";
-import { getPartnerDetail, getProspectDetail, listPartners } from "@/lib/services/partners";
+import { getPartnerDetail, getProspectDetail, listPartners, parseNumbers } from "@/lib/services/partners";
 import { listReps } from "@/lib/services/sales-reps";
 import { formatCairo, formatCairoDate } from "@/lib/datetime";
 import { StageBadge } from "@/components/shared/StageBadge";
 import { GroupHistory } from "@/components/internal/GroupHistory";
 import { HistoryPanel } from "@/components/internal/HistoryPanel";
-import { AddProspectForm, NumberSlots, RecordingUpload } from "./forms";
+import { AddProspectForm, AlternativeNumbersForm, RecordingUpload } from "./forms";
 import { PartnerAddLeadClient } from "./PartnerAddLead";
 import { ProspectEventPanel } from "./ProspectEventPanel";
 import { ApiError } from "@/lib/api-error";
@@ -29,9 +29,7 @@ export async function PartnersPipelineBody() {
   function keyDatum(p: (typeof prospects)[number]): string {
     switch (p.stage) {
       case "didnt_answer":
-        return [p.number2, p.number3].filter(Boolean).length
-          ? `${[p.number2, p.number3].filter(Boolean).length} extra number(s)`
-          : "Awaiting a new number";
+        return "Awaiting a new number";
       case "following_up":
         return p.followUps[0] ? `Next: ${formatCairo(p.followUps[0].dueAt)}` : "No follow-up set";
       case "meeting_setting":
@@ -127,14 +125,16 @@ export async function ProspectDetailBody({ prospectId }: { prospectId: string })
             <p>
               <span className="text-brand-muted">Number:</span> {prospect.number}
             </p>
-            {prospect.number2 ? (
+            {parseNumbers(prospect.nonAnsweringNumbers).length > 0 ? (
               <p>
-                <span className="text-brand-muted">Number 2:</span> {prospect.number2}
+                <span className="text-brand-muted">Non-answering number(s):</span>{" "}
+                {parseNumbers(prospect.nonAnsweringNumbers).join(" · ")}
               </p>
             ) : null}
-            {prospect.number3 ? (
+            {parseNumbers(prospect.alternativeNumbers).length > 0 ? (
               <p>
-                <span className="text-brand-muted">Number 3:</span> {prospect.number3}
+                <span className="text-brand-muted">Alternative numbers:</span>{" "}
+                {parseNumbers(prospect.alternativeNumbers).join(" · ")}
               </p>
             ) : null}
             <p>
@@ -160,11 +160,9 @@ export async function ProspectDetailBody({ prospectId }: { prospectId: string })
           </div>
 
           <div className="bg-brand-surface-card border border-brand-border rounded-brand-card p-4">
-            <NumberSlots
+            <AlternativeNumbersForm
               prospectId={prospect.id}
-              number2={prospect.number2}
-              number3={prospect.number3}
-              revealed={prospect.stage === "didnt_answer"}
+              inDidntAnswer={prospect.stage === "didnt_answer"}
             />
           </div>
 
@@ -208,6 +206,7 @@ export async function ProspectDetailBody({ prospectId }: { prospectId: string })
                 email: prospect.email,
                 businessActivity: prospect.businessActivity,
               }}
+              cardNumbers={[prospect.number, ...parseNumbers(prospect.alternativeNumbers)]}
             />
           </div>
         </section>

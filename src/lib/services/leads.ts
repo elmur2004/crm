@@ -2,17 +2,31 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import type { Prisma } from "../../../generated/prisma/client";
 import { internalCrmConfig } from "@/lib/pipeline-engine/configs/internal-crm";
+import { bsystemsCrmConfig } from "@/lib/pipeline-engine/configs/bsystems-crm";
 import { transition } from "@/lib/pipeline-engine/transition";
-import type { EngineEvent } from "@/lib/pipeline-engine/types";
-import { LEAD_TYPES, type Brand, type Role } from "@/lib/pipeline-engine/constants";
+import type { EngineEvent, PipelineConfig } from "@/lib/pipeline-engine/types";
+import {
+  LEAD_TYPES,
+  type Brand,
+  type OwnerType,
+  type Role,
+} from "@/lib/pipeline-engine/constants";
 import { ApiError } from "@/lib/api-error";
 import { cairoToUtc } from "@/lib/datetime";
 import {
   followUpDueAt,
   groupPayloadSchema,
   type GroupPayload,
+  type WonDealInput,
 } from "./groups";
 import { writeLog, type Actor } from "./activity";
+import { notifyAdmins } from "./notifications";
+
+/* V2 (ADR-030): ByteForce keeps the v1 pipeline; B-Systems runs the unified
+   role-aware pipeline (negotiation stage, milestone-tab win, owner buckets). */
+export function configForBrand(brand: Brand): PipelineConfig {
+  return brand === "byteforce" ? internalCrmConfig : bsystemsCrmConfig;
+}
 
 /* Lead lifecycle for Apps A & B (§6.1–§6.4, §10.1). applyLeadEvent is the single
    write path for every pipeline move: engine-validated, group-gated, atomic, and
@@ -25,6 +39,11 @@ export const createLeadSchema = z.object({
   email: z.string().email().optional().or(z.literal("").transform(() => undefined)),
   type: z.enum(LEAD_TYPES),
   description: z.string().max(2000).optional(),
+  // V2 §1 — ex-portal deal fields, optional on every lead
+  position: z.string().max(200).optional(),
+  companyName: z.string().max(200).optional(),
+  industry: z.string().max(200).optional(),
+  requirements: z.string().max(4000).optional(),
 });
 
 export const updateLeadSchema = createLeadSchema.partial();
@@ -33,7 +52,12 @@ export async function createLead(
   brand: Brand,
   input: z.infer<typeof createLeadSchema>,
   actor: Actor,
-  attribution?: { partnerId: string },
+  opts?: {
+    attribution?: { partnerId: string };
+    /* V2 §1 owner bucket: who this lead belongs to. Defaults to internal. */
+    ownerType?: OwnerType;
+    ownerUserId?: string;
+  },
 ) {
   if (input.salesRepId) {
     const rep = await db.salesRep.findFirst({ where: { id: input.salesRepId, brand } });
@@ -43,14 +67,20 @@ export async function createLead(
     const lead = await tx.lead.create({
       data: {
         brand,
+        ownerType: opts?.ownerType ?? "internal",
+        ownerUserId: opts?.ownerUserId ?? null,
         salesRepId: input.salesRepId ?? null,
         name: input.name,
         number: input.number,
         email: input.email ?? null,
         type: input.type,
         description: input.description ?? null,
-        source: attribution ? "partner" : "direct",
-        partnerId: attribution?.partnerId ?? null, // §5.5 — permanent
+        position: input.position ?? null,
+        companyName: input.companyName ?? null,
+        industry: input.industry ?? null,
+        requirements: input.requirements ?? null,
+        source: opts?.attribution ? "partner" : "direct",
+        partnerId: opts?.attribution?.partnerId ?? null, // §5.5 — permanent
       },
     });
     await writeLog(tx, {
@@ -59,9 +89,54 @@ export async function createLead(
       actor,
       action: "create",
       toStage: "new",
-      trigger: attribution ? "PP-5" : "create",
+      trigger: opts?.attribution ? "PP-5" : "create",
     });
     return lead;
+  });
+}
+
+/* V2 §3 — the always-available "Mark ready to close" flag: card marker + admin
+   notification; not a stage transition. */
+export async function markReadyToClose(brand: Brand, leadId: string, actor: Actor) {
+  const lead = await getLead(brand, leadId);
+  if (lead.readyToClose) return lead;
+  const updated = await db.$transaction(async (tx) => {
+    const fresh = await tx.lead.update({
+      where: { id: lead.id },
+      data: { readyToClose: true },
+    });
+    await writeLog(tx, {
+      entityType: "lead",
+      entityId: lead.id,
+      actor,
+      action: "update",
+      trigger: "B-RTC",
+    });
+    return fresh;
+  });
+  await notifyAdmins({
+    type: "ready_to_close",
+    title: `Ready to close: ${lead.name}`,
+    body: `${actor.label} marked "${lead.name}" as ready to close (stage: ${lead.stage}).`,
+    leadId: lead.id,
+  });
+  return updated;
+}
+
+/* V2 §11 — admin delete (hard delete; children cascade). */
+export async function deleteLead(brand: Brand, leadId: string, actor: Actor) {
+  const lead = await getLead(brand, leadId);
+  const wonDeal = await db.wonDeal.findUnique({ where: { leadId: lead.id } });
+  if (wonDeal) throw new ApiError(400, "Won leads cannot be deleted — they carry milestones");
+  await db.$transaction(async (tx) => {
+    await tx.lead.delete({ where: { id: lead.id } });
+    await writeLog(tx, {
+      entityType: "lead",
+      entityId: lead.id,
+      actor,
+      action: "update",
+      trigger: "deleted",
+    });
   });
 }
 
@@ -158,13 +233,9 @@ export async function applyLeadEvent(opts: {
   role: Role;
 }): Promise<{ toStage: string }> {
   const lead = await getLead(opts.brand, opts.leadId);
+  const config = configForBrand(opts.brand);
 
-  const result = transition(
-    internalCrmConfig,
-    { stage: lead.stage },
-    opts.event,
-    { role: opts.role },
-  );
+  const result = transition(config, { stage: lead.stage }, opts.event, { role: opts.role });
   if (!result.ok) {
     throw new ApiError(result.code === "won_forbidden" ? 403 : 400, result.message);
   }
@@ -178,6 +249,15 @@ export async function applyLeadEvent(opts: {
     }
     opts.group = groupPayloadSchema.parse(opts.group);
   }
+
+  /* V2 §3: an agent's meeting submission notifies the admins (after the tx). */
+  const notifyMeeting =
+    opts.brand === "bsystems" &&
+    (opts.role === "bsystems_agent" || opts.role === "bsystems_partner") &&
+    result.requiredGroup?.group === "meeting" &&
+    opts.group?.group === "meeting"
+      ? opts.group.data
+      : null;
 
   await db.$transaction(async (tx) => {
     /* Concurrency guard: the stage the engine validated must still be current
@@ -231,6 +311,42 @@ export async function applyLeadEvent(opts: {
       if (effect === "create_client") {
         await createClientFromWon(tx, lead.id, opts.brand, opts.actor);
       }
+      if (effect === "create_won_deal") {
+        // V2 §4: confirm-win consumes the won_deal milestone tab
+        const tab = (opts.group as { group: "won_deal"; data: WonDealInput }).data;
+        const wonDeal = await tx.wonDeal.create({
+          data: {
+            leadId: lead.id,
+            estimatedValue: tab.estimatedValue,
+            totalCommissionPercent: tab.totalCommissionPercentBp,
+            contractDate: tab.contractDate
+              ? new Date(`${tab.contractDate}T00:00:00.000Z`)
+              : new Date(),
+          },
+        });
+        for (const [i, m] of tab.milestones.entries()) {
+          await tx.milestone.create({
+            data: {
+              wonDealId: wonDeal.id,
+              index: i + 1,
+              label: m.label ?? null,
+              value: m.value,
+              commissionValue: m.commissionValue,
+              expectedStart: m.expectedStart
+                ? new Date(`${m.expectedStart}T00:00:00.000Z`)
+                : null,
+              expectedEnd: m.expectedEnd ? new Date(`${m.expectedEnd}T00:00:00.000Z`) : null,
+            },
+          });
+        }
+        await writeLog(tx, {
+          entityType: "won_deal",
+          entityId: wonDeal.id,
+          actor: opts.actor,
+          action: "create",
+          trigger: "B-9",
+        });
+      }
     }
 
     await writeLog(tx, {
@@ -243,6 +359,23 @@ export async function applyLeadEvent(opts: {
       trigger: result.logTrigger,
     });
   });
+
+  if (notifyMeeting) {
+    const when =
+      notifyMeeting.date && notifyMeeting.time
+        ? `${notifyMeeting.date} ${notifyMeeting.time}`
+        : "no slot chosen";
+    await notifyAdmins({
+      type: "meeting_request",
+      title: `Meeting request: ${lead.name}`,
+      body:
+        `${opts.actor.label} ${notifyMeeting.arranged ? "AGREED with the client" : "proposed a preferred slot"} — ` +
+        `${when} · ${notifyMeeting.mode ?? "mode TBD"} · technical colleague: ${
+          notifyMeeting.needsTechnical ? "yes" : "no"
+        }`,
+      leadId: lead.id,
+    });
+  }
 
   return { toStage: result.toStage };
 }
@@ -327,9 +460,16 @@ export async function persistGroup(
       },
     });
   } else if (group === "numbers") {
-    // PP-1: fields revealed, nothing persisted at move time
+    // PP-1 (V2 §6): the dialed-number selection is consumed by the partners service
   } else if (group === "won_partner" && payload.group === "won_partner") {
     // PP-4: the gate data is consumed by the create_partner side effect, not a child record
+  } else if (group === "won_deal" && payload.group === "won_deal") {
+    // V2 §4: the milestone tab is consumed by the create_won_deal side effect
+  } else if (group === "negotiation" && payload.group === "negotiation") {
+    if (!parent.leadId) throw new ApiError(400, "Negotiation notes apply to leads");
+    await tx.negotiationNote.create({
+      data: { leadId: parent.leadId, note: payload.data.note },
+    });
   } else {
     throw new ApiError(400, `Group payload "${payload.group}" does not match required "${group}"`);
   }

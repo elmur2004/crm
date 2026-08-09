@@ -17,12 +17,23 @@ export const GET = handleRoute(
     });
     if (!attachment) throw new ApiError(404, "File not found");
 
+    const isAdmin = user.roles.includes("bsystems_admin");
     if (attachment.kind === "recording") {
-      if (!user.roles.includes("bsystems_staff")) throw new ApiError(403, "No access");
-    } else {
+      if (!isAdmin && !user.roles.includes("bsystems_sales")) throw new ApiError(403, "No access");
+    } else if (attachment.kind === "cv") {
       const isOwner = attachment.rep?.userId === user.id;
-      const isAdmin = user.roles.includes("portal_admin");
       if (!isOwner && !isAdmin) throw new ApiError(403, "No access");
+    } else if (attachment.kind === "payment_proof") {
+      // V2 §7: the admin and the statement's closer can see the proof
+      if (!isAdmin) {
+        const statement = attachment.statementId
+          ? await db.statement.findUnique({ where: { id: attachment.statementId } })
+          : null;
+        if (statement?.closerUserId !== user.id) throw new ApiError(403, "No access");
+      }
+    } else {
+      // proposal/contract PDFs on won leads — admin only (V2 §5)
+      if (!isAdmin) throw new ApiError(403, "No access");
     }
 
     const total = await storage.size(attachment.storageKey).catch(() => null);

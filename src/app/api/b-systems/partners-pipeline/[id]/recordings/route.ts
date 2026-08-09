@@ -1,10 +1,10 @@
-import { handleRoute, requireBrandStaff } from "@/lib/auth/guards";
+import { handleRoute, requireBsAdmin } from "@/lib/auth/guards";
 import { ApiError } from "@/lib/api-error";
 import { addRecording } from "@/lib/services/partners";
 
 export const POST = handleRoute(
   async (req: Request, ctx: { params: Promise<{ id: string }> }) => {
-    const user = await requireBrandStaff("bsystems");
+    const user = await requireBsAdmin();
     const { id } = await ctx.params;
     const form = await req.formData();
     const file = form.get("file");

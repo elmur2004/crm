@@ -5,12 +5,22 @@
 
 export const ROLES = [
   "byteforce_staff",
-  "bsystems_staff",
-  "portal_admin",
-  "portal_rep",
-  "platform_admin", // ADR-029: sees/controls BOTH companies + manages users
+  "bsystems_admin", // V2 (ADR-030): THE admin — ten sections, confirm-win, users
+  "bsystems_sales", // internal sales — CRM + Won Leads
+  "bsystems_agent", // external agent (was portal rep) — CRM, Won Leads, Payments, Profile
+  "bsystems_partner", // partner-company account (auto-provisioned) — same as agent
 ] as const;
 export type Role = (typeof ROLES)[number];
+
+export const OWNER_TYPES = ["internal", "agent", "partner", "admin"] as const;
+export type OwnerType = (typeof OWNER_TYPES)[number];
+
+export const OWNER_TYPE_LABELS: Record<OwnerType, string> = {
+  internal: "Internal",
+  agent: "Agents",
+  partner: "Partners",
+  admin: "Admins",
+};
 
 export const BRANDS = ["byteforce", "bsystems"] as const;
 export type Brand = (typeof BRANDS)[number];
@@ -37,25 +47,26 @@ export const PARTNER_STAGES = [
 ] as const;
 export type PartnerStage = (typeof PARTNER_STAGES)[number];
 
-export const PORTAL_STAGES = [
-  "leads",
+/* V2 (ADR-030): the unified B-Systems CRM pipeline — negotiation is NEW. */
+export const BSYSTEMS_STAGES = [
+  "new",
   "following_up",
   "meeting_setting",
-  "proposal_sending",
+  "sending_proposal",
+  "negotiation",
   "won",
   "lost",
 ] as const;
-export type PortalStage = (typeof PORTAL_STAGES)[number];
+export type BsystemsStage = (typeof BSYSTEMS_STAGES)[number];
 
 export const STAGE_LABELS: Record<string, string> = {
   new: "New",
   lead: "Lead",
-  leads: "Leads",
   didnt_answer: "Didn't Answer",
   following_up: "Following Up",
   meeting_setting: "Meeting Setting",
-  sending_proposal: "Sending Proposals",
-  proposal_sending: "Proposal Sending",
+  sending_proposal: "Sending Proposal",
+  negotiation: "Negotiation",
   won: "Won",
   lost: "Lost",
 };
@@ -106,11 +117,12 @@ export type LeadSource = (typeof LEAD_SOURCES)[number];
 export const LOG_ENTITY_TYPES = [
   "lead",
   "partner_prospect",
-  "portal_deal",
-  "portal_rep", // profile-space events (signup, edits) — additive to §9's list
+  "portal_rep", // agent profile events (signup, edits)
   "won_deal",
   "client",
   "partner",
+  "statement", // V2 §7
+  "user", // V2 §11 (users management / impersonation)
 ] as const;
 export type LogEntityType = (typeof LOG_ENTITY_TYPES)[number];
 

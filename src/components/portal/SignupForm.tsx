@@ -15,7 +15,7 @@ export function SignupForm() {
         const fd = new FormData(e.currentTarget);
         setBusy(true);
         setError(null);
-        const res = await fetch("/api/portal/signup", { method: "POST", body: fd });
+        const res = await fetch("/api/b-systems/signup", { method: "POST", body: fd });
         if (!res.ok) {
           setBusy(false);
           const data = (await res.json().catch(() => null)) as { error?: string } | null;

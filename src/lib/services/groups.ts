@@ -19,7 +19,8 @@ const money = z.number().int().min(0).max(MAX_PIASTERS);
 
 export const followUpSchema = z.object({
   date: dateStr,
-  time: timeStr,
+  /* V2 §3: agent forms collect the DAY only — time defaults to 09:00 Cairo. */
+  time: timeStr.optional(),
   method: z.enum(FOLLOW_UP_METHODS),
   ownerSalesRepId: z.string().optional(),
   ownerPortalRepId: z.string().optional(),
@@ -28,17 +29,20 @@ export const followUpSchema = z.object({
 export type FollowUpInput = z.infer<typeof followUpSchema>;
 
 export function followUpDueAt(input: FollowUpInput): Date {
-  return cairoToUtc(input.date, input.time);
+  return cairoToUtc(input.date, input.time ?? "09:00");
 }
 
 export const meetingSchema = z
   .object({
+    /* arranged=true ⇒ agreed with the client; arranged=false + datetime ⇒ the
+       proposed "time that suits you" slot (V2 §3 agent flow). */
     arranged: z.boolean(),
     date: dateStr.optional(),
     time: timeStr.optional(),
     mode: z.enum(MEETING_MODES).optional(),
     withAttendees: z.string().max(300).optional(),
     technicalSupport: z.string().max(200).optional(),
+    needsTechnical: z.boolean().optional(), // V2 §3 agent question
   })
   .refine((m) => !m.arranged || (m.date && m.time && m.mode), {
     message: "An arranged meeting needs date, time and mode",
@@ -83,6 +87,39 @@ export const wonPartnerSchema = z.object({
 });
 export type WonPartnerInput = z.infer<typeof wonPartnerSchema>;
 
+/* V2 §1: the negotiation stage's group — a note entry (accumulates). */
+export const negotiationSchema = z.object({
+  note: z.string().min(1).max(2000),
+});
+export type NegotiationInput = z.infer<typeof negotiationSchema>;
+
+/* V2 §4: confirm-win milestone tab — commission is a PERCENT (basis points),
+   milestones carry value + closer commission + expected dates. */
+export const wonDealSchema = z.object({
+  estimatedValue: money,
+  totalCommissionPercentBp: z.number().int().min(0).max(100_00), // ≤ 100.00%
+  contractDate: dateStr.optional(),
+  milestones: z
+    .array(
+      z.object({
+        label: z.string().max(120).optional(),
+        value: money,
+        commissionValue: money,
+        expectedStart: dateStr.optional(),
+        expectedEnd: dateStr.optional(),
+      }),
+    )
+    .min(1)
+    .max(100),
+});
+export type WonDealInput = z.infer<typeof wonDealSchema>;
+
+/* PP-1 (V2 §6): moving to Didn't Answer records WHICH number(s) went unanswered. */
+export const numbersSchema = z.object({
+  dialedNumbers: z.array(z.string().min(1).max(50)).min(1).max(20),
+});
+export type NumbersInput = z.infer<typeof numbersSchema>;
+
 /* Discriminated payload matching pipeline-engine RequiredGroup. */
 export const groupPayloadSchema = z.discriminatedUnion("group", [
   z.object({ group: z.literal("follow_up"), data: followUpSchema }),
@@ -92,6 +129,8 @@ export const groupPayloadSchema = z.discriminatedUnion("group", [
   z.object({ group: z.literal("lost"), data: lostSchema }),
   z.object({ group: z.literal("won"), data: wonSchema }),
   z.object({ group: z.literal("won_partner"), data: wonPartnerSchema }),
-  z.object({ group: z.literal("numbers"), data: z.object({}).default({}) }),
+  z.object({ group: z.literal("won_deal"), data: wonDealSchema }),
+  z.object({ group: z.literal("negotiation"), data: negotiationSchema }),
+  z.object({ group: z.literal("numbers"), data: numbersSchema }),
 ]);
 export type GroupPayload = z.infer<typeof groupPayloadSchema>;

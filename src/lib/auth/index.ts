@@ -18,9 +18,35 @@ const credentialsSchema = z.object({
   password: z.string().min(1),
 });
 
+import { verifyImpersonationToken } from "@/lib/services/users";
+
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
   providers: [
+    /* V2 §2.10 — admin impersonation: a 60s HMAC token minted by the users
+       service becomes a session for the target account (activity-logged). */
+    Credentials({
+      id: "impersonation",
+      name: "Impersonation",
+      credentials: { token: {} },
+      async authorize(raw) {
+        const token = typeof raw?.token === "string" ? raw.token : null;
+        if (!token) return null;
+        const userId = verifyImpersonationToken(token);
+        if (!userId) return null;
+        const user = await db.user.findUnique({
+          where: { id: userId },
+          include: { roles: true },
+        });
+        if (!user || !user.active) return null;
+        return {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          roles: user.roles.map((r) => r.role as Role),
+        };
+      },
+    }),
     Credentials({
       id: "unified",
       name: "Sales Platform",

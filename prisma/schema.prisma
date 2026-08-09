@@ -1,7 +1,11 @@
-// Physical schema — implements docs/ARCHITECTURE.md §5 (normative design there).
-// SQLite dev / Postgres prod (ADR-002): enum-like columns are String (validated by
-// Zod + typed unions in src/lib/pipeline-engine/constants.ts); money is Int piasters
-// (ADR-018). Field groups are child records so history accumulates (SPEC §5.2, A-2).
+// Physical schema V2 — implements docs/REQUIREMENTS-V2.md (ADR-030) over the v1
+// design in docs/ARCHITECTURE.md §5. SQLite dev / Postgres prod (ADR-002): enum-like
+// columns are String (Zod + unions in src/lib/pipeline-engine/constants.ts); money
+// is Int piasters (ADR-018); percentages are Int basis points. Field groups are
+// child records so history accumulates (SPEC §5.2, A-2).
+// V2: PortalDeal merged INTO Lead (same ids — child rows survived the migration);
+// roles renamed (bsystems_admin/sales/agent/partner); milestones carry commission +
+// expected dates; statements/payments + notifications are new subsystems.
 
 generator client {
   provider = "prisma-client"
@@ -13,20 +17,23 @@ datasource db {
 }
 
 model User {
-  id           String     @id @default(cuid())
-  name         String
-  email        String?    @unique // internal staff login (ADR-008)
-  phone        String?    @unique // portal login, normalized (ADR-008)
-  passwordHash String
-  active       Boolean    @default(true) // A-4: admin can deactivate reps
-  roles        UserRole[] // A-8: one account may hold several roles
-  portalRep    PortalRep?
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
+  id            String         @id @default(cuid())
+  name          String
+  email         String?        @unique // staff/admin login; partner login (ADR-030 §8)
+  phone         String?        @unique // agent login, normalized (ADR-008)
+  passwordHash  String
+  active        Boolean        @default(true) // A-4 kill-switch
+  roles         UserRole[]
+  portalRep     PortalRep? // agent profile (model name kept from v1)
+  partner       Partner? // partner-company account link (V2 §8)
+  ownedLeads    Lead[]         @relation("LeadOwner")
+  notifications Notification[]
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
 }
 
 model UserRole {
-  // roles: byteforce_staff | bsystems_staff | portal_admin | portal_rep
+  // roles: byteforce_staff | bsystems_admin | bsystems_sales | bsystems_agent | bsystems_partner
   userId String
   role   String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -40,129 +47,143 @@ model SalesRep {
   brand          String // byteforce | bsystems
   name           String
   leads          Lead[]
-  ownedFollowUps FollowUp[] // §6.2 "Owner | rep select"
+  ownedFollowUps FollowUp[]
 
   @@index([brand])
 }
 
 model Lead {
-  // Apps A & B (§6.1, §7.4)
-  id          String     @id @default(cuid())
-  brand       String // byteforce | bsystems
-  salesRepId  String? // A-6: null = "Unassigned (Partner leads)"
-  source      String     @default("direct") // direct | partner (§5.5)
-  partnerId   String? // attribution — permanent once set
-  name        String
-  number      String
-  email       String?
-  type        String // cold_call | event_data | personal_connection | campaign_lead
-  description String?
-  stage       String     @default("new") // new | following_up | meeting_setting | sending_proposal | won | lost
-  salesRep    SalesRep?  @relation(fields: [salesRepId], references: [id])
-  partner     Partner?   @relation(fields: [partnerId], references: [id])
-  followUps   FollowUp[]
-  meetings    Meeting[]
-  proposals   Proposal[]
-  lostInfo    LostInfo[]
-  wonInfo     WonInfo?
-  client      Client?
-  createdAt   DateTime   @default(now()) // §7.4 "Date created"
-  updatedAt   DateTime   @updatedAt
+  // UNIFIED lead (V2 §1): ByteForce internal leads + every B-Systems lead
+  // (internal / agent / partner / admin buckets).
+  id           String     @id @default(cuid())
+  brand        String // byteforce | bsystems
+  ownerType    String     @default("internal") // internal | agent | partner | admin (V2 §1)
+  ownerUserId  String? // agent/partner/admin owner account
+  salesRepId   String? // internal bucket assignment (A-6: null = unassigned)
+  source       String     @default("direct") // direct | partner (§5.5 attribution)
+  partnerId    String? // referral attribution — permanent
+  name         String
+  number       String
+  email        String?
+  type         String // cold_call | event_data | personal_connection | campaign_lead
+  description  String?
+  position     String? // ex-portal deal fields (V2 §1)
+  companyName  String?
+  industry     String?
+  requirements String?
+  stage        String     @default("new") // BF: new|following_up|meeting_setting|sending_proposal|won|lost
+  // BS adds: negotiation (V2 §1)
+  readyToClose Boolean    @default(false) // V2 §3 flag — admin notified
+  owner        User?      @relation("LeadOwner", fields: [ownerUserId], references: [id])
+  salesRep     SalesRep?  @relation(fields: [salesRepId], references: [id])
+  partner      Partner?   @relation(fields: [partnerId], references: [id])
+  followUps    FollowUp[]
+  meetings     Meeting[]
+  proposals    Proposal[]
+  lostInfo     LostInfo[]
+  negotiationNotes NegotiationNote[]
+  wonInfo      WonInfo?
+  client       Client?
+  wonDeal      WonDeal?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
 
   @@index([brand, stage])
-  @@index([brand, salesRepId])
+  @@index([brand, ownerType])
+  @@index([ownerUserId])
   @@index([partnerId])
 }
 
 model FollowUp {
-  // §6.2 — history accumulates (§5.2). Exactly one parent FK set (service invariant);
-  // owner ref type matches the parent pipeline (SalesRep internal, PortalRep portal).
+  // §6.2 — history accumulates. Exactly one parent FK set (service invariant).
   id                String           @id @default(cuid())
   leadId            String?
   partnerProspectId String?
-  portalDealId      String?
   context           String // initial | after_proposal | after_meeting
-  dueAt             DateTime // ONE UTC instant; UI splits date+time in Africa/Cairo
+  dueAt             DateTime // ONE UTC instant; agent forms collect date-only (V2 §3 — time 09:00 Cairo default)
   method            String // call | message | visit
   ownerSalesRepId   String?
   ownerPortalRepId  String?
-  followingUpWith   String? // contact person
+  followingUpWith   String?
   lead              Lead?            @relation(fields: [leadId], references: [id], onDelete: Cascade)
   prospect          PartnerProspect? @relation(fields: [partnerProspectId], references: [id], onDelete: Cascade)
-  deal              PortalDeal?      @relation(fields: [portalDealId], references: [id], onDelete: Cascade)
   ownerSalesRep     SalesRep?        @relation(fields: [ownerSalesRepId], references: [id])
   ownerPortalRep    PortalRep?       @relation(fields: [ownerPortalRepId], references: [id])
   createdAt         DateTime         @default(now())
 }
 
 model Meeting {
-  // §6.2
+  // §6.2 + V2 §3 agent flow (arranged=agreed-with-client; !arranged+datetime = proposed slot)
   id                 String           @id @default(cuid())
   leadId             String?
   partnerProspectId  String?
-  portalDealId       String?
   arranged           Boolean          @default(false)
-  datetime           DateTime? // required once arranged (Zod)
+  datetime           DateTime?
   mode               String? // online | offline
   withAttendees      String?
   technicalSupport   String?
+  needsTechnical     Boolean? // V2 §3 agent question
   outcome            String? // attended | cancelled | delayed
-  outcomeDestination String? // T-6/T-8 destination once outcome set
+  outcomeDestination String?
   lead               Lead?            @relation(fields: [leadId], references: [id], onDelete: Cascade)
   prospect           PartnerProspect? @relation(fields: [partnerProspectId], references: [id], onDelete: Cascade)
-  deal               PortalDeal?      @relation(fields: [portalDealId], references: [id], onDelete: Cascade)
   createdAt          DateTime         @default(now())
 }
 
 model Proposal {
-  // §6.2 — not used by Partners pipeline (ADR-010)
-  id             String      @id @default(cuid())
+  // §6.2
+  id             String    @id @default(cuid())
   leadId         String?
-  portalDealId   String?
   service        String
   estimatedValue Int? // piasters (ADR-018)
-  sent           Boolean     @default(false) // checking fires T-5 / P-4
+  sent           Boolean   @default(false)
   sentAt         DateTime?
-  lead           Lead?       @relation(fields: [leadId], references: [id], onDelete: Cascade)
-  deal           PortalDeal? @relation(fields: [portalDealId], references: [id], onDelete: Cascade)
-  createdAt      DateTime    @default(now())
+  lead           Lead?     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  createdAt      DateTime  @default(now())
 }
 
 model LostInfo {
-  // §6.2 — reason required (T-4)
+  // §6.2 — reason required
   id                String           @id @default(cuid())
   leadId            String?
   partnerProspectId String?
-  portalDealId      String?
   reason            String
   lead              Lead?            @relation(fields: [leadId], references: [id], onDelete: Cascade)
   prospect          PartnerProspect? @relation(fields: [partnerProspectId], references: [id], onDelete: Cascade)
-  deal              PortalDeal?      @relation(fields: [portalDealId], references: [id], onDelete: Cascade)
   createdAt         DateTime         @default(now())
 }
 
+model NegotiationNote {
+  // V2 §1 — the negotiation stage's group (note per entry, accumulates)
+  id        String   @id @default(cuid())
+  leadId    String
+  note      String
+  lead      Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+}
+
 model WonInfo {
-  // internal Won fields (§6.2, T-9)
+  // ByteForce Won fields (v1 §6.2, T-9) — unchanged
   id              String   @id @default(cuid())
   leadId          String   @unique
-  estimatedValue  Int // piasters; prefilled from latest proposal (ADR-012)
+  estimatedValue  Int
   technicalOwner  String
-  collectedAmount Int // piasters
+  collectedAmount Int
   lead            Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
   createdAt       DateTime @default(now())
 }
 
 model Client {
-  // §6.4 — auto-created on Won (A-1)
+  // ByteForce §6.4 (B-Systems Clients section dropped in V2)
   id             String    @id @default(cuid())
   brand          String
   leadId         String?   @unique
   name           String
   number         String
   service        String?
-  estimatedValue Int? // piasters
-  collected      Int? // piasters
-  toBeCollected  Int? // piasters; default estimated − collected, editable
+  estimatedValue Int?
+  collected      Int?
+  toBeCollected  Int?
   dueDate        DateTime?
   retainer       Boolean   @default(false)
   technicalOwner String?
@@ -174,34 +195,35 @@ model Client {
 }
 
 model PartnerProspect {
-  // App B partners pipeline (§7.2)
-  id               String       @id @default(cuid())
-  name             String
-  companyName      String
-  role             String?
-  email            String?
-  number           String
-  number2          String? // saving non-empty fires PP-2 auto-return
-  number3          String? //   (max two extra numbers)
-  businessActivity String
-  description      String?
-  stage            String       @default("lead") // lead | didnt_answer | following_up | meeting_setting | won | lost
-  converted        Boolean      @default(false) // PP-4 "Converted" badge (A-5)
-  followUps        FollowUp[]
-  meetings         Meeting[]
-  lostInfo         LostInfo[]
-  recordings       Attachment[]
-  partner          Partner?
-  createdAt        DateTime     @default(now())
-  updatedAt        DateTime     @updatedAt
+  // App B partners pipeline (§7.2) + V2 §6 numbers rework
+  id                  String       @id @default(cuid())
+  name                String
+  companyName         String
+  role                String?
+  email               String?
+  number              String // primary/registered number
+  nonAnsweringNumbers String       @default("[]") // JSON array — V2 §6
+  alternativeNumbers  String       @default("[]") // JSON array — unbounded
+  businessActivity    String
+  description         String?
+  stage               String       @default("lead")
+  converted           Boolean      @default(false)
+  followUps           FollowUp[]
+  meetings            Meeting[]
+  lostInfo            LostInfo[]
+  recordings          Attachment[]
+  partner             Partner?
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
 
   @@index([stage])
 }
 
 model Partner {
-  // §7.3 directory — created by PP-4 gate
+  // §7.3 directory + V2 §8 partner ACCOUNT link
   id               String          @id @default(cuid())
   prospectId       String          @unique
+  userId           String?         @unique // auto-provisioned account (V2 §8)
   companyName      String
   keyPersonName    String
   keyPersonRole    String
@@ -209,100 +231,123 @@ model Partner {
   number           String
   email            String?
   businessActivity String
-  importance       String // high | medium | low
+  importance       String
   dateJoined       DateTime        @default(now())
   prospect         PartnerProspect @relation(fields: [prospectId], references: [id])
-  leads            Lead[] // §7.4 — live link, not a copy
+  user             User?           @relation(fields: [userId], references: [id])
+  leads            Lead[]
 }
 
 model PortalRep {
-  // §8.1 — profile over a User account
-  id             String       @id @default(cuid())
-  userId         String       @unique
+  // AGENT profile (model name kept from v1 to avoid a rename migration)
+  id             String     @id @default(cuid())
+  userId         String     @unique
   firstName      String
   lastName       String
   address        String
   speciality     String
   cv             Attachment?
-  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  deals          PortalDeal[]
-  ownedFollowUps FollowUp[] // §6.2 owner select on portal deals
-}
-
-model PortalDeal {
-  // §8.2
-  id           String     @id @default(cuid())
-  repId        String // owner — rep isolation enforced in guards
-  name         String
-  position     String
-  number       String
-  email        String?
-  companyName  String
-  industry     String
-  requirements String?
-  stage        String     @default("leads") // leads | following_up | meeting_setting | proposal_sending | won | lost
-  rep          PortalRep  @relation(fields: [repId], references: [id])
-  followUps    FollowUp[]
-  meetings     Meeting[]
-  proposals    Proposal[]
-  lostInfo     LostInfo[]
-  wonDeal      WonDeal?
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
-
-  @@index([repId, stage])
+  user           User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ownedFollowUps FollowUp[]
 }
 
 model WonDeal {
-  // §8.3 — auto-created by P-6 (admin only). Deal identity fields read via relation.
-  id              String      @id @default(cuid())
-  dealId          String      @unique
-  estimatedValue  Int? // piasters; admin-filled (§8.5.3)
-  totalCommission Int? // piasters
-  deal            PortalDeal  @relation(fields: [dealId], references: [id])
-  milestones      Milestone[]
-  createdAt       DateTime    @default(now())
+  // V2 §4/§5 — B-Systems won record on the unified Lead
+  id                     String       @id @default(cuid())
+  leadId                 String       @unique
+  estimatedValue         Int? // piasters
+  totalCommissionPercent Int? // BASIS POINTS (V2 §4 — percentage, not amount)
+  contractDate           DateTime? // V2 §5
+  lead                   Lead         @relation(fields: [leadId], references: [id])
+  milestones             Milestone[]
+  attachments            Attachment[] // proposal pdf / contract pdf (V2 §5)
+  createdAt              DateTime     @default(now())
 }
 
 model Milestone {
-  // §8.3/§8.5 — P-7/P-8 locking; value hidden from rep while locked (server-side redaction)
-  id          String    @id @default(cuid())
-  wonDealId   String
-  index       Int // 1-based; i+1 locked until i completed
-  value       Int // piasters
-  completed   Boolean   @default(false) // admin-only mutation
-  completedAt DateTime?
-  wonDeal     WonDeal   @relation(fields: [wonDealId], references: [id], onDelete: Cascade)
+  // V2 §4 — name, value, closer's commission, expected start/end; sequential locks (P-7/P-8)
+  id              String     @id @default(cuid())
+  wonDealId       String
+  index           Int
+  label           String? // defaults to "Milestone n"
+  value           Int // piasters
+  commissionValue Int? // piasters — what the closer receives (V2 §4)
+  expectedStart   DateTime?
+  expectedEnd     DateTime?
+  completed       Boolean    @default(false)
+  completedAt     DateTime?
+  wonDeal         WonDeal    @relation(fields: [wonDealId], references: [id], onDelete: Cascade)
+  statement       Statement?
 
   @@unique([wonDealId, index])
 }
 
+model Statement {
+  // V2 §7 — generated from a checked milestone; then visible in the closer's Payments
+  id             String       @id @default(cuid())
+  code           String       @unique // ST-#### sequential
+  milestoneId    String       @unique
+  clientName     String
+  milestoneLabel String
+  milestoneValue Int // piasters
+  percentBp      Int // % of the milestone, basis points
+  amount         Int // piasters the closer receives
+  adjustments    Int          @default(0) // piasters, signed
+  expectedDate   DateTime?
+  closerUserId   String?
+  closerLabel    String
+  status         String       @default("pending") // pending | paid
+  paidAt         DateTime?
+  milestone      Milestone    @relation(fields: [milestoneId], references: [id])
+  proofs         Attachment[] // payment proof image (V2 §7)
+  createdAt      DateTime     @default(now())
+}
+
+model Notification {
+  // V2 §10 — in-app; userId null = every admin
+  id        String    @id @default(cuid())
+  userId    String?
+  type      String // meeting_request | ready_to_close
+  title     String
+  body      String
+  leadId    String?
+  readAt    DateTime?
+  user      User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime  @default(now())
+
+  @@index([userId, readAt])
+}
+
 model Attachment {
-  // §9 — CVs + cold-call recordings
+  // kinds: cv | recording | proposal | contract | payment_proof (V2 §5/§7)
   id                String           @id @default(cuid())
-  kind              String // cv | recording
+  kind              String
   portalRepId       String?          @unique
   partnerProspectId String?
-  filename          String // original, sanitized
-  storageKey        String // storage-abstraction key, not a path
-  mime              String // validated: cv pdf/doc/docx ≤10MB; recording mp3/mp4 ≤50MB (§15)
+  wonDealId         String?
+  statementId       String?
+  filename          String
+  storageKey        String
+  mime              String
   size              Int
   rep               PortalRep?       @relation(fields: [portalRepId], references: [id])
   prospect          PartnerProspect? @relation(fields: [partnerProspectId], references: [id], onDelete: Cascade)
+  wonDeal           WonDeal?         @relation(fields: [wonDealId], references: [id])
+  statement         Statement?       @relation(fields: [statementId], references: [id])
   createdAt         DateTime         @default(now())
 }
 
 model ActivityLog {
-  // §5.6 — product feature, not just audit
+  // §5.6
   id         String   @id @default(cuid())
-  entityType String // lead | partner_prospect | portal_deal | won_deal | client | partner
+  entityType String // lead | partner_prospect | won_deal | client | partner | portal_rep | statement | user
   entityId   String
-  actorId    String? // User id; null = system/automation
-  actorLabel String // denormalized display name (survives edits)
-  action     String // stage_change | auto_transfer | create | milestone_check | milestone_uncheck | …
+  actorId    String?
+  actorLabel String
+  action     String
   fromStage  String?
   toStage    String?
-  trigger    String // §10 row id (T-5, PP-2, P-6, …) or verb
+  trigger    String
   createdAt  DateTime @default(now())
 
   @@index([entityType, entityId, createdAt])

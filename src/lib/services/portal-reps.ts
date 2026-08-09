@@ -44,7 +44,7 @@ export async function signupRep(
       const user = await tx.user.create({
         data: { name, phone, passwordHash }, // active default true (A-4)
       });
-      await tx.userRole.create({ data: { userId: user.id, role: "portal_rep" } });
+      await tx.userRole.create({ data: { userId: user.id, role: "bsystems_agent" } });
       const rep = await tx.portalRep.create({
         data: {
           userId: user.id,

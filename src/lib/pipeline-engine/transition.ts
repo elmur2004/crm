@@ -46,6 +46,9 @@ function groupForStage(
   if (toStage === config.meetingStage) return { group: "meeting" };
   if (config.proposalStage && toStage === config.proposalStage) return { group: "proposal" };
   if (toStage === config.lostStage) return { group: "lost" };
+  if (config.negotiationStage && toStage === config.negotiationStage) {
+    return { group: "negotiation" }; // V2 — a note entry
+  }
   if (toStage === config.wonStage) return config.wonRequiredGroup;
   if (config.didntAnswerStage && toStage === config.didntAnswerStage) {
     return { group: "numbers" }; // PP-1: reveal Number 2 / Number 3
@@ -53,13 +56,8 @@ function groupForStage(
   return null; // intake stage — no group
 }
 
-function rowIdPrefix(config: PipelineConfig): "T" | "PP" | "P" {
-  return config.kind === "internal" ? "T" : config.kind === "partners" ? "PP" : "P";
-}
-
-/** Trigger ids per SPEC §10 rows, resolved per pipeline. */
+/** Trigger ids per SPEC §10 rows / REQUIREMENTS-V2 (B-rows), per pipeline. */
 function triggerForAction(config: PipelineConfig, toStage: string): string {
-  const p = rowIdPrefix(config);
   if (config.kind === "internal") {
     if (toStage === config.followUpStage) return "T-1";
     if (toStage === config.meetingStage) return "T-2";
@@ -72,11 +70,12 @@ function triggerForAction(config: PipelineConfig, toStage: string): string {
     if (toStage === config.wonStage) return "PP-4";
     return "PP-3";
   }
-  if (config.kind === "portal") {
-    if (toStage === config.wonStage) return "P-6";
-    return "P-3";
+  if (config.kind === "bsystems") {
+    if (toStage === config.wonStage) return "B-9"; // confirm win (V2 §4)
+    if (config.negotiationStage && toStage === config.negotiationStage) return "B-4";
+    return "B-1"; // stage move via action or drag
   }
-  return `${p}-?`;
+  return "?";
 }
 
 function canSetWon(config: PipelineConfig, ctx: EngineContext): boolean {
@@ -145,11 +144,12 @@ export function transition(
         requiredGroup,
         sideEffects:
           event.to === config.wonStage && config.wonSideEffect ? [config.wonSideEffect] : [],
-        logTrigger: event.to === config.wonStage ? "P-6" : "P-1",
+        // V2: a drag is the same move as the matching action — same trigger id
+        logTrigger: triggerForAction(config, event.to),
       });
     }
 
-    /* ------------- Proposal "Sent" checked (T-5 / P-4 — §5.3) ------------- */
+    /* ------------- Proposal "Sent" checked (T-5 / B-6 — §5.3) ------------- */
     case "proposal_sent": {
       if (!config.proposalStage || from !== config.proposalStage) {
         return reject(
@@ -157,11 +157,16 @@ export function transition(
           `proposal_sent only fires from "${config.proposalStage ?? "—"}"`,
         );
       }
+      /* V2 §3: agents/partners auto-return to Following Up with NO follow-up form;
+         admins/sales keep the after-proposal group. */
+      const lightRole =
+        config.kind === "bsystems" &&
+        (ctx.role === "bsystems_agent" || ctx.role === "bsystems_partner");
       return ok({
         fromStage: from,
         toStage: config.followUpStage,
-        requiredGroup: { group: "follow_up", context: "after_proposal" },
-        logTrigger: config.kind === "portal" ? "P-4" : "T-5",
+        requiredGroup: lightRole ? null : { group: "follow_up", context: "after_proposal" },
+        logTrigger: config.kind === "bsystems" ? "B-6" : "T-5",
         auto: true,
       });
     }
@@ -175,7 +180,7 @@ export function transition(
          partners meeting outcomes are PP-3 ("same logic as T-6–T-8"); portal
          delayed/cancelled fall under P-3's "same rules as T-1…T-8". */
       const outcomeTrigger = (internalRow: string): string =>
-        config.kind === "internal" ? internalRow : config.kind === "partners" ? "PP-3" : "P-3";
+        config.kind === "internal" ? internalRow : config.kind === "partners" ? "PP-3" : "B-7";
 
       if (event.outcome === "delayed") {
         // T-7 (A-3): require a new date & time; card stays
@@ -211,7 +216,7 @@ export function transition(
       const destinations = config.attendedDestinations(ctx.role);
       if (!destinations.includes(event.destination)) {
         if (event.destination === config.wonStage && !canSetWon(config, ctx)) {
-          return reject("won_forbidden", "Only the portal admin can move a deal to Won"); // P-5
+          return reject("won_forbidden", "Only an admin can move a lead to Won");
         }
         return reject("destination_invalid", `"${event.destination}" is not a valid destination`);
       }
@@ -221,8 +226,8 @@ export function transition(
           : config.kind === "partners"
             ? "PP-3"
             : event.destination === config.wonStage
-              ? "P-6" // admin attended→Won IS the P-6 row (§10.3)
-              : "P-5";
+              ? "B-9" // attended → confirm win (V2 §4)
+              : "B-7";
       return ok({
         fromStage: from,
         toStage: event.destination,
@@ -253,21 +258,5 @@ export function transition(
       });
     }
 
-    /* ------------- admin moves deal to Won (P-6) ------------- */
-    case "admin_won": {
-      if (config.kind !== "portal") {
-        return reject("event_invalid_for_stage", "admin_won is a portal event");
-      }
-      if (!canSetWon(config, ctx)) {
-        return reject("won_forbidden", "Only the portal admin can move a deal to Won"); // P-2
-      }
-      return ok({
-        fromStage: from,
-        toStage: config.wonStage,
-        requiredGroup: null, // WonDeal auto-created; admin fills values in management (§8.5.3)
-        sideEffects: ["create_won_deal"],
-        logTrigger: "P-6",
-      });
-    }
   }
 }

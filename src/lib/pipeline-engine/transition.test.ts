@@ -2,19 +2,19 @@ import { describe, expect, it } from "vitest";
 import { transition } from "./transition";
 import { internalCrmConfig as internal } from "./configs/internal-crm";
 import { partnersConfig as partners } from "./configs/partners";
-import { portalConfig as portal } from "./configs/portal";
+import { bsystemsCrmConfig as bsystems } from "./configs/bsystems-crm";
 import type { EngineEvent, TransitionOk, TransitionResult } from "./types";
 import type { Role } from "./constants";
 
-/* Every SPEC §10 row has at least one test named after it (testing obligation in the
-   pipeline-engine skill), plus illegal-move rejections. P-7/P-8 are milestone
-   mutations, not stage transitions — covered by the milestones service tests
-   (Phase 4); PP-5 is a creation flow — covered by services integration tests
-   (Phase 2). */
+/* Every SPEC §10 row (v1) and REQUIREMENTS-V2 B-row has at least one test named
+   after it, plus illegal-move rejections. Milestone mutations and creation flows
+   are covered by the service integration tests. */
 
 const staff: { role: Role } = { role: "byteforce_staff" };
-const rep: { role: Role } = { role: "portal_rep" };
-const admin: { role: Role } = { role: "portal_admin" };
+const admin: { role: Role } = { role: "bsystems_admin" };
+const sales: { role: Role } = { role: "bsystems_sales" };
+const agent: { role: Role } = { role: "bsystems_agent" };
+const partnerRole: { role: Role } = { role: "bsystems_partner" };
 
 function expectOk(r: TransitionResult): TransitionOk {
   expect(r.ok).toBe(true);
@@ -230,7 +230,7 @@ describe("Internal CRM (§10.1)", () => {
 });
 
 describe("Partners pipeline (§10.2)", () => {
-  const bstaff: { role: Role } = { role: "bsystems_staff" };
+  const bstaff: { role: Role } = { role: "bsystems_admin" };
 
   it("PP-1: Didn't answer from Lead or any active → reveals Number 2/3 fields", () => {
     for (const stage of ["lead", "following_up", "meeting_setting"]) {
@@ -314,123 +314,91 @@ describe("Partners pipeline (§10.2)", () => {
   });
 });
 
-describe("Portal CRM (§10.3)", () => {
-  it("P-1: rep drags to any column except Won; target group opens", () => {
-    const toMeeting = expectOk(
-      transition(portal, { stage: "leads" }, { type: "drag", to: "meeting_setting" }, rep),
-    );
-    expect(toMeeting.toStage).toBe("meeting_setting");
-    expect(toMeeting.requiredGroup).toEqual({ group: "meeting" });
-    expect(toMeeting.logTrigger).toBe("P-1");
 
-    const backToLeads = expectOk(
-      transition(portal, { stage: "following_up" }, { type: "drag", to: "leads" }, rep),
-    );
-    expect(backToLeads.requiredGroup).toBeNull();
+describe("B-Systems unified CRM (REQUIREMENTS-V2)", () => {
+  it("B-1: actions and drags move with the target group; negotiation is a stage", () => {
+    const neg = expectOk(transition(bsystems, { stage: "following_up" }, act("negotiation"), agent));
+    expect(neg.toStage).toBe("negotiation");
+    expect(neg.requiredGroup).toEqual({ group: "negotiation" });
+    expect(neg.logTrigger).toBe("B-4");
 
-    const dragToFU = expectOk(
-      transition(portal, { stage: "proposal_sending" }, { type: "drag", to: "following_up" }, rep),
+    const dragged = expectOk(
+      transition(bsystems, { stage: "new" }, { type: "drag", to: "meeting_setting" }, admin),
     );
-    expect(dragToFU.requiredGroup).toEqual({ group: "follow_up", context: "after_proposal" });
+    expect(dragged.requiredGroup).toEqual({ group: "meeting" });
+    expect(dragged.logTrigger).toBe("B-1"); // drag == matching action (V2 §3)
   });
 
-  it("P-2: rep cannot reach Won by drag, action, or attended destination — server-side", () => {
-    const drag = transition(portal, { stage: "proposal_sending" }, { type: "drag", to: "won" }, rep);
-    expect(drag.ok).toBe(false);
-    expect(!drag.ok && drag.code).toBe("won_forbidden");
-
-    const action = transition(portal, { stage: "proposal_sending" }, act("won"), rep);
-    expect(action.ok).toBe(false);
-    expect(!action.ok && action.code).toBe("won_forbidden");
-
-    const dest = transition(
-      portal,
-      { stage: "meeting_setting" },
-      { type: "meeting_outcome", outcome: "attended", destination: "won" },
-      rep,
-    );
-    expect(dest.ok).toBe(false);
-    expect(!dest.ok && dest.code).toBe("won_forbidden");
-
-    const adminWon = transition(portal, { stage: "leads" }, { type: "admin_won" }, rep);
-    expect(adminWon.ok).toBe(false);
-    expect(!adminWon.ok && adminWon.code).toBe("won_forbidden");
-  });
-
-  it("P-3: rep next actions mirror T-1…T-4 with the portal stage set", () => {
-    const fu = expectOk(transition(portal, { stage: "leads" }, act("following_up"), rep));
-    expect(fu.requiredGroup).toEqual({ group: "follow_up", context: "initial" });
-
-    const prop = expectOk(transition(portal, { stage: "following_up" }, act("proposal_sending"), rep));
-    expect(prop.requiredGroup).toEqual({ group: "proposal" });
-
-    const lost = expectOk(transition(portal, { stage: "leads" }, act("lost"), rep));
-    expect(lost.requiredGroup).toEqual({ group: "lost" });
-    expect(lost.logTrigger).toBe("P-3");
-  });
-
-  it("P-4: proposal Sent ✓ → auto Following Up with after_proposal group", () => {
-    const r = expectOk(transition(portal, { stage: "proposal_sending" }, { type: "proposal_sent" }, rep));
-    expect(r.toStage).toBe("following_up");
-    expect(r.auto).toBe(true);
-    expect(r.requiredGroup).toEqual({ group: "follow_up", context: "after_proposal" });
-    expect(r.logTrigger).toBe("P-4");
-  });
-
-  it("P-5: attended destinations exclude Won for reps, include it for admin", () => {
-    const repDest = expectOk(
-      transition(
-        portal,
-        { stage: "meeting_setting" },
-        { type: "meeting_outcome", outcome: "attended", destination: "proposal_sending" },
-        rep,
-      ),
-    );
-    expect(repDest.toStage).toBe("proposal_sending");
-    expect(repDest.logTrigger).toBe("P-5");
-
-    const adminWon = expectOk(
-      transition(
-        portal,
+  it("B-9 / won_forbidden: only admin + internal sales can confirm win; the milestone tab opens", () => {
+    for (const who of [admin, sales]) {
+      const r = expectOk(transition(bsystems, { stage: "negotiation" }, act("won"), who));
+      expect(r.toStage).toBe("won");
+      expect(r.requiredGroup).toEqual({ group: "won_deal" }); // V2 §4 milestone tab
+      expect(r.sideEffects).toEqual(["create_won_deal"]);
+      expect(r.logTrigger).toBe("B-9");
+    }
+    for (const who of [agent, partnerRole]) {
+      const action = transition(bsystems, { stage: "negotiation" }, act("won"), who);
+      expect(action.ok).toBe(false);
+      expect(!action.ok && action.code).toBe("won_forbidden");
+      const drag = transition(bsystems, { stage: "negotiation" }, { type: "drag", to: "won" }, who);
+      expect(drag.ok).toBe(false);
+      expect(!drag.ok && drag.code).toBe("won_forbidden");
+      const dest = transition(
+        bsystems,
         { stage: "meeting_setting" },
         { type: "meeting_outcome", outcome: "attended", destination: "won" },
-        admin,
-      ),
-    );
-    expect(adminWon.toStage).toBe("won");
-    expect(adminWon.sideEffects).toContain("create_won_deal");
-    expect(adminWon.logTrigger).toBe("P-6"); // admin attended→Won IS P-6 (§10.3)
-
-    const repDelayed = expectOk(
-      transition(
-        portal,
-        { stage: "meeting_setting" },
-        { type: "meeting_outcome", outcome: "delayed" },
-        rep,
-      ),
-    );
-    expect(repDelayed.logTrigger).toBe("P-3"); // ADR-021: owning pipeline's row id
-  });
-
-  it("P-6: admin moves deal to Won from any stage → WonDeal auto-created, no group", () => {
-    for (const stage of ["leads", "following_up", "meeting_setting", "proposal_sending"]) {
-      const r = expectOk(transition(portal, { stage }, { type: "admin_won" }, admin));
-      expect(r.toStage).toBe("won");
-      expect(r.requiredGroup).toBeNull();
-      expect(r.sideEffects).toEqual(["create_won_deal"]);
-      expect(r.logTrigger).toBe("P-6");
+        who,
+      );
+      expect(dest.ok).toBe(false);
+      expect(!dest.ok && dest.code).toBe("won_forbidden");
     }
-
-    const dragWon = expectOk(
-      transition(portal, { stage: "proposal_sending" }, { type: "drag", to: "won" }, admin),
-    );
-    expect(dragWon.sideEffects).toEqual(["create_won_deal"]);
-    expect(dragWon.logTrigger).toBe("P-6");
   });
 
-  it("portal terminal stages accept nothing (won deals are admin-managed)", () => {
-    const r = transition(portal, { stage: "won" }, { type: "drag", to: "leads" }, admin);
-    expect(r.ok).toBe(false);
-    expect(!r.ok && r.code).toBe("terminal_stage");
+  it("B-6: proposal sent — agents/partners auto-return with NO form; admin/sales get the after-proposal group", () => {
+    for (const who of [agent, partnerRole]) {
+      const r = expectOk(transition(bsystems, { stage: "sending_proposal" }, { type: "proposal_sent" }, who));
+      expect(r.toStage).toBe("following_up");
+      expect(r.requiredGroup).toBeNull(); // V2 §3 — no questions asked
+      expect(r.auto).toBe(true);
+    }
+    for (const who of [admin, sales]) {
+      const r = expectOk(transition(bsystems, { stage: "sending_proposal" }, { type: "proposal_sent" }, who));
+      expect(r.requiredGroup).toEqual({ group: "follow_up", context: "after_proposal" });
+    }
+  });
+
+  it("B-7: meeting outcomes — attended destinations include negotiation; Won only for admin/sales", () => {
+    expect(bsystems.attendedDestinations(admin.role)).toContain("won");
+    expect(bsystems.attendedDestinations(agent.role)).not.toContain("won");
+    expect(bsystems.attendedDestinations(agent.role)).toContain("negotiation");
+
+    const toNeg = expectOk(
+      transition(
+        bsystems,
+        { stage: "meeting_setting" },
+        { type: "meeting_outcome", outcome: "attended", destination: "negotiation" },
+        agent,
+      ),
+    );
+    expect(toNeg.requiredGroup).toEqual({ group: "negotiation" });
+    expect(toNeg.logTrigger).toBe("B-7");
+
+    const delayed = expectOk(
+      transition(bsystems, { stage: "meeting_setting" }, { type: "meeting_outcome", outcome: "delayed" }, agent),
+    );
+    expect(delayed.requiredGroup).toEqual({ group: "meeting_reschedule" });
+    expect(delayed.logTrigger).toBe("B-7");
+  });
+
+  it("terminal stages accept nothing; drag to intake needs no group", () => {
+    const won = transition(bsystems, { stage: "won" }, { type: "drag", to: "new" }, admin);
+    expect(won.ok).toBe(false);
+    expect(!won.ok && won.code).toBe("terminal_stage");
+
+    const toIntake = expectOk(
+      transition(bsystems, { stage: "following_up" }, { type: "drag", to: "new" }, agent),
+    );
+    expect(toIntake.requiredGroup).toBeNull();
   });
 });

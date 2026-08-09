@@ -43,33 +43,58 @@ export async function requireRole(...roles: Role[]): Promise<CurrentUser> {
   return user;
 }
 
-/** Brand-partitioned API namespaces derive the brand from the ROUTE, never input. */
-export function staffRoleForBrand(brand: Brand): Role {
-  return brand === "byteforce" ? "byteforce_staff" : "bsystems_staff";
+/** Brand-partitioned API namespaces derive the brand from the ROUTE, never input.
+    V2 (ADR-030): B-Systems "staff-level" = admin + internal sales. */
+export function staffRolesForBrand(brand: Brand): Role[] {
+  return brand === "byteforce" ? ["byteforce_staff"] : ["bsystems_admin", "bsystems_sales"];
 }
 
 export async function requireBrandStaff(brand: Brand): Promise<CurrentUser> {
-  return requireRole(staffRoleForBrand(brand));
+  return requireRole(...staffRolesForBrand(brand));
 }
 
-export async function requirePortalAdmin(): Promise<CurrentUser> {
-  return requireRole("portal_admin");
+export async function requireBsAdmin(): Promise<CurrentUser> {
+  return requireRole("bsystems_admin");
 }
 
-/** Owner-or-admin semantics (§3: admin gets "everything a rep can, plus"). */
-export async function requireDealAccess(dealId: string): Promise<{
+/** V2 lead access: admin → any B-Systems lead; sales → internal-bucket leads;
+    agent/partner → ONLY their own (ownerUserId). ByteForce: staff only. */
+export async function requireLeadAccess(leadId: string): Promise<{
   user: CurrentUser;
   isAdmin: boolean;
+  role: Role;
 }> {
-  const user = await requireRole("portal_rep", "portal_admin");
-  const isAdmin = user.roles.includes("portal_admin");
-  if (isAdmin) return { user, isAdmin };
-  const deal = await db.portalDeal.findUnique({ where: { id: dealId }, select: { repId: true } });
-  if (!deal) throw new ApiError(404, "Deal not found");
-  if (!user.portalRepId || deal.repId !== user.portalRepId) {
-    throw new ApiError(403, "You can only access your own deals"); // rep isolation (§3)
+  const user = await requireUser();
+  const lead = await db.lead.findUnique({
+    where: { id: leadId },
+    select: { brand: true, ownerType: true, ownerUserId: true },
+  });
+  if (!lead) throw new ApiError(404, "Lead not found");
+
+  if (lead.brand === "byteforce") {
+    if (!user.roles.includes("byteforce_staff")) throw new ApiError(403, "No access");
+    return { user, isAdmin: false, role: "byteforce_staff" };
   }
-  return { user, isAdmin };
+  if (user.roles.includes("bsystems_admin")) {
+    return { user, isAdmin: true, role: "bsystems_admin" };
+  }
+  if (user.roles.includes("bsystems_sales")) {
+    if (lead.ownerType !== "internal") {
+      throw new ApiError(403, "Sales can only work internal leads");
+    }
+    return { user, isAdmin: false, role: "bsystems_sales" };
+  }
+  if (user.roles.includes("bsystems_agent") || user.roles.includes("bsystems_partner")) {
+    if (lead.ownerUserId !== user.id) {
+      throw new ApiError(403, "You can only access your own leads");
+    }
+    return {
+      user,
+      isAdmin: false,
+      role: user.roles.includes("bsystems_agent") ? "bsystems_agent" : "bsystems_partner",
+    };
+  }
+  throw new ApiError(403, "No access");
 }
 
 /** Route-handler wrapper: Zod + ApiError → clean JSON responses. */

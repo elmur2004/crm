@@ -25,12 +25,17 @@ function loginPathFor(): string {
 
 function allowed(pathname: string, roles: Role[]): boolean {
   if (pathname.startsWith("/byteforce")) return roles.includes("byteforce_staff");
-  if (pathname.startsWith("/b-systems")) return roles.includes("bsystems_staff");
-  if (pathname.startsWith("/portal/admin")) return roles.includes("portal_admin");
-  if (pathname.startsWith("/portal")) {
-    return roles.includes("portal_rep") || roles.includes("portal_admin");
+  if (pathname.startsWith("/b-systems")) {
+    // V2 (ADR-030): the role-aware B-Systems CRM — per-section scoping happens
+    // in the page guards; any B-Systems role may enter the app shell.
+    return (
+      roles.includes("bsystems_admin") ||
+      roles.includes("bsystems_sales") ||
+      roles.includes("bsystems_agent") ||
+      roles.includes("bsystems_partner")
+    );
   }
-  return true;
+  return true; // /portal keeps only its public landing/signup pages
 }
 
 export default auth((req) => {

@@ -6,7 +6,7 @@ import type { Role } from "./constants";
    descriptors). Services execute everything atomically in one transaction and write
    the ActivityLog entry the result prescribes (T-10). */
 
-export type PipelineKind = "internal" | "partners" | "portal";
+export type PipelineKind = "internal" | "partners" | "bsystems";
 
 /** Which stage-owned field group must be saved together with this transition. */
 export type RequiredGroup =
@@ -17,6 +17,8 @@ export type RequiredGroup =
   | { group: "lost" }
   | { group: "won" } // internal Won fields (§6.2)
   | { group: "won_partner" } // §7.2 completeness gate fields
+  | { group: "won_deal" } // V2 §4: milestone tab (percent + dated milestones)
+  | { group: "negotiation" } // V2: note
   | { group: "numbers" }; // PP-1: reveal Number 2 / Number 3
 
 export type SideEffectKind =
@@ -33,9 +35,7 @@ export type EngineEvent =
       outcome: "attended" | "cancelled" | "delayed";
       destination?: string;
     }
-  | { type: "number_added"; slot: 2 | 3 } // PP-2
-  | { type: "admin_won" }; // P-6
-
+  | { type: "number_added"; slot: 2 | 3 }; // PP-2
 export interface EngineContext {
   role: Role;
 }
@@ -76,6 +76,7 @@ export interface PipelineConfig {
   followUpStage: string;
   meetingStage: string;
   proposalStage: string | null; // partners has none (§7.2, ADR-010)
+  negotiationStage?: string | null; // bsystems only (V2)
   didntAnswerStage: string | null; // partners only
   wonStage: string;
   lostStage: string;
