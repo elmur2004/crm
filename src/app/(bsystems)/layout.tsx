@@ -22,6 +22,10 @@ export const metadata: Metadata = {
   description: "B-Systems CRM and Partnership Portal — Systems Before Software.",
 };
 
+/* Every page here is auth-gated and DB-backed — render per request, NEVER at
+   build time (a fresh container has no database while `next build` runs). */
+export const dynamic = "force-dynamic";
+
 export default function BSystemsLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {

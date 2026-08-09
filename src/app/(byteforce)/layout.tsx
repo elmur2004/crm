@@ -14,6 +14,10 @@ export const metadata: Metadata = {
   description: "ByteForce sales pipeline — leads, CRM, clients.",
 };
 
+/* Every page here is auth-gated and DB-backed — render per request, NEVER at
+   build time (a fresh container has no database while `next build` runs). */
+export const dynamic = "force-dynamic";
+
 export default function ByteForceLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {

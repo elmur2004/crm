@@ -23,6 +23,10 @@ export const metadata: Metadata = {
     "One platform, two brands: ByteForce CRM and the B-Systems CRM with its partnership programme.",
 };
 
+/* Render per request — the build environment has no database (login reads
+   searchParams; the redirect root is trivially cheap). */
+export const dynamic = "force-dynamic";
+
 export default function HomeLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
