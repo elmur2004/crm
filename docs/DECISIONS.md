@@ -422,3 +422,24 @@ history; supersede with a new ADR.
   A-8); an entities junction table (redundant with roles).
 - Resolves: founder requirement — implementation deferred to the design round
 - Status: Accepted (implementation pending design)
+
+## ADR-030 — 2026-08-09 — V2 restructure (founder-directed): portal merged into B-Systems CRM
+- Context: The founder's V2 brief (docs/REQUIREMENTS-V2.md, translated from the
+  voice-note revision) restructures the product: the standalone Portal is removed;
+  the B-Systems CRM becomes role-aware for four user types (admin, internal sales,
+  agent, partner); a `negotiation` stage and a ready-to-close flag are added; won
+  flow becomes admin-confirmed with percentage commissions and dated milestones;
+  new subsystems land (notifications, statements/payments, users management with
+  impersonation, partner account auto-provisioning); the partners-pipeline numbers
+  flow is reworked to unbounded alternative numbers.
+- Decision: REQUIREMENTS-V2.md is normative and supersedes the affected parts of
+  SPEC.md (§3 roles, §8 portal structure, §10.3 board ownership, A-7 for the
+  B-Systems board). Role migration: portal_admin→bsystems_admin,
+  bsystems_staff→bsystems_sales, portal_rep→bsystems_agent, new bsystems_partner;
+  platform_admin (ADR-029) is dropped — the founder's model has bsystems_admin as
+  THE admin. All [A]-marked defaults in REQUIREMENTS-V2.md are ADR-grade
+  assumptions flagged for founder confirmation.
+- Alternatives considered: keeping the portal as a thin shell (contradicts the
+  founder's explicit two-apps instruction).
+- Resolves: founder V2 brief — [A] items flagged for founder confirmation
+- Status: Accepted
