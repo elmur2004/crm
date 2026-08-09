@@ -11,11 +11,12 @@ import {
   useSensor,
   useSensors,
   type DragEndEvent,
+  type DragStartEvent,
 } from "@dnd-kit/core";
 import { BSYSTEMS_STAGES, STAGE_LABELS } from "@/lib/pipeline-engine/constants";
 import { bsystemsCrmConfig } from "@/lib/pipeline-engine/configs/bsystems-crm";
 import { btnGhost, btnPrimary } from "@/components/portal/groupForms";
-import { stageAccent, stageTint } from "./stageColors";
+import { stageKey } from "./stageColors";
 import {
   GroupFieldsV2,
   buildGroupPayload,
@@ -24,9 +25,10 @@ import {
   type BsFormRole,
 } from "./roleForms";
 
-/* V2 §2.3/§3 — THE B-Systems board: colored per-stage columns, drag & drop for
-   every role (a drop opens the stage's role-aware form; cancel reverts), Won
-   admin/sales-only, "Ready to close" flag always available on active cards. */
+/* V2 §2.3/§3 — THE B-Systems board, prototype treatment (spec §2.7): tinted
+   wells with accent bars, mono column titles, count pills, lift-on-drag cards.
+   A drop opens the stage's role-aware form (modal §2.10); cancel reverts. Won
+   is admin/sales-only; "Ready to close" flags any active card. */
 
 export interface BsBoardLead {
   id: string;
@@ -38,7 +40,7 @@ export interface BsBoardLead {
   keyDatum: string;
 }
 
-function LeadCard({ lead, role }: { lead: BsBoardLead; role: BsFormRole }) {
+function LeadCard({ lead, dragging }: { lead: BsBoardLead; dragging: boolean }) {
   const router = useRouter();
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: lead.id,
@@ -50,50 +52,52 @@ function LeadCard({ lead, role }: { lead: BsBoardLead; role: BsFormRole }) {
       {...attributes}
       {...listeners}
       data-deal-card={lead.name}
+      data-stage-key={stageKey(lead.stage)}
       style={
         transform
           ? { transform: `translate(${transform.x}px, ${transform.y}px)`, zIndex: 30 }
           : undefined
       }
-      className={`bg-brand-surface-card border border-brand-border rounded-brand-card p-3 pb-4 shadow-brand-card touch-none ${
-        isDragging ? "opacity-80" : ""
-      }`}
+      className={`bcard touch-none ${isDragging || dragging ? "bcard--lift" : ""}`}
     >
-      <div className="flex items-start justify-between gap-1">
+      {lead.readyToClose ? <span className="bcard-badge">Ready to close</span> : null}
+      <div className="bcard-name-row">
         <Link
           href={`/b-systems/crm/lead/${lead.id}`}
-          className="font-medium text-sm text-brand-link"
+          className="bcard-name"
           onClick={(e) => e.stopPropagation()}
         >
           {lead.name}
         </Link>
-        {lead.readyToClose ? (
-          <span className="text-[10px] bg-brand-accent text-brand-on-accent rounded-brand-control px-1.5 py-0.5 shrink-0">
-            Ready to close
-          </span>
-        ) : null}
+        {lead.companyName ? <span className="bcard-rep">{lead.companyName}</span> : null}
       </div>
-      {lead.companyName ? (
-        <p className="text-xs text-brand-muted mt-0.5">{lead.companyName}</p>
-      ) : null}
-      <p className="text-xs text-brand-muted">{lead.ownerLabel}</p>
-      {lead.keyDatum ? <p className="text-xs text-brand-ink mt-1">{lead.keyDatum}</p> : null}
-      {!lead.readyToClose && lead.stage !== "won" && lead.stage !== "lost" ? (
-        <button
-          type="button"
-          disabled={busy}
-          onClick={async (e) => {
-            e.stopPropagation();
-            setBusy(true);
-            await fetch(`/api/b-systems/leads/${lead.id}/ready`, { method: "POST" });
-            setBusy(false);
-            router.refresh();
-          }}
-          onPointerDown={(e) => e.stopPropagation()}
-          className="mt-1.5 text-[11px] text-brand-muted underline underline-offset-2"
-        >
-          Mark ready to close
-        </button>
+      <div className="bcard-chips">
+        <span className="bcard-tag">{lead.ownerLabel}</span>
+      </div>
+      {lead.keyDatum || (!lead.readyToClose && lead.stage !== "won" && lead.stage !== "lost") ? (
+        <div className="bcard-meta">
+          <span className="bcard-meta-dot" aria-hidden />
+          <span className="min-w-0">
+            {lead.keyDatum}
+            {!lead.readyToClose && lead.stage !== "won" && lead.stage !== "lost" ? (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={async (e) => {
+                  e.stopPropagation();
+                  setBusy(true);
+                  await fetch(`/api/b-systems/leads/${lead.id}/ready`, { method: "POST" });
+                  setBusy(false);
+                  router.refresh();
+                }}
+                onPointerDown={(e) => e.stopPropagation()}
+                className="underline underline-offset-2 ms-1 disabled:opacity-50"
+              >
+                Mark ready to close
+              </button>
+            ) : null}
+          </span>
+        </div>
       ) : null}
     </div>
   );
@@ -102,35 +106,37 @@ function LeadCard({ lead, role }: { lead: BsBoardLead; role: BsFormRole }) {
 function Column({
   stage,
   leads,
-  role,
   wonBlocked,
+  draggingId,
 }: {
   stage: string;
   leads: BsBoardLead[];
-  role: BsFormRole;
   wonBlocked: boolean;
+  draggingId: string | null;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: stage });
   const blocked = wonBlocked && stage === "won";
+  const overCls = isOver ? (blocked ? "col--over-blocked" : "col--over-valid") : "";
   return (
     <div
       ref={setNodeRef}
       data-stage={stage}
-      className={`rounded-brand-card min-h-32 overflow-hidden ${stageTint(stage)} ${
-        isOver ? (blocked ? "outline-2 outline-brand-danger" : "outline-2 outline-brand-primary") : ""
-      }`}
+      data-stage-key={stageKey(stage)}
+      className={`col ${overCls}`}
     >
-      <div className={`h-1.5 ${stageAccent(stage)}`} aria-hidden />
-      <div className="p-2">
-        <p className="text-brand-meta text-brand-muted px-1 pb-2">
-          {STAGE_LABELS[stage]} ({leads.length})
-          {blocked ? <span className="ms-1">(admin only)</span> : null}
-        </p>
-        <div className="space-y-2">
-          {leads.map((l) => (
-            <LeadCard key={l.id} lead={l} role={role} />
-          ))}
-        </div>
+      <div className="col-bar" aria-hidden />
+      <div className="col-head">
+        <span className="col-title">{STAGE_LABELS[stage]}</span>
+        <span className="count-pill">{leads.length}</span>
+      </div>
+      {blocked ? <p className="col-locked-note">Admin-only column</p> : null}
+      <div className="col-cards">
+        {leads.map((l) => (
+          <LeadCard key={l.id} lead={l} dragging={draggingId === l.id} />
+        ))}
+        {leads.length === 0 ? (
+          <div className="col-empty">{isOver && blocked ? "Blocked" : "Nothing here yet"}</div>
+        ) : null}
       </div>
     </div>
   );
@@ -151,16 +157,9 @@ export function BsBoard({
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [draggingId, setDraggingId] = useState<string | null>(null);
   const formState = useGroupFormState();
 
-  const engineRole =
-    role === "admin"
-      ? ("bsystems_admin" as const)
-      : role === "sales"
-        ? ("bsystems_sales" as const)
-        : role === "agent"
-          ? ("bsystems_agent" as const)
-          : ("bsystems_partner" as const);
   const canWin = role === "admin" || role === "sales";
 
   async function commitDrop(body: unknown, leadId: string) {
@@ -181,7 +180,12 @@ export function BsBoard({
     router.refresh();
   }
 
+  function onDragStart(event: DragStartEvent) {
+    setDraggingId(String(event.active.id));
+  }
+
   function onDragEnd(event: DragEndEvent) {
+    setDraggingId(null);
     setMessage(null);
     const leadId = String(event.active.id);
     const to = event.over ? String(event.over.id) : null;
@@ -208,43 +212,59 @@ export function BsBoard({
   return (
     <div className="space-y-4">
       {message ? (
-        <p role="alert" className="text-sm text-brand-on-danger bg-brand-danger rounded-brand-control px-3 py-2">
-          {message}
-        </p>
+        <div className="toast-wrap">
+          <p role="alert" className="toast">
+            <span className="toast-icon" aria-hidden>
+              !
+            </span>
+            {message}
+          </p>
+        </div>
       ) : null}
 
-      <DndContext id="bs-board" sensors={sensors} onDragEnd={onDragEnd}>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-3 items-start">
+      <DndContext id="bs-board" sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd}>
+        <div className="board" data-cols="6plus">
           {BSYSTEMS_STAGES.map((stage) => (
             <Column
               key={stage}
               stage={stage}
               leads={leads.filter((l) => l.stage === stage)}
-              role={role}
               wonBlocked={!canWin}
+              draggingId={draggingId}
             />
           ))}
         </div>
       </DndContext>
 
       {pendingDrop && pendingLead ? (
-        <div className="fixed inset-0 z-40 bg-brand-surface-dark/60 flex items-center justify-center p-4">
-          <div className="bg-brand-surface rounded-brand-card shadow-brand-card p-6 w-full max-w-lg max-h-[85vh] overflow-y-auto">
-            <p className="font-brand-display font-bold mb-1">
-              {pendingLead.name}
-              <span className="inline-block rtl:-scale-x-100" aria-hidden>
-                {" → "}
-              </span>
-              {STAGE_LABELS[pendingDrop.to]}
-            </p>
-            <p className="text-xs text-brand-muted mb-4">
+        <div className="modal-overlay">
+          <div className="modal">
+            <div className="modal-head">
+              <div>
+                <p className="modal-eyebrow">
+                  {STAGE_LABELS[pendingLead.stage]}
+                  <span className="inline-block rtl:-scale-x-100" aria-hidden>
+                    {" → "}
+                  </span>
+                  {STAGE_LABELS[pendingDrop.to]}
+                </p>
+                <p className="modal-title">{pendingLead.name}</p>
+              </div>
+              <button
+                type="button"
+                className="modal-close"
+                aria-label="Close"
+                onClick={() => {
+                  setPendingDrop(null);
+                  setError(null);
+                }}
+              >
+                ✕
+              </button>
+            </div>
+            <p className="modal-note">
               Complete this stage&apos;s details to confirm the move — cancel reverts it.
             </p>
-            {error ? (
-              <p role="alert" className="text-sm text-brand-danger mb-2">
-                {error}
-              </p>
-            ) : null}
             <form
               onSubmit={(e) => {
                 e.preventDefault();
@@ -261,31 +281,43 @@ export function BsBoard({
                   pendingDrop.leadId,
                 );
               }}
-              className="space-y-3"
+              className="contents"
             >
-              <GroupFieldsV2
-                target={pendingDrop.to}
-                role={role}
-                reps={reps}
-                agreed={formState.agreed}
-                setAgreed={formState.setAgreed}
-                milestoneCount={formState.milestoneCount}
-                setMilestoneCount={formState.setMilestoneCount}
-              />
-              <div className="flex gap-2">
-                <button type="submit" disabled={busy} className={btnPrimary}>
-                  Confirm move
-                </button>
-                <button
-                  type="button"
-                  className={btnGhost}
-                  onClick={() => {
-                    setPendingDrop(null);
-                    setError(null);
-                  }}
-                >
-                  Cancel
-                </button>
+              <div className="modal-body space-y-3">
+                {error ? (
+                  <p role="alert" className="alert-error">
+                    {error}
+                  </p>
+                ) : null}
+                <GroupFieldsV2
+                  target={pendingDrop.to}
+                  role={role}
+                  reps={reps}
+                  agreed={formState.agreed}
+                  setAgreed={formState.setAgreed}
+                  milestoneCount={formState.milestoneCount}
+                  setMilestoneCount={formState.setMilestoneCount}
+                />
+              </div>
+              <div className="modal-foot">
+                <span className="modal-foot-note">
+                  Cancelling reverts the card to {STAGE_LABELS[pendingLead.stage]}.
+                </span>
+                <span className="flex gap-2">
+                  <button
+                    type="button"
+                    className={btnGhost}
+                    onClick={() => {
+                      setPendingDrop(null);
+                      setError(null);
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button type="submit" disabled={busy} className={btnPrimary}>
+                    Confirm move
+                  </button>
+                </span>
               </div>
             </form>
           </div>

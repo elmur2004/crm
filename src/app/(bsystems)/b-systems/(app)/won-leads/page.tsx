@@ -12,6 +12,15 @@ export const metadata = { title: "Won Leads — B-Systems CRM" };
    data + milestone progress; commission shows for agents/partners, NEVER for
    internal sales. */
 
+function markInitials(name: string) {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((p) => p[0]!.toUpperCase())
+    .join("");
+}
+
 function MilestoneDots({ milestones }: { milestones: Array<{ completed: boolean }> }) {
   return (
     <span className="inline-flex gap-1 align-middle" aria-label="Milestone progress">
@@ -41,26 +50,30 @@ export default async function WonLeadsPage() {
     const deals = await adminWonLeads();
     return (
       <div className="space-y-6">
-        <h1 className="font-brand-display text-2xl font-bold text-brand-heading">Won Leads</h1>
+        <div className="page-head">
+          <div>
+            <p className="u-eyebrow">B-SYSTEMS · WON LEADS</p>
+            <h1 className="u-h1">Won Leads</h1>
+          </div>
+        </div>
         {deals.length === 0 ? (
-          <p className="text-sm text-brand-muted">No won leads yet.</p>
+          <p className="empty">No won leads yet.</p>
         ) : (
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-3">
+          <div className="ecard-grid">
             {deals.map((w) => (
-              <Link
-                key={w.id}
-                href={`/b-systems/won-leads/${w.id}`}
-                className="bg-brand-surface-card border border-brand-border rounded-brand-card shadow-brand-card p-4 text-sm space-y-1.5 hover:border-brand-primary"
-              >
-                <p className="font-bold">{w.lead.name}</p>
-                <p>
-                  <span className="text-brand-muted">Value:</span> {formatEGP(w.estimatedValue)}
+              <Link key={w.id} href={`/b-systems/won-leads/${w.id}`} className="ecard">
+                <div className="ecard-top">
+                  <span className="ecard-mark">{markInitials(w.lead.name)}</span>
+                </div>
+                <p className="ecard-title">{w.lead.name}</p>
+                <p className="ecard-sub">
+                  <span>Value:</span> {formatEGP(w.estimatedValue)}
                 </p>
-                <p>
-                  <span className="text-brand-muted">Closer:</span> {w.closer}
+                <p className="ecard-sub">
+                  <span>Closer:</span> {w.closer}
                 </p>
-                <p className="flex items-center gap-2">
-                  <span className="text-brand-muted">Milestones:</span>
+                <p className="ecard-footer flex items-center gap-2">
+                  <span>Milestones:</span>
                   <MilestoneDots milestones={w.milestones} />
                   <span className="text-xs text-brand-muted">
                     {w.milestones.filter((m) => m.completed).length}/{w.milestones.length}
@@ -81,18 +94,20 @@ export default async function WonLeadsPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="font-brand-display text-2xl font-bold text-brand-heading">Won Leads</h1>
+      <div className="page-head">
+        <div>
+          <p className="u-eyebrow">B-SYSTEMS · WON LEADS</p>
+          <h1 className="u-h1">Won Leads</h1>
+        </div>
+      </div>
       {deals.length === 0 ? (
-        <p className="text-sm text-brand-muted">No won leads yet.</p>
+        <p className="empty">No won leads yet.</p>
       ) : (
-        <div className="grid md:grid-cols-2 gap-3">
+        <div className="grid md:grid-cols-2 gap-3 items-start">
           {deals.map((w) => (
-            <div
-              key={w.id}
-              className="bg-brand-surface-card border border-brand-border rounded-brand-card shadow-brand-card p-4 text-sm space-y-2"
-            >
+            <div key={w.id} className="card card-pad text-sm space-y-3">
               <div className="flex items-center justify-between gap-2">
-                <p className="font-bold">{w.lead.name}</p>
+                <p className="u-h3">{w.lead.name}</p>
                 <MilestoneDots milestones={w.milestones} />
               </div>
               <p>
@@ -103,24 +118,34 @@ export default async function WonLeadsPage() {
                   <span className="text-brand-muted">Company:</span> {w.lead.companyName}
                 </p>
               ) : null}
-              <p>
-                <span className="text-brand-muted">Value:</span> {formatEGP(w.estimatedValue)}
-              </p>
-              {w.totalCommissionPercent != null ? (
-                <p>
-                  <span className="text-brand-muted">Total commission:</span>{" "}
-                  {(w.totalCommissionPercent / 100).toFixed(2).replace(/\.00$/, "")}%
-                </p>
-              ) : null}
-              <div className="border-t border-brand-border pt-2 space-y-1">
+              <div className="flex gap-2 flex-wrap">
+                <div className="money-tile">
+                  <p className="money-label">Value:</p>
+                  <p className="money-value">{formatEGP(w.estimatedValue)}</p>
+                </div>
+                {w.totalCommissionPercent != null ? (
+                  <div className="money-tile">
+                    <p className="money-label">Total commission:</p>
+                    <p className="money-value money-value--commission">
+                      {(w.totalCommissionPercent / 100).toFixed(2).replace(/\.00$/, "")}%
+                    </p>
+                  </div>
+                ) : null}
+              </div>
+              <div className="border-t border-brand-hairline pt-3 space-y-2">
                 {w.milestones.map((m) => (
-                  <div key={m.id} className="flex items-center justify-between gap-2">
-                    <span className={m.completed ? "" : "text-brand-muted"}>
+                  <div
+                    key={m.id}
+                    className={`ms-row ${
+                      m.completed ? "ms-row--done" : m.locked ? "ms-row--locked" : ""
+                    }`}
+                  >
+                    <span className={`ms-label ${m.completed ? "" : "text-brand-muted"}`}>
                       {m.completed ? "✓ " : ""}
                       {m.label}
                       {m.locked ? " (locked)" : ""}
                     </span>
-                    <span className="text-xs text-brand-muted">
+                    <span className="ms-note ms-auto text-end">
                       {formatEGP(m.value)}
                       {m.commissionValue != null ? ` · commission ${formatEGP(m.commissionValue)}` : ""}
                       {m.expectedEnd ? ` · due ${formatCairoDate(m.expectedEnd)}` : ""}

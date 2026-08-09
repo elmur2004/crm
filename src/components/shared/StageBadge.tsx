@@ -1,15 +1,14 @@
 import { STAGE_LABELS } from "@/lib/pipeline-engine/constants";
+import { stageKey } from "@/components/bsystems/stageColors";
 
-/* Stage chip — tokens only; Won leans on success, Lost on danger, active on secondary. */
-export function StageBadge({ stage }: { stage: string }) {
-  const tone =
-    stage === "won"
-      ? "bg-brand-success text-brand-on-success"
-      : stage === "lost"
-        ? "bg-brand-danger text-brand-on-danger"
-        : "bg-brand-surface-tint text-brand-ink";
+/* Stage chip (spec §2.6) — the per-stage chip/chip-ink pair, resolved by the
+   data-stage-key attribute under the active brand scope. */
+export function StageBadge({ stage, header }: { stage: string; header?: boolean }) {
   return (
-    <span className={`inline-block rounded-brand-control px-2 py-0.5 text-xs font-medium ${tone}`}>
+    <span
+      data-stage-key={stageKey(stage)}
+      className={header ? "stage-chip stage-chip--header" : "stage-chip"}
+    >
       {STAGE_LABELS[stage] ?? stage}
     </span>
   );

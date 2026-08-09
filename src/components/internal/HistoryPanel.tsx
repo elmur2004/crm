@@ -22,33 +22,38 @@ export function HistoryPanel({
   }>;
 }) {
   if (entries.length === 0) {
-    return <p className="text-sm text-brand-muted">No history yet.</p>;
+    return <p className="empty">No history yet.</p>;
   }
   return (
-    <ol className="space-y-1.5">
+    <ol>
       {entries.map((e) => (
-        <li key={e.id} className="text-xs text-brand-muted flex flex-wrap gap-x-2">
-          <span className="text-brand-ink font-medium">{formatCairo(e.createdAt)}</span>
-          <span>{e.actorLabel}</span>
-          {TRIGGER_PHRASES[e.trigger] ? (
-            <span className="text-brand-ink">{TRIGGER_PHRASES[e.trigger]}</span>
-          ) : null}
-          <span>
-            {e.action === "auto_transfer" ? "auto-moved" : e.action.replace(/_/g, " ")}
-            {e.fromStage || e.toStage ? (
-              <>
-                {": "}
-                {e.fromStage ? (STAGE_LABELS[e.fromStage] ?? e.fromStage) : "—"}
-                <span className="inline-block rtl:-scale-x-100" aria-hidden>
-                  {" → "}
-                </span>
-                {e.toStage ? (STAGE_LABELS[e.toStage] ?? e.toStage) : "—"}
-              </>
-            ) : (
-              ""
-            )}
+        <li key={e.id} className="tl-row">
+          <span className="tl-rail" aria-hidden>
+            <span className="tl-dot" />
           </span>
-          <span className="font-brand-mono">[{e.trigger}]</span>
+          <div className="tl-text flex flex-wrap items-baseline gap-x-2 pb-3">
+            <span className="tl-time">{formatCairo(e.createdAt)}</span>
+            <span>{e.actorLabel}</span>
+            {TRIGGER_PHRASES[e.trigger] ? (
+              <span className="tl-pill">{TRIGGER_PHRASES[e.trigger]}</span>
+            ) : null}
+            <span>
+              {e.action === "auto_transfer" ? "auto-moved" : e.action.replace(/_/g, " ")}
+              {e.fromStage || e.toStage ? (
+                <>
+                  {": "}
+                  {e.fromStage ? (STAGE_LABELS[e.fromStage] ?? e.fromStage) : "—"}
+                  <span className="inline-block rtl:-scale-x-100" aria-hidden>
+                    {" → "}
+                  </span>
+                  {e.toStage ? (STAGE_LABELS[e.toStage] ?? e.toStage) : "—"}
+                </>
+              ) : (
+                ""
+              )}
+            </span>
+            <span className="tl-code">[{e.trigger}]</span>
+          </div>
         </li>
       ))}
     </ol>

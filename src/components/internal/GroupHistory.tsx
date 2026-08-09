@@ -38,12 +38,12 @@ type LostRow = { id: string; reason: string; createdAt: Date };
 
 function Section({ title, at, children }: { title: string; at: Date; children: React.ReactNode }) {
   return (
-    <div className="border border-brand-border rounded-brand-card p-3 bg-brand-surface-card">
+    <div className="record-group">
       <div className="flex items-baseline justify-between gap-2">
-        <p className="text-sm font-bold">{title}</p>
-        <p className="text-xs text-brand-muted">{formatCairo(at)}</p>
+        <p className="record-title">{title}</p>
+        <p className="record-time">{formatCairo(at)}</p>
       </div>
-      <div className="mt-1 text-sm text-brand-ink space-y-0.5">{children}</div>
+      <div className="record-grid">{children}</div>
     </div>
   );
 }
@@ -139,7 +139,7 @@ export function GroupHistory({
   items.sort((a, b) => a.at.getTime() - b.at.getTime());
 
   if (items.length === 0) {
-    return <p className="text-sm text-brand-muted">No stage records yet.</p>;
+    return <p className="empty">No stage records yet.</p>;
   }
   return <div className="space-y-2">{items.map((i) => i.node)}</div>;
 }

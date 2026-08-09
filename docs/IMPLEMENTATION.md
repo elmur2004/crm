@@ -284,3 +284,24 @@ _Format per module:_
     @layer theme, and the unlayered :root[data-brand] token definitions always
     win.
 - Last updated: 2026-08-09 (Entry 009, TESTING Run 014, ADR-030)
+
+## Design system application (Claude Design handoff)
+- Location: src/themes/design-system.css, src/themes/neutral.css, brand token
+  files, docs/DESIGN-APPLICATION-SPEC.md, app headers, restyled screens.
+- What exists / how it works: src/themes/design-system.css is the prototype's
+  shared component layer — token-driven only; components reference its classes
+  plus brand utilities; stage colors resolve through a data-stage-key
+  attribute that sets the four per-stage custom properties. The
+  extraction/synthesis pipeline lives in docs/DESIGN-APPLICATION-SPEC.md —
+  treat it as the normative design reference for future UI work.
+- Limitations / gotchas:
+  - Header layout gotcha: `.user` must be `flex: none` — flex-shrink let its
+    rigid children (bell/switcher/avatar/logout) overflow the shrunken box
+    and push 2px past the viewport at 768px.
+  - The restyle froze all rendered strings; the one test adjustment was
+    journey5's "Total commission: 10%" combined-text assertion (label and
+    value are separate elements in the money-tile pattern).
+  - Playwright-driven overflow probing (a temporary spec measuring
+    getBoundingClientRect of header children) was the fastest way to find
+    the 2-px culprit — pattern worth reusing.
+- Last updated: 2026-08-09 (Entry 010, TESTING Run 015, ADR-031)

@@ -16,6 +16,7 @@ import { formatEGP } from "@/lib/money";
 import { formatCairo, formatCairoDate } from "@/lib/datetime";
 import { StatCard } from "@/components/shared/StatCard";
 import { StageBadge } from "@/components/shared/StageBadge";
+import { stageKey } from "@/components/bsystems/stageColors";
 import { AddLeadForm, AddRepForm, ClientEditForm } from "./forms";
 import { LeadEventPanel } from "./LeadEventPanel";
 import { GroupHistory } from "./GroupHistory";
@@ -32,30 +33,62 @@ export interface InternalAppCtx {
   apiBase: string; // "/api/byteforce" | "/api/b-systems"
 }
 
+/* Mono eyebrow context line per brand (design spec §2.2 — additive, not a reword). */
+const BRAND_EYEBROW: Record<Brand, string> = {
+  byteforce: "BYTEFORCE",
+  bsystems: "B-SYSTEMS",
+};
+
+/* Decorative initials for entity-card marks (aria-hidden, spec §2.4). */
+function markInitials(name: string): string {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w.charAt(0).toUpperCase())
+    .join("");
+}
+
 /* ---------------- Home dashboard (§6.5) ---------------- */
 
 export async function DashboardBody({ ctx }: { ctx: InternalAppCtx }) {
   const d = await internalDashboard(ctx.brand);
+  const stageCells: Array<{ key: string; label: string; value: string }> = [
+    { key: "intake", label: "New / not actioned", value: String(d.leadsPerStage["new"] ?? 0) },
+    { key: "following", label: "Following Up", value: String(d.leadsPerStage["following_up"] ?? 0) },
+    { key: "meeting", label: "Meeting Setting", value: String(d.leadsPerStage["meeting_setting"] ?? 0) },
+    { key: "proposal", label: "Sending Proposals", value: String(d.leadsPerStage["sending_proposal"] ?? 0) },
+    { key: "won", label: "Won", value: String(d.wonCount) },
+    { key: "lost", label: "Lost", value: String(d.lostCount) },
+  ];
   return (
     <div className="space-y-6">
-      <h1 className="font-brand-display text-2xl font-bold text-brand-heading">Home</h1>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="page-head">
+        <div>
+          <p className="u-eyebrow">{BRAND_EYEBROW[ctx.brand]} · HOME</p>
+          <h1 className="u-h1">Home</h1>
+        </div>
+      </div>
+      <div className="tile-grid">
         <StatCard label="Total leads" value={String(d.totalLeads)} />
         <StatCard label="Pipeline value" value={formatEGP(d.pipelineValue)} hint="Active stages only" />
         <StatCard label="Won value" value={formatEGP(d.wonValue)} />
         <StatCard label="To be collected" value={formatEGP(d.toBeCollected)} hint="Across all clients" />
       </div>
-      <div>
-        <h2 className="text-brand-meta text-brand-muted mb-2">
-          Leads per stage
-        </h2>
-        <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
-          <StatCard label="New / not actioned" value={String(d.leadsPerStage["new"] ?? 0)} />
-          <StatCard label="Following Up" value={String(d.leadsPerStage["following_up"] ?? 0)} />
-          <StatCard label="Meeting Setting" value={String(d.leadsPerStage["meeting_setting"] ?? 0)} />
-          <StatCard label="Sending Proposals" value={String(d.leadsPerStage["sending_proposal"] ?? 0)} />
-          <StatCard label="Won" value={String(d.wonCount)} />
-          <StatCard label="Lost" value={String(d.lostCount)} />
+      <div className="card card--flush0">
+        <div className="card-head">
+          <h2 className="u-h3">
+            Leads per stage
+          </h2>
+        </div>
+        <div className="stage-strip">
+          {stageCells.map((cell) => (
+            <div key={cell.key} className="stage-cell" data-stage-key={cell.key}>
+              <div className="stage-cell-bar" aria-hidden />
+              <p className="stage-cell-label">{cell.label}</p>
+              <p className="stage-cell-value">{cell.value}</p>
+            </div>
+          ))}
         </div>
       </div>
     </div>
@@ -71,34 +104,42 @@ export async function LeadsBody({ ctx }: { ctx: InternalAppCtx }) {
   ]);
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between gap-4">
-        <h1 className="font-brand-display text-2xl font-bold text-brand-heading">Leads</h1>
-        <AddRepForm apiBase={ctx.apiBase} />
+      <div className="page-head">
+        <div>
+          <p className="u-eyebrow">{BRAND_EYEBROW[ctx.brand]} · LEADS</p>
+          <h1 className="u-h1">Leads</h1>
+        </div>
+        <div className="page-actions">
+          <AddRepForm apiBase={ctx.apiBase} />
+        </div>
       </div>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="ecard-grid">
         {reps.map((rep) => (
-          <Link
-            key={rep.id}
-            href={`${ctx.basePath}/leads/rep/${rep.id}`}
-            className="bg-brand-surface-card border border-brand-border rounded-brand-card shadow-brand-card p-4 hover:border-brand-primary"
-          >
-            <p className="font-bold">{rep.name}</p>
-            <p className="text-sm text-brand-muted mt-1">
+          <Link key={rep.id} href={`${ctx.basePath}/leads/rep/${rep.id}`} className="ecard">
+            <div className="ecard-top">
+              <span className="ecard-mark" aria-hidden>
+                {markInitials(rep.name)}
+              </span>
+            </div>
+            <p className="ecard-title">{rep.name}</p>
+            <p className="ecard-sub">
               {rep.leadCount} lead{rep.leadCount === 1 ? "" : "s"}
             </p>
           </Link>
         ))}
         {unassigned > 0 ? (
-          <Link
-            href={`${ctx.basePath}/leads/rep/unassigned`}
-            className="bg-brand-surface-tint border border-brand-border rounded-brand-card p-4 hover:border-brand-primary"
-          >
-            <p className="font-bold">Unassigned (Partner leads)</p>
-            <p className="text-sm text-brand-muted mt-1">{unassigned} lead{unassigned === 1 ? "" : "s"}</p>
+          <Link href={`${ctx.basePath}/leads/rep/unassigned`} className="ecard ecard--accent">
+            <div className="ecard-top">
+              <span className="ecard-mark" aria-hidden>
+                U
+              </span>
+            </div>
+            <p className="ecard-title">Unassigned (Partner leads)</p>
+            <p className="ecard-sub">{unassigned} lead{unassigned === 1 ? "" : "s"}</p>
           </Link>
         ) : null}
         {reps.length === 0 && unassigned === 0 ? (
-          <p className="text-sm text-brand-muted col-span-full">
+          <p className="empty col-span-full">
             No sales reps yet — add the first one to start taking leads.
           </p>
         ) : null}
@@ -124,52 +165,58 @@ export async function RepLeadsBody({ ctx, repId }: { ctx: InternalAppCtx; repId:
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between gap-4">
+      <div className="page-head">
         <div>
           <Link href={`${ctx.basePath}/leads`} className="text-sm text-brand-muted underline underline-offset-2">
             Back to all reps
           </Link>
-          <h1 className="font-brand-display text-2xl font-bold text-brand-heading">
+          <h1 className="u-h1">
             {rep ? rep.name : "Unassigned (Partner leads)"}
           </h1>
         </div>
-        {!isUnassigned ? <AddLeadForm apiBase={ctx.apiBase} salesRepId={repId} /> : null}
+        <div className="page-actions">
+          {!isUnassigned ? <AddLeadForm apiBase={ctx.apiBase} salesRepId={repId} /> : null}
+        </div>
       </div>
       {leads.length === 0 ? (
-        <p className="text-sm text-brand-muted">No leads yet.</p>
+        <p className="empty">No leads yet.</p>
       ) : (
-        <div className="overflow-x-auto border border-brand-border rounded-brand-card bg-brand-surface-card">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-brand-border text-start">
-                <th className="text-start p-3 font-bold">Name</th>
-                <th className="text-start p-3 font-bold">Number</th>
-                <th className="text-start p-3 font-bold">Type</th>
-                <th className="text-start p-3 font-bold">Stage</th>
-              </tr>
-            </thead>
-            <tbody>
-              {leads.map((lead) => (
-                <tr key={lead.id} className="border-b border-brand-border last:border-0 hover:bg-brand-surface-tint">
-                  <td className="p-3">
-                    <Link href={`${ctx.basePath}/leads/lead/${lead.id}`} className="font-medium text-brand-link">
-                      {lead.name}
-                    </Link>
-                    {lead.partner ? (
-                      <span className="ms-2 text-xs bg-brand-secondary text-brand-on-secondary rounded-brand-control px-1.5 py-0.5">
-                        Partner: {lead.partner.companyName}
-                      </span>
-                    ) : null}
-                  </td>
-                  <td className="p-3">{lead.number}</td>
-                  <td className="p-3">{LEAD_TYPE_LABELS[lead.type as LeadType] ?? lead.type}</td>
-                  <td className="p-3">
-                    <StageBadge stage={lead.stage} />
-                  </td>
+        <div className="card card--flush0">
+          <div className="table-scroll">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Number</th>
+                  <th>Type</th>
+                  <th>Stage</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {leads.map((lead) => (
+                  <tr key={lead.id}>
+                    <td>
+                      <Link href={`${ctx.basePath}/leads/lead/${lead.id}`} className="td-title">
+                        {lead.name}
+                      </Link>
+                      {lead.partner ? (
+                        <span className="badge badge--partner ms-2">
+                          Partner: {lead.partner.companyName}
+                        </span>
+                      ) : null}
+                    </td>
+                    <td className="td-mono">{lead.number}</td>
+                    <td>
+                      <span className="chip-outline">{LEAD_TYPE_LABELS[lead.type as LeadType] ?? lead.type}</span>
+                    </td>
+                    <td>
+                      <StageBadge stage={lead.stage} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>
@@ -192,66 +239,78 @@ export async function LeadDetailBody({ ctx, leadId }: { ctx: InternalAppCtx; lea
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div>
-          <Link href={`${ctx.basePath}/crm`} className="text-sm text-brand-muted underline underline-offset-2">
-            Back to the CRM board
-          </Link>
-          <h1 className="font-brand-display text-2xl font-bold text-brand-heading flex items-center gap-3 flex-wrap">
+      <div>
+        <Link href={`${ctx.basePath}/crm`} className="text-sm text-brand-muted underline underline-offset-2">
+          Back to the CRM board
+        </Link>
+      </div>
+
+      <div className="card card--flush0">
+        <div className="identity-head">
+          <h1 className="identity-name flex items-center gap-3 flex-wrap">
             {lead.name}
-            <StageBadge stage={lead.stage} />
+            <StageBadge stage={lead.stage} header />
             {lead.partner ? (
-              <span className="text-xs bg-brand-secondary text-brand-on-secondary rounded-brand-control px-2 py-1">
+              <span className="badge badge--partner">
                 Partner: {lead.partner.companyName}
               </span>
             ) : null}
           </h1>
         </div>
+        <div className="fields-grid">
+          <div className="fields-cell">
+            <p className="fields-label">Number:</p>
+            <p className="fields-value">{lead.number}</p>
+          </div>
+          <div className="fields-cell">
+            <p className="fields-label">Email:</p>
+            <p className="fields-value">{lead.email ?? "—"}</p>
+          </div>
+          <div className="fields-cell">
+            <p className="fields-label">Type:</p>
+            <p className="fields-value">{LEAD_TYPE_LABELS[lead.type as LeadType] ?? lead.type}</p>
+          </div>
+          <div className="fields-cell">
+            <p className="fields-label">Assigned rep:</p>
+            <p className="fields-value">{lead.salesRep?.name ?? "Unassigned"}</p>
+          </div>
+          <div className="fields-cell">
+            <p className="fields-label">Date created:</p>
+            <p className="fields-value">{formatCairo(lead.createdAt)}</p>
+          </div>
+          {lead.description ? (
+            <div className="fields-cell col-span-full">
+              <p className="fields-value whitespace-pre-wrap">{lead.description}</p>
+            </div>
+          ) : null}
+        </div>
       </div>
 
-      <div className="grid md:grid-cols-2 gap-6">
+      <div className="grid md:grid-cols-2 gap-6 items-start">
         <section className="space-y-4">
-          <div className="bg-brand-surface-card border border-brand-border rounded-brand-card p-4 text-sm space-y-1">
-            <p>
-              <span className="text-brand-muted">Number:</span> {lead.number}
-            </p>
-            <p>
-              <span className="text-brand-muted">Email:</span> {lead.email ?? "—"}
-            </p>
-            <p>
-              <span className="text-brand-muted">Type:</span>{" "}
-              {LEAD_TYPE_LABELS[lead.type as LeadType] ?? lead.type}
-            </p>
-            <p>
-              <span className="text-brand-muted">Assigned rep:</span> {lead.salesRep?.name ?? "Unassigned"}
-            </p>
-            <p>
-              <span className="text-brand-muted">Date created:</span> {formatCairo(lead.createdAt)}
-            </p>
-            {lead.description ? (
-              <p className="pt-1 whitespace-pre-wrap">{lead.description}</p>
-            ) : null}
-          </div>
-
-          <div className="bg-brand-surface-card border border-brand-border rounded-brand-card p-4">
-            <h2 className="text-brand-meta text-brand-muted mb-3">
-              Next action
-            </h2>
-            <LeadEventPanel
-              apiBase={ctx.apiBase}
-              leadId={lead.id}
-              stage={lead.stage}
-              reps={reps.map((r) => ({ id: r.id, name: r.name }))}
-              latestProposalValue={latestProposalValue(lead.proposals)}
-              hasUnsentProposal={lead.proposals.some((p) => !p.sent)}
-              pendingMeeting={Boolean(latestMeeting && latestMeeting.outcome === null && latestMeeting.arranged)}
-            />
+          <div className="card card--flush0">
+            <div className="card-head">
+              <h2 className="u-h3">
+                Next action
+              </h2>
+            </div>
+            <div className="card-pad">
+              <LeadEventPanel
+                apiBase={ctx.apiBase}
+                leadId={lead.id}
+                stage={lead.stage}
+                reps={reps.map((r) => ({ id: r.id, name: r.name }))}
+                latestProposalValue={latestProposalValue(lead.proposals)}
+                hasUnsentProposal={lead.proposals.some((p) => !p.sent)}
+                pendingMeeting={Boolean(latestMeeting && latestMeeting.outcome === null && latestMeeting.arranged)}
+              />
+            </div>
           </div>
         </section>
 
         <section className="space-y-4">
           <div>
-            <h2 className="text-brand-meta text-brand-muted mb-2">
+            <h2 className="u-h3 mb-2">
               Stage records
             </h2>
             <GroupHistory
@@ -262,11 +321,15 @@ export async function LeadDetailBody({ ctx, leadId }: { ctx: InternalAppCtx; lea
               won={lead.wonInfo}
             />
           </div>
-          <div className="bg-brand-surface-card border border-brand-border rounded-brand-card p-4">
-            <h2 className="text-brand-meta text-brand-muted mb-2">
-              History
-            </h2>
-            <HistoryPanel entries={history} />
+          <div className="card card--flush0">
+            <div className="card-head">
+              <h2 className="u-h3">
+                History
+              </h2>
+            </div>
+            <div className="card-pad">
+              <HistoryPanel entries={history} />
+            </div>
           </div>
         </section>
       </div>
@@ -318,35 +381,46 @@ export async function CrmBoardBody({ ctx }: { ctx: InternalAppCtx }) {
 
   return (
     <div className="space-y-6">
-      <h1 className="font-brand-display text-2xl font-bold text-brand-heading">CRM</h1>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 items-start">
+      <div className="page-head">
+        <div>
+          <p className="u-eyebrow">{BRAND_EYEBROW[ctx.brand]} · CRM</p>
+          <h1 className="u-h1">CRM</h1>
+        </div>
+      </div>
+      <div className="board" data-cols="6plus">
         {BOARD_STAGES.map((stage) => {
           const cards = leads.filter((l) => l.stage === stage);
           return (
-            <div key={stage} className="bg-brand-surface-tint rounded-brand-card p-2 min-h-24">
-              <p className="text-brand-meta text-brand-muted px-1 pb-2">
-                {STAGE_LABELS[stage]} ({cards.length})
-              </p>
-              <div className="space-y-2">
+            <div key={stage} className="col" data-stage-key={stageKey(stage)}>
+              <div className="col-bar" aria-hidden />
+              <div className="col-head">
+                <p className="col-title">
+                  {STAGE_LABELS[stage]} ({cards.length})
+                </p>
+              </div>
+              <div className="col-cards">
                 {cards.map((lead) => (
                   <Link
                     key={lead.id}
                     href={`${ctx.basePath}/leads/lead/${lead.id}`}
-                    className="block bg-brand-surface-card border border-brand-border rounded-brand-card p-3 shadow-brand-card hover:border-brand-primary"
+                    className="bcard block"
                   >
-                    <p className="font-medium text-sm">{lead.name}</p>
-                    <p className="text-xs text-brand-muted mt-0.5">
+                    <p className="bcard-name">{lead.name}</p>
+                    <p className="bcard-rep mt-1">
                       {LEAD_TYPE_LABELS[lead.type as LeadType] ?? lead.type}
                       {lead.salesRep ? ` · ${lead.salesRep.name}` : " · Unassigned"}
                     </p>
                     {lead.partner ? (
-                      <p className="text-xs mt-1">
-                        <span className="bg-brand-secondary text-brand-on-secondary rounded-brand-control px-1.5 py-0.5">
+                      <p className="mt-2">
+                        <span className="bcard-badge">
                           Partner: {lead.partner.companyName}
                         </span>
                       </p>
                     ) : null}
-                    <p className="text-xs text-brand-ink mt-1">{keyDatum(lead)}</p>
+                    <p className="bcard-meta">
+                      <span className="bcard-meta-dot" aria-hidden />
+                      {keyDatum(lead)}
+                    </p>
                   </Link>
                 ))}
               </div>
@@ -364,37 +438,52 @@ export async function ClientsBody({ ctx }: { ctx: InternalAppCtx }) {
   const clients = await listClients(ctx.brand);
   return (
     <div className="space-y-6">
-      <h1 className="font-brand-display text-2xl font-bold text-brand-heading">Clients</h1>
+      <div className="page-head">
+        <div>
+          <p className="u-eyebrow">{BRAND_EYEBROW[ctx.brand]} · CLIENTS</p>
+          <h1 className="u-h1">Clients</h1>
+        </div>
+      </div>
       {clients.length === 0 ? (
-        <p className="text-sm text-brand-muted">No clients yet — they appear automatically when a lead is Won.</p>
+        <p className="empty">No clients yet — they appear automatically when a lead is Won.</p>
       ) : (
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-3">
+        <div className="ecard-grid">
           {clients.map((c) => (
-            <div key={c.id} className="bg-brand-surface-card border border-brand-border rounded-brand-card shadow-brand-card p-4 text-sm space-y-1">
-              <div className="flex items-center justify-between gap-2">
-                <p className="font-bold">{c.name}</p>
+            <div key={c.id} className="ecard cursor-auto">
+              <div className="ecard-top">
+                <span className="ecard-mark" aria-hidden>
+                  {markInitials(c.name)}
+                </span>
                 {c.retainer ? (
-                  <span className="text-xs bg-brand-secondary text-brand-on-secondary rounded-brand-control px-1.5 py-0.5">
+                  <span className="ecard-chip">
                     Retainer
                   </span>
                 ) : null}
               </div>
-              <p className="text-brand-muted">{c.number}</p>
-              <p>
-                <span className="text-brand-muted">Service:</span> {c.service ?? "—"}
+              <p className="ecard-title">{c.name}</p>
+              <p className="ecard-sub">{c.number}</p>
+              <p className="ecard-sub">
+                <span>Service:</span> {c.service ?? "—"}
               </p>
-              <p>
-                <span className="text-brand-muted">Estimated:</span> {formatEGP(c.estimatedValue)}
-              </p>
-              <p>
-                <span className="text-brand-muted">Collected:</span> {formatEGP(c.collected)}
-              </p>
-              <p>
-                <span className="text-brand-muted">To be collected:</span> {formatEGP(c.toBeCollected)}
-                {c.dueDate ? ` (due ${formatCairoDate(c.dueDate)})` : ""}
-              </p>
-              <p>
-                <span className="text-brand-muted">Technical owner:</span> {c.technicalOwner ?? "—"}
+              <div className="ecard-stats">
+                <div>
+                  <p className="ecard-stat-label">Estimated:</p>
+                  <p className="ecard-stat-value">{formatEGP(c.estimatedValue)}</p>
+                </div>
+                <div>
+                  <p className="ecard-stat-label">Collected:</p>
+                  <p className="ecard-stat-value">{formatEGP(c.collected)}</p>
+                </div>
+                <div>
+                  <p className="ecard-stat-label">To be collected:</p>
+                  <p className="ecard-stat-value">
+                    {formatEGP(c.toBeCollected)}
+                    {c.dueDate ? ` (due ${formatCairoDate(c.dueDate)})` : ""}
+                  </p>
+                </div>
+              </div>
+              <p className="ecard-footer">
+                <span>Technical owner:</span> {c.technicalOwner ?? "—"}
               </p>
               <ClientEditForm apiBase={ctx.apiBase} client={c} />
             </div>

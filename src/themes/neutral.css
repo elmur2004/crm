@@ -1,126 +1,195 @@
-/* Brand-neutral shell styling for the (home) route group only (ADR-007).
-   src/themes/ is inside the brand-audit allowlist — this is the sanctioned home for
-   neutral values; components never declare font/color literals. */
+/* =========================================================================
+   Neutral (home) shell — the platform root `/` and the consolidated `/login`
+   (ADR-007 / ADR-028, redesigned per docs/DESIGN-APPLICATION-SPEC.md §2.14-15).
+   src/themes/ is the sanctioned home for neutral values; components never
+   declare font/color literals. Defines the FULL semantic token set under
+   [data-brand="neutral"] so shared components render correctly here too.
+   The login billboard halves intentionally carry the two brands' literal
+   values — they are brand billboards, not themed components (spec §2.14).
+   ========================================================================= */
 
-body {
-  font-family: ui-sans-serif, system-ui, "Segoe UI", Arial, sans-serif;
-  background-color: #ffffff; /* neutral shell only — never a branded surface */
-  color: #171717;
+:root[data-brand="neutral"] {
+  --color-primary: #1A191C;
+  --color-on-primary: #FFFFFF;
+  --color-secondary: #53449B;
+  --color-on-secondary: #FFFFFF;
+  --color-accent: #1A191C;
+  --color-on-accent: #FFFFFF;
+  --color-heading: #1A191C;
+  --color-link: #1D267D;
+  --color-ink: #1A191C;
+  --color-ink-soft: #3A3835;
+  --color-muted: #6E6A66;
+  --color-faint: #8B8781;
+  --color-surface: #F5F4F0;
+  --color-surface-card: #FFFFFF;
+  --color-surface-tint: #EDEBE5;
+  --color-surface-dark: #1A191C;
+  --color-border: #DEDCD6;
+  --color-hairline: #EFEDE8;
+  --color-danger: #C0392B;
+  --color-on-danger: #FFFFFF;
+  --color-danger-tint: #FBEDEB;
+  --color-danger-border: #E8C4BE;
+  --color-danger-border-strong: #E0A79E;
+  --color-danger-ink: #8E2C20;
+  --color-success: #2E7D5B;
+  --color-on-success: #FFFFFF;
+  --color-primary-tint: #E7E5DF;
+  --color-primary-tint-ink: #1A191C;
+  --color-secondary-tint: #EDEBE5;
+  --color-secondary-tint-ink: #3A3835;
+  --color-toast-surface: #1A191C;
+  --color-toast-ink: #FFFFFF;
+  --color-board-card-border: rgba(0, 0, 0, 0.07);
+  --font-display: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --font-body: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+  --radius-card: 10px;
+  --radius-control: 8px;
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.05), 0 6px 18px rgba(0, 0, 0, 0.05);
+  --shadow-lift: 0 14px 30px rgba(0, 0, 0, 0.18);
+  --shadow-modal: 0 30px 70px rgba(0, 0, 0, 0.4);
+  --shadow-toast: 0 18px 44px rgba(0, 0, 0, 0.45);
+  --gradient-hero: none;
+
+  /* stage vars: contract parity only — the neutral shell never renders boards */
+  --color-stage-intake: var(--color-surface-tint); --color-stage-intake-accent: var(--color-border); --color-stage-intake-chip: var(--color-surface-tint); --color-stage-intake-chip-ink: var(--color-muted);
+  --color-stage-following: var(--color-surface-tint); --color-stage-following-accent: var(--color-border); --color-stage-following-chip: var(--color-surface-tint); --color-stage-following-chip-ink: var(--color-muted);
+  --color-stage-meeting: var(--color-surface-tint); --color-stage-meeting-accent: var(--color-border); --color-stage-meeting-chip: var(--color-surface-tint); --color-stage-meeting-chip-ink: var(--color-muted);
+  --color-stage-proposal: var(--color-surface-tint); --color-stage-proposal-accent: var(--color-border); --color-stage-proposal-chip: var(--color-surface-tint); --color-stage-proposal-chip-ink: var(--color-muted);
+  --color-stage-negotiation: var(--color-surface-tint); --color-stage-negotiation-accent: var(--color-border); --color-stage-negotiation-chip: var(--color-surface-tint); --color-stage-negotiation-chip-ink: var(--color-muted);
+  --color-stage-didnt-answer: var(--color-surface-tint); --color-stage-didnt-answer-accent: var(--color-border); --color-stage-didnt-answer-chip: var(--color-surface-tint); --color-stage-didnt-answer-chip-ink: var(--color-muted);
+  --color-stage-won: var(--color-surface-tint); --color-stage-won-accent: var(--color-border); --color-stage-won-chip: var(--color-surface-tint); --color-stage-won-chip-ink: var(--color-muted);
+  --color-stage-lost: var(--color-surface-tint); --color-stage-lost-accent: var(--color-border); --color-stage-lost-chip: var(--color-surface-tint); --color-stage-lost-chip-ink: var(--color-muted);
 }
 
-.neutral-card {
-  border: 1px solid #d4d4d4;
-  border-radius: 10px;
-  padding: 1rem 1.25rem;
+/* ---- hub (`/`) — spec §2.15 ---- */
+
+.hub-hero { padding: 64px 56px 40px; border-bottom: 1px solid var(--color-border); }
+.hub-eyebrow { font: 700 10px/1 var(--font-mono); letter-spacing: .24em; color: var(--color-faint); text-transform: uppercase; }
+.hub-title { margin: 16px 0 0; font: 600 44px/1.05 var(--font-display); letter-spacing: -.025em; color: var(--color-ink); max-width: 15ch; text-wrap: pretty; }
+.hub-sub { margin: 14px 0 0; font: 400 15.5px/1.6 var(--font-body); color: #5E5B57; max-width: 56ch; text-wrap: pretty; }
+.hub-code { font: 500 13px var(--font-mono); background: var(--color-primary-tint); padding: 2px 6px; border-radius: 4px; }
+
+.hub-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1px;
+  background: var(--color-border); border-bottom: 1px solid var(--color-border);
+}
+.hub-card {
+  background: #FBFAF7; border: none; padding: 32px 30px 30px; text-align: start;
+  display: flex; flex-direction: column; min-height: 250px; cursor: pointer; color: inherit;
+}
+.hub-card:hover { background: var(--color-surface-card); opacity: 1; }
+.hub-card-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.hub-mark-a { width: 34px; height: 34px; border-radius: 10px 10px 10px 3px; background: #F15C24; flex: none; }
+.hub-mark-b {
+  width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; flex: none;
+  background: linear-gradient(135deg, #1D267D 0%, #8B3A95 60%, #FF4F87 100%);
+  font: 800 16px "Raleway", sans-serif; color: #fff;
+}
+.hub-letter { font: 700 9.5px var(--font-mono); letter-spacing: .2em; color: var(--color-faint); text-transform: uppercase; }
+.hub-card-title { margin-top: 18px; font: 600 22px/1.2 var(--font-display); letter-spacing: -.018em; color: #1A191C; }
+.hub-card-title--b { font-family: "Raleway", sans-serif; color: #0B0F3D; }
+.hub-card-desc { margin-top: 7px; font: 400 13.5px/1.55 var(--font-body); color: #5E5B57; text-wrap: pretty; }
+.hub-card-foot { margin-top: auto; padding-top: 20px; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.hub-path { font: 500 11px var(--font-mono); letter-spacing: .1em; color: var(--color-faint); }
+.hub-arrow { font: 600 15px var(--font-body); }
+.hub-arrow--a { color: #F15C24; }
+.hub-arrow--b { color: #1D267D; }
+
+.hub-demo { padding: 26px 56px 60px; display: flex; flex-wrap: wrap; gap: 26px; align-items: flex-start; justify-content: space-between; }
+.hub-demo-label { font: 700 9.5px var(--font-mono); letter-spacing: .2em; color: var(--color-faint); text-transform: uppercase; }
+.hub-demo-chips { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 8px; }
+.hub-demo-chip {
+  display: inline-flex; align-items: center; gap: 8px; background: var(--color-surface-card);
+  border: 1px solid var(--color-border); border-radius: 7px; padding: 7px 11px;
+  font: 400 12px var(--font-body); color: var(--color-ink-soft);
+}
+.hub-demo-role { font: 500 10px var(--font-mono); letter-spacing: .1em; color: var(--color-faint); text-transform: uppercase; }
+.hub-cta {
+  background: var(--color-primary); color: var(--color-on-primary); border: none; border-radius: 8px;
+  padding: 13px 22px; font: 600 13.5px var(--font-body); cursor: pointer; flex: none;
+}
+@media (max-width: 720px) {
+  .hub-hero { padding: 44px 24px 32px; }
+  .hub-title { font-size: 34px; }
+  .hub-demo { padding: 24px 24px 48px; }
 }
 
-.neutral-muted {
-  color: #555555;
-}
+/* ---- consolidated sign-in (`/login`) — spec §2.14, supersedes the ADR-028 card ---- */
 
-.neutral-faint {
-  color: #888888;
-  font-size: 0.875rem;
+.login-shell { min-height: 100vh; display: flex; align-items: stretch; }
+.login-pane {
+  flex: 1.05; min-width: 0; background: var(--color-surface); display: flex; flex-direction: column;
+  justify-content: center; padding: 56px clamp(32px, 6vw, 84px);
 }
-
-/* ---- consolidated sign-in (ADR-028) — neutral, both brands present as logos ---- */
-
-.login-shell {
-  min-height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 1.5rem;
-  background:
-    linear-gradient(180deg, #fafafa 0%, #f0f0f2 100%);
-}
-
-.login-card {
-  width: 100%;
-  max-width: 24rem;
-  background: #ffffff;
-  border: 1px solid #e2e2e6;
-  border-radius: 14px;
-  box-shadow: 0 8px 30px rgba(20, 20, 30, 0.08);
-  padding: 2rem;
-}
-
-.login-logos {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 1rem;
-  margin-bottom: 1.5rem;
-}
-
-.login-logo-divider {
-  width: 1px;
-  height: 28px;
-  background: #e2e2e6;
-}
-
-.login-card h1 {
-  font-size: 1.375rem;
-  font-weight: 700;
-  text-align: center;
-}
-
-.login-card > .neutral-muted {
-  text-align: center;
-  margin-top: 0.25rem;
-}
+.login-inner { max-width: 400px; width: 100%; }
+.login-eyebrow { font: 700 10px/1 var(--font-mono); letter-spacing: .24em; color: var(--color-faint); text-transform: uppercase; }
+.login-title { margin: 18px 0 0; font: 600 34px/1.12 var(--font-display); letter-spacing: -.022em; color: var(--color-ink); }
+.login-sub { margin: 12px 0 0; font: 400 14.5px/1.6 var(--font-body); color: #5E5B57; text-wrap: pretty; }
 
 .login-error {
-  margin-top: 0.75rem;
-  padding: 0.5rem 0.75rem;
-  border-radius: 8px;
-  background: #fdecea;
-  color: #8a1c12;
-  font-size: 0.875rem;
+  margin-top: 24px; display: flex; gap: 10px; align-items: flex-start;
+  background: var(--color-danger-tint); border: 1px solid var(--color-danger-border);
+  border-inline-start: 3px solid var(--color-danger); border-radius: 8px; padding: 12px 14px;
+  font: 400 13px/1.5 var(--font-body); color: var(--color-danger-ink);
+}
+.login-error-icon {
+  width: 16px; height: 16px; border-radius: 50%; background: var(--color-danger); color: var(--color-on-danger);
+  font: 700 11px/16px var(--font-body); text-align: center; flex: none; margin-top: 2px;
 }
 
-.login-form {
-  margin-top: 1.25rem;
-  display: grid;
-  gap: 0.875rem;
-}
-
-.login-form label {
-  display: grid;
-  gap: 0.3rem;
-  font-size: 0.875rem;
-  font-weight: 500;
-}
-
+.login-form { margin-top: 26px; display: grid; gap: 16px; }
+.login-form label { display: grid; gap: 7px; }
+.login-form label > span { font: 600 11.5px var(--font-body); color: var(--color-ink-soft); }
 .login-form input {
-  border: 1px solid #d4d4d8;
-  border-radius: 8px;
-  padding: 0.55rem 0.75rem;
-  font-size: 0.9375rem;
+  background: #fff; border: 1px solid #D8D5CE; border-radius: 9px; padding: 13px 14px;
+  font: 400 14px var(--font-body); color: var(--color-ink); width: 100%; outline: none;
 }
-
-.login-form input:focus {
-  outline: 2px solid #17171a;
-  outline-offset: 1px;
-}
-
+.login-form input::placeholder { color: var(--color-faint); }
 .login-form button {
-  margin-top: 0.25rem;
-  background: #17171a;
-  color: #ffffff;
-  border: 0;
-  border-radius: 8px;
-  padding: 0.65rem;
-  font-size: 0.9375rem;
-  font-weight: 600;
-  cursor: pointer;
+  margin-top: 4px; background: var(--color-primary); color: var(--color-on-primary); border: 0;
+  border-radius: 9px; padding: 15px 18px; font: 600 14px var(--font-body); letter-spacing: .005em; cursor: pointer;
 }
+.login-form button:hover { background: #2C2C31; }
 
-.login-form button:hover {
-  background: #2c2c31;
+.login-foot { margin-top: 30px; padding-top: 20px; border-top: 1px solid var(--color-border); font: 400 13px/1.6 var(--font-body); color: var(--color-muted); }
+.login-foot a { font: 600 13px var(--font-body); color: var(--color-link); text-decoration: underline; text-underline-offset: 3px; }
+
+/* Billboard — two brand halves (literal brand values by design) */
+.login-billboard { flex: .85; min-width: 300px; display: flex; flex-direction: column; }
+.login-bb { flex: 1; display: flex; flex-direction: column; justify-content: space-between; padding: 44px 40px; }
+.login-bb--a { background: #F4F1EA; border-inline-start: 1px solid var(--color-border); }
+.login-bb--b {
+  background: linear-gradient(135deg, #0B0F3D 0%, #1D267D 25%, #4A2A8E 55%, #8B3A95 75%, #FF4F87 100%);
+  position: relative; overflow: hidden;
 }
+.login-bb--b::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+  background-size: 72px 72px;
+}
+.login-bb-head { display: flex; align-items: center; gap: 12px; position: relative; }
+.login-bb-mark-a { width: 38px; height: 38px; border-radius: 10px 10px 10px 3px; background: #F15C24; flex: none; }
+.login-bb-mark-b {
+  width: 38px; height: 38px; border-radius: 11px; display: grid; place-items: center; flex: none;
+  background: rgba(255, 255, 255, 0.16); border: 1px solid rgba(255, 255, 255, 0.35);
+  font: 800 19px "Raleway", sans-serif; color: #fff;
+}
+.login-bb-word-a { font: 700 19px "Helvetica Neue", Helvetica, Arial, sans-serif; letter-spacing: -.02em; color: #231F20; }
+.login-bb-word-b { font: 700 19px "Raleway", sans-serif; letter-spacing: -.02em; color: #fff; }
+.login-bb-body { position: relative; }
+.login-bb-eyebrow-a { font: 700 9.5px var(--font-mono); letter-spacing: .22em; color: #53449B; text-transform: uppercase; }
+.login-bb-eyebrow-b { font: 700 9.5px var(--font-mono); letter-spacing: .22em; color: #D4ADFC; text-transform: uppercase; }
+.login-bb-line-a { margin: 10px 0 0; font: 400 15px/1.5 "Helvetica Neue", Helvetica, Arial, sans-serif; color: #231F20; max-width: 24ch; }
+.login-bb-line-b { margin: 10px 0 0; font: 400 15px/1.5 "Inter", sans-serif; color: rgba(255, 255, 255, 0.92); max-width: 26ch; }
 
-.login-foot {
-  margin-top: 1.25rem;
-  text-align: center;
+@media (max-width: 900px) {
+  .login-shell { flex-direction: column; }
+  .login-pane { padding: 44px 24px; }
+  .login-billboard { flex-direction: row; min-height: 200px; }
+  .login-bb { padding: 24px; gap: 14px; }
 }

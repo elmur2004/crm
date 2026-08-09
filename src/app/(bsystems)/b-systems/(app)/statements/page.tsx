@@ -25,34 +25,41 @@ export default async function StatementsPage() {
 
   return (
     <div className="space-y-8">
-      <h1 className="font-brand-display text-2xl font-bold text-brand-heading">Statements</h1>
+      <div className="page-head">
+        <div>
+          <p className="u-eyebrow">B-SYSTEMS · STATEMENTS</p>
+          <h1 className="u-h1">Statements</h1>
+        </div>
+      </div>
 
-      <section className="space-y-3">
-        <h2 className="text-brand-meta text-brand-muted">Waiting to be paid out</h2>
+      <section className="card card--flush0">
+        <div className="card-head">
+          <h2 className="u-h3">Waiting to be paid out</h2>
+        </div>
         {waiting.length === 0 ? (
-          <p className="text-sm text-brand-muted">
+          <p className="empty m-4">
             Nothing waiting — checked milestones without a statement appear here.
           </p>
         ) : (
-          <div className="overflow-x-auto border border-brand-border rounded-brand-card bg-brand-surface-card">
-            <table className="w-full text-sm">
+          <div className="table-scroll">
+            <table className="table">
               <thead>
-                <tr className="border-b border-brand-border">
-                  <th className="text-start p-3 font-bold">Milestone</th>
-                  <th className="text-start p-3 font-bold">Company</th>
-                  <th className="text-start p-3 font-bold">Closer</th>
-                  <th className="text-start p-3 font-bold">Commission</th>
-                  <th className="text-start p-3 font-bold"></th>
+                <tr>
+                  <th>Milestone</th>
+                  <th>Company</th>
+                  <th>Closer</th>
+                  <th>Commission</th>
+                  <th></th>
                 </tr>
               </thead>
               <tbody>
                 {waiting.map((row) => (
-                  <tr key={row.milestoneId} className="border-b border-brand-border last:border-0">
-                    <td className="p-3 font-medium">{row.label}</td>
-                    <td className="p-3">{row.companyName ?? row.clientName}</td>
-                    <td className="p-3">{row.closerLabel}</td>
-                    <td className="p-3">{formatEGP(row.commissionValue)}</td>
-                    <td className="p-3">
+                  <tr key={row.milestoneId}>
+                    <td className="td-title">{row.label}</td>
+                    <td>{row.companyName ?? row.clientName}</td>
+                    <td>{row.closerLabel}</td>
+                    <td>{formatEGP(row.commissionValue)}</td>
+                    <td>
                       <StatementGenerator row={row} />
                     </td>
                   </tr>
@@ -63,42 +70,44 @@ export default async function StatementsPage() {
         )}
       </section>
 
-      <section className="space-y-3">
-        <h2 className="text-brand-meta text-brand-muted">Statement</h2>
+      <section className="card card--flush0">
+        <div className="card-head">
+          <h2 className="u-h3">Statement</h2>
+        </div>
         {statements.length === 0 ? (
-          <p className="text-sm text-brand-muted">No statements created yet.</p>
+          <p className="empty m-4">No statements created yet.</p>
         ) : (
-          <div className="overflow-x-auto border border-brand-border rounded-brand-card bg-brand-surface-card">
-            <table className="w-full text-sm">
+          <div className="table-scroll">
+            <table className="table">
               <thead>
-                <tr className="border-b border-brand-border">
-                  <th className="text-start p-3 font-bold">Code</th>
-                  <th className="text-start p-3 font-bold">Client</th>
-                  <th className="text-start p-3 font-bold">Milestone</th>
-                  <th className="text-start p-3 font-bold">Amount</th>
-                  <th className="text-start p-3 font-bold">Adjustments</th>
-                  <th className="text-start p-3 font-bold">Closer</th>
-                  <th className="text-start p-3 font-bold">Expected</th>
-                  <th className="text-start p-3 font-bold">Status</th>
+                <tr>
+                  <th>Code</th>
+                  <th>Client</th>
+                  <th>Milestone</th>
+                  <th>Amount</th>
+                  <th>Adjustments</th>
+                  <th>Closer</th>
+                  <th>Expected</th>
+                  <th>Status</th>
                 </tr>
               </thead>
               <tbody>
                 {statements.map((s) => (
-                  <tr key={s.id} className="border-b border-brand-border last:border-0">
-                    <td className="p-3 font-medium">{s.code}</td>
-                    <td className="p-3">{s.clientName}</td>
-                    <td className="p-3">
+                  <tr key={s.id}>
+                    <td className="td-mono">{s.code}</td>
+                    <td className="td-title">{s.clientName}</td>
+                    <td>
                       {s.milestoneLabel}
                       <span className="text-xs text-brand-muted">
                         {" "}
                         ({formatEGP(s.milestoneValue)} · {(s.percentBp / 100).toFixed(2).replace(/\.00$/, "")}%)
                       </span>
                     </td>
-                    <td className="p-3">{formatEGP(s.amount)}</td>
-                    <td className="p-3">{s.adjustments ? formatEGP(s.adjustments) : "—"}</td>
-                    <td className="p-3">{s.closerLabel}</td>
-                    <td className="p-3">{s.expectedDate ? formatCairoDate(s.expectedDate) : "—"}</td>
-                    <td className="p-3">
+                    <td>{formatEGP(s.amount)}</td>
+                    <td>{s.adjustments ? formatEGP(s.adjustments) : "—"}</td>
+                    <td>{s.closerLabel}</td>
+                    <td>{s.expectedDate ? formatCairoDate(s.expectedDate) : "—"}</td>
+                    <td>
                       {s.status === "paid" ? (
                         <span className="text-brand-success">
                           Paid

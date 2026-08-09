@@ -60,12 +60,14 @@ export async function seed() {
     roles: ["bsystems_sales"],
   });
 
-  // ADR-016: portal admins are seeded, never self-signed-up
+  // ADR-016: admins are seeded, never self-signed-up. The admin holds BOTH
+  // entities (founder rule) — the header's entity switcher appears only for
+  // dual-entity accounts like this one.
   await upsertUser({
-    name: "Portal Admin",
+    name: "Platform Admin",
     email: "admin@b-systems.example",
     password: "admin123",
-    roles: ["bsystems_admin"],
+    roles: ["bsystems_admin", "byteforce_staff"],
   });
 
   const repUser = await upsertUser({

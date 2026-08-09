@@ -7,8 +7,8 @@ export default async function ByteForceAppLayout({
   const user = await requirePageRole("/login", "byteforce_staff");
   return (
     <>
-      <AppNav brand="byteforce" basePath="/byteforce" userName={user.name} />
-      <main className="max-w-6xl mx-auto px-4 py-6">{children}</main>
+      <AppNav basePath="/byteforce" userName={user.name} roles={user.roles} />
+      <main className="page max-w-7xl mx-auto w-full">{children}</main>
     </>
   );
 }

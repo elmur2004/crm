@@ -8,11 +8,9 @@ import { toPiasters, toPounds } from "@/lib/money";
 /* Client-side forms for the internal CRMs (Apps A & B) — POST to the brand's API
    namespace, refresh on success. Tokens-only styling. */
 
-const inputCls =
-  "w-full border border-brand-border rounded-brand-control px-3 py-2 bg-brand-surface-card text-sm";
-const labelCls = "block text-sm font-medium mb-1";
-const btnPrimary =
-  "bg-brand-primary text-brand-on-primary rounded-brand-control px-4 py-2 text-sm font-medium disabled:opacity-50";
+const inputCls = "field-input";
+const labelCls = "field-label block mb-1.5";
+const btnPrimary = "btn-primary";
 
 function useSubmit() {
   const router = useRouter();
@@ -67,7 +65,7 @@ export function AddRepForm({ apiBase }: { apiBase: string }) {
       <button type="submit" disabled={busy} className={btnPrimary}>
         Add
       </button>
-      {error ? <p className="text-sm text-brand-danger">{error}</p> : null}
+      {error ? <p className="alert-error">{error}</p> : null}
     </form>
   );
 }
@@ -101,10 +99,10 @@ export function AddLeadForm({ apiBase, salesRepId }: { apiBase: string; salesRep
           () => setOpen(false),
         );
       }}
-      className="border border-brand-border rounded-brand-card p-4 space-y-3 bg-brand-surface-card"
+      className="card card-pad space-y-3"
     >
-      <p className="text-sm font-bold">New lead</p>
-      {error ? <p className="text-sm text-brand-danger">{error}</p> : null}
+      <p className="u-h3">New lead</p>
+      {error ? <p className="alert-error">{error}</p> : null}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <label className="block">
           <span className={labelCls}>Name</span>
@@ -194,7 +192,7 @@ export function ClientEditForm({
       }}
       className="mt-2 space-y-2"
     >
-      {error ? <p className="text-sm text-brand-danger">{error}</p> : null}
+      {error ? <p className="alert-error">{error}</p> : null}
       <label className="block">
         <span className={labelCls}>Service</span>
         <input type="text" name="service" defaultValue={client.service ?? ""} className={inputCls} />
@@ -264,7 +262,7 @@ export function ClientEditForm({
         <button
           type="button"
           onClick={() => setOpen(false)}
-          className="border border-brand-border rounded-brand-control px-4 py-2 text-sm text-brand-muted"
+          className="btn-ghost"
         >
           Cancel
         </button>

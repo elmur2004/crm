@@ -2,7 +2,9 @@ import Link from "next/link";
 import { BrandLogo } from "@/components/shared/BrandLogo";
 
 /* Portal landing (§8.1) — the signature gradient + mesh hero with the two entry
-   actions (Sign up / Log in). */
+   actions (Sign up / Log in). Restyle spec §2.17 (gradient hero + mesh, pink
+   CTA). Steps strip / commission band / footer need copy that does not exist
+   yet — deferred, strings are frozen in this pass. */
 
 export const metadata = { title: "B-Systems Partnership Programme" };
 
@@ -15,6 +17,9 @@ export default function PortalLanding() {
           <div className="flex justify-center mb-8 pt-8">
             <BrandLogo brand="bsystems" variant="mark" height={64} />
           </div>
+          <p className="text-brand-eyebrow text-brand-secondary mb-4">
+            B-SYSTEMS · PARTNERSHIP PROGRAMME
+          </p>
           <h1 className="font-brand-display text-4xl font-extrabold tracking-tight text-brand-on-primary">
             Welcome to the <span className="text-brand-accent">B-Systems</span> Partnership
             Programme
@@ -24,15 +29,12 @@ export default function PortalLanding() {
           Run your own pipeline. Close with our systems.
         </p>
         <div className="mt-10 flex justify-center gap-4">
-          <Link
-            href="/portal/signup"
-            className="bg-brand-accent text-brand-on-accent rounded-brand-control px-6 py-3 font-medium"
-          >
+          <Link href="/portal/signup" className="btn-accent inline-block">
             Sign up
           </Link>
           <Link
             href="/login"
-            className="border border-brand-secondary text-brand-on-primary rounded-brand-control px-6 py-3 font-medium"
+            className="inline-block border border-brand-secondary text-brand-on-primary rounded-brand-control px-6 py-3 font-medium"
           >
             Log in
           </Link>

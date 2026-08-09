@@ -59,7 +59,7 @@ export function DeleteLeadButton({ leadId }: { leadId: string }) {
       <button
         type="button"
         onClick={() => setConfirming(true)}
-        className="border border-brand-danger text-brand-danger rounded-brand-control px-4 py-2 text-sm font-medium"
+        className="btn-danger"
       >
         Delete lead
       </button>
@@ -84,7 +84,7 @@ export function DeleteLeadButton({ leadId }: { leadId: string }) {
           router.push("/b-systems/crm");
           router.refresh();
         }}
-        className="bg-brand-danger text-brand-on-danger rounded-brand-control px-4 py-2 text-sm font-medium disabled:opacity-50"
+        className="btn-danger btn-danger--solid disabled:opacity-50"
       >
         Yes, delete permanently
       </button>
@@ -110,7 +110,7 @@ export function BsAddLeadForm() {
     );
   }
   return (
-    <div className="fixed inset-0 z-40 bg-brand-surface-dark/60 flex items-center justify-center p-4">
+    <div className="modal-overlay">
       <form
         onSubmit={async (e) => {
           e.preventDefault();
@@ -141,11 +141,13 @@ export function BsAddLeadForm() {
           setOpen(false);
           router.refresh();
         }}
-        className="bg-brand-surface rounded-brand-card shadow-brand-card p-6 w-full max-w-lg max-h-[85vh] overflow-y-auto space-y-3"
+        className="modal w-full max-w-lg"
       >
-        <p className="text-sm font-bold">New lead</p>
-        {error ? <p className="text-sm text-brand-danger">{error}</p> : null}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="modal-head">
+          <p className="modal-title">New lead</p>
+        </div>
+        <div className="modal-body modal-body--grid">
+          {error ? <p className="text-sm text-brand-danger field--wide">{error}</p> : null}
           <label className="block">
             <span className={labelCls}>Name</span>
             <input type="text" name="name" required className={inputCls} />
@@ -176,26 +178,28 @@ export function BsAddLeadForm() {
             <span className={labelCls}>Company name</span>
             <input type="text" name="companyName" className={inputCls} />
           </label>
-          <label className="block sm:col-span-2">
+          <label className="block field--wide">
             <span className={labelCls}>Industry</span>
             <input type="text" name="industry" className={inputCls} />
           </label>
+          <label className="block field--wide">
+            <span className={labelCls}>Requirements</span>
+            <textarea name="requirements" rows={2} className={inputCls} />
+          </label>
+          <label className="block field--wide">
+            <span className={labelCls}>Notes</span>
+            <textarea name="description" rows={2} className={inputCls} />
+          </label>
         </div>
-        <label className="block">
-          <span className={labelCls}>Requirements</span>
-          <textarea name="requirements" rows={2} className={inputCls} />
-        </label>
-        <label className="block">
-          <span className={labelCls}>Notes</span>
-          <textarea name="description" rows={2} className={inputCls} />
-        </label>
-        <div className="flex gap-2">
-          <button type="submit" disabled={busy} className={btnPrimary}>
-            Save lead
-          </button>
-          <button type="button" onClick={() => setOpen(false)} className={btnGhost}>
-            Cancel
-          </button>
+        <div className="modal-foot">
+          <div className="flex gap-2">
+            <button type="submit" disabled={busy} className={btnPrimary}>
+              Save lead
+            </button>
+            <button type="button" onClick={() => setOpen(false)} className={btnGhost}>
+              Cancel
+            </button>
+          </div>
         </div>
       </form>
     </div>
@@ -209,7 +213,7 @@ export function EditLeadForm({ lead }: { lead: EditableLead }) {
   const [error, setError] = useState<string | null>(null);
   if (!open) {
     return (
-      <button type="button" onClick={() => setOpen(true)} className={btnPrimary}>
+      <button type="button" onClick={() => setOpen(true)} className={btnGhost}>
         Edit lead
       </button>
     );
@@ -245,9 +249,9 @@ export function EditLeadForm({ lead }: { lead: EditableLead }) {
         setOpen(false);
         router.refresh();
       }}
-      className="border border-brand-border rounded-brand-card p-4 space-y-3 bg-brand-surface-card w-full"
+      className="card card-pad space-y-3 w-full"
     >
-      <p className="text-sm font-bold">Edit lead</p>
+      <p className="u-h3">Edit lead</p>
       {error ? <p className="text-sm text-brand-danger">{error}</p> : null}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <label className="block">

@@ -1,13 +1,14 @@
-import Link from "next/link";
-import { BrandLogo } from "@/components/shared/BrandLogo";
 import { NotificationsBell } from "@/components/bsystems/NotificationsBell";
+import { EntitySwitch } from "@/components/shared/EntitySwitch";
+import { ShellNav } from "@/components/shared/ShellNav";
 import { logout } from "@/lib/auth/actions";
 import { requirePageRole } from "@/lib/auth/page-guards";
 import { bsRoleOf } from "@/lib/api/bsystems";
 
-/* V2 §2 — ONE role-aware B-Systems app (the portal is gone). Navigation per role:
-   admin the ten sections; sales CRM + Won Leads; agents/partners CRM + Won Leads +
-   Payments + Profile. Guards stay server-side — the nav only mirrors them. */
+/* V2 §2 — ONE role-aware B-Systems app. Chrome per the approved prototype
+   (spec §2.1): dark indigo header for admin + internal sales; agents/partners
+   keep the deep-navy external identity (data-shell="external", spec R8).
+   Guards stay server-side — the nav only mirrors them. */
 
 const NAV: Record<string, Array<{ href: string; label: string }>> = {
   bsystems_admin: [
@@ -40,6 +41,13 @@ const NAV: Record<string, Array<{ href: string; label: string }>> = {
   ],
 };
 
+const ROLE_LABELS: Record<string, string> = {
+  bsystems_admin: "Admin",
+  bsystems_sales: "Internal sales",
+  bsystems_agent: "Agent",
+  bsystems_partner: "Partner",
+};
+
 export default async function BSystemsAppLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
@@ -51,38 +59,40 @@ export default async function BSystemsAppLayout({
     "bsystems_partner",
   );
   const role = bsRoleOf(user);
-  const items = NAV[role];
+  const external = role === "bsystems_agent" || role === "bsystems_partner";
+  const initials = user.name
+    .split(/\s+/)
+    .map((w) => w[0])
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
+
   return (
     <>
-      <header className="border-b border-brand-border bg-brand-surface-card">
-        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center gap-x-4 gap-y-2 flex-wrap">
-          <Link href={items[0].href} className="shrink-0">
-            <BrandLogo brand="bsystems" variant="mark" height={36} />
-          </Link>
-          <nav className="flex gap-1 flex-1 flex-wrap">
-            {items.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className="px-2.5 py-1.5 rounded-brand-control text-sm font-medium text-brand-link hover:bg-brand-surface-tint"
-              >
-                {item.label}
-              </Link>
-            ))}
-          </nav>
+      <header className="app-header" data-shell={external ? "external" : undefined}>
+        <span className="logo-b" aria-hidden>
+          S
+        </span>
+        <span className="wordmark">B-Systems</span>
+        <ShellNav items={NAV[role]} />
+        <div className="user">
           <NotificationsBell />
+          <EntitySwitch roles={user.roles} current="bsystems" />
+          <span className="user-avatar" aria-hidden>
+            {initials}
+          </span>
+          <span className="user-meta">
+            <span className="user-name block">{user.name}</span>
+            <span className="user-role block">{ROLE_LABELS[role]}</span>
+          </span>
           <form action={logout.bind(null, "/login")}>
-            <button
-              type="submit"
-              className="text-sm text-brand-muted hover:text-brand-ink"
-              title={user.name}
-            >
+            <button type="submit" className="nav-item" title={user.name}>
               Log out
             </button>
           </form>
         </div>
       </header>
-      <main className="max-w-7xl mx-auto px-4 py-6">{children}</main>
+      <main className="page max-w-7xl mx-auto w-full">{children}</main>
     </>
   );
 }

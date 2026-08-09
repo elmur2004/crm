@@ -232,3 +232,19 @@ every dashboard formula, journeys 1-5 (SPEC §13).
   impersonation; §13 journeys 1–5 (3/4/5 rewritten for the unified /b-systems
   app) + security-rbac + qa-sweep.
 - Verdict: PASS — V2 full suite green.
+
+## Run 015 — 2026-08-09 — Design-system restyle verification (Claude Design handoff)
+- Suites/commands: `npx vitest run` (60) · `npx playwright test` (12 — full
+  suite re-run after the restyle) · brand-auditor audit.
+- Cases: vitest 60 passed / 0 failed · Playwright 12 passed / 0 failed /
+  0 skipped · brand-auditor PASS (findings: 1 low RTL padding — fixed;
+  sanctioned billboard literals documented).
+- Failures: none in the final run. Failures during the round, all fixed
+  pre-commit: missing --color-on-accent in the ByteForce token file (caught
+  by brand-tokens.test.ts); journey5 combined-text assertion vs the split
+  money-tile markup; /b-systems 768px 2-px horizontal overflow (header .user
+  flex-shrink).
+- SPEC coverage touched: journeys 1–5 + security-rbac + qa-sweep (full
+  Playwright suite); §15 responsive/clean-console clauses (768px overflow
+  fix); ADR-019 token-contract guard.
+- Verdict: PASS — restyle verified green.

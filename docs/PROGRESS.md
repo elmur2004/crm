@@ -280,3 +280,31 @@ comment, and the ADR-013 mechanism note all fixed; .env.example confirmed tracke
 - Blockers: none.
 - Needs founder confirmation: items (1)–(13) carried (see Entries 001–008);
   (14) the [A]-marked defaults in docs/REQUIREMENTS-V2.md still stand.
+
+## Entry 010 — 2026-08-09 — Claude Design handoff applied (calibrated V1→V2)
+- Done: (1) Prototype extracted by a 6-reader workflow + synthesis into
+  docs/DESIGN-APPLICATION-SPEC.md (token sheet, component specs §2, screen
+  map §3, 25 resolved risks §4). (2) Token files rewritten to the prototype
+  values (both brands + the new neutral scope; 4-value stage tables incl.
+  derived Negotiation); @theme mappings extended; design-system.css component
+  layer added; fonts (JetBrains Mono everywhere, Inter 600, Raleway 700/800
+  on the home shell). (3) Chrome rebuilt: dark indigo B-Systems header (deep
+  navy for agents/partners), light ByteForce header, notifications bell,
+  ENTITY SWITCHER for dual-entity accounts (admin seeded with both entities).
+  (4) Hub (/) and /login rebuilt to the prototype's hub + split-billboard
+  screens; portal landing/signup restyled (marketing copy sections deferred,
+  see ADR-031). (5) All screens swept to the design system by 5 parallel
+  restyle agents (boards, tables, cards, detail templates, won-deal manager,
+  statements modal, users table, profile) with all copy/aria/test-hooks
+  frozen. (6) Verification: tsc + production build green; vitest 60/60 (the
+  ADR-019 set-equality test caught a dropped --color-on-accent — fixed);
+  Playwright 12/12 after two fixes (journey5 money-tile label/value split
+  assertion; header .user flex:none for a 2-px 768px overflow);
+  brand-auditor PASS (one RTL padding fixed). (ADR-031, TESTING Run 015.)
+- In progress: none.
+- Next steps: founder review of ADR-031's flagged items; marketing-copy pass
+  for the deferred /portal landing sections (R23) once copy is approved.
+- Blockers: none.
+- Needs founder confirmation: items (1)–(14) carried (see Entries 001–009);
+  (15) ADR-031's flagged items (success-green exemption, external chrome
+  navy, Negotiation colors, Lama Sans cuts, portal marketing copy).

@@ -91,7 +91,7 @@ export function MeetingFieldsV2({
     <>
       <label className="flex items-center gap-2">
         <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} />
-        <span className="text-sm font-medium">
+        <span className="field-label">
           {light ? "Did you agree with the client on a time?" : "Arranged?"}
         </span>
       </label>
@@ -118,7 +118,7 @@ export function MeetingFieldsV2({
       {light ? (
         <label className="flex items-center gap-2">
           <input type="checkbox" name="needsTechnical" />
-          <span className="text-sm font-medium">Do you need a technical colleague with you?</span>
+          <span className="field-label">Do you need a technical colleague with you?</span>
         </label>
       ) : (
         <>
@@ -240,8 +240,8 @@ export function WonDealTab({
       </div>
       <div className="space-y-3">
         {Array.from({ length: count }, (_, i) => (
-          <div key={i} className="border border-brand-border rounded-brand-card p-3 grid grid-cols-2 gap-2">
-            <p className="col-span-2 text-brand-meta text-brand-muted">Milestone {i + 1}</p>
+          <div key={i} className="record-group grid grid-cols-2 gap-2">
+            <p className="col-span-2 record-title">Milestone {i + 1}</p>
             <label className="block col-span-2">
               <span className={labelCls}>Name</span>
               <input type="text" name={`m${i}label`} placeholder={`Milestone ${i + 1}`} className={inputCls} />
@@ -331,7 +331,7 @@ export function GroupFieldsV2({
   if (target === "lost") return <LostFieldsV2 />;
   if (target === "won") return <WonDealTab count={milestoneCount} setCount={setMilestoneCount} />;
   if (target === "new")
-    return <p className="text-sm text-brand-muted">The lead returns to the New column.</p>;
+    return <p className="u-muted">The lead returns to the New column.</p>;
   return null;
 }
 

@@ -1,62 +1,109 @@
 import Link from "next/link";
 
-/* Brand-neutral root entry (ADR-007) — links the three applications; each app is
-   fully branded inside its own route group. Styling via src/themes/neutral.css.
-   Demo credentials render in development only. */
+/* Platform root `/` (ADR-007) — the prototype's hub screen applied per
+   docs/DESIGN-APPLICATION-SPEC.md §2.15. Three doors: the two brand apps plus
+   the partnership-programme funnel. Demo credentials render in dev only. */
 
 const DEV = process.env.NODE_ENV !== "production";
 
-const APPS = [
-  {
-    href: "/byteforce",
-    name: "ByteForce CRM",
-    audience: "Internal ByteForce team",
-    login: "sara@byteforce.example / byteforce123",
-  },
-  {
-    href: "/b-systems",
-    name: "B-Systems CRM + Partners",
-    audience: "Internal B-Systems team",
-    login: "omar@b-systems.example / bsystems123",
-  },
-  {
-    href: "/portal",
-    name: "B-Systems Partnership Portal",
-    audience: "External sales reps + admin",
-    login: "rep 01001234567 / partner123 · admin admin@b-systems.example / admin123",
-  },
+const DEMOS = [
+  { role: "ByteForce", cred: "sara@byteforce.example / byteforce123" },
+  { role: "B-Sys admin", cred: "admin@b-systems.example / admin123" },
+  { role: "B-Sys sales", cred: "omar@b-systems.example / bsystems123" },
+  { role: "Agent", cred: "01001234567 / partner123" },
 ];
 
 export default function Home() {
   return (
-    <main style={{ padding: "3rem", maxWidth: "44rem" }}>
-      <h1>ByteForce × B-Systems Sales Platform</h1>
-      <p style={{ marginTop: "0.5rem" }}>
-        One platform, two brands, three applications — pick yours:
-      </p>
-      <ul style={{ marginTop: "1.5rem", listStyle: "none", padding: 0, display: "grid", gap: "1rem" }}>
-        {APPS.map((app) => (
-          <li key={app.href} className="neutral-card">
-            <Link href={app.href} style={{ fontWeight: 700, fontSize: "1.125rem" }}>
-              {app.name}
-            </Link>
-            <p className="neutral-muted" style={{ marginTop: "0.25rem" }}>
-              {app.audience}
-            </p>
-            {DEV ? (
-              <p className="neutral-faint" style={{ marginTop: "0.25rem" }}>
-                Demo login: {app.login}
-              </p>
-            ) : null}
-          </li>
-        ))}
-      </ul>
-      {DEV ? (
-        <p className="neutral-faint" style={{ marginTop: "1.5rem" }}>
-          First run: <code>npx prisma migrate dev</code> then <code>npx prisma db seed</code> for
-          the demo data (see README).
+    <main>
+      <header className="hub-hero">
+        <p className="hub-eyebrow">Platform root · /</p>
+        <h1 className="hub-title">Two companies. One platform.</h1>
+        <p className="hub-sub">
+          Neutral ground. Pick an application — each one loads its own brand, its own
+          pipelines and its own permissions. Sign in once at{" "}
+          <span className="hub-code">/login</span> for all of them.
         </p>
-      ) : null}
+      </header>
+
+      <div className="hub-grid">
+        <Link href="/byteforce" className="hub-card">
+          <span className="hub-card-top">
+            <span className="hub-mark-a" aria-hidden />
+            <span className="hub-letter">App A</span>
+          </span>
+          <span className="hub-card-title">ByteForce CRM</span>
+          <span className="hub-card-desc">
+            The internal ByteForce sales team: leads, reps, the pipeline board and clients.
+          </span>
+          <span className="hub-card-foot">
+            <span className="hub-path">/byteforce</span>
+            <span className="hub-arrow hub-arrow--a" aria-hidden>
+              →
+            </span>
+          </span>
+        </Link>
+
+        <Link href="/b-systems" className="hub-card">
+          <span className="hub-card-top">
+            <span className="hub-mark-b" aria-hidden>
+              S
+            </span>
+            <span className="hub-letter">App B</span>
+          </span>
+          <span className="hub-card-title hub-card-title--b">B-Systems CRM</span>
+          <span className="hub-card-desc">
+            One role-aware workspace for the whole B-Systems operation — admin, internal
+            sales, agents and partners.
+          </span>
+          <span className="hub-card-foot">
+            <span className="hub-path">/b-systems</span>
+            <span className="hub-arrow hub-arrow--b" aria-hidden>
+              →
+            </span>
+          </span>
+        </Link>
+
+        <Link href="/portal" className="hub-card">
+          <span className="hub-card-top">
+            <span className="hub-mark-b" aria-hidden>
+              S
+            </span>
+            <span className="hub-letter">Programme</span>
+          </span>
+          <span className="hub-card-title hub-card-title--b">Partnership Programme</span>
+          <span className="hub-card-desc">
+            External partner reps apply here — approved reps sign in to the B-Systems CRM.
+          </span>
+          <span className="hub-card-foot">
+            <span className="hub-path">/portal</span>
+            <span className="hub-arrow hub-arrow--b" aria-hidden>
+              →
+            </span>
+          </span>
+        </Link>
+      </div>
+
+      <div className="hub-demo">
+        {DEV ? (
+          <div>
+            <p className="hub-demo-label">Demo accounts · dev only</p>
+            <div className="hub-demo-chips">
+              {DEMOS.map((d) => (
+                <span key={d.role} className="hub-demo-chip">
+                  <span className="hub-demo-role">{d.role}</span>
+                  {d.cred}
+                </span>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <span />
+        )}
+        <Link href="/login" className="hub-cta">
+          Go to sign in
+        </Link>
+      </div>
     </main>
   );
 }

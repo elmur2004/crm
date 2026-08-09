@@ -1,9 +1,10 @@
 /* =========================================================================
    ByteForce brand tokens — CANONICAL. Do not hardcode these values anywhere
    else; components consume the semantic variables only.
-   Source: official "BYTEFORCE Brand Guidelines" PDF (in this folder).
-   Royal Violet is #53449B per the official book — see docs/DECISIONS.md
-   ADR-001 (supersedes #4B3B9C from an earlier design kit).
+   Sources: official "BYTEFORCE Brand Guidelines" PDF (in this folder) +
+   the approved Claude Design prototype (Claude Design Handoff/, applied per
+   docs/DESIGN-APPLICATION-SPEC.md §1). Royal Violet is #53449B per the
+   official book — ADR-001.
    ========================================================================= */
 
 :root[data-brand="byteforce"] {
@@ -11,8 +12,8 @@
   --bf-orange: #F15C24;        /* Bold Orange  — primary / CTA / logo frame */
   --bf-violet: #53449B;        /* Royal Violet — secondary / headings / nav */
   --bf-ink:    #231F20;        /* Ink          — body text */
-  --bf-gray:   #E6E7E8;        /* Light Gray   — borders / dividers / muted */
-  --bf-offwhite: #F4F1EA;      /* Off-white    — working surface (design kit) */
+  --bf-gray:   #E6E7E8;        /* Light Gray   — borders / dividers */
+  --bf-offwhite: #F4F1EA;      /* Off-white    — working surface */
 
   /* Semantic tokens (what components actually use).
      CONTRACT: both brand files define the identical semantic set (ADR-019) —
@@ -23,57 +24,94 @@
   --color-secondary: var(--bf-violet);
   --color-on-secondary: #FFFFFF;
   --color-accent: var(--bf-orange);       /* accent = the orange, in-palette */
+  --color-on-accent: #FFFFFF;             /* text on orange */
   --color-heading: var(--bf-violet);      /* §4.2: violet = headings/nav structure */
   --color-link: var(--bf-violet);         /* §4.2: violet = links */
   --color-ink: var(--bf-ink);
-  --color-muted: #6B6668;                 /* tint of ink for secondary text */
+  --color-ink-soft: var(--bf-ink);        /* alias — neutral scope differs */
+  --color-muted: #6E6A6B;                 /* prototype tok.muted */
+  --color-faint: #8B8781;                 /* third gray — eyebrows, inactive chrome */
   --color-surface: var(--bf-offwhite);    /* page canvas — avoid pure #FFF walls */
-  --color-surface-card: #FFFFFF;          /* cards may sit white on off-white */
-  --color-surface-tint: var(--bf-gray);   /* muted/callout surfaces (§4.2 Light Gray) */
+  --color-surface-card: #FFFFFF;          /* cards float white on off-white */
+  --color-surface-tint: #EFEDF6;          /* violet-family tint (prototype tok.tint) */
   --color-surface-dark: var(--bf-ink);    /* rare dark blocks — ink, never a new hue */
   --color-border: var(--bf-gray);
+  --color-hairline: #F0EEEA;              /* inner soft dividers */
   --color-danger: #C0392B;                /* functional error red — ADR-014 exemption */
   --color-on-danger: #FFFFFF;
-  --color-success: var(--bf-violet);      /* stay in-palette: violet, not green */
+  --color-danger-tint: #FBEDEB;           /* error boxes / blocked wells */
+  --color-danger-border: #E8C4BE;
+  --color-danger-border-strong: #E0A79E;  /* blocked drag-over border */
+  --color-danger-ink: #8E2C20;            /* error body text */
+  --color-success: #2E7D5B;               /* toast/indicator discs ONLY (spec R4) */
   --color-on-success: #FFFFFF;
-  --color-on-accent: #FFFFFF;             /* text on orange */
 
-  /* Typography — Lama Sans everywhere (Regular 400 / Bold 700).
-     Font files: ./fonts/ (pending, A-13). "Point" display face only if supplied. */
-  --font-display: "Lama Sans", "Point", ui-sans-serif, system-ui, "Segoe UI", Arial, sans-serif;
-  --font-body:    "Lama Sans", ui-sans-serif, system-ui, "Segoe UI", Arial, sans-serif;
-  --font-mono:    ui-monospace, "Cascadia Mono", monospace;
+  /* Tint pairs (prototype-derived; spec §1.2) */
+  --color-primary-tint: #FBEAE2;          /* active nav bg, entity-card marks */
+  --color-primary-tint-ink: #A0390F;
+  --color-secondary-tint: #E6E2F2;        /* partner/converted badges */
+  --color-secondary-tint-ink: #3B3175;
 
-  /* Per-stage board tints (V2) — TINTS of the two brand hues + neutrals only.
-     Accent = the column's header bar / edge; tint = the column well. */
-  --color-stage-intake: color-mix(in srgb, var(--bf-gray) 45%, var(--bf-offwhite));
-  --color-stage-intake-accent: var(--bf-gray);
-  --color-stage-following: color-mix(in srgb, var(--bf-violet) 10%, var(--bf-offwhite));
-  --color-stage-following-accent: var(--bf-violet);
-  --color-stage-meeting: color-mix(in srgb, var(--bf-orange) 12%, var(--bf-offwhite));
-  --color-stage-meeting-accent: var(--bf-orange);
-  --color-stage-proposal: color-mix(in srgb, var(--bf-violet) 18%, var(--bf-offwhite));
-  --color-stage-proposal-accent: color-mix(in srgb, var(--bf-violet) 70%, var(--bf-offwhite));
-  --color-stage-negotiation: color-mix(in srgb, var(--bf-orange) 22%, var(--bf-offwhite));
-  --color-stage-negotiation-accent: color-mix(in srgb, var(--bf-orange) 75%, var(--bf-offwhite));
-  --color-stage-didnt-answer: color-mix(in srgb, var(--bf-ink) 8%, var(--bf-offwhite));
-  --color-stage-didnt-answer-accent: color-mix(in srgb, var(--bf-ink) 45%, var(--bf-offwhite));
-  --color-stage-won: color-mix(in srgb, var(--bf-violet) 30%, var(--bf-offwhite));
-  --color-stage-won-accent: var(--bf-violet);
-  --color-stage-lost: color-mix(in srgb, var(--bf-ink) 14%, var(--bf-offwhite));
-  --color-stage-lost-accent: var(--color-danger);
+  /* Overlay chrome (uniform across brands; spec §1.2) */
+  --color-toast-surface: #1A191C;
+  --color-toast-ink: #FFFFFF;
+  --color-board-card-border: rgba(0, 0, 0, 0.07);
 
-  /* Shape & effects — working defaults (not brand-mandated) */
-  --radius-card: 12px;
+  /* Typography — Lama Sans (400/700; 500→400, 600→700 per spec R5) with the
+     prototype's Helvetica Neue fallback. JetBrains Mono meta in ALL brands (R6). */
+  --font-display: "Lama Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --font-body:    "Lama Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --font-mono:    "JetBrains Mono", ui-monospace, monospace;
+
+  /* Per-stage board colors (DESIGN-APPLICATION-SPEC §1.3, from the prototype
+     stageSpec): -accent = header bar / dot, base = column well,
+     -chip = chip bg, -chip-ink = chip fg. Lost is neutral in both brands. */
+  --color-stage-intake: #F4F2F1;
+  --color-stage-intake-accent: #B4AEB0;
+  --color-stage-intake-chip: #E8E5E2;
+  --color-stage-intake-chip-ink: #5B5556;
+  --color-stage-following: #EFEDF6;
+  --color-stage-following-accent: #53449B;
+  --color-stage-following-chip: #DFDAF0;
+  --color-stage-following-chip-ink: #3B3175;
+  --color-stage-meeting: #F3F1F9;
+  --color-stage-meeting-accent: #7A6EB5;
+  --color-stage-meeting-chip: #E6E2F2;
+  --color-stage-meeting-chip-ink: #4A3F86;
+  --color-stage-proposal: #FDF2ED;
+  --color-stage-proposal-accent: #F5865B;
+  --color-stage-proposal-chip: #FADDD0;
+  --color-stage-proposal-chip-ink: #A0390F;
+  --color-stage-negotiation: #FCEEE8;
+  --color-stage-negotiation-accent: #F37140;
+  --color-stage-negotiation-chip: #F9D9CA;
+  --color-stage-negotiation-chip-ink: #973610;
+  --color-stage-didnt-answer: #E3E0DA;
+  --color-stage-didnt-answer-accent: #96928F;
+  --color-stage-didnt-answer-chip: #D2CFC9;
+  --color-stage-didnt-answer-chip-ink: #45403F;
+  --color-stage-won: #FBEBE3;
+  --color-stage-won-accent: #F15C24;
+  --color-stage-won-chip: #F8D5C4;
+  --color-stage-won-chip-ink: #8E3210;
+  --color-stage-lost: #F0EEEB;
+  --color-stage-lost-accent: #8A8285;
+  --color-stage-lost-chip: #E2DDD8;
+  --color-stage-lost-chip-ink: #4A4446;
+
+  /* Shape & effects (prototype tok.r / tok.rc / shadows) */
+  --radius-card: 10px;
   --radius-control: 8px;
-  --shadow-card: 0 1px 3px rgba(35, 31, 32, 0.10);
+  --shadow-card: 0 1px 2px rgba(35, 31, 32, 0.05), 0 6px 18px rgba(35, 31, 32, 0.05);
+  --shadow-lift: 0 14px 30px rgba(0, 0, 0, 0.18);
+  --shadow-modal: 0 30px 70px rgba(0, 0, 0, 0.4);
+  --shadow-toast: 0 18px 44px rgba(0, 0, 0, 0.45);
   --gradient-hero: none; /* ByteForce has no gradient language — flat color blocks */
 }
 
 /* Rules encoded as comments (enforced by /brand-audit):
-   - Only the five values above (plus the functional danger red, ADR-014) appear
-     anywhere in App A. No green/teal/blue accents.
+   - Only the palette above (plus the functional danger red, ADR-014) appears
+     anywhere in App A. No green/teal/blue accents (success = indicator discs only).
    - Orange = action & emphasis; Violet = structure (headings, nav, links).
    - Bilingual EN/AR: use CSS logical properties; layouts must survive dir="rtl".
-   - No emoji in UI copy. Bubble pattern = subtle texture only, never behind body text.
-   - Logo: never rotate, recolor, stretch, add effects, or place on busy/red backgrounds. */
+   - No emoji in UI copy. Logo: never rotate, recolor, stretch, or add effects. */

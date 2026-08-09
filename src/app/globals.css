@@ -7,6 +7,11 @@
 
 @import "tailwindcss";
 
+/* The prototype's shared component layer (Claude Design handoff, applied per
+   docs/DESIGN-APPLICATION-SPEC.md §2) — token-driven, brand values never appear
+   in it. Lives in src/themes/ (brand-audit allowlist). */
+@import "../themes/design-system.css";
+
 /* Tailwind ↔ token mapping (ADR-004). `inline` emits the var() reference into each
    utility, so bg-brand-primary etc. resolve at runtime against the active
    [data-brand] scope. Components use ONLY these brand-prefixed utilities (or the
@@ -21,38 +26,66 @@
   --color-brand-heading: var(--color-heading);
   --color-brand-link: var(--color-link);
   --color-brand-ink: var(--color-ink);
+  --color-brand-ink-soft: var(--color-ink-soft);
   --color-brand-muted: var(--color-muted);
+  --color-brand-faint: var(--color-faint);
   --color-brand-surface: var(--color-surface);
   --color-brand-surface-card: var(--color-surface-card);
   --color-brand-surface-tint: var(--color-surface-tint);
   --color-brand-surface-dark: var(--color-surface-dark);
   --color-brand-border: var(--color-border);
+  --color-brand-hairline: var(--color-hairline);
   --color-brand-danger: var(--color-danger);
   --color-brand-on-danger: var(--color-on-danger);
+  --color-brand-danger-tint: var(--color-danger-tint);
+  --color-brand-danger-border: var(--color-danger-border);
+  --color-brand-danger-ink: var(--color-danger-ink);
   --color-brand-success: var(--color-success);
   --color-brand-on-success: var(--color-on-success);
+  --color-brand-primary-tint: var(--color-primary-tint);
+  --color-brand-primary-tint-ink: var(--color-primary-tint-ink);
+  --color-brand-secondary-tint: var(--color-secondary-tint);
+  --color-brand-secondary-tint-ink: var(--color-secondary-tint-ink);
   --color-stage-intake: var(--color-stage-intake);
   --color-stage-intake-accent: var(--color-stage-intake-accent);
+  --color-stage-intake-chip: var(--color-stage-intake-chip);
+  --color-stage-intake-chip-ink: var(--color-stage-intake-chip-ink);
   --color-stage-following: var(--color-stage-following);
   --color-stage-following-accent: var(--color-stage-following-accent);
+  --color-stage-following-chip: var(--color-stage-following-chip);
+  --color-stage-following-chip-ink: var(--color-stage-following-chip-ink);
   --color-stage-meeting: var(--color-stage-meeting);
   --color-stage-meeting-accent: var(--color-stage-meeting-accent);
+  --color-stage-meeting-chip: var(--color-stage-meeting-chip);
+  --color-stage-meeting-chip-ink: var(--color-stage-meeting-chip-ink);
   --color-stage-proposal: var(--color-stage-proposal);
   --color-stage-proposal-accent: var(--color-stage-proposal-accent);
+  --color-stage-proposal-chip: var(--color-stage-proposal-chip);
+  --color-stage-proposal-chip-ink: var(--color-stage-proposal-chip-ink);
   --color-stage-negotiation: var(--color-stage-negotiation);
   --color-stage-negotiation-accent: var(--color-stage-negotiation-accent);
+  --color-stage-negotiation-chip: var(--color-stage-negotiation-chip);
+  --color-stage-negotiation-chip-ink: var(--color-stage-negotiation-chip-ink);
   --color-stage-didnt-answer: var(--color-stage-didnt-answer);
   --color-stage-didnt-answer-accent: var(--color-stage-didnt-answer-accent);
+  --color-stage-didnt-answer-chip: var(--color-stage-didnt-answer-chip);
+  --color-stage-didnt-answer-chip-ink: var(--color-stage-didnt-answer-chip-ink);
   --color-stage-won: var(--color-stage-won);
   --color-stage-won-accent: var(--color-stage-won-accent);
+  --color-stage-won-chip: var(--color-stage-won-chip);
+  --color-stage-won-chip-ink: var(--color-stage-won-chip-ink);
   --color-stage-lost: var(--color-stage-lost);
   --color-stage-lost-accent: var(--color-stage-lost-accent);
+  --color-stage-lost-chip: var(--color-stage-lost-chip);
+  --color-stage-lost-chip-ink: var(--color-stage-lost-chip-ink);
   --font-brand-display: var(--font-display);
   --font-brand-body: var(--font-body);
   --font-brand-mono: var(--font-mono);
   --radius-brand-card: var(--radius-card);
   --radius-brand-control: var(--radius-control);
   --shadow-brand-card: var(--shadow-card);
+  --shadow-brand-lift: var(--shadow-lift);
+  --shadow-brand-modal: var(--shadow-modal);
 }
 
 /* Signature gradient — hero components only (§4.3). */
@@ -60,20 +93,49 @@
   background: var(--gradient-hero);
 }
 
-/* B-Systems meta type style (JetBrains Mono 500, ALL CAPS, +0.22em) — §4.3. */
+/* Meta type style (JetBrains Mono 500, ALL CAPS) — the prototype's .u-mono. */
 @utility text-brand-meta {
   font-family: var(--font-mono);
   font-weight: 500;
   text-transform: uppercase;
+  letter-spacing: 0.16em;
+  font-size: 0.65625rem;
+}
+
+/* Eyebrow — the prototype's page-header kicker (700, wider tracking). */
+@utility text-brand-eyebrow {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  text-transform: uppercase;
   letter-spacing: 0.22em;
-  font-size: 0.6875rem;
+  font-size: 0.625rem;
+  line-height: 1;
 }
 
 /* Tokens only — no literal fallbacks: a missing brand scope must fail loudly, not
    mask itself with a white canvas (brand-audit rule 1). The brand-neutral (home)
-   shell styles itself via src/themes/neutral.css. */
+   shell defines its own [data-brand="neutral"] scope in src/themes/neutral.css. */
 body {
   background-color: var(--color-surface);
   color: var(--color-ink);
   font-family: var(--font-body);
+  font-synthesis: none; /* Lama Sans has 400/700 only — no faux weights (spec R5) */
+}
+
+:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--color-primary) 45%, transparent);
+  outline-offset: 2px;
+}
+
+@keyframes ds-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes ds-pop-in {
+  from { opacity: 0; transform: scale(0.96) translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes ds-toast-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
 }

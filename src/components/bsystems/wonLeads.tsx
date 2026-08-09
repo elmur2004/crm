@@ -81,7 +81,7 @@ export function WonDocumentUpload({ wonDealId }: { wonDealId: string }) {
       }}
       className="space-y-2"
     >
-      {error ? <p className="text-sm text-brand-danger">{error}</p> : null}
+      {error ? <p className="alert-error">{error}</p> : null}
       <div className="flex items-end gap-2 flex-wrap">
         <label className="block">
           <span className={labelCls}>Document</span>
@@ -96,7 +96,18 @@ export function WonDocumentUpload({ wonDealId }: { wonDealId: string }) {
         </label>
         <label className="block flex-1 min-w-48">
           <span className={labelCls}>File (.pdf / .doc / .docx)</span>
-          <input ref={fileRef} type="file" accept=".pdf,.doc,.docx" required className={inputCls} />
+          <span className="dropzone">
+            <span className="dropzone-icon" aria-hidden="true">
+              ↑
+            </span>
+            <input
+              ref={fileRef}
+              type="file"
+              accept=".pdf,.doc,.docx"
+              required
+              className="text-sm min-w-0 flex-1"
+            />
+          </span>
         </label>
         <button type="submit" disabled={busy} className={btnPrimary}>
           Upload

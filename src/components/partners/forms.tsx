@@ -6,11 +6,9 @@ import { useRouter } from "next/navigation";
 /* Partners pipeline client forms: add prospect, number 2/3 slots (PP-2 fires
    server-side on save), recording upload (§7.2). */
 
-const inputCls =
-  "w-full border border-brand-border rounded-brand-control px-3 py-2 bg-brand-surface-card text-sm";
-const labelCls = "block text-sm font-medium mb-1";
-const btnPrimary =
-  "bg-brand-primary text-brand-on-primary rounded-brand-control px-4 py-2 text-sm font-medium disabled:opacity-50";
+const inputCls = "field-input";
+const labelCls = "field-label block mb-1.5";
+const btnPrimary = "btn-primary";
 
 export function AddProspectForm() {
   const router = useRouter();
@@ -53,10 +51,10 @@ export function AddProspectForm() {
         setOpen(false);
         router.refresh();
       }}
-      className="border border-brand-border rounded-brand-card p-4 space-y-3 bg-brand-surface-card w-full"
+      className="card card-pad space-y-3 w-full"
     >
-      <p className="text-sm font-bold">New partner lead</p>
-      {error ? <p className="text-sm text-brand-danger">{error}</p> : null}
+      <p className="u-h3">New partner lead</p>
+      {error ? <p className="alert-error">{error}</p> : null}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <label className="block">
           <span className={labelCls}>Name</span>
@@ -132,14 +130,14 @@ export function AlternativeNumbersForm({
       }}
       className="space-y-2"
     >
-      <p className="text-sm font-bold">Alternative numbers</p>
+      <p className="u-h3">Alternative numbers</p>
       {inDidntAnswer ? (
-        <p className="text-xs text-brand-muted">
+        <p className="field-hint">
           Saving new number(s) returns this card to Lead automatically. You can also add
           them later — nothing is required now.
         </p>
       ) : null}
-      {error ? <p className="text-sm text-brand-danger">{error}</p> : null}
+      {error ? <p className="alert-error">{error}</p> : null}
       {fields.map((value, i) => (
         <input
           key={i}
@@ -159,7 +157,7 @@ export function AlternativeNumbersForm({
         <button
           type="button"
           onClick={() => setFields([...fields, ""])}
-          className="border border-brand-border rounded-brand-control px-3 py-2 text-sm text-brand-muted"
+          className="btn-ghost"
         >
           Add another number
         </button>
@@ -201,10 +199,13 @@ export function RecordingUpload({ prospectId }: { prospectId: string }) {
       }}
       className="space-y-2"
     >
-      {error ? <p className="text-sm text-brand-danger">{error}</p> : null}
-      <label className="block">
-        <span className={labelCls}>Add cold-call recording (.mp3 / .mp4, ≤ 50 MB)</span>
-        <input ref={fileRef} type="file" name="file" accept=".mp3,.mp4" required className={inputCls} />
+      {error ? <p className="alert-error">{error}</p> : null}
+      <label className="dropzone">
+        <span className="dropzone-icon" aria-hidden="true">↑</span>
+        <span className="min-w-0 flex-1">
+          <span className="dropzone-title block">Add cold-call recording (.mp3 / .mp4, ≤ 50 MB)</span>
+          <input ref={fileRef} type="file" name="file" accept=".mp3,.mp4" required className="mt-1.5 block w-full text-sm" />
+        </span>
       </label>
       <button type="submit" disabled={busy} className={btnPrimary}>
         Upload recording

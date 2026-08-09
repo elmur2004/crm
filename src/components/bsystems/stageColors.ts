@@ -1,5 +1,29 @@
-/* V2 — per-stage column color classes (token-mapped utilities only). The keys
-   cover every stage id across pipelines; intake covers new/lead. */
+/* V2 — per-stage color helpers (token-mapped only). The keys cover every stage
+   id across pipelines; intake covers new/lead. */
+
+/** stage id → the design-system `data-stage-key` (spec §2.6) — resolves the
+    four per-stage vars (well/bar/chip/chip-ink) under the active brand. */
+export function stageKey(stage: string): string {
+  switch (stage) {
+    case "new":
+    case "lead":
+      return "intake";
+    case "following_up":
+      return "following";
+    case "meeting_setting":
+      return "meeting";
+    case "sending_proposal":
+      return "proposal";
+    case "negotiation":
+      return "negotiation";
+    case "didnt_answer":
+      return "didnt-answer";
+    case "won":
+      return "won";
+    default:
+      return "lost";
+  }
+}
 
 export function stageTint(stage: string): string {
   switch (stage) {

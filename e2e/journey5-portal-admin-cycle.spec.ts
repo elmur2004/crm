@@ -121,7 +121,9 @@ test("journey 5: admin confirms a win with milestones; statement reaches the age
   ).toBeVisible();
   await agent.goto("/b-systems/won-leads");
   await expect(agent.getByText("Fresh Deal")).toBeVisible();
-  await expect(agent.getByText("Total commission: 10%").first()).toBeVisible();
+  /* money tile: label and value are separate elements (design §2.16) */
+  await expect(agent.getByText("Total commission:").first()).toBeVisible();
+  await expect(agent.getByText("10%", { exact: true }).first()).toBeVisible();
   await expect(agent.getByText("✓ Alpha")).toBeVisible();
 
   await adminContext.close();

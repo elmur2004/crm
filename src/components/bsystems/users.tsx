@@ -54,24 +54,24 @@ export function CreateUserForm() {
         setOpen(false);
         router.refresh();
       }}
-      className="border border-brand-border rounded-brand-card p-4 space-y-3 bg-brand-surface-card w-full max-w-xl"
+      className="card card-pad space-y-3 w-full max-w-xl"
     >
-      <p className="text-sm font-bold">New user</p>
-      {error ? <p className="text-sm text-brand-danger">{error}</p> : null}
+      <p className="u-h3">New user</p>
+      {error ? <p className="alert-error">{error}</p> : null}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <label className="block">
+        <label className="field">
           <span className={labelCls}>Name</span>
           <input type="text" name="name" required className={inputCls} />
         </label>
-        <label className="block">
+        <label className="field">
           <span className={labelCls}>Email</span>
           <input type="email" name="email" className={inputCls} />
         </label>
-        <label className="block">
+        <label className="field">
           <span className={labelCls}>Phone</span>
           <input type="tel" name="phone" className={inputCls} placeholder="01xxxxxxxxx" />
         </label>
-        <label className="block">
+        <label className="field">
           <span className={labelCls}>Password (min 8)</span>
           <input type="password" name="password" required minLength={8} className={inputCls} />
         </label>
@@ -118,8 +118,8 @@ export function ActiveToggle({ userId, active }: { userId: string; active: boole
       }}
       className={
         active
-          ? "border border-brand-danger text-brand-danger rounded-brand-control px-3 py-1.5 text-xs font-medium disabled:opacity-50"
-          : "border border-brand-border text-brand-ink rounded-brand-control px-3 py-1.5 text-xs font-medium disabled:opacity-50"
+          ? "row-toggle disabled:opacity-50"
+          : "row-toggle row-toggle--restore disabled:opacity-50"
       }
     >
       {active ? "Remove" : "Reactivate"}

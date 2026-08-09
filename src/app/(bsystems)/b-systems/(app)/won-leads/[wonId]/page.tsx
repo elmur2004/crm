@@ -47,49 +47,66 @@ export default async function WonLeadDetailPage({
 
   return (
     <div className="space-y-6">
-      <div>
-        <Link href="/b-systems/won-leads" className="text-sm text-brand-muted underline underline-offset-2">
-          Back to Won Leads
-        </Link>
-        <h1 className="font-brand-display text-2xl font-bold text-brand-heading">{w.lead.name}</h1>
+      <div className="page-head">
+        <div>
+          <Link href="/b-systems/won-leads" className="text-sm text-brand-muted underline underline-offset-2">
+            Back to Won Leads
+          </Link>
+          <p className="u-eyebrow mt-3">B-SYSTEMS · WON LEAD</p>
+          <h1 className="u-h1">{w.lead.name}</h1>
+        </div>
       </div>
 
       <div className="grid md:grid-cols-2 gap-6 items-start">
         <section className="space-y-4">
-          <div className="bg-brand-surface-card border border-brand-border rounded-brand-card p-4 text-sm space-y-1">
-            <p>
-              <span className="text-brand-muted">Number:</span> {w.lead.number}
-            </p>
-            <p>
-              <span className="text-brand-muted">Email:</span> {w.lead.email ?? "—"}
-            </p>
-            {w.lead.companyName ? (
-              <p>
-                <span className="text-brand-muted">Company:</span> {w.lead.companyName}
-              </p>
-            ) : null}
-            {w.lead.industry ? (
-              <p>
-                <span className="text-brand-muted">Industry:</span> {w.lead.industry}
-              </p>
-            ) : null}
-            <p>
-              <span className="text-brand-muted">Closer:</span> {closer}
-            </p>
-            <p>
-              <span className="text-brand-muted">Estimated value:</span> {formatEGP(w.estimatedValue)}
-            </p>
-            <p>
-              <span className="text-brand-muted">Total commission:</span>{" "}
-              {w.totalCommissionPercent != null
-                ? `${(w.totalCommissionPercent / 100).toFixed(2).replace(/\.00$/, "")}%`
-                : "—"}
-            </p>
-            <p>
-              <span className="text-brand-muted">Contract date:</span>{" "}
-              {w.contractDate ? formatCairoDate(w.contractDate) : "—"}
-            </p>
-            <p>
+          <div className="card card--flush0">
+            <div className="card-pad flex gap-2 flex-wrap">
+              <div className="money-tile">
+                <p className="money-label">Estimated value:</p>
+                <p className="money-value">{formatEGP(w.estimatedValue)}</p>
+              </div>
+              <div className="money-tile">
+                <p className="money-label">Total commission:</p>
+                <p className="money-value money-value--commission">
+                  {w.totalCommissionPercent != null
+                    ? `${(w.totalCommissionPercent / 100).toFixed(2).replace(/\.00$/, "")}%`
+                    : "—"}
+                </p>
+              </div>
+              <div className="money-tile">
+                <p className="money-label">Contract date:</p>
+                <p className="money-value">
+                  {w.contractDate ? formatCairoDate(w.contractDate) : "—"}
+                </p>
+              </div>
+            </div>
+            <div className="fields-grid border-t border-brand-hairline">
+              <div className="fields-cell">
+                <p className="fields-label">Number:</p>
+                <p className="fields-value">{w.lead.number}</p>
+              </div>
+              <div className="fields-cell">
+                <p className="fields-label">Email:</p>
+                <p className="fields-value">{w.lead.email ?? "—"}</p>
+              </div>
+              {w.lead.companyName ? (
+                <div className="fields-cell">
+                  <p className="fields-label">Company:</p>
+                  <p className="fields-value">{w.lead.companyName}</p>
+                </div>
+              ) : null}
+              {w.lead.industry ? (
+                <div className="fields-cell">
+                  <p className="fields-label">Industry:</p>
+                  <p className="fields-value">{w.lead.industry}</p>
+                </div>
+              ) : null}
+              <div className="fields-cell">
+                <p className="fields-label">Closer:</p>
+                <p className="fields-value">{closer}</p>
+              </div>
+            </div>
+            <p className="panel-hint">
               <Link
                 href={`/b-systems/crm/lead/${w.leadId}`}
                 className="text-brand-link underline underline-offset-2"
@@ -99,10 +116,10 @@ export default async function WonLeadDetailPage({
             </p>
           </div>
 
-          <div className="bg-brand-surface-card border border-brand-border rounded-brand-card p-4 space-y-3">
-            <h2 className="text-brand-meta text-brand-muted">Documents</h2>
+          <div className="card card-pad space-y-3">
+            <h2 className="u-mono">Documents</h2>
             {w.attachments.length === 0 ? (
-              <p className="text-sm text-brand-muted">No documents uploaded yet.</p>
+              <p className="empty">No documents uploaded yet.</p>
             ) : (
               <ul className="text-sm space-y-1">
                 {w.attachments.map((a) => (
@@ -121,9 +138,11 @@ export default async function WonLeadDetailPage({
           </div>
         </section>
 
-        <section className="bg-brand-surface-card border border-brand-border rounded-brand-card p-4">
-          <h2 className="text-brand-meta text-brand-muted mb-3">Milestones</h2>
-          <div className="space-y-2 text-sm">
+        <section className="card card--flush0">
+          <div className="card-head">
+            <h2 className="u-h3">Milestones</h2>
+          </div>
+          <div className="card-pad space-y-2 text-sm">
             {w.milestones.map((m, i) => {
               const previous = w.milestones[i - 1];
               const next = w.milestones[i + 1];
@@ -133,20 +152,20 @@ export default async function WonLeadDetailPage({
               return (
                 <div
                   key={m.id}
-                  className="flex items-center justify-between gap-3 border border-brand-border rounded-brand-control px-3 py-2"
+                  className={`ms-row ${
+                    m.completed ? "ms-row--done" : unlocked ? "ms-row--next" : "ms-row--locked"
+                  }`}
                 >
-                  <div className="flex items-center gap-2">
-                    <MilestoneCheckbox
-                      milestoneId={m.id}
-                      completed={m.completed}
-                      disabled={!canToggle}
-                      label={m.label ?? `Milestone ${m.index}`}
-                    />
-                    <span className={m.completed ? "" : unlocked ? "" : "text-brand-muted"}>
-                      {m.label ?? `Milestone ${m.index}`}
-                    </span>
-                  </div>
-                  <span className="text-xs text-brand-muted text-end">
+                  <MilestoneCheckbox
+                    milestoneId={m.id}
+                    completed={m.completed}
+                    disabled={!canToggle}
+                    label={m.label ?? `Milestone ${m.index}`}
+                  />
+                  <span className={`ms-label ${m.completed ? "" : unlocked ? "" : "text-brand-muted"}`}>
+                    {m.label ?? `Milestone ${m.index}`}
+                  </span>
+                  <span className="ms-note ms-auto text-end">
                     {formatEGP(m.value)}
                     {m.commissionValue != null ? ` · commission ${formatEGP(m.commissionValue)}` : ""}
                     {m.expectedStart ? ` · ${formatCairoDate(m.expectedStart)}` : ""}
@@ -156,7 +175,7 @@ export default async function WonLeadDetailPage({
               );
             })}
           </div>
-          <p className="text-xs text-brand-muted mt-3">
+          <p className="panel-hint">
             Checked milestones appear under Statements → Waiting to be paid out.
           </p>
         </section>

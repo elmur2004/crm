@@ -17,13 +17,10 @@ import { toPiasters, toPounds } from "@/lib/money";
 
 type Rep = { id: string; name: string };
 
-const inputCls =
-  "w-full border border-brand-border rounded-brand-control px-3 py-2 bg-brand-surface-card text-sm";
-const labelCls = "block text-sm font-medium mb-1";
-const btnPrimary =
-  "bg-brand-primary text-brand-on-primary rounded-brand-control px-4 py-2 text-sm font-medium disabled:opacity-50";
-const btnGhost =
-  "border border-brand-border rounded-brand-control px-4 py-2 text-sm text-brand-muted";
+const inputCls = "field-input";
+const labelCls = "field-label block mb-1.5";
+const btnPrimary = "btn-primary";
+const btnGhost = "btn-ghost";
 
 function FollowUpFields({ reps }: { reps: Rep[] }) {
   return (
@@ -164,7 +161,7 @@ function ProposalFields() {
         <span className={labelCls}>Estimated value (EGP)</span>
         <input type="number" name="estimatedValue" min="0" step="0.01" className={inputCls} />
       </label>
-      <p className="text-xs text-brand-muted">
+      <p className="field-hint">
         Save the proposal, then use “Mark as sent” — sending moves the card automatically.
       </p>
     </>
@@ -304,7 +301,7 @@ export function LeadEventPanel({
 
   if (terminal) {
     return (
-      <p className="text-sm text-brand-muted">
+      <p className="empty">
         This lead is {STAGE_LABELS[stage]} — no further actions.
       </p>
     );
@@ -313,7 +310,7 @@ export function LeadEventPanel({
   return (
     <div className="space-y-4">
       {error ? (
-        <p role="alert" className="text-sm text-brand-danger">
+        <p role="alert" className="alert-error">
           {error}
         </p>
       ) : null}
@@ -321,8 +318,8 @@ export function LeadEventPanel({
       {/* §5.3: contextual auto-events for the current stage */}
       {stage === "sending_proposal" && hasUnsentProposal ? (
         <div className="border border-brand-border rounded-brand-card p-4 bg-brand-surface-tint">
-          <p className="text-sm font-medium mb-2">Proposal ready — mark it as sent?</p>
-          <p className="text-xs text-brand-muted mb-3">
+          <p className="u-h3 mb-2">Proposal ready — mark it as sent?</p>
+          <p className="field-hint mb-3">
             Sending moves this card to Following Up and opens the after-proposal follow-up.
           </p>
           <form
@@ -335,7 +332,7 @@ export function LeadEventPanel({
             }}
             className="space-y-3"
           >
-            <p className="text-sm font-bold">Following up after proposal</p>
+            <p className="u-h3">Following up after proposal</p>
             <FollowUpFields reps={reps} />
             <button type="submit" disabled={busy} className={btnPrimary}>
               Sent — move to Following Up
@@ -346,7 +343,7 @@ export function LeadEventPanel({
 
       {stage === "meeting_setting" && pendingMeeting ? (
         <div className="border border-brand-border rounded-brand-card p-4 bg-brand-surface-tint">
-          <p className="text-sm font-medium mb-2">Meeting outcome</p>
+          <p className="u-h3 mb-2">Meeting outcome</p>
           <select aria-label="Meeting outcome" value={outcome} onChange={(e) => { setOutcome(e.target.value); setDestination(""); }} className={inputCls}>
             <option value="">Choose an outcome…</option>
             <option value="attended">Attended</option>
@@ -369,7 +366,7 @@ export function LeadEventPanel({
               }}
               className="space-y-3 mt-3"
             >
-              <p className="text-xs text-brand-muted">Delayed — set the new date &amp; time.</p>
+              <p className="field-hint">Delayed — set the new date &amp; time.</p>
               <div className="grid grid-cols-2 gap-3">
                 <input type="date" name="date" required className={inputCls} />
                 <input type="time" name="time" required className={inputCls} />
@@ -449,9 +446,9 @@ export function LeadEventPanel({
                 group: groupForTarget(action, new FormData(e.currentTarget)),
               });
             }}
-            className="mt-3 space-y-3 border border-brand-border rounded-brand-card p-4"
+            className="card card-pad mt-3 space-y-3"
           >
-            <p className="text-sm font-bold">{STAGE_LABELS[action]}</p>
+            <p className="u-h3">{STAGE_LABELS[action]}</p>
             {fieldsForTarget(action)}
             <div className="flex gap-2">
               <button type="submit" disabled={busy} className={btnPrimary}>

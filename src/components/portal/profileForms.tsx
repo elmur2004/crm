@@ -49,7 +49,7 @@ export function ProfileEditForm({
         setOpen(false);
         router.refresh();
       }}
-      className="space-y-3 border border-brand-border rounded-brand-card p-4 bg-brand-surface-card"
+      className="card card-pad space-y-3"
     >
       {error ? <p className="text-sm text-brand-danger">{error}</p> : null}
       <div className="grid grid-cols-2 gap-3">
@@ -110,9 +110,14 @@ export function CvReplaceForm() {
       className="space-y-2"
     >
       {error ? <p className="text-sm text-brand-danger">{error}</p> : null}
-      <label className="block">
-        <span className={labelCls}>Replace CV (.pdf / .doc / .docx, ≤ 10 MB)</span>
-        <input ref={fileRef} type="file" name="cv" accept=".pdf,.doc,.docx" required className={inputCls} />
+      <label className="dropzone">
+        <span className="dropzone-icon" aria-hidden="true">
+          ↑
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="dropzone-title block">Replace CV (.pdf / .doc / .docx, ≤ 10 MB)</span>
+          <input ref={fileRef} type="file" name="cv" accept=".pdf,.doc,.docx" required className="field-input mt-2" />
+        </span>
       </label>
       <button type="submit" disabled={busy} className={btnPrimary}>
         Upload new CV

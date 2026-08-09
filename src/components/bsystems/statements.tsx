@@ -34,7 +34,7 @@ export function StatementGenerator({ row }: { row: WaitingRow }) {
     );
   }
   return (
-    <div className="fixed inset-0 z-40 bg-brand-surface-dark/60 flex items-center justify-center p-4">
+    <div className="modal-overlay">
       <form
         onSubmit={async (e) => {
           e.preventDefault();
@@ -66,20 +66,22 @@ export function StatementGenerator({ row }: { row: WaitingRow }) {
           setOpen(false);
           router.refresh();
         }}
-        className="bg-brand-surface rounded-brand-card shadow-brand-card p-6 w-full max-w-lg max-h-[85vh] overflow-y-auto space-y-3"
+        className="modal"
       >
-        <p className="font-brand-display font-bold">New statement — {row.label}</p>
-        {error ? <p className="text-sm text-brand-danger">{error}</p> : null}
-        <div className="grid grid-cols-2 gap-3">
-          <label className="block col-span-2">
+        <div className="modal-head">
+          <p className="modal-title">New statement — {row.label}</p>
+        </div>
+        <div className="modal-body modal-body--grid">
+          {error ? <p className="alert-error field--wide">{error}</p> : null}
+          <label className="field field--wide">
             <span className={labelCls}>Client</span>
             <input type="text" name="clientName" required defaultValue={row.clientName} className={inputCls} />
           </label>
-          <label className="block">
+          <label className="field">
             <span className={labelCls}>Milestone name</span>
             <input type="text" name="milestoneLabel" required defaultValue={row.label} className={inputCls} />
           </label>
-          <label className="block">
+          <label className="field">
             <span className={labelCls}>Milestone value (EGP)</span>
             <input
               type="number"
@@ -91,7 +93,7 @@ export function StatementGenerator({ row }: { row: WaitingRow }) {
               className={inputCls}
             />
           </label>
-          <label className="block">
+          <label className="field">
             <span className={labelCls}>% of milestone</span>
             <input
               type="number"
@@ -104,7 +106,7 @@ export function StatementGenerator({ row }: { row: WaitingRow }) {
               className={inputCls}
             />
           </label>
-          <label className="block">
+          <label className="field">
             <span className={labelCls}>Amount (EGP)</span>
             <input
               type="number"
@@ -116,22 +118,24 @@ export function StatementGenerator({ row }: { row: WaitingRow }) {
               className={inputCls}
             />
           </label>
-          <label className="block">
+          <label className="field">
             <span className={labelCls}>Adjustments (EGP, ±)</span>
             <input type="number" name="adjustments" step="0.01" defaultValue={0} className={inputCls} />
           </label>
-          <label className="block">
+          <label className="field">
             <span className={labelCls}>Expected payment date</span>
             <input type="date" name="expectedDate" className={inputCls} />
           </label>
         </div>
-        <div className="flex gap-2">
-          <button type="submit" disabled={busy} className={btnPrimary}>
-            Create statement
-          </button>
-          <button type="button" onClick={() => setOpen(false)} className={btnGhost}>
-            Cancel
-          </button>
+        <div className="modal-foot">
+          <div className="flex gap-2">
+            <button type="submit" disabled={busy} className={btnPrimary}>
+              Create statement
+            </button>
+            <button type="button" onClick={() => setOpen(false)} className={btnGhost}>
+              Cancel
+            </button>
+          </div>
         </div>
       </form>
     </div>
@@ -176,11 +180,7 @@ export function MarkPaidForm({ statementId }: { statementId: string }) {
         aria-label="Payment proof image"
         className="text-xs"
       />
-      <button
-        type="submit"
-        disabled={busy}
-        className="bg-brand-primary text-brand-on-primary rounded-brand-control px-3 py-1.5 text-xs font-medium disabled:opacity-50"
-      >
+      <button type="submit" disabled={busy} className="btn-primary btn--sm">
         Mark paid
       </button>
     </form>

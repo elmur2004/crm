@@ -1,9 +1,11 @@
 /* =========================================================================
-   B-Systems brand tokens — CANONICAL for Apps B (B-Systems CRM) and C
-   (Partnership Portal). Do not hardcode these values anywhere else.
-   Source: "B-Systems Brand Guidelines · Edition 01 · April 2026" (this folder).
-   Distribution rule: Indigo 60 · Lavender 28 · Pink 12. Pink is the cue,
-   never the canvas. Paper, never pure #FFFFFF.
+   B-Systems brand tokens — CANONICAL for the unified B-Systems CRM (and the
+   /portal partnership funnel). Do not hardcode these values anywhere else.
+   Sources: "B-Systems Brand Guidelines · Edition 01 · April 2026" + the
+   approved Claude Design prototype (Claude Design Handoff/, applied per
+   docs/DESIGN-APPLICATION-SPEC.md §1). Distribution rule: Indigo 60 ·
+   Lavender 28 · Pink 12 — Pink is the cue, never the canvas.
+   Cards float #FFFFFF on the Paper canvas per the approved prototype (R1).
    ========================================================================= */
 
 :root[data-brand="bsystems"] {
@@ -13,9 +15,9 @@
   --bs-pink:     #FF4F87;   /* Signal Pink      — 12% — the cue   */
 
   /* Supporting tokens */
-  --bs-paper:        #FAFAFD;  /* default canvas — NEVER pure #FFFFFF */
-  --bs-lavendermist: #E8D4FE;  /* cards, callouts, secondary surfaces */
-  --bs-indigodeep:   #0B0F3D;  /* dramatic dark canvas + max-contrast text */
+  --bs-paper:        #FAFAFD;  /* default canvas */
+  --bs-lavendermist: #E8D4FE;  /* callouts, secondary surfaces */
+  --bs-indigodeep:   #0B0F3D;  /* dramatic dark canvas + headings */
 
   /* Gradient mid-stops (only valid inside the signature gradient) */
   --bs-grad-mid-1: #4A2A8E;
@@ -26,65 +28,101 @@
      shared components must never hit an unset variable in either brand.
      Enforced by src/lib/brand-tokens.test.ts. */
   --color-primary: var(--bs-indigo);
-  --color-on-primary: var(--bs-paper);
+  --color-on-primary: #FFFFFF;
   --color-secondary: var(--bs-lavender);
-  --color-on-secondary: var(--bs-indigodeep); /* text on lavender = deep indigo */
+  --color-on-secondary: var(--bs-indigodeep);
   --color-accent: var(--bs-pink);          /* CTAs, badges, single-word emphasis ONLY */
-  --color-heading: var(--bs-indigo);       /* §4.3: structural type on light = Indigo */
-  --color-link: var(--bs-indigo);          /* lavender is air, never text on Paper */
-  --color-ink: var(--bs-indigodeep);
-  --color-muted: #5A5F8F;                  /* indigo tint for secondary text */
+  --color-on-accent: #FFFFFF;
+  --color-heading: var(--bs-indigodeep);   /* prototype tok.heading = deep indigo */
+  --color-link: var(--bs-indigo);
+  --color-ink: #1B1C33;                    /* prototype tok.ink */
+  --color-ink-soft: #1B1C33;               /* alias — neutral scope differs */
+  --color-muted: #6A6E8F;                  /* prototype tok.muted */
+  --color-faint: #6A6E8F;                  /* alias of muted in B (spec §1.2) */
   --color-surface: var(--bs-paper);
-  --color-surface-card: var(--bs-paper);   /* cards: Paper + border/shadow — NEVER #FFF */
+  --color-surface-card: #FFFFFF;           /* cards float white on Paper (R1) */
   --color-surface-tint: var(--bs-lavendermist);
   --color-surface-dark: var(--bs-indigodeep);
-  --color-border: #E3E1F2;                 /* indigo-tinted hairline */
-  --color-danger: var(--bs-pink);          /* stay in-palette; pink doubles as alert cue */
-  --color-on-danger: var(--bs-paper);
-  --color-success: var(--bs-indigo);       /* no green anywhere — vary palette tints */
-  --color-on-success: var(--bs-paper);
-  --color-on-accent: var(--bs-paper);      /* text on pink CTAs — never pink body text */
+  --color-border: #E3E3F0;                 /* prototype tok.border */
+  --color-hairline: #F0F0F7;               /* inner soft dividers */
+  --color-danger: #C0392B;                 /* functional red in ALL brands (R2);
+                                              pink stays accent-only */
+  --color-on-danger: #FFFFFF;
+  --color-danger-tint: #FBEDEB;
+  --color-danger-border: #E8C4BE;
+  --color-danger-border-strong: #E0A79E;
+  --color-danger-ink: #8E2C20;
+  --color-success: #2E7D5B;                /* toast/indicator discs ONLY (R4) */
+  --color-on-success: #FFFFFF;
 
-  /* Signature gradient — HERO MOMENTS ONLY (login hero, landing header,
-     cover-style panels, primary CTA moments). Never a default background.
-     135° fixed. Never radial. Never reversed — pink is the exit. */
+  /* Tint pairs (prototype-derived; spec §1.2) */
+  --color-primary-tint: #E9EBF7;           /* rep-label chips, grid-card marks */
+  --color-primary-tint-ink: #1D267D;
+  --color-secondary-tint: #E1E4F4;         /* partner/converted badges */
+  --color-secondary-tint-ink: #1D267D;
+
+  /* Overlay chrome (uniform across brands; spec §1.2) */
+  --color-toast-surface: #1A191C;
+  --color-toast-ink: #FFFFFF;
+  --color-board-card-border: rgba(0, 0, 0, 0.07);
+
+  /* Signature gradient — HERO MOMENTS ONLY (login billboard, landing header,
+     the compact logo mark). Never a default background. 135° fixed. Never
+     radial. Never reversed — pink is the exit. */
   --gradient-hero: linear-gradient(135deg,
       #0B0F3D 0%, #1D267D 25%, #4A2A8E 55%, #8B3A95 75%, #FF4F87 100%);
 
-  /* Typography (Google Fonts): Raleway display / Inter body / JetBrains Mono meta */
+  /* Typography (self-hosted via fontsource, ADR-013):
+     Raleway display / Inter body / JetBrains Mono meta */
   --font-display: "Raleway", ui-sans-serif, system-ui, sans-serif;
   --font-body:    "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-mono:    "JetBrains Mono", ui-monospace, monospace;
 
-  /* Type scale (from the brand book)
-     H1 Raleway 800/64 · H2 700/40 · H3 600/26 · H4 500/20 (tracking -2%..-3.5% on 700-800)
-     Body-lg Inter 400/17 · Body Inter 400/14 (lh 1.55) · UI Inter 500 · Data Inter 700
-     Meta JetBrains Mono 500/10-12, UPPERCASE, letter-spacing 0.22em */
+  /* Per-stage board colors (DESIGN-APPLICATION-SPEC §1.3, from the prototype
+     stageSpec): the columns walk the indigo→pink ramp in board order; wells
+     ≈8% tints, chips ≈14% tints with AA foregrounds. Signal Pink = the Won
+     cue only. Negotiation = RGB midpoint of Proposal↔Won (spec rule). Lost is
+     the one neutral in both brands. */
+  --color-stage-intake: #ECEEF8;
+  --color-stage-intake-accent: #1D267D;
+  --color-stage-intake-chip: #DBDFF2;
+  --color-stage-intake-chip-ink: #1D267D;
+  --color-stage-following: #F1EDF9;
+  --color-stage-following-accent: #5A3A96;
+  --color-stage-following-chip: #E6DDF5;
+  --color-stage-following-chip-ink: #4B2F86;
+  --color-stage-meeting: #F6EDF7;
+  --color-stage-meeting-accent: #8B3A95;
+  --color-stage-meeting-chip: #F0DEF2;
+  --color-stage-meeting-chip-ink: #7A2F85;
+  --color-stage-proposal: #F9EEF6;
+  --color-stage-proposal-accent: #B03D8F;
+  --color-stage-proposal-chip: #F5DDEE;
+  --color-stage-proposal-chip-ink: #95307A;
+  --color-stage-negotiation: #FCEFF5;
+  --color-stage-negotiation-accent: #D8468B;
+  --color-stage-negotiation-chip: #FADCEA;
+  --color-stage-negotiation-chip-ink: #A22766;
+  --color-stage-didnt-answer: #EFEDF9;
+  --color-stage-didnt-answer-accent: #3B2F8C;
+  --color-stage-didnt-answer-chip: #E0DCF3;
+  --color-stage-didnt-answer-chip-ink: #33288A;
+  --color-stage-won: #FFF0F5;
+  --color-stage-won-accent: #FF4F87;
+  --color-stage-won-chip: #FFDCE7;
+  --color-stage-won-chip-ink: #B01E51;
+  --color-stage-lost: #F1F1F6;
+  --color-stage-lost-accent: #6B6F94;
+  --color-stage-lost-chip: #E3E3EC;
+  --color-stage-lost-chip-ink: #4C4F6B;
 
-  /* Per-stage board tints (V2) — tints of the brand three + Paper only (§4.3
-     "charts and status colors vary tints of the palette"). Pink appears only as
-     the LOST accent cue, never a column surface. */
-  --color-stage-intake: color-mix(in srgb, var(--bs-lavender) 14%, var(--bs-paper));
-  --color-stage-intake-accent: var(--bs-lavender);
-  --color-stage-following: color-mix(in srgb, var(--bs-lavender) 30%, var(--bs-paper));
-  --color-stage-following-accent: color-mix(in srgb, var(--bs-lavender) 80%, var(--bs-indigo));
-  --color-stage-meeting: color-mix(in srgb, var(--bs-indigo) 10%, var(--bs-paper));
-  --color-stage-meeting-accent: var(--bs-indigo);
-  --color-stage-proposal: color-mix(in srgb, var(--bs-indigo) 17%, var(--bs-paper));
-  --color-stage-proposal-accent: color-mix(in srgb, var(--bs-indigo) 70%, var(--bs-lavender));
-  --color-stage-negotiation: color-mix(in srgb, var(--bs-grad-mid-2) 16%, var(--bs-paper));
-  --color-stage-negotiation-accent: var(--bs-grad-mid-2);
-  --color-stage-didnt-answer: color-mix(in srgb, var(--bs-indigodeep) 8%, var(--bs-paper));
-  --color-stage-didnt-answer-accent: var(--bs-indigodeep);
-  --color-stage-won: color-mix(in srgb, var(--bs-indigo) 26%, var(--bs-paper));
-  --color-stage-won-accent: var(--bs-indigo);
-  --color-stage-lost: color-mix(in srgb, var(--bs-indigodeep) 12%, var(--bs-paper));
-  --color-stage-lost-accent: var(--bs-pink);
-
-  /* Shape & effects — working defaults (not brand-mandated) */
+  /* Shape & effects (prototype tok.r / tok.rc / shadows) */
   --radius-card: 14px;
   --radius-control: 10px;
-  --shadow-card: 0 1px 3px rgba(11, 15, 61, 0.08);
+  --shadow-card: 0 1px 2px rgba(11, 15, 61, 0.04), 0 8px 24px rgba(11, 15, 61, 0.06);
+  --shadow-lift: 0 14px 30px rgba(0, 0, 0, 0.18);
+  --shadow-modal: 0 30px 70px rgba(0, 0, 0, 0.4);
+  --shadow-toast: 0 18px 44px rgba(0, 0, 0, 0.45);
 }
 
 /* System mesh — texture over hero gradients ONLY (never behind body text,
@@ -97,9 +135,9 @@
 }
 
 /* Rules encoded as comments (enforced by /brand-audit):
-   - Pink is never a page/section background and never body text.
-   - No colors outside this file in Apps B & C — charts vary tints of the palette.
-   - Gradient only in hero components; gradient logo never sits on a gradient.
+   - Pink is never a page/section background and never body text (Won cue +
+     accent CTAs only).
+   - No colors outside this file in the B-Systems app — charts vary palette tints.
+   - Gradient only in hero components + the compact logo mark.
    - Raleway above, Inter below: >2 lines of text = Inter.
-   - UI copy voice: clear, confident, structured, direct. CTAs state direct value —
-     never "discover", "unlock", "elevate". */
+   - UI copy voice: clear, confident, structured, direct. */

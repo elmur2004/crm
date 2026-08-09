@@ -47,68 +47,73 @@ export default async function BsLeadsPage({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <h1 className="font-brand-display text-2xl font-bold text-brand-heading">Leads</h1>
-        <BsAddLeadForm />
+      <div className="page-head">
+        <div>
+          <p className="u-eyebrow">B-SYSTEMS · LEADS</p>
+          <h1 className="u-h1">Leads</h1>
+        </div>
+        <div className="page-actions">
+          <BsAddLeadForm />
+        </div>
       </div>
       <nav className="flex gap-1 flex-wrap" aria-label="Owner filter">
         {FILTERS.map((f) => (
           <Link
             key={f.key}
             href={f.key === "any" ? "/b-systems/leads" : `/b-systems/leads?owner=${f.key}`}
-            className={`px-3 py-1.5 rounded-brand-control text-sm font-medium ${
-              filter === f.key
-                ? "bg-brand-primary text-brand-on-primary"
-                : "text-brand-link hover:bg-brand-surface-tint"
-            }`}
+            className="nav-item"
+            aria-current={filter === f.key ? "page" : undefined}
           >
             {f.label}
           </Link>
         ))}
       </nav>
       {leads.length === 0 ? (
-        <p className="text-sm text-brand-muted">No leads in this bucket yet.</p>
+        <p className="empty">No leads in this bucket yet.</p>
       ) : (
-        <div className="overflow-x-auto border border-brand-border rounded-brand-card bg-brand-surface-card">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-brand-border">
-                <th className="text-start p-3 font-bold">Name</th>
-                <th className="text-start p-3 font-bold">Number</th>
-                <th className="text-start p-3 font-bold">Company</th>
-                <th className="text-start p-3 font-bold">Owner</th>
-                <th className="text-start p-3 font-bold">Type</th>
-                <th className="text-start p-3 font-bold">Stage</th>
-                <th className="text-start p-3 font-bold">Created</th>
-              </tr>
-            </thead>
-            <tbody>
-              {leads.map((lead) => (
-                <tr
-                  key={lead.id}
-                  className="border-b border-brand-border last:border-0 hover:bg-brand-surface-tint"
-                >
-                  <td className="p-3">
-                    <Link href={`/b-systems/crm/lead/${lead.id}`} className="font-medium text-brand-link">
-                      {lead.name}
-                    </Link>
-                  </td>
-                  <td className="p-3">{lead.number}</td>
-                  <td className="p-3">{lead.companyName ?? "—"}</td>
-                  <td className="p-3">
-                    {OWNER_TYPE_LABELS[lead.ownerType as OwnerType] ?? lead.ownerType}
-                    {lead.owner ? ` · ${lead.owner.name}` : ""}
-                    {lead.partner ? ` · ${lead.partner.companyName}` : ""}
-                  </td>
-                  <td className="p-3">{LEAD_TYPE_LABELS[lead.type as LeadType] ?? lead.type}</td>
-                  <td className="p-3">
-                    <StageBadge stage={lead.stage} />
-                  </td>
-                  <td className="p-3">{formatCairoDate(lead.createdAt)}</td>
+        <div className="card card--flush0">
+          <div className="table-scroll">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Number</th>
+                  <th>Company</th>
+                  <th>Owner</th>
+                  <th>Type</th>
+                  <th>Stage</th>
+                  <th>Created</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {leads.map((lead) => (
+                  <tr key={lead.id}>
+                    <td>
+                      <Link href={`/b-systems/crm/lead/${lead.id}`} className="td-title">
+                        {lead.name}
+                      </Link>
+                    </td>
+                    <td className="td-mono">{lead.number}</td>
+                    <td>{lead.companyName ?? "—"}</td>
+                    <td>
+                      {OWNER_TYPE_LABELS[lead.ownerType as OwnerType] ?? lead.ownerType}
+                      {lead.owner ? ` · ${lead.owner.name}` : ""}
+                      {lead.partner ? ` · ${lead.partner.companyName}` : ""}
+                    </td>
+                    <td>
+                      <span className="chip-outline">
+                        {LEAD_TYPE_LABELS[lead.type as LeadType] ?? lead.type}
+                      </span>
+                    </td>
+                    <td>
+                      <StageBadge stage={lead.stage} />
+                    </td>
+                    <td>{formatCairoDate(lead.createdAt)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>

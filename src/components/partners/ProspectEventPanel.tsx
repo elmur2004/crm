@@ -16,13 +16,10 @@ import { partnersConfig } from "@/lib/pipeline-engine/configs/partners";
 
 type Rep = { id: string; name: string };
 
-const inputCls =
-  "w-full border border-brand-border rounded-brand-control px-3 py-2 bg-brand-surface-card text-sm";
-const labelCls = "block text-sm font-medium mb-1";
-const btnPrimary =
-  "bg-brand-primary text-brand-on-primary rounded-brand-control px-4 py-2 text-sm font-medium disabled:opacity-50";
-const btnGhost =
-  "border border-brand-border rounded-brand-control px-4 py-2 text-sm text-brand-muted";
+const inputCls = "field-input";
+const labelCls = "field-label block mb-1.5";
+const btnPrimary = "btn-primary";
+const btnGhost = "btn-ghost";
 
 function FollowUpFields({ reps }: { reps: Rep[] }) {
   return (
@@ -69,7 +66,7 @@ function FollowUpFields({ reps }: { reps: Rep[] }) {
 function WonGateFields({ defaults }: { defaults: { companyName: string; name: string; role: string | null; number: string; email: string | null; businessActivity: string } }) {
   return (
     <>
-      <p className="text-xs text-brand-muted">
+      <p className="field-hint">
         Won saves only when the partner record is complete.
       </p>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -253,14 +250,14 @@ export function ProspectEventPanel({
     if (target === "didnt_answer")
       return (
         <div className="space-y-2">
-          <p className="text-sm font-medium">Number dialed — which number(s) went unanswered?</p>
+          <p className="u-label">Number dialed — which number(s) went unanswered?</p>
           {cardNumbers.map((n) => (
             <label key={n} className="flex items-center gap-2 text-sm">
               <input type="checkbox" name="dialedNumbers" value={n} defaultChecked={cardNumbers.length === 1} />
               {n}
             </label>
           ))}
-          <p className="text-xs text-brand-muted">
+          <p className="field-hint">
             New numbers are NOT required now — add them any time from “Alternative
             numbers”; doing so returns the card to Lead automatically.
           </p>
@@ -271,7 +268,7 @@ export function ProspectEventPanel({
 
   if (terminal) {
     return (
-      <p className="text-sm text-brand-muted">
+      <p className="u-muted">
         This card is {STAGE_LABELS[stage]} — no further actions.
       </p>
     );
@@ -280,14 +277,14 @@ export function ProspectEventPanel({
   return (
     <div className="space-y-4">
       {error ? (
-        <p role="alert" className="text-sm text-brand-danger">
+        <p role="alert" className="alert-error">
           {error}
         </p>
       ) : null}
 
       {stage === "meeting_setting" && pendingMeeting ? (
-        <div className="border border-brand-border rounded-brand-card p-4 bg-brand-surface-tint">
-          <p className="text-sm font-medium mb-2">Meeting outcome</p>
+        <div className="bg-brand-surface-tint rounded-brand-card shadow-brand-card p-4">
+          <p className="u-h3 mb-2">Meeting outcome</p>
           <select
             aria-label="Meeting outcome"
             value={outcome}
@@ -389,9 +386,9 @@ export function ProspectEventPanel({
                 group: groupForTarget(action === "won" ? "won" : action, new FormData(e.currentTarget)),
               });
             }}
-            className="mt-3 space-y-3 border border-brand-border rounded-brand-card p-4"
+            className="card card-pad mt-3 space-y-3"
           >
-            <p className="text-sm font-bold">{STAGE_LABELS[action]}</p>
+            <p className="u-h3">{STAGE_LABELS[action]}</p>
             {fieldsForTarget(action === "won" ? "won" : action)}
             <div className="flex gap-2">
               <button type="submit" disabled={busy} className={btnPrimary}>

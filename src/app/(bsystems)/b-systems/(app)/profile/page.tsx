@@ -30,34 +30,57 @@ export default async function ProfilePage() {
     const profile = await getRepProfile(user.id);
     return (
       <div className="space-y-6 max-w-2xl">
-        <h1 className="font-brand-display text-2xl font-bold text-brand-heading">Profile</h1>
-        <div className="bg-brand-surface-card border border-brand-border rounded-brand-card p-4 text-sm space-y-1">
-          <p className="font-bold text-base">
-            {profile.firstName} {profile.lastName}
-          </p>
-          <p>
-            <span className="text-brand-muted">Phone:</span> {profile.user.phone ?? "—"}
-          </p>
-          <p>
-            <span className="text-brand-muted">Address:</span> {profile.address}
-          </p>
-          <p>
-            <span className="text-brand-muted">Speciality:</span> {profile.speciality}
-          </p>
-          {profile.cv ? (
-            <p>
-              <span className="text-brand-muted">CV:</span>{" "}
-              <a href={`/api/files/${profile.cv.id}`} className="text-brand-link underline underline-offset-2">
-                {profile.cv.filename}
-              </a>
-            </p>
-          ) : null}
+        <div className="page-head">
+          <div>
+            <p className="u-eyebrow">B-SYSTEMS · PROFILE</p>
+            <h1 className="u-h1">Profile</h1>
+          </div>
+        </div>
+        <div className="card card--flush0">
+          <div className="identity-head">
+            <div className="flex items-center gap-3">
+              <span className="avatar-lg" aria-hidden="true">
+                {profile.firstName.charAt(0)}
+                {profile.lastName.charAt(0)}
+              </span>
+              <p className="identity-name">
+                {profile.firstName} {profile.lastName}
+              </p>
+            </div>
+          </div>
+          <div className="fields-grid">
+            <div className="fields-cell">
+              <p className="fields-label">Phone:</p>
+              <p className="fields-value">{profile.user.phone ?? "—"}</p>
+            </div>
+            <div className="fields-cell">
+              <p className="fields-label">Address:</p>
+              <p className="fields-value">{profile.address}</p>
+            </div>
+            <div className="fields-cell">
+              <p className="fields-label">Speciality:</p>
+              <p className="fields-value">{profile.speciality}</p>
+            </div>
+            {profile.cv ? (
+              <div className="fields-cell">
+                <p className="fields-label">CV:</p>
+                <p className="fields-value flex items-center gap-3">
+                  <span className="file-icon" aria-hidden="true">
+                    PDF
+                  </span>
+                  <a href={`/api/files/${profile.cv.id}`} className="text-brand-link underline underline-offset-2">
+                    {profile.cv.filename}
+                  </a>
+                </p>
+              </div>
+            ) : null}
+          </div>
         </div>
         <ProfileEditForm profile={profile} />
-        <div className="bg-brand-surface-card border border-brand-border rounded-brand-card p-4">
+        <div className="card card-pad">
           <CvReplaceForm />
         </div>
-        <div className="bg-brand-surface-card border border-brand-border rounded-brand-card p-4">
+        <div className="card card-pad">
           <PasswordChangeForm />
         </div>
       </div>
@@ -67,39 +90,59 @@ export default async function ProfilePage() {
   const partner = await db.partner.findUnique({ where: { userId: user.id } });
   return (
     <div className="space-y-6 max-w-2xl">
-      <h1 className="font-brand-display text-2xl font-bold text-brand-heading">Profile</h1>
+      <div className="page-head">
+        <div>
+          <p className="u-eyebrow">B-SYSTEMS · PROFILE</p>
+          <h1 className="u-h1">Profile</h1>
+        </div>
+      </div>
       {partner ? (
-        <div className="bg-brand-surface-card border border-brand-border rounded-brand-card p-4 text-sm space-y-1">
-          <p className="font-bold text-base">{partner.companyName}</p>
-          <p>
-            <span className="text-brand-muted">Key person:</span> {partner.keyPersonName} (
-            {partner.keyPersonRole})
-          </p>
-          <p>
-            <span className="text-brand-muted">Number:</span> {partner.number}
-          </p>
-          <p>
-            <span className="text-brand-muted">Email:</span> {partner.email ?? "—"}
-          </p>
-          <p>
-            <span className="text-brand-muted">Address:</span> {partner.address}
-          </p>
-          <p>
-            <span className="text-brand-muted">Business activity:</span> {partner.businessActivity}
-          </p>
-          <p>
-            <span className="text-brand-muted">Partner since:</span>{" "}
-            {formatCairoDate(partner.dateJoined)}
-          </p>
-          <p className="text-xs text-brand-muted pt-1">
+        <div className="card card--flush0">
+          <div className="identity-head">
+            <div className="flex items-center gap-3">
+              <span className="avatar-lg" aria-hidden="true">
+                {partner.companyName.charAt(0)}
+              </span>
+              <p className="identity-name">{partner.companyName}</p>
+            </div>
+          </div>
+          <div className="fields-grid">
+            <div className="fields-cell">
+              <p className="fields-label">Key person:</p>
+              <p className="fields-value">
+                {partner.keyPersonName} ({partner.keyPersonRole})
+              </p>
+            </div>
+            <div className="fields-cell">
+              <p className="fields-label">Number:</p>
+              <p className="fields-value">{partner.number}</p>
+            </div>
+            <div className="fields-cell">
+              <p className="fields-label">Email:</p>
+              <p className="fields-value">{partner.email ?? "—"}</p>
+            </div>
+            <div className="fields-cell">
+              <p className="fields-label">Address:</p>
+              <p className="fields-value">{partner.address}</p>
+            </div>
+            <div className="fields-cell">
+              <p className="fields-label">Business activity:</p>
+              <p className="fields-value">{partner.businessActivity}</p>
+            </div>
+            <div className="fields-cell">
+              <p className="fields-label">Partner since:</p>
+              <p className="fields-value">{formatCairoDate(partner.dateJoined)}</p>
+            </div>
+          </div>
+          <p className="panel-hint">
             These details come from the partnership conversion — ask the B-Systems admin to
             correct anything.
           </p>
         </div>
       ) : (
-        <p className="text-sm text-brand-muted">No partner record is linked to this account.</p>
+        <p className="empty">No partner record is linked to this account.</p>
       )}
-      <div className="bg-brand-surface-card border border-brand-border rounded-brand-card p-4">
+      <div className="card card-pad">
         <PasswordChangeForm />
       </div>
     </div>

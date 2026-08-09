@@ -7,15 +7,13 @@ import { toPiasters } from "@/lib/money";
    Owner is the deal's rep, stamped SERVER-SIDE in applyDealEvent (ADR-026) —
    no owner select renders here and no owner id leaves the client. */
 
-export const inputCls =
-  "w-full border border-brand-border rounded-brand-control px-3 py-2 bg-brand-surface-card text-sm";
-export const labelCls = "block text-sm font-medium mb-1";
-export const btnPrimary =
-  "bg-brand-primary text-brand-on-primary rounded-brand-control px-4 py-2 text-sm font-medium disabled:opacity-50";
-export const btnAccent =
-  "bg-brand-accent text-brand-on-accent rounded-brand-control px-4 py-2 text-sm font-medium disabled:opacity-50";
-export const btnGhost =
-  "border border-brand-border rounded-brand-control px-4 py-2 text-sm text-brand-muted";
+/* Design-system form/button classes (spec §2.8/§2.9) — single source for every
+   client form; the classes live token-driven in src/themes/design-system.css. */
+export const inputCls = "field-input";
+export const labelCls = "field-label block mb-1.5";
+export const btnPrimary = "btn-primary";
+export const btnAccent = "btn-accent";
+export const btnGhost = "btn-ghost";
 
 export function FollowUpFields() {
   return (

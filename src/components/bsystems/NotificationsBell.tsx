@@ -60,39 +60,35 @@ export function NotificationsBell() {
   }
 
   return (
-    <div ref={boxRef} className="relative">
+    <div ref={boxRef} className="bell-wrap">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-label={`Notifications${unread ? ` (${unread} unread)` : ""}`}
-        className="relative px-2 py-1.5 rounded-brand-control text-sm text-brand-link hover:bg-brand-surface-tint"
+        className="bell"
       >
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
           <path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
           <path d="M13.7 21a2 2 0 0 1-3.4 0" />
         </svg>
-        {unread > 0 ? (
-          <span className="absolute -top-1 -end-1 bg-brand-danger text-brand-on-danger text-[10px] font-bold rounded-full min-w-4 h-4 px-1 flex items-center justify-center">
-            {unread}
-          </span>
-        ) : null}
+        {unread > 0 ? <span className="bell-count">{unread}</span> : null}
       </button>
       {open ? (
-        <div className="absolute end-0 top-full mt-1 w-80 max-h-96 overflow-y-auto bg-brand-surface-card border border-brand-border rounded-brand-card shadow-brand-card z-50">
+        <div className="bell-menu">
           {items.length === 0 ? (
-            <p className="text-sm text-brand-muted p-4">No notifications yet.</p>
+            <p className="empty m-3">No notifications yet.</p>
           ) : (
             items.map((n) => (
               <button
                 key={n.id}
                 type="button"
                 onClick={() => void openItem(n)}
-                className={`block w-full text-start p-3 border-b border-brand-border last:border-0 hover:bg-brand-surface-tint ${
+                className={`block w-full text-start px-4 py-3 border-b border-brand-hairline last:border-0 hover:bg-brand-surface ${
                   n.readAt ? "opacity-60" : ""
                 }`}
               >
                 <p className="text-sm font-medium">{n.title}</p>
-                <p className="text-xs text-brand-muted mt-0.5 whitespace-pre-wrap">{n.body}</p>
+                <p className="feed-text text-brand-muted mt-0.5 whitespace-pre-wrap">{n.body}</p>
               </button>
             ))
           )}

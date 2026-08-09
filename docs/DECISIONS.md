@@ -443,3 +443,54 @@ history; supersede with a new ADR.
   founder's explicit two-apps instruction).
 - Resolves: founder V2 brief — [A] items flagged for founder confirmation
 - Status: Accepted
+
+## ADR-031 — 2026-08-09 — Claude Design prototype adopted as the visual source of truth (handoff applied, calibrated to V2)
+- Context: The founder supplied a Claude Design handoff bundle ("Claude Design
+  Handoff/") built against the V1 brief. It was extracted and calibrated to the
+  V2 app per docs/DESIGN-APPLICATION-SPEC.md — the normative token sheet +
+  component specs + screen map. Sub-decision bullets below cite that spec's
+  risk ids (R#).
+- Decision:
+  - B-Systems cards float #FFFFFF on the Paper canvas — supersedes the "never
+    pure #FFF for cards" token-file comment (R1).
+  - --color-danger is the functional red #C0392B in ALL brands (extends
+    ADR-014); Signal Pink stays accent/Won-cue only (R2).
+  - Lost stage accent is neutral in both brands ("Lost is the one neutral"),
+    no longer danger/pink (R3).
+  - --color-success #2E7D5B is a functional-indicator exemption
+    (toast/indicator discs only) — flagged "Needs founder confirmation"
+    against the B-brand "no green" rule (R4).
+  - JetBrains Mono is the meta face in all brands incl. ByteForce (R6);
+    Lama Sans weight mapping 500→400/600→700 with font-synthesis none (R5,
+    founder to confirm intermediate cuts).
+  - Role-aware B-Systems chrome: indigo header for admin + internal sales,
+    deep-navy (data-shell="external") for agents/partners — flagged "Needs
+    founder confirmation" (R8).
+  - The stage color system is now four values per stage (well / bar / chip /
+    chip-ink) via --color-stage-{key}[-accent|-chip|-chip-ink]; Negotiation's
+    colors are DERIVED by the spec's ramp-midpoint rule (flanking
+    Proposal↔Won) since the prototype predates the stage — flagged for
+    founder (R12).
+  - The consolidated /login is the prototype's split form + brand-billboard
+    layout — supersedes ADR-028's centered-card visual (R18).
+  - The neutral (home) shell now defines its own [data-brand="neutral"] token
+    scope in src/themes/neutral.css (extends ADR-007); the token contract is
+    identical across all three scopes.
+  - Entity switcher in the app headers renders ONLY for accounts whose roles
+    span both companies (founder instruction this session); the seeded admin
+    account now carries both bsystems_admin and byteforce_staff.
+  - ByteForce surface-tint moved to the violet family, radius-card 12→10px,
+    prototype two-layer shadows (R21/R22 accepted).
+  - The /portal landing's marketing sections from the prototype (steps strip,
+    commission band, footer) were NOT built — they need new marketing copy;
+    flagged "Needs founder confirmation" for a copy-approved pass (R23).
+  - Consequences: all components consume the design-system class layer
+    (src/themes/design-system.css) + brand utilities; no raw values in
+    components (brand-auditor PASS).
+- Alternatives considered: none recorded — the prototype is the founder's
+  approved design deliverable; the per-risk calibration alternatives are
+  recorded in docs/DESIGN-APPLICATION-SPEC.md §4 (25 resolved risks).
+- Resolves: the design-round deliverable awaited since Entry 008; no SPEC §11
+  A-# resolved. The flagged items above join the "Needs founder confirmation"
+  thread (PROGRESS Entry 010).
+- Status: Accepted

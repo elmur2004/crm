@@ -4,6 +4,9 @@
 - Portal merged into the role-aware B-Systems CRM: negotiation stage,
   milestone-tab confirm-win, won leads/statements/payments, users +
   impersonation, agents/registrations sections, colored draggable board.
+- Design system applied from the approved Claude Design prototype (ADR-031):
+  new token sheet, dark B-Systems chrome, entity switcher, redesigned
+  login/hub.
 
 ## Phase 5 — Hardening & handover (2026-08-09)
 - Final demo seed: both brands populated across every stage, a converted partner

@@ -82,127 +82,155 @@ export default async function BsLeadDetailPage({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between gap-4 flex-wrap">
+      <div className="page-head">
         <div>
+          <p className="u-eyebrow">B-SYSTEMS · CRM</p>
           <Link href="/b-systems/crm" className="text-sm text-brand-muted underline underline-offset-2">
             Back to the CRM board
           </Link>
-          <h1 className="font-brand-display text-2xl font-bold text-brand-heading flex items-center gap-3 flex-wrap">
-            {lead.name}
-            <StageBadge stage={lead.stage} />
-            {lead.readyToClose ? (
-              <span className="text-xs bg-brand-accent text-brand-on-accent rounded-brand-control px-2 py-1">
-                Ready to close
-              </span>
-            ) : null}
-          </h1>
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="page-actions">
           <CopyLeadButton lead={editable} />
           {access.isAdmin ? <DeleteLeadButton leadId={lead.id} /> : null}
         </div>
       </div>
 
-      <div className="grid md:grid-cols-2 gap-6">
-        <section className="space-y-4">
-          <div className="bg-brand-surface-card border border-brand-border rounded-brand-card p-4 text-sm space-y-1">
-            <p>
-              <span className="text-brand-muted">Number:</span> {lead.number}
-            </p>
-            <p>
-              <span className="text-brand-muted">Email:</span> {lead.email ?? "—"}
-            </p>
-            <p>
-              <span className="text-brand-muted">Type:</span>{" "}
-              {LEAD_TYPE_LABELS[lead.type as LeadType] ?? lead.type}
-            </p>
-            <p>
-              <span className="text-brand-muted">Owner:</span>{" "}
+      <div className="card card--flush0">
+        <div className="identity-head">
+          <h1 className="identity-name flex items-center gap-3 flex-wrap">
+            {lead.name}
+            <StageBadge stage={lead.stage} header />
+            {lead.readyToClose ? (
+              <span className="badge badge--accent">Ready to close</span>
+            ) : null}
+          </h1>
+        </div>
+        <div className="fields-grid">
+          <div className="fields-cell">
+            <p className="fields-label">Number:</p>
+            <p className="fields-value">{lead.number}</p>
+          </div>
+          <div className="fields-cell">
+            <p className="fields-label">Email:</p>
+            <p className="fields-value">{lead.email ?? "—"}</p>
+          </div>
+          <div className="fields-cell">
+            <p className="fields-label">Type:</p>
+            <p className="fields-value">{LEAD_TYPE_LABELS[lead.type as LeadType] ?? lead.type}</p>
+          </div>
+          <div className="fields-cell">
+            <p className="fields-label">Owner:</p>
+            <p className="fields-value">
               {OWNER_TYPE_LABELS[lead.ownerType as OwnerType] ?? lead.ownerType}
               {lead.salesRep ? ` · ${lead.salesRep.name}` : ""}
               {lead.partner ? ` · ${lead.partner.companyName}` : ""}
             </p>
-            {lead.position ? (
-              <p>
-                <span className="text-brand-muted">Position:</span> {lead.position}
-              </p>
-            ) : null}
-            {lead.companyName ? (
-              <p>
-                <span className="text-brand-muted">Company:</span> {lead.companyName}
-              </p>
-            ) : null}
-            {lead.industry ? (
-              <p>
-                <span className="text-brand-muted">Industry:</span> {lead.industry}
-              </p>
-            ) : null}
-            <p>
-              <span className="text-brand-muted">Date created:</span> {formatCairo(lead.createdAt)}
-            </p>
-            {lead.requirements ? (
-              <p className="pt-1 whitespace-pre-wrap">
-                <span className="text-brand-muted">Requirements:</span> {lead.requirements}
-              </p>
-            ) : null}
-            {lead.description ? <p className="pt-1 whitespace-pre-wrap">{lead.description}</p> : null}
           </div>
+          {lead.position ? (
+            <div className="fields-cell">
+              <p className="fields-label">Position:</p>
+              <p className="fields-value">{lead.position}</p>
+            </div>
+          ) : null}
+          {lead.companyName ? (
+            <div className="fields-cell">
+              <p className="fields-label">Company:</p>
+              <p className="fields-value">{lead.companyName}</p>
+            </div>
+          ) : null}
+          {lead.industry ? (
+            <div className="fields-cell">
+              <p className="fields-label">Industry:</p>
+              <p className="fields-value">{lead.industry}</p>
+            </div>
+          ) : null}
+          <div className="fields-cell">
+            <p className="fields-label">Date created:</p>
+            <p className="fields-value">{formatCairo(lead.createdAt)}</p>
+          </div>
+          {lead.requirements ? (
+            <div className="fields-cell">
+              <p className="fields-label">Requirements:</p>
+              <p className="fields-value whitespace-pre-wrap">{lead.requirements}</p>
+            </div>
+          ) : null}
+          {lead.description ? (
+            <div className="fields-cell">
+              <p className="fields-value whitespace-pre-wrap">{lead.description}</p>
+            </div>
+          ) : null}
+        </div>
+      </div>
 
+      <div className="grid md:grid-cols-2 gap-6">
+        <section className="space-y-4">
           {access.isAdmin ? <EditLeadForm lead={editable} /> : null}
 
-          <div className="bg-brand-surface-card border border-brand-border rounded-brand-card p-4">
-            <h2 className="text-brand-meta text-brand-muted mb-3">Next action</h2>
-            <BsEventPanel
-              leadId={lead.id}
-              stage={lead.stage}
-              role={role}
-              reps={reps}
-              hasUnsentProposal={lead.proposals.some((p) => !p.sent)}
-              pendingMeeting={Boolean(
-                latestMeeting && latestMeeting.outcome === null && latestMeeting.arranged,
-              )}
-              readyToClose={lead.readyToClose}
-            />
+          <div className="card card--flush0">
+            <div className="card-head">
+              <h2 className="u-h3">Next action</h2>
+            </div>
+            <div className="card-pad">
+              <BsEventPanel
+                leadId={lead.id}
+                stage={lead.stage}
+                role={role}
+                reps={reps}
+                hasUnsentProposal={lead.proposals.some((p) => !p.sent)}
+                pendingMeeting={Boolean(
+                  latestMeeting && latestMeeting.outcome === null && latestMeeting.arranged,
+                )}
+                readyToClose={lead.readyToClose}
+              />
+            </div>
           </div>
 
           {wonDeal ? (
-            <div className="bg-brand-surface-card border border-brand-border rounded-brand-card p-4 text-sm">
-              <h2 className="text-brand-meta text-brand-muted mb-2">Won deal</h2>
-              <p>
-                {wonDeal.milestones.filter((m) => m.completed).length}/{wonDeal.milestones.length}{" "}
-                milestones completed
-                {access.isAdmin ? (
-                  <>
-                    {" — "}
-                    <Link
-                      href={`/b-systems/won-leads/${wonDeal.id}`}
-                      className="text-brand-link underline underline-offset-2"
-                    >
-                      open in Won Leads
-                    </Link>
-                  </>
-                ) : null}
-              </p>
+            <div className="card card--flush0 text-sm">
+              <div className="card-head">
+                <h2 className="u-h3">Won deal</h2>
+              </div>
+              <div className="card-pad">
+                <p>
+                  {wonDeal.milestones.filter((m) => m.completed).length}/{wonDeal.milestones.length}{" "}
+                  milestones completed
+                  {access.isAdmin ? (
+                    <>
+                      {" — "}
+                      <Link
+                        href={`/b-systems/won-leads/${wonDeal.id}`}
+                        className="text-brand-link underline underline-offset-2"
+                      >
+                        open in Won Leads
+                      </Link>
+                    </>
+                  ) : null}
+                </p>
+              </div>
             </div>
           ) : null}
         </section>
 
         <section className="space-y-4">
           {negotiationNotes.length > 0 ? (
-            <div className="bg-brand-surface-card border border-brand-border rounded-brand-card p-4">
-              <h2 className="text-brand-meta text-brand-muted mb-2">Negotiation notes</h2>
-              <ul className="space-y-2 text-sm">
-                {negotiationNotes.map((n) => (
-                  <li key={n.id}>
-                    <p className="whitespace-pre-wrap">{n.note}</p>
-                    <p className="text-xs text-brand-muted">{formatCairo(n.createdAt)}</p>
-                  </li>
-                ))}
-              </ul>
+            <div className="card card--flush0">
+              <div className="card-head">
+                <h2 className="u-h3">Negotiation notes</h2>
+              </div>
+              <div className="card-pad">
+                <ul className="space-y-2 text-sm">
+                  {negotiationNotes.map((n) => (
+                    <li key={n.id}>
+                      <p className="whitespace-pre-wrap">{n.note}</p>
+                      <p className="record-time">{formatCairo(n.createdAt)}</p>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             </div>
           ) : null}
           <div>
-            <h2 className="text-brand-meta text-brand-muted mb-2">Stage records</h2>
+            <h2 className="u-h3 mb-2">Stage records</h2>
             <GroupHistory
               followUps={lead.followUps}
               meetings={lead.meetings}
@@ -211,9 +239,13 @@ export default async function BsLeadDetailPage({
               won={lead.wonInfo}
             />
           </div>
-          <div className="bg-brand-surface-card border border-brand-border rounded-brand-card p-4">
-            <h2 className="text-brand-meta text-brand-muted mb-2">History</h2>
-            <HistoryPanel entries={history} />
+          <div className="card card--flush0">
+            <div className="card-head">
+              <h2 className="u-h3">History</h2>
+            </div>
+            <div className="card-pad">
+              <HistoryPanel entries={history} />
+            </div>
           </div>
         </section>
       </div>

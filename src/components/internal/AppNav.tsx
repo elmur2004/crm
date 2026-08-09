@@ -1,20 +1,20 @@
-import Link from "next/link";
-import { BrandLogo } from "@/components/shared/BrandLogo";
+import { EntitySwitch } from "@/components/shared/EntitySwitch";
+import { ShellNav } from "@/components/shared/ShellNav";
 import { logout } from "@/lib/auth/actions";
-import type { Brand } from "@/lib/pipeline-engine/constants";
+import type { Role } from "@/lib/pipeline-engine/constants";
 
-/* Internal CRM navigation (§6: Home | Leads | CRM | Clients; App B appends
-   Partners Pipeline | Partners in Phase 2). Logical properties only (RTL, A-12). */
+/* ByteForce app chrome — the prototype's light header (spec §2.1): white bar,
+   notched-square mark, orange-tint active nav. Logical properties only (A-12). */
 
 export function AppNav({
-  brand,
   basePath,
   userName,
+  roles = [],
   extraItems = [],
 }: {
-  brand: Brand;
   basePath: string;
   userName: string;
+  roles?: Role[];
   extraItems?: Array<{ href: string; label: string }>;
 }) {
   const items = [
@@ -24,30 +24,28 @@ export function AppNav({
     { href: `${basePath}/clients`, label: "Clients" },
     ...extraItems,
   ];
-  const logoutTo = "/login"; // ADR-028
+  const initials = userName
+    .split(/\s+/)
+    .map((w) => w[0])
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
   return (
-    <header className="border-b border-brand-border bg-brand-surface-card">
-      <div className="max-w-6xl mx-auto px-4 py-3 flex items-center gap-x-6 gap-y-2 flex-wrap">
-        <Link href={basePath} className="shrink-0">
-          <BrandLogo brand={brand} variant={brand === "bsystems" ? "mark" : "horizontal"} height={36} />
-        </Link>
-        <nav className="flex gap-1 flex-1 flex-wrap">
-          {items.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className="px-3 py-1.5 rounded-brand-control text-sm font-medium text-brand-link hover:bg-brand-surface-tint"
-            >
-              {item.label}
-            </Link>
-          ))}
-        </nav>
-        <form action={logout.bind(null, logoutTo)}>
-          <button
-            type="submit"
-            className="text-sm text-brand-muted hover:text-brand-ink"
-            title={userName}
-          >
+    <header className="app-header">
+      <span className="logo-a" aria-hidden />
+      <span className="wordmark">ByteForce</span>
+      <ShellNav items={items} />
+      <div className="user">
+        <EntitySwitch roles={roles} current="byteforce" />
+        <span className="user-avatar" aria-hidden>
+          {initials}
+        </span>
+        <span className="user-meta">
+          <span className="user-name block">{userName}</span>
+          <span className="user-role block">Staff</span>
+        </span>
+        <form action={logout.bind(null, "/login")}>
+          <button type="submit" className="nav-item" title={userName}>
             Log out
           </button>
         </form>

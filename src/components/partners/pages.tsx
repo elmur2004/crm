@@ -6,6 +6,7 @@ import { getPartnerDetail, getProspectDetail, listPartners, parseNumbers } from 
 import { listReps } from "@/lib/services/sales-reps";
 import { formatCairo, formatCairoDate } from "@/lib/datetime";
 import { StageBadge } from "@/components/shared/StageBadge";
+import { stageKey } from "@/components/bsystems/stageColors";
 import { GroupHistory } from "@/components/internal/GroupHistory";
 import { HistoryPanel } from "@/components/internal/HistoryPanel";
 import { AddProspectForm, AlternativeNumbersForm, RecordingUpload } from "./forms";
@@ -43,35 +44,41 @@ export async function PartnersPipelineBody() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <h1 className="font-brand-display text-2xl font-bold text-brand-heading">Partners Pipeline</h1>
-        <AddProspectForm />
+      <div className="page-head">
+        <div>
+          <p className="u-eyebrow">B-SYSTEMS · PARTNERS PIPELINE</p>
+          <h1 className="u-h1">Partners Pipeline</h1>
+        </div>
+        <div className="page-actions">
+          <AddProspectForm />
+        </div>
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3 items-start">
+      <div className="board" data-cols="6plus">
         {PARTNER_STAGES.map((stage) => {
           const cards = prospects.filter((p) => p.stage === stage);
           return (
-            <div key={stage} className="bg-brand-surface-tint rounded-brand-card p-2 min-h-24">
-              <p className="text-brand-meta text-brand-muted px-1 pb-2">
-                {STAGE_LABELS[stage]} ({cards.length})
-              </p>
-              <div className="space-y-2">
+            <div key={stage} className="col" data-stage-key={stageKey(stage)}>
+              <div className="col-bar" />
+              <div className="col-head">
+                <p className="col-title">
+                  {STAGE_LABELS[stage]} ({cards.length})
+                </p>
+              </div>
+              <div className="col-cards">
                 {cards.map((p) => (
                   <Link
                     key={p.id}
                     href={`/b-systems/partners-pipeline/${p.id}`}
-                    className="block bg-brand-surface-card border border-brand-border rounded-brand-card p-3 shadow-brand-card hover:border-brand-primary"
+                    className="bcard block"
                   >
-                    <p className="font-medium text-sm">{p.companyName}</p>
-                    <p className="text-xs text-brand-muted mt-0.5">{p.name}</p>
+                    <p className="bcard-name">{p.companyName}</p>
+                    <p className="bcard-rep whitespace-normal">{p.name}</p>
                     {p.converted ? (
-                      <p className="text-xs mt-1">
-                        <span className="bg-brand-success text-brand-on-success rounded-brand-control px-1.5 py-0.5">
-                          Converted
-                        </span>
+                      <p className="mt-1.5">
+                        <span className="badge badge--converted">Converted</span>
                       </p>
                     ) : null}
-                    <p className="text-xs text-brand-ink mt-1">{keyDatum(p)}</p>
+                    <p className="bcard-meta">{keyDatum(p)}</p>
                   </Link>
                 ))}
               </div>
@@ -104,77 +111,94 @@ export async function ProspectDetailBody({ prospectId }: { prospectId: string })
         >
           Back to the pipeline
         </Link>
-        <h1 className="font-brand-display text-2xl font-bold text-brand-heading flex items-center gap-3 flex-wrap">
+        <p className="u-eyebrow mt-3">B-SYSTEMS · PARTNERS PIPELINE</p>
+        <h1 className="u-h1 flex items-center gap-3 flex-wrap">
           {prospect.companyName}
-          <StageBadge stage={prospect.stage} />
+          <StageBadge stage={prospect.stage} header />
           {prospect.converted ? (
-            <span className="text-xs bg-brand-success text-brand-on-success rounded-brand-control px-2 py-1">
-              Converted
-            </span>
+            <span className="badge badge--converted">Converted</span>
           ) : null}
         </h1>
       </div>
 
       <div className="grid md:grid-cols-2 gap-6">
         <section className="space-y-4">
-          <div className="bg-brand-surface-card border border-brand-border rounded-brand-card p-4 text-sm space-y-1">
-            <p>
-              <span className="text-brand-muted">Contact:</span> {prospect.name}
-              {prospect.role ? ` · ${prospect.role}` : ""}
-            </p>
-            <p>
-              <span className="text-brand-muted">Number:</span> {prospect.number}
-            </p>
-            {parseNumbers(prospect.nonAnsweringNumbers).length > 0 ? (
-              <p>
-                <span className="text-brand-muted">Non-answering number(s):</span>{" "}
-                {parseNumbers(prospect.nonAnsweringNumbers).join(" · ")}
-              </p>
-            ) : null}
-            {parseNumbers(prospect.alternativeNumbers).length > 0 ? (
-              <p>
-                <span className="text-brand-muted">Alternative numbers:</span>{" "}
-                {parseNumbers(prospect.alternativeNumbers).join(" · ")}
-              </p>
-            ) : null}
-            <p>
-              <span className="text-brand-muted">Email:</span> {prospect.email ?? "—"}
-            </p>
-            <p>
-              <span className="text-brand-muted">Business activity:</span>{" "}
-              {prospect.businessActivity}
-            </p>
-            {prospect.description ? (
-              <p className="pt-1 whitespace-pre-wrap">{prospect.description}</p>
-            ) : null}
-            {prospect.partner ? (
-              <p className="pt-1">
-                <Link
-                  href={`/b-systems/partners/${prospect.partner.id}`}
-                  className="text-brand-primary underline underline-offset-2"
-                >
-                  View in Partners directory
-                </Link>
-              </p>
-            ) : null}
+          <div className="card card--flush0">
+            <div className="fields-grid">
+              <div className="fields-cell">
+                <p className="fields-value">
+                  <span className="fields-label block mb-1.5">Contact:</span> {prospect.name}
+                  {prospect.role ? ` · ${prospect.role}` : ""}
+                </p>
+              </div>
+              <div className="fields-cell">
+                <p className="fields-value">
+                  <span className="fields-label block mb-1.5">Number:</span> {prospect.number}
+                </p>
+              </div>
+              {parseNumbers(prospect.nonAnsweringNumbers).length > 0 ? (
+                <div className="fields-cell">
+                  <p className="fields-value">
+                    <span className="fields-label block mb-1.5">Non-answering number(s):</span>{" "}
+                    {parseNumbers(prospect.nonAnsweringNumbers).join(" · ")}
+                  </p>
+                </div>
+              ) : null}
+              {parseNumbers(prospect.alternativeNumbers).length > 0 ? (
+                <div className="fields-cell">
+                  <p className="fields-value">
+                    <span className="fields-label block mb-1.5">Alternative numbers:</span>{" "}
+                    {parseNumbers(prospect.alternativeNumbers).join(" · ")}
+                  </p>
+                </div>
+              ) : null}
+              <div className="fields-cell">
+                <p className="fields-value">
+                  <span className="fields-label block mb-1.5">Email:</span> {prospect.email ?? "—"}
+                </p>
+              </div>
+              <div className="fields-cell">
+                <p className="fields-value">
+                  <span className="fields-label block mb-1.5">Business activity:</span>{" "}
+                  {prospect.businessActivity}
+                </p>
+              </div>
+              {prospect.description ? (
+                <div className="fields-cell">
+                  <p className="fields-value whitespace-pre-wrap">{prospect.description}</p>
+                </div>
+              ) : null}
+              {prospect.partner ? (
+                <div className="fields-cell">
+                  <p className="fields-value">
+                    <Link
+                      href={`/b-systems/partners/${prospect.partner.id}`}
+                      className="text-brand-primary underline underline-offset-2"
+                    >
+                      View in Partners directory
+                    </Link>
+                  </p>
+                </div>
+              ) : null}
+            </div>
           </div>
 
-          <div className="bg-brand-surface-card border border-brand-border rounded-brand-card p-4">
+          <div className="card card-pad">
             <AlternativeNumbersForm
               prospectId={prospect.id}
               inDidntAnswer={prospect.stage === "didnt_answer"}
             />
           </div>
 
-          <div className="bg-brand-surface-card border border-brand-border rounded-brand-card p-4 space-y-3">
-            <h2 className="text-brand-meta text-brand-muted">Cold-call recordings</h2>
+          <div className="card card-pad space-y-3">
+            <h2 className="u-mono">Cold-call recordings</h2>
             {prospect.recordings.length === 0 ? (
-              <p className="text-sm text-brand-muted">No recordings yet.</p>
+              <p className="empty">No recordings yet.</p>
             ) : (
               <ul className="space-y-3">
                 {prospect.recordings.map((r) => (
-                  <li key={r.id} className="text-sm">
-                    <p className="mb-1">{r.filename}</p>
+                  <li key={r.id} className="text-sm border border-brand-border rounded-brand-control p-3">
+                    <p className="td-mono mb-1.5">{r.filename}</p>
                     {r.mime.startsWith("video/") ? (
                       // eslint-disable-next-line jsx-a11y/media-has-caption
                       <video controls preload="metadata" className="w-full rounded-brand-control" src={`/api/files/${r.id}`} />
@@ -189,8 +213,8 @@ export async function ProspectDetailBody({ prospectId }: { prospectId: string })
             <RecordingUpload prospectId={prospect.id} />
           </div>
 
-          <div className="bg-brand-surface-card border border-brand-border rounded-brand-card p-4">
-            <h2 className="text-brand-meta text-brand-muted mb-3">Next action</h2>
+          <div className="card card-pad">
+            <h2 className="u-mono mb-3">Next action</h2>
             <ProspectEventPanel
               prospectId={prospect.id}
               stage={prospect.stage}
@@ -213,15 +237,15 @@ export async function ProspectDetailBody({ prospectId }: { prospectId: string })
 
         <section className="space-y-4">
           <div>
-            <h2 className="text-brand-meta text-brand-muted mb-2">Stage records</h2>
+            <h2 className="u-mono mb-2">Stage records</h2>
             <GroupHistory
               followUps={prospect.followUps}
               meetings={prospect.meetings}
               lostInfo={prospect.lostInfo}
             />
           </div>
-          <div className="bg-brand-surface-card border border-brand-border rounded-brand-card p-4">
-            <h2 className="text-brand-meta text-brand-muted mb-2">History</h2>
+          <div className="card card-pad">
+            <h2 className="u-mono mb-2">History</h2>
             <HistoryPanel entries={history} />
           </div>
         </section>
@@ -234,21 +258,33 @@ export async function PartnersDirectoryBody() {
   const partners = await listPartners();
   return (
     <div className="space-y-6">
-      <h1 className="font-brand-display text-2xl font-bold text-brand-heading">Partners</h1>
+      <div className="page-head">
+        <div>
+          <p className="u-eyebrow">B-SYSTEMS · PARTNERS</p>
+          <h1 className="u-h1">Partners</h1>
+        </div>
+      </div>
       {partners.length === 0 ? (
-        <p className="text-sm text-brand-muted">
+        <p className="empty">
           No partners yet — they appear automatically when a pipeline card is Won.
         </p>
       ) : (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="ecard-grid">
           {partners.map((p) => (
-            <Link
-              key={p.id}
-              href={`/b-systems/partners/${p.id}`}
-              className="bg-brand-surface-card border border-brand-border rounded-brand-card shadow-brand-card p-4 hover:border-brand-primary"
-            >
-              <p className="font-bold">{p.companyName}</p>
-              <p className="text-brand-meta text-brand-muted mt-1">{p.importance}</p>
+            <Link key={p.id} href={`/b-systems/partners/${p.id}`} className="ecard">
+              <span className="ecard-top">
+                <span className="ecard-mark" aria-hidden="true">
+                  {p.companyName
+                    .split(/\s+/)
+                    .filter(Boolean)
+                    .slice(0, 2)
+                    .map((w) => w[0])
+                    .join("")
+                    .toUpperCase()}
+                </span>
+                <span className="chip-outline">{p.importance}</span>
+              </span>
+              <span className="ecard-title">{p.companyName}</span>
             </Link>
           ))}
         </div>
@@ -276,76 +312,92 @@ export async function PartnerDetailBody({ partnerId }: { partnerId: string }) {
         >
           Back to all partners
         </Link>
-        <div className="flex items-baseline justify-between gap-4 flex-wrap">
-          <h1 className="font-brand-display text-2xl font-bold text-brand-heading">{partner.companyName}</h1>
+        <div className="page-head">
+          <div>
+            <p className="u-eyebrow mt-3">B-SYSTEMS · PARTNERS</p>
+            <h1 className="u-h1">{partner.companyName}</h1>
+          </div>
           <p className="text-brand-meta text-brand-muted">
             Date joined: {formatCairoDate(partner.dateJoined)}
           </p>
         </div>
       </div>
 
-      <div className="bg-brand-surface-card border border-brand-border rounded-brand-card p-4 text-sm grid sm:grid-cols-2 gap-x-6 gap-y-1">
-        <p>
-          <span className="text-brand-muted">Key person:</span> {partner.keyPersonName} ·{" "}
-          {partner.keyPersonRole}
-        </p>
-        <p>
-          <span className="text-brand-muted">Importance:</span> {partner.importance}
-        </p>
-        <p>
-          <span className="text-brand-muted">Address:</span> {partner.address}
-        </p>
-        <p>
-          <span className="text-brand-muted">Number:</span> {partner.number}
-        </p>
-        <p>
-          <span className="text-brand-muted">Email:</span> {partner.email ?? "—"}
-        </p>
-        <p>
-          <span className="text-brand-muted">Business activity:</span> {partner.businessActivity}
-        </p>
+      <div className="card card--flush0">
+        <div className="fields-grid">
+          <div className="fields-cell">
+            <p className="fields-value">
+              <span className="fields-label block mb-1.5">Key person:</span> {partner.keyPersonName} ·{" "}
+              {partner.keyPersonRole}
+            </p>
+          </div>
+          <div className="fields-cell">
+            <p className="fields-value">
+              <span className="fields-label block mb-1.5">Importance:</span> {partner.importance}
+            </p>
+          </div>
+          <div className="fields-cell">
+            <p className="fields-value">
+              <span className="fields-label block mb-1.5">Address:</span> {partner.address}
+            </p>
+          </div>
+          <div className="fields-cell">
+            <p className="fields-value">
+              <span className="fields-label block mb-1.5">Number:</span> {partner.number}
+            </p>
+          </div>
+          <div className="fields-cell">
+            <p className="fields-value">
+              <span className="fields-label block mb-1.5">Email:</span> {partner.email ?? "—"}
+            </p>
+          </div>
+          <div className="fields-cell">
+            <p className="fields-value">
+              <span className="fields-label block mb-1.5">Business activity:</span> {partner.businessActivity}
+            </p>
+          </div>
+        </div>
       </div>
 
       <div className="space-y-3">
         <div className="flex items-center justify-between gap-4 flex-wrap">
-          <h2 className="font-brand-display text-lg font-bold text-brand-heading">Leads from this partner</h2>
+          <h2 className="u-h2">Leads from this partner</h2>
           <PartnerAddLead partnerId={partner.id} reps={reps.map((r) => ({ id: r.id, name: r.name }))} />
         </div>
         {partner.leads.length === 0 ? (
-          <p className="text-sm text-brand-muted">No leads yet.</p>
+          <p className="empty">No leads yet.</p>
         ) : (
-          <div className="overflow-x-auto border border-brand-border rounded-brand-card bg-brand-surface-card">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-brand-border">
-                  <th className="text-start p-3 font-bold">Name</th>
-                  <th className="text-start p-3 font-bold">Number</th>
-                  <th className="text-start p-3 font-bold">Rep</th>
-                  <th className="text-start p-3 font-bold">Created</th>
-                  <th className="text-start p-3 font-bold">Stage</th>
-                </tr>
-              </thead>
-              <tbody>
-                {partner.leads.map((lead) => (
-                  <tr key={lead.id} className="border-b border-brand-border last:border-0">
-                    <td className="p-3">
-                      <Link
-                        href={`/b-systems/crm/lead/${lead.id}`}
-                        className="font-medium text-brand-primary"
-                      >
-                        {lead.name}
-                      </Link>
-                    </td>
-                    <td className="p-3">{lead.number}</td>
-                    <td className="p-3">{lead.salesRep?.name ?? "Unassigned"}</td>
-                    <td className="p-3">{formatCairoDate(lead.createdAt)}</td>
-                    <td className="p-3">
-                      <StageBadge stage={lead.stage} />
-                    </td>
+          <div className="card card--flush0">
+            <div className="table-scroll">
+              <table className="table table--embedded">
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Number</th>
+                    <th>Rep</th>
+                    <th>Created</th>
+                    <th>Stage</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {partner.leads.map((lead) => (
+                    <tr key={lead.id}>
+                      <td>
+                        <Link href={`/b-systems/crm/lead/${lead.id}`} className="td-title">
+                          {lead.name}
+                        </Link>
+                      </td>
+                      <td className="td-mono">{lead.number}</td>
+                      <td>{lead.salesRep?.name ?? "Unassigned"}</td>
+                      <td>{formatCairoDate(lead.createdAt)}</td>
+                      <td>
+                        <StageBadge stage={lead.stage} />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
       </div>

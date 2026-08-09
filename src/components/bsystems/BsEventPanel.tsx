@@ -80,7 +80,7 @@ export function BsEventPanel({
 
   if (terminal) {
     return (
-      <p className="text-sm text-brand-muted">
+      <p className="u-muted">
         This lead is {STAGE_LABELS[stage]} — no further actions.
       </p>
     );
@@ -89,12 +89,12 @@ export function BsEventPanel({
   return (
     <div className="space-y-4">
       {error ? (
-        <p role="alert" className="text-sm text-brand-danger">
+        <p role="alert" className="alert-error">
           {error}
         </p>
       ) : null}
       {meetingSent && light ? (
-        <p role="status" className="text-sm bg-brand-surface-tint rounded-brand-control px-3 py-2">
+        <p role="status" className="info-banner">
           Your request was received — we&apos;ll confirm on WhatsApp.
         </p>
       ) : null}
@@ -115,15 +115,13 @@ export function BsEventPanel({
         </button>
       ) : (
         <p className="text-sm">
-          <span className="bg-brand-accent text-brand-on-accent rounded-brand-control px-2 py-1">
-            Ready to close
-          </span>
+          <span className="badge badge--accent">Ready to close</span>
         </p>
       )}
 
       {stage === "sending_proposal" && hasUnsentProposal ? (
-        <div className="border border-brand-border rounded-brand-card p-4 bg-brand-surface-tint">
-          <p className="text-sm font-medium mb-2">Proposal ready — mark it as sent?</p>
+        <div className="card card-pad space-y-3">
+          <p className="u-h3">Proposal ready — mark it as sent?</p>
           {light ? (
             <button
               type="button"
@@ -144,7 +142,7 @@ export function BsEventPanel({
               }}
               className="space-y-3"
             >
-              <p className="text-sm font-bold">Following up after proposal</p>
+              <p className="u-label">Following up after proposal</p>
               <FollowUpFieldsV2 light={false} reps={reps} />
               <button type="submit" disabled={busy} className={btnPrimary}>
                 Sent — move to Following Up
@@ -155,8 +153,8 @@ export function BsEventPanel({
       ) : null}
 
       {stage === "meeting_setting" && pendingMeeting ? (
-        <div className="border border-brand-border rounded-brand-card p-4 bg-brand-surface-tint">
-          <p className="text-sm font-medium mb-2">Meeting outcome</p>
+        <div className="card card-pad space-y-3">
+          <p className="u-h3">Meeting outcome</p>
           <select
             aria-label="Meeting outcome"
             value={outcome}
@@ -277,9 +275,9 @@ export function BsEventPanel({
                 },
               );
             }}
-            className="mt-3 space-y-3 border border-brand-border rounded-brand-card p-4"
+            className="mt-3 space-y-3 card card-pad"
           >
-            <p className="text-sm font-bold">{action === "won" ? "Confirm win" : STAGE_LABELS[action]}</p>
+            <p className="u-h3">{action === "won" ? "Confirm win" : STAGE_LABELS[action]}</p>
             <GroupFieldsV2
               target={action}
               role={role}

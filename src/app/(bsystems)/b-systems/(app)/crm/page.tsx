@@ -101,26 +101,28 @@ export default async function BsCrmPage({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <h1 className="font-brand-display text-2xl font-bold text-brand-heading">CRM</h1>
-        <BsAddLeadForm />
-        {role === "admin" ? (
-          <nav className="flex gap-1 flex-wrap" aria-label="Owner filter">
-            {FILTERS.map((f) => (
-              <Link
-                key={f.key}
-                href={f.key === "any" ? "/b-systems/crm" : `/b-systems/crm?owner=${f.key}`}
-                className={`px-3 py-1.5 rounded-brand-control text-sm font-medium ${
-                  filter === f.key
-                    ? "bg-brand-primary text-brand-on-primary"
-                    : "text-brand-link hover:bg-brand-surface-tint"
-                }`}
-              >
-                {f.label}
-              </Link>
-            ))}
-          </nav>
-        ) : null}
+      <div className="page-head">
+        <div>
+          <p className="u-eyebrow">B-SYSTEMS · CRM</p>
+          <h1 className="u-h1">CRM</h1>
+        </div>
+        <div className="page-actions">
+          <BsAddLeadForm />
+          {role === "admin" ? (
+            <nav className="flex gap-1 flex-wrap" aria-label="Owner filter">
+              {FILTERS.map((f) => (
+                <Link
+                  key={f.key}
+                  href={f.key === "any" ? "/b-systems/crm" : `/b-systems/crm?owner=${f.key}`}
+                  className="nav-item"
+                  aria-current={filter === f.key ? "page" : undefined}
+                >
+                  {f.label}
+                </Link>
+              ))}
+            </nav>
+          ) : null}
+        </div>
       </div>
       <BsBoard leads={leads} role={role} reps={reps} />
     </div>
