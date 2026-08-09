@@ -353,3 +353,25 @@ _Format per module:_
   path; do not reintroduce plain-CSS @import chains after the tailwindcss
   import.
 - Last updated: 2026-08-09 (Entry 013, TESTING Run 016)
+
+## PostgreSQL switch — embedded local Postgres (ADR-033)
+- Location: prisma/schema.prisma + prisma/migrations/ (fresh
+  20260809000000_init_postgres), src/lib/db.ts and prisma/seed.ts
+  (@prisma/adapter-pg), embedded-postgres lifecycle in `npm run db:up` and
+  the vitest / Playwright global setups.
+- What exists / how it works: local dev and tests run REAL PostgreSQL via
+  the `embedded-postgres` package (PG binaries from node_modules, no
+  Docker). Ports/dirs convention: 5433 dev (persistent, .pgdata/dev,
+  `npm run db:up`) · 5434 vitest (fresh per run, its globalSetup owns the
+  lifecycle) · 5435 Playwright (fresh per run, globalSetup/globalTeardown
+  own it). .pgdata/ is gitignored. `next build` needs no database
+  (force-dynamic pages); each suite's global setup migrates — the
+  Playwright webServer no longer does.
+- Limitations / gotchas:
+  - tsx runs scripts as CJS, so no top-level await in scripts/ — wrap in a
+    main() function.
+  - The retired SQLite migrations included the hand-written V2 data
+    migration — any OLD SQLite database restores only via the ADR-032
+    backup Export/Import path, not via migrate.
+  - DATABASE_URL has no fallback — db.ts throws a clear error when unset.
+- Last updated: 2026-08-09 (Entry 014, TESTING Run 017, ADR-033)

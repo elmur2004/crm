@@ -8,11 +8,12 @@ export default defineConfig({
   test: {
     include: ["src/**/*.test.ts"],
     environment: "node",
-    env: { DATABASE_URL: "file:./test.db" },
+    /* the embedded test Postgres (scripts/local-postgres.ts, port 5434) */
+    env: { DATABASE_URL: "postgresql://postgres:postgres@localhost:5434/crm" },
     globalSetup: "./src/tests/global-setup.ts",
-    /* Integration tests share one SQLite file — keep files sequential. */
+    /* Integration tests share one database — keep files sequential. */
     fileParallelism: false,
-    testTimeout: 30_000, // SQLite-on-Windows transaction I/O
-    hookTimeout: 30_000,
+    testTimeout: 30_000,
+    hookTimeout: 60_000, // first run downloads/initialises embedded Postgres
   },
 });

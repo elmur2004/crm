@@ -1,15 +1,20 @@
 import { PrismaClient } from "../../generated/prisma/client";
-import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
+import { PrismaPg } from "@prisma/adapter-pg";
 
-/* PrismaClient singleton. Prisma 7 requires a driver adapter (ADR-002 dev target is
-   SQLite via better-sqlite3; the Postgres switch swaps in @prisma/adapter-pg here —
-   one file). DATABASE_URL like "file:./dev.db", resolved relative to the repo root. */
+/* PrismaClient singleton. Prisma 7 requires a driver adapter — PostgreSQL
+   everywhere (ADR-033): production points DATABASE_URL at the managed
+   database; local dev/tests point at the embedded Postgres (scripts/). */
 
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 
 function createClient() {
-  const url = process.env.DATABASE_URL ?? "file:./dev.db";
-  const adapter = new PrismaBetterSqlite3({ url });
+  const connectionString = process.env.DATABASE_URL;
+  if (!connectionString) {
+    throw new Error(
+      "DATABASE_URL is not set — expected a postgresql:// connection string",
+    );
+  }
+  const adapter = new PrismaPg({ connectionString });
   return new PrismaClient({ adapter });
 }
 

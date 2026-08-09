@@ -263,3 +263,18 @@ every dashboard formula, journeys 1-5 (SPEC §13).
   journeys 1–5 + security-rbac + qa-sweep re-verified with the motion
   layer, the `/` → /login redirect, and the admin backup controls live.
 - Verdict: PASS.
+
+## Run 017 — 2026-08-09 — Full suite on embedded PostgreSQL (ADR-033 switch)
+- Suites/commands: `npm run typecheck` (tsc clean) · `npx vitest run` (62 —
+  embedded Postgres on 5434, fresh per run) · `npx playwright test` (12 —
+  embedded Postgres on 5435) · simulated container build: `next build` with
+  an unreachable DATABASE_URL (DB-less production build) — green.
+- Cases: vitest 62 passed / 0 failed / 0 skipped · Playwright 12 passed /
+  0 failed / 0 skipped.
+- Failures: none.
+- SPEC coverage touched: §13 journeys 1–5 + security-rbac + qa-sweep — the
+  full suite re-verified on PostgreSQL (ADR-033); ADR-032 backup
+  Export/Import exercised as the SQLite→Postgres data path (16 leads +
+  users crossed losslessly); vitest wall time ~6 s vs ~42 s on
+  SQLite-on-Windows.
+- Verdict: PASS.

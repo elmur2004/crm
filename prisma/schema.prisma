@@ -1,8 +1,9 @@
 // Physical schema V2 — implements docs/REQUIREMENTS-V2.md (ADR-030) over the v1
-// design in docs/ARCHITECTURE.md §5. SQLite dev / Postgres prod (ADR-002): enum-like
-// columns are String (Zod + unions in src/lib/pipeline-engine/constants.ts); money
-// is Int piasters (ADR-018); percentages are Int basis points. Field groups are
-// child records so history accumulates (SPEC §5.2, A-2).
+// design in docs/ARCHITECTURE.md §5. PostgreSQL everywhere (ADR-033 executes the
+// ADR-002 switch; local dev/tests run an embedded Postgres — see scripts/).
+// Enum-like columns are String (Zod + unions in src/lib/pipeline-engine/constants.ts);
+// money is Int piasters (ADR-018); percentages are Int basis points. Field groups
+// are child records so history accumulates (SPEC §5.2, A-2).
 // V2: PortalDeal merged INTO Lead (same ids — child rows survived the migration);
 // roles renamed (bsystems_admin/sales/agent/partner); milestones carry commission +
 // expected dates; statements/payments + notifications are new subsystems.
@@ -13,7 +14,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
 }
 
 model User {

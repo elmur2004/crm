@@ -1,5 +1,9 @@
 # Changelog — user-visible changes per phase/release
 
+## PostgreSQL switch (2026-08-09)
+- PostgreSQL everywhere (ADR-033): fresh init migration, embedded local
+  Postgres for dev/tests, dev data carried over via the backup system.
+
 ## V2 — Unified role-aware B-Systems CRM (2026-08-09)
 - Portal merged into the role-aware B-Systems CRM: negotiation stage,
   milestone-tab confirm-win, won leads/statements/payments, users +

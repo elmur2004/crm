@@ -536,3 +536,39 @@ R23 copy sign-off — carried in PROGRESS (Entry 011).
 - Resolves: — (founder directive; the secure-backup-storage flag joins the
   "Needs founder confirmation" thread, PROGRESS Entry 013)
 - Status: Accepted
+
+## ADR-033 — 2026-08-09 — PostgreSQL everywhere (executes ADR-002's production switch)
+- Context: Production runs PostgreSQL (founder), while the app was SQLite
+  end-to-end; ADR-002 had planned this switch as a deploy-time step.
+- Decision:
+  - Datasource provider → postgresql; driver adapter → @prisma/adapter-pg in
+    src/lib/db.ts and prisma/seed.ts (@prisma/adapter-better-sqlite3 removed).
+  - The SQLite migration history is RETIRED and replaced by one fresh
+    Postgres init migration (prisma/migrations/20260809000000_init_postgres,
+    generated offline via `prisma migrate diff --from-empty --to-schema`);
+    migration_lock.toml now says postgresql. Existing SQLite databases are
+    not migrated in place — data crosses via the ADR-032 backup Export/Import
+    (proven: the dev database's 16 leads + users crossed SQLite→Postgres
+    losslessly).
+  - Local dev/tests use EMBEDDED PostgreSQL (the `embedded-postgres`
+    package — real PG binaries from node_modules, no Docker): dev on port
+    5433 (`npm run db:up`, persistent .pgdata/dev), vitest on 5434 (fresh per
+    run, its globalSetup owns the lifecycle), Playwright on 5435 (fresh per
+    run, globalSetup/globalTeardown own it). .pgdata/ is gitignored.
+  - `next build` requires no database (force-dynamic pages) — the Playwright
+    webServer no longer migrates; each suite's global setup does.
+  - DATABASE_URL has no fallback anymore — db.ts throws a clear error when
+    unset.
+- Alternatives considered: keeping SQLite locally with Postgres only in
+  production (rejected: two engines diverge and prod-only bugs hide — the
+  switch ADR-002 planned was due); Docker Postgres locally (rejected per
+  ADR-002's original cold-start reasoning — embedded-postgres needs no
+  Docker); translating the SQLite migration history migration-by-migration
+  (rejected: it contains hand-written SQLite SQL, incl. the V2 data
+  migration, that does not translate — a fresh init migration is cleaner).
+- Resolves: — (executes the production switch planned in ADR-002; no SPEC
+  §11 A-#)
+- Consequences: production deploys use a managed Postgres URL +
+  `prisma migrate deploy` at boot; integration tests got ~6x faster than
+  SQLite-on-Windows.
+- Status: Accepted

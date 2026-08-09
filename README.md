@@ -16,13 +16,16 @@ isn't logged there, it didn't happen.
 
 ## Setup (cold start)
 
-Requirements: Node 22+, npm. No database server needed — dev runs on SQLite (ADR-002).
+Requirements: Node 22+, npm. The database is **PostgreSQL everywhere** (ADR-033);
+locally an embedded Postgres runs from `node_modules` — no Docker, no install.
 
 ```bash
 npm install
-cp .env.example .env            # then set AUTH_SECRET (e.g. `openssl rand -base64 32`)
-npx prisma migrate dev          # creates dev.db and applies migrations
-npx prisma db seed              # demo data for both brands (see accounts below)
+cp .env.example .env            # set AUTH_SECRET (e.g. `openssl rand -base64 32`);
+                                # keep DATABASE_URL=postgresql://postgres:postgres@localhost:5433/crm
+npm run db:up                   # terminal 1 — local Postgres (keep it running)
+npx prisma migrate deploy       # terminal 2 — apply migrations
+npx tsx prisma/seed.ts          # demo data for both brands (see accounts below)
 npm run dev                     # http://localhost:3000
 ```
 
@@ -57,25 +60,34 @@ never seed on production (`NODE_ENV=production` skips them; force with
 ## Test
 
 ```bash
-npm test               # vitest — engine unit + service integration (dedicated test.db)
+npm test               # vitest — starts its OWN fresh embedded Postgres (port 5434)
 npm run typecheck      # tsc --noEmit
 npx playwright install chromium   # once
 npm run test:e2e       # Playwright — journeys 1–5 + security RBAC + QA sweep
-                       # (dedicated e2e.db on port 3100; reset + reseeded per run)
+                       # (own fresh embedded Postgres on 5435; app on port 3100)
 ```
+
+Tests never touch your dev database — each suite boots and destroys its own
+instance.
 
 ## Deploy
 
 ```bash
-npm run build && npm run start
+# build (needs NO database — pages are force-dynamic):
+npm run build
+# start (migrate first, every boot):
+npx prisma migrate deploy && npm run start
 ```
 
-- Set `AUTH_SECRET` and `DATABASE_URL` in the environment.
-- Production database: switch `prisma/schema.prisma`'s datasource provider to
-  `postgresql`, install `@prisma/adapter-pg` and swap it in `src/lib/db.ts`
-  (one file), then regenerate migrations against Postgres (ADR-002).
+- `DATABASE_URL=postgresql://user:pass@host:5432/dbname` (your managed Postgres)
+  and `AUTH_SECRET` are required; set `AUTH_URL=https://your-domain` behind a proxy.
+- First boot only: `NODE_ENV=production npx tsx prisma/seed.ts` creates THE admin
+  (and nothing else) — then rotate its password.
 - Uploads live in `./uploads` behind a storage abstraction (`src/lib/storage/`);
-  point an S3-compatible driver at the same interface for cloud storage.
+  mount it as a volume, or point an S3-compatible driver at the same interface.
+- Moving between databases (or disaster recovery): the admin's Export/Import on
+  the Home page restores a full backup onto any empty, migrated database — this
+  is exactly how the dev data crossed from SQLite to Postgres.
 
 ## Architecture in one paragraph
 

@@ -19,3 +19,7 @@ uploads/
 *.db
 *.db-journal
 *.tsbuildinfo
+backups/
+
+# local embedded Postgres data
+.pgdata/

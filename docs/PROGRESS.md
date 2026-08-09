@@ -393,3 +393,34 @@ comment, and the ADR-013 mechanism note all fixed; .env.example confirmed tracke
   caveat on seed re-runs); (e) NEW — ADR-032 backup exports embed password
   hashes and every uploaded file: the file itself is a secret; store
   backups securely (restricted access, ideally encrypted at rest).
+
+## Entry 014 — 2026-08-09 — PostgreSQL switch (ADR-033)
+- Done: dev data exported via the ADR-032 backup BEFORE conversion and
+  re-imported into the new dev Postgres (verified: 16 leads, admin Elmur
+  intact); full conversion as per ADR-033 — datasource provider postgresql,
+  @prisma/adapter-pg in db.ts/seed.ts, SQLite migration history retired for
+  one fresh init migration (20260809000000_init_postgres), embedded
+  PostgreSQL for local dev/tests (5433 dev persistent / 5434 vitest fresh /
+  5435 Playwright fresh, .pgdata/ gitignored), DATABASE_URL now mandatory
+  (db.ts throws a clear error when unset), `next build` database-free.
+  Verification: tsc clean, vitest 62/62 (in 6 s vs ~42 s on SQLite),
+  Playwright 12/12, and a simulated container build with an unreachable
+  DATABASE_URL compiles green (TESTING Run 017).
+- In progress: R23 portal marketing copy draft — still with the founder for
+  sign-off (carried from Entry 011).
+- Next steps: on copy approval, build the deferred /portal landing sections
+  (R23); obtain founder confirmation on Lama Sans intermediate cuts
+  (R5/A-13); founder to set a secure storage routine for backup exports
+  (ADR-032); change the admin password after first production login
+  (Entry 012 flag); production deploy per ADR-033 — see item (f) below.
+- Blockers: none.
+- Needs founder confirmation: (a) Lama Sans intermediate cuts (R5/A-13);
+  (b) the portal marketing copy draft (pending approval, R23); (c) the
+  standing REQUIREMENTS-V2 [A] defaults and the carried items thread —
+  items (1)–(14), see Entries 001–009; (d) password123 is a weak production
+  credential — change it after first production login (see Entry 012's
+  caveat on seed re-runs); (e) ADR-032 backup exports embed password hashes
+  and every uploaded file — the file itself is a secret; store backups
+  securely; (f) NEW — production needs a DATABASE_URL (postgresql://…),
+  `prisma migrate deploy` at boot, and a one-time seed for the admin
+  account (ADR-033).
