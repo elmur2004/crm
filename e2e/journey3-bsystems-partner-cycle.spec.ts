@@ -14,8 +14,8 @@ test("journey 3: partnership acquisition to attributed CRM lead (V2 numbers flow
 }) => {
   /* V2: the Partnership CRM belongs to the ADMIN. */
   await page.goto("/login");
-  await page.getByLabel("Email or phone").fill("admin@b-systems.example");
-  await page.getByLabel("Password").fill("admin123");
+  await page.getByLabel("Email or phone").fill("admin@byteforce.com");
+  await page.getByLabel("Password").fill("password123");
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page).toHaveURL(/\/b-systems$/);
 

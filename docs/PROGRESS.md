@@ -332,3 +332,31 @@ comment, and the ADR-013 mechanism note all fixed; .env.example confirmed tracke
   items (1)–(14), see Entries 001–009. The other ADR-031 flags
   (success green, external chrome navy, Negotiation colors) are RESOLVED
   by the ADR-031 Resolution addendum (2026-08-09).
+
+## Entry 012 — 2026-08-09 — Admin identity unified across environments (founder directive)
+- Done: THE admin is now admin@byteforce.com / password123, name "Elmur",
+  holding both entities (bsystems_admin + byteforce_staff) — identical in
+  local and production. prisma/seed.ts: renames the legacy
+  admin@b-systems.example account in place (no duplicate admin, history
+  intact); upsertUser now re-asserts name AND password on every run so
+  seeded accounts are always in the documented state; demo
+  accounts/fixtures are skipped when NODE_ENV=production (SEED_DEMO=1
+  overrides) so demo passwords never reach a live system — the admin is
+  the only account production seeds. Local dev.db re-seeded and verified:
+  one admin (Elmur), legacy account gone; E2E specs/README/hub demo chips
+  updated to the new credentials; tsc clean, Playwright 12/12.
+- In progress: R23 portal marketing copy draft — still with the founder
+  for sign-off (carried from Entry 011).
+- Next steps: on copy approval, build the deferred /portal landing
+  sections (R23); obtain founder confirmation on Lama Sans intermediate
+  cuts (R5/A-13); after first production login, change the admin password
+  (see the new flag below).
+- Blockers: none.
+- Needs founder confirmation: (a) Lama Sans intermediate cuts (R5/A-13);
+  (b) the portal marketing copy draft (pending approval, R23); (c) the
+  standing REQUIREMENTS-V2 [A] defaults and the carried items thread —
+  items (1)–(14), see Entries 001–009; (d) NEW — password123 is a weak
+  production credential: recommend changing it after first production
+  login. Caveat: the seed re-asserts this password on any future
+  production seed run, so either change the seed value or avoid
+  re-running seed in production once live.

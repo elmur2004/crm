@@ -3,14 +3,20 @@ import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
 import { hashPassword } from "../src/lib/auth/hash";
 import { normalizePhone } from "../src/lib/auth/phone";
 
-/* Seed (SPEC §13): demo data for both brands and the portal so every screen renders
-   meaningfully on first run. Idempotent — re-running upserts, never duplicates.
-   Accounts (dev credentials, documented in README):
+/* Seed (SPEC §13): idempotent — re-running upserts, never duplicates.
+
+   THE ADMIN (founder directive 2026-08-09) is created identically in EVERY
+   environment, local or production:
+     Admin   admin@byteforce.com / password123   name "Elmur"   (both entities)
+   Its password is re-asserted on every seed run so the account is always in
+   the known state. A legacy admin@b-systems.example account is renamed in
+   place (no duplicate admin).
+
+   DEMO data (accounts below + fixtures) seeds everywhere EXCEPT production —
+   demo passwords must never exist on a live system. Force with SEED_DEMO=1.
      ByteForce staff   sara@byteforce.example    / byteforce123
-     B-Systems staff   omar@b-systems.example    / bsystems123   (+ portal_admin, A-8)
-     Portal admin      admin@b-systems.example   / admin123      (seeded — ADR-016)
-     Portal rep        01001234567               / partner123
-   Pipeline fixture data lands per phase; Phase 0 ships the account + rep scaffold. */
+     B-Systems sales   omar@b-systems.example    / bsystems123
+     Agent             01001234567               / partner123 */
 
 const adapter = new PrismaBetterSqlite3({ url: process.env.DATABASE_URL ?? "file:./dev.db" });
 const db = new PrismaClient({ adapter });
@@ -26,7 +32,9 @@ async function upsertUser(opts: {
   const where = opts.email ? { email: opts.email } : { phone: normalizePhone(opts.phone!) };
   const user = await db.user.upsert({
     where: where as never,
-    update: { name: opts.name },
+    /* name AND password re-assert on every run — seeded accounts are always in
+       the documented state (founder directive for the admin) */
+    update: { name: opts.name, passwordHash },
     create: {
       name: opts.name,
       email: opts.email ?? null,
@@ -45,6 +53,34 @@ async function upsertUser(opts: {
 }
 
 export async function seed() {
+  /* ---- THE admin — every environment, local or production (founder directive).
+     ADR-016: admins are seeded, never self-signed-up. Holds BOTH entities —
+     the header's entity switcher appears only for dual-entity accounts. */
+  const legacyAdmin = await db.user.findUnique({
+    where: { email: "admin@b-systems.example" },
+  });
+  const newAdmin = await db.user.findUnique({ where: { email: "admin@byteforce.com" } });
+  if (legacyAdmin && !newAdmin) {
+    // rename in place — existing databases keep ONE admin, history intact
+    await db.user.update({
+      where: { id: legacyAdmin.id },
+      data: { email: "admin@byteforce.com" },
+    });
+  }
+  await upsertUser({
+    name: "Elmur",
+    email: "admin@byteforce.com",
+    password: "password123",
+    roles: ["bsystems_admin", "byteforce_staff"],
+  });
+
+  /* ---- demo data — never on production (SEED_DEMO=1 overrides) ---- */
+  const seedDemo = process.env.NODE_ENV !== "production" || process.env.SEED_DEMO === "1";
+  if (!seedDemo) {
+    console.log("Seed complete (production: admin only).");
+    return;
+  }
+
   await upsertUser({
     name: "Sara Hassan",
     email: "sara@byteforce.example",
@@ -58,16 +94,6 @@ export async function seed() {
     email: "omar@b-systems.example",
     password: "bsystems123",
     roles: ["bsystems_sales"],
-  });
-
-  // ADR-016: admins are seeded, never self-signed-up. The admin holds BOTH
-  // entities (founder rule) — the header's entity switcher appears only for
-  // dual-entity accounts like this one.
-  await upsertUser({
-    name: "Platform Admin",
-    email: "admin@b-systems.example",
-    password: "admin123",
-    roles: ["bsystems_admin", "byteforce_staff"],
   });
 
   const repUser = await upsertUser({

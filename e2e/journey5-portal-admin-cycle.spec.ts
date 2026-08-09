@@ -34,8 +34,8 @@ test("journey 5: admin confirms a win with milestones; statement reaches the age
 
   /* Admin home (V2 §2.1): agent/partner counts + the external pipeline chart. */
   await admin.goto("/login");
-  await admin.getByLabel("Email or phone").fill("admin@b-systems.example");
-  await admin.getByLabel("Password").fill("admin123");
+  await admin.getByLabel("Email or phone").fill("admin@byteforce.com");
+  await admin.getByLabel("Password").fill("password123");
   await admin.getByRole("button", { name: "Sign in" }).click();
   await expect(admin).toHaveURL(/\/b-systems$/);
   await expect(admin.getByRole("main").getByText("Agents", { exact: true })).toBeVisible();

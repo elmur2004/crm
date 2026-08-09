@@ -305,3 +305,21 @@ _Format per module:_
     getBoundingClientRect of header children) was the fastest way to find
     the 2-px culprit — pattern worth reusing.
 - Last updated: 2026-08-09 (Entry 010, TESTING Run 015, ADR-031)
+
+## Seed — unified admin identity (founder directive)
+- Location: prisma/seed.ts (upsertUser + admin/demo fixtures; base seed
+  notes in "Hardening round (Phase 5)" above).
+- What exists / how it works: in production the seed creates the admin
+  ONLY — admin@byteforce.com, name "Elmur", both entities
+  (bsystems_admin + byteforce_staff); demo accounts/fixtures are gated
+  behind NODE_ENV=production (SEED_DEMO=1 overrides the gate), so demo
+  passwords never reach a live system. The legacy
+  admin@b-systems.example account is renamed in place to the new
+  identity — no duplicate admin row, history intact.
+- Limitations / gotchas: upsertUser re-asserts name AND password on
+  every run — intentional (founder directive), so seeded accounts are
+  always in the documented state; consequence: re-running seed in
+  production resets the admin password back to the seeded value, so
+  once the live password is changed, either change the seed value or
+  don't re-run seed in production.
+- Last updated: 2026-08-09 (Entry 012)

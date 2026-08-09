@@ -45,8 +45,8 @@ test("B-Systems admin: all ten sections clean at every width", async ({ page }) 
   const errors: string[] = [];
   collectErrors(page, errors);
   await page.goto("/login");
-  await page.getByLabel("Email or phone").fill("admin@b-systems.example");
-  await page.getByLabel("Password").fill("admin123");
+  await page.getByLabel("Email or phone").fill("admin@byteforce.com");
+  await page.getByLabel("Password").fill("password123");
   await page.getByRole("button", { name: "Sign in" }).click();
   await page.waitForURL(/\/b-systems$/);
   await sweep(page, errors, [

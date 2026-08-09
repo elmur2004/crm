@@ -35,10 +35,16 @@ password `{CompanyName}@Bsystemspartnership` (spaces stripped).
 
 | Account | Identifier | Password | Lands in |
 |---|---|---|---|
+| **Admin (both entities)** | admin@byteforce.com | password123 | /b-systems |
 | ByteForce staff | sara@byteforce.example | byteforce123 | /byteforce |
-| B-Systems admin | admin@b-systems.example | admin123 | /b-systems |
 | B-Systems internal sales | omar@b-systems.example | bsystems123 | /b-systems/crm |
 | B-Systems agent | 01001234567 | partner123 | /b-systems/crm |
+
+The admin account is created by the seed in EVERY environment (local or
+production) with exactly these credentials — name "Elmur", both entities, and
+its password is re-asserted on every seed run. The other rows are demo data and
+never seed on production (`NODE_ENV=production` skips them; force with
+`SEED_DEMO=1`).
 
 ### B-Systems sections per role (V2 §2)
 

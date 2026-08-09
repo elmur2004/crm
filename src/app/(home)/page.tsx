@@ -7,8 +7,8 @@ import Link from "next/link";
 const DEV = process.env.NODE_ENV !== "production";
 
 const DEMOS = [
+  { role: "Admin", cred: "admin@byteforce.com / password123" },
   { role: "ByteForce", cred: "sara@byteforce.example / byteforce123" },
-  { role: "B-Sys admin", cred: "admin@b-systems.example / admin123" },
   { role: "B-Sys sales", cred: "omar@b-systems.example / bsystems123" },
   { role: "Agent", cred: "01001234567 / partner123" },
 ];
