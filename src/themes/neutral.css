@@ -33,7 +33,7 @@
   --color-danger-border: #E8C4BE;
   --color-danger-border-strong: #E0A79E;
   --color-danger-ink: #8E2C20;
-  --color-success: #2E7D5B;
+  --color-success: #1A191C; /* founder ruling on R4: no green — neutral uses ink */
   --color-on-success: #FFFFFF;
   --color-primary-tint: #E7E5DF;
   --color-primary-tint-ink: #1A191C;

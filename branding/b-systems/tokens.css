@@ -52,7 +52,8 @@
   --color-danger-border: #E8C4BE;
   --color-danger-border-strong: #E0A79E;
   --color-danger-ink: #8E2C20;
-  --color-success: #2E7D5B;                /* toast/indicator discs ONLY (R4) */
+  --color-success: var(--bs-indigo);       /* founder ruling on R4: NO green anywhere —
+                                              success indicators stay in-palette */
   --color-on-success: #FFFFFF;
 
   /* Tint pairs (prototype-derived; spec §1.2) */

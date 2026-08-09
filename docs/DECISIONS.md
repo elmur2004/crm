@@ -494,3 +494,17 @@ history; supersede with a new ADR.
   A-# resolved. The flagged items above join the "Needs founder confirmation"
   thread (PROGRESS Entry 010).
 - Status: Accepted
+
+### ADR-031 — Resolution (2026-08-09, founder)
+Founder resolutions on ADR-031's flagged items (addendum — amends, does not
+supersede; ADR-031 stays Accepted):
+- R4 (success green): REJECTED — the B-brand "no green anywhere" rule stands.
+  --color-success is now in-palette: B-Systems → Systems Indigo, ByteForce →
+  Royal Violet, neutral → ink. Token files updated; verified (vitest 60/60,
+  build green).
+- R8 (role-aware chrome — indigo staff / deep-navy agents+partners): CONFIRMED.
+- R12 (derived Negotiation colors — ramp-midpoint rule, bar #D8468B): CONFIRMED.
+- R23 (portal marketing sections): founder chose "draft copy for approval" —
+  copy drafted and awaiting founder sign-off before the sections are built.
+Still open from ADR-031's flags: Lama Sans intermediate cuts (R5/A-13) and the
+R23 copy sign-off — carried in PROGRESS (Entry 011).

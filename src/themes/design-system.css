@@ -469,3 +469,30 @@ textarea.field-input { min-height: 74px; resize: vertical; font-family: var(--fo
 
 .avatar-lg { width: 46px; height: 46px; border-radius: 12px; display: grid; place-items: center; background: var(--color-accent); color: var(--color-on-accent); font: 700 16px var(--font-body); flex: none; }
 .file-icon { width: 34px; height: 34px; border-radius: 8px; display: grid; place-items: center; background: var(--color-surface-tint); color: var(--color-link); font: 700 9.5px var(--font-mono); flex: none; }
+
+/* ---------- responsive hardening (founder rule: every page adapts to any width) ---------- */
+@media (max-width: 640px) {
+  .page, .page--detail { padding: 16px 14px 36px; }
+  .u-h1 { font-size: 24px; }
+  .hub-title { font-size: 30px; }
+  .tile-value { font-size: 23px; }
+  .identity-name { font-size: 21px; }
+  .modal-overlay { padding: 10px; align-items: flex-end; }
+  .modal { max-height: 96vh; border-radius: var(--radius-card); }
+  .modal-head, .modal-foot { padding-inline: 16px; }
+  .modal-body { padding-inline: 16px; }
+  .modal-note { padding-inline: 16px; }
+}
+@media (max-width: 560px) {
+  /* two-column form grids collapse; span-2 cells must reset or they force an
+     implicit second column and overflow */
+  .modal-body--grid { grid-template-columns: 1fr; }
+  .modal-body--grid .field--wide,
+  .modal-body--grid [class*="col-span-2"] { grid-column: auto; }
+  .fields-grid { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
+  .money-tile { min-width: 120px; flex: 1; }
+  .ms-row { flex-wrap: wrap; }
+  .ms-amount { margin-inline-start: 0; width: 100%; text-align: start; }
+  .page-head { align-items: flex-start; flex-direction: column; }
+  .page-actions { width: 100%; }
+}

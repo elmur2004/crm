@@ -43,7 +43,8 @@
   --color-danger-border: #E8C4BE;
   --color-danger-border-strong: #E0A79E;  /* blocked drag-over border */
   --color-danger-ink: #8E2C20;            /* error body text */
-  --color-success: #2E7D5B;               /* toast/indicator discs ONLY (spec R4) */
+  --color-success: var(--bf-violet);      /* founder ruling on R4: no green — stay
+                                             in-palette (violet), matching B-Systems */
   --color-on-success: #FFFFFF;
 
   /* Tint pairs (prototype-derived; spec §1.2) */

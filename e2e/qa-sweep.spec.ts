@@ -3,7 +3,7 @@ import { expect, test, type Page } from "@playwright/test";
 /* §15 Global DoD sweep, V2 edition: no console errors; no horizontal overflow at
    1440 / 1024 / 768 / 390 px on every major screen, per role. */
 
-const VIEWPORTS = [1440, 1024, 768, 390];
+const VIEWPORTS = [1440, 1024, 768, 560, 390];
 
 function collectErrors(page: Page, sink: string[]) {
   page.on("console", (msg) => {

@@ -308,3 +308,27 @@ comment, and the ADR-013 mechanism note all fixed; .env.example confirmed tracke
 - Needs founder confirmation: items (1)–(14) carried (see Entries 001–009);
   (15) ADR-031's flagged items (success-green exemption, external chrome
   navy, Negotiation colors, Lama Sans cuts, portal marketing copy).
+
+## Entry 011 — 2026-08-09 — Founder resolutions on ADR-031 flags
+- Done: Recorded the founder's resolutions on ADR-031's flagged items
+  (DECISIONS.md → "ADR-031 — Resolution (2026-08-09, founder)" addendum):
+  (1) R4 success green REJECTED — "no green anywhere" stands; --color-success
+  moved in-palette (B-Systems → Systems Indigo, ByteForce → Royal Violet,
+  neutral → ink); token files updated and the change shipped/verified
+  (vitest 60/60, build green). (2) R8 role-aware chrome (indigo staff /
+  deep-navy agents+partners) CONFIRMED. (3) R12 derived Negotiation colors
+  (ramp-midpoint, bar #D8468B) CONFIRMED. (4) R23 portal marketing sections:
+  founder chose "draft copy for approval" — copy drafted, awaiting founder
+  sign-off before the sections are built.
+- In progress: R23 portal marketing copy draft — with the founder for
+  sign-off.
+- Next steps: on copy approval, build the deferred /portal landing sections
+  (R23); obtain founder confirmation on Lama Sans intermediate cuts
+  (R5/A-13).
+- Blockers: none.
+- Needs founder confirmation: (a) Lama Sans intermediate cuts (R5/A-13);
+  (b) the portal marketing copy draft (pending approval, R23); (c) the
+  standing REQUIREMENTS-V2 [A] defaults and the carried items thread —
+  items (1)–(14), see Entries 001–009. The other ADR-031 flags
+  (success green, external chrome navy, Negotiation colors) are RESOLVED
+  by the ADR-031 Resolution addendum (2026-08-09).
