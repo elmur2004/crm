@@ -27,6 +27,10 @@ function landingFor(roles: Role[]): string {
 }
 
 export async function login(formData: FormData): Promise<void> {
+  /* self-healing: the admin account is guaranteed to exist/be usable before any
+     sign-in is evaluated (create-or-repair; never touches an existing password) */
+  const { ensureAdminExists } = await import("@/lib/services/bootstrap");
+  await ensureAdminExists();
   const identifier = String(formData.get("identifier") ?? "");
   const password = String(formData.get("password") ?? "");
   /* founder: self-signups are approval REQUESTS — tell pending/declined users
