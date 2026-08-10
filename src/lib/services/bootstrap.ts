@@ -1,18 +1,25 @@
 import { db } from "@/lib/db";
-import { hashPassword } from "@/lib/auth/hash";
+import { hashPassword, verifyPassword } from "@/lib/auth/hash";
 
-/* SELF-HEALING ADMIN (founder directive: the admin is admin@byteforce.com /
-   password123, named Elmur, both entities, identical in every environment).
-   Called before sign-in: whatever state the database is in — never seeded,
-   legacy admin email, flags broken — the admin account ends up usable.
-   An EXISTING admin's password is NEVER touched here (rotations survive);
-   only a missing admin is created with the documented password. */
+/* SELF-HEALING ADMIN (founder directive: the admin is admin@byteforce.com,
+   named Elmur, both entities, identical in every environment — and its
+   password is ALWAYS the documented one until deliberately changed).
+
+   The password is PINNED: every check asserts the configured password
+   (ADMIN_PASSWORD env, default "password123") and repairs the hash when it
+   differs — exactly the seed's re-assert semantics, but at runtime, so the
+   admin can never be locked out by a stale hash. To rotate: set the
+   ADMIN_PASSWORD env var (documented in README) — the pin then enforces the
+   new value everywhere. */
 
 const ADMIN_EMAIL = "admin@byteforce.com";
 const LEGACY_EMAIL = "admin@b-systems.example";
 const ADMIN_NAME = "Elmur";
 const ADMIN_ROLES = ["bsystems_admin", "byteforce_staff"] as const;
-const ADMIN_PASSWORD = "password123"; // rotate after first production login
+
+function adminPassword(): string {
+  return process.env.ADMIN_PASSWORD || "password123";
+}
 
 async function ensureRoles(userId: string): Promise<void> {
   for (const role of ADMIN_ROLES) {
@@ -24,45 +31,53 @@ async function ensureRoles(userId: string): Promise<void> {
   }
 }
 
-/* No caching: one indexed SELECT per sign-in attempt is negligible, and an
-   uncached check means the admin heals on the VERY NEXT login after any
-   incident (wiped table, botched import, flag damage). */
-export async function ensureAdminExists(): Promise<void> {
+async function repair(userId: string, currentHash: string, flagsBroken: boolean): Promise<void> {
+  const password = adminPassword();
+  const passwordOk = await verifyPassword(password, currentHash);
+  if (!passwordOk || flagsBroken) {
+    await db.user.update({
+      where: { id: userId },
+      data: {
+        active: true,
+        registrationStatus: "approved",
+        ...(passwordOk ? {} : { passwordHash: await hashPassword(password) }),
+      },
+    });
+  }
+  await ensureRoles(userId);
+}
+
+/** Heals the admin before sign-in. Returns "ok" when the admin is guaranteed
+    usable, "failed" when the database/schema prevented the check (the login
+    page then points at /api/health instead of claiming wrong credentials). */
+export async function ensureAdminExists(): Promise<"ok" | "failed"> {
   try {
     const existing = await db.user.findUnique({ where: { email: ADMIN_EMAIL } });
     if (existing) {
-      /* repair flags only — NEVER the password (rotations survive) */
-      if (!existing.active || existing.registrationStatus !== "approved") {
-        await db.user.update({
-          where: { id: existing.id },
-          data: { active: true, registrationStatus: "approved" },
-        });
-      }
-      await ensureRoles(existing.id);
-      return;
+      await repair(
+        existing.id,
+        existing.passwordHash,
+        !existing.active || existing.registrationStatus !== "approved",
+      );
+      return "ok";
     }
 
     const legacy = await db.user.findUnique({ where: { email: LEGACY_EMAIL } });
     if (legacy) {
-      /* rename in place — one admin, history intact, password preserved */
+      /* rename in place — one admin, history intact — then pin */
       await db.user.update({
         where: { id: legacy.id },
-        data: {
-          email: ADMIN_EMAIL,
-          name: ADMIN_NAME,
-          active: true,
-          registrationStatus: "approved",
-        },
+        data: { email: ADMIN_EMAIL, name: ADMIN_NAME },
       });
-      await ensureRoles(legacy.id);
-      return;
+      await repair(legacy.id, legacy.passwordHash, true);
+      return "ok";
     }
 
     const created = await db.user.create({
       data: {
         name: ADMIN_NAME,
         email: ADMIN_EMAIL,
-        passwordHash: await hashPassword(ADMIN_PASSWORD),
+        passwordHash: await hashPassword(adminPassword()),
       },
     });
     await ensureRoles(created.id);
@@ -76,8 +91,10 @@ export async function ensureAdminExists(): Promise<void> {
         trigger: "admin_bootstrap",
       },
     });
+    return "ok";
   } catch {
-    /* schema not migrated yet or DB unreachable — sign-in will surface that;
-       nothing is cached, so the next attempt heals once the DB is ready */
+    /* schema not migrated or DB unreachable — nothing cached; the next
+       attempt heals the moment the database is ready */
+    return "failed";
   }
 }

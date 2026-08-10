@@ -27,10 +27,11 @@ function landingFor(roles: Role[]): string {
 }
 
 export async function login(formData: FormData): Promise<void> {
-  /* self-healing: the admin account is guaranteed to exist/be usable before any
-     sign-in is evaluated (create-or-repair; never touches an existing password) */
+  /* self-healing: the admin account is guaranteed usable (created/repaired,
+     password pinned to the configured value) before any sign-in is evaluated.
+     If the database/schema blocks even that, say SO — not "wrong password". */
   const { ensureAdminExists } = await import("@/lib/services/bootstrap");
-  await ensureAdminExists();
+  if ((await ensureAdminExists()) === "failed") redirect("/login?error=health");
   const identifier = String(formData.get("identifier") ?? "");
   const password = String(formData.get("password") ?? "");
   /* founder: self-signups are approval REQUESTS — tell pending/declined users

@@ -295,16 +295,16 @@
 .field-input::placeholder { color: var(--color-muted); }
 textarea.field-input { min-height: 74px; resize: vertical; font-family: var(--font-body); }
 .field-hint { font: 400 11px var(--font-body); color: var(--color-muted); }
-/* password show/hide (founder) */
+/* password show/hide — eye icon (founder) */
 .pw-wrap { position: relative; display: block; }
-.pw-wrap input { padding-inline-end: 58px; }
+.pw-wrap input { padding-inline-end: 42px; }
 .pw-toggle {
-  position: absolute; inset-inline-end: 8px; top: 50%; transform: translateY(-50%);
-  border: none; background: transparent; cursor: pointer; padding: 4px 6px;
-  font: 600 10.5px var(--font-mono); letter-spacing: .08em; text-transform: uppercase;
-  color: var(--color-muted);
+  position: absolute; inset-inline-end: 6px; top: 50%; transform: translateY(-50%);
+  display: grid; place-items: center; width: 30px; height: 30px; border-radius: 7px;
+  border: none; background: transparent; cursor: pointer; color: var(--color-muted);
 }
-.pw-toggle:hover { color: var(--color-ink); }
+.pw-toggle:hover { color: var(--color-ink); background: var(--color-surface-tint); }
+.pw-toggle svg { display: block; }
 /* mandatory marker (founder): any label wrapping a required control gets a star */
 label:has(input[required], select[required], textarea[required]) .field-label::after,
 label:has(input[required]) .dropzone-title::after {

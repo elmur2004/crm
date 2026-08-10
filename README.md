@@ -43,9 +43,10 @@ the email + password the admin fills into the Won gate.
 | B-Systems internal sales | omar@b-systems.example | bsystems123 | /b-systems/crm |
 | B-Systems agent | 01001234567 | partner123 | /b-systems/crm |
 
-The admin account is created by the seed in EVERY environment (local or
-production) with exactly these credentials — name "Elmur", both entities, and
-its password is re-asserted on every seed run. The other rows are demo data and
+The admin account is guaranteed in EVERY environment (local or production):
+the app creates/repairs it before each sign-in attempt and PINS its password
+to `ADMIN_PASSWORD` (env var; default `password123`) — name "Elmur", both
+entities. To rotate the admin password in production, set `ADMIN_PASSWORD`. The other rows are demo data and
 never seed on production (`NODE_ENV=production` skips them; force with
 `SEED_DEMO=1`).
 

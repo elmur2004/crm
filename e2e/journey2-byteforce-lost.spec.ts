@@ -10,13 +10,25 @@ test("journey 2: ByteForce lost path with reason", async ({ page }) => {
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page).toHaveURL(/\/byteforce$/);
 
-  /* Read current dashboard numbers for delta assertions. */
-  const totalBefore = Number(
-    await page.getByText("Total leads").locator("..").locator("p").nth(1).textContent(),
-  );
-  const lostBefore = Number(
-    await page.getByText("Lost", { exact: true }).locator("..").locator("p").nth(1).textContent(),
-  );
+  /* Read current dashboard numbers for delta assertions. KPI values COUNT UP
+     on load — sample until two consecutive reads agree (animation settled). */
+  const settled = async (label: string, exact = false): Promise<number> => {
+    const read = async () =>
+      Number(
+        (await page.getByText(label, { exact }).locator("..").locator("p").nth(1).textContent()) ??
+          "0",
+      );
+    let previous = await read();
+    for (let i = 0; i < 20; i++) {
+      await page.waitForTimeout(150);
+      const current = await read();
+      if (current === previous) return current;
+      previous = current;
+    }
+    return previous;
+  };
+  const totalBefore = await settled("Total leads");
+  const lostBefore = await settled("Lost", true);
 
   /* New lead under the seeded rep. */
   await page.goto("/byteforce/leads");
