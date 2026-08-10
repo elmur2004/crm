@@ -75,16 +75,28 @@ export const wonSchema = z.object({
 export type WonInput = z.infer<typeof wonSchema>;
 
 /* §7.2 Won completeness gate (PP-4) — all required except email. */
-export const wonPartnerSchema = z.object({
-  companyName: z.string().min(1).max(200),
-  keyPersonName: z.string().min(1).max(200),
-  keyPersonRole: z.string().min(1).max(200),
-  address: z.string().min(1).max(400),
-  number: z.string().min(1).max(50),
-  email: z.string().email().optional().or(z.literal("").transform(() => undefined)),
-  businessActivity: z.string().min(1).max(300),
-  importance: z.enum(IMPORTANCE_LEVELS),
-});
+export const wonPartnerSchema = z
+  .object({
+    companyName: z.string().min(1).max(200),
+    keyPersonName: z.string().min(1).max(200),
+    keyPersonRole: z.string().min(1).max(200),
+    address: z.string().min(1).max(400),
+    number: z.string().min(1).max(50),
+    email: z.string().email().optional().or(z.literal("").transform(() => undefined)),
+    /* founder directive (supersedes the V2 §8 auto password): the admin SETS the
+       partner's sign-in password in the gate — required whenever email is given */
+    password: z
+      .string()
+      .min(8, "At least 8 characters")
+      .optional()
+      .or(z.literal("").transform(() => undefined)),
+    businessActivity: z.string().min(1).max(300),
+    importance: z.enum(IMPORTANCE_LEVELS),
+  })
+  .refine((g) => !g.email || Boolean(g.password), {
+    message: "Set the partner's sign-in password (with the email, an account is created)",
+    path: ["password"],
+  });
 export type WonPartnerInput = z.infer<typeof wonPartnerSchema>;
 
 /* V2 §1: the negotiation stage's group — a note entry (accumulates). */

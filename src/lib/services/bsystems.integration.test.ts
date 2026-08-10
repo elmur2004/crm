@@ -339,9 +339,19 @@ describe("Statements end-to-end (V2 §7)", () => {
   });
 });
 
-describe("PP-4 partner account provisioning (V2 §8)", () => {
-  it("conversion with an email creates the login with the auto password and links it", async () => {
-    const p = await createProspect(
+describe("PP-4 partner account provisioning (founder: admin sets the credentials)", () => {
+  const GATE = {
+    companyName: "Mansour Trading",
+    keyPersonName: "Hany Mansour",
+    keyPersonRole: "CEO",
+    address: "45 Nile Corniche, Cairo",
+    number: "0223456789",
+    businessActivity: "Import/export",
+    importance: "high" as const,
+  };
+
+  function makeProspect() {
+    return createProspect(
       {
         name: "Hany Mansour",
         companyName: "Mansour Trading",
@@ -350,21 +360,16 @@ describe("PP-4 partner account provisioning (V2 §8)", () => {
       },
       admin,
     );
+  }
+
+  it("conversion with email + password creates the login with EXACTLY those credentials", async () => {
+    const p = await makeProspect();
     await applyProspectEvent({
       prospectId: p.id,
       event: { type: "next_action", action: "won" },
       group: {
         group: "won_partner",
-        data: {
-          companyName: "Mansour Trading",
-          keyPersonName: "Hany Mansour",
-          keyPersonRole: "CEO",
-          address: "45 Nile Corniche, Cairo",
-          number: "0223456789",
-          businessActivity: "Import/export",
-          importance: "high",
-          email: "hany@mansour.example",
-        },
+        data: { ...GATE, email: "hany@mansour.example", password: "Mansour#2026" },
       },
       actor: admin,
       role: "bsystems_admin",
@@ -377,10 +382,38 @@ describe("PP-4 partner account provisioning (V2 §8)", () => {
     });
     expect(user.email).toBe("hany@mansour.example");
     expect(user.roles.map((r) => r.role)).toEqual(["bsystems_partner"]);
-    /* V2 §8 — "{CompanyName}@Bsystemspartnership", spaces stripped. */
-    expect(await verifyPassword("MansourTrading@Bsystemspartnership", user.passwordHash)).toBe(
-      true,
-    );
+    expect(await verifyPassword("Mansour#2026", user.passwordHash)).toBe(true);
+  });
+
+  it("an email WITHOUT a password is refused — nothing converts", async () => {
+    const p = await makeProspect();
+    await expect(
+      applyProspectEvent({
+        prospectId: p.id,
+        event: { type: "next_action", action: "won" },
+        group: {
+          group: "won_partner",
+          data: { ...GATE, email: "hany@mansour.example" },
+        },
+        actor: admin,
+        role: "bsystems_admin",
+      }),
+    ).rejects.toThrow();
+    expect(await db.partner.count()).toBe(0);
+    expect(await db.user.count({ where: { email: "hany@mansour.example" } })).toBe(0);
+  });
+
+  it("no email at all still converts the partner without a login (unchanged)", async () => {
+    const p = await makeProspect();
+    await applyProspectEvent({
+      prospectId: p.id,
+      event: { type: "next_action", action: "won" },
+      group: { group: "won_partner", data: GATE },
+      actor: admin,
+      role: "bsystems_admin",
+    });
+    const partner = await db.partner.findUniqueOrThrow({ where: { prospectId: p.id } });
+    expect(partner.userId).toBeNull();
   });
 });
 

@@ -33,8 +33,8 @@ npm run dev                     # http://localhost:3000
 
 Everyone signs in at **`/login`** (one consolidated page, ADR-028) with an email or
 phone; each account lands where its role points. Agents self-sign-up at
-`/portal/signup`; partner accounts are auto-provisioned on conversion with the
-password `{CompanyName}@Bsystemspartnership` (spaces stripped).
+`/portal/signup`; partner accounts are created automatically at conversion with
+the email + password the admin fills into the Won gate.
 
 | Account | Identifier | Password | Lands in |
 |---|---|---|---|

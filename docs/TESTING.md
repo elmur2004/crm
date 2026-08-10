@@ -278,3 +278,19 @@ every dashboard formula, journeys 1-5 (SPEC §13).
   users crossed losslessly); vitest wall time ~6 s vs ~42 s on
   SQLite-on-Windows.
 - Verdict: PASS.
+
+## Run 018 — 2026-08-10 — Partner conversion credentials (PP-4 provisioning change)
+- Suites/commands: `npm run typecheck` (tsc clean) · `npx vitest run` (64) ·
+  `npx playwright test` (12 — full suite).
+- Cases: vitest 64 passed / 0 failed / 0 skipped · Playwright 12 passed /
+  0 failed / 0 skipped.
+- Failures: none.
+- SPEC coverage touched: PP-4 account provisioning under the founder's
+  credential directive (PROGRESS Entry 015) — 2 new integration cases:
+  (1) conversion provisions the partner's login with exactly the
+  admin-entered email + password (role bsystems_partner, linked to the
+  Partner record); (2) email-without-password is refused with nothing
+  converted. No-email conversion without a login re-verified unchanged.
+  §13 journeys 1–5 + security-rbac + qa-sweep re-run green with the new
+  Won-gate Password field live.
+- Verdict: PASS.

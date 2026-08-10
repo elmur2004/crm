@@ -424,3 +424,38 @@ comment, and the ADR-013 mechanism note all fixed; .env.example confirmed tracke
   securely; (f) NEW — production needs a DATABASE_URL (postgresql://…),
   `prisma migrate deploy` at boot, and a one-time seed for the admin
   account (ADR-033).
+
+## Entry 015 — 2026-08-10 — Partner conversion credentials (founder directive)
+- Done: Founder directive implemented — the Partnership CRM's Won gate now
+  takes the partner's EMAIL + PASSWORD, and conversion auto-creates the
+  partner's login with exactly those credentials (role bsystems_partner,
+  linked to the Partner record). This supersedes the V2 §8 auto password
+  "{CompanyName}@Bsystemspartnership". Rules: email without password is
+  refused (nothing converts); no email at all still converts without a
+  login (unchanged). Changes: wonPartnerSchema (+password, email⇒password
+  refine), PP-4 provisioning uses the admin-set password, Won-gate form
+  gained a Password field with the hint "Email + password create the
+  partner's account automatically", README updated. Verified: tsc clean,
+  vitest 64/64 (2 new tests: exact-credentials provisioning;
+  email-without-password refusal leaves nothing converted),
+  Playwright 12/12 (TESTING Run 018).
+- In progress: R23 portal marketing copy draft — still with the founder
+  for sign-off (carried from Entry 011).
+- Next steps: on copy approval, build the deferred /portal landing
+  sections (R23); obtain founder confirmation on Lama Sans intermediate
+  cuts (R5/A-13); founder to set a secure storage routine for backup
+  exports (ADR-032); change the admin password after first production
+  login (Entry 012 flag); production deploy per ADR-033 (Entry 014
+  item (f)).
+- Blockers: none.
+- Needs founder confirmation: (a) Lama Sans intermediate cuts (R5/A-13);
+  (b) the portal marketing copy draft (pending approval, R23); (c) the
+  standing REQUIREMENTS-V2 [A] defaults and the carried items thread —
+  items (1)–(14), see Entries 001–009 — except the V2 §8 auto-password
+  default, superseded this entry by the founder's directive; (d)
+  password123 is a weak production credential — change it after first
+  production login (see Entry 012's caveat on seed re-runs); (e) ADR-032
+  backup exports embed password hashes and every uploaded file — store
+  backups securely; (f) production needs a DATABASE_URL (postgresql://…),
+  `prisma migrate deploy` at boot, and a one-time seed for the admin
+  account (ADR-033).

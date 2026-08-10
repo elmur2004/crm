@@ -91,6 +91,19 @@ function WonGateFields({ defaults }: { defaults: { companyName: string; name: st
           <input type="email" name="email" defaultValue={defaults.email ?? ""} className={inputCls} />
         </label>
         <label className="block">
+          <span className={labelCls}>Password</span>
+          <input
+            type="text"
+            name="password"
+            autoComplete="off"
+            placeholder="Partner's sign-in password"
+            className={inputCls}
+          />
+          <span className="field-hint">
+            Email + password create the partner&apos;s account automatically.
+          </span>
+        </label>
+        <label className="block">
           <span className={labelCls}>Importance</span>
           <select name="importance" required className={inputCls}>
             {IMPORTANCE_LEVELS.map((i) => (
@@ -199,6 +212,7 @@ export function ProspectEventPanel({
           address: String(fd.get("address")),
           number: String(fd.get("number")),
           email: String(fd.get("email") || "") || undefined,
+          password: String(fd.get("password") || "") || undefined,
           businessActivity: String(fd.get("businessActivity")),
           importance: String(fd.get("importance")) as "high" | "medium" | "low",
         },

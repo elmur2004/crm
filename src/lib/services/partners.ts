@@ -284,20 +284,19 @@ export async function applyProspectEvent(opts: {
         // date_joined = now; card stays in Won with the Converted badge (A-5).
         const gate = (opts.group as { group: "won_partner"; data: WonPartnerInput }).data;
 
-        /* V2 §8 — auto-provision the partner ACCOUNT: password =
-           "{CompanyName}@Bsystemspartnership" (spaces stripped), email = the one
-           on record. No email → partner created without a login (admin adds the
-           email in Users later). */
+        /* Partner ACCOUNT auto-created from the gate's credentials (founder
+           directive — the admin fills email + password; supersedes the V2 §8
+           auto password). No email → partner converts without a login (admin
+           adds one in Users later). */
         let partnerUserId: string | null = null;
         if (gate.email) {
           const existingUser = await tx.user.findUnique({ where: { email: gate.email } });
           if (!existingUser) {
-            const autoPassword = `${gate.companyName.replace(/\s+/g, "")}@Bsystemspartnership`;
             const user = await tx.user.create({
               data: {
                 name: gate.companyName,
                 email: gate.email,
-                passwordHash: await hashPassword(autoPassword),
+                passwordHash: await hashPassword(gate.password!), // schema: email ⇒ password
               },
             });
             await tx.userRole.create({ data: { userId: user.id, role: "bsystems_partner" } });
