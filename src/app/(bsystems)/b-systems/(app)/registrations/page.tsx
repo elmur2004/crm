@@ -3,11 +3,13 @@ import { requirePageRole } from "@/lib/auth/page-guards";
 import { bsRoleOf } from "@/lib/api/bsystems";
 import { listRegistrations } from "@/lib/services/users";
 import { formatCairo } from "@/lib/datetime";
+import { RegistrationActions } from "@/components/bsystems/registrations";
 
 export const metadata = { title: "Registrations — B-Systems CRM" };
 
-/* V2 §2.8 — the registry of everyone who signed up / was registered on the
-   system: internal sales, agents, partners (admins shown too, labeled). */
+/* V2 §2.8 + founder V3: Registrations is the APPROVAL CYCLE — new agent
+   sign-ups arrive here as pending requests; the admin approves or declines
+   them. Below that, the registry of everyone on the system. */
 
 const ROLE_LABELS: Record<string, string> = {
   bsystems_admin: "Admin",
@@ -28,6 +30,7 @@ export default async function RegistrationsPage() {
   if (bsRoleOf(user) !== "bsystems_admin") redirect("/b-systems/crm");
 
   const registrations = await listRegistrations();
+  const pending = registrations.filter((u) => u.registrationStatus === "pending");
 
   return (
     <div className="space-y-6">
@@ -37,7 +40,52 @@ export default async function RegistrationsPage() {
           <h1 className="u-h1">Registrations</h1>
         </div>
       </div>
-      <div className="card card--flush0">
+
+      <section className="card card--flush0">
+        <div className="card-head">
+          <h2 className="u-h3">Awaiting approval</h2>
+          <span className="count-pill" data-stage-key="won">
+            {pending.length}
+          </span>
+        </div>
+        {pending.length === 0 ? (
+          <p className="empty m-4">No pending requests — new sign-ups land here for review.</p>
+        ) : (
+          <div className="table-scroll">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Email</th>
+                  <th>Phone</th>
+                  <th>Requested</th>
+                  <th>Decision</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pending.map((u) => (
+                  <tr key={u.id}>
+                    <td>
+                      <span className="td-title">{u.name}</span>
+                    </td>
+                    <td className="td-mono">{u.email ?? "—"}</td>
+                    <td className="td-mono">{u.phone ?? "—"}</td>
+                    <td>{formatCairo(u.createdAt)}</td>
+                    <td>
+                      <RegistrationActions userId={u.id} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      <section className="card card--flush0">
+        <div className="card-head">
+          <h2 className="u-h3">Everyone on the system</h2>
+        </div>
         <div className="table-scroll">
           <table className="table">
             <thead>
@@ -51,7 +99,7 @@ export default async function RegistrationsPage() {
             </thead>
             <tbody>
               {registrations.map((u) => (
-                <tr key={u.id}>
+                <tr key={u.id} data-inactive={u.active ? undefined : ""}>
                   <td>
                     <span className="td-title">{u.name}</span>
                   </td>
@@ -63,7 +111,11 @@ export default async function RegistrationsPage() {
                   </td>
                   <td>{formatCairo(u.createdAt)}</td>
                   <td>
-                    {u.active ? (
+                    {u.registrationStatus === "pending" ? (
+                      <span className="badge badge--entity badge--entity-both">Pending</span>
+                    ) : u.registrationStatus === "rejected" ? (
+                      <span className="badge badge--danger">Declined</span>
+                    ) : u.active ? (
                       <span>Active</span>
                     ) : (
                       <span className="badge badge--danger">Deactivated</span>
@@ -74,7 +126,7 @@ export default async function RegistrationsPage() {
             </tbody>
           </table>
         </div>
-      </div>
+      </section>
     </div>
   );
 }

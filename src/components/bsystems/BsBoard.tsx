@@ -35,6 +35,7 @@ export interface BsBoardLead {
   name: string;
   companyName: string | null;
   stage: string;
+  ownerType: string;
   ownerLabel: string;
   readyToClose: boolean;
   keyDatum: string;
@@ -72,7 +73,9 @@ function LeadCard({ lead, dragging }: { lead: BsBoardLead; dragging: boolean }) 
         {lead.companyName ? <span className="bcard-rep">{lead.companyName}</span> : null}
       </div>
       <div className="bcard-chips">
-        <span className="bcard-tag">{lead.ownerLabel}</span>
+        <span className="owner-chip" data-owner-key={lead.ownerType}>
+          {lead.ownerLabel}
+        </span>
       </div>
       {lead.keyDatum || (!lead.readyToClose && lead.stage !== "won" && lead.stage !== "lost") ? (
         <div className="bcard-meta">

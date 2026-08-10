@@ -11,7 +11,14 @@ import {
   waitingToBePaidOut,
 } from "./statements";
 import { adminWonLeads, closerWonLeads, salesWonLeads } from "./won-leads";
-import { mintImpersonationToken, verifyImpersonationToken } from "./users";
+import {
+  approveRegistration,
+  mintImpersonationToken,
+  rejectRegistration,
+  verifyImpersonationToken,
+} from "./users";
+import { signupRep } from "./portal-reps";
+import { wonDealSchema } from "./groups";
 import { verifyPassword } from "@/lib/auth/hash";
 import type { Actor } from "./activity";
 
@@ -417,11 +424,31 @@ describe("PP-4 partner account provisioning (founder: admin sets the credentials
   });
 });
 
-describe("Impersonation tokens (V2 §2.10)", () => {
-  it("mints a verifiable 60s token, logs it, and rejects tampering/expiry", async () => {
+describe("Impersonation tokens (V2 §2.10 + founder snap-back)", () => {
+  it("carries the impersonating admin, logs, and rejects tampering/expiry", async () => {
     const agent = await makeAgent();
-    const token = await mintImpersonationToken(agent.id, admin);
-    expect(verifyImpersonationToken(token)).toBe(agent.id);
+    const token = await mintImpersonationToken(agent.id, admin, {
+      impersonatorId: "admin-user-1",
+    });
+    /* the session remembers WHO impersonates — powers "Back to admin" */
+    expect(verifyImpersonationToken(token)).toEqual({
+      userId: agent.id,
+      impersonatorId: "admin-user-1",
+    });
+
+    /* the snap-back token has NO impersonator — a clean admin session */
+    const returnToken = await mintImpersonationToken(agent.id, admin, {
+      trigger: "impersonation_return",
+    });
+    expect(verifyImpersonationToken(returnToken)).toEqual({
+      userId: agent.id,
+      impersonatorId: null,
+    });
+    expect(
+      await db.activityLog.count({
+        where: { entityId: agent.id, trigger: "impersonation_return" },
+      }),
+    ).toBe(1);
 
     const log = await db.activityLog.findFirst({
       where: { entityType: "user", entityId: agent.id, trigger: "impersonation" },
@@ -429,8 +456,8 @@ describe("Impersonation tokens (V2 §2.10)", () => {
     expect(log).toBeTruthy();
 
     /* Tampered target → invalid. */
-    const [, expiry, sig] = token.split(".");
-    expect(verifyImpersonationToken(`someone-else.${expiry}.${sig}`)).toBeNull();
+    const [, imp, expiry, sig] = token.split(".");
+    expect(verifyImpersonationToken(`someone-else.${imp}.${expiry}.${sig}`)).toBeNull();
 
     /* Expired → invalid. */
     vi.useFakeTimers();
@@ -442,5 +469,123 @@ describe("Impersonation tokens (V2 §2.10)", () => {
     const agent = await makeAgent();
     await db.user.update({ where: { id: agent.id }, data: { active: false } });
     await expect(mintImpersonationToken(agent.id, admin)).rejects.toThrow(/deactivated/);
+  });
+});
+
+describe("Registration approval cycle (founder V3)", () => {
+  const PDF = Buffer.concat([Buffer.from("%PDF-1.7 reg"), Buffer.alloc(256, 9)]);
+
+  function makeSignup() {
+    return signupRep(
+      {
+        firstName: "Nour",
+        lastName: "Pending",
+        phone: "01055556666",
+        email: "Nour@Agents.Example",
+        address: "1 Approval St",
+        speciality: "Field sales",
+        password: "nour12345",
+        confirmPassword: "nour12345",
+      },
+      new File([PDF], "cv.pdf", { type: "application/pdf" }),
+    );
+  }
+
+  it("signup lands PENDING with both identifiers + an admin notification", async () => {
+    const { userId } = await makeSignup();
+    const user = await db.user.findUniqueOrThrow({
+      where: { id: userId },
+      include: { roles: true, portalRep: true },
+    });
+    expect(user.registrationStatus).toBe("pending");
+    expect(user.email).toBe("nour@agents.example"); // lowercased — email sign-in works
+    expect(user.phone).toBeTruthy(); // phone sign-in works too
+    expect(user.roles.map((r) => r.role)).toEqual(["bsystems_agent"]);
+    expect(user.portalRep).toBeTruthy();
+    const note = await db.notification.findFirstOrThrow({ where: { type: "registration" } });
+    expect(note.userId).toBeNull(); // admin broadcast
+    expect(note.title).toContain("Nour Pending");
+  });
+
+  it("approve activates the account; reject locks it; approved accounts can't be rejected", async () => {
+    const { userId } = await makeSignup();
+    await approveRegistration(userId, admin);
+    const approved = await db.user.findUniqueOrThrow({ where: { id: userId } });
+    expect(approved.registrationStatus).toBe("approved");
+    expect(approved.active).toBe(true);
+    await expect(rejectRegistration(userId, admin)).rejects.toThrow(/already approved/);
+
+    const second = await signupRep(
+      {
+        firstName: "Rana",
+        lastName: "Declined",
+        phone: "01077778888",
+        email: "rana@agents.example",
+        address: "2 Reject Rd",
+        speciality: "Retail",
+        password: "rana12345",
+        confirmPassword: "rana12345",
+      },
+      new File([PDF], "cv2.pdf", { type: "application/pdf" }),
+    );
+    await rejectRegistration(second.userId, admin);
+    const rejected = await db.user.findUniqueOrThrow({ where: { id: second.userId } });
+    expect(rejected.registrationStatus).toBe("rejected");
+    expect(rejected.active).toBe(false);
+  });
+});
+
+describe("Won-deal math barriers (founder V3)", () => {
+  const base = {
+    estimatedValue: 100_000_00,
+    totalCommissionPercentBp: 10_00,
+    milestones: [
+      { label: "A", value: 60_000_00, commissionValue: 6_000_00, expectedStart: "2026-09-01", expectedEnd: "2026-09-30" },
+      { label: "B", value: 40_000_00, commissionValue: 4_000_00, expectedStart: "2026-10-01", expectedEnd: "2026-10-31" },
+    ],
+  };
+
+  it("accepts coherent numbers and chronological milestones", () => {
+    expect(wonDealSchema.safeParse(base).success).toBe(true);
+  });
+
+  it("refuses milestone values that don't add up to the estimated value", () => {
+    const bad = { ...base, milestones: [{ ...base.milestones[0]! }, { ...base.milestones[1]!, value: 50_000_00 }] };
+    const r = wonDealSchema.safeParse(bad);
+    expect(r.success).toBe(false);
+    expect(r.error!.issues[0]!.message).toMatch(/must match/);
+  });
+
+  it("refuses commissions that don't match the total commission %", () => {
+    const bad = { ...base, milestones: [{ ...base.milestones[0]!, commissionValue: 9_000_00 }, { ...base.milestones[1]! }] };
+    const r = wonDealSchema.safeParse(bad);
+    expect(r.success).toBe(false);
+    expect(r.error!.issues[0]!.message).toMatch(/commission/i);
+  });
+
+  it("refuses milestone 2 starting before milestone 1 finishes", () => {
+    const bad = {
+      ...base,
+      milestones: [
+        { ...base.milestones[0]! },
+        { ...base.milestones[1]!, expectedStart: "2026-09-15" },
+      ],
+    };
+    const r = wonDealSchema.safeParse(bad);
+    expect(r.success).toBe(false);
+    expect(r.error!.issues[0]!.message).toMatch(/chronological/);
+  });
+
+  it("refuses a milestone that ends before it starts", () => {
+    const bad = {
+      ...base,
+      milestones: [
+        { ...base.milestones[0]!, expectedEnd: "2026-08-01" },
+        { ...base.milestones[1]! },
+      ],
+    };
+    const r = wonDealSchema.safeParse(bad);
+    expect(r.success).toBe(false);
+    expect(r.error!.issues[0]!.message).toMatch(/ends before it starts/);
   });
 });

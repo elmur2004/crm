@@ -24,6 +24,10 @@ model User {
   phone         String?        @unique // agent login, normalized (ADR-008)
   passwordHash  String
   active        Boolean        @default(true) // A-4 kill-switch
+  /* founder: agent self-signup is a REQUEST — "pending" until the admin approves
+     it on the Registrations page ("approved" | "pending" | "rejected"). Admin-
+     created, seeded, and partner-provisioned accounts are approved from birth. */
+  registrationStatus String    @default("approved")
   roles         UserRole[]
   portalRep     PortalRep? // agent profile (model name kept from v1)
   partner       Partner? // partner-company account link (V2 §8)

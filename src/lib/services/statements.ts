@@ -114,6 +114,40 @@ export function listStatements() {
   });
 }
 
+/** Founder: the printable statement DOCUMENT — everything the paper needs:
+    the statement, its milestone/deal/client, and the closer's account. */
+export async function statementDocument(id: string) {
+  const statement = await db.statement.findUnique({
+    where: { id },
+    include: {
+      proofs: true,
+      milestone: {
+        include: {
+          wonDeal: {
+            include: {
+              lead: {
+                include: {
+                  owner: { select: { id: true, name: true, email: true, phone: true } },
+                  salesRep: { select: { name: true } },
+                  partner: { select: { companyName: true } },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+  if (!statement) throw new ApiError(404, "Statement not found");
+  const closerUser = statement.closerUserId
+    ? await db.user.findUnique({
+        where: { id: statement.closerUserId },
+        select: { id: true, name: true, email: true, phone: true },
+      })
+    : null;
+  return { statement, lead: statement.milestone.wonDeal.lead, closerUser };
+}
+
 /** Closer's Payments section (V2 §7) — pending + paid, with proof when paid. */
 export function paymentsFor(userId: string) {
   return db.statement.findMany({

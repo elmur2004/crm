@@ -32,10 +32,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       async authorize(raw) {
         const token = typeof raw?.token === "string" ? raw.token : null;
         if (!token) return null;
-        const userId = verifyImpersonationToken(token);
-        if (!userId) return null;
+        const verified = verifyImpersonationToken(token);
+        if (!verified) return null;
         const user = await db.user.findUnique({
-          where: { id: userId },
+          where: { id: verified.userId },
           include: { roles: true },
         });
         if (!user || !user.active) return null;
@@ -44,6 +44,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           name: user.name,
           email: user.email,
           roles: user.roles.map((r) => r.role as Role),
+          impersonatorId: verified.impersonatorId, // null on snap-back to admin
         };
       },
     }),
@@ -64,6 +65,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           include: { roles: true },
         });
         if (!user || !user.active) return null;
+        /* founder: self-signups are REQUESTS — no sign-in until approved */
+        if (user.registrationStatus !== "approved") return null;
         const valid = await verifyPassword(password, user.passwordHash);
         if (!valid) return null;
         return {

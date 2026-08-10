@@ -29,7 +29,11 @@ export default async function LoginPage({
               <span className="login-error-icon" aria-hidden>
                 !
               </span>
-              Wrong email/phone or password. Try again.
+              {error === "pending"
+                ? "Your registration is awaiting approval — the admin reviews new sign-ups."
+                : error === "rejected"
+                  ? "Your registration was declined. Contact B-Systems if you think this is a mistake."
+                  : "Wrong email/phone or password. Try again."}
             </p>
           ) : null}
           <form action={login} className="login-form">

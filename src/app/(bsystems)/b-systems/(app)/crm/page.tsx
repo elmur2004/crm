@@ -89,6 +89,7 @@ export default async function BsCrmPage({
     name: l.name,
     companyName: l.companyName,
     stage: l.stage,
+    ownerType: l.ownerType,
     ownerLabel: ownerLabel(l),
     readyToClose: l.readyToClose,
     keyDatum: keyDatum(l),

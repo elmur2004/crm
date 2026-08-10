@@ -59,6 +59,7 @@ test("an agent cannot mutate another agent's lead (403, nothing changes)", async
       firstName: "Isolated",
       lastName: "Agent",
       phone: "01717171717",
+      email: "isolated@agents.example",
       address: "1 Far St",
       speciality: "Sales",
       password: "isolated123",
@@ -71,6 +72,18 @@ test("an agent cannot mutate another agent's lead (403, nothing changes)", async
     },
   });
   expect(signup.status()).toBe(201);
+  const { userId: pendingId } = (await signup.json()) as { userId: string };
+
+  /* founder V3: signups are pending — the admin approves before B can sign in */
+  const approver = await browser.newContext();
+  const approverPage = await approver.newPage();
+  await login(approverPage, "admin@byteforce.com", "password123", /\/b-systems$/);
+  const approved = await approverPage.request.patch(`/api/b-systems/registrations/${pendingId}`, {
+    data: { action: "approve" },
+  });
+  expect(approved.ok()).toBeTruthy();
+  await approver.close();
+
   await login(pageB, "01717171717", "isolated123", /\/b-systems\/crm$/);
 
   /* Agent A (seeded Karim) owns "Follow-up Deal" — find its id on A's own board. */

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requirePageRole } from "@/lib/auth/page-guards";
 import { bsRoleOf } from "@/lib/api/bsystems";
@@ -94,7 +95,15 @@ export default async function StatementsPage() {
               <tbody>
                 {statements.map((s) => (
                   <tr key={s.id}>
-                    <td className="td-mono">{s.code}</td>
+                    <td>
+                      <Link
+                        href={`/b-systems/statements/${s.id}/document`}
+                        className="td-mono text-brand-link underline underline-offset-2"
+                        title="Open the printable statement"
+                      >
+                        {s.code}
+                      </Link>
+                    </td>
                     <td className="td-title">{s.clientName}</td>
                     <td>
                       {s.milestoneLabel}

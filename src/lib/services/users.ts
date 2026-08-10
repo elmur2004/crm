@@ -107,10 +107,13 @@ function sign(payload: string): string {
   return createHmac("sha256", secret()).update(payload).digest("base64url");
 }
 
-/** Admin-only: mints a 60s single-purpose token for the impersonation provider. */
+/** Admin-only: mints a 60s single-purpose token for the impersonation provider.
+    `impersonatorId` rides inside the token so the session remembers WHO is
+    impersonating — that's what powers the "Back to admin" snap-back. */
 export async function mintImpersonationToken(
   targetUserId: string,
   actor: Actor,
+  opts?: { impersonatorId?: string; trigger?: string },
 ): Promise<string> {
   const target = await db.user.findUnique({ where: { id: targetUserId } });
   if (!target) throw new ApiError(404, "User not found");
@@ -122,23 +125,70 @@ export async function mintImpersonationToken(
       actorId: actor.id,
       actorLabel: actor.label,
       action: "update",
-      trigger: "impersonation",
+      trigger: opts?.trigger ?? "impersonation",
     },
   });
-  const payload = `${targetUserId}.${Date.now() + IMPERSONATION_TTL_MS}`;
+  const payload = `${targetUserId}.${opts?.impersonatorId ?? ""}.${Date.now() + IMPERSONATION_TTL_MS}`;
   return `${payload}.${sign(payload)}`;
 }
 
-/** Verified by the auth provider; returns the target user id or null. */
-export function verifyImpersonationToken(token: string): string | null {
+/** Verified by the auth provider; returns the target (and the impersonating
+    admin, when the session should snap back) or null. */
+export function verifyImpersonationToken(
+  token: string,
+): { userId: string; impersonatorId: string | null } | null {
   const parts = token.split(".");
-  if (parts.length !== 3) return null;
-  const [userId, expiry, signature] = parts as [string, string, string];
-  const payload = `${userId}.${expiry}`;
+  if (parts.length !== 4) return null;
+  const [userId, impersonatorId, expiry, signature] = parts as [string, string, string, string];
+  const payload = `${userId}.${impersonatorId}.${expiry}`;
   const expected = sign(payload);
   const a = Buffer.from(signature);
   const b = Buffer.from(expected);
   if (a.length !== b.length || !timingSafeEqual(a, b)) return null;
   if (Number(expiry) < Date.now()) return null;
-  return userId;
+  return { userId, impersonatorId: impersonatorId || null };
+}
+
+/* ---------- registration approval (founder: signup is a REQUEST) ---------- */
+
+export async function approveRegistration(userId: string, actor: Actor) {
+  const user = await db.user.findUnique({ where: { id: userId } });
+  if (!user) throw new ApiError(404, "User not found");
+  if (user.registrationStatus === "approved") return user;
+  return db.$transaction(async (tx) => {
+    const updated = await tx.user.update({
+      where: { id: userId },
+      data: { registrationStatus: "approved", active: true },
+    });
+    await writeLog(tx, {
+      entityType: "user",
+      entityId: userId,
+      actor,
+      action: "update",
+      trigger: "registration_approved",
+    });
+    return updated;
+  });
+}
+
+export async function rejectRegistration(userId: string, actor: Actor) {
+  const user = await db.user.findUnique({ where: { id: userId } });
+  if (!user) throw new ApiError(404, "User not found");
+  if (user.registrationStatus === "approved" && user.active) {
+    throw new ApiError(400, "This account is already approved — deactivate it from Users instead");
+  }
+  return db.$transaction(async (tx) => {
+    const updated = await tx.user.update({
+      where: { id: userId },
+      data: { registrationStatus: "rejected", active: false },
+    });
+    await writeLog(tx, {
+      entityType: "user",
+      entityId: userId,
+      actor,
+      action: "update",
+      trigger: "registration_rejected",
+    });
+    return updated;
+  });
 }

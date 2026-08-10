@@ -13,11 +13,14 @@ declare module "next-auth" {
       name: string;
       roles: Role[];
       email?: string | null;
+      /** set while an admin is impersonating — powers the snap-back bar */
+      impersonatorId?: string | null;
     };
   }
   interface User {
     id?: string;
     roles?: Role[];
+    impersonatorId?: string | null;
   }
 }
 
@@ -32,6 +35,7 @@ export const authConfig = {
         token.userId = user.id;
         token.roles = user.roles ?? [];
         token.name = user.name;
+        token.impersonatorId = user.impersonatorId ?? null;
       }
       return token;
     },
@@ -39,6 +43,7 @@ export const authConfig = {
       session.user.id = (token.userId as string) ?? "";
       session.user.roles = (token.roles as Role[]) ?? [];
       session.user.name = (token.name as string) ?? "";
+      session.user.impersonatorId = (token.impersonatorId as string | null) ?? null;
       return session;
     },
   },

@@ -29,6 +29,17 @@ function landingFor(roles: Role[]): string {
 export async function login(formData: FormData): Promise<void> {
   const identifier = String(formData.get("identifier") ?? "");
   const password = String(formData.get("password") ?? "");
+  /* founder: self-signups are approval REQUESTS — tell pending/declined users
+     what is happening instead of the generic wrong-credentials error */
+  const preWhere =
+    identifierKind(identifier) === "email"
+      ? { email: identifier.trim().toLowerCase() }
+      : { phone: normalizePhone(identifier) };
+  const preUser = await db.user
+    .findUnique({ where: preWhere as never, select: { registrationStatus: true } })
+    .catch(() => null);
+  if (preUser?.registrationStatus === "pending") redirect("/login?error=pending");
+  if (preUser?.registrationStatus === "rejected") redirect("/login?error=rejected");
   try {
     await signIn("unified", { identifier, password, redirect: false });
   } catch (err) {
@@ -49,15 +60,17 @@ export async function logout(redirectTo: string): Promise<void> {
   await signOut({ redirectTo });
 }
 
-/* V2 §2.10 — admin opens any account directly (no re-login). */
+/* V2 §2.10 — admin opens any account directly (no re-login). The session
+   remembers the admin (impersonatorId) so "Back to admin" snaps back any time. */
 export async function impersonate(targetUserId: string): Promise<void> {
   const { requireRole } = await import("@/lib/auth/guards");
   const { mintImpersonationToken } = await import("@/lib/services/users");
   const adminUser = await requireRole("bsystems_admin");
-  const token = await mintImpersonationToken(targetUserId, {
-    id: adminUser.id,
-    label: adminUser.name,
-  });
+  const token = await mintImpersonationToken(
+    targetUserId,
+    { id: adminUser.id, label: adminUser.name },
+    { impersonatorId: adminUser.id },
+  );
   try {
     await signIn("impersonation", { token, redirect: false });
   } catch (err) {
@@ -69,4 +82,34 @@ export async function impersonate(targetUserId: string): Promise<void> {
     include: { roles: true },
   });
   redirect(landingFor((target?.roles.map((r) => r.role) ?? []) as Role[]));
+}
+
+/* Snap back to the admin who started the impersonation (founder: "back and
+   forth, any time"). Only a session that legitimately carries impersonatorId
+   can do this; the admin's account is re-checked (exists, active, still admin). */
+export async function endImpersonation(): Promise<void> {
+  const { auth } = await import("@/lib/auth");
+  const { mintImpersonationToken } = await import("@/lib/services/users");
+  const session = await auth();
+  const impersonatorId = session?.user?.impersonatorId;
+  if (!impersonatorId) redirect("/login");
+  const admin = await db.user.findUnique({
+    where: { id: impersonatorId },
+    include: { roles: true },
+  });
+  if (!admin || !admin.active || !admin.roles.some((r) => r.role === "bsystems_admin")) {
+    redirect("/login");
+  }
+  const token = await mintImpersonationToken(
+    admin.id,
+    { id: admin.id, label: admin.name },
+    { trigger: "impersonation_return" }, // no impersonatorId — a clean admin session
+  );
+  try {
+    await signIn("impersonation", { token, redirect: false });
+  } catch (err) {
+    if (err instanceof AuthError) redirect("/login");
+    throw err;
+  }
+  redirect(landingFor(admin.roles.map((r) => r.role) as Role[]));
 }

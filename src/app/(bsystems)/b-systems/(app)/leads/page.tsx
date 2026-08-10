@@ -96,9 +96,11 @@ export default async function BsLeadsPage({
                     <td className="td-mono">{lead.number}</td>
                     <td>{lead.companyName ?? "—"}</td>
                     <td>
-                      {OWNER_TYPE_LABELS[lead.ownerType as OwnerType] ?? lead.ownerType}
-                      {lead.owner ? ` · ${lead.owner.name}` : ""}
-                      {lead.partner ? ` · ${lead.partner.companyName}` : ""}
+                      <span className="owner-chip" data-owner-key={lead.ownerType}>
+                        {OWNER_TYPE_LABELS[lead.ownerType as OwnerType] ?? lead.ownerType}
+                        {lead.owner ? ` · ${lead.owner.name}` : ""}
+                        {lead.partner ? ` · ${lead.partner.companyName}` : ""}
+                      </span>
                     </td>
                     <td>
                       <span className="chip-outline">

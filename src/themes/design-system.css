@@ -107,8 +107,8 @@
 }
 
 /* ---------- 2.2 page header ---------- */
-.page { padding: 26px 26px 44px; }
-.page--detail { padding: 20px 26px 44px; }
+.page { --page-pad: 26px; padding: 26px var(--page-pad) 44px; }
+.page--detail { padding: 20px var(--page-pad) 44px; }
 .page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 18px; flex-wrap: wrap; margin-bottom: 20px; }
 .page-actions { display: flex; gap: 9px; flex-wrap: wrap; align-items: center; }
 
@@ -217,7 +217,16 @@
 [data-stage-key="lost"] { --stage-well: var(--color-stage-lost); --stage-bar: var(--color-stage-lost-accent); --stage-chip: var(--color-stage-lost-chip); --stage-chip-ink: var(--color-stage-lost-chip-ink); }
 
 /* ---------- 2.7 board ---------- */
-.board { display: flex; gap: 12px; align-items: flex-start; overflow-x: auto; padding-bottom: 12px; }
+/* Full-bleed breakout (founder: the board fills the whole page, not the centered
+   column). 50%−50vw escapes the max-width container; the +8px inset keeps the
+   element narrower than the viewport even when a classic scrollbar makes 100vw
+   over-wide, so the page never gains horizontal overflow. Content gutters still
+   line up with the page padding. */
+.board {
+  display: flex; gap: 12px; align-items: flex-start; overflow-x: auto; padding-bottom: 12px;
+  margin-inline: calc(50% - 50vw + 8px);
+  padding-inline: calc(var(--page-pad, 26px) - 8px);
+}
 .col {
   flex: none; width: 250px; display: flex; flex-direction: column; border-radius: 12px; overflow: hidden;
   background: var(--stage-well, var(--color-surface-tint)); border: 1px solid transparent;
@@ -258,6 +267,13 @@
 .bcard-rep { font: 400 10.5px var(--font-body); color: var(--color-muted); white-space: nowrap; }
 .bcard-chips { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
 .bcard-tag { font: 500 10px var(--font-body); color: var(--color-muted); border: 1px solid var(--color-border); border-radius: 5px; padding: 2px 6px; }
+/* Owner-bucket chips (founder: tell the bucket by COLOR, without reading):
+   internal = indigo · agent = magenta · partner = pink · admin = deep navy */
+.owner-chip { display: inline-block; font: 500 10px var(--font-body); border-radius: 5px; padding: 2px 6px; }
+.owner-chip[data-owner-key="internal"] { background: var(--color-primary-tint); color: var(--color-primary-tint-ink); }
+.owner-chip[data-owner-key="agent"] { background: var(--color-stage-meeting-chip); color: var(--color-stage-meeting-chip-ink); }
+.owner-chip[data-owner-key="partner"] { background: var(--color-stage-won-chip); color: var(--color-stage-won-chip-ink); }
+.owner-chip[data-owner-key="admin"] { background: var(--color-surface-dark); color: var(--color-on-primary); }
 .bcard-badge {
   display: inline-block; margin-bottom: 7px; font: 500 9.5px var(--font-mono); letter-spacing: .12em; text-transform: uppercase;
   border-radius: 4px; padding: 3px 6px; background: var(--color-secondary-tint); color: var(--color-secondary-tint-ink);
@@ -279,6 +295,13 @@
 .field-input::placeholder { color: var(--color-muted); }
 textarea.field-input { min-height: 74px; resize: vertical; font-family: var(--font-body); }
 .field-hint { font: 400 11px var(--font-body); color: var(--color-muted); }
+/* mandatory marker (founder): any label wrapping a required control gets a star */
+label:has(input[required], select[required], textarea[required]) .field-label::after,
+label:has(input[required]) .dropzone-title::after {
+  content: " *";
+  color: var(--color-accent);
+  font-weight: 700;
+}
 .check-row {
   display: flex; align-items: center; gap: 10px; background: var(--color-surface-card); border: 1px solid var(--color-border);
   border-radius: var(--radius-control); padding: 11px 13px; font: 500 13px var(--font-body); color: var(--color-ink);
@@ -470,6 +493,46 @@ textarea.field-input { min-height: 74px; resize: vertical; font-family: var(--fo
 .avatar-lg { width: 46px; height: 46px; border-radius: 12px; display: grid; place-items: center; background: var(--color-accent); color: var(--color-on-accent); font: 700 16px var(--font-body); flex: none; }
 .file-icon { width: 34px; height: 34px; border-radius: 8px; display: grid; place-items: center; background: var(--color-surface-tint); color: var(--color-link); font: 700 9.5px var(--font-mono); flex: none; }
 
+/* ---------- printable statement document (founder ⑧) — token-driven, so it
+   carries whichever brand scope it renders under ---------- */
+.print-sheet {
+  max-width: 820px; margin-inline: auto; overflow: hidden;
+  background: var(--color-surface-card); border: 1px solid var(--color-border);
+  border-radius: var(--radius-card); box-shadow: var(--shadow-card);
+}
+.print-band { height: 6px; background-color: var(--color-primary); background-image: var(--gradient-hero); }
+.print-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; padding: 28px 32px 22px; border-bottom: 1px solid var(--color-border); }
+.print-brand { display: flex; align-items: center; gap: 11px; }
+.print-eyebrow { font: 700 10px/1 var(--font-mono); letter-spacing: .24em; color: var(--color-muted); text-transform: uppercase; }
+.print-title { margin: 8px 0 0; font: 700 26px/1.1 var(--font-display); letter-spacing: -.02em; color: var(--color-heading); }
+.print-code { font: 700 14px var(--font-mono); letter-spacing: .12em; color: var(--color-ink); }
+.print-date { margin-top: 4px; font: 400 11.5px var(--font-body); color: var(--color-muted); }
+.print-section { padding: 20px 32px; }
+.print-section + .print-section { border-top: 1px solid var(--color-hairline); }
+.print-parties { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 18px; }
+.print-party-label { font: 500 9.5px var(--font-mono); letter-spacing: .16em; color: var(--color-muted); text-transform: uppercase; }
+.print-party-name { margin-top: 6px; font: 700 15px var(--font-display); color: var(--color-heading); }
+.print-party-line { margin-top: 2px; font: 400 12px/1.5 var(--font-body); color: var(--color-ink); }
+.print-total-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 14px 16px; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-control); }
+.print-total-label { font: 700 10.5px var(--font-mono); letter-spacing: .16em; color: var(--color-muted); text-transform: uppercase; }
+.print-total { font: 700 24px var(--font-display); letter-spacing: -.02em; color: var(--color-heading); }
+.print-stamp {
+  display: inline-block; transform: rotate(-4deg);
+  border: 2.5px solid var(--color-primary); color: var(--color-primary);
+  border-radius: 9px; padding: 7px 16px;
+  font: 800 16px var(--font-display); letter-spacing: .14em; text-transform: uppercase;
+}
+.print-stamp--pending { border-color: var(--color-muted); color: var(--color-muted); }
+.print-foot { padding: 16px 32px; border-top: 1px solid var(--color-border); display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; font: 500 9.5px var(--font-mono); letter-spacing: .12em; color: var(--color-muted); text-transform: uppercase; }
+
+@media print {
+  .app-header, .no-print, .bell-wrap, .page-actions { display: none !important; }
+  .page, .page--detail { padding: 0; }
+  body { background: #fff; }
+  .print-sheet { border: none; box-shadow: none; border-radius: 0; max-width: 100%; }
+  .page > * { animation: none; }
+}
+
 /* ---------- motion layer (founder: "the system is so rigid") ----------
    Entry rise on page content, soft hover lifts, pressed states — all subtle,
    all disabled under prefers-reduced-motion. Opacity/transform only (no layout
@@ -478,7 +541,11 @@ textarea.field-input { min-height: 74px; resize: vertical; font-family: var(--fo
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: none; }
 }
-.page > * { animation: ds-rise .24s ease-out both; }
+/* fill-mode BACKWARDS, never both/forwards: a filling transform animation keeps
+   the element a containing block in Chromium, which traps position:fixed modals
+   rendered inside page content (they get clipped to the ancestor's box). With
+   backwards the animation releases the element the moment it finishes. */
+.page > * { animation: ds-rise .24s ease-out backwards; }
 .page > *:nth-child(2) { animation-delay: .04s; }
 .page > *:nth-child(3) { animation-delay: .08s; }
 .page > *:nth-child(n + 4) { animation-delay: .12s; }
@@ -504,7 +571,7 @@ textarea.field-input { min-height: 74px; resize: vertical; font-family: var(--fo
 .stage-cell:hover { background: var(--color-surface); }
 .ms-row { transition: background-color .15s ease, border-color .15s ease; }
 .bell-menu, .bell-menu > * { animation: ds-pop-in .16s ease-out both; }
-.tl-row { animation: ds-rise .22s ease-out both; }
+.tl-row { animation: ds-rise .22s ease-out backwards; }
 .tl-row:nth-child(2) { animation-delay: .03s; }
 .tl-row:nth-child(3) { animation-delay: .06s; }
 .tl-row:nth-child(n + 4) { animation-delay: .09s; }
@@ -519,7 +586,7 @@ textarea.field-input { min-height: 74px; resize: vertical; font-family: var(--fo
 
 /* ---------- responsive hardening (founder rule: every page adapts to any width) ---------- */
 @media (max-width: 640px) {
-  .page, .page--detail { padding: 16px 14px 36px; }
+  .page, .page--detail { --page-pad: 14px; padding: 16px var(--page-pad) 36px; }
   .u-h1 { font-size: 24px; }
   .hub-title { font-size: 30px; }
   .tile-value { font-size: 23px; }

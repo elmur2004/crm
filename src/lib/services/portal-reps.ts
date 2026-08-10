@@ -5,6 +5,7 @@ import { hashPassword, verifyPassword } from "@/lib/auth/hash";
 import { isValidPhone, normalizePhone } from "@/lib/auth/phone";
 import { validateAndStore, storage } from "@/lib/storage";
 import { writeLog, type Actor } from "./activity";
+import { notifyAdmins } from "./notifications";
 
 /* §8.1 sign-up + §8.4 profile. Sign-up creates User (portal_rep, active
    immediately — A-4) + PortalRep + CV attachment in one transaction after the CV
@@ -17,6 +18,8 @@ export const signupSchema = z
     firstName: z.string().min(1).max(100),
     lastName: z.string().min(1).max(100),
     phone: z.string().refine(isValidPhone, "Enter a valid phone number"),
+    /* founder: BOTH identifiers registered — email OR phone signs in later */
+    email: z.string().email("Enter a valid email"),
     address: z.string().min(1).max(400),
     speciality: z.string().min(1).max(200),
     password: z.string().min(8, "At least 8 characters"),
@@ -32,8 +35,13 @@ export async function signupRep(
   cv: File,
 ): Promise<{ userId: string; phone: string }> {
   const phone = normalizePhone(input.phone);
-  const existing = await db.user.findUnique({ where: { phone } });
-  if (existing) throw new ApiError(409, "An account with this phone number already exists");
+  const email = input.email.trim().toLowerCase();
+  if (await db.user.findUnique({ where: { phone } })) {
+    throw new ApiError(409, "An account with this phone number already exists");
+  }
+  if (await db.user.findUnique({ where: { email } })) {
+    throw new ApiError(409, "An account with this email already exists");
+  }
 
   const storedCv = await validateAndStore("cv", cv);
   const passwordHash = await hashPassword(input.password);
@@ -42,7 +50,9 @@ export async function signupRep(
   try {
     const userId = await db.$transaction(async (tx) => {
       const user = await tx.user.create({
-        data: { name, phone, passwordHash }, // active default true (A-4)
+        /* founder: self-signup is an approval REQUEST — pending until the admin
+           approves it on Registrations; sign-in is blocked until then */
+        data: { name, phone, email, passwordHash, registrationStatus: "pending" },
       });
       await tx.userRole.create({ data: { userId: user.id, role: "bsystems_agent" } });
       const rep = await tx.portalRep.create({
@@ -72,6 +82,11 @@ export async function signupRep(
         trigger: "signup",
       });
       return user.id;
+    });
+    await notifyAdmins({
+      type: "registration",
+      title: `New agent registration: ${name}`,
+      body: `${name} (${email} · ${phone}) requested to join — review it on Registrations.`,
     });
     return { userId, phone };
   } catch (err) {

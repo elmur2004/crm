@@ -27,6 +27,9 @@ export async function requireUser(): Promise<CurrentUser> {
     include: { roles: true, portalRep: { select: { id: true } } },
   });
   if (!user || !user.active) throw new ApiError(403, "Account is deactivated");
+  if (user.registrationStatus !== "approved") {
+    throw new ApiError(403, "Your registration is awaiting approval");
+  }
   return {
     id: user.id,
     name: user.name,
@@ -109,9 +112,10 @@ export function handleRoute<T extends unknown[]>(
         return Response.json({ error: err.message }, { status: err.status });
       }
       if (err && typeof err === "object" && "issues" in err) {
-        // ZodError — invalid input
+        // ZodError — surface the FIRST issue's message so forms show the real rule
+        const issues = (err as { issues: Array<{ message?: string }> }).issues;
         return Response.json(
-          { error: "Invalid input", issues: (err as { issues: unknown }).issues },
+          { error: issues?.[0]?.message ?? "Invalid input", issues },
           { status: 400 },
         );
       }

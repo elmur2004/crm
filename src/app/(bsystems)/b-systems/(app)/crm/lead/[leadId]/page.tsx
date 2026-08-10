@@ -126,45 +126,39 @@ export default async function BsLeadDetailPage({
               {lead.partner ? ` · ${lead.partner.companyName}` : ""}
             </p>
           </div>
-          {lead.position ? (
-            <div className="fields-cell">
-              <p className="fields-label">Position:</p>
-              <p className="fields-value">{lead.position}</p>
-            </div>
-          ) : null}
-          {lead.companyName ? (
-            <div className="fields-cell">
-              <p className="fields-label">Company:</p>
-              <p className="fields-value">{lead.companyName}</p>
-            </div>
-          ) : null}
-          {lead.industry ? (
-            <div className="fields-cell">
-              <p className="fields-label">Industry:</p>
-              <p className="fields-value">{lead.industry}</p>
-            </div>
-          ) : null}
+          {/* founder: EVERY creation field shows here, empty or not */}
+          <div className="fields-cell">
+            <p className="fields-label">Position:</p>
+            <p className="fields-value">{lead.position ?? "—"}</p>
+          </div>
+          <div className="fields-cell">
+            <p className="fields-label">Company:</p>
+            <p className="fields-value">{lead.companyName ?? "—"}</p>
+          </div>
+          <div className="fields-cell">
+            <p className="fields-label">Industry:</p>
+            <p className="fields-value">{lead.industry ?? "—"}</p>
+          </div>
           <div className="fields-cell">
             <p className="fields-label">Date created:</p>
             <p className="fields-value">{formatCairo(lead.createdAt)}</p>
           </div>
-          {lead.requirements ? (
-            <div className="fields-cell">
-              <p className="fields-label">Requirements:</p>
-              <p className="fields-value whitespace-pre-wrap">{lead.requirements}</p>
-            </div>
-          ) : null}
-          {lead.description ? (
-            <div className="fields-cell">
-              <p className="fields-value whitespace-pre-wrap">{lead.description}</p>
-            </div>
-          ) : null}
+          <div className="fields-cell">
+            <p className="fields-label">Requirements:</p>
+            <p className="fields-value whitespace-pre-wrap">{lead.requirements ?? "—"}</p>
+          </div>
+          <div className="fields-cell">
+            <p className="fields-label">Notes:</p>
+            <p className="fields-value whitespace-pre-wrap">{lead.description ?? "—"}</p>
+          </div>
         </div>
       </div>
 
       <div className="grid md:grid-cols-2 gap-6">
         <section className="space-y-4">
-          {access.isAdmin ? <EditLeadForm lead={editable} /> : null}
+          {/* founder: the lead's OWNER edits too — the API enforces access
+              (admin any / sales internal / agent+partner own) */}
+          <EditLeadForm lead={editable} />
 
           <div className="card card--flush0">
             <div className="card-head">

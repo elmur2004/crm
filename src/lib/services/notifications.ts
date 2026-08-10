@@ -5,7 +5,7 @@ import { db } from "@/lib/db";
    confirmation copy references it only). */
 
 export async function notifyAdmins(input: {
-  type: "meeting_request" | "ready_to_close";
+  type: "meeting_request" | "ready_to_close" | "registration";
   title: string;
   body: string;
   leadId?: string;

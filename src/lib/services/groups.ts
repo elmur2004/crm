@@ -106,24 +106,76 @@ export const negotiationSchema = z.object({
 export type NegotiationInput = z.infer<typeof negotiationSchema>;
 
 /* V2 §4: confirm-win milestone tab — commission is a PERCENT (basis points),
-   milestones carry value + closer commission + expected dates. */
-export const wonDealSchema = z.object({
-  estimatedValue: money,
-  totalCommissionPercentBp: z.number().int().min(0).max(100_00), // ≤ 100.00%
-  contractDate: dateStr.optional(),
-  milestones: z
-    .array(
-      z.object({
-        label: z.string().max(120).optional(),
-        value: money,
-        commissionValue: money,
-        expectedStart: dateStr.optional(),
-        expectedEnd: dateStr.optional(),
-      }),
-    )
-    .min(1)
-    .max(100),
-});
+   milestones carry value + closer commission + expected dates.
+   Founder V3 barriers: the numbers must be mathematically coherent and the
+   milestones chronological — wrong entries are refused with a clear message. */
+const egp = (piasters: number) => `EGP ${(piasters / 100).toLocaleString("en-EG")}`;
+
+export const wonDealSchema = z
+  .object({
+    estimatedValue: money,
+    totalCommissionPercentBp: z.number().int().min(0).max(100_00), // ≤ 100.00%
+    contractDate: dateStr.optional(),
+    milestones: z
+      .array(
+        z.object({
+          label: z.string().max(120).optional(),
+          value: money,
+          commissionValue: money,
+          expectedStart: dateStr.optional(),
+          expectedEnd: dateStr.optional(),
+        }),
+      )
+      .min(1)
+      .max(100),
+  })
+  .superRefine((d, ctx) => {
+    /* 1 — milestone values must add up to the deal's estimated value */
+    const valuesTotal = d.milestones.reduce((a, m) => a + m.value, 0);
+    if (valuesTotal !== d.estimatedValue) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["milestones"],
+        message: `Milestone values total ${egp(valuesTotal)} but the estimated value is ${egp(d.estimatedValue)} — they must match`,
+      });
+    }
+    /* 2 — milestone commissions must add up to the total commission %
+       (±EGP 1 rounding tolerance) */
+    const expectedCommission = Math.round(
+      (d.estimatedValue * d.totalCommissionPercentBp) / 100_00,
+    );
+    const commissionTotal = d.milestones.reduce((a, m) => a + m.commissionValue, 0);
+    if (Math.abs(commissionTotal - expectedCommission) > 100) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["milestones"],
+        message: `Milestone commissions total ${egp(commissionTotal)} but ${(d.totalCommissionPercentBp / 100).toString()}% of ${egp(d.estimatedValue)} is ${egp(expectedCommission)} — they must match`,
+      });
+    }
+    /* 3 — chronology: each milestone ends after it starts, and each milestone
+       starts after the previous one (YYYY-MM-DD compares lexicographically) */
+    d.milestones.forEach((m, i) => {
+      if (m.expectedStart && m.expectedEnd && m.expectedEnd < m.expectedStart) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["milestones", i, "expectedEnd"],
+          message: `Milestone ${i + 1} ends before it starts`,
+        });
+      }
+      if (i > 0) {
+        const prev = d.milestones[i - 1]!;
+        const prevAnchor = prev.expectedEnd ?? prev.expectedStart;
+        const thisAnchor = m.expectedStart ?? m.expectedEnd;
+        if (prevAnchor && thisAnchor && thisAnchor < prevAnchor) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["milestones", i, "expectedStart"],
+            message: `Milestone ${i + 1} starts before milestone ${i} finishes — milestones must be in chronological order`,
+          });
+        }
+      }
+    });
+  });
 export type WonDealInput = z.infer<typeof wonDealSchema>;
 
 /* PP-1 (V2 §6): moving to Didn't Answer records WHICH number(s) went unanswered. */

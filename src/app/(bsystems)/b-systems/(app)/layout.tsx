@@ -1,4 +1,5 @@
 import { NotificationsBell } from "@/components/bsystems/NotificationsBell";
+import { ImpersonationBar } from "@/components/shared/ImpersonationBar";
 import { EntitySwitch } from "@/components/shared/EntitySwitch";
 import { ShellNav } from "@/components/shared/ShellNav";
 import { logout } from "@/lib/auth/actions";
@@ -69,6 +70,7 @@ export default async function BSystemsAppLayout({
 
   return (
     <>
+      <ImpersonationBar />
       <header className="app-header" data-shell={external ? "external" : undefined}>
         <span className="logo-b" aria-hidden>
           S

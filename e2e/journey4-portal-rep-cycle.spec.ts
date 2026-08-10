@@ -21,15 +21,17 @@ async function dragTo(page: Page, card: Locator, column: Locator) {
   await page.mouse.up();
 }
 
-test("journey 4: agent signs up, works the unified board, cannot reach Won, sees only own leads", async ({
+test("journey 4: agent requests to join, admin approves, agent works the board with email OR phone", async ({
   page,
+  browser,
 }) => {
-  /* Sign up with CV (§8.1 — unchanged in V2). */
+  /* Sign up with CV — founder V3: BOTH identifiers, and it's an approval REQUEST. */
   await page.goto("/portal");
   await page.getByRole("link", { name: "Sign up" }).click();
   await page.getByLabel("First name").fill("Nadia");
   await page.getByLabel("Last name").fill("Sami");
   await page.getByLabel("Phone number").fill("01212121212");
+  await page.getByLabel("Email").fill("nadia@agents.example");
   await page.getByLabel("Address").fill("3 Zamalek St, Cairo");
   await page.getByLabel("Speciality").fill("CRM consulting");
   await page
@@ -39,10 +41,43 @@ test("journey 4: agent signs up, works the unified board, cannot reach Won, sees
   await page.getByLabel("Confirm password").fill("nadia12345");
   await page.getByRole("button", { name: "Sign up" }).click();
 
-  /* V2: on success the agent lands on the unified board (auto sign-in, ADR-025). */
+  /* The request is acknowledged — no auto sign-in any more. */
+  await expect(
+    page.getByText("Request received — the admin reviews new registrations", { exact: false }),
+  ).toBeVisible();
+
+  /* Signing in while pending is refused with the clear message. */
+  await page.goto("/login");
+  await page.getByLabel("Email or phone").fill("01212121212");
+  await page.getByLabel("Password").fill("nadia12345");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page.getByText("Your registration is awaiting approval", { exact: false })).toBeVisible();
+
+  /* The admin approves the request on Registrations. */
+  const adminCtx = await browser.newContext();
+  const adminPage = await adminCtx.newPage();
+  await adminPage.goto("/login");
+  await adminPage.getByLabel("Email or phone").fill("admin@byteforce.com");
+  await adminPage.getByLabel("Password").fill("password123");
+  await adminPage.getByRole("button", { name: "Sign in" }).click();
+  await adminPage.waitForURL(/\/b-systems$/);
+  await adminPage.goto("/b-systems/registrations");
+  const requestRow = adminPage.getByRole("row", { name: /Nadia Sami/ }).first();
+  await expect(requestRow.getByText("nadia@agents.example")).toBeVisible();
+  await requestRow.getByRole("button", { name: "Approve" }).click();
+  await expect(
+    adminPage.getByText("No pending requests — new sign-ups land here for review."),
+  ).toBeVisible();
+  await adminCtx.close();
+
+  /* founder: email AND phone both sign in. First the EMAIL… */
+  await page.goto("/login");
+  await page.getByLabel("Email or phone").fill("nadia@agents.example");
+  await page.getByLabel("Password").fill("nadia12345");
+  await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page).toHaveURL(/\/b-systems\/crm$/);
 
-  /* Explicit login round-trip with the phone identifier (ADR-008/028). */
+  /* …then the phone (ADR-008/028 round-trip). */
   await page.getByRole("button", { name: "Log out" }).click();
   await page.goto("/login");
   await page.getByLabel("Email or phone").fill("01212121212");

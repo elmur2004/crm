@@ -201,7 +201,10 @@ export function LostFieldsV2() {
   );
 }
 
-/* V2 §4 — the confirm-win milestone tab (admin/sales). */
+/* V2 §4 — the confirm-win milestone tab (admin/sales). Live math (founder):
+   milestone values must total the estimated value, commissions must total the
+   commission %, milestones must be chronological — the summary updates as you
+   type and the server refuses incoherent numbers. */
 export function WonDealTab({
   count,
   setCount,
@@ -209,8 +212,39 @@ export function WonDealTab({
   count: number;
   setCount: (n: number) => void;
 }) {
+  const [sums, setSums] = useState<{
+    estimated: number;
+    values: number;
+    expectedCommission: number;
+    commissions: number;
+  } | null>(null);
+
+  function recalc(el: HTMLElement | null) {
+    const form = el?.closest("form");
+    if (!form) return;
+    const fd = new FormData(form);
+    const estimated = Number(fd.get("estimatedValue") || 0);
+    const percent = Number(fd.get("totalCommissionPercent") || 0);
+    let values = 0;
+    let commissions = 0;
+    for (let i = 0; i < count; i++) {
+      values += Number(fd.get(`m${i}value`) || 0);
+      commissions += Number(fd.get(`m${i}commission`) || 0);
+    }
+    setSums({
+      estimated,
+      values,
+      expectedCommission: (estimated * percent) / 100,
+      commissions,
+    });
+  }
+
+  const fmt = (n: number) => `EGP ${n.toLocaleString("en-EG")}`;
+  const valuesOk = sums ? sums.values === sums.estimated : true;
+  const commissionsOk = sums ? Math.abs(sums.commissions - sums.expectedCommission) <= 1 : true;
+
   return (
-    <>
+    <div className="contents" onInput={(e) => recalc(e.target as HTMLElement)}>
       <div className="grid grid-cols-2 gap-3">
         <label className="block">
           <span className={labelCls}>Estimated value (EGP)</span>
@@ -265,7 +299,19 @@ export function WonDealTab({
           </div>
         ))}
       </div>
-    </>
+      {sums ? (
+        <div className="record-group text-sm space-y-1">
+          <p className={valuesOk ? "" : "text-brand-danger"}>
+            Milestone values: {fmt(sums.values)} of {fmt(sums.estimated)}
+            {valuesOk ? " ✓" : " — must match the estimated value"}
+          </p>
+          <p className={commissionsOk ? "" : "text-brand-danger"}>
+            Commissions: {fmt(sums.commissions)} of expected {fmt(sums.expectedCommission)}
+            {commissionsOk ? " ✓" : " — must match the total commission %"}
+          </p>
+        </div>
+      ) : null}
+    </div>
   );
 }
 

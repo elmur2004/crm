@@ -12,11 +12,12 @@ export const POST = handleRoute(async (req: Request) => {
     firstName: form.get("firstName"),
     lastName: form.get("lastName"),
     phone: form.get("phone"),
+    email: form.get("email"),
     address: form.get("address"),
     speciality: form.get("speciality"),
     password: form.get("password"),
     confirmPassword: form.get("confirmPassword"),
   });
   const result = await signupRep(input, cv);
-  return Response.json({ ok: true, phone: result.phone }, { status: 201 });
+  return Response.json({ ok: true, phone: result.phone, userId: result.userId }, { status: 201 });
 });
