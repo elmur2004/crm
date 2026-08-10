@@ -1,3 +1,4 @@
+import { BrandLogo } from "@/components/shared/BrandLogo";
 import { EntitySwitch } from "@/components/shared/EntitySwitch";
 import { ShellNav } from "@/components/shared/ShellNav";
 import { logout } from "@/lib/auth/actions";
@@ -32,9 +33,21 @@ export function AppNav({
     .toUpperCase();
   return (
     <header className="app-header">
-      <span className="logo-a" aria-hidden />
-      <span className="wordmark">ByteForce</span>
-      <ShellNav items={items} />
+      {/* founder: the REAL ByteForce logo, not the placeholder mark */}
+      <span className="shrink-0"><BrandLogo brand="byteforce" height={30} /></span>
+      <ShellNav
+        items={items}
+        extras={
+          <>
+            <EntitySwitch roles={roles} current="byteforce" />
+            <form action={logout.bind(null, "/login")}>
+              <button type="submit" className="nav-item">
+                Log out
+              </button>
+            </form>
+          </>
+        }
+      />
       <div className="user">
         <EntitySwitch roles={roles} current="byteforce" />
         <span className="user-avatar" aria-hidden>

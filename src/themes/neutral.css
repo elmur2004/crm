@@ -148,11 +148,11 @@
   font: 400 14px var(--font-body); color: var(--color-ink); width: 100%; outline: none;
 }
 .login-form input::placeholder { color: var(--color-faint); }
-.login-form button {
+.login-form button[type="submit"] {
   margin-top: 4px; background: var(--color-primary); color: var(--color-on-primary); border: 0;
   border-radius: 9px; padding: 15px 18px; font: 600 14px var(--font-body); letter-spacing: .005em; cursor: pointer;
 }
-.login-form button:hover { background: #2C2C31; }
+.login-form button[type="submit"]:hover { background: #2C2C31; }
 
 .login-foot { margin-top: 30px; padding-top: 20px; border-top: 1px solid var(--color-border); font: 400 13px/1.6 var(--font-body); color: var(--color-muted); }
 .login-foot a { font: 600 13px var(--font-body); color: var(--color-link); text-decoration: underline; text-underline-offset: 3px; }

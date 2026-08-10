@@ -76,6 +76,37 @@ test("B-Systems internal sales: CRM + Won Leads clean", async ({ page }) => {
   expect(errors).toEqual([]);
 });
 
+test("mobile menu reaches EVERY admin section at 390px (incl. switcher + logout)", async ({
+  page,
+}) => {
+  await page.goto("/login");
+  await page.getByLabel("Email or phone").fill("admin@byteforce.com");
+  await page.getByLabel("Password").fill("password123");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await page.waitForURL(/\/b-systems$/);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/b-systems");
+  await page.getByRole("button", { name: "Open menu" }).click();
+  for (const label of [
+    "Home",
+    "Leads",
+    "CRM",
+    "Won Leads",
+    "Partnership CRM",
+    "Partners",
+    "Agents",
+    "Registrations",
+    "Statements",
+    "Users",
+  ]) {
+    await expect(page.getByRole("menu").getByRole("link", { name: label, exact: true })).toBeVisible();
+  }
+  await expect(page.getByRole("menu").getByRole("button", { name: "Log out" })).toBeVisible();
+  await expect(page.getByRole("menu").getByRole("group", { name: "Switch company" })).toBeVisible();
+  await page.getByRole("menu").getByRole("link", { name: "Statements", exact: true }).click();
+  await page.waitForURL(/\/b-systems\/statements$/);
+});
+
 test("B-Systems agent + public screens: clean console, no horizontal overflow", async ({
   page,
 }) => {

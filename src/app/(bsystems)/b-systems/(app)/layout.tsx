@@ -76,7 +76,19 @@ export default async function BSystemsAppLayout({
           S
         </span>
         <span className="wordmark">B-Systems</span>
-        <ShellNav items={NAV[role]} />
+        <ShellNav
+          items={NAV[role]}
+          extras={
+            <>
+              <EntitySwitch roles={user.roles} current="bsystems" />
+              <form action={logout.bind(null, "/login")}>
+                <button type="submit" className="nav-item">
+                  Log out
+                </button>
+              </form>
+            </>
+          }
+        />
         <div className="user">
           <NotificationsBell />
           <EntitySwitch roles={user.roles} current="bsystems" />
