@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { btnGhost, btnPrimary, inputCls, labelCls } from "./groupForms";
+import { PasswordInput } from "@/components/shared/PasswordInput";
 
 /* §8.4 — profile edits: basics, CV replacement, password change (A-10). Phone is
    shown but not editable (A-10 carve-out — pending ADR). */
@@ -167,7 +168,7 @@ export function PasswordChangeForm() {
       </label>
       <label className="block">
         <span className={labelCls}>New password (min 8 characters)</span>
-        <input type="password" name="newPassword" required minLength={8} autoComplete="new-password" className={inputCls} />
+        <PasswordInput name="newPassword" ariaLabel="New password (min 8 characters)" required minLength={8} autoComplete="new-password" className={inputCls} />
       </label>
       <button type="submit" disabled={busy} className={btnPrimary}>
         Change password

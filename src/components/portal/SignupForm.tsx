@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { PasswordInput } from "@/components/shared/PasswordInput";
 import { btnAccent, inputCls, labelCls } from "./groupForms";
 
 /* §8.1 sign-up, founder V3 rules: the agent registers BOTH identifiers (email +
@@ -84,11 +85,11 @@ export function SignupForm() {
       </label>
       <label className="block">
         <span className={labelCls}>Password</span>
-        <input type="password" name="password" required minLength={8} autoComplete="new-password" className={inputCls} />
+        <PasswordInput name="password" ariaLabel="Password" required minLength={8} autoComplete="new-password" className={inputCls} />
       </label>
       <label className="block">
         <span className={labelCls}>Confirm password</span>
-        <input type="password" name="confirmPassword" required minLength={8} autoComplete="new-password" className={inputCls} />
+        <PasswordInput name="confirmPassword" ariaLabel="Confirm password" required minLength={8} autoComplete="new-password" className={inputCls} />
       </label>
       <button type="submit" disabled={busy} className={`${btnAccent} w-full sm:col-span-2`}>
         Sign up

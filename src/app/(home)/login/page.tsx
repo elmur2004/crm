@@ -1,5 +1,6 @@
 import { login } from "@/lib/auth/actions";
 import Link from "next/link";
+import { PasswordInput } from "@/components/shared/PasswordInput";
 
 export const metadata = { title: "Sign in — ByteForce × B-Systems Sales Platform" };
 
@@ -49,7 +50,7 @@ export default async function LoginPage({
             </label>
             <label>
               <span>Password</span>
-              <input type="password" name="password" required autoComplete="current-password" />
+              <PasswordInput name="password" ariaLabel="Password" required autoComplete="current-password" className="" />
             </label>
             <button type="submit">Sign in</button>
           </form>
