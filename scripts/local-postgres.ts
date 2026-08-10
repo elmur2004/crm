@@ -1,5 +1,5 @@
 import EmbeddedPostgres from "embedded-postgres";
-import { existsSync } from "node:fs";
+import { existsSync, readdirSync } from "node:fs";
 import { rm } from "node:fs/promises";
 import path from "node:path";
 
@@ -16,6 +16,19 @@ export const PG_DB = "crm";
 
 export function urlFor(port: number): string {
   return `postgresql://postgres:postgres@localhost:${port}/${PG_DB}`;
+}
+
+/** Best-effort cleanup of stale per-run data dirs (locked ones are skipped —
+    a crashed run's orphan may still hold its files/shared memory, which is
+    exactly why fresh instances use a UNIQUE dir per run). */
+export async function pruneStaleDirs(prefix: string): Promise<void> {
+  const root = path.resolve(process.cwd(), ".pgdata");
+  if (!existsSync(root)) return;
+  for (const entry of readdirSync(root)) {
+    if (entry.startsWith(prefix)) {
+      await rm(path.join(root, entry), { recursive: true, force: true }).catch(() => undefined);
+    }
+  }
 }
 
 export async function startLocalPostgres(opts: {

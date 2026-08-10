@@ -572,3 +572,42 @@ R23 copy sign-off — carried in PROGRESS (Entry 011).
   `prisma migrate deploy` at boot; integration tests got ~6x faster than
   SQLite-on-Windows.
 - Status: Accepted
+
+## ADR-034 — 2026-08-10 — Founder V3 flows: snap-back impersonation, registration approval, won-deal math barriers
+- Context: Founder V3 review round directed a batch of flow changes across
+  impersonation, agent registration, won-deal financial coherence,
+  commission statements, and lead-detail/board UI.
+- Decision:
+  - Impersonation is two-way: the JWT carries impersonatorId; a persistent
+    bar offers one-click "Back to admin" (endImpersonation re-verifies the
+    admin server-side; the return trigger `impersonation_return` is
+    logged).
+  - Agent signup registers BOTH identifiers (email now required alongside
+    phone; either signs in — refines ADR-008's phone-only identifier) AND
+    is an approval REQUEST: new User.registrationStatus
+    (pending/approved/rejected, migration 20260810110642); pending/rejected
+    users cannot sign in (provider + requireUser + explicit login-page
+    messages); Registrations gained the Awaiting-approval queue with
+    Approve/Reject (admin API /api/b-systems/registrations/[id]) and an
+    admin bell notification per request; no auto-login after signup
+    (supersedes ADR-025's sign-in-on-signup by founder direction).
+  - Won-deal coherence rules (server-enforced in wonDealSchema, live totals
+    in the milestone tab): milestone values must total the estimated value;
+    milestone commissions must total the commission % (±EGP 1);
+    per-milestone end ≥ start; milestones strictly chronological.
+    handleRoute now surfaces the first zod issue message to every form.
+  - Printable branded commission-statement document at
+    /b-systems/statements/[id]/document (admin + the statement's closer),
+    token-driven branding, print CSS strips chrome; linked from Statements
+    and Payments codes.
+  - Lead detail: every creation field always visible; Edit offered to the
+    lead's OWNER (API access rules unchanged). Modal-crop root cause fixed
+    (fill-mode backwards releases Chromium containing blocks). Required
+    controls show an automatic star. Boards render full-bleed
+    (scrollbar-safe breakout). Owner buckets are color-coded chips
+    (internal indigo / agent magenta / partner pink / admin navy).
+- Alternatives considered: none — founder-directed flows adopted as
+  specified.
+- Resolves: — (founder directives; no SPEC §11 A-#. Refines ADR-008;
+  supersedes ADR-025's auto-login-after-signup point.)
+- Status: Accepted (all founder-directed).

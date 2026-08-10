@@ -1,4 +1,6 @@
-/* KPI tile (spec §2.3) — numeric-first dashboard stat. */
+import { AnimatedValue } from "./AnimatedValue";
+
+/* KPI tile (spec §2.3) — numeric-first dashboard stat with count-up. */
 export function StatCard({
   label,
   value,
@@ -14,7 +16,9 @@ export function StatCard({
     <div className={warn ? "tile tile--warn" : "tile"}>
       <span className="tile-dot" aria-hidden />
       <p className="tile-label">{label}</p>
-      <p className="tile-value">{value}</p>
+      <p className="tile-value">
+        <AnimatedValue value={value} />
+      </p>
       {hint ? <p className="tile-delta">{hint}</p> : null}
     </div>
   );

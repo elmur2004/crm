@@ -8,8 +8,20 @@ import { expect, test } from "@playwright/test";
 test.describe.configure({ mode: "serial" });
 
 async function tile(page: import("@playwright/test").Page, label: string): Promise<number> {
-  const text = await page.getByText(label).locator("..").locator("p").nth(1).textContent();
-  return Number((text ?? "0").replace(/[^\d.]/g, "") || "0");
+  /* KPI values COUNT UP on load — read only once two consecutive samples agree
+     (the animation has settled on the final number). */
+  const read = async () => {
+    const text = await page.getByText(label).locator("..").locator("p").nth(1).textContent();
+    return Number((text ?? "0").replace(/[^\d.]/g, "") || "0");
+  };
+  let previous = await read();
+  for (let i = 0; i < 20; i++) {
+    await page.waitForTimeout(150);
+    const current = await read();
+    if (current === previous && current !== 0) return current;
+    previous = current;
+  }
+  return previous;
 }
 
 test("journey 1: ByteForce full cycle to Won", async ({ page }) => {

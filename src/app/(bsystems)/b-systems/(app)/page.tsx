@@ -5,6 +5,7 @@ import { adminHome } from "@/lib/services/bsystems-admin";
 import { BSYSTEMS_STAGES, STAGE_LABELS } from "@/lib/pipeline-engine/constants";
 import { formatEGP } from "@/lib/money";
 import { StatCard } from "@/components/shared/StatCard";
+import { AnimatedValue } from "@/components/shared/AnimatedValue";
 import { BackupControls } from "@/components/bsystems/backup";
 import { stageAccent, stageKey } from "@/components/bsystems/stageColors";
 
@@ -36,18 +37,27 @@ export default async function BSystemsHomePage() {
     { id: "lost", label: "Lost", value: d.lostCount },
   ];
 
+  const today = new Date().toLocaleDateString("en-EG", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    timeZone: "Africa/Cairo",
+  });
+
   return (
     <div className="space-y-6">
       <div className="page-head">
         <div>
           <p className="u-eyebrow">B-SYSTEMS · HOME</p>
           <h1 className="u-h1">Home</h1>
+          <p className="u-sub">{today}</p>
         </div>
         <div className="page-actions">
           <BackupControls />
         </div>
       </div>
-      <div className="tile-grid">
+      <div className="tile-grid tile-grid--vary">
         <StatCard label="Total leads" value={String(d.totalLeads)} />
         <StatCard label="Pipeline value" value={formatEGP(d.pipelineValue)} hint="Active stages only" />
         <StatCard label="Won value" value={formatEGP(d.wonValue)} />
@@ -62,7 +72,9 @@ export default async function BSystemsHomePage() {
             <div key={cell.id} className="stage-cell" data-stage-key={stageKey(cell.id)}>
               <div className="stage-cell-bar" aria-hidden />
               <p className="stage-cell-label">{cell.label}</p>
-              <p className="stage-cell-value">{cell.value}</p>
+              <p className="stage-cell-value">
+                <AnimatedValue value={String(cell.value)} />
+              </p>
             </div>
           ))}
         </div>
@@ -78,19 +90,24 @@ export default async function BSystemsHomePage() {
               Agent &amp; partner pipeline
             </h2>
           </div>
-          <div className="card-pad space-y-2">
-            {BSYSTEMS_STAGES.map((stage) => {
+          <div className="card-pad space-y-1">
+            {BSYSTEMS_STAGES.map((stage, i) => {
               const count = home.externalPipeline[stage] ?? 0;
               return (
-                <div key={stage} className="flex items-center gap-3 text-sm">
+                <div key={stage} className="chart-row text-sm">
                   <span className="w-36 shrink-0 text-brand-muted">{STAGE_LABELS[stage]}</span>
-                  <div className="flex-1 bg-brand-surface-tint rounded-brand-control h-4 overflow-hidden">
+                  <div className="meter">
                     <div
-                      className={`h-full ${stageAccent(stage)}`}
-                      style={{ width: `${(count / maxCount) * 100}%` }}
+                      className={`meter-fill ${stageAccent(stage)}`}
+                      style={{
+                        width: `${(count / maxCount) * 100}%`,
+                        animationDelay: `${i * 70}ms`,
+                      }}
                     />
                   </div>
-                  <span className="w-8 text-end font-medium">{count}</span>
+                  <span className="w-8 text-end font-medium">
+                    <AnimatedValue value={String(count)} />
+                  </span>
                 </div>
               );
             })}

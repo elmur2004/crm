@@ -1,5 +1,10 @@
 # Changelog — user-visible changes per phase/release
 
+## Founder V3 round (2026-08-10)
+- Founder V3: two-way impersonation, agent-registration approval cycle,
+  won-deal math barriers, printable statements, animated dashboard,
+  full-bleed boards.
+
 ## PostgreSQL switch (2026-08-09)
 - PostgreSQL everywhere (ADR-033): fresh init migration, embedded local
   Postgres for dev/tests, dev data carried over via the backup system.

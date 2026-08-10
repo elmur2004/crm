@@ -15,6 +15,7 @@ import { getLeadDetail, latestProposalValue } from "@/lib/services/leads";
 import { formatEGP } from "@/lib/money";
 import { formatCairo, formatCairoDate } from "@/lib/datetime";
 import { StatCard } from "@/components/shared/StatCard";
+import { AnimatedValue } from "@/components/shared/AnimatedValue";
 import { StageBadge } from "@/components/shared/StageBadge";
 import { stageKey } from "@/components/bsystems/stageColors";
 import { AddLeadForm, AddRepForm, ClientEditForm } from "./forms";
@@ -69,7 +70,7 @@ export async function DashboardBody({ ctx }: { ctx: InternalAppCtx }) {
           <h1 className="u-h1">Home</h1>
         </div>
       </div>
-      <div className="tile-grid">
+      <div className="tile-grid tile-grid--vary">
         <StatCard label="Total leads" value={String(d.totalLeads)} />
         <StatCard label="Pipeline value" value={formatEGP(d.pipelineValue)} hint="Active stages only" />
         <StatCard label="Won value" value={formatEGP(d.wonValue)} />
@@ -86,7 +87,7 @@ export async function DashboardBody({ ctx }: { ctx: InternalAppCtx }) {
             <div key={cell.key} className="stage-cell" data-stage-key={cell.key}>
               <div className="stage-cell-bar" aria-hidden />
               <p className="stage-cell-label">{cell.label}</p>
-              <p className="stage-cell-value">{cell.value}</p>
+              <p className="stage-cell-value"><AnimatedValue value={String(cell.value)} /></p>
             </div>
           ))}
         </div>

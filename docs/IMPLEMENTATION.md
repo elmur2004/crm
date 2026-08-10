@@ -375,3 +375,42 @@ _Format per module:_
     backup Export/Import path, not via migrate.
   - DATABASE_URL has no fallback — db.ts throws a clear error when unset.
 - Last updated: 2026-08-09 (Entry 014, TESTING Run 017, ADR-033)
+
+## Fixed-position modals vs Chromium containing blocks (fill-mode fix)
+- Location: shared modal/motion layer — entrance animation classes on
+  modal ancestors.
+- What exists / how it works: in Chromium, an ancestor that RETAINS a
+  transform (e.g. `animation-fill-mode: forwards` on an entrance
+  animation) becomes the CONTAINING BLOCK for position:fixed descendants,
+  so fixed modals get cropped to that ancestor's box. Root fix (ADR-034
+  round): entrance animations use `animation-fill-mode: backwards` — the
+  transform is not retained after the animation ends, the containing
+  block is released, and fixed modals span the viewport again.
+- Limitations / gotchas: any retained transform/filter/will-change on a
+  modal ancestor reintroduces the trap — keep entrance animations on
+  fill-mode backwards and never persist transforms above a fixed modal.
+- Last updated: 2026-08-10 (Entry 016, ADR-034)
+
+## Embedded Postgres — per-run data dirs + ports (test infra hardening)
+- Location: vitest and Playwright global setups (embedded-postgres
+  lifecycle; extends the ADR-033 conventions).
+- What exists / how it works: test/e2e embedded-Postgres instances now use
+  UNIQUE per-run data dirs and per-run pid-derived ports instead of the
+  fixed 5434/5435.
+- Limitations / gotchas: on Windows, crashed runs leave zombie
+  sockets/shared-memory bound to the fixed ports — these survive the dead
+  PID until reboot, so a fixed-port convention wedges every subsequent
+  run. Per-run dirs/ports sidestep the leak entirely; do not return to
+  fixed test/e2e ports. (Dev's persistent 5433 instance is unchanged.)
+- Last updated: 2026-08-10 (Entry 016, TESTING Run 019)
+
+## AnimatedValue count-up vs E2E numeric reads
+- Location: dashboard KPI tiles (AnimatedValue) and journey 1's tile
+  helper in the Playwright suite.
+- What exists / how it works: dashboard numbers count up on load, so an
+  E2E read taken mid-animation captures a transient value and races the
+  animation. Pattern (journey 1 tile helper): poll the tile until two
+  consecutive samples agree before asserting the number.
+- Limitations / gotchas: any new E2E assertion against an animated number
+  must reuse the settle-poll pattern — a single immediate read is a flake.
+- Last updated: 2026-08-10 (Entry 016, TESTING Run 019)

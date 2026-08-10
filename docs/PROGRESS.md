@@ -459,3 +459,61 @@ comment, and the ADR-013 mechanism note all fixed; .env.example confirmed tracke
   backups securely; (f) production needs a DATABASE_URL (postgresql://…),
   `prisma migrate deploy` at boot, and a one-time seed for the admin
   account (ADR-033).
+
+## Entry 016 — 2026-08-10 — Founder V3 batch + dashboard animation round
+- Done: Founder V3 batch implemented (ADR-034, all founder-directed):
+  (1) two-way impersonation — the JWT carries impersonatorId, a persistent
+  bar offers one-click "Back to admin", endImpersonation re-verifies the
+  admin server-side, return trigger impersonation_return logged;
+  (2) agent signup registers BOTH identifiers (email now required
+  alongside phone; either signs in) and is an approval REQUEST — new
+  User.registrationStatus (pending/approved/rejected, migration
+  20260810110642), pending/rejected users cannot sign in (provider +
+  requireUser + explicit login-page messages), Registrations gained the
+  Awaiting-approval queue with Approve/Reject (admin API
+  /api/b-systems/registrations/[id]) plus an admin bell notification per
+  request, no auto-login after signup; (3) won-deal math barriers
+  server-enforced in wonDealSchema with live totals in the milestone tab —
+  milestone values total the estimated value, milestone commissions total
+  the commission % (±EGP 1), per-milestone end ≥ start, milestones
+  strictly chronological; handleRoute now surfaces the first zod issue
+  message to every form; (4) printable branded commission-statement
+  document at /b-systems/statements/[id]/document (admin + the statement's
+  closer), token-driven branding, print CSS strips chrome, linked from
+  Statements and Payments codes; (5) lead detail shows every creation
+  field always, Edit offered to the lead's OWNER (API access rules
+  unchanged), modal-crop root cause fixed (fill-mode backwards releases
+  Chromium containing blocks), required controls show an automatic star,
+  boards render full-bleed (scrollbar-safe breakout), owner buckets are
+  color-coded chips (internal indigo / agent magenta / partner pink /
+  admin navy). Dashboard enhanced: count-up KPI numbers via AnimatedValue,
+  growing chart meters with stagger, stage-strip bar reveals, varied KPI
+  accent dots, live date line, pulsing bell badge — all disabled under
+  prefers-reduced-motion. Test infra hardened: embedded-Postgres test/e2e
+  instances now use UNIQUE per-run data dirs + per-run pid-derived ports
+  (crashed runs left Windows zombie sockets/shared-memory on fixed ports).
+  Verified: tsc clean, vitest 71/71 (+7: snap-back tokens, approval cycle
+  service, won-deal math), Playwright 13/13 (journey4 reworked to
+  request→approve→email-then-phone sign-in; security-rbac approves via
+  API; NEW impersonation journey; journey1's KPI reads wait for the
+  count-up to settle) — TESTING Run 019.
+- In progress: R23 portal marketing copy draft — still with the founder
+  for sign-off (carried from Entry 011).
+- Next steps: on copy approval, build the deferred /portal landing
+  sections (R23); obtain founder confirmation on Lama Sans intermediate
+  cuts (R5/A-13); founder to set a secure storage routine for backup
+  exports (ADR-032); change the admin password after first production
+  login (Entry 012 flag); production deploy per ADR-033 (Entry 014
+  item (f)).
+- Blockers: none.
+- Needs founder confirmation: (a) Lama Sans intermediate cuts (R5/A-13);
+  (b) the portal marketing copy draft (pending approval, R23); (c) the
+  standing REQUIREMENTS-V2 [A] defaults and the carried items thread —
+  items (1)–(14), see Entries 001–009 — except the V2 §8 auto-password
+  default (superseded by the founder directive in Entry 015); (d)
+  password123 is a weak production credential — change it after first
+  production login (see Entry 012's caveat on seed re-runs); (e) ADR-032
+  backup exports embed password hashes and every uploaded file — store
+  backups securely; (f) production needs a DATABASE_URL (postgresql://…),
+  `prisma migrate deploy` at boot, and a one-time seed for the admin
+  account (ADR-033).

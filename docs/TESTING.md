@@ -294,3 +294,19 @@ every dashboard formula, journeys 1-5 (SPEC §13).
   §13 journeys 1–5 + security-rbac + qa-sweep re-run green with the new
   Won-gate Password field live.
 - Verdict: PASS.
+
+## Run 019 — 2026-08-10 — Founder V3 batch + dashboard animation round
+- Suites/commands: `npm run typecheck` (tsc clean) · `npx vitest run` (71) ·
+  `npx playwright test` (13 — full suite).
+- Cases: vitest 71 passed / 0 failed / 0 skipped · Playwright 13 passed /
+  0 failed / 0 skipped.
+- Failures: none.
+- SPEC coverage touched: 7 new vitest cases for the ADR-034 flows —
+  snap-back impersonation tokens, the registration approval cycle service,
+  and the won-deal math barriers. E2E: journey 4 reworked to the approval
+  flow (request → admin approve → email-then-phone sign-in); security-rbac
+  now approves via API; NEW impersonation journey added (13th spec);
+  journey 1's KPI reads wait for the AnimatedValue count-up to settle.
+  Full suite green on the new per-run embedded-Postgres data dirs +
+  pid-derived ports.
+- Verdict: PASS.

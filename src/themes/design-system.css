@@ -576,10 +576,44 @@ label:has(input[required]) .dropzone-title::after {
 .tl-row:nth-child(3) { animation-delay: .06s; }
 .tl-row:nth-child(n + 4) { animation-delay: .09s; }
 
+/* dashboard-specific motion (founder: "animate the dashboard, enhance it") */
+@keyframes ds-grow-x {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+@keyframes ds-pulse-ring {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-accent) 40%, transparent); }
+  100% { box-shadow: 0 0 0 10px transparent; }
+}
+.stage-cell-bar { animation: ds-grow-x .55s ease-out backwards; transform-origin: 0 50%; }
+[dir="rtl"] .stage-cell-bar { transform-origin: 100% 50%; }
+.stage-cell:nth-child(2) .stage-cell-bar { animation-delay: .06s; }
+.stage-cell:nth-child(3) .stage-cell-bar { animation-delay: .12s; }
+.stage-cell:nth-child(4) .stage-cell-bar { animation-delay: .18s; }
+.stage-cell:nth-child(5) .stage-cell-bar { animation-delay: .24s; }
+.stage-cell:nth-child(n + 6) .stage-cell-bar { animation-delay: .3s; }
+
+.meter { flex: 1; height: 16px; background: var(--color-surface-tint); border-radius: var(--radius-control); overflow: hidden; }
+.meter-fill {
+  height: 100%; border-radius: inherit;
+  animation: ds-grow-x .7s cubic-bezier(.22, .8, .3, 1) backwards; transform-origin: 0 50%;
+}
+[dir="rtl"] .meter-fill { transform-origin: 100% 50%; }
+.chart-row { display: flex; align-items: center; gap: 12px; border-radius: var(--radius-control); padding: 3px 6px; margin-inline: -6px; transition: background-color .15s ease; }
+.chart-row:hover { background: var(--color-surface); }
+
+/* the home KPI row varies its accent dots across the palette (tokens only) */
+.tile-grid--vary .tile:nth-child(4n + 2) .tile-dot { background: var(--color-secondary); }
+.tile-grid--vary .tile:nth-child(4n + 3) .tile-dot { background: var(--color-accent); }
+.tile-grid--vary .tile:nth-child(4n + 4) .tile-dot { background: var(--color-stage-meeting-accent); }
+
+.bell-count { animation: ds-pulse-ring 2.4s ease-out infinite; }
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: .01ms !important;
     animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
     transition-duration: .01ms !important;
   }
 }
