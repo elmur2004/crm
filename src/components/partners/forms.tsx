@@ -10,6 +10,63 @@ const inputCls = "field-input";
 const labelCls = "field-label block mb-1.5";
 const btnPrimary = "btn-primary";
 
+/* Business activity is a FIXED list (founder directive) — "Other activities"
+   opens a free-text box for the specific activity. */
+export const BUSINESS_ACTIVITIES = [
+  "HR company",
+  "Marketing company",
+  "Accounting firm",
+  "Law firm",
+] as const;
+export const OTHER_ACTIVITY = "Other activities";
+
+export function BusinessActivityField({ defaultValue }: { defaultValue?: string }) {
+  const isPreset =
+    defaultValue !== undefined &&
+    (BUSINESS_ACTIVITIES as readonly string[]).includes(defaultValue);
+  const [choice, setChoice] = useState<string>(
+    defaultValue === undefined ? BUSINESS_ACTIVITIES[0] : isPreset ? defaultValue : OTHER_ACTIVITY,
+  );
+  return (
+    <>
+      <label className="block">
+        <span className={labelCls}>Business activity</span>
+        <select
+          name="businessActivityChoice"
+          value={choice}
+          onChange={(e) => setChoice(e.target.value)}
+          className={inputCls}
+        >
+          {BUSINESS_ACTIVITIES.map((a) => (
+            <option key={a} value={a}>
+              {a}
+            </option>
+          ))}
+          <option value={OTHER_ACTIVITY}>{OTHER_ACTIVITY}</option>
+        </select>
+      </label>
+      {choice === OTHER_ACTIVITY ? (
+        <label className="block">
+          <span className={labelCls}>Specify the activity</span>
+          <input
+            type="text"
+            name="businessActivityOther"
+            required
+            defaultValue={defaultValue !== undefined && !isPreset ? defaultValue : ""}
+            className={inputCls}
+          />
+        </label>
+      ) : null}
+    </>
+  );
+}
+
+/** The submitted business activity: the chosen preset, or the free text. */
+export function businessActivityFrom(fd: FormData): string {
+  const choice = String(fd.get("businessActivityChoice"));
+  return choice === OTHER_ACTIVITY ? String(fd.get("businessActivityOther") || "") : choice;
+}
+
 export function AddProspectForm() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -38,7 +95,7 @@ export function AddProspectForm() {
             role: String(fd.get("role") || "") || undefined,
             email: String(fd.get("email") || "") || undefined,
             number: String(fd.get("number")),
-            businessActivity: String(fd.get("businessActivity")),
+            businessActivity: businessActivityFrom(fd),
             description: String(fd.get("description") || "") || undefined,
           }),
         });
@@ -76,10 +133,7 @@ export function AddProspectForm() {
           <span className={labelCls}>Email</span>
           <input type="email" name="email" className={inputCls} />
         </label>
-        <label className="block">
-          <span className={labelCls}>Business activity</span>
-          <input type="text" name="businessActivity" required className={inputCls} />
-        </label>
+        <BusinessActivityField />
       </div>
       <label className="block">
         <span className={labelCls}>Description</span>

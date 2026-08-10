@@ -9,6 +9,7 @@ import {
   STAGE_LABELS,
 } from "@/lib/pipeline-engine/constants";
 import { partnersConfig } from "@/lib/pipeline-engine/configs/partners";
+import { BusinessActivityField, businessActivityFrom } from "./forms";
 
 /* §7.2 — the Partners pipeline's action panel. Same one-mutation commit model as
    the internal CRM (ADR-023); Won opens the completeness gate (PP-4); Didn't
@@ -118,10 +119,7 @@ function WonGateFields({ defaults }: { defaults: { companyName: string; name: st
         <span className={labelCls}>Address</span>
         <input type="text" name="address" required className={inputCls} />
       </label>
-      <label className="block">
-        <span className={labelCls}>Business activity</span>
-        <input type="text" name="businessActivity" required defaultValue={defaults.businessActivity} className={inputCls} />
-      </label>
+      <BusinessActivityField defaultValue={defaults.businessActivity} />
     </>
   );
 }
@@ -213,7 +211,7 @@ export function ProspectEventPanel({
           number: String(fd.get("number")),
           email: String(fd.get("email") || "") || undefined,
           password: String(fd.get("password") || "") || undefined,
-          businessActivity: String(fd.get("businessActivity")),
+          businessActivity: businessActivityFrom(fd),
           importance: String(fd.get("importance")) as "high" | "medium" | "low",
         },
       };

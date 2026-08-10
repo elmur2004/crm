@@ -25,7 +25,9 @@ test("journey 3: partnership acquisition to attributed CRM lead (V2 numbers flow
   await page.getByLabel("Name", { exact: true }).fill("Dina Fawzy");
   await page.getByLabel("Company name").fill("Fawzy Logistics");
   await page.getByLabel("Number", { exact: true }).fill("0227654321");
-  await page.getByLabel("Business activity").fill("Freight & logistics");
+  /* fixed dropdown; "Other activities" opens the free-text box */
+  await page.getByLabel("Business activity").selectOption("Other activities");
+  await page.getByLabel("Specify the activity").fill("Freight & logistics");
   await page.getByRole("button", { name: "Save partner lead" }).click();
   const card = page.getByRole("link", { name: /Fawzy Logistics/ });
   await expect(card).toBeVisible();

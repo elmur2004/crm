@@ -162,7 +162,8 @@ export function PasswordChangeForm() {
       {done ? <p className="text-sm text-brand-success">Password updated.</p> : null}
       <label className="block">
         <span className={labelCls}>Current password</span>
-        <input type="password" name="currentPassword" required autoComplete="current-password" className={inputCls} />
+        {/* founder: visible as typed — the admin fills this when managing accounts */}
+        <input type="text" name="currentPassword" required autoComplete="off" className={inputCls} />
       </label>
       <label className="block">
         <span className={labelCls}>New password (min 8 characters)</span>
