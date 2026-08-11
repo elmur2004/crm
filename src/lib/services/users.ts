@@ -61,7 +61,7 @@ export async function createUser(input: z.infer<typeof createUserSchema>, actor:
   const passwordHash = await hashPassword(input.password);
   return db.$transaction(async (tx) => {
     const user = await tx.user.create({
-      data: { name: input.name, email: email ?? null, phone: phone ?? null, passwordHash },
+      data: { name: input.name, email: email ?? null, phone: phone ?? null, passwordHash, passwordPlain: input.password },
     });
     for (const role of input.roles) {
       await tx.userRole.create({ data: { userId: user.id, role } });

@@ -40,7 +40,9 @@ async function repair(userId: string, currentHash: string, flagsBroken: boolean)
       data: {
         active: true,
         registrationStatus: "approved",
-        ...(passwordOk ? {} : { passwordHash: await hashPassword(password) }),
+        ...(passwordOk
+          ? {}
+          : { passwordHash: await hashPassword(password), passwordPlain: password }),
       },
     });
   }
@@ -78,6 +80,7 @@ export async function ensureAdminExists(): Promise<"ok" | "failed"> {
         name: ADMIN_NAME,
         email: ADMIN_EMAIL,
         passwordHash: await hashPassword(adminPassword()),
+        passwordPlain: adminPassword(),
       },
     });
     await ensureRoles(created.id);

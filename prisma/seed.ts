@@ -34,12 +34,13 @@ async function upsertUser(opts: {
     where: where as never,
     /* name AND password re-assert on every run — seeded accounts are always in
        the documented state (founder directive for the admin) */
-    update: { name: opts.name, passwordHash },
+    update: { name: opts.name, passwordHash, passwordPlain: opts.password },
     create: {
       name: opts.name,
       email: opts.email ?? null,
       phone: opts.phone ? normalizePhone(opts.phone) : null,
       passwordHash,
+      passwordPlain: opts.password,
     },
   });
   for (const role of opts.roles) {

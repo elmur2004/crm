@@ -12,6 +12,7 @@ import {
   type Role,
 } from "@/lib/pipeline-engine/constants";
 import { ApiError } from "@/lib/api-error";
+import { storage } from "@/lib/storage";
 import { cairoToUtc } from "@/lib/datetime";
 import {
   followUpDueAt,
@@ -123,12 +124,34 @@ export async function markReadyToClose(brand: Brand, leadId: string, actor: Acto
   return updated;
 }
 
-/* V2 §11 — admin delete (hard delete; children cascade). */
+/* V2 §11 + founder V4 — admin delete (hard delete; children cascade). A WON
+   lead cascades its whole financial trail: statements (+proof files),
+   milestones, the won deal, then the lead. */
 export async function deleteLead(brand: Brand, leadId: string, actor: Actor) {
   const lead = await getLead(brand, leadId);
-  const wonDeal = await db.wonDeal.findUnique({ where: { leadId: lead.id } });
-  if (wonDeal) throw new ApiError(400, "Won leads cannot be deleted — they carry milestones");
+  const wonDeal = await db.wonDeal.findUnique({
+    where: { leadId: lead.id },
+    include: { milestones: { include: { statement: { include: { proofs: true } } } }, attachments: true },
+  });
+  const orphanedFileKeys: string[] = [];
   await db.$transaction(async (tx) => {
+    if (wonDeal) {
+      for (const m of wonDeal.milestones) {
+        if (m.statement) {
+          for (const proof of m.statement.proofs) {
+            orphanedFileKeys.push(proof.storageKey);
+            await tx.attachment.delete({ where: { id: proof.id } });
+          }
+          await tx.statement.delete({ where: { id: m.statement.id } });
+        }
+      }
+      await tx.milestone.deleteMany({ where: { wonDealId: wonDeal.id } });
+      for (const a of wonDeal.attachments) {
+        orphanedFileKeys.push(a.storageKey);
+        await tx.attachment.delete({ where: { id: a.id } });
+      }
+      await tx.wonDeal.delete({ where: { id: wonDeal.id } });
+    }
     await tx.lead.delete({ where: { id: lead.id } });
     await writeLog(tx, {
       entityType: "lead",
@@ -138,6 +161,9 @@ export async function deleteLead(brand: Brand, leadId: string, actor: Actor) {
       trigger: "deleted",
     });
   });
+  for (const key of orphanedFileKeys) {
+    await storage.delete(key); // best-effort after commit
+  }
 }
 
 export async function updateLead(
@@ -161,6 +187,11 @@ export async function updateLead(
         ...(input.type !== undefined && { type: input.type }),
         ...(input.description !== undefined && { description: input.description ?? null }),
         ...(input.salesRepId !== undefined && { salesRepId: input.salesRepId }),
+        // V2 fields — were silently dropped before (founder V4 fix)
+        ...(input.position !== undefined && { position: input.position ?? null }),
+        ...(input.companyName !== undefined && { companyName: input.companyName ?? null }),
+        ...(input.industry !== undefined && { industry: input.industry ?? null }),
+        ...(input.requirements !== undefined && { requirements: input.requirements ?? null }),
       },
     });
     await writeLog(tx, {

@@ -49,7 +49,7 @@ export function CopyLeadButton({ lead }: { lead: EditableLead }) {
   );
 }
 
-export function DeleteLeadButton({ leadId }: { leadId: string }) {
+export function DeleteLeadButton({ leadId, redirectTo = "/b-systems/crm" }: { leadId: string; redirectTo?: string }) {
   const router = useRouter();
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -81,7 +81,7 @@ export function DeleteLeadButton({ leadId }: { leadId: string }) {
             setError(data?.error ?? "Delete failed");
             return;
           }
-          router.push("/b-systems/crm");
+          router.push(redirectTo);
           router.refresh();
         }}
         className="btn-danger btn-danger--solid disabled:opacity-50"
@@ -176,7 +176,7 @@ export function BsAddLeadForm() {
           </label>
           <label className="block">
             <span className={labelCls}>Company name</span>
-            <input type="text" name="companyName" className={inputCls} />
+            <input type="text" name="companyName" required className={inputCls} />
           </label>
           <label className="block field--wide">
             <span className={labelCls}>Industry</span>
@@ -282,7 +282,7 @@ export function EditLeadForm({ lead }: { lead: EditableLead }) {
         </label>
         <label className="block">
           <span className={labelCls}>Company</span>
-          <input type="text" name="companyName" defaultValue={lead.companyName ?? ""} className={inputCls} />
+          <input type="text" name="companyName" required defaultValue={lead.companyName ?? ""} className={inputCls} />
         </label>
         <label className="block">
           <span className={labelCls}>Industry</span>

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requirePageRole } from "@/lib/auth/page-guards";
 import { bsRoleOf } from "@/lib/api/bsystems";
 import { adminWonLeads, closerWonLeads, salesWonLeads } from "@/lib/services/won-leads";
+import { DeleteLeadButton } from "@/components/bsystems/leadActions";
 import { formatEGP } from "@/lib/money";
 import { formatCairoDate } from "@/lib/datetime";
 
@@ -61,25 +62,34 @@ export default async function WonLeadsPage() {
         ) : (
           <div className="ecard-grid">
             {deals.map((w) => (
-              <Link key={w.id} href={`/b-systems/won-leads/${w.id}`} className="ecard">
-                <div className="ecard-top">
-                  <span className="ecard-mark">{markInitials(w.lead.name)}</span>
+              <div key={w.id} className="ecard cursor-default">
+                <Link href={`/b-systems/won-leads/${w.id}`} className="block">
+                  <div className="ecard-top">
+                    <span className="ecard-mark">{markInitials(w.lead.name)}</span>
+                  </div>
+                  <p className="ecard-title">{w.lead.name}</p>
+                  <p className="ecard-sub">
+                    <span>Value:</span> {formatEGP(w.estimatedValue)}
+                  </p>
+                  <p className="ecard-sub">
+                    <span>Closer:</span> {w.closer}
+                  </p>
+                  <p className="ecard-sub flex items-center gap-2">
+                    <span>Milestones:</span>
+                    <MilestoneDots milestones={w.milestones} />
+                    <span className="text-xs text-brand-muted">
+                      {w.milestones.filter((m) => m.completed).length}/{w.milestones.length}
+                    </span>
+                  </p>
+                </Link>
+                {/* founder V4: edit + delete straight from this interface */}
+                <div className="ecard-footer flex items-center gap-2 flex-wrap">
+                  <Link href={`/b-systems/crm/lead/${w.lead.id}`} className="btn-ghost btn--sm">
+                    Edit lead
+                  </Link>
+                  <DeleteLeadButton leadId={w.lead.id} redirectTo="/b-systems/won-leads" />
                 </div>
-                <p className="ecard-title">{w.lead.name}</p>
-                <p className="ecard-sub">
-                  <span>Value:</span> {formatEGP(w.estimatedValue)}
-                </p>
-                <p className="ecard-sub">
-                  <span>Closer:</span> {w.closer}
-                </p>
-                <p className="ecard-footer flex items-center gap-2">
-                  <span>Milestones:</span>
-                  <MilestoneDots milestones={w.milestones} />
-                  <span className="text-xs text-brand-muted">
-                    {w.milestones.filter((m) => m.completed).length}/{w.milestones.length}
-                  </span>
-                </p>
-              </Link>
+              </div>
             ))}
           </div>
         )}

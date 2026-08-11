@@ -110,7 +110,7 @@ describe("Confirm-win → milestone tab (V2 §4, trigger B-9)", () => {
     expect(await db.wonDeal.count()).toBe(0);
   });
 
-  it("won leads cannot be deleted (they carry milestones)", async () => {
+  it("deleting a WON lead cascades its whole financial trail (founder V4)", async () => {
     const lead = await makeLead();
     await applyLeadEvent({
       brand: "bsystems",
@@ -120,7 +120,30 @@ describe("Confirm-win → milestone tab (V2 §4, trigger B-9)", () => {
       actor: admin,
       role: "bsystems_admin",
     });
-    await expect(deleteLead("bsystems", lead.id, admin)).rejects.toThrow(/cannot be deleted/);
+    const won = await db.wonDeal.findUniqueOrThrow({
+      where: { leadId: lead.id },
+      include: { milestones: { orderBy: { index: "asc" } } },
+    });
+    await checkMilestone(won.milestones[0]!.id, admin);
+    const waiting = await waitingToBePaidOut();
+    await createStatement(
+      {
+        milestoneId: waiting[0]!.milestoneId,
+        clientName: "Acme Corp",
+        milestoneLabel: "Discovery",
+        milestoneValue: 300_000_00,
+        percentBp: 10_00,
+        amount: 30_000_00,
+        adjustments: 0,
+      },
+      admin,
+    );
+
+    await deleteLead("bsystems", lead.id, admin);
+    expect(await db.lead.findUnique({ where: { id: lead.id } })).toBeNull();
+    expect(await db.wonDeal.count()).toBe(0);
+    expect(await db.milestone.count()).toBe(0);
+    expect(await db.statement.count()).toBe(0);
   });
 });
 
@@ -390,6 +413,8 @@ describe("PP-4 partner account provisioning (founder: admin sets the credentials
     expect(user.email).toBe("hany@mansour.example");
     expect(user.roles.map((r) => r.role)).toEqual(["bsystems_partner"]);
     expect(await verifyPassword("Mansour#2026", user.passwordHash)).toBe(true);
+    /* founder V4: the admin sees the password in Users */
+    expect(user.passwordPlain).toBe("Mansour#2026");
   });
 
   it("an email WITHOUT a password is refused — nothing converts", async () => {

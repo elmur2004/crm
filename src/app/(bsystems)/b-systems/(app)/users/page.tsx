@@ -49,6 +49,7 @@ export default async function UsersPage() {
               <tr>
                 <th>Name</th>
                 <th>Email / phone</th>
+                <th>Password</th>
                 <th>Access</th>
                 <th>Created</th>
                 <th>Actions</th>
@@ -67,6 +68,11 @@ export default async function UsersPage() {
                     ) : null}
                   </td>
                   <td>{u.email ?? u.phone ?? "—"}</td>
+                  <td className="td-mono">
+                    {/* founder: the admin sees every password. Accounts predating
+                        the visibility column show — until their password is set */}
+                    {u.passwordPlain ?? "—"}
+                  </td>
                   <td>
                     <span className="flex gap-1 flex-wrap">
                       {u.roles.map((r) => (

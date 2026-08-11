@@ -52,7 +52,7 @@ export async function signupRep(
       const user = await tx.user.create({
         /* founder: self-signup is an approval REQUEST — pending until the admin
            approves it on Registrations; sign-in is blocked until then */
-        data: { name, phone, email, passwordHash, registrationStatus: "pending" },
+        data: { name, phone, email, passwordHash, passwordPlain: input.password, registrationStatus: "pending" },
       });
       await tx.userRole.create({ data: { userId: user.id, role: "bsystems_agent" } });
       const rep = await tx.portalRep.create({
@@ -187,6 +187,6 @@ export async function changePassword(
   if (!ok) throw new ApiError(403, "Current password is wrong");
   await db.user.update({
     where: { id: userId },
-    data: { passwordHash: await hashPassword(input.newPassword) },
+    data: { passwordHash: await hashPassword(input.newPassword), passwordPlain: input.newPassword },
   });
 }

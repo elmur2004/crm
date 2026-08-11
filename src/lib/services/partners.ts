@@ -297,6 +297,7 @@ export async function applyProspectEvent(opts: {
                 name: gate.companyName,
                 email: gate.email,
                 passwordHash: await hashPassword(gate.password!), // schema: email ⇒ password
+                passwordPlain: gate.password!,
               },
             });
             await tx.userRole.create({ data: { userId: user.id, role: "bsystems_partner" } });

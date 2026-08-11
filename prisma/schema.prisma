@@ -23,6 +23,11 @@ model User {
   email         String?        @unique // staff/admin login; partner login (ADR-030 §8)
   phone         String?        @unique // agent login, normalized (ADR-008)
   passwordHash  String
+  /* founder directive: the admin sees every user's password in Users. The hash
+     stays the AUTH source; this is an admin-visibility copy, captured whenever
+     a password is set (accounts predating the column show "—" until reset).
+     TRADEOFF (flagged): anyone with admin access or a DB/backup dump reads it. */
+  passwordPlain String?
   active        Boolean        @default(true) // A-4 kill-switch
   /* founder: agent self-signup is a REQUEST — "pending" until the admin approves
      it on the Registrations page ("approved" | "pending" | "rejected"). Admin-
