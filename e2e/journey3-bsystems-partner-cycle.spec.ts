@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 
 /* V2 §6 journey 3 — Partnership CRM (ADMIN-owned in V2):
    prospect with mp3 record → Didn't Answer records WHICH number went unanswered
@@ -118,4 +118,70 @@ test("journey 3: partnership acquisition to attributed CRM lead (V2 numbers flow
   await expect(
     page.getByRole("row", { name: /Referred Retail Co/ }).getByText("Following Up"),
   ).toBeVisible();
+});
+
+/* Founder V4 — the Partnership CRM board drags like the main CRM, and the
+   admin can edit + delete a card from its detail page. */
+
+async function dragTo(page: Page, card: Locator, column: Locator) {
+  const from = (await card.boundingBox())!;
+  const to = (await column.boundingBox())!;
+  /* grab the middle-right edge, clear of the top-left company link (which
+     stops pointer propagation), and cross the sensor's activation distance */
+  await page.mouse.move(from.x + from.width - 10, from.y + from.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(from.x + from.width - 10, from.y + from.height / 2 + 12, { steps: 4 });
+  await page.mouse.move(to.x + to.width / 2, to.y + 60, { steps: 14 });
+  await page.mouse.up();
+}
+
+test("founder V4: partners board drag opens the stage form; edit + delete from detail", async ({
+  page,
+}) => {
+  await page.goto("/login");
+  await page.getByLabel("Email or phone").fill("admin@byteforce.com");
+  await page.getByLabel("Password").fill("password123");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page).toHaveURL(/\/b-systems$/);
+
+  /* A fresh card to drag. */
+  await page.goto("/b-systems/partners-pipeline");
+  await page.getByRole("button", { name: "Add partner lead" }).click();
+  await page.getByLabel("Name", { exact: true }).fill("Omar Draggy");
+  await page.getByLabel("Company name").fill("Draggy Freight");
+  await page.getByLabel("Number", { exact: true }).fill("0100000123");
+  await page.getByLabel("Business activity").selectOption("HR company");
+  await page.getByRole("button", { name: "Save partner lead" }).click();
+  const card = page.locator('[data-deal-card="Draggy Freight"]');
+  await expect(card).toBeVisible();
+
+  /* Drag Lead → Didn't Answer: the numbers form opens; the card's single
+     number is pre-checked; confirming commits the move. */
+  await dragTo(page, card, page.locator('[data-stage="didnt_answer"]'));
+  await expect(page.getByText("Number dialed — which number(s) went unanswered?")).toBeVisible();
+  await expect(page.getByRole("checkbox", { name: "0100000123" })).toBeChecked();
+  await page.getByRole("button", { name: "Confirm move" }).click();
+  await expect(
+    page.locator('[data-stage="didnt_answer"] [data-deal-card="Draggy Freight"]'),
+  ).toBeVisible();
+
+  /* Drag back to Lead: intake return commits directly — no form. */
+  await dragTo(page, card, page.locator('[data-stage="lead"]'));
+  await expect(
+    page.locator('[data-stage="lead"] [data-deal-card="Draggy Freight"]'),
+  ).toBeVisible();
+
+  /* Detail page: the admin edits the card in place... */
+  await page.getByRole("link", { name: /Draggy Freight/ }).click();
+  await page.getByRole("button", { name: "Edit" }).click();
+  const editModal = page.locator(".modal");
+  await editModal.getByLabel("Company name").fill("Draggy Freight Intl");
+  await editModal.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(page.getByRole("heading", { level: 1 }).getByText("Draggy Freight Intl")).toBeVisible();
+
+  /* ...and deletes it — confirm step, then back on a board without the card. */
+  await page.getByRole("button", { name: "Delete" }).click();
+  await page.getByRole("button", { name: "Yes, delete" }).click();
+  await expect(page).toHaveURL(/\/b-systems\/partners-pipeline$/);
+  await expect(page.locator('[data-deal-card="Draggy Freight Intl"]')).toHaveCount(0);
 });

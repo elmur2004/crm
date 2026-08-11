@@ -26,7 +26,7 @@ export const partnersConfig: PipelineConfig = {
   attendedDestinations() {
     return ["following_up", "won", "lost"]; // ADR-010
   },
-  dragEnabled: false,
+  dragEnabled: true, // founder V4: the Partnership CRM board is draggable too
   wonRoles: null,
   wonRequiredGroup: { group: "won_partner" }, // §7.2 gate — completeness enforced by Zod
   wonSideEffect: "create_partner", // PP-4 (A-5)

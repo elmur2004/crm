@@ -517,3 +517,59 @@ comment, and the ADR-013 mechanism note all fixed; .env.example confirmed tracke
   backups securely; (f) production needs a DATABASE_URL (postgresql://…),
   `prisma migrate deploy` at boot, and a one-time seed for the admin
   account (ADR-033).
+
+## Entry 017 — 2026-08-11 — Founder V4 batch: Partnership CRM drag board, admin edit/delete, board alignment
+- Done: Founder V4 batch on the Partnership CRM (all founder-directed).
+  (1) The partners board is now draggable like the main CRM:
+  `dragEnabled: true` in src/lib/pipeline-engine/configs/partners.ts —
+  the shared engine already treats a drag as the matching action (same
+  trigger ids), so the PP gates apply unchanged; `prospectEventSchema`
+  (src/lib/services/partners.ts) gained the `{type:"drag", to}` variant;
+  NEW src/components/partners/PartnersBoard.tsx (dnd-kit) — a drop opens
+  the target stage's form in a modal (numbers picker with pre-checked
+  card numbers, follow-up, meeting, the PP-4 Won completeness gate, lost
+  reason), cancel reverts, drop onto Lead commits directly (intake return
+  needs no form), terminal cards toast "Won and Lost cards can no longer
+  be moved"; ProspectEventPanel refactored to export
+  `prospectGroupPayload` + `ProspectGroupFields` so the panel and the
+  board share one source of stage-form truth; `PartnersPipelineBody`
+  (src/components/partners/pages.tsx) now feeds the dnd board — the old
+  static board removed. (2) Admin edit + delete for pipeline cards and
+  directory partners: services `deleteProspect` (cascades stage records +
+  recordings incl. stored files; a converted card also removes its
+  directory Partner; attributed leads survive with attribution nulled),
+  `updatePartnerSchema`/`updatePartner`, `deletePartner` (attribution
+  nulled; the login account survives — removable in Users); DELETE added
+  to /api/b-systems/partners-pipeline/[id]; NEW /api/b-systems/partners/[id]
+  with PATCH + DELETE (requireBsAdmin); NEW
+  src/components/partners/manage.tsx (EditProspectButton,
+  EditPartnerButton, DeleteEntityButton with inline confirm step) wired
+  into both detail pages' page-heads. (3) Wide-screen layout fix ("all
+  crammed on the right"): `.board` in src/themes/design-system.css now
+  uses `padding-inline: calc(max(var(--page-pad, 26px), 50vw - 640px +
+  var(--page-pad, 26px)) - 8px)` so full-bleed board columns start at the
+  centered max-w-7xl content edge; both detail pages moved to the
+  standard page-head + page-actions layout. Verified: tsc clean,
+  vitest 83/83, next build clean, Playwright 16 passed / 2 audit-opt-in
+  skipped (TESTING Run 020). No new ADR — behavior follows existing
+  SPEC/engine semantics and founder directives already logged.
+- In progress: R23 portal marketing copy draft — still with the founder
+  for sign-off (carried from Entry 011).
+- Next steps: on copy approval, build the deferred /portal landing
+  sections (R23); obtain founder confirmation on Lama Sans intermediate
+  cuts (R5/A-13); founder to set a secure storage routine for backup
+  exports (ADR-032); change the admin password after first production
+  login (Entry 012 flag); production deploy per ADR-033 (Entry 014
+  item (f)).
+- Blockers: none.
+- Needs founder confirmation: (a) Lama Sans intermediate cuts (R5/A-13);
+  (b) the portal marketing copy draft (pending approval, R23); (c) the
+  standing REQUIREMENTS-V2 [A] defaults and the carried items thread —
+  items (1)–(14), see Entries 001–009 — except the V2 §8 auto-password
+  default (superseded by the founder directive in Entry 015); (d)
+  password123 is a weak production credential — change it after first
+  production login (see Entry 012's caveat on seed re-runs); (e) ADR-032
+  backup exports embed password hashes and every uploaded file — store
+  backups securely; (f) production needs a DATABASE_URL (postgresql://…),
+  `prisma migrate deploy` at boot, and a one-time seed for the admin
+  account (ADR-033).

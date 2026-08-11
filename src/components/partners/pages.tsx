@@ -1,17 +1,17 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
-import { PARTNER_STAGES, STAGE_LABELS } from "@/lib/pipeline-engine/constants";
 import { getPartnerDetail, getProspectDetail, listPartners, parseNumbers } from "@/lib/services/partners";
 import { listReps } from "@/lib/services/sales-reps";
 import { formatCairo, formatCairoDate } from "@/lib/datetime";
 import { StageBadge } from "@/components/shared/StageBadge";
-import { stageKey } from "@/components/bsystems/stageColors";
 import { GroupHistory } from "@/components/internal/GroupHistory";
 import { HistoryPanel } from "@/components/internal/HistoryPanel";
 import { AddProspectForm, AlternativeNumbersForm, RecordingUpload } from "./forms";
 import { PartnerAddLeadClient } from "./PartnerAddLead";
 import { ProspectEventPanel } from "./ProspectEventPanel";
+import { PartnersBoard, type ProspectCard } from "./PartnersBoard";
+import { DeleteEntityButton, EditPartnerButton, EditProspectButton } from "./manage";
 import { ApiError } from "@/lib/api-error";
 
 /* App B Partners: acquisition board (§7.2), prospect detail, directory (§7.3),
@@ -42,6 +42,25 @@ export async function PartnersPipelineBody() {
     }
   }
 
+  const reps = (await listReps("bsystems")).map((r) => ({ id: r.id, name: r.name }));
+  const cards: ProspectCard[] = prospects.map((p) => ({
+    id: p.id,
+    companyName: p.companyName,
+    name: p.name,
+    stage: p.stage,
+    converted: p.converted,
+    keyDatum: keyDatum(p),
+    defaults: {
+      companyName: p.companyName,
+      name: p.name,
+      role: p.role,
+      number: p.number,
+      email: p.email,
+      businessActivity: p.businessActivity,
+    },
+    cardNumbers: [p.number, ...parseNumbers(p.alternativeNumbers)],
+  }));
+
   return (
     <div className="space-y-6">
       <div className="page-head">
@@ -53,39 +72,7 @@ export async function PartnersPipelineBody() {
           <AddProspectForm />
         </div>
       </div>
-      <div className="board" data-cols="6plus">
-        {PARTNER_STAGES.map((stage) => {
-          const cards = prospects.filter((p) => p.stage === stage);
-          return (
-            <div key={stage} className="col" data-stage-key={stageKey(stage)}>
-              <div className="col-bar" />
-              <div className="col-head">
-                <p className="col-title">
-                  {STAGE_LABELS[stage]} ({cards.length})
-                </p>
-              </div>
-              <div className="col-cards">
-                {cards.map((p) => (
-                  <Link
-                    key={p.id}
-                    href={`/b-systems/partners-pipeline/${p.id}`}
-                    className="bcard block"
-                  >
-                    <p className="bcard-name">{p.companyName}</p>
-                    <p className="bcard-rep whitespace-normal">{p.name}</p>
-                    {p.converted ? (
-                      <p className="mt-1.5">
-                        <span className="badge badge--converted">Converted</span>
-                      </p>
-                    ) : null}
-                    <p className="bcard-meta">{keyDatum(p)}</p>
-                  </Link>
-                ))}
-              </div>
-            </div>
-          );
-        })}
-      </div>
+      <PartnersBoard cards={cards} reps={reps} />
     </div>
   );
 }
@@ -104,21 +91,44 @@ export async function ProspectDetailBody({ prospectId }: { prospectId: string })
 
   return (
     <div className="space-y-6">
-      <div>
-        <Link
-          href="/b-systems/partners-pipeline"
-          className="text-sm text-brand-muted underline underline-offset-2"
-        >
-          Back to the pipeline
-        </Link>
-        <p className="u-eyebrow mt-3">B-SYSTEMS · PARTNERS PIPELINE</p>
-        <h1 className="u-h1 flex items-center gap-3 flex-wrap">
-          {prospect.companyName}
-          <StageBadge stage={prospect.stage} header />
-          {prospect.converted ? (
-            <span className="badge badge--converted">Converted</span>
-          ) : null}
-        </h1>
+      <div className="page-head">
+        <div>
+          <Link
+            href="/b-systems/partners-pipeline"
+            className="text-sm text-brand-muted underline underline-offset-2"
+          >
+            Back to the pipeline
+          </Link>
+          <p className="u-eyebrow mt-3">B-SYSTEMS · PARTNERS PIPELINE</p>
+          <h1 className="u-h1 flex items-center gap-3 flex-wrap">
+            {prospect.companyName}
+            <StageBadge stage={prospect.stage} header />
+            {prospect.converted ? (
+              <span className="badge badge--converted">Converted</span>
+            ) : null}
+          </h1>
+        </div>
+        <div className="page-actions">
+          {/* founder V4: the admin edits and deletes pipeline cards */}
+          <EditProspectButton
+            prospect={{
+              id: prospect.id,
+              name: prospect.name,
+              companyName: prospect.companyName,
+              role: prospect.role,
+              email: prospect.email,
+              number: prospect.number,
+              businessActivity: prospect.businessActivity,
+              description: prospect.description,
+            }}
+          />
+          <DeleteEntityButton
+            url={`/api/b-systems/partners-pipeline/${prospect.id}`}
+            label="Delete"
+            warning="Deletes this card, its records and recordings — and its directory partner if converted."
+            redirectTo="/b-systems/partners-pipeline"
+          />
+        </div>
       </div>
 
       <div className="grid md:grid-cols-2 gap-6">
@@ -316,10 +326,32 @@ export async function PartnerDetailBody({ partnerId }: { partnerId: string }) {
           <div>
             <p className="u-eyebrow mt-3">B-SYSTEMS · PARTNERS</p>
             <h1 className="u-h1">{partner.companyName}</h1>
+            <p className="text-brand-meta text-brand-muted mt-2">
+              Date joined: {formatCairoDate(partner.dateJoined)}
+            </p>
           </div>
-          <p className="text-brand-meta text-brand-muted">
-            Date joined: {formatCairoDate(partner.dateJoined)}
-          </p>
+          <div className="page-actions">
+            {/* founder V4: the admin edits and deletes directory partners */}
+            <EditPartnerButton
+              partner={{
+                id: partner.id,
+                companyName: partner.companyName,
+                keyPersonName: partner.keyPersonName,
+                keyPersonRole: partner.keyPersonRole,
+                address: partner.address,
+                number: partner.number,
+                email: partner.email,
+                businessActivity: partner.businessActivity,
+                importance: partner.importance,
+              }}
+            />
+            <DeleteEntityButton
+              url={`/api/b-systems/partners/${partner.id}`}
+              label="Delete"
+              warning="Removes the partner from the directory — their leads keep living without the attribution."
+              redirectTo="/b-systems/partners"
+            />
+          </div>
         </div>
       </div>
 

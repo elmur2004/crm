@@ -1,5 +1,19 @@
 # Changelog — user-visible changes per phase/release
 
+## Founder V4 round — Partnership CRM (2026-08-11)
+- Partnership CRM board is now draggable like the main CRM: dropping a card
+  opens the target stage's form in a modal (numbers, follow-up, meeting,
+  Won completeness gate, lost reason); cancel reverts; dropping back onto
+  Lead commits directly; Won and Lost cards can no longer be moved (toast).
+- Admins can edit and delete pipeline cards and directory partners:
+  deleting a card removes its stage records and recordings (incl. stored
+  files) and, for converted cards, the directory Partner — attributed
+  leads remain with attribution cleared; deleting a partner keeps the
+  login account (removable in Users).
+- Wide-screen layout fix: full-bleed board columns now start at the
+  centered content edge instead of crowding the right; prospect and
+  partner detail pages use the standard page-head layout.
+
 ## Founder V3 round (2026-08-10)
 - Founder V3: two-way impersonation, agent-registration approval cycle,
   won-deal math barriers, printable statements, animated dashboard,

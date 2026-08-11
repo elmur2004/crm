@@ -259,7 +259,10 @@
 .board {
   display: flex; gap: 12px; align-items: flex-start; overflow-x: auto; padding-bottom: 12px;
   margin-inline: calc(50% - 50vw + 8px);
-  padding-inline: calc(var(--page-pad, 26px) - 8px);
+  /* columns START aligned with the centered content edge (max-w-7xl = 1280px),
+     while the scroll area still uses the whole viewport — on wide monitors the
+     board no longer hugs the left edge while the title floats centered */
+  padding-inline: calc(max(var(--page-pad, 26px), 50vw - 640px + var(--page-pad, 26px)) - 8px);
 }
 .col {
   flex: none; width: 250px; display: flex; flex-direction: column; border-radius: 12px; overflow: hidden;

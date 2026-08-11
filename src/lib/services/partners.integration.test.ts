@@ -6,13 +6,15 @@ import {
   addRecording,
   applyProspectEvent,
   createProspect,
+  deletePartner,
+  deleteProspect,
   getPartnerDetail,
   getProspectDetail,
   parseNumbers,
-  updateProspect,
+  updatePartner,
 } from "./partners";
 import { applyLeadEvent, createLead } from "./leads";
-import { validateAndStore } from "@/lib/storage";
+import { storage, validateAndStore } from "@/lib/storage";
 import type { Actor } from "./activity";
 
 /* §13 integration obligations for Phase 2: PP-2 auto-return on new number, PP-4
@@ -219,6 +221,129 @@ describe("Partners pipeline (§10.2)", () => {
     expect(detail.leads[0]!.stage).toBe("following_up"); // live link, not a copy
     const fresh = await db.lead.findUniqueOrThrow({ where: { id: lead.id } });
     expect(fresh.partnerId).toBe(partner.id); // permanent (§5.5)
+  });
+});
+
+describe("Founder V4: draggable board + admin edit/delete", () => {
+  it("a drag is the same move as the matching action — target group enforced, intake-return free", async () => {
+    const p = await makeProspect();
+
+    /* Drag to Didn't Answer without the numbers group → blocked. */
+    await expect(
+      applyProspectEvent({
+        prospectId: p.id,
+        event: { type: "drag", to: "didnt_answer" },
+        actor,
+        role,
+      }),
+    ).rejects.toThrow(/numbers/);
+
+    /* With the group → moves and records the dialed number. */
+    const moved = await applyProspectEvent({
+      prospectId: p.id,
+      event: { type: "drag", to: "didnt_answer" },
+      group: { group: "numbers", data: { dialedNumbers: ["0223456789"] } },
+      actor,
+      role,
+    });
+    expect(moved.toStage).toBe("didnt_answer");
+
+    /* Drag back to the Lead column needs no form (board's direct commit). */
+    const back = await applyProspectEvent({
+      prospectId: p.id,
+      event: { type: "drag", to: "lead" },
+      actor,
+      role,
+    });
+    expect(back.toStage).toBe("lead");
+  });
+
+  it("dragging into Won runs the PP-4 completeness gate and converts", async () => {
+    const p = await makeProspect();
+    await expect(
+      applyProspectEvent({
+        prospectId: p.id,
+        event: { type: "drag", to: "won" },
+        actor,
+        role,
+      }),
+    ).rejects.toThrow(/won_partner/);
+
+    await applyProspectEvent({
+      prospectId: p.id,
+      event: { type: "drag", to: "won" },
+      group: { group: "won_partner", data: COMPLETE_GATE },
+      actor,
+      role,
+    });
+    const { prospect } = await getProspectDetail(p.id);
+    expect(prospect.stage).toBe("won");
+    expect(prospect.converted).toBe(true);
+    expect(await db.partner.count({ where: { prospectId: p.id } })).toBe(1);
+  });
+
+  it("deleteProspect removes the card, its records and files, and its Partner — leads survive unattributed", async () => {
+    const p = await makeProspect();
+    const mp3 = Buffer.concat([Buffer.from("ID3"), Buffer.alloc(1024, 1)]);
+    const attachment = await addRecording(p.id, new File([mp3], "call.mp3", { type: "audio/mpeg" }), actor);
+    await applyProspectEvent({
+      prospectId: p.id,
+      event: { type: "next_action", action: "won" },
+      group: { group: "won_partner", data: COMPLETE_GATE },
+      actor,
+      role,
+    });
+    const partner = await db.partner.findUniqueOrThrow({ where: { prospectId: p.id } });
+    const lead = await createLead(
+      "bsystems",
+      { name: "Referred Corp", number: "0109999999", type: "personal_connection" },
+      actor,
+      { attribution: { partnerId: partner.id } },
+    );
+
+    await deleteProspect(p.id, actor);
+
+    expect(await db.partnerProspect.count({ where: { id: p.id } })).toBe(0);
+    expect(await db.partner.count({ where: { id: partner.id } })).toBe(0);
+    expect(await db.attachment.count({ where: { partnerProspectId: p.id } })).toBe(0);
+    const survivor = await db.lead.findUniqueOrThrow({ where: { id: lead.id } });
+    expect(survivor.partnerId).toBeNull(); // the lead keeps living, unattributed
+    await expect(storage.read(attachment.storageKey)).rejects.toThrow(); // file gone too
+  });
+
+  it("updatePartner edits directory fields; deletePartner clears attribution but keeps lead + prospect", async () => {
+    const p = await makeProspect();
+    await applyProspectEvent({
+      prospectId: p.id,
+      event: { type: "next_action", action: "won" },
+      group: { group: "won_partner", data: COMPLETE_GATE },
+      actor,
+      role,
+    });
+    const partner = await db.partner.findUniqueOrThrow({ where: { prospectId: p.id } });
+
+    const edited = await updatePartner(
+      partner.id,
+      { keyPersonName: "Salma Mansour", importance: "medium" },
+      actor,
+    );
+    expect(edited.keyPersonName).toBe("Salma Mansour");
+    expect(edited.importance).toBe("medium");
+    expect(edited.companyName).toBe("Mansour Trading"); // untouched fields survive
+
+    const lead = await createLead(
+      "bsystems",
+      { name: "Referred Corp", number: "0109999999", type: "personal_connection" },
+      actor,
+      { attribution: { partnerId: partner.id } },
+    );
+    await deletePartner(partner.id, actor);
+
+    expect(await db.partner.count({ where: { id: partner.id } })).toBe(0);
+    const survivor = await db.lead.findUniqueOrThrow({ where: { id: lead.id } });
+    expect(survivor.partnerId).toBeNull();
+    /* The pipeline card stays in Won as history. */
+    expect((await getProspectDetail(p.id)).prospect.stage).toBe("won");
   });
 });
 

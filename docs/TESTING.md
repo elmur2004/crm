@@ -310,3 +310,27 @@ every dashboard formula, journeys 1-5 (SPEC §13).
   Full suite green on the new per-run embedded-Postgres data dirs +
   pid-derived ports.
 - Verdict: PASS.
+
+## Run 020 — 2026-08-11 — Partnership CRM founder V4 batch (drag board, admin edit/delete, alignment)
+- Suites/commands: `npm run typecheck` (tsc clean) · `npm run build`
+  (production build clean) · `npx vitest run` (83) · `npx playwright test`
+  (full suite). Local dev, embedded Postgres (per-run instances).
+- Cases: vitest 83 passed / 0 failed / 0 skipped · Playwright 16 passed /
+  0 failed / 2 skipped (the two skips are the audit opt-in specs, by
+  design).
+- Failures: none in the final run. One test-side fix during stabilization
+  (test defect, no bug filed): the new journey-3 spec's modal Save locator
+  collided under Playwright strict mode with the page's "Save numbers"
+  button — locator scoped to the modal.
+- SPEC coverage touched: §10.2 PP rows via the NEW drag path (same trigger
+  ids as actions, so the PP gates apply unchanged). 4 new
+  partners.integration.test.ts cases: drag enforces the target stage's
+  group (intake return to Lead form-free); drag into Won runs the PP-4
+  completeness gate; deleteProspect full cascade incl. file deletion and
+  attributed-lead survival; updatePartner partial edit + deletePartner
+  attribution-nulling with the prospect kept in Won as history. 1 new E2E
+  (journey3): "founder V4: partners board drag opens the stage form; edit +
+  delete from detail" — drag Lead→Didn't Answer with a pre-checked number,
+  drag back to Lead with no form, edit company name via modal, delete with
+  confirm, card gone from the board.
+- Verdict: PASS.

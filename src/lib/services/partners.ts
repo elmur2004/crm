@@ -189,6 +189,7 @@ export async function addAlternativeNumbers(
 export const prospectEventSchema = z.object({
   event: z.discriminatedUnion("type", [
     z.object({ type: z.literal("next_action"), action: z.string() }),
+    z.object({ type: z.literal("drag"), to: z.string() }), // founder V4 board
     z.object({
       type: z.literal("meeting_outcome"),
       outcome: z.enum(["attended", "cancelled", "delayed"]),
@@ -401,4 +402,102 @@ export async function getPartnerDetail(partnerId: string) {
   });
   if (!partner) throw new ApiError(404, "Partner not found");
   return partner;
+}
+
+/* ---------- founder V4: admin edit + delete for prospects and partners ---------- */
+
+/** Deletes a pipeline card and everything it owns: stage records, recordings
+    (files too), and — when converted — the directory Partner (its attributed
+    leads keep living, their attribution is cleared). */
+export async function deleteProspect(prospectId: string, actor: Actor) {
+  const prospect = await db.partnerProspect.findUnique({
+    where: { id: prospectId },
+    include: { recordings: true, partner: true },
+  });
+  if (!prospect) throw new ApiError(404, "Partner prospect not found");
+  const fileKeys = prospect.recordings.map((r) => r.storageKey);
+  await db.$transaction(async (tx) => {
+    if (prospect.partner) {
+      await tx.lead.updateMany({
+        where: { partnerId: prospect.partner.id },
+        data: { partnerId: null },
+      });
+      await tx.partner.delete({ where: { id: prospect.partner.id } });
+    }
+    await tx.attachment.deleteMany({ where: { partnerProspectId: prospectId } });
+    await tx.followUp.deleteMany({ where: { partnerProspectId: prospectId } });
+    await tx.meeting.deleteMany({ where: { partnerProspectId: prospectId } });
+    await tx.lostInfo.deleteMany({ where: { partnerProspectId: prospectId } });
+    await tx.partnerProspect.delete({ where: { id: prospectId } });
+    await writeLog(tx, {
+      entityType: "partner_prospect",
+      entityId: prospectId,
+      actor,
+      action: "update",
+      trigger: "deleted",
+    });
+  });
+  const { storage } = await import("@/lib/storage");
+  for (const key of fileKeys) await storage.delete(key);
+}
+
+export const updatePartnerSchema = z.object({
+  companyName: z.string().min(1).max(200).optional(),
+  keyPersonName: z.string().min(1).max(200).optional(),
+  keyPersonRole: z.string().min(1).max(200).optional(),
+  address: z.string().min(1).max(400).optional(),
+  number: z.string().min(1).max(50).optional(),
+  email: z.string().email().optional().or(z.literal("").transform(() => undefined)),
+  businessActivity: z.string().min(1).max(300).optional(),
+  importance: z.enum(["high", "medium", "low"]).optional(),
+});
+
+export async function updatePartner(
+  partnerId: string,
+  input: z.infer<typeof updatePartnerSchema>,
+  actor: Actor,
+) {
+  const partner = await db.partner.findUnique({ where: { id: partnerId } });
+  if (!partner) throw new ApiError(404, "Partner not found");
+  return db.$transaction(async (tx) => {
+    const updated = await tx.partner.update({
+      where: { id: partnerId },
+      data: {
+        ...(input.companyName !== undefined && { companyName: input.companyName }),
+        ...(input.keyPersonName !== undefined && { keyPersonName: input.keyPersonName }),
+        ...(input.keyPersonRole !== undefined && { keyPersonRole: input.keyPersonRole }),
+        ...(input.address !== undefined && { address: input.address }),
+        ...(input.number !== undefined && { number: input.number }),
+        ...(input.email !== undefined && { email: input.email ?? null }),
+        ...(input.businessActivity !== undefined && { businessActivity: input.businessActivity }),
+        ...(input.importance !== undefined && { importance: input.importance }),
+      },
+    });
+    await writeLog(tx, {
+      entityType: "partner",
+      entityId: partnerId,
+      actor,
+      action: "update",
+      trigger: "edit",
+    });
+    return updated;
+  });
+}
+
+/** Removes the directory Partner. Attributed leads survive (attribution
+    cleared); the linked login account survives (remove it from Users). */
+export async function deletePartner(partnerId: string, actor: Actor) {
+  const partner = await db.partner.findUnique({ where: { id: partnerId } });
+  if (!partner) throw new ApiError(404, "Partner not found");
+  await db.$transaction(async (tx) => {
+    await tx.lead.updateMany({ where: { partnerId }, data: { partnerId: null } });
+    await tx.partner.delete({ where: { id: partnerId } });
+    await writeLog(tx, {
+      entityType: "partner",
+      entityId: partnerId,
+      actor,
+      action: "update",
+      trigger: "deleted",
+    });
+  });
 }

@@ -124,6 +124,134 @@ function WonGateFields({ defaults }: { defaults: { companyName: string; name: st
   );
 }
 
+/* ---------- shared stage-form builders (panel + draggable board) ---------- */
+
+export type ProspectGateDefaults = {
+  companyName: string;
+  name: string;
+  role: string | null;
+  number: string;
+  email: string | null;
+  businessActivity: string;
+};
+
+/** target stage → the group payload harvested from the form (V2 §6 shapes). */
+export function prospectGroupPayload(target: string, fd: FormData) {
+  if (target === "following_up")
+    return {
+      group: "follow_up" as const,
+      data: {
+        date: String(fd.get("date")),
+        time: String(fd.get("time")),
+        method: String(fd.get("method")) as "call" | "message" | "visit",
+        ownerSalesRepId: String(fd.get("ownerSalesRepId") || "") || undefined,
+        followingUpWith: String(fd.get("followingUpWith") || "") || undefined,
+      },
+    };
+  if (target === "meeting_setting")
+    /* V2 §6 — partners meeting is simplified: date + time + mode only. */
+    return {
+      group: "meeting" as const,
+      data: {
+        arranged: true,
+        date: String(fd.get("date")),
+        time: String(fd.get("time")),
+        mode: String(fd.get("mode")) as "online" | "offline",
+      },
+    };
+  if (target === "lost")
+    return { group: "lost" as const, data: { reason: String(fd.get("reason")) } };
+  if (target === "won")
+    return {
+      group: "won_partner" as const,
+      data: {
+        companyName: String(fd.get("companyName")),
+        keyPersonName: String(fd.get("keyPersonName")),
+        keyPersonRole: String(fd.get("keyPersonRole")),
+        address: String(fd.get("address")),
+        number: String(fd.get("number")),
+        email: String(fd.get("email") || "") || undefined,
+        password: String(fd.get("password") || "") || undefined,
+        businessActivity: businessActivityFrom(fd),
+        importance: String(fd.get("importance")) as "high" | "medium" | "low",
+      },
+    };
+  if (target === "didnt_answer") {
+    // V2 §6: record WHICH number(s) went unanswered
+    const dialed = fd.getAll("dialedNumbers").map(String).filter(Boolean);
+    return { group: "numbers" as const, data: { dialedNumbers: dialed } };
+  }
+  return undefined;
+}
+
+/** target stage → its form body. */
+export function ProspectGroupFields({
+  target,
+  reps,
+  defaults,
+  cardNumbers,
+}: {
+  target: string;
+  reps: Rep[];
+  defaults: ProspectGateDefaults;
+  cardNumbers: string[];
+}) {
+  if (target === "following_up") return <FollowUpFields reps={reps} />;
+  if (target === "meeting_setting")
+    /* V2 §6 — simplified: date + time + online/offline. */
+    return (
+      <>
+        <div className="grid grid-cols-2 gap-3">
+          <label className="block">
+            <span className={labelCls}>Date</span>
+            <input type="date" name="date" required className={inputCls} />
+          </label>
+          <label className="block">
+            <span className={labelCls}>Time</span>
+            <input type="time" name="time" required className={inputCls} />
+          </label>
+        </div>
+        <label className="block">
+          <span className={labelCls}>Mode</span>
+          <select name="mode" required className={inputCls}>
+            {MEETING_MODES.map((m) => (
+              <option key={m} value={m}>
+                {m === "online" ? "Online" : "Offline"}
+              </option>
+            ))}
+          </select>
+        </label>
+      </>
+    );
+  if (target === "lost")
+    return (
+      <label className="block">
+        <span className={labelCls}>Reason (required)</span>
+        <textarea name="reason" required rows={3} className={inputCls} />
+      </label>
+    );
+  if (target === "won") return <WonGateFields defaults={defaults} />;
+  if (target === "didnt_answer")
+    return (
+      <div className="space-y-2">
+        <p className="u-label">Number dialed — which number(s) went unanswered?</p>
+        {cardNumbers.map((n) => (
+          <label key={n} className="flex items-center gap-2 text-sm">
+            <input type="checkbox" name="dialedNumbers" value={n} defaultChecked={cardNumbers.length === 1} />
+            {n}
+          </label>
+        ))}
+        <p className="field-hint">
+          New numbers are NOT required now — add them any time from “Alternative
+          numbers”; doing so returns the card to Lead automatically.
+        </p>
+      </div>
+    );
+  if (target === "lead")
+    return <p className="u-muted">The card returns to the Lead column.</p>;
+  return null;
+}
+
 export function ProspectEventPanel({
   prospectId,
   stage,
@@ -172,111 +300,11 @@ export function ProspectEventPanel({
     router.refresh();
   }
 
-  function followUpFromForm(fd: FormData) {
-    return {
-      group: "follow_up" as const,
-      data: {
-        date: String(fd.get("date")),
-        time: String(fd.get("time")),
-        method: String(fd.get("method")) as "call" | "message" | "visit",
-        ownerSalesRepId: String(fd.get("ownerSalesRepId") || "") || undefined,
-        followingUpWith: String(fd.get("followingUpWith") || "") || undefined,
-      },
-    };
-  }
-
-  function groupForTarget(target: string, fd: FormData) {
-    if (target === "following_up") return followUpFromForm(fd);
-    if (target === "meeting_setting")
-      /* V2 §6 — partners meeting is simplified: date + time + mode only. */
-      return {
-        group: "meeting" as const,
-        data: {
-          arranged: true,
-          date: String(fd.get("date")),
-          time: String(fd.get("time")),
-          mode: String(fd.get("mode")) as "online" | "offline",
-        },
-      };
-    if (target === "lost")
-      return { group: "lost" as const, data: { reason: String(fd.get("reason")) } };
-    if (target === "won")
-      return {
-        group: "won_partner" as const,
-        data: {
-          companyName: String(fd.get("companyName")),
-          keyPersonName: String(fd.get("keyPersonName")),
-          keyPersonRole: String(fd.get("keyPersonRole")),
-          address: String(fd.get("address")),
-          number: String(fd.get("number")),
-          email: String(fd.get("email") || "") || undefined,
-          password: String(fd.get("password") || "") || undefined,
-          businessActivity: businessActivityFrom(fd),
-          importance: String(fd.get("importance")) as "high" | "medium" | "low",
-        },
-      };
-    if (target === "didnt_answer") {
-      // V2 §6: record WHICH number(s) went unanswered
-      const dialed = fd.getAll("dialedNumbers").map(String).filter(Boolean);
-      return { group: "numbers" as const, data: { dialedNumbers: dialed } };
-    }
-    return undefined;
-  }
-
-  function fieldsForTarget(target: string) {
-    if (target === "following_up") return <FollowUpFields reps={reps} />;
-    if (target === "meeting_setting")
-      /* V2 §6 — simplified: date + time + online/offline. */
-      return (
-        <>
-          <div className="grid grid-cols-2 gap-3">
-            <label className="block">
-              <span className={labelCls}>Date</span>
-              <input type="date" name="date" required className={inputCls} />
-            </label>
-            <label className="block">
-              <span className={labelCls}>Time</span>
-              <input type="time" name="time" required className={inputCls} />
-            </label>
-          </div>
-          <label className="block">
-            <span className={labelCls}>Mode</span>
-            <select name="mode" required className={inputCls}>
-              {MEETING_MODES.map((m) => (
-                <option key={m} value={m}>
-                  {m === "online" ? "Online" : "Offline"}
-                </option>
-              ))}
-            </select>
-          </label>
-        </>
-      );
-    if (target === "lost")
-      return (
-        <label className="block">
-          <span className={labelCls}>Reason (required)</span>
-          <textarea name="reason" required rows={3} className={inputCls} />
-        </label>
-      );
-    if (target === "won") return <WonGateFields defaults={defaults} />;
-    if (target === "didnt_answer")
-      return (
-        <div className="space-y-2">
-          <p className="u-label">Number dialed — which number(s) went unanswered?</p>
-          {cardNumbers.map((n) => (
-            <label key={n} className="flex items-center gap-2 text-sm">
-              <input type="checkbox" name="dialedNumbers" value={n} defaultChecked={cardNumbers.length === 1} />
-              {n}
-            </label>
-          ))}
-          <p className="field-hint">
-            New numbers are NOT required now — add them any time from “Alternative
-            numbers”; doing so returns the card to Lead automatically.
-          </p>
-        </div>
-      );
-    return null;
-  }
+  const groupForTarget = (target: string, fd: FormData) =>
+    prospectGroupPayload(target, fd);
+  const fieldsForTarget = (target: string) => (
+    <ProspectGroupFields target={target} reps={reps} defaults={defaults} cardNumbers={cardNumbers} />
+  );
 
   if (terminal) {
     return (
