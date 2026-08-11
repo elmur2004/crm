@@ -4,7 +4,7 @@ import { bsRoleOf } from "@/lib/api/bsystems";
 import { impersonate } from "@/lib/auth/actions";
 import { listUsers } from "@/lib/services/users";
 import { formatCairoDate } from "@/lib/datetime";
-import { ActiveToggle, CreateUserForm } from "@/components/bsystems/users";
+import { ActiveToggle, CreateUserForm, EditUserButton } from "@/components/bsystems/users";
 
 export const metadata = { title: "Users — B-Systems CRM" };
 
@@ -85,6 +85,16 @@ export default async function UsersPage() {
                   <td>{formatCairoDate(u.createdAt)}</td>
                   <td>
                     <span className="flex items-center gap-2 flex-wrap">
+                      <EditUserButton
+                        user={{
+                          id: u.id,
+                          name: u.name,
+                          email: u.email,
+                          phone: u.phone,
+                          roles: u.roles.map((r) => r.role),
+                        }}
+                        isBootstrapAdmin={u.email === "admin@byteforce.com"}
+                      />
                       {u.active && u.id !== user.id ? (
                         <form action={impersonate.bind(null, u.id)}>
                           <button type="submit" className="btn-ghost btn--sm">

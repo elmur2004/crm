@@ -1,3 +1,4 @@
+import { BrandLogo } from "@/components/shared/BrandLogo";
 import { NotificationsBell } from "@/components/bsystems/NotificationsBell";
 import { ImpersonationBar } from "@/components/shared/ImpersonationBar";
 import { EntitySwitch } from "@/components/shared/EntitySwitch";
@@ -72,8 +73,9 @@ export default async function BSystemsAppLayout({
     <>
       <ImpersonationBar />
       <header className="app-header" data-shell={external ? "external" : undefined}>
-        <span className="logo-b" aria-hidden>
-          S
+        {/* founder: the REAL B-Systems mark (branding/b-systems/logo-mark.png) */}
+        <span className="shrink-0">
+          <BrandLogo brand="bsystems" variant="mark" height={40} />
         </span>
         <span className="wordmark">B-Systems</span>
         <ShellNav

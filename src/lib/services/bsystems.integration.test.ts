@@ -13,6 +13,7 @@ import {
 import { adminWonLeads, closerWonLeads, salesWonLeads } from "./won-leads";
 import {
   approveRegistration,
+  updateUser,
   mintImpersonationToken,
   rejectRegistration,
   verifyImpersonationToken,
@@ -557,6 +558,55 @@ describe("Registration approval cycle (founder V3)", () => {
     const rejected = await db.user.findUniqueOrThrow({ where: { id: second.userId } });
     expect(rejected.registrationStatus).toBe("rejected");
     expect(rejected.active).toBe(false);
+  });
+});
+
+describe("Admin user editing (founder V4)", () => {
+  it("edits identity/identifiers/roles/password; the password becomes visible", async () => {
+    const agent = await makeAgent();
+    await updateUser(
+      agent.id,
+      {
+        name: "Karim Renamed",
+        email: "karim@agents.example",
+        password: "NewPass#2026",
+        roles: ["bsystems_agent", "bsystems_partner"],
+      },
+      admin,
+    );
+    const updated = await db.user.findUniqueOrThrow({
+      where: { id: agent.id },
+      include: { roles: true },
+    });
+    expect(updated.name).toBe("Karim Renamed");
+    expect(updated.email).toBe("karim@agents.example");
+    expect(updated.roles.map((r) => r.role).sort()).toEqual([
+      "bsystems_agent",
+      "bsystems_partner",
+    ]);
+    expect(await verifyPassword("NewPass#2026", updated.passwordHash)).toBe(true);
+    expect(updated.passwordPlain).toBe("NewPass#2026");
+  });
+
+  it("refuses identifier collisions and self-demotion", async () => {
+    const a = await makeAgent();
+    const b = await makeAgent();
+    await updateUser(a.id, { email: "taken@agents.example" }, admin);
+    await expect(
+      updateUser(b.id, { email: "taken@agents.example" }, admin),
+    ).rejects.toThrow(/another account/);
+
+    const adminUser = await db.user.create({
+      data: { name: "Boss", email: "boss@x.example", passwordHash: "h" },
+    });
+    await db.userRole.create({ data: { userId: adminUser.id, role: "bsystems_admin" } });
+    await expect(
+      updateUser(
+        adminUser.id,
+        { roles: ["bsystems_sales"] },
+        { id: adminUser.id, label: "Boss" },
+      ),
+    ).rejects.toThrow(/your own admin access/);
   });
 });
 

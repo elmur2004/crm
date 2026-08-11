@@ -77,6 +77,82 @@ export async function createUser(input: z.infer<typeof createUserSchema>, actor:
   });
 }
 
+/* Founder V4 — the admin EDITS any user from Users: identity, identifiers,
+   roles, and the password (which becomes visible in the Password column). */
+export const updateUserSchema = z
+  .object({
+    name: z.string().min(1).max(200).optional(),
+    email: z.string().email().optional().or(z.literal("").transform(() => undefined)),
+    phone: z
+      .string()
+      .optional()
+      .or(z.literal("").transform(() => undefined)),
+    password: z.string().min(8, "At least 8 characters").optional(),
+    roles: z.array(z.enum(ROLES)).min(1).optional(),
+  })
+  .refine((u) => !u.phone || isValidPhone(u.phone), {
+    message: "Enter a valid phone number",
+    path: ["phone"],
+  });
+
+export async function updateUser(
+  userId: string,
+  input: z.infer<typeof updateUserSchema>,
+  actor: Actor,
+) {
+  const user = await db.user.findUnique({ where: { id: userId }, include: { roles: true } });
+  if (!user) throw new ApiError(404, "User not found");
+
+  const email = input.email?.trim().toLowerCase();
+  const phone = input.phone ? normalizePhone(input.phone) : undefined;
+  if (email && email !== user.email) {
+    const clash = await db.user.findUnique({ where: { email } });
+    if (clash && clash.id !== userId) throw new ApiError(409, "That email belongs to another account");
+  }
+  if (phone && phone !== user.phone) {
+    const clash = await db.user.findUnique({ where: { phone } });
+    if (clash && clash.id !== userId) throw new ApiError(409, "That phone belongs to another account");
+  }
+  /* the admin cannot strip their own admin role */
+  if (
+    input.roles &&
+    actor.id === userId &&
+    user.roles.some((r) => r.role === "bsystems_admin") &&
+    !input.roles.includes("bsystems_admin")
+  ) {
+    throw new ApiError(400, "You cannot remove your own admin access");
+  }
+
+  return db.$transaction(async (tx) => {
+    const updated = await tx.user.update({
+      where: { id: userId },
+      data: {
+        ...(input.name !== undefined && { name: input.name }),
+        ...(email !== undefined && { email }),
+        ...(phone !== undefined && { phone }),
+        ...(input.password !== undefined && {
+          passwordHash: await hashPassword(input.password),
+          passwordPlain: input.password,
+        }),
+      },
+    });
+    if (input.roles) {
+      await tx.userRole.deleteMany({ where: { userId } });
+      for (const role of input.roles) {
+        await tx.userRole.create({ data: { userId, role } });
+      }
+    }
+    await writeLog(tx, {
+      entityType: "user",
+      entityId: userId,
+      actor,
+      action: "update",
+      trigger: "users_admin_edit",
+    });
+    return updated;
+  });
+}
+
 export async function setUserActive(userId: string, active: boolean, actor: Actor) {
   const user = await db.user.findUnique({ where: { id: userId } });
   if (!user) throw new ApiError(404, "User not found");

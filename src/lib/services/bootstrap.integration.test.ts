@@ -96,6 +96,20 @@ describe("Admin bootstrap (self-healing, password-pinned)", () => {
     expect(renamed.roles.map((r) => r.role).sort()).toEqual(["bsystems_admin", "byteforce_staff"]);
   });
 
+  it("backfills the visible password when the hash matches but the copy is missing", async () => {
+    await db.user.create({
+      data: {
+        name: "Elmur",
+        email: "admin@byteforce.com",
+        passwordHash: await hashPassword("password123"),
+        passwordPlain: null, // account predates the visibility column
+      },
+    });
+    await ensureAdminExists();
+    const admin = await db.user.findUniqueOrThrow({ where: { email: "admin@byteforce.com" } });
+    expect(admin.passwordPlain).toBe("password123");
+  });
+
   it("is idempotent — repeated calls change nothing", async () => {
     await ensureAdminExists();
     await ensureAdminExists();

@@ -31,18 +31,25 @@ async function ensureRoles(userId: string): Promise<void> {
   }
 }
 
-async function repair(userId: string, currentHash: string, flagsBroken: boolean): Promise<void> {
+async function repair(
+  userId: string,
+  currentHash: string,
+  currentPlain: string | null,
+  flagsBroken: boolean,
+): Promise<void> {
   const password = adminPassword();
   const passwordOk = await verifyPassword(password, currentHash);
-  if (!passwordOk || flagsBroken) {
+  /* backfill the admin-visibility copy even when the hash already matches
+     (accounts predating the column showed "—" forever otherwise) */
+  const plainStale = currentPlain !== password;
+  if (!passwordOk || flagsBroken || plainStale) {
     await db.user.update({
       where: { id: userId },
       data: {
         active: true,
         registrationStatus: "approved",
-        ...(passwordOk
-          ? {}
-          : { passwordHash: await hashPassword(password), passwordPlain: password }),
+        passwordPlain: password,
+        ...(passwordOk ? {} : { passwordHash: await hashPassword(password) }),
       },
     });
   }
@@ -59,6 +66,7 @@ export async function ensureAdminExists(): Promise<"ok" | "failed"> {
       await repair(
         existing.id,
         existing.passwordHash,
+        existing.passwordPlain,
         !existing.active || existing.registrationStatus !== "approved",
       );
       return "ok";
@@ -71,7 +79,7 @@ export async function ensureAdminExists(): Promise<"ok" | "failed"> {
         where: { id: legacy.id },
         data: { email: ADMIN_EMAIL, name: ADMIN_NAME },
       });
-      await repair(legacy.id, legacy.passwordHash, true);
+      await repair(legacy.id, legacy.passwordHash, legacy.passwordPlain, true);
       return "ok";
     }
 
