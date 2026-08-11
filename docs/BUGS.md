@@ -29,3 +29,25 @@ the moment a failure is found; close them with a reference to the fixing commit/
 - Repro: open /b-systems at 390px viewport.
 - Status: fixed (flex-wrap on header + nav; sweep asserts ≤1px overflow at
   1440/1024/768/390 on every screen — TESTING Run 013)
+
+## BUG-004 — 2026-08-11 — uploaded files lost on redeploy (proof link → "File missing from storage")
+- Severity: critical (production data loss — every redeploy wiped ALL
+  uploaded files: payment proofs, CVs, recordings, proposal/contract PDFs)
+- Where: production hosting — uploads stored in `<cwd>/uploads` inside the
+  app container. Found by the founder: a statement's proof link returned
+  {"error":"File missing from storage"}.
+- Repro: upload any file in production → redeploy → open the file's link →
+  "File missing from storage".
+- Root cause: the hosting platform rebuilds the app container on every
+  deploy, wiping the container-local `<cwd>/uploads` directory, while the
+  EXTERNAL Postgres keeps the attachment rows — DB and blob lifecycles
+  diverged, so the UI kept linking files that no longer existed.
+- Status: fixed (code — Entry 018, TESTING Run 021, ADR-035:
+  UPLOADS_DIR-selected storage root; per-proof fileOk probes with
+  missing-file UI states on Statements/Payments/printable document/
+  prospect recordings; admin re-upload/replace path for paid statements;
+  styled missing-file page for browser hits; /api/health uploads
+  diagnostics). Durability itself is MITIGATION PENDING FOUNDER HOST
+  ACTION: attach a persistent volume and set UPLOADS_DIR to its mount
+  path (ADR-035). Already-lost blobs are unrecoverable unless an ADR-032
+  backup export holds them — re-upload via Statements → Re-upload proof.

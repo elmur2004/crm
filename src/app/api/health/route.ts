@@ -1,5 +1,7 @@
+import { randomUUID } from "node:crypto";
 import { db } from "@/lib/db";
 import { ensureAdminExists } from "@/lib/services/bootstrap";
+import { storage, uploadsDir, uploadsDirConfigured } from "@/lib/storage";
 
 /* Production self-diagnostic (founder: "the login problem remains").
    GET /api/health answers, in one place: is the database reachable, is the
@@ -83,6 +85,57 @@ export async function GET(req: Request) {
     }
   }
 
+  /* ---- uploaded files (founder: "File missing from storage") ---- */
+  const uploads: {
+    dir: string;
+    persistentDirConfigured: boolean;
+    writable: boolean;
+    attachments: number;
+    missingFiles: number;
+    missingSample: string[];
+  } = {
+    dir: uploadsDir(),
+    persistentDirConfigured: uploadsDirConfigured(),
+    writable: false,
+    attachments: 0,
+    missingFiles: 0,
+    missingSample: [],
+  };
+  try {
+    const probeKey = `${randomUUID().replace(/-/g, "")}.tmp`;
+    await storage.put(probeKey, Buffer.from("health probe"));
+    await storage.delete(probeKey);
+    uploads.writable = true;
+  } catch {
+    hints.push(`Uploads directory is not writable (${uploads.dir}) — file uploads will fail.`);
+  }
+  if (schemaCurrent) {
+    const attachments = await db.attachment.findMany({
+      select: { storageKey: true },
+      take: 500,
+    });
+    uploads.attachments = attachments.length;
+    for (const a of attachments) {
+      const present = (await storage.size(a.storageKey).catch(() => null)) !== null;
+      if (!present) {
+        uploads.missingFiles += 1;
+        // opaque server-generated keys only — this endpoint is public, and real
+        // filenames carry client/candidate names (/api/files gates them)
+        if (uploads.missingSample.length < 5) uploads.missingSample.push(a.storageKey);
+      }
+    }
+    if (uploads.missingFiles > 0) {
+      hints.push(
+        `${uploads.missingFiles} uploaded file(s) referenced in the database are MISSING from ${uploads.dir} — they were lost when the container was redeployed. Attach a persistent volume, set UPLOADS_DIR to its path, then re-upload the files (statements have a Re-upload proof button) or import a backup that contains them.`,
+      );
+    }
+  }
+  if (env.nodeEnv === "production" && !uploads.persistentDirConfigured) {
+    hints.push(
+      "UPLOADS_DIR is not set — uploads live INSIDE the container and every redeploy deletes them. Attach a persistent volume (e.g. mount it at /data/uploads) and set UPLOADS_DIR to that path.",
+    );
+  }
+
   const ok =
     env.databaseUrlSet &&
     env.databaseUrlProtocolOk &&
@@ -91,11 +144,21 @@ export async function GET(req: Request) {
     schemaCurrent &&
     admin.exists &&
     admin.active === true &&
-    admin.status === "approved";
-  if (ok) hints.push("All checks passed — sign in with admin@byteforce.com.");
+    admin.status === "approved" &&
+    uploads.writable;
+  if (ok && hints.length === 0) hints.push("All checks passed — sign in with admin@byteforce.com.");
 
   return Response.json(
-    { ok, env, proxy, db: { reachable: dbReachable, error: dbError }, schemaCurrent, admin, hints },
+    {
+      ok,
+      env,
+      proxy,
+      db: { reachable: dbReachable, error: dbError },
+      schemaCurrent,
+      admin,
+      uploads,
+      hints,
+    },
     { status: ok ? 200 : 503, headers: { "Cache-Control": "no-store" } },
   );
 }

@@ -5,7 +5,7 @@ import { bsRoleOf } from "@/lib/api/bsystems";
 import { listStatements, waitingToBePaidOut } from "@/lib/services/statements";
 import { formatEGP } from "@/lib/money";
 import { formatCairoDate } from "@/lib/datetime";
-import { MarkPaidForm, StatementGenerator } from "@/components/bsystems/statements";
+import { MarkPaidForm, ReplaceProofForm, StatementGenerator } from "@/components/bsystems/statements";
 
 export const metadata = { title: "Statements — B-Systems CRM" };
 
@@ -118,19 +118,30 @@ export default async function StatementsPage() {
                     <td>{s.expectedDate ? formatCairoDate(s.expectedDate) : "—"}</td>
                     <td>
                       {s.status === "paid" ? (
-                        <span className="text-brand-success">
-                          Paid
-                          {s.proofs[0] ? (
-                            <>
-                              {" · "}
-                              <a
-                                href={`/api/files/${s.proofs[0].id}`}
-                                className="text-brand-link underline underline-offset-2"
-                              >
-                                proof
-                              </a>
-                            </>
+                        <span className="inline-flex items-center gap-2 flex-wrap">
+                          <span className="text-brand-success">
+                            Paid
+                            {s.proofs[0]?.fileOk ? (
+                              <>
+                                {" · "}
+                                <a
+                                  href={`/api/files/${s.proofs[0].id}`}
+                                  className="text-brand-link underline underline-offset-2"
+                                >
+                                  proof
+                                </a>
+                              </>
+                            ) : null}
+                          </span>
+                          {s.proofs[0] && !s.proofs[0].fileOk ? (
+                            /* the record survived but the file is gone (lost
+                               in a redeploy without persistent storage) */
+                            <span className="text-brand-danger text-xs">proof file missing</span>
                           ) : null}
+                          <ReplaceProofForm
+                            statementId={s.id}
+                            label={s.proofs[0]?.fileOk ? "Replace proof" : "Re-upload proof"}
+                          />
                         </span>
                       ) : (
                         <MarkPaidForm statementId={s.id} />

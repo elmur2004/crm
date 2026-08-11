@@ -22,7 +22,17 @@ export interface Storage {
   delete(key: string): Promise<void>;
 }
 
-const UPLOADS_DIR = path.resolve(process.cwd(), "uploads");
+/* UPLOADS_DIR env points storage at a persistent volume in production —
+   without it, files live inside the container and die on every redeploy. */
+const UPLOADS_DIR = path.resolve(process.env.UPLOADS_DIR || path.join(process.cwd(), "uploads"));
+
+export function uploadsDir(): string {
+  return UPLOADS_DIR;
+}
+
+export function uploadsDirConfigured(): boolean {
+  return Boolean(process.env.UPLOADS_DIR);
+}
 
 function safePath(key: string): string {
   if (!/^[a-z0-9]+\.[a-z0-9]{2,5}$/i.test(key)) throw new ApiError(400, "Bad file key");

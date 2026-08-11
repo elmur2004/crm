@@ -2,7 +2,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { ApiError } from "@/lib/api-error";
 import { MAX_PIASTERS } from "@/lib/money";
-import { validateAndStore } from "@/lib/storage";
+import { storage, validateAndStore } from "@/lib/storage";
 import { writeLog, type Actor } from "./activity";
 
 /* V2 §7 — Statements & payments.
@@ -107,11 +107,25 @@ export async function createStatement(
   });
 }
 
-export function listStatements() {
-  return db.statement.findMany({
+/** Statements with each proof probed against storage — a proof whose FILE is
+    gone (e.g. uploaded before a redeploy without a persistent volume) renders
+    as "missing" instead of a dead link. */
+export async function listStatements() {
+  const statements = await db.statement.findMany({
     include: { proofs: true },
     orderBy: { createdAt: "desc" },
   });
+  return Promise.all(
+    statements.map(async (s) => ({
+      ...s,
+      proofs: await Promise.all(
+        s.proofs.map(async (p) => ({
+          ...p,
+          fileOk: (await storage.size(p.storageKey).catch(() => null)) !== null,
+        })),
+      ),
+    })),
+  );
 }
 
 /** Founder: the printable statement DOCUMENT — everything the paper needs:
@@ -145,19 +159,87 @@ export async function statementDocument(id: string) {
         select: { id: true, name: true, email: true, phone: true },
       })
     : null;
-  return { statement, lead: statement.milestone.wonDeal.lead, closerUser };
+  /* The printed document must not claim a proof it cannot produce. */
+  const proofs = await Promise.all(
+    statement.proofs.map(async (p) => ({
+      ...p,
+      fileOk: (await storage.size(p.storageKey).catch(() => null)) !== null,
+    })),
+  );
+  return {
+    statement: { ...statement, proofs },
+    lead: statement.milestone.wonDeal.lead,
+    closerUser,
+  };
 }
 
-/** Closer's Payments section (V2 §7) — pending + paid, with proof when paid. */
-export function paymentsFor(userId: string) {
-  return db.statement.findMany({
+/** Closer's Payments section (V2 §7) — pending + paid, with proof when paid.
+    Proofs carry the same fileOk probe as listStatements. */
+export async function paymentsFor(userId: string) {
+  const statements = await db.statement.findMany({
     where: { closerUserId: userId },
     include: { proofs: true },
     orderBy: { createdAt: "desc" },
   });
+  return Promise.all(
+    statements.map(async (s) => ({
+      ...s,
+      proofs: await Promise.all(
+        s.proofs.map(async (p) => ({
+          ...p,
+          fileOk: (await storage.size(p.storageKey).catch(() => null)) !== null,
+        })),
+      ),
+    })),
+  );
 }
 
 /** Admin "Mark payment": PROOF IMAGE upload replaces a payment reference. */
+/** Re-uploads the proof on an already-paid statement — the recovery path when
+    the original file is lost (redeploy without a persistent volume) or wrong.
+    The old attachment rows and files are removed. */
+export async function replaceStatementProof(statementId: string, proof: File, actor: Actor) {
+  const statement = await db.statement.findUnique({
+    where: { id: statementId },
+    include: { proofs: true },
+  });
+  if (!statement) throw new ApiError(404, "Statement not found");
+  if (statement.status !== "paid") {
+    throw new ApiError(400, "This statement is not paid yet — use Mark paid");
+  }
+  const stored = await validateAndStore("payment_proof", proof);
+  const oldKeys = statement.proofs.map((p) => p.storageKey);
+  let updated;
+  try {
+    updated = await db.$transaction(async (tx) => {
+      await tx.attachment.deleteMany({ where: { statementId, kind: "payment_proof" } });
+      await tx.attachment.create({
+        data: {
+          kind: "payment_proof",
+          statementId,
+          filename: stored.filename,
+          storageKey: stored.key,
+          mime: stored.mime,
+          size: stored.size,
+        },
+      });
+      await writeLog(tx, {
+        entityType: "statement",
+        entityId: statementId,
+        actor,
+        action: "update",
+        trigger: "proof_replaced",
+      });
+      return tx.statement.findUniqueOrThrow({ where: { id: statementId } });
+    });
+  } catch (e) {
+    await storage.delete(stored.key); // don't orphan the new file on a failed swap
+    throw e;
+  }
+  for (const key of oldKeys) await storage.delete(key);
+  return updated;
+}
+
 export async function markStatementPaid(statementId: string, proof: File, actor: Actor) {
   const statement = await db.statement.findUnique({ where: { id: statementId } });
   if (!statement) throw new ApiError(404, "Statement not found");

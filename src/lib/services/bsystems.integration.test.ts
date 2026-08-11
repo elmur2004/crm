@@ -6,10 +6,13 @@ import { applyProspectEvent, createProspect } from "./partners";
 import { checkMilestone, uncheckMilestone } from "./milestones";
 import {
   createStatement,
+  listStatements,
   markStatementPaid,
   paymentsFor,
+  replaceStatementProof,
   waitingToBePaidOut,
 } from "./statements";
+import { storage } from "@/lib/storage";
 import { adminWonLeads, closerWonLeads, salesWonLeads } from "./won-leads";
 import {
   approveRegistration,
@@ -367,6 +370,62 @@ describe("Statements end-to-end (V2 §7)", () => {
       markStatementPaid(st2.id, new File([Buffer.from("%PDF-1.7")], "proof.pdf"), admin),
     ).rejects.toThrow();
     expect(won2.id).toBeTruthy();
+  });
+
+  it("lost proof file: listStatements flags it; replaceStatementProof restores it (paid only)", async () => {
+    const { won } = await wonWithCheckedM1();
+    const waiting = await waitingToBePaidOut();
+    const statement = await createStatement(
+      {
+        milestoneId: waiting[0]!.milestoneId,
+        clientName: "Acme Corp",
+        milestoneLabel: "Discovery",
+        milestoneValue: 300_000_00,
+        percentBp: 10_00,
+        amount: 30_000_00,
+        adjustments: 0,
+      },
+      admin,
+    );
+
+    /* Not paid yet → replace is refused. */
+    const png = Buffer.concat([
+      Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+      Buffer.alloc(256, 3),
+    ]);
+    await expect(
+      replaceStatementProof(statement.id, new File([png], "early.png"), admin),
+    ).rejects.toThrow(/not paid yet/);
+
+    await markStatementPaid(statement.id, new File([png], "proof.png"), admin);
+    let listed = (await listStatements()).find((s) => s.id === statement.id)!;
+    expect(listed.proofs[0]!.fileOk).toBe(true);
+
+    /* Simulate the redeploy wipe: the row survives, the file does not. */
+    const oldKey = listed.proofs[0]!.storageKey;
+    await storage.delete(oldKey);
+    listed = (await listStatements()).find((s) => s.id === statement.id)!;
+    expect(listed.proofs[0]!.fileOk).toBe(false);
+
+    /* Re-upload: one fresh attachment, present in storage, statement stays paid. */
+    const replaced = await replaceStatementProof(
+      statement.id,
+      new File([png], "proof-restored.png"),
+      admin,
+    );
+    expect(replaced.status).toBe("paid");
+    const proofs = await db.attachment.findMany({ where: { statementId: statement.id } });
+    expect(proofs).toHaveLength(1);
+    expect(proofs[0]!.filename).toBe("proof-restored.png");
+    expect(proofs[0]!.storageKey).not.toBe(oldKey);
+    expect(await storage.size(proofs[0]!.storageKey)).toBeGreaterThan(0);
+    listed = (await listStatements()).find((s) => s.id === statement.id)!;
+    expect(listed.proofs[0]!.fileOk).toBe(true);
+    const log = await db.activityLog.findFirst({
+      where: { entityType: "statement", entityId: statement.id, trigger: "proof_replaced" },
+    });
+    expect(log).toBeTruthy();
+    expect(won.id).toBeTruthy();
   });
 });
 

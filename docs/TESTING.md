@@ -334,3 +334,30 @@ every dashboard formula, journeys 1-5 (SPEC §13).
   drag back to Lead with no form, edit company name via modal, delete with
   confirm, card gone from the board.
 - Verdict: PASS.
+
+## Run 021 — 2026-08-11 — Uploads-durability incident fix (UPLOADS_DIR, missing-file states, proof replace)
+- Suites/commands: `npm run typecheck` (tsc clean) · `npm run build`
+  (production build clean; new benign Turbopack "dynamic filesystem
+  access" warnings from the env-dependent uploads path — see the
+  IMPLEMENTATION.md note) · `npx vitest run` (84) · `npx playwright test`
+  (full suite). Local dev, embedded Postgres (per-run instances). Plus an
+  18-agent adversarial review workflow (3 lenses × verify) over the
+  incident fix.
+- Cases: vitest 84 passed / 0 failed / 0 skipped · Playwright 16 passed /
+  0 failed / 2 skipped (the two skips are the audit opt-in specs, by
+  design).
+- Failures: none in the automated suites (incident under test: BUG-004).
+- SPEC coverage touched: storage/attachment layer and statements services
+  (no §10 pipeline rows). 1 new integration test: lost-proof fileOk flag
+  + replaceStatementProof swap + the paid-only guard.
+  Adversarial-review CONFIRMED findings, all fixed in-round:
+  /api/health filename leak → sample shows opaque storage keys only;
+  orphaned NEW file when the replace transaction fails → cleanup catch
+  deletes it; silently-broken recording players → "Recording file
+  missing" fileOk badge on prospect detail; dead proof link on the
+  closer Payments page → missing-file badge; printable statement
+  document overclaiming "Payment proof on file" → line omitted when the
+  blob is gone. One confirmed pre-existing tradeoff deliberately
+  ACCEPTED, not fixed: public /api/health disclosure (IMPLEMENTATION.md
+  note, Entry 018).
+- Verdict: PASS.

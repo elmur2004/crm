@@ -611,3 +611,35 @@ R23 copy sign-off — carried in PROGRESS (Entry 011).
 - Resolves: — (founder directives; no SPEC §11 A-#. Refines ADR-008;
   supersedes ADR-025's auto-login-after-signup point.)
 - Status: Accepted (all founder-directed).
+
+## ADR-035 — 2026-08-11 — Uploads require a persistent volume; UPLOADS_DIR env selects the storage root
+- Context: Production incident 2026-08-11 — the founder clicked a
+  statement's proof link and got {"error":"File missing from storage"}.
+  Uploads were stored in `<cwd>/uploads` INSIDE the app container; the
+  hosting platform rebuilds the container on every deploy, wiping every
+  uploaded file (payment proofs, CVs, recordings, proposal/contract
+  PDFs), while the external Postgres kept the attachment rows — so the
+  UI kept linking blobs that no longer existed.
+- Decision: keep the local-disk storage driver behind the existing
+  storage abstraction; the storage root now honors the UPLOADS_DIR env
+  (default `<cwd>/uploads` unchanged; helpers uploadsDir() /
+  uploadsDirConfigured() in src/lib/storage/index.ts). Missing files
+  are surfaced instead of dead-linked: /api/health gained an `uploads`
+  diagnostic section (dir path, persistentDirConfigured, writable
+  probe, missing-attachment scan), services return per-proof fileOk
+  flags with missing-file UI states, and admins get re-upload/replace
+  paths (replaceStatementProof, paid statements only, via
+  PUT /api/b-systems/statements/[id]/paid).
+- Alternatives considered: switching to object storage (S3-compatible)
+  — rejected for now: the storage abstraction already isolates the
+  driver, a persistent volume fixes durability with no new
+  infrastructure or credentials, and object storage stays available as
+  a future driver swap behind the same interface. Refusing to boot /
+  failing health hard when no persistent dir is configured — rejected:
+  the app must keep serving; health reports the gap instead.
+- Resolves: — (production incident response; no SPEC §11 A-#)
+- Consequences: the founder must attach a persistent volume on the host
+  and set UPLOADS_DIR to its mount path — until then EVERY redeploy
+  wipes uploads; backup exports (ADR-032) include file blobs and remain
+  the disaster-recovery path.
+- Status: Accepted

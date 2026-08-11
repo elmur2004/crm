@@ -573,3 +573,77 @@ comment, and the ADR-013 mechanism note all fixed; .env.example confirmed tracke
   backups securely; (f) production needs a DATABASE_URL (postgresql://…),
   `prisma migrate deploy` at boot, and a one-time seed for the admin
   account (ADR-033).
+
+## Entry 018 — 2026-08-11 — PRODUCTION INCIDENT: uploaded files lost on redeploy (code fixed; founder host action required)
+- Done: production incident fixed — founder clicked a statement's proof
+  link and got {"error":"File missing from storage"} (BUG-004, ADR-035).
+  Root cause: uploads lived in `<cwd>/uploads` INSIDE the app container;
+  the host rebuilds the container on every deploy, wiping all uploaded
+  files (payment proofs, CVs, recordings, proposal/contract PDFs), while
+  the external Postgres kept the attachment rows — the UI kept linking
+  blobs that no longer existed. Shipped: (1) src/lib/storage/index.ts —
+  storage root honors the UPLOADS_DIR env (default `<cwd>/uploads`
+  unchanged); exported uploadsDir()/uploadsDirConfigured(); the DURABLE
+  fix needs the founder host action below. (2)
+  src/lib/services/statements.ts — NEW replaceStatementProof() (paid
+  statements only; swaps the proof attachment; deletes old files after
+  commit; deletes the NEW file if the transaction fails so nothing
+  orphans; activity trigger "proof_replaced"); listStatements(),
+  paymentsFor(), statementDocument() now probe storage per proof and
+  return a fileOk flag. (3) PUT /api/b-systems/statements/[id]/paid =
+  replace proof (admin only). (4) Missing-file UI states: admin
+  Statements shows "proof file missing" + a Re-upload proof control
+  (plus a Replace proof control when the file is fine) — ReplaceProofForm
+  in src/components/bsystems/statements.tsx; the closer Payments page
+  shows "proof file missing — ask the admin to re-upload it" instead of
+  a dead link; the printable statement document omits its "Payment proof
+  on file" line when the blob is gone; partner prospect detail shows
+  "Recording file missing" instead of a dead audio/video player (probe
+  added in getProspectDetail). (5) src/app/api/files/[id]/route.ts —
+  browser navigations to a missing file get a styled standalone HTML
+  explanation page (what happened, how to fix); API/media requests keep
+  the JSON 404. (6) /api/health gained an `uploads` diagnostic section:
+  dir path, persistentDirConfigured, writable probe, scan of up to 500
+  attachments counting files missing from storage (sample shows opaque
+  storage keys only, never filenames — the endpoint is public), hints
+  instructing the persistent-volume setup; `ok` now also requires
+  uploads writable (missing files alone do not flip it). Verified: tsc
+  clean, vitest 84/84, next build clean, Playwright 16 passed / 2
+  audit-opt-in skipped — TESTING Run 021 — including an 18-agent
+  adversarial review (3 lenses × verify) whose confirmed findings were
+  all fixed in-round (health filename leak → opaque keys; orphaned file
+  on failed replace tx → cleanup catch; silent broken recording players
+  → fileOk badge; dead proof link on closer Payments → badge; printable
+  document overclaiming a proof → line omitted) and one deliberately
+  ACCEPTED pre-existing tradeoff: the public /api/health disclosure
+  (noted in IMPLEMENTATION.md).
+- In progress: R23 portal marketing copy draft — still with the founder
+  for sign-off (carried from Entry 011).
+- Next steps: FIRST — the founder host action in item (g) below (attach
+  the persistent volume, set UPLOADS_DIR, redeploy, re-upload lost
+  proofs). Then the carried items: on copy approval, build the deferred
+  /portal landing sections (R23); obtain founder confirmation on Lama
+  Sans intermediate cuts (R5/A-13); founder to set a secure storage
+  routine for backup exports (ADR-032); change the admin password after
+  first production login (Entry 012 flag); production deploy per ADR-033
+  (Entry 014 item (f)).
+- Blockers: durable uploads are blocked on the founder host action —
+  until the persistent volume is mounted and UPLOADS_DIR set, EVERY
+  redeploy wipes uploads again (the code side is complete; nothing
+  further to build).
+- Needs founder confirmation: (g) NEW — URGENT ACTION (production
+  incident 2026-08-11, ADR-035/BUG-004): in the hosting panel attach
+  persistent storage (e.g. mount at /data/uploads), set env
+  UPLOADS_DIR=/data/uploads, redeploy, then re-upload the lost proof(s)
+  via Statements → Re-upload proof — check /api/health
+  `uploads.missingFiles` to see how many are gone. Carried: (a) Lama
+  Sans intermediate cuts (R5/A-13); (b) the portal marketing copy draft
+  (pending approval, R23); (c) the standing REQUIREMENTS-V2 [A] defaults
+  and the carried items thread — items (1)–(14), see Entries 001–009 —
+  except the V2 §8 auto-password default (superseded by the founder
+  directive in Entry 015); (d) password123 is a weak production
+  credential — change it after first production login (see Entry 012's
+  caveat on seed re-runs); (e) ADR-032 backup exports embed password
+  hashes and every uploaded file — store backups securely; (f)
+  production needs a DATABASE_URL (postgresql://…), `prisma migrate
+  deploy` at boot, and a one-time seed for the admin account (ADR-033).

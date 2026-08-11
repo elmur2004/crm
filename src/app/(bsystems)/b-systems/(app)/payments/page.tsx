@@ -65,20 +65,28 @@ export default async function PaymentsPage() {
                     <td>{s.expectedDate ? formatCairoDate(s.expectedDate) : "—"}</td>
                     <td>
                       {s.status === "paid" ? (
-                        <span className="text-brand-success">
-                          Paid{s.paidAt ? ` ${formatCairoDate(s.paidAt)}` : ""}
-                          {s.proofs[0] ? (
-                            <>
-                              {" · "}
-                              <a
-                                href={`/api/files/${s.proofs[0].id}`}
-                                className="text-brand-link underline underline-offset-2"
-                              >
-                                proof
-                              </a>
-                            </>
+                        <>
+                          <span className="text-brand-success">
+                            Paid{s.paidAt ? ` ${formatCairoDate(s.paidAt)}` : ""}
+                            {s.proofs[0]?.fileOk ? (
+                              <>
+                                {" · "}
+                                <a
+                                  href={`/api/files/${s.proofs[0].id}`}
+                                  className="text-brand-link underline underline-offset-2"
+                                >
+                                  proof
+                                </a>
+                              </>
+                            ) : null}
+                          </span>
+                          {s.proofs[0] && !s.proofs[0].fileOk ? (
+                            <span className="text-brand-danger text-xs">
+                              {" "}
+                              proof file missing — ask the admin to re-upload it
+                            </span>
                           ) : null}
-                        </span>
+                        </>
                       ) : (
                         <span className="text-brand-muted">Pending</span>
                       )}

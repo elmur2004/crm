@@ -1,5 +1,25 @@
 # Changelog — user-visible changes per phase/release
 
+## Uploads durability incident fix (2026-08-11)
+- Fixed the production incident "uploaded files lost on redeploy": links
+  to payment proofs, CVs, recordings, and proposal/contract PDFs no
+  longer dead-end after a redeploy wipes the container disk.
+- Missing files are now clearly flagged everywhere: the admin Statements
+  page shows "proof file missing" with a Re-upload proof control (and a
+  Replace proof control when the file is fine — paid statements only);
+  the closer Payments page says "proof file missing — ask the admin to
+  re-upload it" instead of a dead link; the printable statement omits
+  its "Payment proof on file" line when the file is gone; prospect
+  detail shows "Recording file missing" instead of a broken player.
+- Opening a missing file in the browser now shows a styled explanation
+  page (what happened, how to fix) instead of a raw error message.
+- /api/health now reports uploads diagnostics: storage path, whether a
+  persistent directory is configured, a writable check, and how many
+  attachment files are missing from storage.
+- Durable storage requires a one-time host setup: attach a persistent
+  volume and set UPLOADS_DIR to its mount path (ADR-035) — until then,
+  every redeploy wipes uploads again.
+
 ## Founder V4 round — Partnership CRM (2026-08-11)
 - Partnership CRM board is now draggable like the main CRM: dropping a card
   opens the target stage's form in a modal (numbers, follow-up, meeting,

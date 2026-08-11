@@ -142,6 +142,71 @@ export function StatementGenerator({ row }: { row: WaitingRow }) {
   );
 }
 
+/** Re-upload the proof on a paid statement — shown when the stored file is
+    missing (lost in a redeploy) or the admin wants to swap it. */
+export function ReplaceProofForm({
+  statementId,
+  label = "Replace proof",
+}: {
+  statementId: string;
+  label?: string;
+}) {
+  const router = useRouter();
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  if (!open) {
+    return (
+      <button type="button" onClick={() => setOpen(true)} className="btn-ghost btn--sm">
+        {label}
+      </button>
+    );
+  }
+  return (
+    <form
+      onSubmit={async (e) => {
+        e.preventDefault();
+        const proof = fileRef.current?.files?.[0];
+        if (!proof) return;
+        const fd = new FormData();
+        fd.append("proof", proof);
+        setBusy(true);
+        setError(null);
+        const res = await fetch(`/api/b-systems/statements/${statementId}/paid`, {
+          method: "PUT",
+          body: fd,
+        });
+        setBusy(false);
+        if (!res.ok) {
+          const data = (await res.json().catch(() => null)) as { error?: string } | null;
+          setError(data?.error ?? "Upload failed");
+          return;
+        }
+        setOpen(false);
+        router.refresh();
+      }}
+      className="flex items-center gap-2 flex-wrap"
+    >
+      {error ? <p className="text-xs text-brand-danger w-full">{error}</p> : null}
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/png,image/jpeg,image/webp"
+        required
+        aria-label="New payment proof image"
+        className="text-xs"
+      />
+      <button type="submit" disabled={busy} className="btn-primary btn--sm">
+        Save proof
+      </button>
+      <button type="button" onClick={() => setOpen(false)} className="btn-ghost btn--sm">
+        Cancel
+      </button>
+    </form>
+  );
+}
+
 export function MarkPaidForm({ statementId }: { statementId: string }) {
   const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);

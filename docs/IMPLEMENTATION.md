@@ -414,3 +414,45 @@ _Format per module:_
 - Limitations / gotchas: any new E2E assertion against an animated number
   must reuse the settle-poll pattern — a single immediate read is a flake.
 - Last updated: 2026-08-10 (Entry 016, TESTING Run 019)
+
+## Uploads storage root — UPLOADS_DIR + Turbopack dynamic-fs build warnings
+- Location: src/lib/storage/index.ts (uploadsDir(),
+  uploadsDirConfigured()); consumed by the services layer and
+  /api/health.
+- What exists / how it works: the local-disk storage root honors the
+  UPLOADS_DIR env (default `<cwd>/uploads` unchanged). The host's
+  container filesystem is EPHEMERAL — every redeploy rebuilds the
+  container and wipes `<cwd>/uploads` (the 2026-08-11 incident,
+  BUG-004/ADR-035). Durability requires a persistent volume on the host
+  with UPLOADS_DIR pointing at its mount path; /api/health's `uploads`
+  section reports the dir path, persistentDirConfigured, a writable
+  probe, and a missing-attachment count.
+- Limitations / gotchas: (1) the env-dependent path makes the uploads
+  module opaque to Turbopack's static analysis, so `next build` now
+  emits "dynamic filesystem access" warnings — BENIGN for our
+  `next start` container deploys (no standalone output tracing in use);
+  do not chase them, revisit only if the deploy model ever moves to
+  `output: 'standalone'`. (2) Missing blobs are surfaced via fileOk
+  flags but attachment rows are NEVER auto-deleted — the rows are the
+  re-upload worklist.
+- Last updated: 2026-08-11 (Entry 018, ADR-035)
+
+## /api/health — public disclosure tradeoff (ACCEPTED)
+- Location: src/app/api/health/route.ts.
+- What exists / how it works: /api/health is PUBLIC and disclosing by
+  design — it is the founder-required self-healing diagnostic from the
+  production login-incident round (that round predates this note and has
+  no PROGRESS entry; this is its first logged record). It exposes
+  first-line DB error text and admin-account status; the 2026-08-11
+  18-agent adversarial review confirmed the disclosure and it is
+  deliberately ACCEPTED, not fixed. The new `uploads` section scans up
+  to 500 attachments and reports a missing-file count whose sample shows
+  OPAQUE storage keys only — never filenames (filenames carry
+  client/candidate names and the endpoint is public; the review caught
+  and fixed an initial filename leak before ship). `ok` requires the DB
+  plus a writable uploads dir; missing upload files alone do not flip
+  `ok`.
+- Limitations / gotchas: every future health addition must keep the
+  no-filenames / no-secrets rule; locking the endpoint down would
+  reverse a founder requirement and needs a new ADR.
+- Last updated: 2026-08-11 (Entry 018, TESTING Run 021)

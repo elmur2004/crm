@@ -209,7 +209,11 @@ export async function ProspectDetailBody({ prospectId }: { prospectId: string })
                 {prospect.recordings.map((r) => (
                   <li key={r.id} className="text-sm border border-brand-border rounded-brand-control p-3">
                     <p className="td-mono mb-1.5">{r.filename}</p>
-                    {r.mime.startsWith("video/") ? (
+                    {!r.fileOk ? (
+                      <p className="text-brand-danger text-xs">
+                        Recording file missing — it was lost in a redeploy. Upload it again below.
+                      </p>
+                    ) : r.mime.startsWith("video/") ? (
                       // eslint-disable-next-line jsx-a11y/media-has-caption
                       <video controls preload="metadata" className="w-full rounded-brand-control" src={`/api/files/${r.id}`} />
                     ) : (

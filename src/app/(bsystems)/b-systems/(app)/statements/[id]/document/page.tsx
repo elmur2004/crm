@@ -149,7 +149,7 @@ export default async function StatementDocumentPage({
             {s.status === "paid" && s.paidAt ? (
               <p className="print-party-line">Paid on {formatCairoDate(s.paidAt)}</p>
             ) : null}
-            {s.proofs[0] ? (
+            {s.proofs[0]?.fileOk ? (
               <p className="print-party-line">Payment proof on file ({s.proofs[0].filename})</p>
             ) : null}
           </div>

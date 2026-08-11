@@ -88,7 +88,16 @@ export async function getProspectDetail(prospectId: string) {
     where: { entityType: "partner_prospect", entityId: prospectId },
     orderBy: { createdAt: "desc" },
   });
-  return { prospect, history };
+  /* Probe each recording against storage — a wiped file renders as a
+     "missing" note instead of a dead player (same pattern as statements). */
+  const { storage } = await import("@/lib/storage");
+  const recordings = await Promise.all(
+    prospect.recordings.map(async (r) => ({
+      ...r,
+      fileOk: (await storage.size(r.storageKey).catch(() => null)) !== null,
+    })),
+  );
+  return { prospect: { ...prospect, recordings }, history };
 }
 
 export async function updateProspect(
