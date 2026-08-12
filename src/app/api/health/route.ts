@@ -11,6 +11,29 @@ import { storage, uploadsDir, uploadsDirConfigured } from "@/lib/storage";
 
 export const dynamic = "force-dynamic";
 
+/* One migrate-deploy at a time; concurrent health hits wait on the same run. */
+let migrateInFlight: Promise<{ ok: boolean; output: string }> | null = null;
+
+function runMigrateDeploy(): Promise<{ ok: boolean; output: string }> {
+  migrateInFlight ??= (async () => {
+    try {
+      const { spawnSync } = await import("node:child_process");
+      const result = spawnSync("npx", ["prisma", "migrate", "deploy"], {
+        encoding: "utf-8",
+        shell: process.platform === "win32",
+        timeout: 90_000,
+      });
+      const output = `${result.stdout ?? ""}\n${result.stderr ?? ""}`.trim();
+      return { ok: result.status === 0, output };
+    } catch (e) {
+      return { ok: false, output: e instanceof Error ? e.message : String(e) };
+    } finally {
+      migrateInFlight = null;
+    }
+  })();
+  return migrateInFlight;
+}
+
 export async function GET(req: Request) {
   const hints: string[] = [];
 
@@ -51,15 +74,31 @@ export async function GET(req: Request) {
   }
 
   /* ---- schema (the newest column must exist) ---- */
-  let schemaCurrent = false;
-  if (dbReachable) {
+  async function schemaProbe(): Promise<boolean> {
     try {
       await db.user.findFirst({ select: { registrationStatus: true } });
-      schemaCurrent = true;
+      return true;
     } catch {
-      hints.push(
-        "Schema is NOT migrated — run `npx prisma migrate deploy` in the container (the start script attempts this; check its [start] log lines).",
-      );
+      return false;
+    }
+  }
+  let schemaCurrent = false;
+  let migrateRan: { ok: boolean; output: string } | null = null;
+  if (dbReachable) {
+    schemaCurrent = await schemaProbe();
+    if (!schemaCurrent) {
+      /* SELF-HEAL (founder rebuilt the DB): apply the committed migrations
+         right here — same command the boot script runs. Idempotent; applies
+         only migrations from prisma/migrations. */
+      migrateRan = await runMigrateDeploy();
+      schemaCurrent = await schemaProbe();
+      if (schemaCurrent) {
+        hints.push("Schema was missing — migrations were applied JUST NOW. Retry your sign-in.");
+      } else {
+        hints.push(
+          `Schema is NOT migrated and applying it here failed: ${migrateRan.output.slice(0, 300)} — check DATABASE_URL and the database user's CREATE permission, then restart the app.`,
+        );
+      }
     }
   }
 
