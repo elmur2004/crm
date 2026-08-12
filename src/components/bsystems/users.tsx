@@ -3,15 +3,18 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { btnGhost, btnPrimary, inputCls, labelCls } from "@/components/portal/groupForms";
+import { tFor } from "@/lib/i18n/core";
+import { useLocale } from "@/components/shared/LocaleProvider";
+import { assignableRoleLabels, common, usersAdmin as d } from "@/lib/i18n/dict/admin";
 
 /* V2 §2.10 — admin user management widgets. */
 
-const ASSIGNABLE_ROLES: Array<{ role: string; label: string }> = [
-  { role: "bsystems_admin", label: "B-Systems admin" },
-  { role: "bsystems_sales", label: "B-Systems internal sales" },
-  { role: "bsystems_agent", label: "B-Systems agent" },
-  { role: "bsystems_partner", label: "B-Systems partner" },
-  { role: "byteforce_staff", label: "ByteForce staff" },
+const ASSIGNABLE_ROLES = [
+  "bsystems_admin",
+  "bsystems_sales",
+  "bsystems_agent",
+  "bsystems_partner",
+  "byteforce_staff",
 ];
 
 /* Founder V4 — full admin editor per user: identity, identifiers, roles, and
@@ -31,6 +34,7 @@ export function EditUserButton({
   isBootstrapAdmin?: boolean;
 }) {
   const router = useRouter();
+  const t = tFor(useLocale());
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -46,7 +50,7 @@ export function EditUserButton({
         }}
         className="btn-ghost btn--sm"
       >
-        Edit
+        {t(d.edit)}
       </button>
     );
   }
@@ -55,10 +59,10 @@ export function EditUserButton({
       <div className="modal">
         <div className="modal-head">
           <div>
-            <p className="modal-eyebrow">Users · Edit</p>
+            <p className="modal-eyebrow">{t(d.modalEyebrowEdit)}</p>
             <p className="modal-title">{user.name}</p>
           </div>
-          <button type="button" className="modal-close" aria-label="Close" onClick={() => setOpen(false)}>
+          <button type="button" className="modal-close" aria-label={t(d.closeAria)} onClick={() => setOpen(false)}>
             ✕
           </button>
         </div>
@@ -83,7 +87,7 @@ export function EditUserButton({
             setBusy(false);
             if (!res.ok) {
               const data = (await res.json().catch(() => null)) as { error?: string } | null;
-              setError(data?.error ?? "Something went wrong");
+              setError(data?.error ?? t(common.somethingWentWrong));
               return;
             }
             setOpen(false);
@@ -95,24 +99,21 @@ export function EditUserButton({
             {error ? <p className="alert-error">{error}</p> : null}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <label className="block">
-                <span className={labelCls}>Name</span>
+                <span className={labelCls}>{t(d.fieldName)}</span>
                 <input type="text" name="name" required defaultValue={user.name} className={inputCls} />
               </label>
               <label className="block">
-                <span className={labelCls}>Email</span>
+                <span className={labelCls}>{t(d.fieldEmail)}</span>
                 <input type="email" name="email" defaultValue={user.email ?? ""} className={inputCls} />
               </label>
               <label className="block">
-                <span className={labelCls}>Phone</span>
+                <span className={labelCls}>{t(d.fieldPhone)}</span>
                 <input type="tel" name="phone" defaultValue={user.phone ?? ""} className={inputCls} />
               </label>
               <label className="block">
-                <span className={labelCls}>New password</span>
+                <span className={labelCls}>{t(d.fieldNewPassword)}</span>
                 {isBootstrapAdmin ? (
-                  <span className="field-hint block mt-1">
-                    The admin password is pinned — change it via the ADMIN_PASSWORD environment
-                    variable.
-                  </span>
+                  <span className="field-hint block mt-1">{t(d.pinnedPasswordHint)}</span>
                 ) : (
                   <>
                     <input
@@ -120,42 +121,42 @@ export function EditUserButton({
                       name="password"
                       minLength={8}
                       autoComplete="off"
-                      placeholder="Leave empty to keep the current one"
+                      placeholder={t(d.keepCurrentPlaceholder)}
                       className={inputCls}
                     />
-                    <span className="field-hint">Visible in the Password column once set.</span>
+                    <span className="field-hint">{t(d.visibleOnceSetHint)}</span>
                   </>
                 )}
               </label>
             </div>
             <fieldset>
-              <legend className={labelCls}>Access</legend>
+              <legend className={labelCls}>{t(d.accessLegend)}</legend>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
                 {ASSIGNABLE_ROLES.map((r) => (
-                  <label key={r.role} className="flex items-center gap-2 text-sm">
+                  <label key={r} className="flex items-center gap-2 text-sm">
                     <input
                       type="checkbox"
-                      checked={roles.includes(r.role)}
+                      checked={roles.includes(r)}
                       onChange={(e) =>
                         setRoles((prev) =>
-                          e.target.checked ? [...prev, r.role] : prev.filter((x) => x !== r.role),
+                          e.target.checked ? [...prev, r] : prev.filter((x) => x !== r),
                         )
                       }
                     />
-                    {r.label}
+                    {t(assignableRoleLabels[r])}
                   </label>
                 ))}
               </div>
             </fieldset>
           </div>
           <div className="modal-foot">
-            <span className="modal-foot-note">Changes apply immediately.</span>
+            <span className="modal-foot-note">{t(d.changesApply)}</span>
             <span className="flex gap-2">
               <button type="button" className={btnGhost} onClick={() => setOpen(false)}>
-                Cancel
+                {t(common.cancel)}
               </button>
               <button type="submit" disabled={busy || roles.length === 0} className={btnPrimary}>
-                Save user
+                {t(d.saveUser)}
               </button>
             </span>
           </div>
@@ -167,13 +168,14 @@ export function EditUserButton({
 
 export function CreateUserForm() {
   const router = useRouter();
+  const t = tFor(useLocale());
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   if (!open) {
     return (
       <button type="button" onClick={() => setOpen(true)} className={btnPrimary}>
-        Add user
+        {t(d.addUser)}
       </button>
     );
   }
@@ -182,7 +184,7 @@ export function CreateUserForm() {
       onSubmit={async (e) => {
         e.preventDefault();
         const fd = new FormData(e.currentTarget);
-        const roles = ASSIGNABLE_ROLES.map((r) => r.role).filter((r) => fd.get(`role-${r}`) === "on");
+        const roles = ASSIGNABLE_ROLES.filter((r) => fd.get(`role-${r}`) === "on");
         setBusy(true);
         setError(null);
         const res = await fetch("/api/b-systems/users", {
@@ -199,7 +201,7 @@ export function CreateUserForm() {
         setBusy(false);
         if (!res.ok) {
           const data = (await res.json().catch(() => null)) as { error?: string } | null;
-          setError(data?.error ?? "Something went wrong");
+          setError(data?.error ?? t(common.somethingWentWrong));
           return;
         }
         setOpen(false);
@@ -207,43 +209,43 @@ export function CreateUserForm() {
       }}
       className="card card-pad space-y-3 w-full max-w-xl"
     >
-      <p className="u-h3">New user</p>
+      <p className="u-h3">{t(d.newUser)}</p>
       {error ? <p className="alert-error">{error}</p> : null}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <label className="field">
-          <span className={labelCls}>Name</span>
+          <span className={labelCls}>{t(d.fieldName)}</span>
           <input type="text" name="name" required className={inputCls} />
         </label>
         <label className="field">
-          <span className={labelCls}>Email</span>
+          <span className={labelCls}>{t(d.fieldEmail)}</span>
           <input type="email" name="email" className={inputCls} />
         </label>
         <label className="field">
-          <span className={labelCls}>Phone</span>
+          <span className={labelCls}>{t(d.fieldPhone)}</span>
           <input type="tel" name="phone" className={inputCls} placeholder="01xxxxxxxxx" />
         </label>
         <label className="field">
-          <span className={labelCls}>Password (min 8)</span>
+          <span className={labelCls}>{t(d.fieldPasswordMin8)}</span>
           <input type="password" name="password" required minLength={8} className={inputCls} />
         </label>
       </div>
       <fieldset>
-        <legend className={labelCls}>Access</legend>
+        <legend className={labelCls}>{t(d.accessLegend)}</legend>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
           {ASSIGNABLE_ROLES.map((r) => (
-            <label key={r.role} className="flex items-center gap-2 text-sm">
-              <input type="checkbox" name={`role-${r.role}`} />
-              {r.label}
+            <label key={r} className="flex items-center gap-2 text-sm">
+              <input type="checkbox" name={`role-${r}`} />
+              {t(assignableRoleLabels[r])}
             </label>
           ))}
         </div>
       </fieldset>
       <div className="flex gap-2">
         <button type="submit" disabled={busy} className={btnPrimary}>
-          Create
+          {t(d.create)}
         </button>
         <button type="button" onClick={() => setOpen(false)} className={btnGhost}>
-          Cancel
+          {t(common.cancel)}
         </button>
       </div>
     </form>
@@ -252,6 +254,7 @@ export function CreateUserForm() {
 
 export function ActiveToggle({ userId, active }: { userId: string; active: boolean }) {
   const router = useRouter();
+  const t = tFor(useLocale());
   const [busy, setBusy] = useState(false);
   return (
     <button
@@ -273,7 +276,7 @@ export function ActiveToggle({ userId, active }: { userId: string; active: boole
           : "row-toggle row-toggle--restore disabled:opacity-50"
       }
     >
-      {active ? "Remove" : "Reactivate"}
+      {active ? t(d.remove) : t(d.reactivate)}
     </button>
   );
 }

@@ -1,14 +1,18 @@
 import { formatCairo } from "@/lib/datetime";
-import { STAGE_LABELS } from "@/lib/pipeline-engine/constants";
+import { tFor } from "@/lib/i18n/core";
+import type { Msg } from "@/lib/i18n/core";
+import { getLocale } from "@/lib/i18n/server";
+import { stageLabel } from "@/lib/i18n/dict/labels";
+import { history } from "@/lib/i18n/dict/internal";
 
 /* §5.6 — the card's History panel: actor, timestamp, from → to, trigger.
    Where SPEC prescribes exact History wording, the trigger maps to that phrase. */
 
-const TRIGGER_PHRASES: Record<string, string> = {
-  "PP-2": "Returned to Lead — new number added", // §7.2 / §10.2 normative wording
+const TRIGGER_PHRASES: Record<string, Msg> = {
+  "PP-2": history.returnedToLead, // §7.2 / §10.2 normative wording
 };
 
-export function HistoryPanel({
+export async function HistoryPanel({
   entries,
 }: {
   entries: Array<{
@@ -21,8 +25,10 @@ export function HistoryPanel({
     createdAt: Date;
   }>;
 }) {
+  const locale = await getLocale();
+  const t = tFor(locale);
   if (entries.length === 0) {
-    return <p className="empty">No history yet.</p>;
+    return <p className="empty">{t(history.noHistoryYet)}</p>;
   }
   return (
     <ol>
@@ -35,18 +41,18 @@ export function HistoryPanel({
             <span className="tl-time">{formatCairo(e.createdAt)}</span>
             <span>{e.actorLabel}</span>
             {TRIGGER_PHRASES[e.trigger] ? (
-              <span className="tl-pill">{TRIGGER_PHRASES[e.trigger]}</span>
+              <span className="tl-pill">{t(TRIGGER_PHRASES[e.trigger])}</span>
             ) : null}
             <span>
-              {e.action === "auto_transfer" ? "auto-moved" : e.action.replace(/_/g, " ")}
+              {history.actions[e.action] ? t(history.actions[e.action]) : e.action.replace(/_/g, " ")}
               {e.fromStage || e.toStage ? (
                 <>
                   {": "}
-                  {e.fromStage ? (STAGE_LABELS[e.fromStage] ?? e.fromStage) : "—"}
+                  {e.fromStage ? stageLabel(locale, e.fromStage) : "—"}
                   <span className="inline-block rtl:-scale-x-100" aria-hidden>
                     {" → "}
                   </span>
-                  {e.toStage ? (STAGE_LABELS[e.toStage] ?? e.toStage) : "—"}
+                  {e.toStage ? stageLabel(locale, e.toStage) : "—"}
                 </>
               ) : (
                 ""

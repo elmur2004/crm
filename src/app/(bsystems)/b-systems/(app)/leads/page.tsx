@@ -3,13 +3,11 @@ import { redirect } from "next/navigation";
 import { requirePageRole } from "@/lib/auth/page-guards";
 import { bsRoleOf } from "@/lib/api/bsystems";
 import { listBsLeads } from "@/lib/services/bsystems-admin";
-import {
-  LEAD_TYPE_LABELS,
-  OWNER_TYPE_LABELS,
-  type LeadType,
-  type OwnerType,
-} from "@/lib/pipeline-engine/constants";
 import { formatCairoDate } from "@/lib/datetime";
+import { tFor, type Msg } from "@/lib/i18n/core";
+import { getLocale } from "@/lib/i18n/server";
+import { leadTypeLabel, ownerTypeLabel } from "@/lib/i18n/dict/labels";
+import { common, leadsPage as m, ownerFilters } from "@/lib/i18n/dict/crm";
 import { StageBadge } from "@/components/shared/StageBadge";
 import { BsAddLeadForm } from "@/components/bsystems/leadActions";
 
@@ -19,12 +17,12 @@ export const metadata = { title: "Leads — B-Systems CRM" };
    (Internal / Agents / Partners / Admins / Any). Admin-added leads land in the
    admin bucket (the API buckets by role). Edit/copy/delete live on the detail. */
 
-const FILTERS: Array<{ key: string; label: string }> = [
-  { key: "any", label: "Any" },
-  { key: "internal", label: "Internal" },
-  { key: "agent", label: "Agents" },
-  { key: "partner", label: "Partners" },
-  { key: "admin", label: "Admins" },
+const FILTERS: Array<{ key: string; label: Msg }> = [
+  { key: "any", label: ownerFilters.any },
+  { key: "internal", label: ownerFilters.internal },
+  { key: "agent", label: ownerFilters.agent },
+  { key: "partner", label: ownerFilters.partner },
+  { key: "admin", label: ownerFilters.admin },
 ];
 
 export default async function BsLeadsPage({
@@ -41,6 +39,8 @@ export default async function BsLeadsPage({
   );
   if (bsRoleOf(user) !== "bsystems_admin") redirect("/b-systems/crm");
 
+  const locale = await getLocale();
+  const t = tFor(locale);
   const { owner } = await searchParams;
   const filter = FILTERS.some((f) => f.key === owner) ? owner : "any";
   const leads = await listBsLeads(filter);
@@ -49,14 +49,14 @@ export default async function BsLeadsPage({
     <div className="space-y-6">
       <div className="page-head">
         <div>
-          <p className="u-eyebrow">B-SYSTEMS · LEADS</p>
-          <h1 className="u-h1">Leads</h1>
+          <p className="u-eyebrow">{t(m.eyebrow)}</p>
+          <h1 className="u-h1">{t(m.title)}</h1>
         </div>
         <div className="page-actions">
           <BsAddLeadForm />
         </div>
       </div>
-      <nav className="flex gap-1 flex-wrap" aria-label="Owner filter">
+      <nav className="flex gap-1 flex-wrap" aria-label={t(common.ownerFilter)}>
         {FILTERS.map((f) => (
           <Link
             key={f.key}
@@ -64,25 +64,25 @@ export default async function BsLeadsPage({
             className="nav-item"
             aria-current={filter === f.key ? "page" : undefined}
           >
-            {f.label}
+            {t(f.label)}
           </Link>
         ))}
       </nav>
       {leads.length === 0 ? (
-        <p className="empty">No leads in this bucket yet.</p>
+        <p className="empty">{t(m.empty)}</p>
       ) : (
         <div className="card card--flush0">
           <div className="table-scroll">
             <table className="table">
               <thead>
                 <tr>
-                  <th>Name</th>
-                  <th>Number</th>
-                  <th>Company</th>
-                  <th>Owner</th>
-                  <th>Type</th>
-                  <th>Stage</th>
-                  <th>Created</th>
+                  <th>{t(common.name)}</th>
+                  <th>{t(common.number)}</th>
+                  <th>{t(common.company)}</th>
+                  <th>{t(common.owner)}</th>
+                  <th>{t(common.type)}</th>
+                  <th>{t(common.stage)}</th>
+                  <th>{t(common.created)}</th>
                 </tr>
               </thead>
               <tbody>
@@ -97,14 +97,14 @@ export default async function BsLeadsPage({
                     <td>{lead.companyName ?? "—"}</td>
                     <td>
                       <span className="owner-chip" data-owner-key={lead.ownerType}>
-                        {OWNER_TYPE_LABELS[lead.ownerType as OwnerType] ?? lead.ownerType}
+                        {ownerTypeLabel(locale, lead.ownerType)}
                         {lead.owner ? ` · ${lead.owner.name}` : ""}
                         {lead.partner ? ` · ${lead.partner.companyName}` : ""}
                       </span>
                     </td>
                     <td>
                       <span className="chip-outline">
-                        {LEAD_TYPE_LABELS[lead.type as LeadType] ?? lead.type}
+                        {leadTypeLabel(locale, lead.type)}
                       </span>
                     </td>
                     <td>

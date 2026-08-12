@@ -5,10 +5,13 @@ import { useRouter } from "next/navigation";
 import {
   FOLLOW_UP_METHODS,
   MEETING_MODES,
-  STAGE_LABELS,
 } from "@/lib/pipeline-engine/constants";
 import { internalCrmConfig } from "@/lib/pipeline-engine/configs/internal-crm";
 import { toPiasters, toPounds } from "@/lib/money";
+import { tFor } from "@/lib/i18n/core";
+import { useLocale } from "@/components/shared/LocaleProvider";
+import { stageLabel } from "@/lib/i18n/dict/labels";
+import { common, events } from "@/lib/i18n/dict/internal";
 
 /* §6.1/§6.2 — selecting a Next Action opens exactly that stage's field group right
    here; submitting fires ONE mutation (event + group payload). Cancel = nothing
@@ -23,30 +26,31 @@ const btnPrimary = "btn-primary";
 const btnGhost = "btn-ghost";
 
 function FollowUpFields({ reps }: { reps: Rep[] }) {
+  const t = tFor(useLocale());
   return (
     <>
       <div className="grid grid-cols-2 gap-3">
         <label className="block">
-          <span className={labelCls}>Follow-up date</span>
+          <span className={labelCls}>{t(events.followUpDate)}</span>
           <input type="date" name="date" required className={inputCls} />
         </label>
         <label className="block">
-          <span className={labelCls}>Follow-up time</span>
+          <span className={labelCls}>{t(events.followUpTime)}</span>
           <input type="time" name="time" required className={inputCls} />
         </label>
       </div>
       <label className="block">
-        <span className={labelCls}>Method</span>
+        <span className={labelCls}>{t(events.method)}</span>
         <select name="method" required className={inputCls}>
           {FOLLOW_UP_METHODS.map((m) => (
             <option key={m} value={m}>
-              {m === "call" ? "Call" : m === "message" ? "Message" : "Visit"}
+              {m === "call" ? t(common.call) : m === "message" ? t(common.message) : t(common.visit)}
             </option>
           ))}
         </select>
       </label>
       <label className="block">
-        <span className={labelCls}>Owner</span>
+        <span className={labelCls}>{t(events.owner)}</span>
         <select name="ownerSalesRepId" className={inputCls}>
           <option value="">—</option>
           {reps.map((r) => (
@@ -57,8 +61,8 @@ function FollowUpFields({ reps }: { reps: Rep[] }) {
         </select>
       </label>
       <label className="block">
-        <span className={labelCls}>Following up with</span>
-        <input type="text" name="followingUpWith" className={inputCls} placeholder="Contact person" />
+        <span className={labelCls}>{t(events.followingUpWith)}</span>
+        <input type="text" name="followingUpWith" className={inputCls} placeholder={t(events.contactPerson)} />
       </label>
     </>
   );
@@ -78,6 +82,7 @@ function followUpFromForm(fd: FormData) {
 }
 
 function MeetingFields({ arranged, setArranged, reps }: { arranged: boolean; setArranged: (v: boolean) => void; reps: Rep[] }) {
+  const t = tFor(useLocale());
   return (
     <>
       <label className="flex items-center gap-2">
@@ -87,42 +92,42 @@ function MeetingFields({ arranged, setArranged, reps }: { arranged: boolean; set
           checked={arranged}
           onChange={(e) => setArranged(e.target.checked)}
         />
-        <span className="text-sm font-medium">Arranged?</span>
+        <span className="text-sm font-medium">{t(events.arranged)}</span>
       </label>
       {arranged ? (
         <>
           <div className="grid grid-cols-2 gap-3">
             <label className="block">
-              <span className={labelCls}>Date</span>
+              <span className={labelCls}>{t(events.date)}</span>
               <input type="date" name="date" required className={inputCls} />
             </label>
             <label className="block">
-              <span className={labelCls}>Time</span>
+              <span className={labelCls}>{t(events.time)}</span>
               <input type="time" name="time" required className={inputCls} />
             </label>
           </div>
           <label className="block">
-            <span className={labelCls}>Mode</span>
+            <span className={labelCls}>{t(events.mode)}</span>
             <select name="mode" required className={inputCls}>
               {MEETING_MODES.map((m) => (
                 <option key={m} value={m}>
-                  {m === "online" ? "Online" : "Offline"}
+                  {m === "online" ? t(common.online) : t(common.offline)}
                 </option>
               ))}
             </select>
           </label>
           <label className="block">
-            <span className={labelCls}>With</span>
-            <input type="text" name="withAttendees" className={inputCls} placeholder="Attendees" />
+            <span className={labelCls}>{t(events.withLabel)}</span>
+            <input type="text" name="withAttendees" className={inputCls} placeholder={t(events.attendees)} />
           </label>
           <label className="block">
-            <span className={labelCls}>Technical support</span>
+            <span className={labelCls}>{t(events.technicalSupport)}</span>
             <input
               type="text"
               name="technicalSupport"
               list="rep-names"
               className={inputCls}
-              placeholder="Name or rep"
+              placeholder={t(events.nameOrRep)}
             />
             <datalist id="rep-names">
               {reps.map((r) => (
@@ -151,18 +156,19 @@ function meetingFromForm(fd: FormData, arranged: boolean) {
 }
 
 function ProposalFields() {
+  const t = tFor(useLocale());
   return (
     <>
       <label className="block">
-        <span className={labelCls}>Service</span>
+        <span className={labelCls}>{t(common.service)}</span>
         <input type="text" name="service" required className={inputCls} />
       </label>
       <label className="block">
-        <span className={labelCls}>Estimated value (EGP)</span>
+        <span className={labelCls}>{t(events.estimatedValueEgp)}</span>
         <input type="number" name="estimatedValue" min="0" step="0.01" className={inputCls} />
       </label>
       <p className="field-hint">
-        Save the proposal, then use “Mark as sent” — sending moves the card automatically.
+        {t(events.proposalHint)}
       </p>
     </>
   );
@@ -181,19 +187,21 @@ function proposalFromForm(fd: FormData) {
 }
 
 function LostFields() {
+  const t = tFor(useLocale());
   return (
     <label className="block">
-      <span className={labelCls}>Reason (required)</span>
+      <span className={labelCls}>{t(events.reasonRequired)}</span>
       <textarea name="reason" required rows={3} className={inputCls} />
     </label>
   );
 }
 
 function WonFields({ prefillValue }: { prefillValue: number | null }) {
+  const t = tFor(useLocale());
   return (
     <>
       <label className="block">
-        <span className={labelCls}>Estimated value (EGP)</span>
+        <span className={labelCls}>{t(events.estimatedValueEgp)}</span>
         <input
           type="number"
           name="estimatedValue"
@@ -205,11 +213,11 @@ function WonFields({ prefillValue }: { prefillValue: number | null }) {
         />
       </label>
       <label className="block">
-        <span className={labelCls}>Technical owner</span>
+        <span className={labelCls}>{t(common.technicalOwner)}</span>
         <input type="text" name="technicalOwner" required className={inputCls} />
       </label>
       <label className="block">
-        <span className={labelCls}>Collected amount (EGP)</span>
+        <span className={labelCls}>{t(events.collectedAmountEgp)}</span>
         <input type="number" name="collectedAmount" min="0" step="0.01" required className={inputCls} />
       </label>
     </>
@@ -245,6 +253,8 @@ export function LeadEventPanel({
   pendingMeeting: boolean; // latest meeting exists with no outcome
 }) {
   const router = useRouter();
+  const locale = useLocale();
+  const t = tFor(locale);
   const [action, setAction] = useState<string>("");
   const [outcome, setOutcome] = useState<string>("");
   const [destination, setDestination] = useState<string>("");
@@ -271,7 +281,7 @@ export function LeadEventPanel({
     setBusy(false);
     if (!res.ok) {
       const data = (await res.json().catch(() => null)) as { error?: string } | null;
-      setError(data?.error ?? "Something went wrong");
+      setError(data?.error ?? t(common.somethingWentWrong));
       return;
     }
     setAction("");
@@ -302,7 +312,7 @@ export function LeadEventPanel({
   if (terminal) {
     return (
       <p className="empty">
-        This lead is {STAGE_LABELS[stage]} — no further actions.
+        {t(events.terminalPrefix)} {stageLabel(locale, stage)} {t(events.terminalSuffix)}
       </p>
     );
   }
@@ -318,9 +328,9 @@ export function LeadEventPanel({
       {/* §5.3: contextual auto-events for the current stage */}
       {stage === "sending_proposal" && hasUnsentProposal ? (
         <div className="border border-brand-border rounded-brand-card p-4 bg-brand-surface-tint">
-          <p className="u-h3 mb-2">Proposal ready — mark it as sent?</p>
+          <p className="u-h3 mb-2">{t(events.proposalReady)}</p>
           <p className="field-hint mb-3">
-            Sending moves this card to Following Up and opens the after-proposal follow-up.
+            {t(events.sendingMoves)}
           </p>
           <form
             onSubmit={(e) => {
@@ -332,10 +342,10 @@ export function LeadEventPanel({
             }}
             className="space-y-3"
           >
-            <p className="u-h3">Following up after proposal</p>
+            <p className="u-h3">{t(events.followingUpAfterProposal)}</p>
             <FollowUpFields reps={reps} />
             <button type="submit" disabled={busy} className={btnPrimary}>
-              Sent — move to Following Up
+              {t(events.sentMoveToFollowingUp)}
             </button>
           </form>
         </div>
@@ -343,12 +353,12 @@ export function LeadEventPanel({
 
       {stage === "meeting_setting" && pendingMeeting ? (
         <div className="border border-brand-border rounded-brand-card p-4 bg-brand-surface-tint">
-          <p className="u-h3 mb-2">Meeting outcome</p>
-          <select aria-label="Meeting outcome" value={outcome} onChange={(e) => { setOutcome(e.target.value); setDestination(""); }} className={inputCls}>
-            <option value="">Choose an outcome…</option>
-            <option value="attended">Attended</option>
-            <option value="cancelled">Cancelled</option>
-            <option value="delayed">Delayed</option>
+          <p className="u-h3 mb-2">{t(events.meetingOutcome)}</p>
+          <select aria-label={t(events.meetingOutcome)} value={outcome} onChange={(e) => { setOutcome(e.target.value); setDestination(""); }} className={inputCls}>
+            <option value="">{t(events.chooseOutcome)}</option>
+            <option value="attended">{t(events.attended)}</option>
+            <option value="cancelled">{t(events.cancelled)}</option>
+            <option value="delayed">{t(events.delayed)}</option>
           </select>
 
           {outcome === "delayed" ? (
@@ -366,13 +376,13 @@ export function LeadEventPanel({
               }}
               className="space-y-3 mt-3"
             >
-              <p className="field-hint">Delayed — set the new date &amp; time.</p>
+              <p className="field-hint">{t(events.delayedSetNew)}</p>
               <div className="grid grid-cols-2 gap-3">
                 <input type="date" name="date" required className={inputCls} />
                 <input type="time" name="time" required className={inputCls} />
               </div>
               <button type="submit" disabled={busy} className={btnPrimary}>
-                Save new date
+                {t(events.saveNewDate)}
               </button>
             </form>
           ) : null}
@@ -381,18 +391,18 @@ export function LeadEventPanel({
             <div className="mt-3 space-y-3">
               <label className="block">
                 <span className={labelCls}>
-                  {outcome === "attended" ? "Where does it go next?" : "Cancelled — follow up or lost?"}
+                  {outcome === "attended" ? t(events.whereNext) : t(events.cancelledFollowUpOrLost)}
                 </span>
                 <select
-                  aria-label="Destination"
+                  aria-label={t(events.destination)}
                   value={destination}
                   onChange={(e) => setDestination(e.target.value)}
                   className={inputCls}
                 >
-                  <option value="">Choose…</option>
+                  <option value="">{t(events.choose)}</option>
                   {(outcome === "attended" ? attendedDestinations : cancelledDestinations).map((d) => (
                     <option key={d} value={d}>
-                      {STAGE_LABELS[d]}
+                      {stageLabel(locale, d)}
                     </option>
                   ))}
                 </select>
@@ -410,7 +420,7 @@ export function LeadEventPanel({
                 >
                   {fieldsForTarget(destination)}
                   <button type="submit" disabled={busy} className={btnPrimary}>
-                    Confirm — move to {STAGE_LABELS[destination]}
+                    {t(events.confirmMoveTo)} {stageLabel(locale, destination)}
                   </button>
                 </form>
               ) : null}
@@ -422,16 +432,16 @@ export function LeadEventPanel({
       {/* §6.1 Next action */}
       <div>
         <label className="block">
-          <span className={labelCls}>Next action</span>
+          <span className={labelCls}>{t(events.nextAction)}</span>
           <select
             value={action}
             onChange={(e) => setAction(e.target.value)}
             className={inputCls}
           >
-            <option value="">Choose a next action…</option>
+            <option value="">{t(events.chooseNextAction)}</option>
             {nextActions.map((a) => (
               <option key={a} value={a}>
-                {STAGE_LABELS[a] ?? a}
+                {stageLabel(locale, a)}
               </option>
             ))}
           </select>
@@ -448,14 +458,14 @@ export function LeadEventPanel({
             }}
             className="card card-pad mt-3 space-y-3"
           >
-            <p className="u-h3">{STAGE_LABELS[action]}</p>
+            <p className="u-h3">{stageLabel(locale, action)}</p>
             {fieldsForTarget(action)}
             <div className="flex gap-2">
               <button type="submit" disabled={busy} className={btnPrimary}>
-                Save &amp; move
+                {t(events.saveAndMove)}
               </button>
               <button type="button" onClick={() => setAction("")} className={btnGhost}>
-                Cancel
+                {t(common.cancel)}
               </button>
             </div>
           </form>

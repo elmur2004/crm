@@ -1,5 +1,20 @@
 # Changelog — user-visible changes per phase/release
 
+## Arabic ⇄ English (2026-08-13)
+- The whole platform now speaks Arabic and English: an EN | عربي toggle
+  in both app headers (desktop and mobile) and on the login page
+  switches every single piece of content in the app — dashboards, CRM
+  boards, lead details, the team chat, won leads, statements (including
+  the printable statement document, which is bilingual), payments,
+  users, registrations, agents, profile, notifications, the partners
+  pipeline and directory, sign-up, and browser-tab titles.
+- Arabic renders fully right-to-left across every screen.
+- Your language choice is remembered per browser and holds across pages
+  and visits; English remains the default.
+- Known limits this round: error messages coming back from the server
+  (form validation and service errors) still appear in English, and a
+  few ByteForce browser-tab titles remain partly English.
+
 ## SSL audit (2026-08-12)
 - Security fix: clicking Log out could redirect to an insecure http://
   login page when the hosting proxy misreports the connection scheme —

@@ -516,3 +516,35 @@ _Format per module:_
   the host also fixes NextAuth secure-cookie selection when the proxy
   misreports proto (founder action, Entry 021 (h)).
 - Last updated: 2026-08-12 (Entry 021, BUG-005, TESTING Run 024)
+
+## Arabic ⇄ English i18n layer (founder full-translation directive)
+- Location: src/lib/i18n/ — core.ts (Locale en|ar, Msg {en,ar}, tFor,
+  dirFor, cookie name), server.ts (getLocale from cookie, default en),
+  actions.ts (setLocale server action); dictionary modules in
+  src/lib/i18n/dict/ (labels.ts, auth.ts, internal.ts, crm.ts, admin.ts,
+  partners.ts, chat.ts); LocaleProvider context + LanguageToggle chip
+  (both app headers — desktop .user cluster + mobile nav sheet — and
+  /login); all three root layouts stamp <html lang dir>; e2e coverage in
+  e2e/i18n.spec.ts.
+- What exists / how it works: hand-rolled, no library (ADR-037). A
+  user-visible string is a Msg = {en, ar}; server components resolve via
+  getLocale() + tFor, client components via the LocaleProvider context.
+  Dict module conventions: a string lives in the module matching its
+  surface (auth / internal / crm / admin / partners / chat); display
+  names for domain constants (stage, lead type, owner type) go through
+  the helpers in labels.ts — engine constants stay English in code, DB,
+  and API payloads, and translation happens ONLY at render. Browser-tab
+  titles localize via generateMetadata. Arabic is full RTL for free —
+  the design system is logical-properties-based.
+- Limitations / gotchas: IRON RULE for every future edit — EN output
+  must stay byte-identical: any NEW user-visible string must be added as
+  a Msg in the right dict module with the English text exactly as it
+  would have been hardcoded. This is what let the entire pre-existing
+  suite pass unchanged (TESTING Run 025) and is what keeps it meaningful
+  as a regression net. Server-side error strings (zod/service ApiError
+  messages surfaced in forms) are still English — translating them needs
+  an error-code scheme (Entry 022 item (i)). ByteForce thin-page
+  metadata titles are partly English. Terminology pending founder
+  review: "CRM" → "المبيعات", "Retainer" → "عقد دوري" (Entry 022 item
+  (j)).
+- Last updated: 2026-08-13 (Entry 022, ADR-037, TESTING Run 025)

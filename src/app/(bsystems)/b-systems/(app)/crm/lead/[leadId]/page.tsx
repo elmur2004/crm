@@ -5,13 +5,11 @@ import { requirePageRole } from "@/lib/auth/page-guards";
 import { requireLeadAccess } from "@/lib/auth/guards";
 import { getLeadDetail } from "@/lib/services/leads";
 import { listReps } from "@/lib/services/sales-reps";
-import {
-  LEAD_TYPE_LABELS,
-  OWNER_TYPE_LABELS,
-  type LeadType,
-  type OwnerType,
-} from "@/lib/pipeline-engine/constants";
 import { formatCairo } from "@/lib/datetime";
+import { tFor } from "@/lib/i18n/core";
+import { getLocale } from "@/lib/i18n/server";
+import { leadTypeLabel, ownerTypeLabel } from "@/lib/i18n/dict/labels";
+import { common, crmPage, leadDetail as m } from "@/lib/i18n/dict/crm";
 import { StageBadge } from "@/components/shared/StageBadge";
 import { GroupHistory } from "@/components/internal/GroupHistory";
 import { HistoryPanel } from "@/components/internal/HistoryPanel";
@@ -39,6 +37,8 @@ export default async function BsLeadDetailPage({
     "bsystems_agent",
     "bsystems_partner",
   );
+  const locale = await getLocale();
+  const t = tFor(locale);
   const { leadId } = await params;
 
   let access;
@@ -88,9 +88,9 @@ export default async function BsLeadDetailPage({
     <div className="space-y-6">
       <div className="page-head">
         <div>
-          <p className="u-eyebrow">B-SYSTEMS · CRM</p>
+          <p className="u-eyebrow">{t(crmPage.eyebrow)}</p>
           <Link href="/b-systems/crm" className="text-sm text-brand-muted underline underline-offset-2">
-            Back to the CRM board
+            {t(m.backToBoard)}
           </Link>
         </div>
         <div className="page-actions">
@@ -105,54 +105,54 @@ export default async function BsLeadDetailPage({
             {lead.name}
             <StageBadge stage={lead.stage} header />
             {lead.readyToClose ? (
-              <span className="badge badge--accent">Ready to close</span>
+              <span className="badge badge--accent">{t(common.readyToClose)}</span>
             ) : null}
           </h1>
         </div>
         <div className="fields-grid">
           <div className="fields-cell">
-            <p className="fields-label">Number:</p>
+            <p className="fields-label">{t(m.fieldNumber)}</p>
             <p className="fields-value">{lead.number}</p>
           </div>
           <div className="fields-cell">
-            <p className="fields-label">Email:</p>
+            <p className="fields-label">{t(m.fieldEmail)}</p>
             <p className="fields-value">{lead.email ?? "—"}</p>
           </div>
           <div className="fields-cell">
-            <p className="fields-label">Type:</p>
-            <p className="fields-value">{LEAD_TYPE_LABELS[lead.type as LeadType] ?? lead.type}</p>
+            <p className="fields-label">{t(m.fieldType)}</p>
+            <p className="fields-value">{leadTypeLabel(locale, lead.type)}</p>
           </div>
           <div className="fields-cell">
-            <p className="fields-label">Owner:</p>
+            <p className="fields-label">{t(m.fieldOwner)}</p>
             <p className="fields-value">
-              {OWNER_TYPE_LABELS[lead.ownerType as OwnerType] ?? lead.ownerType}
+              {ownerTypeLabel(locale, lead.ownerType)}
               {lead.salesRep ? ` · ${lead.salesRep.name}` : ""}
               {lead.partner ? ` · ${lead.partner.companyName}` : ""}
             </p>
           </div>
           {/* founder: EVERY creation field shows here, empty or not */}
           <div className="fields-cell">
-            <p className="fields-label">Position:</p>
+            <p className="fields-label">{t(m.fieldPosition)}</p>
             <p className="fields-value">{lead.position ?? "—"}</p>
           </div>
           <div className="fields-cell">
-            <p className="fields-label">Company:</p>
+            <p className="fields-label">{t(m.fieldCompany)}</p>
             <p className="fields-value">{lead.companyName ?? "—"}</p>
           </div>
           <div className="fields-cell">
-            <p className="fields-label">Industry:</p>
+            <p className="fields-label">{t(m.fieldIndustry)}</p>
             <p className="fields-value">{lead.industry ?? "—"}</p>
           </div>
           <div className="fields-cell">
-            <p className="fields-label">Date created:</p>
+            <p className="fields-label">{t(m.fieldDateCreated)}</p>
             <p className="fields-value">{formatCairo(lead.createdAt)}</p>
           </div>
           <div className="fields-cell">
-            <p className="fields-label">Requirements:</p>
+            <p className="fields-label">{t(m.fieldRequirements)}</p>
             <p className="fields-value whitespace-pre-wrap">{lead.requirements ?? "—"}</p>
           </div>
           <div className="fields-cell">
-            <p className="fields-label">Notes:</p>
+            <p className="fields-label">{t(m.fieldNotes)}</p>
             <p className="fields-value whitespace-pre-wrap">{lead.description ?? "—"}</p>
           </div>
         </div>
@@ -166,7 +166,7 @@ export default async function BsLeadDetailPage({
 
           <div className="card card--flush0">
             <div className="card-head">
-              <h2 className="u-h3">Next action</h2>
+              <h2 className="u-h3">{t(common.nextAction)}</h2>
             </div>
             <div className="card-pad">
               <BsEventPanel
@@ -186,12 +186,12 @@ export default async function BsLeadDetailPage({
           {wonDeal ? (
             <div className="card card--flush0 text-sm">
               <div className="card-head">
-                <h2 className="u-h3">Won deal</h2>
+                <h2 className="u-h3">{t(m.wonDeal)}</h2>
               </div>
               <div className="card-pad">
                 <p>
-                  {wonDeal.milestones.filter((m) => m.completed).length}/{wonDeal.milestones.length}{" "}
-                  milestones completed
+                  {wonDeal.milestones.filter((ms) => ms.completed).length}/{wonDeal.milestones.length}{" "}
+                  {t(m.milestonesCompleted)}
                   {access.isAdmin ? (
                     <>
                       {" — "}
@@ -199,7 +199,7 @@ export default async function BsLeadDetailPage({
                         href={`/b-systems/won-leads/${wonDeal.id}`}
                         className="text-brand-link underline underline-offset-2"
                       >
-                        open in Won Leads
+                        {t(m.openInWonLeads)}
                       </Link>
                     </>
                   ) : null}
@@ -220,7 +220,7 @@ export default async function BsLeadDetailPage({
           {negotiationNotes.length > 0 ? (
             <div className="card card--flush0">
               <div className="card-head">
-                <h2 className="u-h3">Negotiation notes</h2>
+                <h2 className="u-h3">{t(m.negotiationNotes)}</h2>
               </div>
               <div className="card-pad">
                 <ul className="space-y-2 text-sm">
@@ -235,7 +235,7 @@ export default async function BsLeadDetailPage({
             </div>
           ) : null}
           <div>
-            <h2 className="u-h3 mb-2">Stage records</h2>
+            <h2 className="u-h3 mb-2">{t(m.stageRecords)}</h2>
             <GroupHistory
               followUps={lead.followUps}
               meetings={lead.meetings}
@@ -246,7 +246,7 @@ export default async function BsLeadDetailPage({
           </div>
           <div className="card card--flush0">
             <div className="card-head">
-              <h2 className="u-h3">History</h2>
+              <h2 className="u-h3">{t(m.history)}</h2>
             </div>
             <div className="card-pad">
               <HistoryPanel entries={history} />

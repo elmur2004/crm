@@ -6,10 +6,19 @@ import {
   FOLLOW_UP_METHODS,
   IMPORTANCE_LEVELS,
   MEETING_MODES,
-  STAGE_LABELS,
 } from "@/lib/pipeline-engine/constants";
 import { partnersConfig } from "@/lib/pipeline-engine/configs/partners";
 import { BusinessActivityField, businessActivityFrom } from "./forms";
+import { tFor } from "@/lib/i18n/core";
+import { useLocale } from "@/components/shared/LocaleProvider";
+import { stageLabel } from "@/lib/i18n/dict/labels";
+import {
+  followUpMethodLabel,
+  importanceOptionLabel,
+  meetingModeLabel,
+  pCommon,
+  pPanel,
+} from "@/lib/i18n/dict/partners";
 
 /* §7.2 — the Partners pipeline's action panel. Same one-mutation commit model as
    the internal CRM (ADR-023); Won opens the completeness gate (PP-4); Didn't
@@ -23,30 +32,32 @@ const btnPrimary = "btn-primary";
 const btnGhost = "btn-ghost";
 
 function FollowUpFields({ reps }: { reps: Rep[] }) {
+  const locale = useLocale();
+  const t = tFor(locale);
   return (
     <>
       <div className="grid grid-cols-2 gap-3">
         <label className="block">
-          <span className={labelCls}>Follow-up date</span>
+          <span className={labelCls}>{t(pPanel.followUpDate)}</span>
           <input type="date" name="date" required className={inputCls} />
         </label>
         <label className="block">
-          <span className={labelCls}>Follow-up time</span>
+          <span className={labelCls}>{t(pPanel.followUpTime)}</span>
           <input type="time" name="time" required className={inputCls} />
         </label>
       </div>
       <label className="block">
-        <span className={labelCls}>Method</span>
+        <span className={labelCls}>{t(pPanel.method)}</span>
         <select name="method" required className={inputCls}>
           {FOLLOW_UP_METHODS.map((m) => (
             <option key={m} value={m}>
-              {m === "call" ? "Call" : m === "message" ? "Message" : "Visit"}
+              {followUpMethodLabel(locale, m)}
             </option>
           ))}
         </select>
       </label>
       <label className="block">
-        <span className={labelCls}>Owner</span>
+        <span className={labelCls}>{t(pPanel.owner)}</span>
         <select name="ownerSalesRepId" className={inputCls}>
           <option value="">—</option>
           {reps.map((r) => (
@@ -57,66 +68,68 @@ function FollowUpFields({ reps }: { reps: Rep[] }) {
         </select>
       </label>
       <label className="block">
-        <span className={labelCls}>Following up with</span>
-        <input type="text" name="followingUpWith" className={inputCls} placeholder="Contact person" />
+        <span className={labelCls}>{t(pPanel.followingUpWith)}</span>
+        <input type="text" name="followingUpWith" className={inputCls} placeholder={t(pPanel.contactPersonPh)} />
       </label>
     </>
   );
 }
 
 function WonGateFields({ defaults }: { defaults: { companyName: string; name: string; role: string | null; number: string; email: string | null; businessActivity: string } }) {
+  const locale = useLocale();
+  const t = tFor(locale);
   return (
     <>
       <p className="field-hint">
-        Won saves only when the partner record is complete.
+        {t(pPanel.wonGateHint)}
       </p>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <label className="block">
-          <span className={labelCls}>Company name</span>
+          <span className={labelCls}>{t(pCommon.companyName)}</span>
           <input type="text" name="companyName" required defaultValue={defaults.companyName} className={inputCls} />
         </label>
         <label className="block">
-          <span className={labelCls}>Key person name</span>
+          <span className={labelCls}>{t(pCommon.keyPersonName)}</span>
           <input type="text" name="keyPersonName" required defaultValue={defaults.name} className={inputCls} />
         </label>
         <label className="block">
-          <span className={labelCls}>Key person role</span>
+          <span className={labelCls}>{t(pCommon.keyPersonRole)}</span>
           <input type="text" name="keyPersonRole" required defaultValue={defaults.role ?? ""} className={inputCls} />
         </label>
         <label className="block">
-          <span className={labelCls}>Number</span>
+          <span className={labelCls}>{t(pCommon.number)}</span>
           <input type="tel" name="number" required defaultValue={defaults.number} className={inputCls} />
         </label>
         <label className="block">
-          <span className={labelCls}>Email</span>
+          <span className={labelCls}>{t(pCommon.email)}</span>
           <input type="email" name="email" defaultValue={defaults.email ?? ""} className={inputCls} />
         </label>
         <label className="block">
-          <span className={labelCls}>Password</span>
+          <span className={labelCls}>{t(pPanel.password)}</span>
           <input
             type="text"
             name="password"
             autoComplete="off"
-            placeholder="Partner's sign-in password"
+            placeholder={t(pPanel.passwordPh)}
             className={inputCls}
           />
           <span className="field-hint">
-            Email + password create the partner&apos;s account automatically.
+            {t(pPanel.passwordHint)}
           </span>
         </label>
         <label className="block">
-          <span className={labelCls}>Importance</span>
+          <span className={labelCls}>{t(pCommon.importance)}</span>
           <select name="importance" required className={inputCls}>
             {IMPORTANCE_LEVELS.map((i) => (
               <option key={i} value={i}>
-                {i[0]!.toUpperCase() + i.slice(1)}
+                {importanceOptionLabel(locale, i)}
               </option>
             ))}
           </select>
         </label>
       </div>
       <label className="block">
-        <span className={labelCls}>Address</span>
+        <span className={labelCls}>{t(pCommon.address)}</span>
         <input type="text" name="address" required className={inputCls} />
       </label>
       <BusinessActivityField defaultValue={defaults.businessActivity} />
@@ -196,6 +209,8 @@ export function ProspectGroupFields({
   defaults: ProspectGateDefaults;
   cardNumbers: string[];
 }) {
+  const locale = useLocale();
+  const t = tFor(locale);
   if (target === "following_up") return <FollowUpFields reps={reps} />;
   if (target === "meeting_setting")
     /* V2 §6 — simplified: date + time + online/offline. */
@@ -203,20 +218,20 @@ export function ProspectGroupFields({
       <>
         <div className="grid grid-cols-2 gap-3">
           <label className="block">
-            <span className={labelCls}>Date</span>
+            <span className={labelCls}>{t(pPanel.date)}</span>
             <input type="date" name="date" required className={inputCls} />
           </label>
           <label className="block">
-            <span className={labelCls}>Time</span>
+            <span className={labelCls}>{t(pPanel.time)}</span>
             <input type="time" name="time" required className={inputCls} />
           </label>
         </div>
         <label className="block">
-          <span className={labelCls}>Mode</span>
+          <span className={labelCls}>{t(pPanel.mode)}</span>
           <select name="mode" required className={inputCls}>
             {MEETING_MODES.map((m) => (
               <option key={m} value={m}>
-                {m === "online" ? "Online" : "Offline"}
+                {meetingModeLabel(locale, m)}
               </option>
             ))}
           </select>
@@ -226,7 +241,7 @@ export function ProspectGroupFields({
   if (target === "lost")
     return (
       <label className="block">
-        <span className={labelCls}>Reason (required)</span>
+        <span className={labelCls}>{t(pPanel.reasonRequired)}</span>
         <textarea name="reason" required rows={3} className={inputCls} />
       </label>
     );
@@ -234,7 +249,7 @@ export function ProspectGroupFields({
   if (target === "didnt_answer")
     return (
       <div className="space-y-2">
-        <p className="u-label">Number dialed — which number(s) went unanswered?</p>
+        <p className="u-label">{t(pPanel.dialedQuestion)}</p>
         {cardNumbers.map((n) => (
           <label key={n} className="flex items-center gap-2 text-sm">
             <input type="checkbox" name="dialedNumbers" value={n} defaultChecked={cardNumbers.length === 1} />
@@ -242,13 +257,12 @@ export function ProspectGroupFields({
           </label>
         ))}
         <p className="field-hint">
-          New numbers are NOT required now — add them any time from “Alternative
-          numbers”; doing so returns the card to Lead automatically.
+          {t(pPanel.dialedHint)}
         </p>
       </div>
     );
   if (target === "lead")
-    return <p className="u-muted">The card returns to the Lead column.</p>;
+    return <p className="u-muted">{t(pPanel.returnsToLead)}</p>;
   return null;
 }
 
@@ -269,6 +283,8 @@ export function ProspectEventPanel({
   cardNumbers: string[];
 }) {
   const router = useRouter();
+  const locale = useLocale();
+  const t = tFor(locale);
   const [action, setAction] = useState("");
   const [outcome, setOutcome] = useState("");
   const [destination, setDestination] = useState("");
@@ -291,7 +307,7 @@ export function ProspectEventPanel({
     setBusy(false);
     if (!res.ok) {
       const data = (await res.json().catch(() => null)) as { error?: string } | null;
-      setError(data?.error ?? "Something went wrong");
+      setError(data?.error ?? t(pCommon.somethingWrong));
       return;
     }
     setAction("");
@@ -309,7 +325,7 @@ export function ProspectEventPanel({
   if (terminal) {
     return (
       <p className="u-muted">
-        This card is {STAGE_LABELS[stage]} — no further actions.
+        {t(pPanel.terminalCard).replace("{stage}", stageLabel(locale, stage))}
       </p>
     );
   }
@@ -324,9 +340,9 @@ export function ProspectEventPanel({
 
       {stage === "meeting_setting" && pendingMeeting ? (
         <div className="bg-brand-surface-tint rounded-brand-card shadow-brand-card p-4">
-          <p className="u-h3 mb-2">Meeting outcome</p>
+          <p className="u-h3 mb-2">{t(pPanel.meetingOutcome)}</p>
           <select
-            aria-label="Meeting outcome"
+            aria-label={t(pPanel.meetingOutcome)}
             value={outcome}
             onChange={(e) => {
               setOutcome(e.target.value);
@@ -334,10 +350,10 @@ export function ProspectEventPanel({
             }}
             className={inputCls}
           >
-            <option value="">Choose an outcome…</option>
-            <option value="attended">Attended</option>
-            <option value="cancelled">Cancelled</option>
-            <option value="delayed">Delayed</option>
+            <option value="">{t(pPanel.chooseOutcome)}</option>
+            <option value="attended">{t(pPanel.attended)}</option>
+            <option value="cancelled">{t(pPanel.cancelled)}</option>
+            <option value="delayed">{t(pPanel.delayed)}</option>
           </select>
 
           {outcome === "delayed" ? (
@@ -360,7 +376,7 @@ export function ProspectEventPanel({
                 <input type="time" name="time" required className={inputCls} />
               </div>
               <button type="submit" disabled={busy} className={btnPrimary}>
-                Save new date
+                {t(pPanel.saveNewDate)}
               </button>
             </form>
           ) : null}
@@ -368,16 +384,16 @@ export function ProspectEventPanel({
           {outcome === "attended" || outcome === "cancelled" ? (
             <div className="mt-3 space-y-3">
               <select
-                aria-label="Destination"
+                aria-label={t(pPanel.destination)}
                 value={destination}
                 onChange={(e) => setDestination(e.target.value)}
                 className={inputCls}
               >
-                <option value="">Choose a destination…</option>
+                <option value="">{t(pPanel.chooseDestination)}</option>
                 {(outcome === "attended" ? attendedDestinations : cancelledDestinations).map(
                   (d) => (
                     <option key={d} value={d}>
-                      {STAGE_LABELS[d]}
+                      {stageLabel(locale, d)}
                     </option>
                   ),
                 )}
@@ -395,7 +411,7 @@ export function ProspectEventPanel({
                 >
                   {fieldsForTarget(destination === "won" ? "won" : destination)}
                   <button type="submit" disabled={busy} className={btnPrimary}>
-                    Confirm — move to {STAGE_LABELS[destination]}
+                    {t(pPanel.confirmMoveTo).replace("{stage}", stageLabel(locale, destination))}
                   </button>
                 </form>
               ) : null}
@@ -406,12 +422,12 @@ export function ProspectEventPanel({
 
       <div>
         <label className="block">
-          <span className={labelCls}>Next action</span>
+          <span className={labelCls}>{t(pPanel.nextAction)}</span>
           <select value={action} onChange={(e) => setAction(e.target.value)} className={inputCls}>
-            <option value="">Choose a next action…</option>
+            <option value="">{t(pPanel.chooseNextAction)}</option>
             {nextActions.map((a) => (
               <option key={a} value={a}>
-                {STAGE_LABELS[a] ?? a}
+                {stageLabel(locale, a)}
               </option>
             ))}
           </select>
@@ -428,14 +444,14 @@ export function ProspectEventPanel({
             }}
             className="card card-pad mt-3 space-y-3"
           >
-            <p className="u-h3">{STAGE_LABELS[action]}</p>
+            <p className="u-h3">{stageLabel(locale, action)}</p>
             {fieldsForTarget(action === "won" ? "won" : action)}
             <div className="flex gap-2">
               <button type="submit" disabled={busy} className={btnPrimary}>
-                Save &amp; move
+                {t(pPanel.saveMove)}
               </button>
               <button type="button" onClick={() => setAction("")} className={btnGhost}>
-                Cancel
+                {t(pCommon.cancel)}
               </button>
             </div>
           </form>

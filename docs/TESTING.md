@@ -424,3 +424,25 @@ every dashboard formula, journeys 1-5 (SPEC §13).
   (IMPLEMENTATION.md note).
 - Verdict: PASS (code side; the "Not secure" badge itself is
   host/Cloudflare TLS configuration — founder action, Entry 021 (h)).
+
+## Run 025 — 2026-08-13 — Full Arabic ⇄ English translation round (ADR-037)
+- Suites/commands: `npm run typecheck` (tsc clean) · `npm run build`
+  (production build clean) · `npx vitest run` (92) · `npx playwright
+  test` (full suite incl. NEW e2e/i18n.spec.ts). Local dev, embedded
+  Postgres (per-run instances).
+- Cases: vitest 92 passed / 0 failed / 0 skipped · Playwright 17 passed /
+  0 failed / 2 skipped (the two skips are the audit opt-in specs, by
+  design).
+- Failures: none.
+- SPEC coverage touched: no §10 pipeline rows — presentation layer only
+  (engine constants stay English in code, DB, and API payloads;
+  translation happens at render, ADR-037). Because the EN output stayed
+  byte-identical, the WHOLE pre-existing suite (unit + integration + e2e
+  journeys 1–5) passed UNCHANGED — itself the regression proof for the
+  string externalization. New coverage: e2e/i18n.spec.ts — toggle →
+  <html dir="rtl" lang="ar"> + Arabic heading → Arabic login flow → back
+  to EN from the app header.
+- Verdict: PASS. Known limits logged (Entry 022 items (i)/(j)):
+  server-side error strings remain English pending an error-code scheme;
+  ByteForce thin-page metadata titles partly English; two Arabic
+  terminology choices awaiting founder review.

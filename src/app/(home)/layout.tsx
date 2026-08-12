@@ -1,3 +1,6 @@
+import { dirFor } from "@/lib/i18n/core";
+import { getLocale } from "@/lib/i18n/server";
+import { LocaleProvider } from "@/components/shared/LocaleProvider";
 import type { Metadata } from "next";
 import "@fontsource/inter/400.css";
 import "@fontsource/inter/500.css";
@@ -27,12 +30,13 @@ export const metadata: Metadata = {
    searchParams; the redirect root is trivially cheap). */
 export const dynamic = "force-dynamic";
 
-export default function HomeLayout({
+export default async function HomeLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
+  const locale = await getLocale();
   return (
-    <html lang="en" data-brand="neutral">
-      <body>{children}</body>
+    <html lang={locale} dir={dirFor(locale)} data-brand="neutral">
+      <body><LocaleProvider locale={locale}>{children}</LocaleProvider></body>
     </html>
   );
 }

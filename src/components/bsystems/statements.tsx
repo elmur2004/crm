@@ -4,6 +4,9 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { btnGhost, btnPrimary, inputCls, labelCls } from "@/components/portal/groupForms";
 import { toPiasters, toPounds } from "@/lib/money";
+import { tFor } from "@/lib/i18n/core";
+import { useLocale } from "@/components/shared/LocaleProvider";
+import { common, statements as d } from "@/lib/i18n/dict/admin";
 
 /* V2 §7 — Statements client widgets: the Generate→editable→Create flow on a
    waiting milestone, and the admin's mark-paid proof-image upload. */
@@ -20,6 +23,7 @@ export interface WaitingRow {
 
 export function StatementGenerator({ row }: { row: WaitingRow }) {
   const router = useRouter();
+  const t = tFor(useLocale());
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -29,7 +33,7 @@ export function StatementGenerator({ row }: { row: WaitingRow }) {
   if (!open) {
     return (
       <button type="button" onClick={() => setOpen(true)} className={btnPrimary}>
-        Generate
+        {t(d.generate)}
       </button>
     );
   }
@@ -60,7 +64,7 @@ export function StatementGenerator({ row }: { row: WaitingRow }) {
           setBusy(false);
           if (!res.ok) {
             const data = (await res.json().catch(() => null)) as { error?: string } | null;
-            setError(data?.error ?? "Something went wrong");
+            setError(data?.error ?? t(common.somethingWentWrong));
             return;
           }
           setOpen(false);
@@ -69,20 +73,22 @@ export function StatementGenerator({ row }: { row: WaitingRow }) {
         className="modal"
       >
         <div className="modal-head">
-          <p className="modal-title">New statement — {row.label}</p>
+          <p className="modal-title">
+            {t(d.newStatement)} — {row.label}
+          </p>
         </div>
         <div className="modal-body modal-body--grid">
           {error ? <p className="alert-error field--wide">{error}</p> : null}
           <label className="field field--wide">
-            <span className={labelCls}>Client</span>
+            <span className={labelCls}>{t(d.fieldClient)}</span>
             <input type="text" name="clientName" required defaultValue={row.clientName} className={inputCls} />
           </label>
           <label className="field">
-            <span className={labelCls}>Milestone name</span>
+            <span className={labelCls}>{t(d.fieldMilestoneName)}</span>
             <input type="text" name="milestoneLabel" required defaultValue={row.label} className={inputCls} />
           </label>
           <label className="field">
-            <span className={labelCls}>Milestone value (EGP)</span>
+            <span className={labelCls}>{t(d.fieldMilestoneValueEgp)}</span>
             <input
               type="number"
               name="milestoneValue"
@@ -94,7 +100,7 @@ export function StatementGenerator({ row }: { row: WaitingRow }) {
             />
           </label>
           <label className="field">
-            <span className={labelCls}>% of milestone</span>
+            <span className={labelCls}>{t(d.fieldPercentOfMilestone)}</span>
             <input
               type="number"
               name="percent"
@@ -107,7 +113,7 @@ export function StatementGenerator({ row }: { row: WaitingRow }) {
             />
           </label>
           <label className="field">
-            <span className={labelCls}>Amount (EGP)</span>
+            <span className={labelCls}>{t(d.fieldAmountEgp)}</span>
             <input
               type="number"
               name="amount"
@@ -119,21 +125,21 @@ export function StatementGenerator({ row }: { row: WaitingRow }) {
             />
           </label>
           <label className="field">
-            <span className={labelCls}>Adjustments (EGP, ±)</span>
+            <span className={labelCls}>{t(d.fieldAdjustmentsEgp)}</span>
             <input type="number" name="adjustments" step="0.01" defaultValue={0} className={inputCls} />
           </label>
           <label className="field">
-            <span className={labelCls}>Expected payment date</span>
+            <span className={labelCls}>{t(d.fieldExpectedPaymentDate)}</span>
             <input type="date" name="expectedDate" className={inputCls} />
           </label>
         </div>
         <div className="modal-foot">
           <div className="flex gap-2">
             <button type="submit" disabled={busy} className={btnPrimary}>
-              Create statement
+              {t(d.createStatement)}
             </button>
             <button type="button" onClick={() => setOpen(false)} className={btnGhost}>
-              Cancel
+              {t(common.cancel)}
             </button>
           </div>
         </div>
@@ -152,6 +158,7 @@ export function ReplaceProofForm({
   label?: string;
 }) {
   const router = useRouter();
+  const t = tFor(useLocale());
   const fileRef = useRef<HTMLInputElement>(null);
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -180,7 +187,7 @@ export function ReplaceProofForm({
         setBusy(false);
         if (!res.ok) {
           const data = (await res.json().catch(() => null)) as { error?: string } | null;
-          setError(data?.error ?? "Upload failed");
+          setError(data?.error ?? t(common.uploadFailed));
           return;
         }
         setOpen(false);
@@ -194,14 +201,14 @@ export function ReplaceProofForm({
         type="file"
         accept="image/png,image/jpeg,image/webp"
         required
-        aria-label="New payment proof image"
+        aria-label={t(d.newProofAria)}
         className="text-xs"
       />
       <button type="submit" disabled={busy} className="btn-primary btn--sm">
-        Save proof
+        {t(d.saveProof)}
       </button>
       <button type="button" onClick={() => setOpen(false)} className="btn-ghost btn--sm">
-        Cancel
+        {t(common.cancel)}
       </button>
     </form>
   );
@@ -209,6 +216,7 @@ export function ReplaceProofForm({
 
 export function MarkPaidForm({ statementId }: { statementId: string }) {
   const router = useRouter();
+  const t = tFor(useLocale());
   const fileRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -229,7 +237,7 @@ export function MarkPaidForm({ statementId }: { statementId: string }) {
         setBusy(false);
         if (!res.ok) {
           const data = (await res.json().catch(() => null)) as { error?: string } | null;
-          setError(data?.error ?? "Upload failed");
+          setError(data?.error ?? t(common.uploadFailed));
           return;
         }
         router.refresh();
@@ -242,11 +250,11 @@ export function MarkPaidForm({ statementId }: { statementId: string }) {
         type="file"
         accept="image/png,image/jpeg,image/webp"
         required
-        aria-label="Payment proof image"
+        aria-label={t(d.proofAria)}
         className="text-xs"
       />
       <button type="submit" disabled={busy} className="btn-primary btn--sm">
-        Mark paid
+        {t(d.markPaid)}
       </button>
     </form>
   );

@@ -13,9 +13,13 @@ import {
   type DragEndEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
-import { BSYSTEMS_STAGES, STAGE_LABELS } from "@/lib/pipeline-engine/constants";
+import { BSYSTEMS_STAGES } from "@/lib/pipeline-engine/constants";
 import { bsystemsCrmConfig } from "@/lib/pipeline-engine/configs/bsystems-crm";
 import { btnGhost, btnPrimary } from "@/components/portal/groupForms";
+import { tFor } from "@/lib/i18n/core";
+import { useLocale } from "@/components/shared/LocaleProvider";
+import { stageLabel } from "@/lib/i18n/dict/labels";
+import { board as msg, common } from "@/lib/i18n/dict/crm";
 import { stageKey } from "./stageColors";
 import {
   GroupFieldsV2,
@@ -42,6 +46,7 @@ export interface BsBoardLead {
 }
 
 function LeadCard({ lead, dragging }: { lead: BsBoardLead; dragging: boolean }) {
+  const t = tFor(useLocale());
   const router = useRouter();
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: lead.id,
@@ -61,7 +66,7 @@ function LeadCard({ lead, dragging }: { lead: BsBoardLead; dragging: boolean }) 
       }
       className={`bcard touch-none ${isDragging || dragging ? "bcard--lift" : ""}`}
     >
-      {lead.readyToClose ? <span className="bcard-badge">Ready to close</span> : null}
+      {lead.readyToClose ? <span className="bcard-badge">{t(common.readyToClose)}</span> : null}
       <div className="bcard-name-row">
         <Link
           href={`/b-systems/crm/lead/${lead.id}`}
@@ -96,7 +101,7 @@ function LeadCard({ lead, dragging }: { lead: BsBoardLead; dragging: boolean }) 
                 onPointerDown={(e) => e.stopPropagation()}
                 className="underline underline-offset-2 ms-1 disabled:opacity-50"
               >
-                Mark ready to close
+                {t(common.markReadyToClose)}
               </button>
             ) : null}
           </span>
@@ -117,6 +122,8 @@ function Column({
   wonBlocked: boolean;
   draggingId: string | null;
 }) {
+  const locale = useLocale();
+  const t = tFor(locale);
   const { setNodeRef, isOver } = useDroppable({ id: stage });
   const blocked = wonBlocked && stage === "won";
   const overCls = isOver ? (blocked ? "col--over-blocked" : "col--over-valid") : "";
@@ -129,16 +136,16 @@ function Column({
     >
       <div className="col-bar" aria-hidden />
       <div className="col-head">
-        <span className="col-title">{STAGE_LABELS[stage]}</span>
+        <span className="col-title">{stageLabel(locale, stage)}</span>
         <span className="count-pill">{leads.length}</span>
       </div>
-      {blocked ? <p className="col-locked-note">Admin-only column</p> : null}
+      {blocked ? <p className="col-locked-note">{t(msg.adminOnlyColumn)}</p> : null}
       <div className="col-cards">
         {leads.map((l) => (
           <LeadCard key={l.id} lead={l} dragging={draggingId === l.id} />
         ))}
         {leads.length === 0 ? (
-          <div className="col-empty">{isOver && blocked ? "Blocked" : "Nothing here yet"}</div>
+          <div className="col-empty">{isOver && blocked ? t(msg.blocked) : t(msg.emptyColumn)}</div>
         ) : null}
       </div>
     </div>
@@ -154,6 +161,8 @@ export function BsBoard({
   role: BsFormRole;
   reps: Array<{ id: string; name: string }>;
 }) {
+  const locale = useLocale();
+  const t = tFor(locale);
   const router = useRouter();
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
   const [pendingDrop, setPendingDrop] = useState<{ leadId: string; to: string } | null>(null);
@@ -176,7 +185,7 @@ export function BsBoard({
     setBusy(false);
     if (!res.ok) {
       const data = (await res.json().catch(() => null)) as { error?: string } | null;
-      setError(data?.error ?? "Something went wrong");
+      setError(data?.error ?? t(common.somethingWentWrong));
       return;
     }
     setPendingDrop(null);
@@ -196,11 +205,11 @@ export function BsBoard({
     const lead = leads.find((l) => l.id === leadId);
     if (!lead || lead.stage === to) return;
     if (bsystemsCrmConfig.terminalStages.includes(lead.stage)) {
-      setMessage("Won and Lost leads can no longer be moved.");
+      setMessage(t(msg.terminalMove));
       return;
     }
     if (to === "won" && !canWin) {
-      setMessage("Only an admin can confirm a win."); // server enforces too
+      setMessage(t(msg.adminOnlyWin)); // server enforces too
       return;
     }
     if (to === "new") {
@@ -245,18 +254,18 @@ export function BsBoard({
             <div className="modal-head">
               <div>
                 <p className="modal-eyebrow">
-                  {STAGE_LABELS[pendingLead.stage]}
+                  {stageLabel(locale, pendingLead.stage)}
                   <span className="inline-block rtl:-scale-x-100" aria-hidden>
                     {" → "}
                   </span>
-                  {STAGE_LABELS[pendingDrop.to]}
+                  {stageLabel(locale, pendingDrop.to)}
                 </p>
                 <p className="modal-title">{pendingLead.name}</p>
               </div>
               <button
                 type="button"
                 className="modal-close"
-                aria-label="Close"
+                aria-label={t(msg.close)}
                 onClick={() => {
                   setPendingDrop(null);
                   setError(null);
@@ -266,7 +275,7 @@ export function BsBoard({
               </button>
             </div>
             <p className="modal-note">
-              Complete this stage&apos;s details to confirm the move — cancel reverts it.
+              {t(msg.completeToConfirm)}
             </p>
             <form
               onSubmit={(e) => {
@@ -304,7 +313,7 @@ export function BsBoard({
               </div>
               <div className="modal-foot">
                 <span className="modal-foot-note">
-                  Cancelling reverts the card to {STAGE_LABELS[pendingLead.stage]}.
+                  {t(msg.cancelReverts).replace("{stage}", stageLabel(locale, pendingLead.stage))}
                 </span>
                 <span className="flex gap-2">
                   <button
@@ -315,10 +324,10 @@ export function BsBoard({
                       setError(null);
                     }}
                   >
-                    Cancel
+                    {t(common.cancel)}
                   </button>
                   <button type="submit" disabled={busy} className={btnPrimary}>
-                    Confirm move
+                    {t(msg.confirmMove)}
                   </button>
                 </span>
               </div>

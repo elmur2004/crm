@@ -3,7 +3,11 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { btnGhost, btnPrimary, inputCls, labelCls } from "@/components/portal/groupForms";
-import { LEAD_TYPES, LEAD_TYPE_LABELS } from "@/lib/pipeline-engine/constants";
+import { LEAD_TYPES } from "@/lib/pipeline-engine/constants";
+import { tFor } from "@/lib/i18n/core";
+import { useLocale } from "@/components/shared/LocaleProvider";
+import { leadTypeLabel } from "@/lib/i18n/dict/labels";
+import { common, leadDetail, leadForm } from "@/lib/i18n/dict/crm";
 
 /* V2 §2.2 — admin lead actions: edit any field, copy the lead's data, delete. */
 
@@ -21,16 +25,17 @@ export interface EditableLead {
 }
 
 export function CopyLeadButton({ lead }: { lead: EditableLead }) {
+  const t = tFor(useLocale());
   const [copied, setCopied] = useState(false);
   const text = [
-    `Name: ${lead.name}`,
-    `Number: ${lead.number}`,
-    lead.email ? `Email: ${lead.email}` : null,
-    lead.position ? `Position: ${lead.position}` : null,
-    lead.companyName ? `Company: ${lead.companyName}` : null,
-    lead.industry ? `Industry: ${lead.industry}` : null,
-    lead.requirements ? `Requirements: ${lead.requirements}` : null,
-    lead.description ? `Notes: ${lead.description}` : null,
+    `${t(leadDetail.fieldName)} ${lead.name}`,
+    `${t(leadDetail.fieldNumber)} ${lead.number}`,
+    lead.email ? `${t(leadDetail.fieldEmail)} ${lead.email}` : null,
+    lead.position ? `${t(leadDetail.fieldPosition)} ${lead.position}` : null,
+    lead.companyName ? `${t(leadDetail.fieldCompany)} ${lead.companyName}` : null,
+    lead.industry ? `${t(leadDetail.fieldIndustry)} ${lead.industry}` : null,
+    lead.requirements ? `${t(leadDetail.fieldRequirements)} ${lead.requirements}` : null,
+    lead.description ? `${t(leadDetail.fieldNotes)} ${lead.description}` : null,
   ]
     .filter(Boolean)
     .join("\n");
@@ -44,12 +49,13 @@ export function CopyLeadButton({ lead }: { lead: EditableLead }) {
       }}
       className={btnGhost}
     >
-      {copied ? "Copied!" : "Copy data"}
+      {copied ? t(leadForm.copied) : t(leadForm.copyData)}
     </button>
   );
 }
 
 export function DeleteLeadButton({ leadId, redirectTo = "/b-systems/crm" }: { leadId: string; redirectTo?: string }) {
+  const t = tFor(useLocale());
   const router = useRouter();
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -61,7 +67,7 @@ export function DeleteLeadButton({ leadId, redirectTo = "/b-systems/crm" }: { le
         onClick={() => setConfirming(true)}
         className="btn-danger"
       >
-        Delete lead
+        {t(leadForm.deleteLead)}
       </button>
     );
   }
@@ -78,7 +84,7 @@ export function DeleteLeadButton({ leadId, redirectTo = "/b-systems/crm" }: { le
           setBusy(false);
           if (!res.ok) {
             const data = (await res.json().catch(() => null)) as { error?: string } | null;
-            setError(data?.error ?? "Delete failed");
+            setError(data?.error ?? t(leadForm.deleteFailed));
             return;
           }
           router.push(redirectTo);
@@ -86,10 +92,10 @@ export function DeleteLeadButton({ leadId, redirectTo = "/b-systems/crm" }: { le
         }}
         className="btn-danger btn-danger--solid disabled:opacity-50"
       >
-        Yes, delete permanently
+        {t(leadForm.confirmDelete)}
       </button>
       <button type="button" onClick={() => setConfirming(false)} className={btnGhost}>
-        Keep it
+        {t(leadForm.keepIt)}
       </button>
     </span>
   );
@@ -98,6 +104,8 @@ export function DeleteLeadButton({ leadId, redirectTo = "/b-systems/crm" }: { le
 /* V2 — every role adds leads from the board; the API buckets by role
    (admin→admin bucket, agent/partner→their own, sales→internal). */
 export function BsAddLeadForm() {
+  const locale = useLocale();
+  const t = tFor(locale);
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -105,7 +113,7 @@ export function BsAddLeadForm() {
   if (!open) {
     return (
       <button type="button" onClick={() => setOpen(true)} className={btnPrimary}>
-        Add lead
+        {t(leadForm.addLead)}
       </button>
     );
   }
@@ -135,7 +143,7 @@ export function BsAddLeadForm() {
           setBusy(false);
           if (!res.ok) {
             const data = (await res.json().catch(() => null)) as { error?: string } | null;
-            setError(data?.error ?? "Something went wrong");
+            setError(data?.error ?? t(common.somethingWentWrong));
             return;
           }
           setOpen(false);
@@ -144,60 +152,60 @@ export function BsAddLeadForm() {
         className="modal w-full max-w-lg"
       >
         <div className="modal-head">
-          <p className="modal-title">New lead</p>
+          <p className="modal-title">{t(leadForm.newLead)}</p>
         </div>
         <div className="modal-body modal-body--grid">
           {error ? <p className="text-sm text-brand-danger field--wide">{error}</p> : null}
           <label className="block">
-            <span className={labelCls}>Name</span>
+            <span className={labelCls}>{t(common.name)}</span>
             <input type="text" name="name" required className={inputCls} />
           </label>
           <label className="block">
-            <span className={labelCls}>Number</span>
+            <span className={labelCls}>{t(common.number)}</span>
             <input type="tel" name="number" required className={inputCls} />
           </label>
           <label className="block">
-            <span className={labelCls}>Email</span>
+            <span className={labelCls}>{t(common.email)}</span>
             <input type="email" name="email" className={inputCls} />
           </label>
           <label className="block">
-            <span className={labelCls}>Type</span>
+            <span className={labelCls}>{t(common.type)}</span>
             <select name="type" className={inputCls}>
-              {LEAD_TYPES.map((t) => (
-                <option key={t} value={t}>
-                  {LEAD_TYPE_LABELS[t]}
+              {LEAD_TYPES.map((lt) => (
+                <option key={lt} value={lt}>
+                  {leadTypeLabel(locale, lt)}
                 </option>
               ))}
             </select>
           </label>
           <label className="block">
-            <span className={labelCls}>Position</span>
+            <span className={labelCls}>{t(common.position)}</span>
             <input type="text" name="position" className={inputCls} />
           </label>
           <label className="block">
-            <span className={labelCls}>Company name</span>
+            <span className={labelCls}>{t(common.companyName)}</span>
             <input type="text" name="companyName" required className={inputCls} />
           </label>
           <label className="block field--wide">
-            <span className={labelCls}>Industry</span>
+            <span className={labelCls}>{t(common.industry)}</span>
             <input type="text" name="industry" className={inputCls} />
           </label>
           <label className="block field--wide">
-            <span className={labelCls}>Requirements</span>
+            <span className={labelCls}>{t(common.requirements)}</span>
             <textarea name="requirements" rows={2} className={inputCls} />
           </label>
           <label className="block field--wide">
-            <span className={labelCls}>Notes</span>
+            <span className={labelCls}>{t(common.notes)}</span>
             <textarea name="description" rows={2} className={inputCls} />
           </label>
         </div>
         <div className="modal-foot">
           <div className="flex gap-2">
             <button type="submit" disabled={busy} className={btnPrimary}>
-              Save lead
+              {t(leadForm.saveLead)}
             </button>
             <button type="button" onClick={() => setOpen(false)} className={btnGhost}>
-              Cancel
+              {t(common.cancel)}
             </button>
           </div>
         </div>
@@ -207,6 +215,8 @@ export function BsAddLeadForm() {
 }
 
 export function EditLeadForm({ lead }: { lead: EditableLead }) {
+  const locale = useLocale();
+  const t = tFor(locale);
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -214,7 +224,7 @@ export function EditLeadForm({ lead }: { lead: EditableLead }) {
   if (!open) {
     return (
       <button type="button" onClick={() => setOpen(true)} className={btnGhost}>
-        Edit lead
+        {t(leadForm.editLead)}
       </button>
     );
   }
@@ -243,7 +253,7 @@ export function EditLeadForm({ lead }: { lead: EditableLead }) {
         setBusy(false);
         if (!res.ok) {
           const data = (await res.json().catch(() => null)) as { error?: string } | null;
-          setError(data?.error ?? "Something went wrong");
+          setError(data?.error ?? t(common.somethingWentWrong));
           return;
         }
         setOpen(false);
@@ -251,58 +261,58 @@ export function EditLeadForm({ lead }: { lead: EditableLead }) {
       }}
       className="card card-pad space-y-3 w-full"
     >
-      <p className="u-h3">Edit lead</p>
+      <p className="u-h3">{t(leadForm.editLead)}</p>
       {error ? <p className="text-sm text-brand-danger">{error}</p> : null}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <label className="block">
-          <span className={labelCls}>Name</span>
+          <span className={labelCls}>{t(common.name)}</span>
           <input type="text" name="name" required defaultValue={lead.name} className={inputCls} />
         </label>
         <label className="block">
-          <span className={labelCls}>Number</span>
+          <span className={labelCls}>{t(common.number)}</span>
           <input type="tel" name="number" required defaultValue={lead.number} className={inputCls} />
         </label>
         <label className="block">
-          <span className={labelCls}>Email</span>
+          <span className={labelCls}>{t(common.email)}</span>
           <input type="email" name="email" defaultValue={lead.email ?? ""} className={inputCls} />
         </label>
         <label className="block">
-          <span className={labelCls}>Type</span>
+          <span className={labelCls}>{t(common.type)}</span>
           <select name="type" defaultValue={lead.type} className={inputCls}>
-            {LEAD_TYPES.map((t) => (
-              <option key={t} value={t}>
-                {LEAD_TYPE_LABELS[t]}
+            {LEAD_TYPES.map((lt) => (
+              <option key={lt} value={lt}>
+                {leadTypeLabel(locale, lt)}
               </option>
             ))}
           </select>
         </label>
         <label className="block">
-          <span className={labelCls}>Position</span>
+          <span className={labelCls}>{t(common.position)}</span>
           <input type="text" name="position" defaultValue={lead.position ?? ""} className={inputCls} />
         </label>
         <label className="block">
-          <span className={labelCls}>Company</span>
+          <span className={labelCls}>{t(common.company)}</span>
           <input type="text" name="companyName" required defaultValue={lead.companyName ?? ""} className={inputCls} />
         </label>
         <label className="block">
-          <span className={labelCls}>Industry</span>
+          <span className={labelCls}>{t(common.industry)}</span>
           <input type="text" name="industry" defaultValue={lead.industry ?? ""} className={inputCls} />
         </label>
       </div>
       <label className="block">
-        <span className={labelCls}>Requirements</span>
+        <span className={labelCls}>{t(common.requirements)}</span>
         <textarea name="requirements" rows={2} defaultValue={lead.requirements ?? ""} className={inputCls} />
       </label>
       <label className="block">
-        <span className={labelCls}>Notes</span>
+        <span className={labelCls}>{t(common.notes)}</span>
         <textarea name="description" rows={2} defaultValue={lead.description ?? ""} className={inputCls} />
       </label>
       <div className="flex gap-2">
         <button type="submit" disabled={busy} className={btnPrimary}>
-          Save
+          {t(common.save)}
         </button>
         <button type="button" onClick={() => setOpen(false)} className={btnGhost}>
-          Cancel
+          {t(common.cancel)}
         </button>
       </div>
     </form>

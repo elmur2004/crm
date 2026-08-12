@@ -1,8 +1,15 @@
 import { login } from "@/lib/auth/actions";
 import Link from "next/link";
 import { PasswordInput } from "@/components/shared/PasswordInput";
+import { LanguageToggle } from "@/components/shared/LanguageToggle";
+import { tFor } from "@/lib/i18n/core";
+import { getLocale } from "@/lib/i18n/server";
+import { login as msgs } from "@/lib/i18n/dict/auth";
 
-export const metadata = { title: "Sign in — ByteForce × B-Systems Sales Platform" };
+export async function generateMetadata() {
+  const t = tFor(await getLocale());
+  return { title: t(msgs.metaTitle) };
+}
 
 /* THE consolidated sign-in (ADR-028; visual redesign per the approved prototype,
    docs/DESIGN-APPLICATION-SPEC.md §2.14 — split form + brand billboard). One page
@@ -15,50 +22,52 @@ export default async function LoginPage({
   searchParams: Promise<{ error?: string }>;
 }) {
   const { error } = await searchParams;
+  const locale = await getLocale();
+  const t = tFor(locale);
   return (
     <main className="login-shell">
       <div className="login-pane">
         <div className="login-inner">
-          <p className="login-eyebrow">Sign in · /login</p>
-          <h1 className="login-title">One door, every account.</h1>
-          <p className="login-sub">
-            Staff, partners and agents use the same credentials. We route you to what you
-            have access to.
-          </p>
+          <div className="mb-4">
+            <LanguageToggle />
+          </div>
+          <p className="login-eyebrow">{t(msgs.eyebrow)}</p>
+          <h1 className="login-title">{t(msgs.title)}</h1>
+          <p className="login-sub">{t(msgs.sub)}</p>
           {error ? (
             <p role="alert" className="login-error">
               <span className="login-error-icon" aria-hidden>
                 !
               </span>
               {error === "pending"
-                ? "Your registration is awaiting approval — the admin reviews new sign-ups."
+                ? t(msgs.errPending)
                 : error === "rejected"
-                  ? "Your registration was declined. Contact B-Systems if you think this is a mistake."
+                  ? t(msgs.errRejected)
                   : error === "health"
-                    ? "The system database is not ready — open /api/health for the exact fix."
-                    : "Wrong email/phone or password. Try again."}
+                    ? t(msgs.errHealth)
+                    : t(msgs.errDefault)}
             </p>
           ) : null}
           <form action={login} className="login-form">
             <label>
-              <span>Email or phone</span>
+              <span>{t(msgs.identifierLabel)}</span>
               <input
                 type="text"
                 name="identifier"
                 required
                 autoComplete="username"
-                placeholder="you@company.com or 01012345678"
+                placeholder={t(msgs.identifierPlaceholder)}
               />
             </label>
             <label>
-              <span>Password</span>
-              <PasswordInput name="password" ariaLabel="Password" required autoComplete="current-password" className="" />
+              <span>{t(msgs.passwordLabel)}</span>
+              <PasswordInput name="password" ariaLabel={t(msgs.passwordLabel)} required autoComplete="current-password" className="" />
             </label>
-            <button type="submit">Sign in</button>
+            <button type="submit">{t(msgs.submit)}</button>
           </form>
           <p className="login-foot">
-            New partner sales rep?{" "}
-            <Link href="/portal">Apply to the partnership programme</Link>
+            {t(msgs.footNew)}{" "}
+            <Link href="/portal">{t(msgs.footLink)}</Link>
           </p>
         </div>
       </div>
@@ -71,8 +80,8 @@ export default async function LoginPage({
             <span className="login-bb-word-a">ByteForce</span>
           </div>
           <div className="login-bb-body">
-            <p className="login-bb-eyebrow-a">Creative &amp; performance</p>
-            <p className="login-bb-line-a">Campaigns, content and growth for bold brands.</p>
+            <p className="login-bb-eyebrow-a">{t(msgs.bbAEyebrow)}</p>
+            <p className="login-bb-line-a">{t(msgs.bbALine)}</p>
           </div>
         </div>
         <div className="login-bb login-bb--b">
@@ -81,10 +90,8 @@ export default async function LoginPage({
             <span className="login-bb-word-b">B-Systems</span>
           </div>
           <div className="login-bb-body">
-            <p className="login-bb-eyebrow-b">Systems before software</p>
-            <p className="login-bb-line-b">
-              Operations, ERP and the partner network that sells it.
-            </p>
+            <p className="login-bb-eyebrow-b">{t(msgs.bbBEyebrow)}</p>
+            <p className="login-bb-line-b">{t(msgs.bbBLine)}</p>
           </div>
         </div>
       </aside>

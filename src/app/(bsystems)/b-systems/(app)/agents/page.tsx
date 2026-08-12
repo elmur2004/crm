@@ -3,12 +3,19 @@ import { redirect } from "next/navigation";
 import { requirePageRole } from "@/lib/auth/page-guards";
 import { bsRoleOf } from "@/lib/api/bsystems";
 import { listAgentsDetailed, listBsLeads } from "@/lib/services/bsystems-admin";
-import { BSYSTEMS_STAGES, STAGE_LABELS } from "@/lib/pipeline-engine/constants";
+import { BSYSTEMS_STAGES } from "@/lib/pipeline-engine/constants";
 import { formatCairoDate } from "@/lib/datetime";
 import { StageBadge } from "@/components/shared/StageBadge";
 import { stageKey } from "@/components/bsystems/stageColors";
+import { tFor } from "@/lib/i18n/core";
+import { getLocale } from "@/lib/i18n/server";
+import { stageLabel } from "@/lib/i18n/dict/labels";
+import { agents as d, common } from "@/lib/i18n/dict/admin";
 
-export const metadata = { title: "Agents — B-Systems CRM" };
+export async function generateMetadata() {
+  const locale = await getLocale();
+  return { title: tFor(locale)(d.meta) };
+}
 
 /* V2 §2.7 — Agents, like Partners: a Detailed view (profile cards + join date +
    leads table) and a Pipeline view (their leads across the stages). */
@@ -29,29 +36,31 @@ export default async function AgentsPage({
 
   const { view } = await searchParams;
   const pipeline = view === "pipeline";
+  const locale = await getLocale();
+  const t = tFor(locale);
 
   return (
     <div className="space-y-6">
       <div className="page-head">
         <div>
-          <p className="u-eyebrow">B-SYSTEMS · AGENTS</p>
-          <h1 className="u-h1">Agents</h1>
+          <p className="u-eyebrow">{t(d.eyebrow)}</p>
+          <h1 className="u-h1">{t(d.title)}</h1>
         </div>
         <div className="page-actions">
-          <nav className="flex gap-1" aria-label="View">
+          <nav className="flex gap-1" aria-label={t(d.viewAria)}>
             <Link
               href="/b-systems/agents"
               className="nav-item"
               aria-current={!pipeline ? "page" : undefined}
             >
-              Detailed
+              {t(d.viewDetailed)}
             </Link>
             <Link
               href="/b-systems/agents?view=pipeline"
               className="nav-item"
               aria-current={pipeline ? "page" : undefined}
             >
-              Pipeline
+              {t(d.viewPipeline)}
             </Link>
           </nav>
         </div>
@@ -64,8 +73,10 @@ export default async function AgentsPage({
 
 async function AgentsDetailed() {
   const agents = await listAgentsDetailed();
+  const locale = await getLocale();
+  const t = tFor(locale);
   if (agents.length === 0) {
-    return <p className="empty">No agents have signed up yet.</p>;
+    return <p className="empty">{t(d.empty)}</p>;
   }
   return (
     <div className="space-y-4">
@@ -77,33 +88,33 @@ async function AgentsDetailed() {
                 {a.firstName} {a.lastName}
                 {!a.user.active ? (
                   <span className="ms-2 badge badge--danger align-middle">
-                    Deactivated
+                    {t(common.badgeDeactivated)}
                   </span>
                 ) : null}
               </p>
               <p className="identity-sub">{a.speciality}</p>
               <p className="u-muted">
-                <span>Phone:</span> {a.user.phone ?? "—"}
+                <span>{t(common.labelPhone)}</span> {a.user.phone ?? "—"}
               </p>
               <p className="u-muted">
-                <span>Address:</span> {a.address}
+                <span>{t(common.labelAddress)}</span> {a.address}
               </p>
             </div>
             <p className="text-brand-meta text-brand-muted">
-              Joined {formatCairoDate(a.user.createdAt)}
+              {t(d.joinedWord)} {formatCairoDate(a.user.createdAt)}
             </p>
           </div>
           {a.user.ownedLeads.length === 0 ? (
-            <p className="u-muted card-pad">No leads yet.</p>
+            <p className="u-muted card-pad">{t(d.noLeadsYet)}</p>
           ) : (
             <div className="table-scroll">
               <table className="table table--embedded">
                 <thead>
                   <tr>
-                    <th>Lead</th>
-                    <th>Number</th>
-                    <th>Stage</th>
-                    <th>Created</th>
+                    <th>{t(d.thLead)}</th>
+                    <th>{t(common.thNumber)}</th>
+                    <th>{t(d.thStage)}</th>
+                    <th>{t(common.thCreated)}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -133,6 +144,7 @@ async function AgentsDetailed() {
 
 async function AgentsPipeline() {
   const leads = await listBsLeads("agent");
+  const locale = await getLocale();
   return (
     <div className="board" data-cols="6plus">
       {BSYSTEMS_STAGES.map((stage) => {
@@ -142,7 +154,7 @@ async function AgentsPipeline() {
             <div className="col-bar" aria-hidden />
             <div className="col-head">
               <p className="col-title">
-                {STAGE_LABELS[stage]} ({cards.length})
+                {stageLabel(locale, stage)} ({cards.length})
               </p>
             </div>
             <div className="col-cards">

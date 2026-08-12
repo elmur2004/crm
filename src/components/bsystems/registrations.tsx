@@ -2,12 +2,16 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { tFor } from "@/lib/i18n/core";
+import { useLocale } from "@/components/shared/LocaleProvider";
+import { common, registrations as d } from "@/lib/i18n/dict/admin";
 
 /* Founder: the Registrations page is the approval cycle — approve or decline
    pending sign-ups. */
 
 export function RegistrationActions({ userId }: { userId: string }) {
   const router = useRouter();
+  const t = tFor(useLocale());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -22,7 +26,7 @@ export function RegistrationActions({ userId }: { userId: string }) {
     setBusy(false);
     if (!res.ok) {
       const data = (await res.json().catch(() => null)) as { error?: string } | null;
-      setError(data?.error ?? "Something went wrong");
+      setError(data?.error ?? t(common.somethingWentWrong));
       return;
     }
     router.refresh();
@@ -37,10 +41,10 @@ export function RegistrationActions({ userId }: { userId: string }) {
         onClick={() => void act("approve")}
         className="row-toggle row-toggle--restore"
       >
-        Approve
+        {t(d.approve)}
       </button>
       <button type="button" disabled={busy} onClick={() => void act("reject")} className="row-toggle">
-        Reject
+        {t(d.reject)}
       </button>
     </span>
   );

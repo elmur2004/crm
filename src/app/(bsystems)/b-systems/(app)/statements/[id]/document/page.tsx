@@ -8,8 +8,14 @@ import { formatEGP } from "@/lib/money";
 import { formatCairoDate } from "@/lib/datetime";
 import { PrintButton } from "@/components/shared/PrintButton";
 import { BrandLogo } from "@/components/shared/BrandLogo";
+import { tFor } from "@/lib/i18n/core";
+import { getLocale } from "@/lib/i18n/server";
+import { common, statements as d } from "@/lib/i18n/dict/admin";
 
-export const metadata = { title: "Statement — B-Systems CRM" };
+export async function generateMetadata() {
+  const locale = await getLocale();
+  return { title: tFor(locale)(d.metaDocument) };
+}
 
 /* Founder ⑧ — the printable commission statement: branded (token-driven, so it
    prints in the working brand), the closer, the client and their details, the
@@ -43,18 +49,20 @@ export default async function StatementDocumentPage({
 
   const total = s.amount + s.adjustments;
   const backHref = isAdmin ? "/b-systems/statements" : "/b-systems/payments";
+  const locale = await getLocale();
+  const t = tFor(locale);
 
   return (
     <div className="space-y-5">
       <div className="page-head no-print">
         <div>
-          <p className="u-eyebrow">B-SYSTEMS · STATEMENT {s.code}</p>
+          <p className="u-eyebrow">{`${t(d.eyebrowDocument)} ${s.code}`}</p>
           <Link href={backHref} className="text-sm text-brand-muted underline underline-offset-2">
-            Back
+            {t(d.back)}
           </Link>
         </div>
         <div className="page-actions">
-          <PrintButton label="Print statement" />
+          <PrintButton label={t(d.printStatement)} />
         </div>
       </div>
 
@@ -66,14 +74,18 @@ export default async function StatementDocumentPage({
               <BrandLogo brand="bsystems" variant="mark" height={40} />
               <span className="wordmark text-brand-heading">B-Systems</span>
             </div>
-            <p className="print-eyebrow mt-4">Commission statement</p>
+            <p className="print-eyebrow mt-4">{t(d.commissionStatement)}</p>
             <h1 className="print-title">{s.milestoneLabel}</h1>
           </div>
           <div className="text-end">
             <p className="print-code">{s.code}</p>
-            <p className="print-date">Issued {formatCairoDate(s.createdAt)}</p>
+            <p className="print-date">
+              {t(d.issuedWord)} {formatCairoDate(s.createdAt)}
+            </p>
             {s.expectedDate ? (
-              <p className="print-date">Expected payment {formatCairoDate(s.expectedDate)}</p>
+              <p className="print-date">
+                {t(d.expectedPaymentWord)} {formatCairoDate(s.expectedDate)}
+              </p>
             ) : null}
           </div>
         </header>
@@ -81,18 +93,18 @@ export default async function StatementDocumentPage({
         <section className="print-section">
           <div className="print-parties">
             <div>
-              <p className="print-party-label">Paid by</p>
+              <p className="print-party-label">{t(d.paidBy)}</p>
               <p className="print-party-name">B-Systems</p>
               <p className="print-party-line">Systems Before Software</p>
             </div>
             <div>
-              <p className="print-party-label">Paid to</p>
+              <p className="print-party-label">{t(d.paidTo)}</p>
               <p className="print-party-name">{closerUser?.name ?? s.closerLabel}</p>
               {closerUser?.email ? <p className="print-party-line">{closerUser.email}</p> : null}
               {closerUser?.phone ? <p className="print-party-line">{closerUser.phone}</p> : null}
             </div>
             <div>
-              <p className="print-party-label">Client</p>
+              <p className="print-party-label">{t(d.client)}</p>
               <p className="print-party-name">{s.clientName}</p>
               {lead.companyName ? <p className="print-party-line">{lead.companyName}</p> : null}
               <p className="print-party-line">{lead.number}</p>
@@ -106,10 +118,10 @@ export default async function StatementDocumentPage({
             <table className="table table--embedded">
               <thead>
                 <tr>
-                  <th>Description</th>
-                  <th>Milestone value</th>
-                  <th>Share</th>
-                  <th>Amount</th>
+                  <th>{t(d.thDescription)}</th>
+                  <th>{t(d.thMilestoneValue)}</th>
+                  <th>{t(d.thShare)}</th>
+                  <th>{t(common.thAmount)}</th>
                 </tr>
               </thead>
               <tbody>
@@ -123,7 +135,7 @@ export default async function StatementDocumentPage({
                 </tr>
                 {s.adjustments !== 0 ? (
                   <tr>
-                    <td className="td-title">Adjustments</td>
+                    <td className="td-title">{t(d.thAdjustments)}</td>
                     <td>—</td>
                     <td>—</td>
                     <td>{formatEGP(s.adjustments)}</td>
@@ -133,29 +145,33 @@ export default async function StatementDocumentPage({
             </table>
           </div>
           <div className="print-total-row mt-4">
-            <span className="print-total-label">Total payable</span>
+            <span className="print-total-label">{t(d.totalPayable)}</span>
             <span className="print-total">{formatEGP(total)}</span>
           </div>
         </section>
 
         <section className="print-section flex items-center justify-between gap-4 flex-wrap">
           {s.status === "paid" ? (
-            <span className="print-stamp">Paid</span>
+            <span className="print-stamp">{t(common.paid)}</span>
           ) : (
-            <span className="print-stamp print-stamp--pending">Pending</span>
+            <span className="print-stamp print-stamp--pending">{t(common.pending)}</span>
           )}
           <div className="text-end">
             {s.status === "paid" && s.paidAt ? (
-              <p className="print-party-line">Paid on {formatCairoDate(s.paidAt)}</p>
+              <p className="print-party-line">
+                {t(d.paidOnWord)} {formatCairoDate(s.paidAt)}
+              </p>
             ) : null}
             {s.proofs[0]?.fileOk ? (
-              <p className="print-party-line">Payment proof on file ({s.proofs[0].filename})</p>
+              <p className="print-party-line">
+                {t(d.proofOnFile).replace("{f}", s.proofs[0].filename)}
+              </p>
             ) : null}
           </div>
         </section>
 
         <footer className="print-foot">
-          <span>B-Systems Sales Platform</span>
+          <span>{t(d.footerPlatform)}</span>
           <span>{s.code}</span>
         </footer>
       </article>

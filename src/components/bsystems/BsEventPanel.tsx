@@ -2,9 +2,12 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { STAGE_LABELS } from "@/lib/pipeline-engine/constants";
 import { bsystemsCrmConfig } from "@/lib/pipeline-engine/configs/bsystems-crm";
 import { btnGhost, btnPrimary, inputCls, labelCls } from "@/components/portal/groupForms";
+import { tFor } from "@/lib/i18n/core";
+import { useLocale } from "@/components/shared/LocaleProvider";
+import { stageLabel } from "@/lib/i18n/dict/labels";
+import { common, eventPanel as msg } from "@/lib/i18n/dict/crm";
 import {
   FollowUpFieldsV2,
   GroupFieldsV2,
@@ -34,6 +37,8 @@ export function BsEventPanel({
   pendingMeeting: boolean;
   readyToClose: boolean;
 }) {
+  const locale = useLocale();
+  const t = tFor(locale);
   const router = useRouter();
   const engineRole =
     role === "admin"
@@ -68,7 +73,7 @@ export function BsEventPanel({
     setBusy(false);
     if (!res.ok) {
       const data = (await res.json().catch(() => null)) as { error?: string } | null;
-      setError(data?.error ?? "Something went wrong");
+      setError(data?.error ?? t(common.somethingWentWrong));
       return;
     }
     setAction("");
@@ -81,7 +86,7 @@ export function BsEventPanel({
   if (terminal) {
     return (
       <p className="u-muted">
-        This lead is {STAGE_LABELS[stage]} — no further actions.
+        {t(msg.terminalNote).replace("{stage}", stageLabel(locale, stage))}
       </p>
     );
   }
@@ -95,7 +100,7 @@ export function BsEventPanel({
       ) : null}
       {meetingSent && light ? (
         <p role="status" className="info-banner">
-          Your request was received — we&apos;ll confirm on WhatsApp.
+          {t(msg.requestReceived)}
         </p>
       ) : null}
 
@@ -111,17 +116,17 @@ export function BsEventPanel({
           }}
           className="border border-brand-accent text-brand-accent rounded-brand-control px-3 py-1.5 text-sm font-medium"
         >
-          Mark ready to close
+          {t(common.markReadyToClose)}
         </button>
       ) : (
         <p className="text-sm">
-          <span className="badge badge--accent">Ready to close</span>
+          <span className="badge badge--accent">{t(common.readyToClose)}</span>
         </p>
       )}
 
       {stage === "sending_proposal" && hasUnsentProposal ? (
         <div className="card card-pad space-y-3">
-          <p className="u-h3">Proposal ready — mark it as sent?</p>
+          <p className="u-h3">{t(msg.proposalReady)}</p>
           {light ? (
             <button
               type="button"
@@ -129,7 +134,7 @@ export function BsEventPanel({
               onClick={() => void submit({ event: { type: "proposal_sent" } })}
               className={btnPrimary}
             >
-              Sent — back to Following Up
+              {t(msg.sentBackToFollowUp)}
             </button>
           ) : (
             <form
@@ -142,10 +147,10 @@ export function BsEventPanel({
               }}
               className="space-y-3"
             >
-              <p className="u-label">Following up after proposal</p>
+              <p className="u-label">{t(msg.followUpAfterProposal)}</p>
               <FollowUpFieldsV2 light={false} reps={reps} />
               <button type="submit" disabled={busy} className={btnPrimary}>
-                Sent — move to Following Up
+                {t(msg.sentMoveToFollowUp)}
               </button>
             </form>
           )}
@@ -154,9 +159,9 @@ export function BsEventPanel({
 
       {stage === "meeting_setting" && pendingMeeting ? (
         <div className="card card-pad space-y-3">
-          <p className="u-h3">Meeting outcome</p>
+          <p className="u-h3">{t(msg.meetingOutcome)}</p>
           <select
-            aria-label="Meeting outcome"
+            aria-label={t(msg.meetingOutcome)}
             value={outcome}
             onChange={(e) => {
               setOutcome(e.target.value);
@@ -164,10 +169,10 @@ export function BsEventPanel({
             }}
             className={inputCls}
           >
-            <option value="">Choose an outcome…</option>
-            <option value="attended">Attended</option>
-            <option value="cancelled">Cancelled</option>
-            <option value="delayed">Delayed</option>
+            <option value="">{t(msg.chooseOutcome)}</option>
+            <option value="attended">{t(msg.attended)}</option>
+            <option value="cancelled">{t(msg.cancelled)}</option>
+            <option value="delayed">{t(msg.delayed)}</option>
           </select>
 
           {outcome === "delayed" ? (
@@ -190,7 +195,7 @@ export function BsEventPanel({
                 <input type="time" name="time" required className={inputCls} />
               </div>
               <button type="submit" disabled={busy} className={btnPrimary}>
-                Save new date
+                {t(msg.saveNewDate)}
               </button>
             </form>
           ) : null}
@@ -198,15 +203,15 @@ export function BsEventPanel({
           {outcome === "attended" || outcome === "cancelled" ? (
             <div className="mt-3 space-y-3">
               <select
-                aria-label="Destination"
+                aria-label={t(msg.destination)}
                 value={destination}
                 onChange={(e) => setDestination(e.target.value)}
                 className={inputCls}
               >
-                <option value="">Choose a destination…</option>
+                <option value="">{t(msg.chooseDestination)}</option>
                 {(outcome === "attended" ? attendedDestinations : cancelledDestinations).map((d) => (
                   <option key={d} value={d}>
-                    {STAGE_LABELS[d]}
+                    {stageLabel(locale, d)}
                   </option>
                 ))}
               </select>
@@ -235,7 +240,7 @@ export function BsEventPanel({
                     setMilestoneCount={formState.setMilestoneCount}
                   />
                   <button type="submit" disabled={busy} className={btnPrimary}>
-                    Confirm — move to {STAGE_LABELS[destination]}
+                    {t(msg.confirmMoveTo).replace("{stage}", stageLabel(locale, destination))}
                   </button>
                 </form>
               ) : null}
@@ -246,12 +251,12 @@ export function BsEventPanel({
 
       <div>
         <label className="block">
-          <span className={labelCls}>Next action</span>
+          <span className={labelCls}>{t(common.nextAction)}</span>
           <select value={action} onChange={(e) => setAction(e.target.value)} className={inputCls}>
-            <option value="">Choose a next action…</option>
+            <option value="">{t(msg.chooseNextAction)}</option>
             {nextActions.map((a) => (
               <option key={a} value={a}>
-                {a === "won" ? "Confirm win" : STAGE_LABELS[a]}
+                {a === "won" ? t(common.confirmWin) : stageLabel(locale, a)}
               </option>
             ))}
           </select>
@@ -277,7 +282,7 @@ export function BsEventPanel({
             }}
             className="mt-3 space-y-3 card card-pad"
           >
-            <p className="u-h3">{action === "won" ? "Confirm win" : STAGE_LABELS[action]}</p>
+            <p className="u-h3">{action === "won" ? t(common.confirmWin) : stageLabel(locale, action)}</p>
             <GroupFieldsV2
               target={action}
               role={role}
@@ -289,10 +294,10 @@ export function BsEventPanel({
             />
             <div className="flex gap-2">
               <button type="submit" disabled={busy} className={btnPrimary}>
-                Save &amp; move
+                {t(msg.saveAndMove)}
               </button>
               <button type="button" onClick={() => setAction("")} className={btnGhost}>
-                Cancel
+                {t(common.cancel)}
               </button>
             </div>
           </form>

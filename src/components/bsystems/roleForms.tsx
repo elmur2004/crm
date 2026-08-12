@@ -4,6 +4,9 @@ import { useState } from "react";
 import { FOLLOW_UP_METHODS, MEETING_MODES } from "@/lib/pipeline-engine/constants";
 import { toPiasters } from "@/lib/money";
 import { inputCls, labelCls } from "@/components/portal/groupForms";
+import { tFor } from "@/lib/i18n/core";
+import { useLocale } from "@/components/shared/LocaleProvider";
+import { common, stageForm as msg } from "@/lib/i18n/dict/crm";
 
 /* V2 §3/§4 — the role-aware stage forms for the unified B-Systems pipeline.
    `light` = agent/partner variants (no time on follow-ups, no owner/with, the
@@ -15,26 +18,27 @@ export const isLight = (r: BsFormRole) => r === "agent" || r === "partner";
 type Rep = { id: string; name: string };
 
 export function FollowUpFieldsV2({ light, reps }: { light: boolean; reps: Rep[] }) {
+  const t = tFor(useLocale());
   return (
     <>
       <div className="grid grid-cols-2 gap-3">
         <label className="block">
-          <span className={labelCls}>Follow-up date</span>
+          <span className={labelCls}>{t(msg.followUpDate)}</span>
           <input type="date" name="date" required className={inputCls} />
         </label>
         {!light ? (
           <label className="block">
-            <span className={labelCls}>Follow-up time</span>
+            <span className={labelCls}>{t(msg.followUpTime)}</span>
             <input type="time" name="time" required className={inputCls} />
           </label>
         ) : null}
       </div>
       <label className="block">
-        <span className={labelCls}>Method</span>
+        <span className={labelCls}>{t(msg.method)}</span>
         <select name="method" required className={inputCls}>
           {FOLLOW_UP_METHODS.map((m) => (
             <option key={m} value={m}>
-              {m === "call" ? "Call" : m === "message" ? "Message" : "Visit"}
+              {m === "call" ? t(msg.methodCall) : m === "message" ? t(msg.methodMessage) : t(msg.methodVisit)}
             </option>
           ))}
         </select>
@@ -42,7 +46,7 @@ export function FollowUpFieldsV2({ light, reps }: { light: boolean; reps: Rep[] 
       {!light ? (
         <>
           <label className="block">
-            <span className={labelCls}>Owner</span>
+            <span className={labelCls}>{t(common.owner)}</span>
             <select name="ownerSalesRepId" className={inputCls}>
               <option value="">—</option>
               {reps.map((r) => (
@@ -53,8 +57,8 @@ export function FollowUpFieldsV2({ light, reps }: { light: boolean; reps: Rep[] 
             </select>
           </label>
           <label className="block">
-            <span className={labelCls}>Following up with</span>
-            <input type="text" name="followingUpWith" className={inputCls} placeholder="Contact person" />
+            <span className={labelCls}>{t(msg.followingUpWith)}</span>
+            <input type="text" name="followingUpWith" className={inputCls} placeholder={t(msg.contactPerson)} />
           </label>
         </>
       ) : null}
@@ -87,30 +91,31 @@ export function MeetingFieldsV2({
   agreed: boolean;
   setAgreed: (v: boolean) => void;
 }) {
+  const t = tFor(useLocale());
   return (
     <>
       <label className="flex items-center gap-2">
         <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} />
         <span className="field-label">
-          {light ? "Did you agree with the client on a time?" : "Arranged?"}
+          {light ? t(msg.agreedQuestion) : t(msg.arranged)}
         </span>
       </label>
       <div className="grid grid-cols-2 gap-3">
         <label className="block">
-          <span className={labelCls}>{agreed ? "Date" : "Date that suits you"}</span>
+          <span className={labelCls}>{agreed ? t(msg.date) : t(msg.dateThatSuits)}</span>
           <input type="date" name="date" required className={inputCls} />
         </label>
         <label className="block">
-          <span className={labelCls}>{agreed ? "Time" : "Time that suits you"}</span>
+          <span className={labelCls}>{agreed ? t(msg.time) : t(msg.timeThatSuits)}</span>
           <input type="time" name="time" required className={inputCls} />
         </label>
       </div>
       <label className="block">
-        <span className={labelCls}>Mode</span>
+        <span className={labelCls}>{t(msg.mode)}</span>
         <select name="mode" required className={inputCls}>
           {MEETING_MODES.map((m) => (
             <option key={m} value={m}>
-              {m === "online" ? "Online" : "Offline"}
+              {m === "online" ? t(msg.online) : t(msg.offline)}
             </option>
           ))}
         </select>
@@ -118,16 +123,16 @@ export function MeetingFieldsV2({
       {light ? (
         <label className="flex items-center gap-2">
           <input type="checkbox" name="needsTechnical" />
-          <span className="field-label">Do you need a technical colleague with you?</span>
+          <span className="field-label">{t(msg.needsTechnical)}</span>
         </label>
       ) : (
         <>
           <label className="block">
-            <span className={labelCls}>With</span>
-            <input type="text" name="withAttendees" className={inputCls} placeholder="Attendees" />
+            <span className={labelCls}>{t(msg.withLabel)}</span>
+            <input type="text" name="withAttendees" className={inputCls} placeholder={t(msg.attendees)} />
           </label>
           <label className="block">
-            <span className={labelCls}>Technical support</span>
+            <span className={labelCls}>{t(msg.technicalSupport)}</span>
             <input type="text" name="technicalSupport" list="bs-rep-names" className={inputCls} />
             <datalist id="bs-rep-names">
               {reps.map((r) => (
@@ -157,14 +162,15 @@ export function meetingPayload(fd: FormData, light: boolean, agreed: boolean) {
 }
 
 export function ProposalFieldsV2() {
+  const t = tFor(useLocale());
   return (
     <>
       <label className="block">
-        <span className={labelCls}>Service</span>
+        <span className={labelCls}>{t(msg.service)}</span>
         <input type="text" name="service" required className={inputCls} />
       </label>
       <label className="block">
-        <span className={labelCls}>Estimated value (EGP)</span>
+        <span className={labelCls}>{t(msg.estimatedValue)}</span>
         <input type="number" name="estimatedValue" min="0" step="0.01" className={inputCls} />
       </label>
     </>
@@ -184,18 +190,20 @@ export function proposalPayload(fd: FormData) {
 }
 
 export function NegotiationFields() {
+  const t = tFor(useLocale());
   return (
     <label className="block">
-      <span className={labelCls}>Negotiation note</span>
-      <textarea name="note" required rows={3} className={inputCls} placeholder="What is being negotiated?" />
+      <span className={labelCls}>{t(msg.negotiationNote)}</span>
+      <textarea name="note" required rows={3} className={inputCls} placeholder={t(msg.negotiationPlaceholder)} />
     </label>
   );
 }
 
 export function LostFieldsV2() {
+  const t = tFor(useLocale());
   return (
     <label className="block">
-      <span className={labelCls}>Reason (required)</span>
+      <span className={labelCls}>{t(msg.lostReason)}</span>
       <textarea name="reason" required rows={3} className={inputCls} />
     </label>
   );
@@ -212,6 +220,7 @@ export function WonDealTab({
   count: number;
   setCount: (n: number) => void;
 }) {
+  const t = tFor(useLocale());
   const [sums, setSums] = useState<{
     estimated: number;
     values: number;
@@ -247,21 +256,21 @@ export function WonDealTab({
     <div className="contents" onInput={(e) => recalc(e.target as HTMLElement)}>
       <div className="grid grid-cols-2 gap-3">
         <label className="block">
-          <span className={labelCls}>Estimated value (EGP)</span>
+          <span className={labelCls}>{t(msg.estimatedValue)}</span>
           <input type="number" name="estimatedValue" min="0" step="0.01" required className={inputCls} />
         </label>
         <label className="block">
-          <span className={labelCls}>Total commission (%)</span>
+          <span className={labelCls}>{t(msg.totalCommission)}</span>
           <input type="number" name="totalCommissionPercent" min="0" max="100" step="0.01" required className={inputCls} />
         </label>
       </div>
       <div className="grid grid-cols-2 gap-3">
         <label className="block">
-          <span className={labelCls}>Contract date</span>
+          <span className={labelCls}>{t(msg.contractDate)}</span>
           <input type="date" name="contractDate" className={inputCls} />
         </label>
         <label className="block">
-          <span className={labelCls}>Number of milestones</span>
+          <span className={labelCls}>{t(msg.milestoneCount)}</span>
           <input
             type="number"
             min={1}
@@ -275,25 +284,25 @@ export function WonDealTab({
       <div className="space-y-3">
         {Array.from({ length: count }, (_, i) => (
           <div key={i} className="record-group grid grid-cols-2 gap-2">
-            <p className="col-span-2 record-title">Milestone {i + 1}</p>
+            <p className="col-span-2 record-title">{t(msg.milestoneN).replace("{n}", String(i + 1))}</p>
             <label className="block col-span-2">
-              <span className={labelCls}>Name</span>
-              <input type="text" name={`m${i}label`} placeholder={`Milestone ${i + 1}`} className={inputCls} />
+              <span className={labelCls}>{t(common.name)}</span>
+              <input type="text" name={`m${i}label`} placeholder={t(msg.milestoneN).replace("{n}", String(i + 1))} className={inputCls} />
             </label>
             <label className="block">
-              <span className={labelCls}>Value (EGP)</span>
+              <span className={labelCls}>{t(msg.valueEgp)}</span>
               <input type="number" name={`m${i}value`} min="0" step="0.01" required className={inputCls} />
             </label>
             <label className="block">
-              <span className={labelCls}>Closer&apos;s commission (EGP)</span>
+              <span className={labelCls}>{t(msg.closerCommission)}</span>
               <input type="number" name={`m${i}commission`} min="0" step="0.01" required className={inputCls} />
             </label>
             <label className="block">
-              <span className={labelCls}>Expected start</span>
+              <span className={labelCls}>{t(msg.expectedStart)}</span>
               <input type="date" name={`m${i}start`} className={inputCls} />
             </label>
             <label className="block">
-              <span className={labelCls}>Expected end</span>
+              <span className={labelCls}>{t(msg.expectedEnd)}</span>
               <input type="date" name={`m${i}end`} className={inputCls} />
             </label>
           </div>
@@ -302,12 +311,16 @@ export function WonDealTab({
       {sums ? (
         <div className="record-group text-sm space-y-1">
           <p className={valuesOk ? "" : "text-brand-danger"}>
-            Milestone values: {fmt(sums.values)} of {fmt(sums.estimated)}
-            {valuesOk ? " ✓" : " — must match the estimated value"}
+            {t(msg.milestoneValuesLine)
+              .replace("{a}", fmt(sums.values))
+              .replace("{b}", fmt(sums.estimated))}
+            {valuesOk ? " ✓" : t(msg.mustMatchEstimated)}
           </p>
           <p className={commissionsOk ? "" : "text-brand-danger"}>
-            Commissions: {fmt(sums.commissions)} of expected {fmt(sums.expectedCommission)}
-            {commissionsOk ? " ✓" : " — must match the total commission %"}
+            {t(msg.commissionsLine)
+              .replace("{a}", fmt(sums.commissions))
+              .replace("{b}", fmt(sums.expectedCommission))}
+            {commissionsOk ? " ✓" : t(msg.mustMatchCommission)}
           </p>
         </div>
       ) : null}
@@ -368,6 +381,7 @@ export function GroupFieldsV2({
   milestoneCount: number;
   setMilestoneCount: (n: number) => void;
 }) {
+  const t = tFor(useLocale());
   const light = isLight(role);
   if (target === "following_up") return <FollowUpFieldsV2 light={light} reps={reps} />;
   if (target === "meeting_setting")
@@ -377,7 +391,7 @@ export function GroupFieldsV2({
   if (target === "lost") return <LostFieldsV2 />;
   if (target === "won") return <WonDealTab count={milestoneCount} setCount={setMilestoneCount} />;
   if (target === "new")
-    return <p className="u-muted">The lead returns to the New column.</p>;
+    return <p className="u-muted">{t(msg.backToNew)}</p>;
   return null;
 }
 

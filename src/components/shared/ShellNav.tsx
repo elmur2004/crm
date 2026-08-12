@@ -3,6 +3,9 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useLocale } from "@/components/shared/LocaleProvider";
+import { tFor } from "@/lib/i18n/core";
+import { shell } from "@/lib/i18n/dict/auth";
 
 /* Design-system nav (spec §2.1) — desktop: inline items; small screens (≤820px):
    a menu button opening a full-width sheet with tap-friendly rows. `extras`
@@ -18,6 +21,7 @@ export function ShellNav({
 }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  const t = tFor(useLocale());
 
   /* longest matching href wins so /b-systems doesn't stay active on /b-systems/crm */
   const active = items
@@ -44,7 +48,7 @@ export function ShellNav({
       <button
         type="button"
         className="nav-burger"
-        aria-label={open ? "Close menu" : "Open menu"}
+        aria-label={open ? t(shell.closeMenu) : t(shell.openMenu)}
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
       >

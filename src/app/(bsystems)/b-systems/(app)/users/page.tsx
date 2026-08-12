@@ -5,19 +5,17 @@ import { impersonate } from "@/lib/auth/actions";
 import { listUsers } from "@/lib/services/users";
 import { formatCairoDate } from "@/lib/datetime";
 import { ActiveToggle, CreateUserForm, EditUserButton } from "@/components/bsystems/users";
+import { tFor } from "@/lib/i18n/core";
+import { getLocale } from "@/lib/i18n/server";
+import { common, roleBadges, usersAdmin as d } from "@/lib/i18n/dict/admin";
 
-export const metadata = { title: "Users — B-Systems CRM" };
+export async function generateMetadata() {
+  const locale = await getLocale();
+  return { title: tFor(locale)(d.meta) };
+}
 
 /* V2 §2.10 — every user; create with role/entity assignment; remove
    (deactivate, reversible); impersonate = open their account directly. */
-
-const ROLE_LABELS: Record<string, string> = {
-  bsystems_admin: "Admin",
-  bsystems_sales: "Internal sales",
-  bsystems_agent: "Agent",
-  bsystems_partner: "Partner",
-  byteforce_staff: "ByteForce",
-};
 
 export default async function UsersPage() {
   const user = await requirePageRole(
@@ -30,13 +28,15 @@ export default async function UsersPage() {
   if (bsRoleOf(user) !== "bsystems_admin") redirect("/b-systems/crm");
 
   const users = await listUsers();
+  const locale = await getLocale();
+  const t = tFor(locale);
 
   return (
     <div className="space-y-6">
       <div className="page-head">
         <div>
-          <p className="u-eyebrow">B-SYSTEMS · USERS</p>
-          <h1 className="u-h1">Users</h1>
+          <p className="u-eyebrow">{t(d.eyebrow)}</p>
+          <h1 className="u-h1">{t(d.title)}</h1>
         </div>
         <div className="page-actions">
           <CreateUserForm />
@@ -47,12 +47,12 @@ export default async function UsersPage() {
           <table className="table">
             <thead>
               <tr>
-                <th>Name</th>
-                <th>Email / phone</th>
-                <th>Password</th>
-                <th>Access</th>
-                <th>Created</th>
-                <th>Actions</th>
+                <th>{t(common.thName)}</th>
+                <th>{t(common.thEmailOrPhone)}</th>
+                <th>{t(d.thPassword)}</th>
+                <th>{t(d.thAccess)}</th>
+                <th>{t(common.thCreated)}</th>
+                <th>{t(d.thActions)}</th>
               </tr>
             </thead>
             <tbody>
@@ -77,7 +77,7 @@ export default async function UsersPage() {
                     <span className="flex gap-1 flex-wrap">
                       {u.roles.map((r) => (
                         <span key={r.role} className="badge badge--entity">
-                          {ROLE_LABELS[r.role] ?? r.role}
+                          {roleBadges[r.role] ? t(roleBadges[r.role]) : r.role}
                         </span>
                       ))}
                     </span>
@@ -98,7 +98,7 @@ export default async function UsersPage() {
                       {u.active && u.id !== user.id ? (
                         <form action={impersonate.bind(null, u.id)}>
                           <button type="submit" className="btn-ghost btn--sm">
-                            Impersonate
+                            {t(d.impersonate)}
                           </button>
                         </form>
                       ) : null}
@@ -111,10 +111,7 @@ export default async function UsersPage() {
           </table>
         </div>
       </div>
-      <p className="u-footnote">
-        Impersonating signs you into that account — log out and sign back in to return to your
-        admin account. Every impersonation is recorded in the activity log.
-      </p>
+      <p className="u-footnote">{t(d.impersonateFootnote)}</p>
     </div>
   );
 }

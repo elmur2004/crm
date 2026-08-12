@@ -6,8 +6,14 @@ import { bsRoleOf } from "@/lib/api/bsystems";
 import { formatEGP } from "@/lib/money";
 import { formatCairoDate } from "@/lib/datetime";
 import { MilestoneCheckbox, WonDocumentUpload } from "@/components/bsystems/wonLeads";
+import { tFor } from "@/lib/i18n/core";
+import { getLocale } from "@/lib/i18n/server";
+import { common, wonLeads } from "@/lib/i18n/dict/admin";
 
-export const metadata = { title: "Won Lead — B-Systems CRM" };
+export async function generateMetadata() {
+  const locale = await getLocale();
+  return { title: tFor(locale)(wonLeads.metaDetail) };
+}
 
 /* V2 §5 — the admin won-lead detail: full client details, contract date,
    milestone checklist (sequential), proposal/contract PDF uploads. */
@@ -43,16 +49,18 @@ export default async function WonLeadDetailPage({
   });
   if (!w || w.lead.brand !== "bsystems") notFound();
 
-  const closer = w.lead.owner?.name ?? w.lead.salesRep?.name ?? "Admin";
+  const locale = await getLocale();
+  const t = tFor(locale);
+  const closer = w.lead.owner?.name ?? w.lead.salesRep?.name ?? t(wonLeads.closerFallbackAdmin);
 
   return (
     <div className="space-y-6">
       <div className="page-head">
         <div>
           <Link href="/b-systems/won-leads" className="text-sm text-brand-muted underline underline-offset-2">
-            Back to Won Leads
+            {t(wonLeads.backToWonLeads)}
           </Link>
-          <p className="u-eyebrow mt-3">B-SYSTEMS · WON LEAD</p>
+          <p className="u-eyebrow mt-3">{t(wonLeads.eyebrowDetail)}</p>
           <h1 className="u-h1">{w.lead.name}</h1>
         </div>
       </div>
@@ -62,11 +70,11 @@ export default async function WonLeadDetailPage({
           <div className="card card--flush0">
             <div className="card-pad flex gap-2 flex-wrap">
               <div className="money-tile">
-                <p className="money-label">Estimated value:</p>
+                <p className="money-label">{t(wonLeads.labelEstimatedValue)}</p>
                 <p className="money-value">{formatEGP(w.estimatedValue)}</p>
               </div>
               <div className="money-tile">
-                <p className="money-label">Total commission:</p>
+                <p className="money-label">{t(common.labelTotalCommission)}</p>
                 <p className="money-value money-value--commission">
                   {w.totalCommissionPercent != null
                     ? `${(w.totalCommissionPercent / 100).toFixed(2).replace(/\.00$/, "")}%`
@@ -74,7 +82,7 @@ export default async function WonLeadDetailPage({
                 </p>
               </div>
               <div className="money-tile">
-                <p className="money-label">Contract date:</p>
+                <p className="money-label">{t(wonLeads.labelContractDate)}</p>
                 <p className="money-value">
                   {w.contractDate ? formatCairoDate(w.contractDate) : "—"}
                 </p>
@@ -82,27 +90,27 @@ export default async function WonLeadDetailPage({
             </div>
             <div className="fields-grid border-t border-brand-hairline">
               <div className="fields-cell">
-                <p className="fields-label">Number:</p>
+                <p className="fields-label">{t(common.labelNumber)}</p>
                 <p className="fields-value">{w.lead.number}</p>
               </div>
               <div className="fields-cell">
-                <p className="fields-label">Email:</p>
+                <p className="fields-label">{t(common.labelEmail)}</p>
                 <p className="fields-value">{w.lead.email ?? "—"}</p>
               </div>
               {w.lead.companyName ? (
                 <div className="fields-cell">
-                  <p className="fields-label">Company:</p>
+                  <p className="fields-label">{t(common.labelCompany)}</p>
                   <p className="fields-value">{w.lead.companyName}</p>
                 </div>
               ) : null}
               {w.lead.industry ? (
                 <div className="fields-cell">
-                  <p className="fields-label">Industry:</p>
+                  <p className="fields-label">{t(wonLeads.labelIndustry)}</p>
                   <p className="fields-value">{w.lead.industry}</p>
                 </div>
               ) : null}
               <div className="fields-cell">
-                <p className="fields-label">Closer:</p>
+                <p className="fields-label">{t(wonLeads.labelCloser)}</p>
                 <p className="fields-value">{closer}</p>
               </div>
             </div>
@@ -111,15 +119,15 @@ export default async function WonLeadDetailPage({
                 href={`/b-systems/crm/lead/${w.leadId}`}
                 className="text-brand-link underline underline-offset-2"
               >
-                Open the lead record
+                {t(wonLeads.openLeadRecord)}
               </Link>
             </p>
           </div>
 
           <div className="card card-pad space-y-3">
-            <h2 className="u-mono">Documents</h2>
+            <h2 className="u-mono">{t(wonLeads.documents)}</h2>
             {w.attachments.length === 0 ? (
-              <p className="empty">No documents uploaded yet.</p>
+              <p className="empty">{t(wonLeads.noDocuments)}</p>
             ) : (
               <ul className="text-sm space-y-1">
                 {w.attachments.map((a) => (
@@ -128,7 +136,10 @@ export default async function WonLeadDetailPage({
                       href={`/api/files/${a.id}`}
                       className="text-brand-link underline underline-offset-2"
                     >
-                      {a.kind === "proposal" ? "Proposal" : "Contract"}: {a.filename}
+                      {a.kind === "proposal"
+                        ? t(wonLeads.attachmentProposal)
+                        : t(wonLeads.attachmentContract)}
+                      : {a.filename}
                     </a>
                   </li>
                 ))}
@@ -140,7 +151,7 @@ export default async function WonLeadDetailPage({
 
         <section className="card card--flush0">
           <div className="card-head">
-            <h2 className="u-h3">Milestones</h2>
+            <h2 className="u-h3">{t(wonLeads.milestonesHeading)}</h2>
           </div>
           <div className="card-pad space-y-2 text-sm">
             {w.milestones.map((m, i) => {
@@ -160,14 +171,16 @@ export default async function WonLeadDetailPage({
                     milestoneId={m.id}
                     completed={m.completed}
                     disabled={!canToggle}
-                    label={m.label ?? `Milestone ${m.index}`}
+                    label={m.label ?? t(wonLeads.milestoneFallback).replace("{n}", String(m.index))}
                   />
                   <span className={`ms-label ${m.completed ? "" : unlocked ? "" : "text-brand-muted"}`}>
-                    {m.label ?? `Milestone ${m.index}`}
+                    {m.label ?? t(wonLeads.milestoneFallback).replace("{n}", String(m.index))}
                   </span>
                   <span className="ms-note ms-auto text-end">
                     {formatEGP(m.value)}
-                    {m.commissionValue != null ? ` · commission ${formatEGP(m.commissionValue)}` : ""}
+                    {m.commissionValue != null
+                      ? `${t(common.commissionSep)}${formatEGP(m.commissionValue)}`
+                      : ""}
                     {m.expectedStart ? ` · ${formatCairoDate(m.expectedStart)}` : ""}
                     {m.expectedEnd ? ` → ${formatCairoDate(m.expectedEnd)}` : ""}
                   </span>
@@ -175,9 +188,7 @@ export default async function WonLeadDetailPage({
               );
             })}
           </div>
-          <p className="panel-hint">
-            Checked milestones appear under Statements → Waiting to be paid out.
-          </p>
+          <p className="panel-hint">{t(wonLeads.checkedHint)}</p>
         </section>
       </div>
     </div>

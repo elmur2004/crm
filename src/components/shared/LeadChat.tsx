@@ -2,6 +2,9 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { tFor, type Locale } from "@/lib/i18n/core";
+import { useLocale } from "@/components/shared/LocaleProvider";
+import { chat } from "@/lib/i18n/dict/chat";
 
 /* Founder: the mini chat inside every lead. Thread + composer with @mention
    autocomplete (type "@", pick with mouse or ↑/↓ + Enter). Mentions are
@@ -21,8 +24,8 @@ export interface ChatMentionable {
   name: string;
 }
 
-function timeLabel(iso: string): string {
-  return new Intl.DateTimeFormat("en-GB", {
+function timeLabel(iso: string, locale: Locale): string {
+  return new Intl.DateTimeFormat(locale === "ar" ? "ar-EG-u-nu-latn" : "en-GB", {
     timeZone: "Africa/Cairo",
     day: "numeric",
     month: "short",
@@ -85,6 +88,8 @@ export function LeadChat({
   currentUserId: string;
 }) {
   const router = useRouter();
+  const locale = useLocale();
+  const t = tFor(locale);
   const areaRef = useRef<HTMLTextAreaElement>(null);
   const threadRef = useRef<HTMLUListElement>(null);
   const [text, setText] = useState("");
@@ -135,7 +140,7 @@ export function LeadChat({
     setBusy(false);
     if (!res.ok) {
       const data = (await res.json().catch(() => null)) as { error?: string } | null;
-      setError(data?.error ?? "Could not send");
+      setError(data?.error ?? t(chat.sendFailed));
       return;
     }
     setText("");
@@ -175,11 +180,11 @@ export function LeadChat({
   return (
     <div className="card card--flush0">
       <div className="card-head">
-        <h2 className="u-h3">Team chat</h2>
+        <h2 className="u-h3">{t(chat.title)}</h2>
       </div>
       <div className="card-pad space-y-3">
         {comments.length === 0 ? (
-          <p className="empty">No messages yet — ask a question or leave context for the team.</p>
+          <p className="empty">{t(chat.empty)}</p>
         ) : (
           <ul ref={threadRef} className="chat-thread">
             {comments.map((c) => (
@@ -189,9 +194,9 @@ export function LeadChat({
               >
                 <p className="chat-meta">
                   <span className="chat-author">{c.authorLabel}</span>
-                  <span className="chat-time">{timeLabel(c.createdAt)}</span>
+                  <span className="chat-time">{timeLabel(c.createdAt, locale)}</span>
                 </p>
-                <p className="chat-body">{renderBody(c.body, c.mentions)}</p>
+                <p className="chat-body" dir="auto">{renderBody(c.body, c.mentions)}</p>
               </li>
             ))}
           </ul>
@@ -205,7 +210,7 @@ export function LeadChat({
 
         <div className="chat-composer">
           {suggestions.length > 0 ? (
-            <ul className="chat-suggest" role="listbox" aria-label="Mention a teammate">
+            <ul className="chat-suggest" role="listbox" aria-label={t(chat.mentionListLabel)}>
               {suggestions.map((m, i) => (
                 <li key={m.userId}>
                   <button
@@ -237,19 +242,20 @@ export function LeadChat({
             onKeyDown={onKeyDown}
             rows={2}
             maxLength={2000}
-            placeholder="Message the team — type @ to mention someone"
-            aria-label="Message the team"
+            dir="auto"
+            placeholder={t(chat.composerPlaceholder)}
+            aria-label={t(chat.composerLabel)}
             className="field-input chat-input"
           />
           <div className="chat-actions">
-            <span className="u-muted">Enter sends · Shift+Enter for a new line</span>
+            <span className="u-muted">{t(chat.enterHint)}</span>
             <button
               type="button"
               disabled={busy || !text.trim()}
               onClick={() => void submit()}
               className="btn-primary btn--sm"
             >
-              Send
+              {t(chat.send)}
             </button>
           </div>
         </div>

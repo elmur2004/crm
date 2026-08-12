@@ -4,20 +4,18 @@ import { bsRoleOf } from "@/lib/api/bsystems";
 import { listRegistrations } from "@/lib/services/users";
 import { formatCairo } from "@/lib/datetime";
 import { RegistrationActions } from "@/components/bsystems/registrations";
+import { tFor } from "@/lib/i18n/core";
+import { getLocale } from "@/lib/i18n/server";
+import { common, regRoleBadges, registrations as d } from "@/lib/i18n/dict/admin";
 
-export const metadata = { title: "Registrations — B-Systems CRM" };
+export async function generateMetadata() {
+  const locale = await getLocale();
+  return { title: tFor(locale)(d.meta) };
+}
 
 /* V2 §2.8 + founder V3: Registrations is the APPROVAL CYCLE — new agent
    sign-ups arrive here as pending requests; the admin approves or declines
    them. Below that, the registry of everyone on the system. */
-
-const ROLE_LABELS: Record<string, string> = {
-  bsystems_admin: "Admin",
-  bsystems_sales: "Internal sales",
-  bsystems_agent: "Agent",
-  bsystems_partner: "Partner",
-  byteforce_staff: "ByteForce staff",
-};
 
 export default async function RegistrationsPage() {
   const user = await requirePageRole(
@@ -31,35 +29,37 @@ export default async function RegistrationsPage() {
 
   const registrations = await listRegistrations();
   const pending = registrations.filter((u) => u.registrationStatus === "pending");
+  const locale = await getLocale();
+  const t = tFor(locale);
 
   return (
     <div className="space-y-6">
       <div className="page-head">
         <div>
-          <p className="u-eyebrow">B-SYSTEMS · REGISTRATIONS</p>
-          <h1 className="u-h1">Registrations</h1>
+          <p className="u-eyebrow">{t(d.eyebrow)}</p>
+          <h1 className="u-h1">{t(d.title)}</h1>
         </div>
       </div>
 
       <section className="card card--flush0">
         <div className="card-head">
-          <h2 className="u-h3">Awaiting approval</h2>
+          <h2 className="u-h3">{t(d.awaitingApproval)}</h2>
           <span className="count-pill" data-stage-key="won">
             {pending.length}
           </span>
         </div>
         {pending.length === 0 ? (
-          <p className="empty m-4">No pending requests — new sign-ups land here for review.</p>
+          <p className="empty m-4">{t(d.pendingEmpty)}</p>
         ) : (
           <div className="table-scroll">
             <table className="table">
               <thead>
                 <tr>
-                  <th>Name</th>
-                  <th>Email</th>
-                  <th>Phone</th>
-                  <th>Requested</th>
-                  <th>Decision</th>
+                  <th>{t(common.thName)}</th>
+                  <th>{t(common.thEmail)}</th>
+                  <th>{t(common.thPhone)}</th>
+                  <th>{t(d.thRequested)}</th>
+                  <th>{t(d.thDecision)}</th>
                 </tr>
               </thead>
               <tbody>
@@ -84,17 +84,17 @@ export default async function RegistrationsPage() {
 
       <section className="card card--flush0">
         <div className="card-head">
-          <h2 className="u-h3">Everyone on the system</h2>
+          <h2 className="u-h3">{t(d.everyoneHeading)}</h2>
         </div>
         <div className="table-scroll">
           <table className="table">
             <thead>
               <tr>
-                <th>Name</th>
-                <th>Email / phone</th>
-                <th>Type</th>
-                <th>Registered</th>
-                <th>Status</th>
+                <th>{t(common.thName)}</th>
+                <th>{t(common.thEmailOrPhone)}</th>
+                <th>{t(d.thType)}</th>
+                <th>{t(d.thRegistered)}</th>
+                <th>{t(common.thStatus)}</th>
               </tr>
             </thead>
             <tbody>
@@ -106,19 +106,23 @@ export default async function RegistrationsPage() {
                   <td className="td-mono">{u.email ?? u.phone ?? "—"}</td>
                   <td>
                     <span className="chip-outline">
-                      {u.roles.map((r) => ROLE_LABELS[r.role] ?? r.role).join(", ")}
+                      {u.roles
+                        .map((r) => (regRoleBadges[r.role] ? t(regRoleBadges[r.role]) : r.role))
+                        .join(", ")}
                     </span>
                   </td>
                   <td>{formatCairo(u.createdAt)}</td>
                   <td>
                     {u.registrationStatus === "pending" ? (
-                      <span className="badge badge--entity badge--entity-both">Pending</span>
+                      <span className="badge badge--entity badge--entity-both">
+                        {t(common.pending)}
+                      </span>
                     ) : u.registrationStatus === "rejected" ? (
-                      <span className="badge badge--danger">Declined</span>
+                      <span className="badge badge--danger">{t(d.badgeDeclined)}</span>
                     ) : u.active ? (
-                      <span>Active</span>
+                      <span>{t(d.statusActive)}</span>
                     ) : (
-                      <span className="badge badge--danger">Deactivated</span>
+                      <span className="badge badge--danger">{t(common.badgeDeactivated)}</span>
                     )}
                   </td>
                 </tr>

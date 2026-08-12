@@ -3,6 +3,9 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { btnPrimary, inputCls, labelCls } from "@/components/portal/groupForms";
+import { tFor } from "@/lib/i18n/core";
+import { useLocale } from "@/components/shared/LocaleProvider";
+import { common, wonLeads as d } from "@/lib/i18n/dict/admin";
 
 /* V2 §4/§5 — admin milestone check/uncheck + proposal/contract PDF uploads. */
 
@@ -18,6 +21,7 @@ export function MilestoneCheckbox({
   label: string;
 }) {
   const router = useRouter();
+  const t = tFor(useLocale());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   return (
@@ -26,7 +30,7 @@ export function MilestoneCheckbox({
         type="checkbox"
         checked={completed}
         disabled={disabled || busy}
-        aria-label={`Milestone completed: ${label}`}
+        aria-label={t(d.milestoneCompletedAria).replace("{label}", label)}
         onChange={async (e) => {
           setBusy(true);
           setError(null);
@@ -38,7 +42,7 @@ export function MilestoneCheckbox({
           setBusy(false);
           if (!res.ok) {
             const data = (await res.json().catch(() => null)) as { error?: string } | null;
-            setError(data?.error ?? "Failed");
+            setError(data?.error ?? t(d.toggleFailed));
             return;
           }
           router.refresh();
@@ -51,6 +55,7 @@ export function MilestoneCheckbox({
 
 export function WonDocumentUpload({ wonDealId }: { wonDealId: string }) {
   const router = useRouter();
+  const t = tFor(useLocale());
   const fileRef = useRef<HTMLInputElement>(null);
   const [kind, setKind] = useState<"proposal" | "contract">("proposal");
   const [busy, setBusy] = useState(false);
@@ -73,7 +78,7 @@ export function WonDocumentUpload({ wonDealId }: { wonDealId: string }) {
         setBusy(false);
         if (!res.ok) {
           const data = (await res.json().catch(() => null)) as { error?: string } | null;
-          setError(data?.error ?? "Upload failed");
+          setError(data?.error ?? t(common.uploadFailed));
           return;
         }
         if (fileRef.current) fileRef.current.value = "";
@@ -84,18 +89,18 @@ export function WonDocumentUpload({ wonDealId }: { wonDealId: string }) {
       {error ? <p className="alert-error">{error}</p> : null}
       <div className="flex items-end gap-2 flex-wrap">
         <label className="block">
-          <span className={labelCls}>Document</span>
+          <span className={labelCls}>{t(d.documentLabel)}</span>
           <select
             value={kind}
             onChange={(e) => setKind(e.target.value as "proposal" | "contract")}
             className={inputCls}
           >
-            <option value="proposal">Proposal PDF</option>
-            <option value="contract">Contract PDF</option>
+            <option value="proposal">{t(d.optionProposalPdf)}</option>
+            <option value="contract">{t(d.optionContractPdf)}</option>
           </select>
         </label>
         <label className="block flex-1 min-w-48">
-          <span className={labelCls}>File (.pdf / .doc / .docx)</span>
+          <span className={labelCls}>{t(d.fileLabel)}</span>
           <span className="dropzone">
             <span className="dropzone-icon" aria-hidden="true">
               ↑
@@ -110,7 +115,7 @@ export function WonDocumentUpload({ wonDealId }: { wonDealId: string }) {
           </span>
         </label>
         <button type="submit" disabled={busy} className={btnPrimary}>
-          Upload
+          {t(d.upload)}
         </button>
       </div>
     </form>

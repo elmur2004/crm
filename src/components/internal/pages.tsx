@@ -2,12 +2,19 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import type { Brand } from "@/lib/pipeline-engine/constants";
+import { INTERNAL_STAGES } from "@/lib/pipeline-engine/constants";
+import { tFor } from "@/lib/i18n/core";
+import { getLocale } from "@/lib/i18n/server";
+import { leadTypeLabel, stageLabel } from "@/lib/i18n/dict/labels";
 import {
-  INTERNAL_STAGES,
-  LEAD_TYPE_LABELS,
-  STAGE_LABELS,
-  type LeadType,
-} from "@/lib/pipeline-engine/constants";
+  board,
+  clientsPage,
+  common,
+  dash,
+  leadDetail,
+  leadsPage,
+  nav,
+} from "@/lib/i18n/dict/internal";
 import { internalDashboard } from "@/lib/services/metrics";
 import { listRepsWithCounts, listReps, countUnassigned } from "@/lib/services/sales-reps";
 import { listClients } from "@/lib/services/clients";
@@ -56,33 +63,35 @@ function markInitials(name: string): string {
 /* ---------------- Home dashboard (§6.5) ---------------- */
 
 export async function DashboardBody({ ctx }: { ctx: InternalAppCtx }) {
+  const locale = await getLocale();
+  const t = tFor(locale);
   const d = await internalDashboard(ctx.brand);
   const stageCells: Array<{ key: string; label: string; value: string }> = [
-    { key: "intake", label: "New / not actioned", value: String(d.leadsPerStage["new"] ?? 0) },
-    { key: "following", label: "Following Up", value: String(d.leadsPerStage["following_up"] ?? 0) },
-    { key: "meeting", label: "Meeting Setting", value: String(d.leadsPerStage["meeting_setting"] ?? 0) },
-    { key: "proposal", label: "Sending Proposals", value: String(d.leadsPerStage["sending_proposal"] ?? 0) },
-    { key: "won", label: "Won", value: String(d.wonCount) },
-    { key: "lost", label: "Lost", value: String(d.lostCount) },
+    { key: "intake", label: t(dash.newNotActioned), value: String(d.leadsPerStage["new"] ?? 0) },
+    { key: "following", label: stageLabel(locale, "following_up"), value: String(d.leadsPerStage["following_up"] ?? 0) },
+    { key: "meeting", label: stageLabel(locale, "meeting_setting"), value: String(d.leadsPerStage["meeting_setting"] ?? 0) },
+    { key: "proposal", label: stageLabel(locale, "sending_proposal"), value: String(d.leadsPerStage["sending_proposal"] ?? 0) },
+    { key: "won", label: stageLabel(locale, "won"), value: String(d.wonCount) },
+    { key: "lost", label: stageLabel(locale, "lost"), value: String(d.lostCount) },
   ];
   return (
     <div className="space-y-6">
       <div className="page-head">
         <div>
-          <p className="u-eyebrow">{BRAND_EYEBROW[ctx.brand]} · HOME</p>
-          <h1 className="u-h1">Home</h1>
+          <p className="u-eyebrow">{BRAND_EYEBROW[ctx.brand]} · {t(dash.eyebrowHome)}</p>
+          <h1 className="u-h1">{t(nav.home)}</h1>
         </div>
       </div>
       <div className="tile-grid tile-grid--vary">
-        <StatCard label="Total leads" value={String(d.totalLeads)} />
-        <StatCard label="Pipeline value" value={formatEGP(d.pipelineValue)} hint="Active stages only" />
-        <StatCard label="Won value" value={formatEGP(d.wonValue)} />
-        <StatCard label="To be collected" value={formatEGP(d.toBeCollected)} hint="Across all clients" />
+        <StatCard label={t(dash.totalLeads)} value={String(d.totalLeads)} />
+        <StatCard label={t(dash.pipelineValue)} value={formatEGP(d.pipelineValue)} hint={t(dash.activeStagesOnly)} />
+        <StatCard label={t(dash.wonValue)} value={formatEGP(d.wonValue)} />
+        <StatCard label={t(dash.toBeCollected)} value={formatEGP(d.toBeCollected)} hint={t(dash.acrossAllClients)} />
       </div>
       <div className="card card--flush0">
         <div className="card-head">
           <h2 className="u-h3">
-            Leads per stage
+            {t(dash.leadsPerStage)}
           </h2>
         </div>
         <div className="stage-strip">
@@ -102,6 +111,8 @@ export async function DashboardBody({ ctx }: { ctx: InternalAppCtx }) {
 /* ---------------- Leads: rep cards grid (§6.1) ---------------- */
 
 export async function LeadsBody({ ctx }: { ctx: InternalAppCtx }) {
+  const locale = await getLocale();
+  const t = tFor(locale);
   const [reps, unassigned] = await Promise.all([
     listRepsWithCounts(ctx.brand),
     countUnassigned(ctx.brand),
@@ -110,8 +121,8 @@ export async function LeadsBody({ ctx }: { ctx: InternalAppCtx }) {
     <div className="space-y-6">
       <div className="page-head">
         <div>
-          <p className="u-eyebrow">{BRAND_EYEBROW[ctx.brand]} · LEADS</p>
-          <h1 className="u-h1">Leads</h1>
+          <p className="u-eyebrow">{BRAND_EYEBROW[ctx.brand]} · {t(leadsPage.eyebrowLeads)}</p>
+          <h1 className="u-h1">{t(nav.leads)}</h1>
         </div>
         <div className="page-actions">
           <AddRepForm apiBase={ctx.apiBase} />
@@ -127,7 +138,7 @@ export async function LeadsBody({ ctx }: { ctx: InternalAppCtx }) {
             </div>
             <p className="ecard-title">{rep.name}</p>
             <p className="ecard-sub">
-              {rep.leadCount} lead{rep.leadCount === 1 ? "" : "s"}
+              {rep.leadCount} {rep.leadCount === 1 ? t(leadsPage.leadOne) : t(leadsPage.leadMany)}
             </p>
           </Link>
         ))}
@@ -138,13 +149,13 @@ export async function LeadsBody({ ctx }: { ctx: InternalAppCtx }) {
                 U
               </span>
             </div>
-            <p className="ecard-title">Unassigned (Partner leads)</p>
-            <p className="ecard-sub">{unassigned} lead{unassigned === 1 ? "" : "s"}</p>
+            <p className="ecard-title">{t(leadsPage.unassignedPartnerLeads)}</p>
+            <p className="ecard-sub">{unassigned} {unassigned === 1 ? t(leadsPage.leadOne) : t(leadsPage.leadMany)}</p>
           </Link>
         ) : null}
         {reps.length === 0 && unassigned === 0 ? (
           <p className="empty col-span-full">
-            No sales reps yet — add the first one to start taking leads.
+            {t(leadsPage.noRepsYet)}
           </p>
         ) : null}
       </div>
@@ -155,6 +166,8 @@ export async function LeadsBody({ ctx }: { ctx: InternalAppCtx }) {
 /* ---------------- Leads table per rep (§6.1) ---------------- */
 
 export async function RepLeadsBody({ ctx, repId }: { ctx: InternalAppCtx; repId: string }) {
+  const locale = await getLocale();
+  const t = tFor(locale);
   const isUnassigned = repId === "unassigned";
   const rep = isUnassigned
     ? null
@@ -172,10 +185,10 @@ export async function RepLeadsBody({ ctx, repId }: { ctx: InternalAppCtx; repId:
       <div className="page-head">
         <div>
           <Link href={`${ctx.basePath}/leads`} className="text-sm text-brand-muted underline underline-offset-2">
-            Back to all reps
+            {t(leadsPage.backToAllReps)}
           </Link>
           <h1 className="u-h1">
-            {rep ? rep.name : "Unassigned (Partner leads)"}
+            {rep ? rep.name : t(leadsPage.unassignedPartnerLeads)}
           </h1>
         </div>
         <div className="page-actions">
@@ -183,17 +196,17 @@ export async function RepLeadsBody({ ctx, repId }: { ctx: InternalAppCtx; repId:
         </div>
       </div>
       {leads.length === 0 ? (
-        <p className="empty">No leads yet.</p>
+        <p className="empty">{t(leadsPage.noLeadsYet)}</p>
       ) : (
         <div className="card card--flush0">
           <div className="table-scroll">
             <table className="table">
               <thead>
                 <tr>
-                  <th>Name</th>
-                  <th>Number</th>
-                  <th>Type</th>
-                  <th>Stage</th>
+                  <th>{t(leadsPage.thName)}</th>
+                  <th>{t(leadsPage.thNumber)}</th>
+                  <th>{t(leadsPage.thType)}</th>
+                  <th>{t(leadsPage.thStage)}</th>
                 </tr>
               </thead>
               <tbody>
@@ -205,13 +218,13 @@ export async function RepLeadsBody({ ctx, repId }: { ctx: InternalAppCtx; repId:
                       </Link>
                       {lead.partner ? (
                         <span className="badge badge--partner ms-2">
-                          Partner: {lead.partner.companyName}
+                          {t(common.partnerPrefix)} {lead.partner.companyName}
                         </span>
                       ) : null}
                     </td>
                     <td className="td-mono">{lead.number}</td>
                     <td>
-                      <span className="chip-outline">{LEAD_TYPE_LABELS[lead.type as LeadType] ?? lead.type}</span>
+                      <span className="chip-outline">{leadTypeLabel(locale, lead.type)}</span>
                     </td>
                     <td>
                       <StageBadge stage={lead.stage} />
@@ -230,6 +243,8 @@ export async function RepLeadsBody({ ctx, repId }: { ctx: InternalAppCtx; repId:
 /* ---------------- Lead detail (§6.1/§6.2) — same record as the CRM card ---------------- */
 
 export async function LeadDetailBody({ ctx, leadId }: { ctx: InternalAppCtx; leadId: string }) {
+  const locale = await getLocale();
+  const t = tFor(locale);
   let detail;
   let access;
   try {
@@ -251,7 +266,7 @@ export async function LeadDetailBody({ ctx, leadId }: { ctx: InternalAppCtx; lea
     <div className="space-y-6">
       <div>
         <Link href={`${ctx.basePath}/crm`} className="text-sm text-brand-muted underline underline-offset-2">
-          Back to the CRM board
+          {t(leadDetail.backToBoard)}
         </Link>
       </div>
 
@@ -262,30 +277,30 @@ export async function LeadDetailBody({ ctx, leadId }: { ctx: InternalAppCtx; lea
             <StageBadge stage={lead.stage} header />
             {lead.partner ? (
               <span className="badge badge--partner">
-                Partner: {lead.partner.companyName}
+                {t(common.partnerPrefix)} {lead.partner.companyName}
               </span>
             ) : null}
           </h1>
         </div>
         <div className="fields-grid">
           <div className="fields-cell">
-            <p className="fields-label">Number:</p>
+            <p className="fields-label">{t(leadDetail.numberColon)}</p>
             <p className="fields-value">{lead.number}</p>
           </div>
           <div className="fields-cell">
-            <p className="fields-label">Email:</p>
+            <p className="fields-label">{t(leadDetail.emailColon)}</p>
             <p className="fields-value">{lead.email ?? "—"}</p>
           </div>
           <div className="fields-cell">
-            <p className="fields-label">Type:</p>
-            <p className="fields-value">{LEAD_TYPE_LABELS[lead.type as LeadType] ?? lead.type}</p>
+            <p className="fields-label">{t(leadDetail.typeColon)}</p>
+            <p className="fields-value">{leadTypeLabel(locale, lead.type)}</p>
           </div>
           <div className="fields-cell">
-            <p className="fields-label">Assigned rep:</p>
-            <p className="fields-value">{lead.salesRep?.name ?? "Unassigned"}</p>
+            <p className="fields-label">{t(leadDetail.assignedRepColon)}</p>
+            <p className="fields-value">{lead.salesRep?.name ?? t(common.unassigned)}</p>
           </div>
           <div className="fields-cell">
-            <p className="fields-label">Date created:</p>
+            <p className="fields-label">{t(leadDetail.dateCreatedColon)}</p>
             <p className="fields-value">{formatCairo(lead.createdAt)}</p>
           </div>
           {lead.description ? (
@@ -301,7 +316,7 @@ export async function LeadDetailBody({ ctx, leadId }: { ctx: InternalAppCtx; lea
           <div className="card card--flush0">
             <div className="card-head">
               <h2 className="u-h3">
-                Next action
+                {t(leadDetail.nextAction)}
               </h2>
             </div>
             <div className="card-pad">
@@ -328,7 +343,7 @@ export async function LeadDetailBody({ ctx, leadId }: { ctx: InternalAppCtx; lea
           />
           <div>
             <h2 className="u-h3 mb-2">
-              Stage records
+              {t(leadDetail.stageRecords)}
             </h2>
             <GroupHistory
               followUps={lead.followUps}
@@ -341,7 +356,7 @@ export async function LeadDetailBody({ ctx, leadId }: { ctx: InternalAppCtx; lea
           <div className="card card--flush0">
             <div className="card-head">
               <h2 className="u-h3">
-                History
+                {t(leadDetail.history)}
               </h2>
             </div>
             <div className="card-pad">
@@ -361,6 +376,8 @@ export async function LeadDetailBody({ ctx, leadId }: { ctx: InternalAppCtx; lea
 const BOARD_STAGES = INTERNAL_STAGES.filter((s) => s !== "new");
 
 export async function CrmBoardBody({ ctx }: { ctx: InternalAppCtx }) {
+  const locale = await getLocale();
+  const t = tFor(locale);
   const leads = await db.lead.findMany({
     where: { brand: ctx.brand, stage: { in: BOARD_STAGES } },
     include: {
@@ -378,17 +395,19 @@ export async function CrmBoardBody({ ctx }: { ctx: InternalAppCtx }) {
   function keyDatum(lead: (typeof leads)[number]): string {
     switch (lead.stage) {
       case "following_up":
-        return lead.followUps[0] ? `Next: ${formatCairo(lead.followUps[0].dueAt)}` : "No follow-up set";
+        return lead.followUps[0]
+          ? `${t(board.nextPrefix)} ${formatCairo(lead.followUps[0].dueAt)}`
+          : t(board.noFollowUpSet);
       case "meeting_setting":
         return lead.meetings[0]?.datetime
-          ? `Meeting: ${formatCairo(lead.meetings[0].datetime)}`
-          : "Meeting not arranged";
+          ? `${t(board.meetingPrefix)} ${formatCairo(lead.meetings[0].datetime)}`
+          : t(board.meetingNotArranged);
       case "sending_proposal":
         return lead.proposals[0]?.estimatedValue != null
-          ? `Est: ${formatEGP(lead.proposals[0].estimatedValue)}`
-          : "No value set";
+          ? `${t(board.estPrefix)} ${formatEGP(lead.proposals[0].estimatedValue)}`
+          : t(common.noValueSet);
       case "won":
-        return lead.wonInfo ? `Est: ${formatEGP(lead.wonInfo.estimatedValue)}` : "";
+        return lead.wonInfo ? `${t(board.estPrefix)} ${formatEGP(lead.wonInfo.estimatedValue)}` : "";
       case "lost":
         return lead.lostInfo[0]?.reason ?? "";
       default:
@@ -400,8 +419,8 @@ export async function CrmBoardBody({ ctx }: { ctx: InternalAppCtx }) {
     <div className="space-y-6">
       <div className="page-head">
         <div>
-          <p className="u-eyebrow">{BRAND_EYEBROW[ctx.brand]} · CRM</p>
-          <h1 className="u-h1">CRM</h1>
+          <p className="u-eyebrow">{BRAND_EYEBROW[ctx.brand]} · {t(board.eyebrowCrm)}</p>
+          <h1 className="u-h1">{t(nav.crm)}</h1>
         </div>
       </div>
       <div className="board" data-cols="6plus">
@@ -412,7 +431,7 @@ export async function CrmBoardBody({ ctx }: { ctx: InternalAppCtx }) {
               <div className="col-bar" aria-hidden />
               <div className="col-head">
                 <p className="col-title">
-                  {STAGE_LABELS[stage]} ({cards.length})
+                  {stageLabel(locale, stage)} ({cards.length})
                 </p>
               </div>
               <div className="col-cards">
@@ -424,13 +443,13 @@ export async function CrmBoardBody({ ctx }: { ctx: InternalAppCtx }) {
                   >
                     <p className="bcard-name">{lead.name}</p>
                     <p className="bcard-rep mt-1">
-                      {LEAD_TYPE_LABELS[lead.type as LeadType] ?? lead.type}
-                      {lead.salesRep ? ` · ${lead.salesRep.name}` : " · Unassigned"}
+                      {leadTypeLabel(locale, lead.type)}
+                      {lead.salesRep ? ` · ${lead.salesRep.name}` : ` · ${t(common.unassigned)}`}
                     </p>
                     {lead.partner ? (
                       <p className="mt-2">
                         <span className="bcard-badge">
-                          Partner: {lead.partner.companyName}
+                          {t(common.partnerPrefix)} {lead.partner.companyName}
                         </span>
                       </p>
                     ) : null}
@@ -452,17 +471,19 @@ export async function CrmBoardBody({ ctx }: { ctx: InternalAppCtx }) {
 /* ---------------- Clients (§6.4) ---------------- */
 
 export async function ClientsBody({ ctx }: { ctx: InternalAppCtx }) {
+  const locale = await getLocale();
+  const t = tFor(locale);
   const clients = await listClients(ctx.brand);
   return (
     <div className="space-y-6">
       <div className="page-head">
         <div>
-          <p className="u-eyebrow">{BRAND_EYEBROW[ctx.brand]} · CLIENTS</p>
-          <h1 className="u-h1">Clients</h1>
+          <p className="u-eyebrow">{BRAND_EYEBROW[ctx.brand]} · {t(clientsPage.eyebrowClients)}</p>
+          <h1 className="u-h1">{t(nav.clients)}</h1>
         </div>
       </div>
       {clients.length === 0 ? (
-        <p className="empty">No clients yet — they appear automatically when a lead is Won.</p>
+        <p className="empty">{t(clientsPage.noClientsYet)}</p>
       ) : (
         <div className="ecard-grid">
           {clients.map((c) => (
@@ -473,34 +494,34 @@ export async function ClientsBody({ ctx }: { ctx: InternalAppCtx }) {
                 </span>
                 {c.retainer ? (
                   <span className="ecard-chip">
-                    Retainer
+                    {t(clientsPage.retainer)}
                   </span>
                 ) : null}
               </div>
               <p className="ecard-title">{c.name}</p>
               <p className="ecard-sub">{c.number}</p>
               <p className="ecard-sub">
-                <span>Service:</span> {c.service ?? "—"}
+                <span>{t(clientsPage.serviceColon)}</span> {c.service ?? "—"}
               </p>
               <div className="ecard-stats">
                 <div>
-                  <p className="ecard-stat-label">Estimated:</p>
+                  <p className="ecard-stat-label">{t(clientsPage.estimatedColon)}</p>
                   <p className="ecard-stat-value">{formatEGP(c.estimatedValue)}</p>
                 </div>
                 <div>
-                  <p className="ecard-stat-label">Collected:</p>
+                  <p className="ecard-stat-label">{t(clientsPage.collectedColon)}</p>
                   <p className="ecard-stat-value">{formatEGP(c.collected)}</p>
                 </div>
                 <div>
-                  <p className="ecard-stat-label">To be collected:</p>
+                  <p className="ecard-stat-label">{t(clientsPage.toBeCollectedColon)}</p>
                   <p className="ecard-stat-value">
                     {formatEGP(c.toBeCollected)}
-                    {c.dueDate ? ` (due ${formatCairoDate(c.dueDate)})` : ""}
+                    {c.dueDate ? ` (${t(clientsPage.due)} ${formatCairoDate(c.dueDate)})` : ""}
                   </p>
                 </div>
               </div>
               <p className="ecard-footer">
-                <span>Technical owner:</span> {c.technicalOwner ?? "—"}
+                <span>{t(common.technicalOwnerColon)}</span> {c.technicalOwner ?? "—"}
               </p>
               <ClientEditForm apiBase={ctx.apiBase} client={c} />
             </div>

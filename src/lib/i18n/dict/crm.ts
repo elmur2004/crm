@@ -1,0 +1,259 @@
+import type { Msg } from "@/lib/i18n/core";
+
+/* B-Systems core surface dictionary (shell + admin home + CRM board + leads +
+   lead detail + role-aware stage forms). EN strings are byte-identical to the
+   pre-i18n literals — the e2e suite asserts on them. */
+
+/* ---- app shell: nav + roles ---- */
+
+export const nav = {
+  home: { en: "Home", ar: "الرئيسية" },
+  leads: { en: "Leads", ar: "العملاء المحتملون" },
+  crm: { en: "CRM", ar: "إدارة العملاء" },
+  wonLeads: { en: "Won Leads", ar: "الصفقات المكسوبة" },
+  partnershipCrm: { en: "Partnership CRM", ar: "إدارة الشراكات" },
+  partners: { en: "Partners", ar: "الشركاء" },
+  agents: { en: "Agents", ar: "الوكلاء" },
+  registrations: { en: "Registrations", ar: "طلبات التسجيل" },
+  statements: { en: "Statements", ar: "كشوف الحساب" },
+  users: { en: "Users", ar: "المستخدمون" },
+  payments: { en: "Payments", ar: "المدفوعات" },
+  profile: { en: "Profile", ar: "الملف الشخصي" },
+  logOut: { en: "Log out", ar: "تسجيل الخروج" },
+  bsystemsHome: { en: "B-Systems home", ar: "الصفحة الرئيسية لـ B-Systems" },
+} satisfies Record<string, Msg>;
+
+export const roles = {
+  bsystems_admin: { en: "Admin", ar: "مدير" },
+  bsystems_sales: { en: "Internal sales", ar: "مبيعات داخلية" },
+  bsystems_agent: { en: "Agent", ar: "وكيل" },
+  bsystems_partner: { en: "Partner", ar: "شريك" },
+} satisfies Record<string, Msg>;
+
+/* ---- shared bits across the surface ---- */
+
+export const common = {
+  name: { en: "Name", ar: "الاسم" },
+  number: { en: "Number", ar: "الرقم" },
+  email: { en: "Email", ar: "البريد الإلكتروني" },
+  type: { en: "Type", ar: "النوع" },
+  owner: { en: "Owner", ar: "المالك" },
+  position: { en: "Position", ar: "المنصب" },
+  company: { en: "Company", ar: "الشركة" },
+  companyName: { en: "Company name", ar: "اسم الشركة" },
+  industry: { en: "Industry", ar: "المجال" },
+  requirements: { en: "Requirements", ar: "المتطلبات" },
+  notes: { en: "Notes", ar: "ملاحظات" },
+  stage: { en: "Stage", ar: "المرحلة" },
+  created: { en: "Created", ar: "تاريخ الإنشاء" },
+  cancel: { en: "Cancel", ar: "إلغاء" },
+  save: { en: "Save", ar: "حفظ" },
+  somethingWentWrong: { en: "Something went wrong", ar: "حدث خطأ ما" },
+  readyToClose: { en: "Ready to close", ar: "جاهز للإغلاق" },
+  markReadyToClose: { en: "Mark ready to close", ar: "تحديد كجاهز للإغلاق" },
+  nextAction: { en: "Next action", ar: "الإجراء التالي" },
+  confirmWin: { en: "Confirm win", ar: "تأكيد المكسب" },
+  ownerFilter: { en: "Owner filter", ar: "تصفية حسب المالك" },
+} satisfies Record<string, Msg>;
+
+/* Owner-bucket filter chips (EN mirrors OWNER_TYPE_LABELS + "Any"). */
+export const ownerFilters = {
+  any: { en: "Any", ar: "الكل" },
+  internal: { en: "Internal", ar: "داخلي" },
+  agent: { en: "Agents", ar: "وكلاء" },
+  partner: { en: "Partners", ar: "شركاء" },
+  admin: { en: "Admins", ar: "مديرون" },
+} satisfies Record<string, Msg>;
+
+/* ---- admin Home dashboard ---- */
+
+export const home = {
+  eyebrow: { en: "B-SYSTEMS · HOME", ar: "B-SYSTEMS · الرئيسية" },
+  title: { en: "Home", ar: "الرئيسية" },
+  totalLeads: { en: "Total leads", ar: "إجمالي العملاء المحتملين" },
+  pipelineValue: { en: "Pipeline value", ar: "قيمة الصفقات الجارية" },
+  activeStagesOnly: { en: "Active stages only", ar: "المراحل النشطة فقط" },
+  wonValue: { en: "Won value", ar: "قيمة الصفقات المكسوبة" },
+  toBeCollected: { en: "To be collected", ar: "قيد التحصيل" },
+  acrossAllClients: { en: "Across all clients", ar: "عبر جميع العملاء" },
+  leadsPerStage: { en: "Leads per stage", ar: "العملاء المحتملون حسب المرحلة" },
+  newNotActioned: { en: "New / not actioned", ar: "جديد / بدون إجراء" },
+  agents: { en: "Agents", ar: "الوكلاء" },
+  partners: { en: "Partners", ar: "الشركاء" },
+  externalPipeline: { en: "Agent & partner pipeline", ar: "صفقات الوكلاء والشركاء" },
+} satisfies Record<string, Msg>;
+
+/* ---- CRM board page ---- */
+
+export const crmPage = {
+  eyebrow: { en: "B-SYSTEMS · CRM", ar: "B-SYSTEMS · إدارة العملاء" },
+  title: { en: "CRM", ar: "إدارة العملاء" },
+  nextPrefix: { en: "Next: ", ar: "التالي: " },
+  noFollowUp: { en: "No follow-up set", ar: "لا توجد متابعة محددة" },
+  meetingPrefix: { en: "Meeting: ", ar: "الاجتماع: " },
+  meetingNotArranged: { en: "Meeting not arranged", ar: "لم يتم ترتيب الاجتماع" },
+  estPrefix: { en: "Est: ", ar: "تقديري: " },
+  noValue: { en: "No value set", ar: "لم تُحدد قيمة" },
+} satisfies Record<string, Msg>;
+
+/* ---- Leads (admin list) page ---- */
+
+export const leadsPage = {
+  eyebrow: { en: "B-SYSTEMS · LEADS", ar: "B-SYSTEMS · العملاء المحتملون" },
+  title: { en: "Leads", ar: "العملاء المحتملون" },
+  empty: { en: "No leads in this bucket yet.", ar: "لا يوجد عملاء محتملون في هذه الفئة بعد." },
+} satisfies Record<string, Msg>;
+
+/* ---- lead detail page (labels keep the trailing colon) ---- */
+
+export const leadDetail = {
+  backToBoard: { en: "Back to the CRM board", ar: "الرجوع إلى لوحة إدارة العملاء" },
+  fieldName: { en: "Name:", ar: "الاسم:" },
+  fieldNumber: { en: "Number:", ar: "الرقم:" },
+  fieldEmail: { en: "Email:", ar: "البريد الإلكتروني:" },
+  fieldType: { en: "Type:", ar: "النوع:" },
+  fieldOwner: { en: "Owner:", ar: "المالك:" },
+  fieldPosition: { en: "Position:", ar: "المنصب:" },
+  fieldCompany: { en: "Company:", ar: "الشركة:" },
+  fieldIndustry: { en: "Industry:", ar: "المجال:" },
+  fieldDateCreated: { en: "Date created:", ar: "تاريخ الإنشاء:" },
+  fieldRequirements: { en: "Requirements:", ar: "المتطلبات:" },
+  fieldNotes: { en: "Notes:", ar: "ملاحظات:" },
+  wonDeal: { en: "Won deal", ar: "الصفقة المكسوبة" },
+  milestonesCompleted: { en: "milestones completed", ar: "مراحل مكتملة" },
+  openInWonLeads: { en: "open in Won Leads", ar: "فتح في الصفقات المكسوبة" },
+  negotiationNotes: { en: "Negotiation notes", ar: "ملاحظات التفاوض" },
+  stageRecords: { en: "Stage records", ar: "سجلات المراحل" },
+  history: { en: "History", ar: "السجل" },
+} satisfies Record<string, Msg>;
+
+/* ---- add / edit / copy / delete lead actions ---- */
+
+export const leadForm = {
+  addLead: { en: "Add lead", ar: "إضافة عميل محتمل" },
+  newLead: { en: "New lead", ar: "عميل محتمل جديد" },
+  saveLead: { en: "Save lead", ar: "حفظ العميل المحتمل" },
+  editLead: { en: "Edit lead", ar: "تعديل العميل المحتمل" },
+  deleteLead: { en: "Delete lead", ar: "حذف العميل المحتمل" },
+  deleteFailed: { en: "Delete failed", ar: "فشل الحذف" },
+  confirmDelete: { en: "Yes, delete permanently", ar: "نعم، احذف نهائيًا" },
+  keepIt: { en: "Keep it", ar: "الإبقاء عليه" },
+  copyData: { en: "Copy data", ar: "نسخ البيانات" },
+  copied: { en: "Copied!", ar: "تم النسخ!" },
+} satisfies Record<string, Msg>;
+
+/* ---- BsEventPanel (lead-detail action panel) ---- */
+
+export const eventPanel = {
+  /* "This lead is {stage} — no further actions." */
+  terminalNote: {
+    en: "This lead is {stage} — no further actions.",
+    ar: "هذا العميل المحتمل في مرحلة {stage} — لا إجراءات أخرى.",
+  },
+  requestReceived: {
+    en: "Your request was received — we'll confirm on WhatsApp.",
+    ar: "تم استلام طلبك — سنؤكد لك عبر واتساب.",
+  },
+  proposalReady: {
+    en: "Proposal ready — mark it as sent?",
+    ar: "العرض جاهز — هل تريد تحديده كمُرسَل؟",
+  },
+  sentBackToFollowUp: { en: "Sent — back to Following Up", ar: "تم الإرسال — العودة إلى المتابعة" },
+  followUpAfterProposal: { en: "Following up after proposal", ar: "المتابعة بعد إرسال العرض" },
+  sentMoveToFollowUp: { en: "Sent — move to Following Up", ar: "تم الإرسال — الانتقال إلى المتابعة" },
+  meetingOutcome: { en: "Meeting outcome", ar: "نتيجة الاجتماع" },
+  chooseOutcome: { en: "Choose an outcome…", ar: "اختر النتيجة…" },
+  attended: { en: "Attended", ar: "تم الحضور" },
+  cancelled: { en: "Cancelled", ar: "أُلغي" },
+  delayed: { en: "Delayed", ar: "تأجل" },
+  saveNewDate: { en: "Save new date", ar: "حفظ الموعد الجديد" },
+  destination: { en: "Destination", ar: "الوجهة" },
+  chooseDestination: { en: "Choose a destination…", ar: "اختر الوجهة…" },
+  /* "Confirm — move to {stage}" */
+  confirmMoveTo: { en: "Confirm — move to {stage}", ar: "تأكيد — الانتقال إلى {stage}" },
+  chooseNextAction: { en: "Choose a next action…", ar: "اختر الإجراء التالي…" },
+  saveAndMove: { en: "Save & move", ar: "حفظ ونقل" },
+} satisfies Record<string, Msg>;
+
+/* ---- role-aware stage forms (roleForms.tsx) ---- */
+
+export const stageForm = {
+  followUpDate: { en: "Follow-up date", ar: "تاريخ المتابعة" },
+  followUpTime: { en: "Follow-up time", ar: "وقت المتابعة" },
+  method: { en: "Method", ar: "الوسيلة" },
+  methodCall: { en: "Call", ar: "مكالمة" },
+  methodMessage: { en: "Message", ar: "رسالة" },
+  methodVisit: { en: "Visit", ar: "زيارة" },
+  followingUpWith: { en: "Following up with", ar: "المتابعة مع" },
+  contactPerson: { en: "Contact person", ar: "جهة الاتصال" },
+  agreedQuestion: {
+    en: "Did you agree with the client on a time?",
+    ar: "هل اتفقت مع العميل على موعد؟",
+  },
+  arranged: { en: "Arranged?", ar: "تم الترتيب؟" },
+  date: { en: "Date", ar: "التاريخ" },
+  dateThatSuits: { en: "Date that suits you", ar: "التاريخ المناسب لك" },
+  time: { en: "Time", ar: "الوقت" },
+  timeThatSuits: { en: "Time that suits you", ar: "الوقت المناسب لك" },
+  mode: { en: "Mode", ar: "طريقة الاجتماع" },
+  online: { en: "Online", ar: "عن بُعد" },
+  offline: { en: "Offline", ar: "حضوري" },
+  needsTechnical: {
+    en: "Do you need a technical colleague with you?",
+    ar: "هل تحتاج زميلًا تقنيًا معك؟",
+  },
+  withLabel: { en: "With", ar: "بحضور" },
+  attendees: { en: "Attendees", ar: "الحاضرون" },
+  technicalSupport: { en: "Technical support", ar: "الدعم التقني" },
+  service: { en: "Service", ar: "الخدمة" },
+  estimatedValue: { en: "Estimated value (EGP)", ar: "القيمة التقديرية (EGP)" },
+  negotiationNote: { en: "Negotiation note", ar: "ملاحظة التفاوض" },
+  negotiationPlaceholder: { en: "What is being negotiated?", ar: "ما الذي يجري التفاوض عليه؟" },
+  lostReason: { en: "Reason (required)", ar: "السبب (مطلوب)" },
+  totalCommission: { en: "Total commission (%)", ar: "إجمالي العمولة (%)" },
+  contractDate: { en: "Contract date", ar: "تاريخ التعاقد" },
+  milestoneCount: { en: "Number of milestones", ar: "عدد المراحل" },
+  /* "Milestone {n}" — also the milestone name placeholder */
+  milestoneN: { en: "Milestone {n}", ar: "المرحلة {n}" },
+  valueEgp: { en: "Value (EGP)", ar: "القيمة (EGP)" },
+  closerCommission: { en: "Closer's commission (EGP)", ar: "عمولة مسؤول الإغلاق (EGP)" },
+  expectedStart: { en: "Expected start", ar: "البداية المتوقعة" },
+  expectedEnd: { en: "Expected end", ar: "النهاية المتوقعة" },
+  /* "Milestone values: {a} of {b}" */
+  milestoneValuesLine: { en: "Milestone values: {a} of {b}", ar: "قيم المراحل: {a} من {b}" },
+  mustMatchEstimated: {
+    en: " — must match the estimated value",
+    ar: " — يجب أن تساوي القيمة التقديرية",
+  },
+  /* "Commissions: {a} of expected {b}" */
+  commissionsLine: { en: "Commissions: {a} of expected {b}", ar: "العمولات: {a} من المتوقع {b}" },
+  mustMatchCommission: {
+    en: " — must match the total commission %",
+    ar: " — يجب أن تساوي نسبة العمولة الإجمالية",
+  },
+  backToNew: { en: "The lead returns to the New column.", ar: "يعود العميل المحتمل إلى عمود «جديد»." },
+} satisfies Record<string, Msg>;
+
+/* ---- BsBoard (kanban) ---- */
+
+export const board = {
+  adminOnlyColumn: { en: "Admin-only column", ar: "عمود خاص بالمدير فقط" },
+  blocked: { en: "Blocked", ar: "محظور" },
+  emptyColumn: { en: "Nothing here yet", ar: "لا يوجد شيء هنا بعد" },
+  terminalMove: {
+    en: "Won and Lost leads can no longer be moved.",
+    ar: "لم يعد من الممكن نقل الصفقات المكسوبة أو الخاسرة.",
+  },
+  adminOnlyWin: { en: "Only an admin can confirm a win.", ar: "المدير فقط هو من يمكنه تأكيد المكسب." },
+  close: { en: "Close", ar: "إغلاق" },
+  completeToConfirm: {
+    en: "Complete this stage's details to confirm the move — cancel reverts it.",
+    ar: "أكمل تفاصيل هذه المرحلة لتأكيد النقل — الإلغاء يتراجع عنه.",
+  },
+  /* "Cancelling reverts the card to {stage}." */
+  cancelReverts: {
+    en: "Cancelling reverts the card to {stage}.",
+    ar: "الإلغاء يعيد البطاقة إلى {stage}.",
+  },
+  confirmMove: { en: "Confirm move", ar: "تأكيد النقل" },
+} satisfies Record<string, Msg>;

@@ -5,8 +5,14 @@ import { bsRoleOf } from "@/lib/api/bsystems";
 import { paymentsFor } from "@/lib/services/statements";
 import { formatEGP } from "@/lib/money";
 import { formatCairoDate } from "@/lib/datetime";
+import { tFor } from "@/lib/i18n/core";
+import { getLocale } from "@/lib/i18n/server";
+import { common, payments as d } from "@/lib/i18n/dict/admin";
 
-export const metadata = { title: "Payments — B-Systems CRM" };
+export async function generateMetadata() {
+  const locale = await getLocale();
+  return { title: tFor(locale)(d.meta) };
+}
 
 /* V2 §7 — the closer's Payments section (agents/partners): created statements
    arrive as pending; paid ones carry the admin's proof image. */
@@ -23,39 +29,38 @@ export default async function PaymentsPage() {
   if (role !== "bsystems_agent" && role !== "bsystems_partner") redirect("/b-systems");
 
   const payments = await paymentsFor(user.id);
+  const locale = await getLocale();
+  const t = tFor(locale);
 
   return (
     <div className="space-y-6">
       <div className="page-head">
         <div>
-          <p className="u-eyebrow">B-SYSTEMS · PAYMENTS</p>
-          <h1 className="u-h1">Payments</h1>
+          <p className="u-eyebrow">{t(d.eyebrow)}</p>
+          <h1 className="u-h1">{t(d.title)}</h1>
         </div>
       </div>
       {payments.length === 0 ? (
-        <p className="empty">
-          No payments yet — when the admin creates a statement for one of your milestones it
-          appears here as pending.
-        </p>
+        <p className="empty">{t(d.empty)}</p>
       ) : (
         <div className="card card--flush0">
           <div className="table-scroll">
             <table className="table">
               <thead>
                 <tr>
-                  <th>Code</th>
-                  <th>Client</th>
-                  <th>Milestone</th>
-                  <th>Amount</th>
-                  <th>Expected</th>
-                  <th>Status</th>
+                  <th>{t(common.thCode)}</th>
+                  <th>{t(common.thClient)}</th>
+                  <th>{t(common.thMilestone)}</th>
+                  <th>{t(common.thAmount)}</th>
+                  <th>{t(common.thExpected)}</th>
+                  <th>{t(common.thStatus)}</th>
                 </tr>
               </thead>
               <tbody>
                 {payments.map((s) => (
                   <tr key={s.id}>
                     <td>
-                    <Link href={`/b-systems/statements/${s.id}/document`} className="td-mono text-brand-link underline underline-offset-2" title="Open the printable statement">
+                    <Link href={`/b-systems/statements/${s.id}/document`} className="td-mono text-brand-link underline underline-offset-2" title={t(common.openPrintableStatement)}>
                       {s.code}
                     </Link>
                   </td>
@@ -67,7 +72,8 @@ export default async function PaymentsPage() {
                       {s.status === "paid" ? (
                         <>
                           <span className="text-brand-success">
-                            Paid{s.paidAt ? ` ${formatCairoDate(s.paidAt)}` : ""}
+                            {t(common.paid)}
+                            {s.paidAt ? ` ${formatCairoDate(s.paidAt)}` : ""}
                             {s.proofs[0]?.fileOk ? (
                               <>
                                 {" · "}
@@ -75,7 +81,7 @@ export default async function PaymentsPage() {
                                   href={`/api/files/${s.proofs[0].id}`}
                                   className="text-brand-link underline underline-offset-2"
                                 >
-                                  proof
+                                  {t(common.proofLink)}
                                 </a>
                               </>
                             ) : null}
@@ -83,12 +89,12 @@ export default async function PaymentsPage() {
                           {s.proofs[0] && !s.proofs[0].fileOk ? (
                             <span className="text-brand-danger text-xs">
                               {" "}
-                              proof file missing — ask the admin to re-upload it
+                              {t(d.proofMissingAsk)}
                             </span>
                           ) : null}
                         </>
                       ) : (
-                        <span className="text-brand-muted">Pending</span>
+                        <span className="text-brand-muted">{t(common.pending)}</span>
                       )}
                     </td>
                   </tr>

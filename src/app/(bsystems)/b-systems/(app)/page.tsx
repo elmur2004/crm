@@ -2,8 +2,12 @@ import { redirect } from "next/navigation";
 import { requirePageRole } from "@/lib/auth/page-guards";
 import { bsRoleOf } from "@/lib/api/bsystems";
 import { adminHome } from "@/lib/services/bsystems-admin";
-import { BSYSTEMS_STAGES, STAGE_LABELS } from "@/lib/pipeline-engine/constants";
+import { BSYSTEMS_STAGES } from "@/lib/pipeline-engine/constants";
 import { formatEGP } from "@/lib/money";
+import { tFor } from "@/lib/i18n/core";
+import { getLocale } from "@/lib/i18n/server";
+import { stageLabel } from "@/lib/i18n/dict/labels";
+import { home as m } from "@/lib/i18n/dict/crm";
 import { StatCard } from "@/components/shared/StatCard";
 import { AnimatedValue } from "@/components/shared/AnimatedValue";
 import { BackupControls } from "@/components/bsystems/backup";
@@ -24,20 +28,22 @@ export default async function BSystemsHomePage() {
   );
   if (bsRoleOf(user) !== "bsystems_admin") redirect("/b-systems/crm");
 
+  const locale = await getLocale();
+  const t = tFor(locale);
   const home = await adminHome();
   const d = home.base;
   const maxCount = Math.max(1, ...Object.values(home.externalPipeline));
 
   const stageCells: Array<{ id: string; label: string; value: number }> = [
-    { id: "new", label: "New / not actioned", value: d.leadsPerStage["new"] ?? 0 },
-    { id: "following_up", label: "Following Up", value: d.leadsPerStage["following_up"] ?? 0 },
-    { id: "meeting_setting", label: "Meeting Setting", value: d.leadsPerStage["meeting_setting"] ?? 0 },
-    { id: "sending_proposal", label: "Sending Proposals", value: d.leadsPerStage["sending_proposal"] ?? 0 },
-    { id: "won", label: "Won", value: d.wonCount },
-    { id: "lost", label: "Lost", value: d.lostCount },
+    { id: "new", label: t(m.newNotActioned), value: d.leadsPerStage["new"] ?? 0 },
+    { id: "following_up", label: stageLabel(locale, "following_up"), value: d.leadsPerStage["following_up"] ?? 0 },
+    { id: "meeting_setting", label: stageLabel(locale, "meeting_setting"), value: d.leadsPerStage["meeting_setting"] ?? 0 },
+    { id: "sending_proposal", label: stageLabel(locale, "sending_proposal"), value: d.leadsPerStage["sending_proposal"] ?? 0 },
+    { id: "won", label: stageLabel(locale, "won"), value: d.wonCount },
+    { id: "lost", label: stageLabel(locale, "lost"), value: d.lostCount },
   ];
 
-  const today = new Date().toLocaleDateString("en-EG", {
+  const today = new Date().toLocaleDateString(locale === "ar" ? "ar-EG" : "en-EG", {
     weekday: "long",
     day: "numeric",
     month: "long",
@@ -49,8 +55,8 @@ export default async function BSystemsHomePage() {
     <div className="space-y-6">
       <div className="page-head">
         <div>
-          <p className="u-eyebrow">B-SYSTEMS · HOME</p>
-          <h1 className="u-h1">Home</h1>
+          <p className="u-eyebrow">{t(m.eyebrow)}</p>
+          <h1 className="u-h1">{t(m.title)}</h1>
           <p className="u-sub">{today}</p>
         </div>
         <div className="page-actions">
@@ -58,14 +64,14 @@ export default async function BSystemsHomePage() {
         </div>
       </div>
       <div className="tile-grid tile-grid--vary">
-        <StatCard label="Total leads" value={String(d.totalLeads)} />
-        <StatCard label="Pipeline value" value={formatEGP(d.pipelineValue)} hint="Active stages only" />
-        <StatCard label="Won value" value={formatEGP(d.wonValue)} />
-        <StatCard label="To be collected" value={formatEGP(d.toBeCollected)} hint="Across all clients" />
+        <StatCard label={t(m.totalLeads)} value={String(d.totalLeads)} />
+        <StatCard label={t(m.pipelineValue)} value={formatEGP(d.pipelineValue)} hint={t(m.activeStagesOnly)} />
+        <StatCard label={t(m.wonValue)} value={formatEGP(d.wonValue)} />
+        <StatCard label={t(m.toBeCollected)} value={formatEGP(d.toBeCollected)} hint={t(m.acrossAllClients)} />
       </div>
       <div className="card card--flush0">
         <div className="card-head">
-          <h2 className="u-h3">Leads per stage</h2>
+          <h2 className="u-h3">{t(m.leadsPerStage)}</h2>
         </div>
         <div className="stage-strip">
           {stageCells.map((cell) => (
@@ -81,13 +87,13 @@ export default async function BSystemsHomePage() {
       </div>
       <div className="grid md:grid-cols-3 gap-6 items-start">
         <div className="tile-grid md:col-span-1">
-          <StatCard label="Agents" value={String(home.agentCount)} />
-          <StatCard label="Partners" value={String(home.partnerCount)} />
+          <StatCard label={t(m.agents)} value={String(home.agentCount)} />
+          <StatCard label={t(m.partners)} value={String(home.partnerCount)} />
         </div>
         <div className="md:col-span-2 card card--flush0">
           <div className="card-head">
             <h2 className="u-h3">
-              Agent &amp; partner pipeline
+              {t(m.externalPipeline)}
             </h2>
           </div>
           <div className="card-pad space-y-1">
@@ -95,7 +101,7 @@ export default async function BSystemsHomePage() {
               const count = home.externalPipeline[stage] ?? 0;
               return (
                 <div key={stage} className="chart-row text-sm">
-                  <span className="w-36 shrink-0 text-brand-muted">{STAGE_LABELS[stage]}</span>
+                  <span className="w-36 shrink-0 text-brand-muted">{stageLabel(locale, stage)}</span>
                   <div className="meter">
                     <div
                       className={`meter-fill ${stageAccent(stage)}`}

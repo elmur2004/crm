@@ -2,6 +2,9 @@
 
 import { FOLLOW_UP_METHODS, MEETING_MODES } from "@/lib/pipeline-engine/constants";
 import { toPiasters } from "@/lib/money";
+import { useLocale } from "@/components/shared/LocaleProvider";
+import { tFor } from "@/lib/i18n/core";
+import { stageForms } from "@/lib/i18n/dict/auth";
 
 /* §8.2 — portal stage group forms ("the same shapes" as §6.2). The follow-up
    Owner is the deal's rep, stamped SERVER-SIDE in applyDealEvent (ADR-026) —
@@ -16,31 +19,36 @@ export const btnAccent = "btn-accent";
 export const btnGhost = "btn-ghost";
 
 export function FollowUpFields() {
+  const t = tFor(useLocale());
   return (
     <>
       <div className="grid grid-cols-2 gap-3">
         <label className="block">
-          <span className={labelCls}>Follow-up date</span>
+          <span className={labelCls}>{t(stageForms.followUpDate)}</span>
           <input type="date" name="date" required className={inputCls} />
         </label>
         <label className="block">
-          <span className={labelCls}>Follow-up time</span>
+          <span className={labelCls}>{t(stageForms.followUpTime)}</span>
           <input type="time" name="time" required className={inputCls} />
         </label>
       </div>
       <label className="block">
-        <span className={labelCls}>Method</span>
+        <span className={labelCls}>{t(stageForms.method)}</span>
         <select name="method" required className={inputCls}>
           {FOLLOW_UP_METHODS.map((m) => (
             <option key={m} value={m}>
-              {m === "call" ? "Call" : m === "message" ? "Message" : "Visit"}
+              {m === "call"
+                ? t(stageForms.methodCall)
+                : m === "message"
+                  ? t(stageForms.methodMessage)
+                  : t(stageForms.methodVisit)}
             </option>
           ))}
         </select>
       </label>
       <label className="block">
-        <span className={labelCls}>Following up with</span>
-        <input type="text" name="followingUpWith" className={inputCls} placeholder="Contact person" />
+        <span className={labelCls}>{t(stageForms.followingUpWith)}</span>
+        <input type="text" name="followingUpWith" className={inputCls} placeholder={t(stageForms.contactPersonPlaceholder)} />
       </label>
     </>
   );
@@ -53,40 +61,41 @@ export function MeetingFields({
   arranged: boolean;
   setArranged: (v: boolean) => void;
 }) {
+  const t = tFor(useLocale());
   return (
     <>
       <label className="flex items-center gap-2">
         <input type="checkbox" checked={arranged} onChange={(e) => setArranged(e.target.checked)} />
-        <span className="text-sm font-medium">Arranged?</span>
+        <span className="text-sm font-medium">{t(stageForms.arranged)}</span>
       </label>
       {arranged ? (
         <>
           <div className="grid grid-cols-2 gap-3">
             <label className="block">
-              <span className={labelCls}>Date</span>
+              <span className={labelCls}>{t(stageForms.date)}</span>
               <input type="date" name="date" required className={inputCls} />
             </label>
             <label className="block">
-              <span className={labelCls}>Time</span>
+              <span className={labelCls}>{t(stageForms.time)}</span>
               <input type="time" name="time" required className={inputCls} />
             </label>
           </div>
           <label className="block">
-            <span className={labelCls}>Mode</span>
+            <span className={labelCls}>{t(stageForms.mode)}</span>
             <select name="mode" required className={inputCls}>
               {MEETING_MODES.map((m) => (
                 <option key={m} value={m}>
-                  {m === "online" ? "Online" : "Offline"}
+                  {m === "online" ? t(stageForms.online) : t(stageForms.offline)}
                 </option>
               ))}
             </select>
           </label>
           <label className="block">
-            <span className={labelCls}>With</span>
-            <input type="text" name="withAttendees" className={inputCls} placeholder="Attendees" />
+            <span className={labelCls}>{t(stageForms.withLabel)}</span>
+            <input type="text" name="withAttendees" className={inputCls} placeholder={t(stageForms.attendeesPlaceholder)} />
           </label>
           <label className="block">
-            <span className={labelCls}>Technical support</span>
+            <span className={labelCls}>{t(stageForms.technicalSupport)}</span>
             <input type="text" name="technicalSupport" className={inputCls} />
           </label>
         </>
@@ -96,27 +105,27 @@ export function MeetingFields({
 }
 
 export function ProposalFields() {
+  const t = tFor(useLocale());
   return (
     <>
       <label className="block">
-        <span className={labelCls}>Service</span>
+        <span className={labelCls}>{t(stageForms.service)}</span>
         <input type="text" name="service" required className={inputCls} />
       </label>
       <label className="block">
-        <span className={labelCls}>Estimated value (EGP)</span>
+        <span className={labelCls}>{t(stageForms.estimatedValue)}</span>
         <input type="number" name="estimatedValue" min="0" step="0.01" className={inputCls} />
       </label>
-      <p className="text-xs text-brand-muted">
-        Save the proposal, then use “Mark as sent” — sending moves the card automatically.
-      </p>
+      <p className="text-xs text-brand-muted">{t(stageForms.proposalHint)}</p>
     </>
   );
 }
 
 export function LostFields() {
+  const t = tFor(useLocale());
   return (
     <label className="block">
-      <span className={labelCls}>Reason (required)</span>
+      <span className={labelCls}>{t(stageForms.reasonRequired)}</span>
       <textarea name="reason" required rows={3} className={inputCls} />
     </label>
   );

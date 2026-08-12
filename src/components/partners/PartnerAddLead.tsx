@@ -2,7 +2,11 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { LEAD_TYPES, LEAD_TYPE_LABELS } from "@/lib/pipeline-engine/constants";
+import { LEAD_TYPES } from "@/lib/pipeline-engine/constants";
+import { tFor } from "@/lib/i18n/core";
+import { useLocale } from "@/components/shared/LocaleProvider";
+import { leadTypeLabel } from "@/lib/i18n/dict/labels";
+import { pCommon, pLead } from "@/lib/i18n/dict/partners";
 
 /* §7.4 / PP-5 — add a lead inside a partner's detail: §6.1 lead fields + optional
    assign-to-rep (A-6, default Unassigned). The server stamps the attribution. */
@@ -19,6 +23,8 @@ export function PartnerAddLeadClient({
   reps: Array<{ id: string; name: string }>;
 }) {
   const router = useRouter();
+  const locale = useLocale();
+  const t = tFor(locale);
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -26,7 +32,7 @@ export function PartnerAddLeadClient({
   if (!open) {
     return (
       <button onClick={() => setOpen(true)} className={btnPrimary}>
-        Add lead
+        {t(pLead.addLead)}
       </button>
     );
   }
@@ -52,7 +58,7 @@ export function PartnerAddLeadClient({
         setBusy(false);
         if (!res.ok) {
           const data = (await res.json().catch(() => null)) as { error?: string } | null;
-          setError(data?.error ?? "Something went wrong");
+          setError(data?.error ?? t(pCommon.somethingWrong));
           return;
         }
         setOpen(false);
@@ -60,35 +66,35 @@ export function PartnerAddLeadClient({
       }}
       className="card card-pad space-y-3 w-full"
     >
-      <p className="u-h3">New lead from this partner</p>
+      <p className="u-h3">{t(pLead.newLeadTitle)}</p>
       {error ? <p className="alert-error">{error}</p> : null}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <label className="block">
-          <span className={labelCls}>Name</span>
+          <span className={labelCls}>{t(pCommon.name)}</span>
           <input type="text" name="name" required className={inputCls} />
         </label>
         <label className="block">
-          <span className={labelCls}>Number</span>
+          <span className={labelCls}>{t(pCommon.number)}</span>
           <input type="tel" name="number" required className={inputCls} />
         </label>
         <label className="block">
-          <span className={labelCls}>Email</span>
+          <span className={labelCls}>{t(pCommon.email)}</span>
           <input type="email" name="email" className={inputCls} />
         </label>
         <label className="block">
-          <span className={labelCls}>Type</span>
+          <span className={labelCls}>{t(pLead.type)}</span>
           <select name="type" required className={inputCls}>
-            {LEAD_TYPES.map((t) => (
-              <option key={t} value={t}>
-                {LEAD_TYPE_LABELS[t]}
+            {LEAD_TYPES.map((lt) => (
+              <option key={lt} value={lt}>
+                {leadTypeLabel(locale, lt)}
               </option>
             ))}
           </select>
         </label>
         <label className="block">
-          <span className={labelCls}>Assign to rep (optional)</span>
+          <span className={labelCls}>{t(pLead.assignToRep)}</span>
           <select name="salesRepId" className={inputCls}>
-            <option value="">Unassigned (Partner leads)</option>
+            <option value="">{t(pLead.unassignedPartnerLeads)}</option>
             {reps.map((r) => (
               <option key={r.id} value={r.id}>
                 {r.name}
@@ -98,11 +104,11 @@ export function PartnerAddLeadClient({
         </label>
       </div>
       <label className="block">
-        <span className={labelCls}>Description</span>
+        <span className={labelCls}>{t(pCommon.description)}</span>
         <textarea name="description" rows={2} className={inputCls} />
       </label>
       <button type="submit" disabled={busy} className={btnPrimary}>
-        Save lead
+        {t(pLead.saveLead)}
       </button>
     </form>
   );

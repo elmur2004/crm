@@ -13,11 +13,23 @@ import { ProspectEventPanel } from "./ProspectEventPanel";
 import { PartnersBoard, type ProspectCard } from "./PartnersBoard";
 import { DeleteEntityButton, EditPartnerButton, EditProspectButton } from "./manage";
 import { ApiError } from "@/lib/api-error";
+import { tFor } from "@/lib/i18n/core";
+import { getLocale } from "@/lib/i18n/server";
+import {
+  businessActivityLabel,
+  importanceValueLabel,
+  pCommon,
+  pDirectory,
+  pPipeline,
+  pProspect,
+} from "@/lib/i18n/dict/partners";
 
 /* App B Partners: acquisition board (§7.2), prospect detail, directory (§7.3),
    partner detail with attributed leads (§7.4). */
 
 export async function PartnersPipelineBody() {
+  const locale = await getLocale();
+  const t = tFor(locale);
   const prospects = await db.partnerProspect.findMany({
     orderBy: { updatedAt: "desc" },
     include: {
@@ -30,15 +42,19 @@ export async function PartnersPipelineBody() {
   function keyDatum(p: (typeof prospects)[number]): string {
     switch (p.stage) {
       case "didnt_answer":
-        return "Awaiting a new number";
+        return t(pPipeline.awaitingNewNumber);
       case "following_up":
-        return p.followUps[0] ? `Next: ${formatCairo(p.followUps[0].dueAt)}` : "No follow-up set";
+        return p.followUps[0]
+          ? t(pPipeline.nextAt).replace("{dt}", formatCairo(p.followUps[0].dueAt))
+          : t(pPipeline.noFollowUpSet);
       case "meeting_setting":
-        return p.meetings[0]?.datetime ? `Meeting: ${formatCairo(p.meetings[0].datetime)}` : "Not arranged";
+        return p.meetings[0]?.datetime
+          ? t(pPipeline.meetingAt).replace("{dt}", formatCairo(p.meetings[0].datetime))
+          : t(pPipeline.notArranged);
       case "lost":
         return p.lostInfo[0]?.reason ?? "";
       default:
-        return p.businessActivity;
+        return businessActivityLabel(locale, p.businessActivity);
     }
   }
 
@@ -65,8 +81,8 @@ export async function PartnersPipelineBody() {
     <div className="space-y-6">
       <div className="page-head">
         <div>
-          <p className="u-eyebrow">B-SYSTEMS · PARTNERS PIPELINE</p>
-          <h1 className="u-h1">Partners Pipeline</h1>
+          <p className="u-eyebrow">{t(pPipeline.eyebrow)}</p>
+          <h1 className="u-h1">{t(pPipeline.title)}</h1>
         </div>
         <div className="page-actions">
           <AddProspectForm />
@@ -86,6 +102,8 @@ export async function ProspectDetailBody({ prospectId }: { prospectId: string })
     throw e;
   }
   const { prospect, history } = data;
+  const locale = await getLocale();
+  const t = tFor(locale);
   const reps = await listReps("bsystems");
   const latestMeeting = prospect.meetings.at(-1);
 
@@ -97,14 +115,14 @@ export async function ProspectDetailBody({ prospectId }: { prospectId: string })
             href="/b-systems/partners-pipeline"
             className="text-sm text-brand-muted underline underline-offset-2"
           >
-            Back to the pipeline
+            {t(pProspect.backToPipeline)}
           </Link>
-          <p className="u-eyebrow mt-3">B-SYSTEMS · PARTNERS PIPELINE</p>
+          <p className="u-eyebrow mt-3">{t(pPipeline.eyebrow)}</p>
           <h1 className="u-h1 flex items-center gap-3 flex-wrap">
             {prospect.companyName}
             <StageBadge stage={prospect.stage} header />
             {prospect.converted ? (
-              <span className="badge badge--converted">Converted</span>
+              <span className="badge badge--converted">{t(pPipeline.converted)}</span>
             ) : null}
           </h1>
         </div>
@@ -124,8 +142,8 @@ export async function ProspectDetailBody({ prospectId }: { prospectId: string })
           />
           <DeleteEntityButton
             url={`/api/b-systems/partners-pipeline/${prospect.id}`}
-            label="Delete"
-            warning="Deletes this card, its records and recordings — and its directory partner if converted."
+            label={t(pCommon.delete)}
+            warning={t(pProspect.deleteWarning)}
             redirectTo="/b-systems/partners-pipeline"
           />
         </div>
@@ -137,19 +155,19 @@ export async function ProspectDetailBody({ prospectId }: { prospectId: string })
             <div className="fields-grid">
               <div className="fields-cell">
                 <p className="fields-value">
-                  <span className="fields-label block mb-1.5">Contact:</span> {prospect.name}
+                  <span className="fields-label block mb-1.5">{t(pProspect.contact)}</span> {prospect.name}
                   {prospect.role ? ` · ${prospect.role}` : ""}
                 </p>
               </div>
               <div className="fields-cell">
                 <p className="fields-value">
-                  <span className="fields-label block mb-1.5">Number:</span> {prospect.number}
+                  <span className="fields-label block mb-1.5">{t(pProspect.numberField)}</span> {prospect.number}
                 </p>
               </div>
               {parseNumbers(prospect.nonAnsweringNumbers).length > 0 ? (
                 <div className="fields-cell">
                   <p className="fields-value">
-                    <span className="fields-label block mb-1.5">Non-answering number(s):</span>{" "}
+                    <span className="fields-label block mb-1.5">{t(pProspect.nonAnswering)}</span>{" "}
                     {parseNumbers(prospect.nonAnsweringNumbers).join(" · ")}
                   </p>
                 </div>
@@ -157,20 +175,20 @@ export async function ProspectDetailBody({ prospectId }: { prospectId: string })
               {parseNumbers(prospect.alternativeNumbers).length > 0 ? (
                 <div className="fields-cell">
                   <p className="fields-value">
-                    <span className="fields-label block mb-1.5">Alternative numbers:</span>{" "}
+                    <span className="fields-label block mb-1.5">{t(pProspect.altNumbers)}</span>{" "}
                     {parseNumbers(prospect.alternativeNumbers).join(" · ")}
                   </p>
                 </div>
               ) : null}
               <div className="fields-cell">
                 <p className="fields-value">
-                  <span className="fields-label block mb-1.5">Email:</span> {prospect.email ?? "—"}
+                  <span className="fields-label block mb-1.5">{t(pProspect.emailField)}</span> {prospect.email ?? "—"}
                 </p>
               </div>
               <div className="fields-cell">
                 <p className="fields-value">
-                  <span className="fields-label block mb-1.5">Business activity:</span>{" "}
-                  {prospect.businessActivity}
+                  <span className="fields-label block mb-1.5">{t(pProspect.businessActivityField)}</span>{" "}
+                  {businessActivityLabel(locale, prospect.businessActivity)}
                 </p>
               </div>
               {prospect.description ? (
@@ -185,7 +203,7 @@ export async function ProspectDetailBody({ prospectId }: { prospectId: string })
                       href={`/b-systems/partners/${prospect.partner.id}`}
                       className="text-brand-primary underline underline-offset-2"
                     >
-                      View in Partners directory
+                      {t(pProspect.viewInDirectory)}
                     </Link>
                   </p>
                 </div>
@@ -201,9 +219,9 @@ export async function ProspectDetailBody({ prospectId }: { prospectId: string })
           </div>
 
           <div className="card card-pad space-y-3">
-            <h2 className="u-mono">Cold-call recordings</h2>
+            <h2 className="u-mono">{t(pProspect.recordingsTitle)}</h2>
             {prospect.recordings.length === 0 ? (
-              <p className="empty">No recordings yet.</p>
+              <p className="empty">{t(pProspect.noRecordings)}</p>
             ) : (
               <ul className="space-y-3">
                 {prospect.recordings.map((r) => (
@@ -211,7 +229,7 @@ export async function ProspectDetailBody({ prospectId }: { prospectId: string })
                     <p className="td-mono mb-1.5">{r.filename}</p>
                     {!r.fileOk ? (
                       <p className="text-brand-danger text-xs">
-                        Recording file missing — it was lost in a redeploy. Upload it again below.
+                        {t(pProspect.recordingMissing)}
                       </p>
                     ) : r.mime.startsWith("video/") ? (
                       // eslint-disable-next-line jsx-a11y/media-has-caption
@@ -228,7 +246,7 @@ export async function ProspectDetailBody({ prospectId }: { prospectId: string })
           </div>
 
           <div className="card card-pad">
-            <h2 className="u-mono mb-3">Next action</h2>
+            <h2 className="u-mono mb-3">{t(pProspect.nextActionTitle)}</h2>
             <ProspectEventPanel
               prospectId={prospect.id}
               stage={prospect.stage}
@@ -251,7 +269,7 @@ export async function ProspectDetailBody({ prospectId }: { prospectId: string })
 
         <section className="space-y-4">
           <div>
-            <h2 className="u-mono mb-2">Stage records</h2>
+            <h2 className="u-mono mb-2">{t(pProspect.stageRecords)}</h2>
             <GroupHistory
               followUps={prospect.followUps}
               meetings={prospect.meetings}
@@ -259,7 +277,7 @@ export async function ProspectDetailBody({ prospectId }: { prospectId: string })
             />
           </div>
           <div className="card card-pad">
-            <h2 className="u-mono mb-2">History</h2>
+            <h2 className="u-mono mb-2">{t(pProspect.history)}</h2>
             <HistoryPanel entries={history} />
           </div>
         </section>
@@ -269,18 +287,20 @@ export async function ProspectDetailBody({ prospectId }: { prospectId: string })
 }
 
 export async function PartnersDirectoryBody() {
+  const locale = await getLocale();
+  const t = tFor(locale);
   const partners = await listPartners();
   return (
     <div className="space-y-6">
       <div className="page-head">
         <div>
-          <p className="u-eyebrow">B-SYSTEMS · PARTNERS</p>
-          <h1 className="u-h1">Partners</h1>
+          <p className="u-eyebrow">{t(pDirectory.eyebrow)}</p>
+          <h1 className="u-h1">{t(pDirectory.title)}</h1>
         </div>
       </div>
       {partners.length === 0 ? (
         <p className="empty">
-          No partners yet — they appear automatically when a pipeline card is Won.
+          {t(pDirectory.empty)}
         </p>
       ) : (
         <div className="ecard-grid">
@@ -296,7 +316,7 @@ export async function PartnersDirectoryBody() {
                     .join("")
                     .toUpperCase()}
                 </span>
-                <span className="chip-outline">{p.importance}</span>
+                <span className="chip-outline">{importanceValueLabel(locale, p.importance)}</span>
               </span>
               <span className="ecard-title">{p.companyName}</span>
             </Link>
@@ -315,6 +335,8 @@ export async function PartnerDetailBody({ partnerId }: { partnerId: string }) {
     if (e instanceof ApiError && e.status === 404) notFound();
     throw e;
   }
+  const locale = await getLocale();
+  const t = tFor(locale);
   const reps = await listReps("bsystems");
 
   return (
@@ -324,14 +346,14 @@ export async function PartnerDetailBody({ partnerId }: { partnerId: string }) {
           href="/b-systems/partners"
           className="text-sm text-brand-muted underline underline-offset-2"
         >
-          Back to all partners
+          {t(pDirectory.backToAll)}
         </Link>
         <div className="page-head">
           <div>
-            <p className="u-eyebrow mt-3">B-SYSTEMS · PARTNERS</p>
+            <p className="u-eyebrow mt-3">{t(pDirectory.eyebrow)}</p>
             <h1 className="u-h1">{partner.companyName}</h1>
             <p className="text-brand-meta text-brand-muted mt-2">
-              Date joined: {formatCairoDate(partner.dateJoined)}
+              {t(pDirectory.dateJoined)} {formatCairoDate(partner.dateJoined)}
             </p>
           </div>
           <div className="page-actions">
@@ -351,8 +373,8 @@ export async function PartnerDetailBody({ partnerId }: { partnerId: string }) {
             />
             <DeleteEntityButton
               url={`/api/b-systems/partners/${partner.id}`}
-              label="Delete"
-              warning="Removes the partner from the directory — their leads keep living without the attribution."
+              label={t(pCommon.delete)}
+              warning={t(pDirectory.deleteWarning)}
               redirectTo="/b-systems/partners"
             />
           </div>
@@ -363,33 +385,33 @@ export async function PartnerDetailBody({ partnerId }: { partnerId: string }) {
         <div className="fields-grid">
           <div className="fields-cell">
             <p className="fields-value">
-              <span className="fields-label block mb-1.5">Key person:</span> {partner.keyPersonName} ·{" "}
+              <span className="fields-label block mb-1.5">{t(pDirectory.keyPerson)}</span> {partner.keyPersonName} ·{" "}
               {partner.keyPersonRole}
             </p>
           </div>
           <div className="fields-cell">
             <p className="fields-value">
-              <span className="fields-label block mb-1.5">Importance:</span> {partner.importance}
+              <span className="fields-label block mb-1.5">{t(pDirectory.importanceField)}</span> {importanceValueLabel(locale, partner.importance)}
             </p>
           </div>
           <div className="fields-cell">
             <p className="fields-value">
-              <span className="fields-label block mb-1.5">Address:</span> {partner.address}
+              <span className="fields-label block mb-1.5">{t(pDirectory.addressField)}</span> {partner.address}
             </p>
           </div>
           <div className="fields-cell">
             <p className="fields-value">
-              <span className="fields-label block mb-1.5">Number:</span> {partner.number}
+              <span className="fields-label block mb-1.5">{t(pProspect.numberField)}</span> {partner.number}
             </p>
           </div>
           <div className="fields-cell">
             <p className="fields-value">
-              <span className="fields-label block mb-1.5">Email:</span> {partner.email ?? "—"}
+              <span className="fields-label block mb-1.5">{t(pProspect.emailField)}</span> {partner.email ?? "—"}
             </p>
           </div>
           <div className="fields-cell">
             <p className="fields-value">
-              <span className="fields-label block mb-1.5">Business activity:</span> {partner.businessActivity}
+              <span className="fields-label block mb-1.5">{t(pProspect.businessActivityField)}</span> {businessActivityLabel(locale, partner.businessActivity)}
             </p>
           </div>
         </div>
@@ -397,22 +419,22 @@ export async function PartnerDetailBody({ partnerId }: { partnerId: string }) {
 
       <div className="space-y-3">
         <div className="flex items-center justify-between gap-4 flex-wrap">
-          <h2 className="u-h2">Leads from this partner</h2>
+          <h2 className="u-h2">{t(pDirectory.leadsTitle)}</h2>
           <PartnerAddLead partnerId={partner.id} reps={reps.map((r) => ({ id: r.id, name: r.name }))} />
         </div>
         {partner.leads.length === 0 ? (
-          <p className="empty">No leads yet.</p>
+          <p className="empty">{t(pDirectory.noLeads)}</p>
         ) : (
           <div className="card card--flush0">
             <div className="table-scroll">
               <table className="table table--embedded">
                 <thead>
                   <tr>
-                    <th>Name</th>
-                    <th>Number</th>
-                    <th>Rep</th>
-                    <th>Created</th>
-                    <th>Stage</th>
+                    <th>{t(pDirectory.thName)}</th>
+                    <th>{t(pDirectory.thNumber)}</th>
+                    <th>{t(pDirectory.thRep)}</th>
+                    <th>{t(pDirectory.thCreated)}</th>
+                    <th>{t(pDirectory.thStage)}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -424,7 +446,7 @@ export async function PartnerDetailBody({ partnerId }: { partnerId: string }) {
                         </Link>
                       </td>
                       <td className="td-mono">{lead.number}</td>
-                      <td>{lead.salesRep?.name ?? "Unassigned"}</td>
+                      <td>{lead.salesRep?.name ?? t(pDirectory.unassigned)}</td>
                       <td>{formatCairoDate(lead.createdAt)}</td>
                       <td>
                         <StageBadge stage={lead.stage} />

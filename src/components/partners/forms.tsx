@@ -2,6 +2,9 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { tFor } from "@/lib/i18n/core";
+import { useLocale } from "@/components/shared/LocaleProvider";
+import { businessActivityLabel, pCommon, pForms } from "@/lib/i18n/dict/partners";
 
 /* Partners pipeline client forms: add prospect, number 2/3 slots (PP-2 fires
    server-side on save), recording upload (§7.2). */
@@ -21,6 +24,8 @@ export const BUSINESS_ACTIVITIES = [
 export const OTHER_ACTIVITY = "Other activities";
 
 export function BusinessActivityField({ defaultValue }: { defaultValue?: string }) {
+  const locale = useLocale();
+  const t = tFor(locale);
   const isPreset =
     defaultValue !== undefined &&
     (BUSINESS_ACTIVITIES as readonly string[]).includes(defaultValue);
@@ -30,7 +35,7 @@ export function BusinessActivityField({ defaultValue }: { defaultValue?: string 
   return (
     <>
       <label className="block">
-        <span className={labelCls}>Business activity</span>
+        <span className={labelCls}>{t(pForms.businessActivity)}</span>
         <select
           name="businessActivityChoice"
           value={choice}
@@ -39,15 +44,15 @@ export function BusinessActivityField({ defaultValue }: { defaultValue?: string 
         >
           {BUSINESS_ACTIVITIES.map((a) => (
             <option key={a} value={a}>
-              {a}
+              {businessActivityLabel(locale, a)}
             </option>
           ))}
-          <option value={OTHER_ACTIVITY}>{OTHER_ACTIVITY}</option>
+          <option value={OTHER_ACTIVITY}>{businessActivityLabel(locale, OTHER_ACTIVITY)}</option>
         </select>
       </label>
       {choice === OTHER_ACTIVITY ? (
         <label className="block">
-          <span className={labelCls}>Specify the activity</span>
+          <span className={labelCls}>{t(pForms.specifyActivity)}</span>
           <input
             type="text"
             name="businessActivityOther"
@@ -69,13 +74,15 @@ export function businessActivityFrom(fd: FormData): string {
 
 export function AddProspectForm() {
   const router = useRouter();
+  const locale = useLocale();
+  const t = tFor(locale);
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   if (!open) {
     return (
       <button onClick={() => setOpen(true)} className={btnPrimary}>
-        Add partner lead
+        {t(pForms.addPartnerLead)}
       </button>
     );
   }
@@ -102,7 +109,7 @@ export function AddProspectForm() {
         setBusy(false);
         if (!res.ok) {
           const data = (await res.json().catch(() => null)) as { error?: string } | null;
-          setError(data?.error ?? "Something went wrong");
+          setError(data?.error ?? t(pCommon.somethingWrong));
           return;
         }
         setOpen(false);
@@ -110,37 +117,37 @@ export function AddProspectForm() {
       }}
       className="card card-pad space-y-3 w-full"
     >
-      <p className="u-h3">New partner lead</p>
+      <p className="u-h3">{t(pForms.newPartnerLead)}</p>
       {error ? <p className="alert-error">{error}</p> : null}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <label className="block">
-          <span className={labelCls}>Name</span>
+          <span className={labelCls}>{t(pCommon.name)}</span>
           <input type="text" name="name" required className={inputCls} />
         </label>
         <label className="block">
-          <span className={labelCls}>Company name</span>
+          <span className={labelCls}>{t(pCommon.companyName)}</span>
           <input type="text" name="companyName" required className={inputCls} />
         </label>
         <label className="block">
-          <span className={labelCls}>Role</span>
+          <span className={labelCls}>{t(pCommon.role)}</span>
           <input type="text" name="role" className={inputCls} />
         </label>
         <label className="block">
-          <span className={labelCls}>Number</span>
+          <span className={labelCls}>{t(pCommon.number)}</span>
           <input type="tel" name="number" required className={inputCls} />
         </label>
         <label className="block">
-          <span className={labelCls}>Email</span>
+          <span className={labelCls}>{t(pCommon.email)}</span>
           <input type="email" name="email" className={inputCls} />
         </label>
         <BusinessActivityField />
       </div>
       <label className="block">
-        <span className={labelCls}>Description</span>
+        <span className={labelCls}>{t(pCommon.description)}</span>
         <textarea name="description" rows={2} className={inputCls} />
       </label>
       <button type="submit" disabled={busy} className={btnPrimary}>
-        Save partner lead
+        {t(pForms.savePartnerLead)}
       </button>
     </form>
   );
@@ -156,6 +163,8 @@ export function AlternativeNumbersForm({
   inDidntAnswer: boolean;
 }) {
   const router = useRouter();
+  const locale = useLocale();
+  const t = tFor(locale);
   const [fields, setFields] = useState<string[]>([""]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -176,7 +185,7 @@ export function AlternativeNumbersForm({
         setBusy(false);
         if (!res.ok) {
           const data = (await res.json().catch(() => null)) as { error?: string } | null;
-          setError(data?.error ?? "Something went wrong");
+          setError(data?.error ?? t(pCommon.somethingWrong));
           return;
         }
         setFields([""]);
@@ -184,11 +193,10 @@ export function AlternativeNumbersForm({
       }}
       className="space-y-2"
     >
-      <p className="u-h3">Alternative numbers</p>
+      <p className="u-h3">{t(pForms.altNumbersTitle)}</p>
       {inDidntAnswer ? (
         <p className="field-hint">
-          Saving new number(s) returns this card to Lead automatically. You can also add
-          them later — nothing is required now.
+          {t(pForms.altNumbersHint)}
         </p>
       ) : null}
       {error ? <p className="alert-error">{error}</p> : null}
@@ -197,8 +205,8 @@ export function AlternativeNumbersForm({
           key={i}
           type="tel"
           value={value}
-          aria-label={`New number ${i + 1}`}
-          placeholder="New number"
+          aria-label={t(pForms.newNumberN).replace("{n}", String(i + 1))}
+          placeholder={t(pForms.newNumberPh)}
           onChange={(e) => {
             const next = [...fields];
             next[i] = e.target.value;
@@ -213,10 +221,10 @@ export function AlternativeNumbersForm({
           onClick={() => setFields([...fields, ""])}
           className="btn-ghost"
         >
-          Add another number
+          {t(pForms.addAnotherNumber)}
         </button>
         <button type="submit" disabled={busy} className={btnPrimary}>
-          Save numbers
+          {t(pForms.saveNumbers)}
         </button>
       </div>
     </form>
@@ -225,6 +233,8 @@ export function AlternativeNumbersForm({
 
 export function RecordingUpload({ prospectId }: { prospectId: string }) {
   const router = useRouter();
+  const locale = useLocale();
+  const t = tFor(locale);
   const fileRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -245,7 +255,7 @@ export function RecordingUpload({ prospectId }: { prospectId: string }) {
         setBusy(false);
         if (!res.ok) {
           const data = (await res.json().catch(() => null)) as { error?: string } | null;
-          setError(data?.error ?? "Upload failed");
+          setError(data?.error ?? t(pCommon.uploadFailed));
           return;
         }
         if (fileRef.current) fileRef.current.value = "";
@@ -257,12 +267,12 @@ export function RecordingUpload({ prospectId }: { prospectId: string }) {
       <label className="dropzone">
         <span className="dropzone-icon" aria-hidden="true">↑</span>
         <span className="min-w-0 flex-1">
-          <span className="dropzone-title block">Add cold-call recording (.mp3 / .mp4, ≤ 50 MB)</span>
+          <span className="dropzone-title block">{t(pForms.dropzoneTitle)}</span>
           <input ref={fileRef} type="file" name="file" accept=".mp3,.mp4" required className="mt-1.5 block w-full text-sm" />
         </span>
       </label>
       <button type="submit" disabled={busy} className={btnPrimary}>
-        Upload recording
+        {t(pForms.uploadRecording)}
       </button>
     </form>
   );

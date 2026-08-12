@@ -683,3 +683,44 @@ R23 copy sign-off — carried in PROGRESS (Entry 011).
 - Consequences: notification volume grows with chat use; ByteForce mention
   deep-links stay deferred until notifications carry a brand.
 - Status: Accepted
+
+## ADR-037 — 2026-08-13 — Hand-rolled cookie-locale i18n (Arabic ⇄ English); EN output stays byte-identical
+- Context: Founder directive: "translate the whole system... a
+  translation button between arabic and english for every single content
+  in the entire app." Every user-visible string across all apps must
+  render in Arabic or English behind one toggle — without destabilizing
+  the existing English-assuming test suite or the pipeline engine's
+  canonical constants.
+- Decision:
+  - No i18n library. A hand-rolled layer in src/lib/i18n/: core.ts
+    (Locale = "en" | "ar", Msg = {en, ar}, tFor, dirFor, cookie name),
+    server.ts (getLocale reads the cookie, default "en"), actions.ts
+    (setLocale server action). The locale lives in a cookie — URLs never
+    change.
+  - IRON RULE — EN output stays byte-identical: externalizing a string
+    into a Msg must not change its English rendering by a single byte.
+    This kept the entire pre-existing suite green UNCHANGED (TESTING Run
+    025) and is binding on all future edits: any new user-visible string
+    is added as a Msg in the right dict module, with the English text
+    exactly as it would have been hardcoded.
+  - Engine/domain constants (stages, lead types, owner types) stay
+    English in code, DB, and API payloads; translation happens at RENDER
+    time only, via the helpers in src/lib/i18n/dict/labels.ts.
+  - Client components read the locale from a LocaleProvider context; the
+    LanguageToggle (EN | عربي chip) is mounted in both app headers and
+    on /login; all three root layouts stamp <html lang dir>, so Arabic
+    renders full RTL (the design system was already
+    logical-properties-based).
+- Alternatives considered: next-intl (or a similar library) — rejected:
+  a new dependency plus message-catalog/runtime conventions for what is
+  a two-locale {en, ar} record; the hand-rolled Msg shape is smaller and
+  type-safe. URL-prefix locales (/ar/...) — rejected: doubles the route
+  surface and breaks existing deep links and e2e paths; a cookie keeps
+  every URL stable and makes the EN-byte-identical guarantee trivial.
+- Resolves: — (founder directive; no SPEC §11 A-#)
+- Consequences: server-side error strings (zod/service ApiError messages
+  surfaced in forms) remain English until an error-code scheme exists
+  (Entry 022 item (i)); ByteForce thin-page metadata titles are partly
+  English; two Arabic terminology choices await founder review — "CRM"
+  rendered as "المبيعات", "Retainer" as "عقد دوري" (Entry 022 item (j)).
+- Status: Accepted

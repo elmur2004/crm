@@ -839,3 +839,84 @@ comment, and the ADR-013 mechanism note all fixed; .env.example confirmed tracke
   hashes and every uploaded file — store backups securely; (f)
   production needs a DATABASE_URL (postgresql://…), `prisma migrate
   deploy` at boot, and a one-time seed for the admin account (ADR-033).
+
+## Entry 022 — 2026-08-13 — Full Arabic ⇄ English translation (founder directive)
+- Done: founder directive shipped — "translate the whole system... a
+  translation button between arabic and english for every single content
+  in the entire app" — ADR-037. (1) Hand-rolled i18n, no library:
+  src/lib/i18n/ core.ts (Locale en|ar, Msg {en,ar}, tFor, dirFor, cookie
+  name), server.ts (getLocale from cookie, default en), actions.ts
+  (setLocale server action); LocaleProvider context for client
+  components; LanguageToggle (EN | عربي switcher chip) mounted in both
+  app headers (desktop .user cluster + mobile nav sheet) and on /login;
+  all three root layouts stamp <html lang dir> and mount the provider —
+  Arabic renders full RTL (the design system was already
+  logical-properties-based). (2) Dictionary modules under
+  src/lib/i18n/dict/: labels.ts (stage/lead-type/owner-type helpers —
+  engine constants stay English in code, DB, and API payloads;
+  translation happens at render), auth.ts, internal.ts, crm.ts,
+  admin.ts, partners.ts, chat.ts. Six parallel agents externalized EVERY
+  user-visible string across: login+portal+signup, the ByteForce app,
+  B-Systems shell/nav/dashboard/CRM/lead detail, won-leads/statements
+  (incl. the printable document — bilingual)/payments/users/
+  registrations/agents/profile/bell, partners pipeline+directory,
+  LeadChat+StageBadge. Browser-tab titles localize via generateMetadata.
+  (3) New e2e spec e2e/i18n.spec.ts: toggle → dir=rtl lang=ar + Arabic
+  heading → Arabic login flow → back to EN from the app header.
+  Verified: tsc clean, vitest 92/92, next build clean, Playwright 17
+  passed / 2 audit-opt-in skipped (TESTING Run 025) — EN output stayed
+  byte-identical, so the whole existing suite passed unchanged. Known
+  limits this round: server-side error strings (zod/service ApiError
+  messages surfaced in forms) remain English (translating them needs
+  error codes); ByteForce thin-page metadata titles partly English; two
+  Arabic terminology choices flagged for founder review — see items
+  (i)/(j) below.
+- In progress: R23 portal marketing copy draft — still with the founder
+  for sign-off (carried from Entry 011).
+- Next steps: FIRST — the founder actions in items (g) and (h) below
+  (persistent volume + UPLOADS_DIR; Cloudflare SSL = Full (strict) +
+  AUTH_URL env). Once (h) is confirmed via /api/health `proxy.proto`
+  === "https", ship the deferred hardening (HSTS with a short max-age
+  first, then the http→https redirect). i18n follow-ups: design an
+  error-code scheme so server-side error strings can localize (item
+  (i)); finish the remaining ByteForce thin-page metadata titles; apply
+  the founder's verdict on the terminology pair (item (j)). Then the
+  carried items: on copy approval, build the deferred /portal landing
+  sections (R23); obtain founder confirmation on Lama Sans intermediate
+  cuts (R5/A-13); founder to set a secure storage routine for backup
+  exports (ADR-032); change the admin password after first production
+  login (Entry 012 flag); production deploy per ADR-033 (Entry 014 item
+  (f)).
+- Blockers: durable uploads remain blocked on the founder host action
+  (Entry 018 item (g)); the "Not secure" badge remains host/Cloudflare
+  TLS configuration (Entry 021 item (h)). Nothing blocked the i18n work
+  itself.
+- Needs founder confirmation: (i) NEW (this entry, ADR-037): server-side
+  error strings (zod/service ApiError messages surfaced in forms) remain
+  English this round — translating them needs an error-code scheme;
+  confirm whether/when to prioritize it. (j) NEW (this entry): two
+  Arabic terminology choices need review — "CRM" is rendered as
+  "المبيعات" and "Retainer" as "عقد دوري"; confirm or supply preferred
+  terms. (h) carried from Entry 021 (SSL): in Cloudflare set SSL/TLS
+  mode = Full (strict) — NOT Flexible or Off — and check the DNS record
+  is proxied (orange cloud), the certificate covers the exact hostname
+  (Universal SSL covers only ONE subdomain level), and the zone is not
+  paused; on the host set env AUTH_URL=https://<domain> (also fixes
+  NextAuth secure-cookie selection when the proxy misreports proto).
+  Diagnostic: GET /api/health — `proxy.proto` must read "https". (g)
+  URGENT ACTION, carried from Entry 018 (production incident 2026-08-11,
+  ADR-035/BUG-004): in the hosting panel attach persistent storage
+  (e.g. mount at /data/uploads), set env UPLOADS_DIR=/data/uploads,
+  redeploy, then re-upload the lost proof(s) via Statements → Re-upload
+  proof — check /api/health `uploads.missingFiles` to see how many are
+  gone. Carried: (a) Lama Sans intermediate cuts (R5/A-13); (b) the
+  portal marketing copy draft (pending approval, R23); (c) the standing
+  REQUIREMENTS-V2 [A] defaults and the carried items thread — items
+  (1)–(14), see Entries 001–009 — except the V2 §8 auto-password default
+  (superseded by the founder directive in Entry 015); (d) password123 is
+  a weak production credential — change it after first production login
+  (see Entry 012's caveat on seed re-runs); (e) ADR-032 backup exports
+  embed password hashes and every uploaded file — store backups
+  securely; (f) production needs a DATABASE_URL (postgresql://…),
+  `prisma migrate deploy` at boot, and a one-time seed for the admin
+  account (ADR-033).

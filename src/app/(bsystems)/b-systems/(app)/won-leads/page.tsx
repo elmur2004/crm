@@ -5,8 +5,14 @@ import { adminWonLeads, closerWonLeads, salesWonLeads } from "@/lib/services/won
 import { DeleteLeadButton } from "@/components/bsystems/leadActions";
 import { formatEGP } from "@/lib/money";
 import { formatCairoDate } from "@/lib/datetime";
+import { tFor } from "@/lib/i18n/core";
+import { getLocale } from "@/lib/i18n/server";
+import { common, wonLeads } from "@/lib/i18n/dict/admin";
 
-export const metadata = { title: "Won Leads — B-Systems CRM" };
+export async function generateMetadata() {
+  const locale = await getLocale();
+  return { title: tFor(locale)(wonLeads.metaList) };
+}
 
 /* V2 §2.4/§4 — Won Leads. Admin: every won lead as a card (name, value, closer,
    milestone checks) linking into the detail. Closers see their own with client
@@ -22,9 +28,15 @@ function markInitials(name: string) {
     .join("");
 }
 
-function MilestoneDots({ milestones }: { milestones: Array<{ completed: boolean }> }) {
+function MilestoneDots({
+  milestones,
+  progressLabel,
+}: {
+  milestones: Array<{ completed: boolean }>;
+  progressLabel: string;
+}) {
   return (
-    <span className="inline-flex gap-1 align-middle" aria-label="Milestone progress">
+    <span className="inline-flex gap-1 align-middle" aria-label={progressLabel}>
       {milestones.map((m, i) => (
         <span
           key={i}
@@ -46,6 +58,8 @@ export default async function WonLeadsPage() {
     "bsystems_partner",
   );
   const role = bsRoleOf(user);
+  const locale = await getLocale();
+  const t = tFor(locale);
 
   if (role === "bsystems_admin") {
     const deals = await adminWonLeads();
@@ -53,12 +67,12 @@ export default async function WonLeadsPage() {
       <div className="space-y-6">
         <div className="page-head">
           <div>
-            <p className="u-eyebrow">B-SYSTEMS · WON LEADS</p>
-            <h1 className="u-h1">Won Leads</h1>
+            <p className="u-eyebrow">{t(wonLeads.eyebrowList)}</p>
+            <h1 className="u-h1">{t(wonLeads.title)}</h1>
           </div>
         </div>
         {deals.length === 0 ? (
-          <p className="empty">No won leads yet.</p>
+          <p className="empty">{t(wonLeads.empty)}</p>
         ) : (
           <div className="ecard-grid">
             {deals.map((w) => (
@@ -69,14 +83,17 @@ export default async function WonLeadsPage() {
                   </div>
                   <p className="ecard-title">{w.lead.name}</p>
                   <p className="ecard-sub">
-                    <span>Value:</span> {formatEGP(w.estimatedValue)}
+                    <span>{t(common.labelValue)}</span> {formatEGP(w.estimatedValue)}
                   </p>
                   <p className="ecard-sub">
-                    <span>Closer:</span> {w.closer}
+                    <span>{t(wonLeads.labelCloser)}</span> {w.closer}
                   </p>
                   <p className="ecard-sub flex items-center gap-2">
-                    <span>Milestones:</span>
-                    <MilestoneDots milestones={w.milestones} />
+                    <span>{t(wonLeads.labelMilestones)}</span>
+                    <MilestoneDots
+                      milestones={w.milestones}
+                      progressLabel={t(wonLeads.milestoneProgressAria)}
+                    />
                     <span className="text-xs text-brand-muted">
                       {w.milestones.filter((m) => m.completed).length}/{w.milestones.length}
                     </span>
@@ -85,7 +102,7 @@ export default async function WonLeadsPage() {
                 {/* founder V4: edit + delete straight from this interface */}
                 <div className="ecard-footer flex items-center gap-2 flex-wrap">
                   <Link href={`/b-systems/crm/lead/${w.lead.id}`} className="btn-ghost btn--sm">
-                    Edit lead
+                    {t(wonLeads.editLead)}
                   </Link>
                   <DeleteLeadButton leadId={w.lead.id} redirectTo="/b-systems/won-leads" />
                 </div>
@@ -106,36 +123,40 @@ export default async function WonLeadsPage() {
     <div className="space-y-6">
       <div className="page-head">
         <div>
-          <p className="u-eyebrow">B-SYSTEMS · WON LEADS</p>
-          <h1 className="u-h1">Won Leads</h1>
+          <p className="u-eyebrow">{t(wonLeads.eyebrowList)}</p>
+          <h1 className="u-h1">{t(wonLeads.title)}</h1>
         </div>
       </div>
       {deals.length === 0 ? (
-        <p className="empty">No won leads yet.</p>
+        <p className="empty">{t(wonLeads.empty)}</p>
       ) : (
         <div className="grid md:grid-cols-2 gap-3 items-start">
           {deals.map((w) => (
             <div key={w.id} className="card card-pad text-sm space-y-3">
               <div className="flex items-center justify-between gap-2">
                 <p className="u-h3">{w.lead.name}</p>
-                <MilestoneDots milestones={w.milestones} />
+                <MilestoneDots
+                  milestones={w.milestones}
+                  progressLabel={t(wonLeads.milestoneProgressAria)}
+                />
               </div>
               <p>
-                <span className="text-brand-muted">Number:</span> {w.lead.number}
+                <span className="text-brand-muted">{t(common.labelNumber)}</span> {w.lead.number}
               </p>
               {w.lead.companyName ? (
                 <p>
-                  <span className="text-brand-muted">Company:</span> {w.lead.companyName}
+                  <span className="text-brand-muted">{t(common.labelCompany)}</span>{" "}
+                  {w.lead.companyName}
                 </p>
               ) : null}
               <div className="flex gap-2 flex-wrap">
                 <div className="money-tile">
-                  <p className="money-label">Value:</p>
+                  <p className="money-label">{t(common.labelValue)}</p>
                   <p className="money-value">{formatEGP(w.estimatedValue)}</p>
                 </div>
                 {w.totalCommissionPercent != null ? (
                   <div className="money-tile">
-                    <p className="money-label">Total commission:</p>
+                    <p className="money-label">{t(common.labelTotalCommission)}</p>
                     <p className="money-value money-value--commission">
                       {(w.totalCommissionPercent / 100).toFixed(2).replace(/\.00$/, "")}%
                     </p>
@@ -153,12 +174,16 @@ export default async function WonLeadsPage() {
                     <span className={`ms-label ${m.completed ? "" : "text-brand-muted"}`}>
                       {m.completed ? "✓ " : ""}
                       {m.label}
-                      {m.locked ? " (locked)" : ""}
+                      {m.locked ? t(wonLeads.lockedSuffix) : ""}
                     </span>
                     <span className="ms-note ms-auto text-end">
                       {formatEGP(m.value)}
-                      {m.commissionValue != null ? ` · commission ${formatEGP(m.commissionValue)}` : ""}
-                      {m.expectedEnd ? ` · due ${formatCairoDate(m.expectedEnd)}` : ""}
+                      {m.commissionValue != null
+                        ? `${t(common.commissionSep)}${formatEGP(m.commissionValue)}`
+                        : ""}
+                      {m.expectedEnd
+                        ? ` · ${t(wonLeads.dueWord)} ${formatCairoDate(m.expectedEnd)}`
+                        : ""}
                     </span>
                   </div>
                 ))}

@@ -2,8 +2,12 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { LEAD_TYPES, LEAD_TYPE_LABELS } from "@/lib/pipeline-engine/constants";
+import { LEAD_TYPES } from "@/lib/pipeline-engine/constants";
 import { toPiasters, toPounds } from "@/lib/money";
+import { tFor } from "@/lib/i18n/core";
+import { useLocale } from "@/components/shared/LocaleProvider";
+import { leadTypeLabel } from "@/lib/i18n/dict/labels";
+import { common, formsDict } from "@/lib/i18n/dict/internal";
 
 /* Client-side forms for the internal CRMs (Apps A & B) — POST to the brand's API
    namespace, refresh on success. Tokens-only styling. */
@@ -14,6 +18,7 @@ const btnPrimary = "btn-primary";
 
 function useSubmit() {
   const router = useRouter();
+  const locale = useLocale();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   async function submit(url: string, method: string, body: unknown, onDone?: () => void) {
@@ -27,7 +32,7 @@ function useSubmit() {
     setBusy(false);
     if (!res.ok) {
       const data = (await res.json().catch(() => null)) as { error?: string } | null;
-      setError(data?.error ?? "Something went wrong");
+      setError(data?.error ?? tFor(locale)(common.somethingWentWrong));
       return false;
     }
     onDone?.();
@@ -39,11 +44,12 @@ function useSubmit() {
 
 export function AddRepForm({ apiBase }: { apiBase: string }) {
   const { busy, error, submit } = useSubmit();
+  const t = tFor(useLocale());
   const [open, setOpen] = useState(false);
   if (!open) {
     return (
       <button onClick={() => setOpen(true)} className={btnPrimary}>
-        Add sales rep
+        {t(formsDict.addSalesRep)}
       </button>
     );
   }
@@ -59,11 +65,11 @@ export function AddRepForm({ apiBase }: { apiBase: string }) {
       className="flex items-end gap-2"
     >
       <label className="block">
-        <span className={labelCls}>Rep name</span>
+        <span className={labelCls}>{t(formsDict.repName)}</span>
         <input type="text" name="name" required className={inputCls} />
       </label>
       <button type="submit" disabled={busy} className={btnPrimary}>
-        Add
+        {t(formsDict.add)}
       </button>
       {error ? <p className="alert-error">{error}</p> : null}
     </form>
@@ -72,11 +78,13 @@ export function AddRepForm({ apiBase }: { apiBase: string }) {
 
 export function AddLeadForm({ apiBase, salesRepId }: { apiBase: string; salesRepId?: string }) {
   const { busy, error, submit } = useSubmit();
+  const locale = useLocale();
+  const t = tFor(locale);
   const [open, setOpen] = useState(false);
   if (!open) {
     return (
       <button onClick={() => setOpen(true)} className={btnPrimary}>
-        Add lead
+        {t(formsDict.addLead)}
       </button>
     );
   }
@@ -101,38 +109,38 @@ export function AddLeadForm({ apiBase, salesRepId }: { apiBase: string; salesRep
       }}
       className="card card-pad space-y-3"
     >
-      <p className="u-h3">New lead</p>
+      <p className="u-h3">{t(formsDict.newLead)}</p>
       {error ? <p className="alert-error">{error}</p> : null}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <label className="block">
-          <span className={labelCls}>Name</span>
+          <span className={labelCls}>{t(formsDict.name)}</span>
           <input type="text" name="name" required className={inputCls} />
         </label>
         <label className="block">
-          <span className={labelCls}>Number</span>
+          <span className={labelCls}>{t(formsDict.number)}</span>
           <input type="tel" name="number" required className={inputCls} />
         </label>
         <label className="block">
-          <span className={labelCls}>Email</span>
+          <span className={labelCls}>{t(formsDict.email)}</span>
           <input type="email" name="email" className={inputCls} />
         </label>
         <label className="block">
-          <span className={labelCls}>Type</span>
+          <span className={labelCls}>{t(formsDict.type)}</span>
           <select name="type" required className={inputCls}>
-            {LEAD_TYPES.map((t) => (
-              <option key={t} value={t}>
-                {LEAD_TYPE_LABELS[t]}
+            {LEAD_TYPES.map((lt) => (
+              <option key={lt} value={lt}>
+                {leadTypeLabel(locale, lt)}
               </option>
             ))}
           </select>
         </label>
       </div>
       <label className="block">
-        <span className={labelCls}>Description</span>
+        <span className={labelCls}>{t(formsDict.description)}</span>
         <textarea name="description" rows={2} className={inputCls} />
       </label>
       <button type="submit" disabled={busy} className={btnPrimary}>
-        Save lead
+        {t(formsDict.saveLead)}
       </button>
     </form>
   );
@@ -155,6 +163,7 @@ export function ClientEditForm({
   };
 }) {
   const { busy, error, submit } = useSubmit();
+  const t = tFor(useLocale());
   const [open, setOpen] = useState(false);
   if (!open) {
     return (
@@ -162,7 +171,7 @@ export function ClientEditForm({
         onClick={() => setOpen(true)}
         className="text-sm text-brand-link underline underline-offset-2"
       >
-        Edit
+        {t(formsDict.edit)}
       </button>
     );
   }
@@ -194,12 +203,12 @@ export function ClientEditForm({
     >
       {error ? <p className="alert-error">{error}</p> : null}
       <label className="block">
-        <span className={labelCls}>Service</span>
+        <span className={labelCls}>{t(common.service)}</span>
         <input type="text" name="service" defaultValue={client.service ?? ""} className={inputCls} />
       </label>
       <div className="grid grid-cols-3 gap-2">
         <label className="block">
-          <span className={labelCls}>Estimated</span>
+          <span className={labelCls}>{t(formsDict.estimated)}</span>
           <input
             type="number"
             name="estimatedValue"
@@ -210,7 +219,7 @@ export function ClientEditForm({
           />
         </label>
         <label className="block">
-          <span className={labelCls}>Collected</span>
+          <span className={labelCls}>{t(formsDict.collected)}</span>
           <input
             type="number"
             name="collected"
@@ -221,7 +230,7 @@ export function ClientEditForm({
           />
         </label>
         <label className="block">
-          <span className={labelCls}>To be collected</span>
+          <span className={labelCls}>{t(formsDict.toBeCollected)}</span>
           <input
             type="number"
             name="toBeCollected"
@@ -234,7 +243,7 @@ export function ClientEditForm({
       </div>
       <div className="grid grid-cols-2 gap-2">
         <label className="block">
-          <span className={labelCls}>Collection due date</span>
+          <span className={labelCls}>{t(formsDict.collectionDueDate)}</span>
           <input
             type="date"
             name="dueDate"
@@ -243,7 +252,7 @@ export function ClientEditForm({
           />
         </label>
         <label className="block">
-          <span className={labelCls}>Technical owner</span>
+          <span className={labelCls}>{t(common.technicalOwner)}</span>
           <input
             type="text"
             name="technicalOwner"
@@ -253,18 +262,18 @@ export function ClientEditForm({
         </label>
       </div>
       <label className="flex items-center gap-2 text-sm">
-        <input type="checkbox" name="retainer" defaultChecked={client.retainer} /> Retainer
+        <input type="checkbox" name="retainer" defaultChecked={client.retainer} /> {t(formsDict.retainer)}
       </label>
       <div className="flex gap-2">
         <button type="submit" disabled={busy} className={btnPrimary}>
-          Save
+          {t(common.save)}
         </button>
         <button
           type="button"
           onClick={() => setOpen(false)}
           className="btn-ghost"
         >
-          Cancel
+          {t(common.cancel)}
         </button>
       </div>
     </form>

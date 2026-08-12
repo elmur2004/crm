@@ -12,9 +12,13 @@ import {
   useSensors,
   type DragEndEvent,
 } from "@dnd-kit/core";
-import { PARTNER_STAGES, STAGE_LABELS } from "@/lib/pipeline-engine/constants";
+import { PARTNER_STAGES } from "@/lib/pipeline-engine/constants";
 import { partnersConfig } from "@/lib/pipeline-engine/configs/partners";
 import { stageKey } from "@/components/bsystems/stageColors";
+import { tFor } from "@/lib/i18n/core";
+import { useLocale } from "@/components/shared/LocaleProvider";
+import { stageLabel } from "@/lib/i18n/dict/labels";
+import { pCommon, pPipeline } from "@/lib/i18n/dict/partners";
 import {
   ProspectGroupFields,
   prospectGroupPayload,
@@ -39,6 +43,8 @@ export interface ProspectCard {
 type Rep = { id: string; name: string };
 
 function Card({ card }: { card: ProspectCard }) {
+  const locale = useLocale();
+  const t = tFor(locale);
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: card.id,
   });
@@ -65,7 +71,7 @@ function Card({ card }: { card: ProspectCard }) {
       <p className="bcard-rep whitespace-normal">{card.name}</p>
       {card.converted ? (
         <p className="mt-1.5">
-          <span className="badge badge--converted">Converted</span>
+          <span className="badge badge--converted">{t(pPipeline.converted)}</span>
         </p>
       ) : null}
       {card.keyDatum ? (
@@ -79,6 +85,8 @@ function Card({ card }: { card: ProspectCard }) {
 }
 
 function Column({ stage, cards }: { stage: string; cards: ProspectCard[] }) {
+  const locale = useLocale();
+  const t = tFor(locale);
   const { setNodeRef, isOver } = useDroppable({ id: stage });
   return (
     <div
@@ -89,14 +97,14 @@ function Column({ stage, cards }: { stage: string; cards: ProspectCard[] }) {
     >
       <div className="col-bar" aria-hidden />
       <div className="col-head">
-        <span className="col-title">{STAGE_LABELS[stage]}</span>
+        <span className="col-title">{stageLabel(locale, stage)}</span>
         <span className="count-pill">{cards.length}</span>
       </div>
       <div className="col-cards">
         {cards.map((c) => (
           <Card key={c.id} card={c} />
         ))}
-        {cards.length === 0 ? <div className="col-empty">Nothing here yet</div> : null}
+        {cards.length === 0 ? <div className="col-empty">{t(pPipeline.emptyColumn)}</div> : null}
       </div>
     </div>
   );
@@ -104,6 +112,8 @@ function Column({ stage, cards }: { stage: string; cards: ProspectCard[] }) {
 
 export function PartnersBoard({ cards, reps }: { cards: ProspectCard[]; reps: Rep[] }) {
   const router = useRouter();
+  const locale = useLocale();
+  const t = tFor(locale);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
   const [pending, setPending] = useState<{ id: string; to: string } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -121,7 +131,7 @@ export function PartnersBoard({ cards, reps }: { cards: ProspectCard[]; reps: Re
     setBusy(false);
     if (!res.ok) {
       const data = (await res.json().catch(() => null)) as { error?: string } | null;
-      setError(data?.error ?? "Something went wrong");
+      setError(data?.error ?? t(pCommon.somethingWrong));
       return;
     }
     setPending(null);
@@ -136,7 +146,7 @@ export function PartnersBoard({ cards, reps }: { cards: ProspectCard[]; reps: Re
     const card = cards.find((c) => c.id === id);
     if (!card || card.stage === to) return;
     if (partnersConfig.terminalStages.includes(card.stage)) {
-      setMessage("Won and Lost cards can no longer be moved.");
+      setMessage(t(pPipeline.terminalToast));
       return;
     }
     if (to === "lead") {
@@ -175,18 +185,18 @@ export function PartnersBoard({ cards, reps }: { cards: ProspectCard[]; reps: Re
             <div className="modal-head">
               <div>
                 <p className="modal-eyebrow">
-                  {STAGE_LABELS[pendingCard.stage]}
+                  {stageLabel(locale, pendingCard.stage)}
                   <span className="inline-block rtl:-scale-x-100" aria-hidden>
                     {" → "}
                   </span>
-                  {STAGE_LABELS[pending.to]}
+                  {stageLabel(locale, pending.to)}
                 </p>
                 <p className="modal-title">{pendingCard.companyName}</p>
               </div>
               <button
                 type="button"
                 className="modal-close"
-                aria-label="Close"
+                aria-label={t(pCommon.close)}
                 onClick={() => {
                   setPending(null);
                   setError(null);
@@ -196,7 +206,7 @@ export function PartnersBoard({ cards, reps }: { cards: ProspectCard[]; reps: Re
               </button>
             </div>
             <p className="modal-note">
-              Complete this stage&apos;s details to confirm the move — cancel reverts it.
+              {t(pPipeline.modalNote)}
             </p>
             <form
               onSubmit={(e) => {
@@ -226,7 +236,7 @@ export function PartnersBoard({ cards, reps }: { cards: ProspectCard[]; reps: Re
               </div>
               <div className="modal-foot">
                 <span className="modal-foot-note">
-                  Cancelling reverts the card to {STAGE_LABELS[pendingCard.stage]}.
+                  {t(pPipeline.cancelReverts).replace("{stage}", stageLabel(locale, pendingCard.stage))}
                 </span>
                 <span className="flex gap-2">
                   <button
@@ -237,10 +247,10 @@ export function PartnersBoard({ cards, reps }: { cards: ProspectCard[]; reps: Re
                       setError(null);
                     }}
                   >
-                    Cancel
+                    {t(pCommon.cancel)}
                   </button>
                   <button type="submit" disabled={busy} className="btn-primary">
-                    Confirm move
+                    {t(pPipeline.confirmMove)}
                   </button>
                 </span>
               </div>

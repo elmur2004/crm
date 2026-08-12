@@ -1,3 +1,6 @@
+import { dirFor } from "@/lib/i18n/core";
+import { getLocale } from "@/lib/i18n/server";
+import { LocaleProvider } from "@/components/shared/LocaleProvider";
 import type { Metadata } from "next";
 import "@fontsource/jetbrains-mono/500.css";
 import "@fontsource/jetbrains-mono/700.css";
@@ -18,13 +21,14 @@ export const metadata: Metadata = {
    build time (a fresh container has no database while `next build` runs). */
 export const dynamic = "force-dynamic";
 
-export default function ByteForceLayout({
+export default async function ByteForceLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
+  const locale = await getLocale();
   return (
-    <html lang="en" data-brand="byteforce">
+    <html lang={locale} dir={dirFor(locale)} data-brand="byteforce">
       <body className="min-h-screen bg-brand-surface text-brand-ink font-brand-body antialiased">
-        {children}
+        <LocaleProvider locale={locale}>{children}</LocaleProvider>
       </body>
     </html>
   );

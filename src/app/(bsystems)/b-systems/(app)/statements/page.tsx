@@ -6,8 +6,14 @@ import { listStatements, waitingToBePaidOut } from "@/lib/services/statements";
 import { formatEGP } from "@/lib/money";
 import { formatCairoDate } from "@/lib/datetime";
 import { MarkPaidForm, ReplaceProofForm, StatementGenerator } from "@/components/bsystems/statements";
+import { tFor } from "@/lib/i18n/core";
+import { getLocale } from "@/lib/i18n/server";
+import { common, statements as d } from "@/lib/i18n/dict/admin";
 
-export const metadata = { title: "Statements — B-Systems CRM" };
+export async function generateMetadata() {
+  const locale = await getLocale();
+  return { title: tFor(locale)(d.metaList) };
+}
 
 /* V2 §2.9/§7 — checked milestones wait here; Generate opens the editable tab;
    Create files the coded statement; Mark paid uploads the proof image. */
@@ -23,33 +29,33 @@ export default async function StatementsPage() {
   if (bsRoleOf(user) !== "bsystems_admin") redirect("/b-systems/crm");
 
   const [waiting, statements] = await Promise.all([waitingToBePaidOut(), listStatements()]);
+  const locale = await getLocale();
+  const t = tFor(locale);
 
   return (
     <div className="space-y-8">
       <div className="page-head">
         <div>
-          <p className="u-eyebrow">B-SYSTEMS · STATEMENTS</p>
-          <h1 className="u-h1">Statements</h1>
+          <p className="u-eyebrow">{t(d.eyebrowList)}</p>
+          <h1 className="u-h1">{t(d.title)}</h1>
         </div>
       </div>
 
       <section className="card card--flush0">
         <div className="card-head">
-          <h2 className="u-h3">Waiting to be paid out</h2>
+          <h2 className="u-h3">{t(d.waitingHeading)}</h2>
         </div>
         {waiting.length === 0 ? (
-          <p className="empty m-4">
-            Nothing waiting — checked milestones without a statement appear here.
-          </p>
+          <p className="empty m-4">{t(d.waitingEmpty)}</p>
         ) : (
           <div className="table-scroll">
             <table className="table">
               <thead>
                 <tr>
-                  <th>Milestone</th>
-                  <th>Company</th>
-                  <th>Closer</th>
-                  <th>Commission</th>
+                  <th>{t(common.thMilestone)}</th>
+                  <th>{t(d.thCompany)}</th>
+                  <th>{t(common.thCloser)}</th>
+                  <th>{t(d.thCommission)}</th>
                   <th></th>
                 </tr>
               </thead>
@@ -73,23 +79,23 @@ export default async function StatementsPage() {
 
       <section className="card card--flush0">
         <div className="card-head">
-          <h2 className="u-h3">Statement</h2>
+          <h2 className="u-h3">{t(d.statementHeading)}</h2>
         </div>
         {statements.length === 0 ? (
-          <p className="empty m-4">No statements created yet.</p>
+          <p className="empty m-4">{t(d.statementsEmpty)}</p>
         ) : (
           <div className="table-scroll">
             <table className="table">
               <thead>
                 <tr>
-                  <th>Code</th>
-                  <th>Client</th>
-                  <th>Milestone</th>
-                  <th>Amount</th>
-                  <th>Adjustments</th>
-                  <th>Closer</th>
-                  <th>Expected</th>
-                  <th>Status</th>
+                  <th>{t(common.thCode)}</th>
+                  <th>{t(common.thClient)}</th>
+                  <th>{t(common.thMilestone)}</th>
+                  <th>{t(common.thAmount)}</th>
+                  <th>{t(d.thAdjustments)}</th>
+                  <th>{t(common.thCloser)}</th>
+                  <th>{t(common.thExpected)}</th>
+                  <th>{t(common.thStatus)}</th>
                 </tr>
               </thead>
               <tbody>
@@ -99,7 +105,7 @@ export default async function StatementsPage() {
                       <Link
                         href={`/b-systems/statements/${s.id}/document`}
                         className="td-mono text-brand-link underline underline-offset-2"
-                        title="Open the printable statement"
+                        title={t(common.openPrintableStatement)}
                       >
                         {s.code}
                       </Link>
@@ -120,7 +126,7 @@ export default async function StatementsPage() {
                       {s.status === "paid" ? (
                         <span className="inline-flex items-center gap-2 flex-wrap">
                           <span className="text-brand-success">
-                            Paid
+                            {t(common.paid)}
                             {s.proofs[0]?.fileOk ? (
                               <>
                                 {" · "}
@@ -128,7 +134,7 @@ export default async function StatementsPage() {
                                   href={`/api/files/${s.proofs[0].id}`}
                                   className="text-brand-link underline underline-offset-2"
                                 >
-                                  proof
+                                  {t(common.proofLink)}
                                 </a>
                               </>
                             ) : null}
@@ -136,11 +142,11 @@ export default async function StatementsPage() {
                           {s.proofs[0] && !s.proofs[0].fileOk ? (
                             /* the record survived but the file is gone (lost
                                in a redeploy without persistent storage) */
-                            <span className="text-brand-danger text-xs">proof file missing</span>
+                            <span className="text-brand-danger text-xs">{t(d.proofFileMissing)}</span>
                           ) : null}
                           <ReplaceProofForm
                             statementId={s.id}
-                            label={s.proofs[0]?.fileOk ? "Replace proof" : "Re-upload proof"}
+                            label={s.proofs[0]?.fileOk ? t(d.replaceProof) : t(d.reuploadProof)}
                           />
                         </span>
                       ) : (

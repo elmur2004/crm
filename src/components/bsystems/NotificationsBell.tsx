@@ -2,6 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { tFor } from "@/lib/i18n/core";
+import { useLocale } from "@/components/shared/LocaleProvider";
+import { bell } from "@/lib/i18n/dict/admin";
 
 /* V2 §10 — the admin nav bell: polls /api/b-systems/notifications (ADR-009's
    polling pattern), shows unread count, click-through opens the lead. */
@@ -26,6 +29,7 @@ export function NotificationsBell({
   leadPathBase?: string;
 } = {}) {
   const router = useRouter();
+  const t = tFor(useLocale());
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [open, setOpen] = useState(false);
   const boxRef = useRef<HTMLDivElement>(null);
@@ -70,7 +74,9 @@ export function NotificationsBell({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        aria-label={`Notifications${unread ? ` (${unread} unread)` : ""}`}
+        aria-label={`${t(bell.notificationsAria)}${
+          unread ? t(bell.unreadSuffix).replace("{n}", String(unread)) : ""
+        }`}
         className="bell"
       >
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
@@ -82,7 +88,7 @@ export function NotificationsBell({
       {open ? (
         <div className="bell-menu">
           {items.length === 0 ? (
-            <p className="empty m-3">No notifications yet.</p>
+            <p className="empty m-3">{t(bell.empty)}</p>
           ) : (
             items.map((n) => (
               <button
