@@ -537,6 +537,40 @@ label:has(input[required]) .dropzone-title::after {
 .ms-row--done .ms-amount { color: var(--color-heading); }
 .ms-mask { font: 700 13px var(--font-mono); letter-spacing: .1em; color: var(--color-muted); }
 
+/* ---------- lead team chat (founder: mini chat inside every lead) ---------- */
+.chat-thread { display: flex; flex-direction: column; gap: 10px; max-height: 360px; overflow-y: auto; padding-inline-end: 4px; }
+.chat-msg {
+  max-width: 88%; padding: 9px 12px; border-radius: 12px 12px 12px 4px;
+  background: var(--color-surface-tint); border: 1px solid var(--color-hairline);
+}
+.chat-msg--mine {
+  align-self: flex-end; border-radius: 12px 12px 4px 12px;
+  background: color-mix(in srgb, var(--color-primary) 8%, var(--color-surface-card));
+  border-color: color-mix(in srgb, var(--color-primary) 22%, transparent);
+}
+.chat-meta { display: flex; align-items: baseline; gap: 8px; margin-bottom: 2px; }
+.chat-author { font: 700 12px var(--font-body); color: var(--color-heading); }
+.chat-time { font: 400 10.5px var(--font-mono); color: var(--color-muted); }
+.chat-body { font: 400 13.5px/1.5 var(--font-body); color: var(--color-ink); white-space: pre-wrap; overflow-wrap: anywhere; }
+.chat-mention {
+  font-weight: 700; color: var(--color-link);
+  background: color-mix(in srgb, var(--color-link) 10%, transparent);
+  border-radius: 5px; padding: 0 3px;
+}
+.chat-input { resize: vertical; min-height: 58px; }
+.chat-actions { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 8px; flex-wrap: wrap; }
+/* in normal flow (never clipped by the card); sits right above the input */
+.chat-suggest {
+  margin-block-end: 6px; padding: 4px; max-height: 200px; overflow-y: auto;
+  background: var(--color-surface-card); border: 1px solid var(--color-border);
+  border-radius: 10px; box-shadow: var(--shadow-modal);
+}
+.chat-suggest button {
+  display: block; width: 100%; text-align: start; padding: 8px 10px; border-radius: 7px;
+  font: 600 13px var(--font-body); color: var(--color-ink); background: transparent; border: 0; cursor: pointer;
+}
+.chat-suggest button:hover, .chat-suggest button[data-active] { background: var(--color-surface-tint); color: var(--color-link); }
+
 .avatar-lg { width: 46px; height: 46px; border-radius: 12px; display: grid; place-items: center; background: var(--color-accent); color: var(--color-on-accent); font: 700 16px var(--font-body); flex: none; }
 .file-icon { width: 34px; height: 34px; border-radius: 8px; display: grid; place-items: center; background: var(--color-surface-tint); color: var(--color-link); font: 700 9.5px var(--font-mono); flex: none; }
 

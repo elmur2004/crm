@@ -15,6 +15,8 @@ export type CurrentUser = {
   name: string;
   roles: Role[];
   portalRepId: string | null;
+  /** set while an admin is acting as this user (snap-back impersonation) */
+  impersonatorId: string | null;
 };
 
 /** Identity from the session + fresh authorization state from the DB (ADR-017). */
@@ -35,6 +37,7 @@ export async function requireUser(): Promise<CurrentUser> {
     name: user.name,
     roles: user.roles.map((r) => r.role as Role),
     portalRepId: user.portalRep?.id ?? null,
+    impersonatorId: session?.user?.impersonatorId ?? null,
   };
 }
 

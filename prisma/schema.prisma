@@ -38,6 +38,7 @@ model User {
   partner       Partner? // partner-company account link (V2 §8)
   ownedLeads    Lead[]         @relation("LeadOwner")
   notifications Notification[]
+  leadComments  LeadComment[]  @relation("CommentAuthor")
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
 }
@@ -95,6 +96,7 @@ model Lead {
   wonInfo      WonInfo?
   client       Client?
   wonDeal      WonDeal?
+  comments     LeadComment[]
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
 
@@ -317,7 +319,7 @@ model Notification {
   // V2 §10 — in-app; userId null = every admin
   id        String    @id @default(cuid())
   userId    String?
-  type      String // meeting_request | ready_to_close
+  type      String // meeting_request | ready_to_close | registration | mention
   title     String
   body      String
   leadId    String?
@@ -345,6 +347,23 @@ model Attachment {
   wonDeal           WonDeal?         @relation(fields: [wonDealId], references: [id])
   statement         Statement?       @relation(fields: [statementId], references: [id])
   createdAt         DateTime         @default(now())
+}
+
+model LeadComment {
+  // founder: a mini chat inside every lead — questions, follow-ups, @mentions,
+  // so whoever talks to the lead has the full picture. Author label survives
+  // account deletion (ActivityLog convention).
+  id           String   @id @default(cuid())
+  leadId       String
+  authorUserId String?
+  authorLabel  String
+  body         String
+  mentions     String   @default("[]") // JSON [{userId,name}] — resolved server-side
+  lead         Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  author       User?    @relation("CommentAuthor", fields: [authorUserId], references: [id], onDelete: SetNull)
+  createdAt    DateTime @default(now())
+
+  @@index([leadId, createdAt])
 }
 
 model ActivityLog {

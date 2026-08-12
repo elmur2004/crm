@@ -136,5 +136,6 @@ export const LOG_ACTIONS = [
   "milestone_uncheck",
   "won_deal_update",
   "update",
+  "comment", // founder: the lead mini chat
 ] as const;
 export type LogAction = (typeof LOG_ACTIONS)[number];

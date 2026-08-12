@@ -456,3 +456,36 @@ _Format per module:_
   no-filenames / no-secrets rule; locking the endpoint down would
   reverse a founder requirement and needs a new ADR.
 - Last updated: 2026-08-11 (Entry 018, TESTING Run 021)
+
+## Lead team chat + mentions (founder V5)
+- Location: src/lib/services/comments.ts (mentionableUsersFor,
+  resolveMentions, addLeadComment); shared route factory
+  src/lib/api/leadComments.ts (makeCommentsPost(brand)) behind
+  POST /api/{b-systems,byteforce}/leads/[id]/comments; UI
+  src/components/shared/LeadChat.tsx (both lead detail pages) with the
+  token-driven `.chat-*` block in design-system.css; ByteForce bell =
+  NotificationsBell parameterized with apiBase/leadPathBase + new
+  /api/byteforce/notifications routes.
+- What exists / how it works: LeadComment (migration
+  20260812113153_lead_comments; leadId FK cascade; authorUserId FK
+  set-null with a persisted authorLabel so threads survive account
+  deletion; body ≤2000; mentions JSON — model synced into the backup
+  MODELS list and src/tests/db-reset.ts). Mentions are resolved
+  server-side only from the requireLeadAccess-mirrored mentionable set;
+  each resolved mention fans out a bell notification (type "mention",
+  self-mentions skipped) and the post logs an activity row (action
+  "comment", trigger "lead_chat"). Acting-as posts are labeled
+  "Name (via AdminName)" everywhere (CurrentUser carries impersonatorId).
+- Limitations / gotchas: (1) ACCEPTED behavior (26-agent review round,
+  kept by choice): an unresolved @mention — typo or non-mentionable name
+  — fails SILENTLY server-side; the only feedback is that it renders as
+  plain text without a chip. (2) ByteForce mention notification rows are
+  DELIBERATELY deep-link-less: Notification rows carry no brand, so a
+  dual-role user's other-brand bell would deep-link into the wrong app;
+  the notification body names the lead instead. Restore deep-links only
+  after notifications carry a brand (ADR-036). (3) markNotificationRead
+  is now ownership-checked: users mark only their OWN rows read; admins
+  may also mark admin-broadcast rows. This closed a pre-existing IDOR
+  (any B-Systems role could previously mark ANY notification read) —
+  keep the ownership check if the bell API ever grows bulk operations.
+- Last updated: 2026-08-12 (Entry 020, ADR-036, TESTING Run 023)

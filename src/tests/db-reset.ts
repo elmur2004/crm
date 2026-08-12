@@ -16,6 +16,7 @@ export async function resetDb(): Promise<void> {
   await db.client.deleteMany();
   await db.notification.deleteMany();
   await db.negotiationNote.deleteMany();
+  await db.leadComment.deleteMany();
   await db.lead.deleteMany();
   await db.partner.deleteMany();
   await db.partnerProspect.deleteMany();

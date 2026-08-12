@@ -696,3 +696,84 @@ comment, and the ADR-013 mechanism note all fixed; .env.example confirmed tracke
   hashes and every uploaded file — store backups securely; (f)
   production needs a DATABASE_URL (postgresql://…), `prisma migrate
   deploy` at boot, and a one-time seed for the admin account (ADR-033).
+
+## Entry 020 — 2026-08-12 — Per-lead team chat with @mentions (founder V5)
+- Done: founder V5 feature shipped — a mini chat inside every lead
+  (founder: "a mini chat inside every lead so that we can ask questions
+  and mention each other... so that when we talk to the lead, we have
+  the full picture") — ADR-036. (1) Schema: new LeadComment model
+  (leadId FK cascade; authorUserId FK set-null + persisted authorLabel
+  so threads survive account deletion; body ≤2000; mentions JSON) —
+  migration 20260812113153_lead_comments; synced into the backup MODELS
+  (src/lib/services/backup.ts) and src/tests/db-reset.ts;
+  Notification.type comment updated (meeting_request | ready_to_close |
+  registration | mention). (2) Service src/lib/services/comments.ts:
+  mentionableUsersFor(leadId) = exactly who passes requireLeadAccess
+  (ByteForce staff / B-Systems admins + internal-sales on
+  internal-bucket leads + the owner ONLY while holding an
+  agent/partner/admin role — role changes stop the leak), active +
+  approved only; resolveMentions server-side, word-boundaried (no "@Ali"
+  inside "@Alina" or emails), longest-name-first with span masking;
+  addLeadComment writes the comment, per-mention bell notifications
+  (type "mention", self-mentions skipped), and an activity-log row (new
+  LOG_ACTIONS action "comment", trigger "lead_chat"). (3) Routes:
+  POST /api/b-systems/leads/[id]/comments and
+  /api/byteforce/leads/[id]/comments via shared makeCommentsPost(brand)
+  (src/lib/api/leadComments.ts) — requireLeadAccess + route brand must
+  match the lead's brand. Impersonation transparency: an acting-as
+  message is labeled "Name (via AdminName)" in the thread, the mention
+  notification title, and the activity log (CurrentUser now carries
+  impersonatorId from the session). (4) UI
+  src/components/shared/LeadChat.tsx on BOTH lead detail pages
+  (B-Systems unified + ByteForce): thread with mention chips,
+  auto-scroll to the newest message, caret-aware @ autocomplete composer
+  (emails never trigger it; ↑/↓ + Enter/Tab keyboard pick; Escape
+  dismisses; Enter sends when no suggestions are open), suggestions
+  render in-flow (never clipped by card overflow); token-driven
+  `.chat-*` CSS block in design-system.css. (5) Notifications hardening:
+  markNotificationRead is now ownership-checked (own rows; admins also
+  admin-broadcast rows — closes a pre-existing IDOR where any B-Systems
+  role could mark any notification read); NEW ByteForce bell
+  (NotificationsBell parameterized with apiBase/leadPathBase, mounted in
+  the ByteForce header) reading new /api/byteforce/notifications routes
+  — ByteForce mentions are now deliverable; ByteForce mention rows carry
+  NO lead deep-link by design (ADR-036) — the body names the lead
+  instead. Verified: tsc clean, vitest 92/92, next build clean,
+  Playwright 16 passed / 2 audit-opt-in skipped — TESTING Run 023 —
+  including a 26-agent adversarial review workflow (security /
+  correctness-UX / consistency lenses) that confirmed 17 findings (incl.
+  two HIGH UI bugs: suggestion popup clipped by card overflow:hidden,
+  newest message scrolled out of view); ALL fixed pre-ship except one
+  deliberately ACCEPTED behavior — an unresolved @mention (typo /
+  non-mentionable name) fails silently server-side and renders as plain
+  text without a chip (IMPLEMENTATION.md note).
+- In progress: R23 portal marketing copy draft — still with the founder
+  for sign-off (carried from Entry 011).
+- Next steps: (carried from Entry 018) FIRST — the founder host action
+  in item (g) below (attach the persistent volume, set UPLOADS_DIR,
+  redeploy, re-upload lost proofs). Then: on copy approval, build the
+  deferred /portal landing sections (R23); obtain founder confirmation
+  on Lama Sans intermediate cuts (R5/A-13); founder to set a secure
+  storage routine for backup exports (ADR-032); change the admin
+  password after first production login (Entry 012 flag); production
+  deploy per ADR-033 (Entry 014 item (f)).
+- Blockers: durable uploads remain blocked on the founder host action
+  (Entry 018 item (g)) — until the persistent volume is mounted and
+  UPLOADS_DIR set, every redeploy wipes uploads again (the code side is
+  complete).
+- Needs founder confirmation: (g) URGENT ACTION, carried from Entry 018
+  (production incident 2026-08-11, ADR-035/BUG-004): in the hosting
+  panel attach persistent storage (e.g. mount at /data/uploads), set env
+  UPLOADS_DIR=/data/uploads, redeploy, then re-upload the lost proof(s)
+  via Statements → Re-upload proof — check /api/health
+  `uploads.missingFiles` to see how many are gone. Carried: (a) Lama
+  Sans intermediate cuts (R5/A-13); (b) the portal marketing copy draft
+  (pending approval, R23); (c) the standing REQUIREMENTS-V2 [A] defaults
+  and the carried items thread — items (1)–(14), see Entries 001–009 —
+  except the V2 §8 auto-password default (superseded by the founder
+  directive in Entry 015); (d) password123 is a weak production
+  credential — change it after first production login (see Entry 012's
+  caveat on seed re-runs); (e) ADR-032 backup exports embed password
+  hashes and every uploaded file — store backups securely; (f)
+  production needs a DATABASE_URL (postgresql://…), `prisma migrate
+  deploy` at boot, and a one-time seed for the admin account (ADR-033).

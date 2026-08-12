@@ -106,6 +106,11 @@ test("an agent cannot mutate another agent's lead (403, nothing changes)", async
   expect(event.status()).toBe(403);
   const ready = await pageB.request.post(`/api/b-systems/leads/${leadId}/ready`);
   expect(ready.status()).toBe(403);
+  /* founder V5: nor read or write A's lead CHAT. */
+  const comment = await pageB.request.post(`/api/b-systems/leads/${leadId}/comments`, {
+    data: { body: "sneaky @Elmur" },
+  });
+  expect(comment.status()).toBe(403);
   /* B cannot even VIEW A's lead. */
   await pageB.goto(`/b-systems/crm/lead/${leadId}`);
   await expect(pageB.getByText(/could not be found|404/i).first()).toBeVisible();

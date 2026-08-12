@@ -374,3 +374,28 @@ every dashboard formula, journeys 1-5 (SPEC §13).
   B-Systems mark on the printable statement document, header logos link
   to the current app's landing; no §10 pipeline rows).
 - Verdict: PASS.
+
+## Run 023 — 2026-08-12 — Per-lead team chat with @mentions (founder V5)
+- Suites/commands: `npm run typecheck` (tsc clean) · `npm run build`
+  (production build clean) · `npx vitest run` (92) · `npx playwright
+  test` (full suite). Local dev, embedded Postgres (per-run instances).
+  Plus a 26-agent adversarial review workflow (security / correctness-UX
+  / consistency lenses) over the feature.
+- Cases: vitest 92 passed / 0 failed / 0 skipped · Playwright 16 passed /
+  0 failed / 2 skipped (the two skips are the audit opt-in specs, by
+  design).
+- Failures: none in the automated suites.
+- SPEC coverage touched: no §10 pipeline rows — new comments/notifications
+  surface (ADR-036). 8 new comments integration tests (mentionable sets
+  per bucket incl. role-change drop-out, mention word-boundary cases,
+  notification routing, cascade delete, zod body limits); the backup
+  roundtrip now exercises leadComment; security-rbac e2e extended
+  (cross-agent comment → 403); journey3 e2e extended (admin posts a
+  mention, chip renders). Adversarial review CONFIRMED 17 findings — all
+  fixed pre-ship except one deliberately ACCEPTED behavior (an unresolved
+  @mention fails silently server-side and renders as plain text without a
+  chip — IMPLEMENTATION.md note). The two HIGH UI findings fixed
+  pre-ship: mention-suggestion popup clipped by the card's
+  overflow:hidden (suggestions now render in-flow) and the newest message
+  scrolled out of view (thread now auto-scrolls to the newest message).
+- Verdict: PASS.

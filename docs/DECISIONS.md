@@ -643,3 +643,43 @@ R23 copy sign-off — carried in PROGRESS (Entry 011).
   wipes uploads; backup exports (ADR-032) include file blobs and remain
   the disaster-recovery path.
 - Status: Accepted
+
+## ADR-036 — 2026-08-12 — Per-lead team chat with server-resolved @mentions
+- Context: Founder V5 directive: "a mini chat inside every lead so that we
+  can ask questions and mention each other... so that when we talk to the
+  lead, we have the full picture." Every lead detail page (both apps) needs
+  a thread where the team can talk and @mention each other, with mention
+  bell notifications. The dangerous parts are who may be mentioned (access
+  leak surface) and who claims to have written a message (impersonation).
+- Decision:
+  - The mentionable set for a lead is derived from the SAME access rule as
+    the lead page itself: mentionableUsersFor(leadId) mirrors
+    requireLeadAccess (ByteForce staff / B-Systems admins + internal-sales
+    on internal-bucket leads + the lead's owner ONLY while holding an
+    agent/partner/admin role — a role change drops them out of the set),
+    active + approved accounts only. No separate mention ACL to drift.
+  - Mentions are resolved SERVER-side only (resolveMentions:
+    word-boundaried so "@Ali" never matches inside "@Alina" or an email,
+    longest-name-first with span masking). Client-supplied mention ids are
+    never trusted. Each resolved mention produces a bell notification (new
+    Notification.type "mention"; self-mentions skipped) plus an
+    activity-log row (new LOG_ACTIONS action "comment", trigger
+    "lead_chat").
+  - Bells are per-brand: a NEW ByteForce bell reads new
+    /api/byteforce/notifications routes; ByteForce mention rows
+    deliberately carry NO lead deep-link (a dual-role user's other-brand
+    bell would link the wrong app) — the notification body names the lead
+    instead. Deep-links return once notifications carry a brand.
+  - Impersonation transparency: a message posted while acting-as is
+    labeled "Name (via AdminName)" in the thread, in the mention
+    notification title, and in the activity log (CurrentUser now carries
+    impersonatorId from the session).
+- Alternatives considered: client-supplied mention ids (rejected —
+  spoofable; the server must own who can be mentioned); realtime
+  websockets for the thread and bells (rejected — the existing
+  short-interval polling bell suffices at this scale, per the ADR-009
+  precedent).
+- Resolves: — (founder V5 directive; no SPEC §11 A-#)
+- Consequences: notification volume grows with chat use; ByteForce mention
+  deep-links stay deferred until notifications carry a brand.
+- Status: Accepted

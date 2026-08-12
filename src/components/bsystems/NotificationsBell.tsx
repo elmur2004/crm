@@ -18,7 +18,13 @@ interface NotificationItem {
 
 const POLL_MS = 15_000;
 
-export function NotificationsBell() {
+export function NotificationsBell({
+  apiBase = "/api/b-systems",
+  leadPathBase = "/b-systems/crm/lead",
+}: {
+  apiBase?: string;
+  leadPathBase?: string;
+} = {}) {
   const router = useRouter();
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [open, setOpen] = useState(false);
@@ -27,7 +33,7 @@ export function NotificationsBell() {
   useEffect(() => {
     let alive = true;
     async function load() {
-      const res = await fetch("/api/b-systems/notifications").catch(() => null);
+      const res = await fetch(`${apiBase}/notifications`).catch(() => null);
       if (!res?.ok) return;
       const data = (await res.json()) as NotificationItem[];
       if (alive) setItems(data);
@@ -54,9 +60,9 @@ export function NotificationsBell() {
     setItems((prev) =>
       prev.map((x) => (x.id === n.id ? { ...x, readAt: new Date().toISOString() } : x)),
     );
-    void fetch(`/api/b-systems/notifications/${n.id}`, { method: "PATCH" });
+    void fetch(`${apiBase}/notifications/${n.id}`, { method: "PATCH" });
     setOpen(false);
-    if (n.leadId) router.push(`/b-systems/crm/lead/${n.leadId}`);
+    if (n.leadId) router.push(`${leadPathBase}/${n.leadId}`);
   }
 
   return (

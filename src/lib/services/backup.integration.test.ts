@@ -47,6 +47,15 @@ describe("Full backup round-trip", () => {
     await db.notification.create({
       data: { userId: null, type: "ready_to_close", title: "t", body: "b", leadId: lead.id },
     });
+    await db.leadComment.create({
+      data: {
+        leadId: lead.id,
+        authorUserId: user.id,
+        authorLabel: "Elmur",
+        body: "@Elmur context survives backups",
+        mentions: JSON.stringify([{ userId: user.id, name: "Elmur" }]),
+      },
+    });
     const fileKey = "backupintegrationtest1.png";
     await storage.put(fileKey, Buffer.from("png-bytes-here"));
     await db.attachment.create({
@@ -91,6 +100,9 @@ describe("Full backup round-trip", () => {
     expect(restoredLead.createdAt).toBeInstanceOf(Date); // dates round-trip
 
     expect(await db.notification.count()).toBe(1);
+    const restoredComment = await db.leadComment.findFirstOrThrow();
+    expect(restoredComment.leadId).toBe(lead.id); // chat thread round-trips
+    expect(restoredComment.authorUserId).toBe(user.id);
     const blob = await storage.read(fileKey);
     expect(blob.toString()).toBe("png-bytes-here"); // uploads restored
 

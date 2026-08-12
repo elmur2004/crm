@@ -17,6 +17,8 @@ import { GroupHistory } from "@/components/internal/GroupHistory";
 import { HistoryPanel } from "@/components/internal/HistoryPanel";
 import { BsEventPanel } from "@/components/bsystems/BsEventPanel";
 import { CopyLeadButton, DeleteLeadButton, EditLeadForm } from "@/components/bsystems/leadActions";
+import { LeadChat } from "@/components/shared/LeadChat";
+import { listLeadComments, mentionableUsersFor } from "@/lib/services/comments";
 import type { BsFormRole } from "@/components/bsystems/roleForms";
 
 export const metadata = { title: "Lead — B-Systems CRM" };
@@ -54,13 +56,15 @@ export default async function BsLeadDetailPage({
           ? "agent"
           : "partner";
 
-  const [{ lead, history }, negotiationNotes, wonDeal] = await Promise.all([
+  const [{ lead, history }, negotiationNotes, wonDeal, comments, mentionables] = await Promise.all([
     getLeadDetail("bsystems", leadId),
     db.negotiationNote.findMany({ where: { leadId }, orderBy: { createdAt: "desc" } }),
     db.wonDeal.findUnique({
       where: { leadId },
       include: { milestones: { orderBy: { index: "asc" } } },
     }),
+    listLeadComments(leadId),
+    mentionableUsersFor(leadId),
   ]);
   const reps =
     role === "admin" || role === "sales"
@@ -206,6 +210,13 @@ export default async function BsLeadDetailPage({
         </section>
 
         <section className="space-y-4">
+          {/* founder: the mini chat — questions, follow-ups, @mentions */}
+          <LeadChat
+            postUrl={`/api/b-systems/leads/${lead.id}/comments`}
+            comments={comments.map((c) => ({ ...c, createdAt: c.createdAt.toISOString() }))}
+            mentionables={mentionables}
+            currentUserId={access.user.id}
+          />
           {negotiationNotes.length > 0 ? (
             <div className="card card--flush0">
               <div className="card-head">

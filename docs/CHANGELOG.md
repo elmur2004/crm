@@ -1,5 +1,19 @@
 # Changelog — user-visible changes per phase/release
 
+## Lead team chat (2026-08-12)
+- Every lead now has a built-in team chat on its detail page — in both
+  the B-Systems CRM and the ByteForce CRM — so questions and answers
+  live with the lead and you have the full picture before you talk to
+  them.
+- Type @ in the composer to mention a teammate: an autocomplete suggests
+  exactly the people who can see that lead, and mentioned people get a
+  bell notification. ByteForce now has its own notifications bell in the
+  header, so mentions reach ByteForce staff too.
+- Messages an admin posts while acting as someone else are labeled
+  "Name (via AdminName)" — in the thread, in the mention notification,
+  and in the activity log — so impersonated messages are always
+  transparent.
+
 ## Logo fixes (2026-08-12)
 - The printable statement document now shows the real B-Systems logo
   mark instead of the placeholder "S" gradient square.

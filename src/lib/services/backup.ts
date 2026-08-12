@@ -34,6 +34,7 @@ const MODELS = [
   "statement",
   "negotiationNote",
   "notification",
+  "leadComment",
   "attachment",
   "activityLog",
 ] as const;

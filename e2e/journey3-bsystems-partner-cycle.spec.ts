@@ -100,6 +100,14 @@ test("journey 3: partnership acquisition to attributed CRM lead (V2 numbers flow
   /* The unified lead detail carries the attribution and the FULL admin form. */
   await leadRow.click();
   await expect(page).toHaveURL(/\/b-systems\/crm\/lead\//);
+
+  /* founder V5: the lead mini chat — post a message with an @mention and see
+     it in the thread with the mention highlighted. */
+  const chatBox = page.getByLabel("Message the team");
+  await chatBox.fill("Full picture please: @Elmur they asked for a revised quote");
+  await page.getByRole("button", { name: "Send", exact: true }).click();
+  await expect(page.locator(".chat-body")).toContainText("revised quote");
+  await expect(page.locator(".chat-mention")).toHaveText("@Elmur");
   await page.getByLabel("Next action").selectOption("following_up");
   await page.getByLabel("Follow-up date").fill("2026-09-20");
   await page.getByLabel("Follow-up time").fill("10:30");

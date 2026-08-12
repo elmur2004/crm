@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { BrandLogo } from "@/components/shared/BrandLogo";
+import { NotificationsBell } from "@/components/bsystems/NotificationsBell";
 import { EntitySwitch } from "@/components/shared/EntitySwitch";
 import { ShellNav } from "@/components/shared/ShellNav";
 import { logout } from "@/lib/auth/actions";
@@ -54,6 +55,8 @@ export function AppNav({
       />
       <div className="user">
         <EntitySwitch roles={roles} current="byteforce" />
+        {/* founder V5: lead-chat mentions land here too */}
+        <NotificationsBell apiBase="/api/byteforce" leadPathBase={`${basePath}/leads/lead`} />
         <span className="user-avatar" aria-hidden>
           {initials}
         </span>

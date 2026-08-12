@@ -29,6 +29,14 @@ export function listNotifications(opts: { isAdmin: boolean; userId: string; take
   });
 }
 
-export async function markNotificationRead(id: string) {
-  await db.notification.update({ where: { id }, data: { readAt: new Date() } }).catch(() => null);
+/** Ownership-checked: a user marks only their OWN rows read (admins also the
+    admin-broadcast rows). A foreign id is a silent no-op. */
+export async function markNotificationRead(id: string, reader: { userId: string; isAdmin: boolean }) {
+  await db.notification.updateMany({
+    where: {
+      id,
+      OR: [{ userId: reader.userId }, ...(reader.isAdmin ? [{ userId: null }] : [])],
+    },
+    data: { readAt: new Date() },
+  });
 }

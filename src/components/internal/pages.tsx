@@ -19,6 +19,9 @@ import { AnimatedValue } from "@/components/shared/AnimatedValue";
 import { StageBadge } from "@/components/shared/StageBadge";
 import { stageKey } from "@/components/bsystems/stageColors";
 import { AddLeadForm, AddRepForm, ClientEditForm } from "./forms";
+import { LeadChat } from "@/components/shared/LeadChat";
+import { listLeadComments, mentionableUsersFor } from "@/lib/services/comments";
+import { requireLeadAccess } from "@/lib/auth/guards";
 import { LeadEventPanel } from "./LeadEventPanel";
 import { GroupHistory } from "./GroupHistory";
 import { HistoryPanel } from "./HistoryPanel";
@@ -228,14 +231,20 @@ export async function RepLeadsBody({ ctx, repId }: { ctx: InternalAppCtx; repId:
 
 export async function LeadDetailBody({ ctx, leadId }: { ctx: InternalAppCtx; leadId: string }) {
   let detail;
+  let access;
   try {
     detail = await getLeadDetail(ctx.brand, leadId);
+    access = await requireLeadAccess(leadId);
   } catch (e) {
-    if (e instanceof ApiError && e.status === 404) notFound();
+    if (e instanceof ApiError) notFound();
     throw e;
   }
   const { lead, history } = detail;
-  const reps = await listReps(ctx.brand);
+  const [reps, comments, mentionables] = await Promise.all([
+    listReps(ctx.brand),
+    listLeadComments(leadId),
+    mentionableUsersFor(leadId),
+  ]);
   const latestMeeting = lead.meetings.at(-1);
 
   return (
@@ -310,6 +319,13 @@ export async function LeadDetailBody({ ctx, leadId }: { ctx: InternalAppCtx; lea
         </section>
 
         <section className="space-y-4">
+          {/* founder: the mini chat — questions, follow-ups, @mentions */}
+          <LeadChat
+            postUrl={`${ctx.apiBase}/leads/${lead.id}/comments`}
+            comments={comments.map((c) => ({ ...c, createdAt: c.createdAt.toISOString() }))}
+            mentionables={mentionables}
+            currentUserId={access.user.id}
+          />
           <div>
             <h2 className="u-h3 mb-2">
               Stage records

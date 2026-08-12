@@ -3,17 +3,9 @@ import { markNotificationRead } from "@/lib/services/notifications";
 
 export const PATCH = handleRoute(
   async (_req: Request, ctx: { params: Promise<{ id: string }> }) => {
-    const user = await requireRole(
-      "bsystems_admin",
-      "bsystems_sales",
-      "bsystems_agent",
-      "bsystems_partner",
-    );
+    const user = await requireRole("byteforce_staff");
     const { id } = await ctx.params;
-    await markNotificationRead(id, {
-      userId: user.id,
-      isAdmin: user.roles.includes("bsystems_admin"),
-    });
+    await markNotificationRead(id, { userId: user.id, isAdmin: false });
     return Response.json({ ok: true });
   },
 );
