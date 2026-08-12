@@ -1,5 +1,13 @@
 # Changelog — user-visible changes per phase/release
 
+## Logo fixes (2026-08-12)
+- The printable statement document now shows the real B-Systems logo
+  mark instead of the placeholder "S" gradient square.
+- Header logos now link to the current app's home instead of the
+  platform root: the B-Systems logo+wordmark goes to your first nav
+  page (/b-systems for admins, /b-systems/crm for everyone else); the
+  ByteForce logo goes to /byteforce. Both links have aria-labels.
+
 ## Uploads durability incident fix (2026-08-11)
 - Fixed the production incident "uploaded files lost on redeploy": links
   to payment proofs, CVs, recordings, and proposal/contract PDFs no

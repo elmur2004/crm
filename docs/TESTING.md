@@ -361,3 +361,16 @@ every dashboard formula, journeys 1-5 (SPEC §13).
   ACCEPTED, not fixed: public /api/health disclosure (IMPLEMENTATION.md
   note, Entry 018).
 - Verdict: PASS.
+
+## Run 022 — 2026-08-12 — Logo fixes round (statement-document mark, header home links)
+- Suites/commands: `npm run typecheck` (tsc clean) · `npm run build`
+  (production build clean) · `npx vitest run` (84) · `npx playwright
+  test` (full suite). Local dev, embedded Postgres (per-run instances).
+- Cases: vitest 84 passed / 0 failed / 0 skipped · Playwright 16 passed /
+  0 failed / 2 skipped (the two skips are the audit opt-in specs, by
+  design).
+- Failures: none.
+- SPEC coverage touched: none (UI-only branding/navigation round — real
+  B-Systems mark on the printable statement document, header logos link
+  to the current app's landing; no §10 pipeline rows).
+- Verdict: PASS.

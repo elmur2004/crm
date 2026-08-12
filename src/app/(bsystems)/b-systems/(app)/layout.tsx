@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { BrandLogo } from "@/components/shared/BrandLogo";
 import { NotificationsBell } from "@/components/bsystems/NotificationsBell";
 import { ImpersonationBar } from "@/components/shared/ImpersonationBar";
@@ -73,11 +74,16 @@ export default async function BSystemsAppLayout({
     <>
       <ImpersonationBar />
       <header className="app-header" data-shell={external ? "external" : undefined}>
-        {/* founder: the REAL B-Systems mark (branding/b-systems/logo-mark.png) */}
-        <span className="shrink-0">
+        {/* founder: the REAL B-Systems mark; clicking it goes to THIS app's
+            landing for the current role — never the platform root */}
+        <Link
+          href={NAV[role]![0]!.href}
+          className="shrink-0 flex items-center gap-3"
+          aria-label="B-Systems home"
+        >
           <BrandLogo brand="bsystems" variant="mark" height={40} />
-        </span>
-        <span className="wordmark">B-Systems</span>
+          <span className="wordmark">B-Systems</span>
+        </Link>
         <ShellNav
           items={NAV[role]}
           extras={

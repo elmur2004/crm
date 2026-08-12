@@ -647,3 +647,52 @@ comment, and the ADR-013 mechanism note all fixed; .env.example confirmed tracke
   hashes and every uploaded file — store backups securely; (f)
   production needs a DATABASE_URL (postgresql://…), `prisma migrate
   deploy` at boot, and a one-time seed for the admin account (ADR-033).
+
+## Entry 019 — 2026-08-12 — Founder logo fixes: real B-Systems mark on statement document, header logos link to app home
+- Done: two founder-directed UI fixes shipped. (1) The printable
+  statement document
+  (src/app/(bsystems)/b-systems/(app)/statements/[id]/document/page.tsx)
+  now renders the real B-Systems logo mark via
+  `<BrandLogo brand="bsystems" variant="mark" height={40} />` instead of
+  the placeholder "S" gradient square (founder: "use the actual logo of
+  bsystems" — same correction as the app header earlier). (2) Header
+  logos now link to the CURRENT app's landing, never the platform root
+  (founder: "when I click on the logo it takes me to home"): the
+  B-Systems header logo+wordmark links to the role's first nav item
+  (/b-systems for admin, /b-systems/crm for others) in
+  src/app/(bsystems)/b-systems/(app)/layout.tsx; the ByteForce header
+  logo links to basePath (/byteforce) in
+  src/components/internal/AppNav.tsx. Both links carry aria-labels. No
+  ADR — pure UI following the existing brand rules (ADR-006). Verified:
+  tsc clean, vitest 84/84, next build clean, Playwright 16 passed / 2
+  audit-opt-in skipped — TESTING Run 022.
+- In progress: R23 portal marketing copy draft — still with the founder
+  for sign-off (carried from Entry 011).
+- Next steps: (carried from Entry 018) FIRST — the founder host action
+  in item (g) below (attach the persistent volume, set UPLOADS_DIR,
+  redeploy, re-upload lost proofs). Then: on copy approval, build the
+  deferred /portal landing sections (R23); obtain founder confirmation
+  on Lama Sans intermediate cuts (R5/A-13); founder to set a secure
+  storage routine for backup exports (ADR-032); change the admin
+  password after first production login (Entry 012 flag); production
+  deploy per ADR-033 (Entry 014 item (f)).
+- Blockers: durable uploads remain blocked on the founder host action
+  (Entry 018 item (g)) — until the persistent volume is mounted and
+  UPLOADS_DIR set, every redeploy wipes uploads again (the code side is
+  complete).
+- Needs founder confirmation: (g) URGENT ACTION, carried from Entry 018
+  (production incident 2026-08-11, ADR-035/BUG-004): in the hosting
+  panel attach persistent storage (e.g. mount at /data/uploads), set env
+  UPLOADS_DIR=/data/uploads, redeploy, then re-upload the lost proof(s)
+  via Statements → Re-upload proof — check /api/health
+  `uploads.missingFiles` to see how many are gone. Carried: (a) Lama
+  Sans intermediate cuts (R5/A-13); (b) the portal marketing copy draft
+  (pending approval, R23); (c) the standing REQUIREMENTS-V2 [A] defaults
+  and the carried items thread — items (1)–(14), see Entries 001–009 —
+  except the V2 §8 auto-password default (superseded by the founder
+  directive in Entry 015); (d) password123 is a weak production
+  credential — change it after first production login (see Entry 012's
+  caveat on seed re-runs); (e) ADR-032 backup exports embed password
+  hashes and every uploaded file — store backups securely; (f)
+  production needs a DATABASE_URL (postgresql://…), `prisma migrate
+  deploy` at boot, and a one-time seed for the admin account (ADR-033).

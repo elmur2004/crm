@@ -7,6 +7,7 @@ import { ApiError } from "@/lib/api-error";
 import { formatEGP } from "@/lib/money";
 import { formatCairoDate } from "@/lib/datetime";
 import { PrintButton } from "@/components/shared/PrintButton";
+import { BrandLogo } from "@/components/shared/BrandLogo";
 
 export const metadata = { title: "Statement — B-Systems CRM" };
 
@@ -62,9 +63,7 @@ export default async function StatementDocumentPage({
         <header className="print-head">
           <div>
             <div className="print-brand">
-              <span className="logo-b" aria-hidden>
-                S
-              </span>
+              <BrandLogo brand="bsystems" variant="mark" height={40} />
               <span className="wordmark text-brand-heading">B-Systems</span>
             </div>
             <p className="print-eyebrow mt-4">Commission statement</p>

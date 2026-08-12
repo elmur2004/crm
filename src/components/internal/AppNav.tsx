@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { BrandLogo } from "@/components/shared/BrandLogo";
 import { EntitySwitch } from "@/components/shared/EntitySwitch";
 import { ShellNav } from "@/components/shared/ShellNav";
@@ -33,8 +34,11 @@ export function AppNav({
     .toUpperCase();
   return (
     <header className="app-header">
-      {/* founder: the REAL ByteForce logo, not the placeholder mark */}
-      <span className="shrink-0"><BrandLogo brand="byteforce" height={30} /></span>
+      {/* founder: the REAL ByteForce logo; clicking it goes to THIS app's
+          dashboard — never the platform root */}
+      <Link href={basePath} className="shrink-0" aria-label="ByteForce dashboard">
+        <BrandLogo brand="byteforce" height={30} />
+      </Link>
       <ShellNav
         items={items}
         extras={
