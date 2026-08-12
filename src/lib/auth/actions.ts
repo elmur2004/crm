@@ -62,7 +62,12 @@ export async function login(formData: FormData): Promise<void> {
 }
 
 export async function logout(redirectTo: string): Promise<void> {
-  await signOut({ redirectTo });
+  /* signOut({redirectTo}) absolutizes the path against the proxy-reported
+     scheme — behind a proxy that misreports x-forwarded-proto it emits an
+     http:// Location and downgrades the browser off https. A relative
+     redirect() can never change the scheme. */
+  await signOut({ redirect: false });
+  redirect(redirectTo);
 }
 
 /* V2 §2.10 — admin opens any account directly (no re-login). The session
