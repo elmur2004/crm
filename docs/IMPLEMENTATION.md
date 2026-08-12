@@ -489,3 +489,30 @@ _Format per module:_
   (any B-Systems role could previously mark ANY notification read) —
   keep the ownership check if the bell API ever grows bulk operations.
 - Last updated: 2026-08-12 (Entry 020, ADR-036, TESTING Run 023)
+
+## HTTPS posture — logout fix + DEFERRED HSTS/https-redirect hardening
+- Location: src/lib/auth/actions.ts (logout()); the deferred hardening
+  would live in headers config / middleware when shipped.
+- What exists / how it works: the 2026-08-12 SSL audit (3-agent
+  workflow, TESTING Run 024) confirmed the app is scheme-clean: zero
+  external scripts/fonts/CDN/analytics (mixed content impossible),
+  every browser-loaded resource same-origin relative, no absolute-URL
+  construction, empty next.config, middleware redirects relativized by
+  Next itself. The ONE code-reachable downgrade path is fixed (BUG-005,
+  commit ce5ff36): logout() used signOut({redirectTo}), which next-auth
+  5 beta absolutizes against the proxy-reported x-forwarded-proto —
+  behind a misreporting proxy, Log out emitted
+  Location: http://<domain>/login. Now signOut({redirect: false}) plus
+  a relative redirect(), following the existing proxy-trust semantics
+  (no ADR needed).
+- Limitations / gotchas: two hardening steps are DELIBERATELY NOT
+  shipped — do not add them early: (1) an HSTS header (when shipped:
+  short max-age first, NEVER preload initially) and (2) any
+  proto=http → https 308 redirect. Precondition for BOTH: Cloudflare
+  TLS confirmed working, i.e. /api/health `proxy.proto` === "https" —
+  under Cloudflare "Flexible" SSL the origin always sees proto http, so
+  an app-level https redirect recreates the historical "too many
+  redirects" infinite loop. Related: env AUTH_URL=https://<domain> on
+  the host also fixes NextAuth secure-cookie selection when the proxy
+  misreports proto (founder action, Entry 021 (h)).
+- Last updated: 2026-08-12 (Entry 021, BUG-005, TESTING Run 024)

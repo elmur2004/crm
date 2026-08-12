@@ -51,3 +51,18 @@ the moment a failure is found; close them with a reference to the fixing commit/
   ACTION: attach a persistent volume and set UPLOADS_DIR to its mount
   path (ADR-035). Already-lost blobs are unrecoverable unless an ADR-032
   backup export holds them — re-upload via Statements → Re-upload proof.
+
+## BUG-005 — 2026-08-12 — Log out emits an http:// redirect behind a proto-misreporting proxy
+- Severity: major (scheme downgrade on one action; found by the
+  2026-08-12 SSL audit round, not by a user report)
+- Where: src/lib/auth/actions.ts logout() — signOut({redirectTo:
+  "/login"}): next-auth 5 beta absolutizes redirectTo against the
+  proxy-reported x-forwarded-proto, so behind a misreporting proxy
+  (e.g. Cloudflare "Flexible" SSL) clicking Log out responded with
+  Location: http://<domain>/login. The only code-reachable downgrade
+  path found by the audit — everything else the browser loads is
+  same-origin relative.
+- Repro: deploy behind a proxy reporting x-forwarded-proto: http, sign
+  in, click Log out, inspect the redirect response's Location header.
+- Status: fixed (signOut({redirect: false}) + a relative redirect() —
+  commit ce5ff36, Entry 021, TESTING Run 024)

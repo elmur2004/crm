@@ -399,3 +399,28 @@ every dashboard formula, journeys 1-5 (SPEC §13).
   overflow:hidden (suggestions now render in-flow) and the newest message
   scrolled out of view (thread now auto-scrolls to the newest message).
 - Verdict: PASS.
+
+## Run 024 — 2026-08-12 — SSL audit round (scheme cleanliness + logout downgrade fix)
+- Suites/commands: `npx vitest run` (92) · `npx playwright test` (full
+  suite) — re-run green after the logout fix. Local dev, embedded
+  Postgres (per-run instances). Plus a 3-agent audit workflow over the
+  founder's production "Not secure" report: absolute-URLs lens,
+  redirect-downgrade lens (incl. reading the installed Next 16.3 and
+  next-auth 5 beta sources), badge-causes/hardening lens.
+- Cases: vitest 92 passed / 0 failed / 0 skipped · Playwright 16 passed /
+  0 failed / 2 skipped (the two skips are the audit opt-in specs, by
+  design).
+- Failures: none in the automated suites. Audit finding fixed in-round:
+  BUG-005 — logout's signOut({redirectTo}) absolutized "/login" against
+  the proxy-reported x-forwarded-proto, emitting an http:// Location
+  behind a misreporting proxy (fixed in src/lib/auth/actions.ts, commit
+  ce5ff36).
+- SPEC coverage touched: none (no §10 pipeline rows — transport/auth
+  posture audit). Audit conclusion: the app is scheme-clean — zero
+  external scripts/fonts/CDN/analytics (mixed content impossible),
+  every browser-loaded resource same-origin relative, no absolute-URL
+  construction, empty next.config, middleware redirects relativized by
+  Next itself. HSTS + http→https redirect deliberately DEFERRED
+  (IMPLEMENTATION.md note).
+- Verdict: PASS (code side; the "Not secure" badge itself is
+  host/Cloudflare TLS configuration — founder action, Entry 021 (h)).

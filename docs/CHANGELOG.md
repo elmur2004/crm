@@ -1,6 +1,12 @@
 # Changelog — user-visible changes per phase/release
 
-## Lead team chat (2026-08-12)
+## SSL audit (2026-08-12)
+- Security fix: clicking Log out could redirect to an insecure http://
+  login page when the hosting proxy misreports the connection scheme —
+  logout now always uses a same-origin relative redirect. The audit
+  confirmed nothing else code-side can cause the browser's "Not secure"
+  badge (no mixed content is possible); the badge itself is a
+  Cloudflare/host TLS configuration matter.
 - Every lead now has a built-in team chat on its detail page — in both
   the B-Systems CRM and the ByteForce CRM — so questions and answers
   live with the lead and you have the full picture before you talk to

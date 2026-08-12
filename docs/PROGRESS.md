@@ -777,3 +777,65 @@ comment, and the ADR-013 mechanism note all fixed; .env.example confirmed tracke
   hashes and every uploaded file — store backups securely; (f)
   production needs a DATABASE_URL (postgresql://…), `prisma migrate
   deploy` at boot, and a one-time seed for the admin account (ADR-033).
+
+## Entry 021 — 2026-08-12 — SSL "Not secure" audit: code side clean, logout http-downgrade fixed (founder Cloudflare action required)
+- Done: founder reported production shows "Not secure" (SSL) and is
+  checking Cloudflare; asked us to rule out code-side causes. A 3-agent
+  audit workflow (absolute-URLs lens, redirect-downgrade lens incl.
+  reading the installed Next 16.3 / next-auth 5 beta sources,
+  badge-causes/hardening lens) concluded the app is scheme-clean: zero
+  external scripts/fonts/CDN/analytics (mixed content impossible), every
+  browser-loaded resource same-origin relative, no absolute-URL
+  construction, empty next.config, middleware redirects relativized by
+  Next itself. ONE real code-reachable downgrade path found and FIXED
+  (BUG-005): logout() used signOut({redirectTo}), which absolutizes
+  "/login" against the proxy-reported x-forwarded-proto — behind a
+  misreporting proxy, clicking Log out emitted
+  Location: http://<domain>/login. Fixed in src/lib/auth/actions.ts
+  (signOut({redirect: false}) + relative redirect()); verified vitest
+  92/92, Playwright 16 passed / 2 audit-opt-in skipped (TESTING Run
+  024); pushed as ce5ff36. No ADR — the fix follows the existing
+  proxy-trust semantics. HSTS and any http→https 308 redirect
+  deliberately NOT shipped (IMPLEMENTATION.md note: under Cloudflare
+  "Flexible" SSL an app-level redirect recreates the historical "too
+  many redirects" loop; ship only after /api/health `proxy.proto` reads
+  "https").
+- In progress: R23 portal marketing copy draft — still with the founder
+  for sign-off (carried from Entry 011).
+- Next steps: FIRST — the founder actions in items (g) and (h) below
+  (persistent volume + UPLOADS_DIR; Cloudflare SSL = Full (strict) +
+  AUTH_URL env). Once (h) is confirmed via /api/health
+  `proxy.proto` === "https", ship the deferred hardening (HSTS with a
+  short max-age first, then the http→https redirect). Then the carried
+  items: on copy approval, build the deferred /portal landing sections
+  (R23); obtain founder confirmation on Lama Sans intermediate cuts
+  (R5/A-13); founder to set a secure storage routine for backup exports
+  (ADR-032); change the admin password after first production login
+  (Entry 012 flag); production deploy per ADR-033 (Entry 014 item (f)).
+- Blockers: the "Not secure" badge itself is host/Cloudflare TLS
+  configuration — nothing further is fixable code-side (item (h));
+  durable uploads remain blocked on the founder host action (Entry 018
+  item (g)).
+- Needs founder confirmation: (h) NEW ACTION (SSL, this entry): in
+  Cloudflare set SSL/TLS mode = Full (strict) — NOT Flexible or Off —
+  and check the DNS record is proxied (orange cloud), the certificate
+  covers the exact hostname (Universal SSL covers only ONE subdomain
+  level), and the zone is not paused; on the host set env
+  AUTH_URL=https://<domain> (also fixes NextAuth secure-cookie selection
+  when the proxy misreports proto). Diagnostic: GET /api/health —
+  `proxy.proto` must read "https". (g) URGENT ACTION, carried from
+  Entry 018 (production incident 2026-08-11, ADR-035/BUG-004): in the
+  hosting panel attach persistent storage (e.g. mount at /data/uploads),
+  set env UPLOADS_DIR=/data/uploads, redeploy, then re-upload the lost
+  proof(s) via Statements → Re-upload proof — check /api/health
+  `uploads.missingFiles` to see how many are gone. Carried: (a) Lama
+  Sans intermediate cuts (R5/A-13); (b) the portal marketing copy draft
+  (pending approval, R23); (c) the standing REQUIREMENTS-V2 [A] defaults
+  and the carried items thread — items (1)–(14), see Entries 001–009 —
+  except the V2 §8 auto-password default (superseded by the founder
+  directive in Entry 015); (d) password123 is a weak production
+  credential — change it after first production login (see Entry 012's
+  caveat on seed re-runs); (e) ADR-032 backup exports embed password
+  hashes and every uploaded file — store backups securely; (f)
+  production needs a DATABASE_URL (postgresql://…), `prisma migrate
+  deploy` at boot, and a one-time seed for the admin account (ADR-033).
