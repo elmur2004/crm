@@ -29,7 +29,9 @@ import { AddLeadForm, AddRepForm, ClientEditForm } from "./forms";
 import { LeadChat } from "@/components/shared/LeadChat";
 import { listLeadComments, mentionableUsersFor } from "@/lib/services/comments";
 import { requireLeadAccess } from "@/lib/auth/guards";
+import { common as crmCommon } from "@/lib/i18n/dict/crm";
 import { LeadEventPanel } from "./LeadEventPanel";
+import { InternalBoard, type InternalBoardLead } from "./InternalBoard";
 import { GroupHistory } from "./GroupHistory";
 import { HistoryPanel } from "./HistoryPanel";
 import { ApiError } from "@/lib/api-error";
@@ -280,6 +282,9 @@ export async function LeadDetailBody({ ctx, leadId }: { ctx: InternalAppCtx; lea
                 {t(common.partnerPrefix)} {lead.partner.companyName}
               </span>
             ) : null}
+            {lead.noAnswer ? (
+              <span className="badge badge--noanswer">{t(crmCommon.noAnswer)}</span>
+            ) : null}
           </h1>
         </div>
         <div className="fields-grid">
@@ -419,6 +424,21 @@ export async function CrmBoardBody({ ctx }: { ctx: InternalAppCtx }) {
     }
   }
 
+  /* Founder (ADR-042): full parity with the B-Systems board — the client
+     board handles drag + the drop-opens-stage-form modal + the didn't-answer
+     marker. Labels are precomputed here so the client stays string-free. */
+  const reps = (await listReps(ctx.brand)).map((r) => ({ id: r.id, name: r.name }));
+  const cards: InternalBoardLead[] = leads.map((lead) => ({
+    id: lead.id,
+    name: lead.name,
+    subtitle: `${leadTypeLabel(locale, lead.type)} · ${lead.salesRep ? lead.salesRep.name : t(common.unassigned)}`,
+    partnerBadge: lead.partner ? `${t(common.partnerPrefix)} ${lead.partner.companyName}` : null,
+    stage: lead.stage,
+    keyDatum: keyDatum(lead),
+    noAnswer: lead.noAnswer,
+    latestProposalValue: lead.proposals[0]?.estimatedValue ?? null,
+  }));
+
   return (
     <div className="space-y-6">
       <div className="page-head">
@@ -427,47 +447,7 @@ export async function CrmBoardBody({ ctx }: { ctx: InternalAppCtx }) {
           <h1 className="u-h1">{t(nav.crm)}</h1>
         </div>
       </div>
-      <div className="board" data-cols="6plus">
-        {BOARD_STAGES.map((stage) => {
-          const cards = leads.filter((l) => l.stage === stage);
-          return (
-            <div key={stage} className="col" data-stage-key={stageKey(stage)}>
-              <div className="col-bar" aria-hidden />
-              <div className="col-head">
-                <p className="col-title">
-                  {stageLabel(locale, stage)} ({cards.length})
-                </p>
-              </div>
-              <div className="col-cards">
-                {cards.map((lead) => (
-                  <Link
-                    key={lead.id}
-                    href={`${ctx.basePath}/leads/lead/${lead.id}`}
-                    className="bcard block"
-                  >
-                    <p className="bcard-name">{lead.name}</p>
-                    <p className="bcard-rep mt-1">
-                      {leadTypeLabel(locale, lead.type)}
-                      {lead.salesRep ? ` · ${lead.salesRep.name}` : ` · ${t(common.unassigned)}`}
-                    </p>
-                    {lead.partner ? (
-                      <p className="mt-2">
-                        <span className="bcard-badge">
-                          {t(common.partnerPrefix)} {lead.partner.companyName}
-                        </span>
-                      </p>
-                    ) : null}
-                    <p className="bcard-meta">
-                      <span className="bcard-meta-dot" aria-hidden />
-                      {keyDatum(lead)}
-                    </p>
-                  </Link>
-                ))}
-              </div>
-            </div>
-          );
-        })}
-      </div>
+      <InternalBoard leads={cards} reps={reps} basePath={ctx.basePath} apiBase={ctx.apiBase} />
     </div>
   );
 }

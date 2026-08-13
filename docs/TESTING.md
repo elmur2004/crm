@@ -587,3 +587,24 @@ every dashboard formula, journeys 1-5 (SPEC §13).
   meeting_setting > following_up > new, terminals last, unknowns
   bottom) and the three sort orders incl. input non-mutation.
 - Verdict: PASS.
+
+## Run 033 — 2026-08-14 — ByteForce board parity round (ADR-042)
+- Suites/commands: `npx tsc --noEmit` (clean) · `npx vitest run` (100 —
+  the A-7 drag-rejection case REWRITTEN to assert the founder-approved
+  drag behavior, count unchanged) · `npx playwright test` (full suite
+  incl. NEW e2e/byteforce-board.spec.ts). Local dev, embedded Postgres
+  (per-run instances).
+- Cases: vitest 100 passed / 0 failed / 0 skipped · Playwright full 20
+  passed / 0 failed / 2 skipped (audit opt-in skips, by design). Full
+  e2e wall time 4.1m.
+- Failures: none.
+- SPEC coverage touched: A-7 overridden by founder directive (ADR-042)
+  — the internal pipeline now accepts drag events; the engine's drag ==
+  matching action (same group, same §10 trigger), asserted in the
+  rewritten transition test (T-1 with follow_up/initial on drag
+  new→following_up). New e2e: drag on /byteforce/crm opens the internal
+  follow-up form, confirm moves the card; didn't-answer chip toggles on
+  the board; whole-card click opens the lead. journey1 + qa-sweep
+  passing unchanged over the new client board is the regression proof
+  for the rewrite of CrmBoardBody.
+- Verdict: PASS.

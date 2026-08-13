@@ -219,13 +219,16 @@ describe("Internal CRM (§10.1)", () => {
     }
   });
 
-  it("illegal: unknown action and drag on internal pipeline are rejected (A-7)", () => {
+  it("founder override of A-7 (ADR-042): drag moves like the matching action; unknown actions still rejected", () => {
     const bad = transition(internal, { stage: "new" }, act("didnt_answer"), staff);
     expect(bad.ok).toBe(false);
 
-    const drag = transition(internal, { stage: "new" }, { type: "drag", to: "following_up" }, staff);
-    expect(drag.ok).toBe(false);
-    expect(!drag.ok && drag.code).toBe("drag_not_supported");
+    const drag = expectOk(
+      transition(internal, { stage: "new" }, { type: "drag", to: "following_up" }, staff),
+    );
+    expect(drag.toStage).toBe("following_up");
+    expect(drag.requiredGroup).toEqual({ group: "follow_up", context: "initial" });
+    expect(drag.logTrigger).toBe("T-1"); // drag == matching action
   });
 });
 

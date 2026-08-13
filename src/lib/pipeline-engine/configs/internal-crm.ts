@@ -27,7 +27,7 @@ export const internalCrmConfig: PipelineConfig = {
     // T-6: destination choice is mandatory
     return ["sending_proposal", "won", "lost", "following_up"];
   },
-  dragEnabled: false,
+  dragEnabled: true, // founder (ADR-042): overrides A-7 — the board drags like the B-Systems one
   wonRoles: null, // any staff member of the owning brand (brand scoping in guards)
   wonRequiredGroup: { group: "won" },
   wonSideEffect: "create_client", // T-9 / A-1

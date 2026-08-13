@@ -863,3 +863,42 @@ R23 copy sign-off — carried in PROGRESS (Entry 011).
   dated-proposal rows, that needs a schema addition. Rows disappear
   when handled (stage moves) rather than being checked off.
 - Status: Accepted
+
+## ADR-042 — 2026-08-14 — ByteForce board parity: drag enabled on the internal pipeline (founder override of A-7)
+- Context: Founder — "the CRM in ByteForce is not draggable... it
+  should have all the characteristics of the other CRM — the flags, the
+  tags, the draggability, drag opens up that thing — the same." SPEC
+  A-7 restricted drag to the portal (v1); the internal config carried
+  dragEnabled: false and /byteforce/crm was a static server-rendered
+  read-only board.
+- Decision: internalCrmConfig.dragEnabled = true — the engine's
+  existing generic drag path serves the internal pipeline unchanged
+  (drag == the matching Next Action: same required group, same §10
+  trigger id, e.g. T-1 for a drop on Following Up). The
+  transition.test.ts case that asserted drag rejection on internal
+  (A-7) was REWRITTEN to assert the new behavior — group + trigger
+  parity — per the founder override. New client component
+  src/components/internal/InternalBoard.tsx ports the BsBoard
+  experience: dnd drag with the drop-opens-stage-form modal (the
+  INTERNAL §6.2 field groups, now exported from LeadEventPanel — one
+  source for panel and modal), whole-card click with the post-drag
+  click guard, lift/clip drag layering (data-drag-origin), count
+  pills, and the didn't-answer toggle + "No answer" chip (new POST
+  /api/byteforce/leads/[id]/no-answer behind requireBrandStaff). The
+  ByteForce lead detail header shows the chip too. CrmBoardBody stays
+  the server side: it precomputes all labels so the client is
+  string-free; modal copy reuses the existing board Msgs (EN
+  byte-identical). A sibling component was chosen over one shared
+  board: the two brands' form systems differ structurally (role-aware
+  GroupFieldsV2 + milestone won-tab vs internal fields + technical
+  owner/collected won form) and B-Systems e2e selectors stay untouched.
+- Alternatives considered: one brand-parameterized board component —
+  rejected for now (see above; revisit if the form systems converge).
+  Keeping A-7 and pointing the founder at Next Actions — rejected:
+  founder directive supersedes.
+- Resolves: founder bug/feature report (overrides SPEC A-7 for the
+  internal pipeline; §10 rows unchanged — a drag IS the matching row).
+- Consequences: journey1's flow is unchanged (actions still work);
+  e2e/byteforce-board.spec.ts covers drag→form→confirm, the
+  didn't-answer toggle, and whole-card open on /byteforce/crm.
+- Status: Accepted

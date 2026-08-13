@@ -25,7 +25,7 @@ const labelCls = "field-label block mb-1.5";
 const btnPrimary = "btn-primary";
 const btnGhost = "btn-ghost";
 
-function FollowUpFields({ reps }: { reps: Rep[] }) {
+export function FollowUpFields({ reps }: { reps: Rep[] }) {
   const t = tFor(useLocale());
   return (
     <>
@@ -68,7 +68,7 @@ function FollowUpFields({ reps }: { reps: Rep[] }) {
   );
 }
 
-function followUpFromForm(fd: FormData) {
+export function followUpFromForm(fd: FormData) {
   return {
     group: "follow_up" as const,
     data: {
@@ -81,7 +81,7 @@ function followUpFromForm(fd: FormData) {
   };
 }
 
-function MeetingFields({ arranged, setArranged, reps }: { arranged: boolean; setArranged: (v: boolean) => void; reps: Rep[] }) {
+export function MeetingFields({ arranged, setArranged, reps }: { arranged: boolean; setArranged: (v: boolean) => void; reps: Rep[] }) {
   const t = tFor(useLocale());
   return (
     <>
@@ -141,7 +141,7 @@ function MeetingFields({ arranged, setArranged, reps }: { arranged: boolean; set
   );
 }
 
-function meetingFromForm(fd: FormData, arranged: boolean) {
+export function meetingFromForm(fd: FormData, arranged: boolean) {
   return {
     group: "meeting" as const,
     data: {
@@ -155,7 +155,7 @@ function meetingFromForm(fd: FormData, arranged: boolean) {
   };
 }
 
-function ProposalFields() {
+export function ProposalFields() {
   const t = tFor(useLocale());
   return (
     <>
@@ -174,7 +174,7 @@ function ProposalFields() {
   );
 }
 
-function proposalFromForm(fd: FormData) {
+export function proposalFromForm(fd: FormData) {
   const raw = String(fd.get("estimatedValue") || "");
   return {
     group: "proposal" as const,
@@ -186,7 +186,7 @@ function proposalFromForm(fd: FormData) {
   };
 }
 
-function LostFields() {
+export function LostFields() {
   const t = tFor(useLocale());
   return (
     <label className="block">
@@ -196,7 +196,7 @@ function LostFields() {
   );
 }
 
-function WonFields({ prefillValue }: { prefillValue: number | null }) {
+export function WonFields({ prefillValue }: { prefillValue: number | null }) {
   const t = tFor(useLocale());
   return (
     <>
@@ -224,7 +224,7 @@ function WonFields({ prefillValue }: { prefillValue: number | null }) {
   );
 }
 
-function wonFromForm(fd: FormData) {
+export function wonFromForm(fd: FormData) {
   return {
     group: "won" as const,
     data: {

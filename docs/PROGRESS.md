@@ -1129,3 +1129,22 @@ comment, and the ADR-013 mechanism note all fixed; .env.example confirmed tracke
 - Needs founder confirmation: whether /byteforce/leads should also get
   a flat filterable list view (its current §6.1 shape is rep cards).
   Carried: see Entries 023–028.
+
+## Entry 030 — 2026-08-14 — Founder: ByteForce board full parity with the B-Systems board (ADR-042)
+- Done: dragEnabled flipped on the internal pipeline config (founder
+  override of A-7; the transition test's drag-rejection case rewritten
+  accordingly). NEW InternalBoard client component ports the whole
+  BsBoard experience to /byteforce/crm: drag & drop where the drop
+  opens the stage's INTERNAL form in the modal (field groups now
+  exported from LeadEventPanel — one source), whole-card click with the
+  post-drag click guard, drag layering, count pills, and the
+  didn't-answer toggle + chip (NEW POST
+  /api/byteforce/leads/[id]/no-answer, requireBrandStaff guard). The
+  ByteForce lead detail header shows the "No answer" chip. All modal
+  copy reuses existing Msgs — zero new strings, EN byte-identical.
+  Verified: tsc clean, vitest 100/100, Playwright 20 passed / 2
+  audit-opt-in skipped incl. the new byteforce-board spec (TESTING Run
+  033).
+- In progress: founder batch continues — lead archiving next.
+- Next steps / Blockers: unchanged otherwise.
+- Needs founder confirmation: none new. Carried: see Entries 023–029.

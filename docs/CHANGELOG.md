@@ -1,5 +1,13 @@
 # Changelog — user-visible changes per phase/release
 
+## ByteForce board — full parity with the B-Systems board (2026-08-14)
+- The ByteForce CRM board is now draggable: drop a card on a stage and
+  that stage's form opens right there — exactly like the B-Systems
+  board. Clicking anywhere on a card opens the lead, dragged cards stay
+  on top of neighboring columns, and every card carries the "Didn't
+  answer" button with its red "No answer" chip (also shown on the
+  lead's page).
+
 ## Leads list filters and ordering (2026-08-14)
 - The B-Systems Leads page can now be narrowed by Stage, Type, and
   Owner, and ordered three ways: newest added, recently updated, or
