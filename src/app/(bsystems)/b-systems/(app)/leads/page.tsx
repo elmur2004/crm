@@ -3,11 +3,13 @@ import { redirect } from "next/navigation";
 import { requirePageRole } from "@/lib/auth/page-guards";
 import { bsRoleOf } from "@/lib/api/bsystems";
 import { listBsLeads } from "@/lib/services/bsystems-admin";
+import { LEAD_SORTS, sortLeads, type LeadSort } from "@/lib/services/lead-sort";
+import { BSYSTEMS_STAGES, LEAD_TYPES } from "@/lib/pipeline-engine/constants";
 import { formatCairoDate } from "@/lib/datetime";
 import { tFor, type Msg } from "@/lib/i18n/core";
 import { getLocale } from "@/lib/i18n/server";
-import { leadTypeLabel, ownerTypeLabel } from "@/lib/i18n/dict/labels";
-import { common, leadsPage as m, ownerFilters } from "@/lib/i18n/dict/crm";
+import { leadTypeLabel, ownerTypeLabel, stageLabel } from "@/lib/i18n/dict/labels";
+import { common, leadsFilters as lf, leadsPage as m, ownerFilters } from "@/lib/i18n/dict/crm";
 import { StageBadge } from "@/components/shared/StageBadge";
 import { BsAddLeadForm } from "@/components/bsystems/leadActions";
 
@@ -15,9 +17,11 @@ export const metadata = { title: "Leads — B-Systems CRM" };
 
 /* V2 §2.2 — the admin Leads section: every lead with the owner-bucket filter
    (Internal / Agents / Partners / Admins / Any). Admin-added leads land in the
-   admin bucket (the API buckets by role). Edit/copy/delete live on the detail. */
+   admin bucket (the API buckets by role). Edit/copy/delete live on the detail.
+   Founder (filters round): stage/type/owner selects + ordering — newest added,
+   recently updated, or pipeline priority — via a plain GET form. */
 
-const FILTERS: Array<{ key: string; label: Msg }> = [
+const OWNER_KEYS: Array<{ key: string; label: Msg }> = [
   { key: "any", label: ownerFilters.any },
   { key: "internal", label: ownerFilters.internal },
   { key: "agent", label: ownerFilters.agent },
@@ -25,10 +29,16 @@ const FILTERS: Array<{ key: string; label: Msg }> = [
   { key: "admin", label: ownerFilters.admin },
 ];
 
+const SORT_LABEL: Record<LeadSort, Msg> = {
+  added: lf.sortAdded,
+  updated: lf.sortUpdated,
+  priority: lf.sortPriority,
+};
+
 export default async function BsLeadsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ owner?: string }>;
+  searchParams: Promise<{ owner?: string; stage?: string; type?: string; sort?: string }>;
 }) {
   const user = await requirePageRole(
     "/login",
@@ -41,9 +51,25 @@ export default async function BsLeadsPage({
 
   const locale = await getLocale();
   const t = tFor(locale);
-  const { owner } = await searchParams;
-  const filter = FILTERS.some((f) => f.key === owner) ? owner : "any";
-  const leads = await listBsLeads(filter);
+  const params = await searchParams;
+  const owner = OWNER_KEYS.some((f) => f.key === params.owner) ? params.owner! : "any";
+  const stage = (BSYSTEMS_STAGES as readonly string[]).includes(params.stage ?? "")
+    ? params.stage!
+    : "any";
+  const type = (LEAD_TYPES as readonly string[]).includes(params.type ?? "")
+    ? params.type!
+    : "any";
+  const sort: LeadSort = (LEAD_SORTS as readonly string[]).includes(params.sort ?? "")
+    ? (params.sort as LeadSort)
+    : "added";
+
+  const fetched = await listBsLeads(owner);
+  const leads = sortLeads(
+    fetched.filter(
+      (l) => (stage === "any" || l.stage === stage) && (type === "any" || l.type === type),
+    ),
+    sort,
+  );
 
   return (
     <div className="space-y-6">
@@ -56,18 +82,41 @@ export default async function BsLeadsPage({
           <BsAddLeadForm />
         </div>
       </div>
-      <nav className="flex gap-1 flex-wrap" aria-label={t(common.ownerFilter)}>
-        {FILTERS.map((f) => (
-          <Link
-            key={f.key}
-            href={f.key === "any" ? "/b-systems/leads" : `/b-systems/leads?owner=${f.key}`}
-            className="nav-item"
-            aria-current={filter === f.key ? "page" : undefined}
-          >
-            {t(f.label)}
-          </Link>
-        ))}
-      </nav>
+      <form method="get" className="flex gap-2 flex-wrap items-center" aria-label={t(lf.filters)}>
+        <select name="owner" defaultValue={owner} aria-label={t(common.owner)} className="field-input w-auto">
+          {OWNER_KEYS.map((f) => (
+            <option key={f.key} value={f.key}>
+              {t(f.label)}
+            </option>
+          ))}
+        </select>
+        <select name="stage" defaultValue={stage} aria-label={t(common.stage)} className="field-input w-auto">
+          <option value="any">{t(ownerFilters.any)}</option>
+          {BSYSTEMS_STAGES.map((s) => (
+            <option key={s} value={s}>
+              {stageLabel(locale, s)}
+            </option>
+          ))}
+        </select>
+        <select name="type" defaultValue={type} aria-label={t(common.type)} className="field-input w-auto">
+          <option value="any">{t(ownerFilters.any)}</option>
+          {LEAD_TYPES.map((ty) => (
+            <option key={ty} value={ty}>
+              {leadTypeLabel(locale, ty)}
+            </option>
+          ))}
+        </select>
+        <select name="sort" defaultValue={sort} aria-label={t(lf.sort)} className="field-input w-auto">
+          {LEAD_SORTS.map((s) => (
+            <option key={s} value={s}>
+              {t(SORT_LABEL[s])}
+            </option>
+          ))}
+        </select>
+        <button type="submit" className="btn-ghost btn--sm">
+          {t(lf.apply)}
+        </button>
+      </form>
       {leads.length === 0 ? (
         <p className="empty">{t(m.empty)}</p>
       ) : (

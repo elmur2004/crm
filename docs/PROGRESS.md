@@ -1107,3 +1107,25 @@ comment, and the ADR-013 mechanism note all fixed; .env.example confirmed tracke
   — they surface via the follow-up every sent proposal auto-creates
   (T-5); say the word if dated proposal rows are wanted (schema
   addition). Carried: see Entries 023–025.
+
+## Entry 029 — 2026-08-14 — Founder: leads-list filters (stage/type/owner) + ordering
+- Done: /b-systems/leads gained a plain GET-form filter row — Stage,
+  Type, and Owner-bucket selects (each with "Any") plus a Sort select:
+  "Newest added" (createdAt desc), "Recently updated" (updatedAt desc —
+  the founder's "last edited"), and "Pipeline priority"
+  (closer-to-the-finish first via the stagePriority rank map in NEW
+  src/lib/services/lead-sort.ts; won/lost close the list; ties break by
+  recency). Owner keeps the existing owner-bucket keys (the chip nav
+  became the owner select — no EN string changed, the chips' labels ARE
+  the select options). Server component + searchParams only, no client
+  state. New strings as Msg {en, ar} (leadsFilters group). ByteForce's
+  /byteforce/leads is a rep-cards GRID, not a lead list — filters do
+  not map onto it; DEFERRED unless the founder wants a flat ByteForce
+  list too. Verified: tsc clean, vitest 100/100 (+2 unit), Playwright
+  19 passed / 2 skipped (TESTING Run 032).
+- In progress: founder batch continues — ByteForce board parity, lead
+  archiving (extends this filter row with an Archived choice).
+- Next steps / Blockers: unchanged otherwise.
+- Needs founder confirmation: whether /byteforce/leads should also get
+  a flat filterable list view (its current §6.1 shape is rep cards).
+  Carried: see Entries 023–028.

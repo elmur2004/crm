@@ -68,6 +68,17 @@ export const ownerFilters = {
   admin: { en: "Admins", ar: "مديرون" },
 } satisfies Record<string, Msg>;
 
+/* Founder — leads list filters + ordering ("filter of the stage and the type
+   and the owner", "last edited, last added, closer-to-the-finish first"). */
+export const leadsFilters = {
+  filters: { en: "Filters", ar: "التصفية" },
+  apply: { en: "Apply", ar: "تطبيق" },
+  sort: { en: "Sort", ar: "الترتيب" },
+  sortAdded: { en: "Newest added", ar: "الأحدث إضافة" },
+  sortUpdated: { en: "Recently updated", ar: "الأحدث تعديلاً" },
+  sortPriority: { en: "Pipeline priority", ar: "أولوية خط المبيعات" },
+} satisfies Record<string, Msg>;
+
 /* ---- admin Home dashboard ---- */
 
 export const home = {

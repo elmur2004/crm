@@ -1,5 +1,12 @@
 # Changelog — user-visible changes per phase/release
 
+## Leads list filters and ordering (2026-08-14)
+- The B-Systems Leads page can now be narrowed by Stage, Type, and
+  Owner, and ordered three ways: newest added, recently updated, or
+  pipeline priority — leads closest to closing float to the top and
+  won/lost sink to the bottom. Plain dropdowns with an Apply button;
+  the link to each lead is unchanged.
+
 ## To-Do page (2026-08-14)
 - New "To-Do" section in both apps: one plain page with today's date
   showing everything in the system that is due today — follow-ups,

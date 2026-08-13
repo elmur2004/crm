@@ -570,3 +570,20 @@ every dashboard formula, journeys 1-5 (SPEC §13).
   (e2e) admin creates a lead, moves it to Following Up dated today via
   the API, sees the row on /b-systems/todo, clicks through to the lead.
 - Verdict: PASS.
+
+## Run 032 — 2026-08-14 — Leads-list filters + ordering round
+- Suites/commands: `npx tsc --noEmit` (clean) · `npx vitest run` (100 —
+  NEW lead-sort.test.ts, 2 pure unit tests) · `npx playwright test`
+  (full suite; qa-sweep re-covers /b-systems/leads with the new filter
+  form at all five widths). Local dev, embedded Postgres (per-run
+  instances).
+- Cases: vitest 100 passed / 0 failed / 0 skipped · Playwright full 19
+  passed / 0 failed / 2 skipped (audit opt-in skips, by design). Full
+  e2e wall time 4.1m.
+- Failures: none.
+- SPEC coverage touched: none of the §10 rows — presentation-layer
+  filtering/ordering over the existing V2 §2.2 list. New coverage:
+  stagePriority ranking (negotiation > sending_proposal >
+  meeting_setting > following_up > new, terminals last, unknowns
+  bottom) and the three sort orders incl. input non-mutation.
+- Verdict: PASS.
