@@ -456,6 +456,8 @@ label:has(input[required]) .dropzone-title::after {
 .badge--rep { background: var(--color-primary-tint); color: var(--color-primary); }
 .badge--accent { background: var(--color-accent); color: var(--color-on-accent); }
 .badge--danger { font-size: 10px; letter-spacing: .1em; background: var(--color-danger-tint); color: var(--color-danger); border: 1px solid var(--color-danger-border); }
+/* founder (ADR-039): the "didn't answer" card marker — danger-tinted, token-driven */
+.badge--noanswer { background: var(--color-danger-tint); color: var(--color-danger); border: 1px solid var(--color-danger-border); }
 .badge--readonly {
   font: 600 9.5px var(--font-mono); letter-spacing: .18em; text-transform: uppercase; color: var(--color-muted);
   background: var(--color-surface-card); border: 1px solid var(--color-border); border-radius: 6px; padding: 8px 11px;

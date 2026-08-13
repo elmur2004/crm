@@ -768,3 +768,35 @@ R23 copy sign-off — carried in PROGRESS (Entry 011).
   alongside the new one until cleaned up in DB (flagged in the
   deferred-userId alternative above).
 - Status: Accepted
+
+## ADR-039 — 2026-08-14 — "Didn't answer" is a FLAG on the lead card, not a stage
+- Context: Founder directive — "a button that indicates that this lead
+  didn't answer, and it appears on the card in the actual CRM... just
+  so we know." The MAIN B-Systems CRM has no didnt_answer stage; the
+  partnership pipeline's Didn't Answer STAGE (§7.2) is a different flow
+  (number slots, automatic return to Lead) and is not what was asked.
+- Decision: Lead.noAnswer Boolean @default(false) (migration
+  20260813205545_lead_no_answer). setNoAnswer(brand, leadId, value,
+  actor) mirrors markReadyToClose: flag update + activity log
+  (entityType lead, action update, trigger "no_answer" on set /
+  "no_answer_cleared" on clear, from/to stages null); NO stage change,
+  NO notification — deliberately OUTSIDE the SPEC §10 transition
+  tables, exactly like ready_to_close (V2 §3). API: POST
+  /api/b-systems/leads/[id]/no-answer {value: boolean} behind
+  requireLeadAccess — every role that can act on the lead can toggle
+  it. UI (B-Systems only): a toggle button on the board card beside
+  "Mark ready to close" ("Didn't answer" / "Answered — clear flag",
+  same drag/navigation click guards), a "No answer" chip on the card
+  and on the lead detail header (.badge--noanswer, danger tokens). All
+  new user-visible strings are Msg {en, ar}.
+- Alternatives considered: a didnt_answer STAGE mirroring the
+  partnership pipeline — rejected: the founder asked for an indicator
+  ("just so we know"); a stage would rewrite the §10 B-Systems
+  transition table, dashboards, and stage forms for what is a marker.
+  Notifying admins like ready_to_close — rejected: the founder framed
+  it as passive shared knowledge, not an action request.
+- Resolves: — (founder directive; no SPEC §11 A-#)
+- Consequences: the flag survives stage moves and never expires;
+  clearing is manual ("Answered — clear flag"). ByteForce is untouched
+  (B-Systems only until the founder asks otherwise).
+- Status: Accepted

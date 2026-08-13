@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { db } from "@/lib/db";
 import { resetDb } from "@/tests/db-reset";
-import { applyLeadEvent, createLead, deleteLead, markReadyToClose } from "./leads";
+import { applyLeadEvent, createLead, deleteLead, markReadyToClose, setNoAnswer } from "./leads";
 import { applyProspectEvent, createProspect } from "./partners";
 import { checkMilestone, uncheckMilestone } from "./milestones";
 import {
@@ -164,6 +164,36 @@ describe("Ready to close (V2 §3, trigger B-RTC)", () => {
     /* Idempotent: flagging again adds no second notification. */
     await markReadyToClose("bsystems", lead.id, admin);
     expect(await db.notification.count()).toBe(1);
+  });
+});
+
+describe('"Didn\'t answer" flag (founder directive, ADR-039)', () => {
+  it("toggles on/off, persists, logs both moves, and never touches the stage", async () => {
+    const lead = await makeLead();
+    await setNoAnswer("bsystems", lead.id, true, admin);
+    let fresh = await db.lead.findUniqueOrThrow({ where: { id: lead.id } });
+    expect(fresh.noAnswer).toBe(true);
+    expect(fresh.stage).toBe(lead.stage); // a marker, not a transition
+    expect(await db.notification.count()).toBe(0); // no admin notification either
+
+    await setNoAnswer("bsystems", lead.id, false, admin);
+    fresh = await db.lead.findUniqueOrThrow({ where: { id: lead.id } });
+    expect(fresh.noAnswer).toBe(false);
+
+    const logs = await db.activityLog.findMany({
+      where: { entityId: lead.id, trigger: { in: ["no_answer", "no_answer_cleared"] } },
+      orderBy: { createdAt: "asc" },
+    });
+    expect(logs.map((l) => l.trigger)).toEqual(["no_answer", "no_answer_cleared"]);
+    expect(logs.every((l) => l.fromStage === null && l.toStage === null)).toBe(true);
+
+    /* Idempotent: clearing an already-clear flag writes no third row. */
+    await setNoAnswer("bsystems", lead.id, false, admin);
+    expect(
+      await db.activityLog.count({
+        where: { entityId: lead.id, trigger: { in: ["no_answer", "no_answer_cleared"] } },
+      }),
+    ).toBe(2);
   });
 });
 

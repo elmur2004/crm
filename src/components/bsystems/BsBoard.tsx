@@ -42,6 +42,7 @@ export interface BsBoardLead {
   ownerType: string;
   ownerLabel: string;
   readyToClose: boolean;
+  noAnswer: boolean;
   keyDatum: string;
 }
 
@@ -95,8 +96,9 @@ function LeadCard({
         <span className="owner-chip" data-owner-key={lead.ownerType}>
           {lead.ownerLabel}
         </span>
+        {lead.noAnswer ? <span className="badge badge--noanswer">{t(common.noAnswer)}</span> : null}
       </div>
-      {lead.keyDatum || (!lead.readyToClose && lead.stage !== "won" && lead.stage !== "lost") ? (
+      {lead.keyDatum || (lead.stage !== "won" && lead.stage !== "lost") ? (
         <div className="bcard-meta">
           <span className="bcard-meta-dot" aria-hidden />
           <span className="min-w-0">
@@ -116,6 +118,30 @@ function LeadCard({
                 className="underline underline-offset-2 ms-1 disabled:opacity-50"
               >
                 {t(common.markReadyToClose)}
+              </button>
+            ) : null}
+            {lead.stage !== "won" && lead.stage !== "lost" ? (
+              /* founder (ADR-039): "didn't answer" — a marker "just so we
+                 know"; toggleable, never a stage move. Same click guards as
+                 the RTC button so it neither drags nor opens the lead. */
+              <button
+                type="button"
+                disabled={busy}
+                onClick={async (e) => {
+                  e.stopPropagation();
+                  setBusy(true);
+                  await fetch(`/api/b-systems/leads/${lead.id}/no-answer`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ value: !lead.noAnswer }),
+                  });
+                  setBusy(false);
+                  router.refresh();
+                }}
+                onPointerDown={(e) => e.stopPropagation()}
+                className="underline underline-offset-2 ms-1 disabled:opacity-50"
+              >
+                {lead.noAnswer ? t(common.clearNoAnswer) : t(common.markNoAnswer)}
               </button>
             ) : null}
           </span>

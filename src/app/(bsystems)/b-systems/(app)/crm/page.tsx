@@ -100,6 +100,7 @@ export default async function BsCrmPage({
     ownerType: l.ownerType,
     ownerLabel: ownerLabel(locale, l),
     readyToClose: l.readyToClose,
+    noAnswer: l.noAnswer,
     keyDatum: keyDatum(locale, l),
   }));
 

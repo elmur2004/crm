@@ -495,3 +495,24 @@ every dashboard formula, journeys 1-5 (SPEC §13).
   unchanged is the regression proof for the board/detail/partners
   forms.
 - Verdict: PASS.
+
+## Run 028 — 2026-08-14 — "Didn't answer" flag feature round (ADR-039)
+- Suites/commands: `npx tsc --noEmit` (clean) · `npx vitest run` (93 —
+  one NEW integration test) · `npx playwright test` (full suite incl.
+  NEW e2e/no-answer.spec.ts). Local dev, embedded Postgres (per-run
+  instances).
+- Cases: vitest 93 passed / 0 failed / 0 skipped · Playwright full 18
+  passed / 0 failed / 2 skipped (the two skips are the audit opt-in
+  specs, by design). Full e2e wall time 4.7m.
+- Failures: none.
+- SPEC coverage touched: none of the §10 rows change — the flag is
+  deliberately outside the transition tables (ADR-039, mirrors
+  ready_to_close V2 §3). New coverage: (unit) toggle persists on/off,
+  both moves activity-logged (no_answer / no_answer_cleared, stages
+  null), no notification, idempotent re-clear; (e2e) admin flags a
+  New-column card → "No answer" badge on the card AND the lead detail
+  header → clears it → badge gone, card never leaves its column; (e2e)
+  an agent cannot toggle another agent's lead (403 — security-rbac
+  extension, same wall as /ready). Existing EN strings byte-identical;
+  the three new strings shipped as Msg {en, ar}.
+- Verdict: PASS.

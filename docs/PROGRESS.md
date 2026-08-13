@@ -1019,3 +1019,27 @@ comment, and the ADR-013 mechanism note all fixed; .env.example confirmed tracke
   account carrying both). Confirm this roster; if admins should always
   be selectable as follow-up owners, the list will include them.
   Carried items unchanged — see Entry 023.
+
+## Entry 025 — 2026-08-14 — Founder feature: "didn't answer" marker on the main CRM board (ADR-039)
+- Done: built end-to-end per the founder directive ("a button that
+  indicates that this lead didn't answer, and it appears on the card
+  in the actual CRM... just so we know"), mirroring the ready-to-close
+  pattern: Lead.noAnswer + migration (20260813205545_lead_no_answer);
+  setNoAnswer service (activity-logged triggers no_answer /
+  no_answer_cleared, no stage change, no notification); POST
+  /api/b-systems/leads/[id]/no-answer behind requireLeadAccess (any
+  role with lead access); board-card toggle ("Didn't answer" /
+  "Answered — clear flag") with the same drag/navigation click guards
+  as the RTC button; "No answer" chip on the card and the lead detail
+  header (.badge--noanswer, danger tokens, token-driven); three new
+  Msg {en, ar} strings, existing EN byte-identical. B-Systems only —
+  the partnership pipeline keeps its separate Didn't Answer STAGE.
+  Tests: +1 vitest integration (93/93), +1 e2e spec plus a
+  security-rbac 403 line (full suite 18 passed / 2 audit-opt-in
+  skipped), tsc clean (TESTING Run 028).
+- In progress: unchanged from Entry 024.
+- Next steps: unchanged from Entry 024.
+- Blockers: none new; Entry 023 founder host actions (g)/(h) stand.
+- Needs founder confirmation: carried from Entry 024 (Owner-list
+  roster = active sales accounts) and the Entry 023 thread. Nothing
+  new — the flag follows the directive directly.

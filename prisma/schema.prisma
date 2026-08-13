@@ -85,6 +85,7 @@ model Lead {
   stage        String     @default("new") // BF: new|following_up|meeting_setting|sending_proposal|won|lost
   // BS adds: negotiation (V2 §1)
   readyToClose Boolean    @default(false) // V2 §3 flag — admin notified
+  noAnswer     Boolean    @default(false) // founder: "didn't answer" card marker (ADR-039) — a flag, not a stage
   owner        User?      @relation("LeadOwner", fields: [ownerUserId], references: [id])
   salesRep     SalesRep?  @relation(fields: [salesRepId], references: [id])
   partner      Partner?   @relation(fields: [partnerId], references: [id])

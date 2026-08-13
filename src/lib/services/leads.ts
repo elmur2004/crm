@@ -124,6 +124,29 @@ export async function markReadyToClose(brand: Brand, leadId: string, actor: Acto
   return updated;
 }
 
+/* Founder directive (ADR-039) — the "didn't answer" flag: a card marker only
+   ("just so we know"), toggleable; deliberately NOT a stage (the partnership
+   pipeline's didnt_answer STAGE is a different flow). No stage change, no
+   notification; both moves are activity-logged. */
+export async function setNoAnswer(brand: Brand, leadId: string, value: boolean, actor: Actor) {
+  const lead = await getLead(brand, leadId);
+  if (lead.noAnswer === value) return lead;
+  return db.$transaction(async (tx) => {
+    const fresh = await tx.lead.update({
+      where: { id: lead.id },
+      data: { noAnswer: value },
+    });
+    await writeLog(tx, {
+      entityType: "lead",
+      entityId: lead.id,
+      actor,
+      action: "update",
+      trigger: value ? "no_answer" : "no_answer_cleared",
+    });
+    return fresh;
+  });
+}
+
 /* V2 §11 + founder V4 — admin delete (hard delete; children cascade). A WON
    lead cascades its whole financial trail: statements (+proof files),
    milestones, the won deal, then the lead. */

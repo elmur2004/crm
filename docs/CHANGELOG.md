@@ -1,5 +1,13 @@
 # Changelog — user-visible changes per phase/release
 
+## Didn't-answer marker (2026-08-14)
+- Every active card on the main CRM board now carries a small "Didn't
+  answer" button — clicking it puts a red "No answer" chip on the card
+  (and on the lead's page header) so the whole team knows at a glance;
+  once the client answers, "Answered — clear flag" removes the chip.
+  It's a marker only: the lead stays exactly where it is on the board,
+  and both moves are recorded in the lead's history.
+
 ## Board card fixes (2026-08-13)
 - Board cards no longer clip long text: a long lead or company name now
   wraps inside the card and trims neatly at two lines instead of

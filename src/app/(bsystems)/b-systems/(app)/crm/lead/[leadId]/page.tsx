@@ -107,6 +107,9 @@ export default async function BsLeadDetailPage({
             {lead.readyToClose ? (
               <span className="badge badge--accent">{t(common.readyToClose)}</span>
             ) : null}
+            {lead.noAnswer ? (
+              <span className="badge badge--noanswer">{t(common.noAnswer)}</span>
+            ) : null}
           </h1>
         </div>
         <div className="fields-grid">
