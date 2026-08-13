@@ -13,6 +13,10 @@
   once the client answers, "Answered — clear flag" removes the chip.
   It's a marker only: the lead stays exactly where it is on the board,
   and both moves are recorded in the lead's history.
+- The chip now also clears itself the moment the lead moves to any
+  other stage — moving a card means the client was reached, so the "No
+  answer" marker disappears on its own (still recorded in the lead's
+  history).
 
 ## Board card fixes (2026-08-13)
 - Board cards no longer clip long text: a long lead or company name now

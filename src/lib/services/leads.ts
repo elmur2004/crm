@@ -319,7 +319,7 @@ export async function applyLeadEvent(opts: {
        inside the transaction (double-submit / racing tabs → 409). */
     const fresh = await tx.lead.findUniqueOrThrow({
       where: { id: lead.id },
-      select: { stage: true },
+      select: { stage: true, noAnswer: true },
     });
     if (fresh.stage !== lead.stage) {
       throw new ApiError(409, "This lead just moved — reload and try again");
@@ -358,7 +358,22 @@ export async function applyLeadEvent(opts: {
     });
 
     if (result.toStage !== lead.stage) {
-      await tx.lead.update({ where: { id: lead.id }, data: { stage: result.toStage } });
+      /* Founder (ADR-039 addendum): ANY stage move signals the client was
+         reached — the "didn't answer" marker clears itself with the move.
+         The cleared row is logged only when the flag was actually set. */
+      await tx.lead.update({
+        where: { id: lead.id },
+        data: { stage: result.toStage, ...(fresh.noAnswer ? { noAnswer: false } : {}) },
+      });
+      if (fresh.noAnswer) {
+        await writeLog(tx, {
+          entityType: "lead",
+          entityId: lead.id,
+          actor: opts.actor,
+          action: "update",
+          trigger: "no_answer_cleared",
+        });
+      }
     }
 
     /* Side effects (atomic with the move). */

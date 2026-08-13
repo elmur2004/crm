@@ -195,6 +195,44 @@ describe('"Didn\'t answer" flag (founder directive, ADR-039)', () => {
       }),
     ).toBe(2);
   });
+
+  it("auto-clears when the lead moves stages (any move = contact made)", async () => {
+    const lead = await makeLead();
+    await setNoAnswer("bsystems", lead.id, true, admin);
+    await applyLeadEvent({
+      brand: "bsystems",
+      leadId: lead.id,
+      event: { type: "next_action", action: "following_up" },
+      group: { group: "follow_up", data: { date: "2026-09-01", time: "10:00", method: "call" } },
+      actor: admin,
+      role: "bsystems_admin",
+    });
+    const fresh = await db.lead.findUniqueOrThrow({ where: { id: lead.id } });
+    expect(fresh.stage).toBe("following_up");
+    expect(fresh.noAnswer).toBe(false);
+    expect(
+      await db.activityLog.count({ where: { entityId: lead.id, trigger: "no_answer_cleared" } }),
+    ).toBe(1);
+
+    /* Moving an UNFLAGGED lead writes no cleared row. */
+    await applyLeadEvent({
+      brand: "bsystems",
+      leadId: lead.id,
+      event: { type: "next_action", action: "meeting_setting" },
+      group: {
+        group: "meeting",
+        data: { arranged: true, date: "2026-09-03", time: "14:00", mode: "online" },
+      },
+      actor: admin,
+      role: "bsystems_admin",
+    });
+    expect((await db.lead.findUniqueOrThrow({ where: { id: lead.id } })).stage).toBe(
+      "meeting_setting",
+    );
+    expect(
+      await db.activityLog.count({ where: { entityId: lead.id, trigger: "no_answer_cleared" } }),
+    ).toBe(1);
+  });
 });
 
 describe("Agent light flow (V2 §3)", () => {

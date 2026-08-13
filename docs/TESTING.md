@@ -534,3 +534,18 @@ every dashboard formula, journeys 1-5 (SPEC §13).
   column) BEFORE its first transition; the rest of journey1 passing
   unchanged shows the five original columns behave identically.
 - Verdict: PASS.
+
+## Run 030 — 2026-08-14 — No-answer auto-clear round (ADR-039 addendum)
+- Suites/commands: `npx tsc --noEmit` (clean) · `npx vitest run` (94 —
+  one NEW integration test) · `npx playwright test` (full suite). Local
+  dev, embedded Postgres (per-run instances).
+- Cases: vitest 94 passed / 0 failed / 0 skipped · Playwright full 18
+  passed / 0 failed / 2 skipped (the two skips are the audit opt-in
+  specs, by design). Full e2e wall time 4.4m.
+- Failures: none.
+- SPEC coverage touched: no §10 rows change — the clear rides inside
+  applyLeadEvent's existing transition transaction (same update as the
+  stage write). New coverage: flagged lead + successful stage move →
+  noAnswer false + exactly one "no_answer_cleared" activity row;
+  moving an unflagged lead adds no cleared row (no noise).
+- Verdict: PASS.

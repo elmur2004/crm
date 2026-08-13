@@ -1064,3 +1064,22 @@ comment, and the ADR-013 mechanism note all fixed; .env.example confirmed tracke
 - Needs founder confirmation: none new — the change implements the
   founder's report directly (§6.3 override logged in ADR-040). Carried:
   see Entries 023–025.
+
+## Entry 027 — 2026-08-14 — Founder: the no-answer flag clears itself when the card moves (ADR-039 addendum)
+- Done: per the founder ("make sure the no answer flag automatically
+  disappears when the card moves — which indicates it has been answered
+  and moved into the pipeline"): in applyLeadEvent, a successful
+  transition that actually changes the stage now clears Lead.noAnswer
+  in the SAME transaction/update, logging the existing
+  "no_answer_cleared" trigger only when the flag was actually set (no
+  noise rows). Direction is universal — ANY stage change clears it,
+  including a move back to New: any move signals contact was made
+  (ADR-039 addendum; DECISIONS stays append-only so the addendum lives
+  here). Manual toggling from the card is unchanged. Verified: tsc
+  clean, vitest 94/94 (+1 test in the ADR-039 describe), Playwright
+  full 18 passed / 2 audit-opt-in skipped (TESTING Run 030).
+- In progress: unchanged from Entry 026.
+- Next steps: unchanged from Entry 026.
+- Blockers: none new.
+- Needs founder confirmation: none new — implements the directive
+  directly. Carried: see Entries 023–025.
