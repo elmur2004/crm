@@ -446,3 +446,52 @@ every dashboard formula, journeys 1-5 (SPEC §13).
   server-side error strings remain English pending an error-code scheme;
   ByteForce thin-page metadata titles partly English; two Arabic
   terminology choices awaiting founder review.
+
+## Run 026 — 2026-08-13 — Founder board-UX fixes round (card overflow, whole-card open, drag layering)
+- Suites/commands: `npx tsc --noEmit` (clean) · `npx vitest run` (92) ·
+  `npx playwright test journey3 journey4 journey5 qa-sweep i18n`
+  (targeted drag flows + responsive sweep + i18n) · `npx playwright
+  test` (full suite). Local dev, embedded Postgres (per-run instances).
+- Cases: vitest 92 passed / 0 failed / 0 skipped · Playwright targeted
+  10 passed / 0 failed · Playwright full 17 passed / 0 failed / 2
+  skipped (the two skips are the audit opt-in specs, by design).
+- Failures: none in the final runs. One transient full-suite vitest
+  startup failure ("Vitest failed to find the runner" / describe
+  context undefined, all 8 files, zero tests collected) cleared on
+  rerun with no code change — environmental, not reproducible, no bug
+  filed.
+- SPEC coverage touched: none (no §10 pipeline rows — presentation-only
+  board card fixes: .bcard text clamp, whole-card click-through with a
+  post-drag click guard, drag-origin column layering). Drag/commit
+  behavior unchanged; EN rendered output byte-identical, so journeys
+  3–5 passing unchanged is the regression proof.
+- Verdict: PASS.
+
+## Run 027 — 2026-08-13 — Founder board-UX round, part 2: Owner select empty in the board's stage forms (ADR-038)
+- Suites/commands: `npx tsc --noEmit` (clean) · `npx vitest run` (92) ·
+  `npx playwright test` (full suite). Local dev, embedded Postgres
+  (per-run instances).
+- Cases: vitest 92 passed / 0 failed / 0 skipped · Playwright full 17
+  passed / 0 failed / 2 skipped (the two skips are the audit opt-in
+  specs, by design). Full e2e wall time 3.9m.
+- Failures: none in the final runs. Two environmental notes: (1) Run
+  026's "transient" vitest startup failure (runner not found, 8 files,
+  zero tests collected) is now root-caused — it reproduces
+  deterministically when vitest is launched from a lowercase
+  drive-letter cwd (`d:/CRM`) and clears from `D:/CRM`; environmental
+  (Windows path-casing in module resolution), not a code bug, no
+  in-repo fix. (2) One Playwright attempt hung in global-setup — the
+  embedded e2e Postgres finished initdb but the postmaster never
+  started (no log, no postmaster.pid) and pg.start() polled forever;
+  killed the run tree and reran clean. Matches the zombie-instance
+  caveats already documented in scripts/local-postgres.ts; no bug
+  filed.
+- SPEC coverage touched: no §10 pipeline rows changed — a data-source
+  fix for the Owner select in the V2 §3 admin/sales stage forms
+  (ADR-038): listBsOwnerReps() auto-provisions bsystems SalesRep cards
+  from active bsystems_sales accounts; all five bsystems Owner call
+  sites switched. EN rendered output stayed byte-identical (the new
+  option labels are DB data, not literals), so journeys 3–5 passing
+  unchanged is the regression proof for the board/detail/partners
+  forms.
+- Verdict: PASS.

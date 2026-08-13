@@ -724,3 +724,47 @@ R23 copy sign-off — carried in PROGRESS (Entry 011).
   English; two Arabic terminology choices await founder review — "CRM"
   rendered as "المبيعات", "Retainer" as "عقد دوري" (Entry 022 item (j)).
 - Status: Accepted
+
+## ADR-038 — 2026-08-13 — B-Systems Owner list auto-provisions rep cards from sales accounts
+- Context: Founder bug report — on the /b-systems/crm board, the drag
+  modal's stage forms (e.g. Following Up) render the Owner select with
+  only "—", no sales reps. The reps prop threading (board page →
+  BsBoard → GroupFieldsV2, and the mirrored PartnersBoard path) was
+  already correct in code; the actual cause is the DATA source:
+  listReps("bsystems") reads SalesRep cards, but bsystems-brand cards
+  are created ONLY by the demo seed (skipped in production — "demo data
+  never on production", seed.ts) and the B-Systems app has no rep-cards
+  screen (§6.1 Sales Reps is ByteForce-only; nothing in the UI calls
+  POST /api/b-systems/reps). On a live system the bsystems SalesRep set
+  is empty forever, so EVERY admin/sales Owner select (board modal,
+  lead detail panel, partners pipeline forms) rendered empty. The
+  actual B-Systems sales team lives in Users (role bsystems_sales, V2
+  §0 role map), created via the admin's Users section.
+- Decision: new listBsOwnerReps() in src/lib/services/sales-reps.ts —
+  auto-provisions a SalesRep card (brand "bsystems", matched by exact
+  name, idempotent createMany of the missing ones) for every ACTIVE
+  user holding bsystems_sales, then returns listReps("bsystems"). All
+  five bsystems Owner-list call sites switched to it (CRM board page,
+  lead detail page, partners pipeline board, prospect detail, partner
+  detail). FollowUp.ownerSalesRepId keeps its SalesRep FK — no schema
+  change, no migration; read-side provisioning self-heals existing
+  production data on first page view. Roster is sales accounts only:
+  admins appear when they also hold the sales role (A-8 allows one
+  account carrying both).
+- Alternatives considered: pointing the Owner select at Users directly
+  — rejected: FollowUp.ownerSalesRepId FKs SalesRep; a schema/data
+  migration for a presentation-source fix. Write-side sync in the users
+  service (create/update hooks) — rejected: leaves existing production
+  sales accounts without cards until edited; read-side ensure covers
+  new AND existing accounts with less surface. Linking SalesRep to User
+  by a new userId column — deferred: cleaner rename semantics, but
+  needs a migration; name-matching is acceptable now (a renamed sales
+  user gets a fresh card; the old card stays for history).
+- Resolves: — (founder bug report; no SPEC §11 A-#)
+- Consequences: demo/dev environments list the seeded demo cards PLUS
+  auto-provisioned cards for demo sales accounts (e.g. Omar Farouk);
+  deactivated sales accounts keep their existing card (history) but
+  never mint one; renaming a sales user leaves the old card selectable
+  alongside the new one until cleaned up in DB (flagged in the
+  deferred-userId alternative above).
+- Status: Accepted

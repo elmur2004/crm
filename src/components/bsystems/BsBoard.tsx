@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -45,7 +45,15 @@ export interface BsBoardLead {
   keyDatum: string;
 }
 
-function LeadCard({ lead, dragging }: { lead: BsBoardLead; dragging: boolean }) {
+function LeadCard({
+  lead,
+  dragging,
+  suppressClickRef,
+}: {
+  lead: BsBoardLead;
+  dragging: boolean;
+  suppressClickRef: { current: boolean };
+}) {
   const t = tFor(useLocale());
   const router = useRouter();
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
@@ -59,6 +67,12 @@ function LeadCard({ lead, dragging }: { lead: BsBoardLead; dragging: boolean }) 
       {...listeners}
       data-deal-card={lead.name}
       data-stage-key={stageKey(lead.stage)}
+      onClick={() => {
+        /* founder: the whole card opens the lead — but never right after a
+           drag (the browser fires a click on drop; the guard swallows it) */
+        if (suppressClickRef.current) return;
+        router.push(`/b-systems/crm/lead/${lead.id}`);
+      }}
       style={
         transform
           ? { transform: `translate(${transform.x}px, ${transform.y}px)`, zIndex: 30 }
@@ -116,22 +130,29 @@ function Column({
   leads,
   wonBlocked,
   draggingId,
+  suppressClickRef,
 }: {
   stage: string;
   leads: BsBoardLead[];
   wonBlocked: boolean;
   draggingId: string | null;
+  suppressClickRef: { current: boolean };
 }) {
   const locale = useLocale();
   const t = tFor(locale);
   const { setNodeRef, isOver } = useDroppable({ id: stage });
   const blocked = wonBlocked && stage === "won";
   const overCls = isOver ? (blocked ? "col--over-blocked" : "col--over-valid") : "";
+  /* the column hosting the active drag lifts its overflow clip + stacks above
+     its siblings (design-system.css .col[data-drag-origin]) so the dragged
+     card never disappears behind neighboring columns */
+  const hostsActiveDrag = draggingId !== null && leads.some((l) => l.id === draggingId);
   return (
     <div
       ref={setNodeRef}
       data-stage={stage}
       data-stage-key={stageKey(stage)}
+      data-drag-origin={hostsActiveDrag ? "" : undefined}
       className={`col ${overCls}`}
     >
       <div className="col-bar" aria-hidden />
@@ -142,7 +163,12 @@ function Column({
       {blocked ? <p className="col-locked-note">{t(msg.adminOnlyColumn)}</p> : null}
       <div className="col-cards">
         {leads.map((l) => (
-          <LeadCard key={l.id} lead={l} dragging={draggingId === l.id} />
+          <LeadCard
+            key={l.id}
+            lead={l}
+            dragging={draggingId === l.id}
+            suppressClickRef={suppressClickRef}
+          />
         ))}
         {leads.length === 0 ? (
           <div className="col-empty">{isOver && blocked ? t(msg.blocked) : t(msg.emptyColumn)}</div>
@@ -170,6 +196,9 @@ export function BsBoard({
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
+  /* set on every drag end, cleared a beat later: the click the browser fires
+     on drop must not navigate (whole-card onClick checks this ref) */
+  const suppressClickRef = useRef(false);
   const formState = useGroupFormState();
 
   const canWin = role === "admin" || role === "sales";
@@ -197,6 +226,10 @@ export function BsBoard({
   }
 
   function onDragEnd(event: DragEndEvent) {
+    suppressClickRef.current = true;
+    setTimeout(() => {
+      suppressClickRef.current = false;
+    }, 150);
     setDraggingId(null);
     setMessage(null);
     const leadId = String(event.active.id);
@@ -243,6 +276,7 @@ export function BsBoard({
               leads={leads.filter((l) => l.stage === stage)}
               wonBlocked={!canWin}
               draggingId={draggingId}
+              suppressClickRef={suppressClickRef}
             />
           ))}
         </div>

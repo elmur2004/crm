@@ -1,5 +1,22 @@
 # Changelog — user-visible changes per phase/release
 
+## Board card fixes (2026-08-13)
+- Board cards no longer clip long text: a long lead or company name now
+  wraps inside the card and trims neatly at two lines instead of
+  spilling past the card's edge (CRM board and partners pipeline board
+  alike).
+- Clicking anywhere on a board card now opens that lead's detail page —
+  no need to aim for the small name link. Dragging works exactly as
+  before, and finishing a drag never opens the page by accident.
+- While dragging, the card now stays visible on top of the neighboring
+  columns instead of disappearing behind them.
+- Owner list now populated in the board's stage forms: dropping a card
+  on a stage whose form has an Owner field (and the same forms on the
+  lead page and the partnership pipeline) now lists the B-Systems sales
+  team — every active sales account appears automatically, no separate
+  rep setup needed. Previously the list could show only "—" on a live
+  system.
+
 ## Arabic ⇄ English (2026-08-13)
 - The whole platform now speaks Arabic and English: an EN | عربي toggle
   in both app headers (desktop and mobile) and on the login page

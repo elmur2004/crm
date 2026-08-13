@@ -2,7 +2,7 @@ import Link from "next/link";
 import { requirePageRole } from "@/lib/auth/page-guards";
 import { bsRoleOf } from "@/lib/api/bsystems";
 import { listBsLeads, listOwnLeads } from "@/lib/services/bsystems-admin";
-import { listReps } from "@/lib/services/sales-reps";
+import { listBsOwnerReps } from "@/lib/services/sales-reps";
 import { formatCairo } from "@/lib/datetime";
 import { formatEGP } from "@/lib/money";
 import { tFor, type Locale, type Msg } from "@/lib/i18n/core";
@@ -105,7 +105,7 @@ export default async function BsCrmPage({
 
   const reps =
     role === "admin" || role === "sales"
-      ? (await listReps("bsystems")).map((r) => ({ id: r.id, name: r.name }))
+      ? (await listBsOwnerReps()).map((r) => ({ id: r.id, name: r.name }))
       : [];
 
   return (

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { getPartnerDetail, getProspectDetail, listPartners, parseNumbers } from "@/lib/services/partners";
-import { listReps } from "@/lib/services/sales-reps";
+import { listBsOwnerReps } from "@/lib/services/sales-reps";
 import { formatCairo, formatCairoDate } from "@/lib/datetime";
 import { StageBadge } from "@/components/shared/StageBadge";
 import { GroupHistory } from "@/components/internal/GroupHistory";
@@ -58,7 +58,7 @@ export async function PartnersPipelineBody() {
     }
   }
 
-  const reps = (await listReps("bsystems")).map((r) => ({ id: r.id, name: r.name }));
+  const reps = (await listBsOwnerReps()).map((r) => ({ id: r.id, name: r.name }));
   const cards: ProspectCard[] = prospects.map((p) => ({
     id: p.id,
     companyName: p.companyName,
@@ -104,7 +104,7 @@ export async function ProspectDetailBody({ prospectId }: { prospectId: string })
   const { prospect, history } = data;
   const locale = await getLocale();
   const t = tFor(locale);
-  const reps = await listReps("bsystems");
+  const reps = await listBsOwnerReps();
   const latestMeeting = prospect.meetings.at(-1);
 
   return (
@@ -337,7 +337,7 @@ export async function PartnerDetailBody({ partnerId }: { partnerId: string }) {
   }
   const locale = await getLocale();
   const t = tFor(locale);
-  const reps = await listReps("bsystems");
+  const reps = await listBsOwnerReps();
 
   return (
     <div className="space-y-6">

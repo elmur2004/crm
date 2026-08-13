@@ -920,3 +920,102 @@ comment, and the ADR-013 mechanism note all fixed; .env.example confirmed tracke
   securely; (f) production needs a DATABASE_URL (postgresql://…),
   `prisma migrate deploy` at boot, and a one-time seed for the admin
   account (ADR-033).
+
+## Entry 023 — 2026-08-13 — Founder board-UX fixes: card text overflow, whole-card open, drag layering
+- Done: three founder-reported bugs on the CRM board cards fixed on BOTH
+  boards (B-Systems CRM BsBoard + Partnership PartnersBoard share the
+  .bcard system). (1) Text overflow: a long company/lead name clipped
+  past the card edge — the name row's flex children now shrink
+  (min-width: 0), wrap anywhere, and clamp at two lines
+  (design-system.css .bcard-name / .bcard-rep / .bcard-meta; CSS only,
+  no markup text changes). (2) The whole card now opens the lead
+  (BsBoard → /b-systems/crm/lead/[id]; PartnersBoard →
+  /b-systems/partners-pipeline/[id]): container onClick + cursor:
+  pointer; a suppressClickRef set in onDragEnd (cleared 150ms later)
+  swallows the click the browser fires on drop, so a completed drag
+  never navigates; the inner name <Link> kept untouched (e2e hooks).
+  (3) The dragged card no longer disappears behind neighboring columns:
+  .col's overflow:hidden was clipping it — the column hosting the
+  active drag now carries data-drag-origin (overflow: visible +
+  position: relative + z-index above its z-auto siblings), the lifted
+  card raises its own z-index, and .col-bar carries its own top radius
+  so the corners stay rounded. EN rendered output stayed
+  byte-identical. Verified: tsc clean, vitest 92/92, Playwright
+  journey3/4/5 + qa-sweep + i18n 10/10, full suite 17 passed / 2
+  audit-opt-in skipped (TESTING Run 026).
+- In progress: R23 portal marketing copy draft — still with the founder
+  for sign-off (carried from Entry 011).
+- Next steps: unchanged from Entry 022 — FIRST the founder actions in
+  items (g) and (h) below (persistent volume + UPLOADS_DIR; Cloudflare
+  SSL = Full (strict) + AUTH_URL env), then the deferred hardening
+  (HSTS short max-age first, then the http→https redirect); the i18n
+  follow-ups (error-code scheme for item (i), remaining ByteForce
+  thin-page metadata titles, founder's terminology verdict for item
+  (j)); then the carried items (R23 landing sections on copy approval,
+  Lama Sans intermediate cuts R5/A-13, ADR-032 secure backup routine,
+  admin password change after first production login, production deploy
+  per ADR-033).
+- Blockers: durable uploads remain blocked on the founder host action
+  (Entry 018 item (g)); the "Not secure" badge remains host/Cloudflare
+  TLS configuration (Entry 021 item (h)). Nothing blocked the board
+  fixes themselves.
+- Needs founder confirmation: (i) carried from Entry 022 (ADR-037):
+  server-side error strings (zod/service ApiError messages surfaced in
+  forms) remain English this round — translating them needs an
+  error-code scheme; confirm whether/when to prioritize it. (j) carried
+  from Entry 022: two Arabic terminology choices need review — "CRM" is
+  rendered as "المبيعات" and "Retainer" as "عقد دوري"; confirm or
+  supply preferred terms. (h) carried from Entry 021 (SSL): in
+  Cloudflare set SSL/TLS mode = Full (strict) — NOT Flexible or Off —
+  and check the DNS record is proxied (orange cloud), the certificate
+  covers the exact hostname (Universal SSL covers only ONE subdomain
+  level), and the zone is not paused; on the host set env
+  AUTH_URL=https://<domain> (also fixes NextAuth secure-cookie
+  selection when the proxy misreports proto). Diagnostic: GET
+  /api/health — `proxy.proto` must read "https". (g) URGENT ACTION,
+  carried from Entry 018 (production incident 2026-08-11,
+  ADR-035/BUG-004): in the hosting panel attach persistent storage
+  (e.g. mount at /data/uploads), set env UPLOADS_DIR=/data/uploads,
+  redeploy, then re-upload the lost proof(s) via Statements → Re-upload
+  proof — check /api/health `uploads.missingFiles` to see how many are
+  gone. Carried: (a) Lama Sans intermediate cuts (R5/A-13); (b) the
+  portal marketing copy draft (pending approval, R23); (c) the standing
+  REQUIREMENTS-V2 [A] defaults and the carried items thread — items
+  (1)–(14), see Entries 001–009 — except the V2 §8 auto-password default
+  (superseded by the founder directive in Entry 015); (d) password123 is
+  a weak production credential — change it after first production login
+  (see Entry 012's caveat on seed re-runs); (e) ADR-032 backup exports
+  embed password hashes and every uploaded file — store backups
+  securely; (f) production needs a DATABASE_URL (postgresql://…),
+  `prisma migrate deploy` at boot, and a one-time seed for the admin
+  account (ADR-033).
+
+## Entry 024 — 2026-08-13 — Founder board-UX round, part 2: the board's Owner select was empty (ADR-038)
+- Done: root-caused the founder's "the owner in the lead is still
+  missing". The reps prop threading (CRM board page → BsBoard →
+  GroupFieldsV2, and the mirrored PartnersBoard path) was already
+  correct — the real cause was the DATA source: listReps("bsystems")
+  reads SalesRep cards, and bsystems cards exist only via the demo
+  seed (skipped in production by design) — no B-Systems screen calls
+  POST /api/b-systems/reps (§6.1 Sales Reps is ByteForce-only). On a
+  live system the Owner select therefore rendered only "—" in EVERY
+  admin/sales stage form (board drag modal, lead detail panel,
+  partners pipeline forms). Fix (ADR-038): new listBsOwnerReps() in
+  src/lib/services/sales-reps.ts auto-provisions a bsystems SalesRep
+  card for every ACTIVE bsystems_sales account (exact-name match,
+  idempotent) and returns the card list; all five bsystems Owner call
+  sites switched to it. No schema change, no migration — production
+  self-heals on the first page view. EN rendered output byte-identical.
+  Verified: tsc clean, vitest 92/92, Playwright full 17 passed / 2
+  audit-opt-in skipped (TESTING Run 027). Ships in one commit with
+  Entry 023's board card fixes.
+- In progress: unchanged from Entry 023.
+- Next steps: unchanged from Entry 023.
+- Blockers: none for this fix; the founder host actions in Entry 023
+  items (g)/(h) still stand.
+- Needs founder confirmation: the Owner list is now the ACTIVE
+  B-Systems sales accounts (role bsystems_sales) — an admin appears
+  only when that account also holds the sales role (A-8 allows one
+  account carrying both). Confirm this roster; if admins should always
+  be selectable as follow-up owners, the list will include them.
+  Carried items unchanged — see Entry 023.

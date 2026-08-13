@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -11,6 +11,7 @@ import {
   useSensor,
   useSensors,
   type DragEndEvent,
+  type DragStartEvent,
 } from "@dnd-kit/core";
 import { PARTNER_STAGES } from "@/lib/pipeline-engine/constants";
 import { partnersConfig } from "@/lib/pipeline-engine/configs/partners";
@@ -42,9 +43,16 @@ export interface ProspectCard {
 
 type Rep = { id: string; name: string };
 
-function Card({ card }: { card: ProspectCard }) {
+function Card({
+  card,
+  suppressClickRef,
+}: {
+  card: ProspectCard;
+  suppressClickRef: { current: boolean };
+}) {
   const locale = useLocale();
   const t = tFor(locale);
+  const router = useRouter();
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: card.id,
   });
@@ -54,6 +62,12 @@ function Card({ card }: { card: ProspectCard }) {
       {...attributes}
       {...listeners}
       data-deal-card={card.companyName}
+      onClick={() => {
+        /* founder: the whole card opens the prospect — but never right after a
+           drag (the browser fires a click on drop; the guard swallows it) */
+        if (suppressClickRef.current) return;
+        router.push(`/b-systems/partners-pipeline/${card.id}`);
+      }}
       style={
         transform
           ? { transform: `translate(${transform.x}px, ${transform.y}px)`, zIndex: 30 }
@@ -84,15 +98,30 @@ function Card({ card }: { card: ProspectCard }) {
   );
 }
 
-function Column({ stage, cards }: { stage: string; cards: ProspectCard[] }) {
+function Column({
+  stage,
+  cards,
+  draggingId,
+  suppressClickRef,
+}: {
+  stage: string;
+  cards: ProspectCard[];
+  draggingId: string | null;
+  suppressClickRef: { current: boolean };
+}) {
   const locale = useLocale();
   const t = tFor(locale);
   const { setNodeRef, isOver } = useDroppable({ id: stage });
+  /* the column hosting the active drag lifts its overflow clip + stacks above
+     its siblings (design-system.css .col[data-drag-origin]) so the dragged
+     card never disappears behind neighboring columns */
+  const hostsActiveDrag = draggingId !== null && cards.some((c) => c.id === draggingId);
   return (
     <div
       ref={setNodeRef}
       data-stage={stage}
       data-stage-key={stageKey(stage)}
+      data-drag-origin={hostsActiveDrag ? "" : undefined}
       className={`col ${isOver ? "col--over-valid" : ""}`}
     >
       <div className="col-bar" aria-hidden />
@@ -102,7 +131,7 @@ function Column({ stage, cards }: { stage: string; cards: ProspectCard[] }) {
       </div>
       <div className="col-cards">
         {cards.map((c) => (
-          <Card key={c.id} card={c} />
+          <Card key={c.id} card={c} suppressClickRef={suppressClickRef} />
         ))}
         {cards.length === 0 ? <div className="col-empty">{t(pPipeline.emptyColumn)}</div> : null}
       </div>
@@ -119,6 +148,10 @@ export function PartnersBoard({ cards, reps }: { cards: ProspectCard[]; reps: Re
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  /* set on every drag end, cleared a beat later: the click the browser fires
+     on drop must not navigate (whole-card onClick checks this ref) */
+  const suppressClickRef = useRef(false);
 
   async function commit(body: unknown, prospectId: string) {
     setBusy(true);
@@ -138,7 +171,16 @@ export function PartnersBoard({ cards, reps }: { cards: ProspectCard[]; reps: Re
     router.refresh();
   }
 
+  function onDragStart(event: DragStartEvent) {
+    setDraggingId(String(event.active.id));
+  }
+
   function onDragEnd(event: DragEndEvent) {
+    suppressClickRef.current = true;
+    setTimeout(() => {
+      suppressClickRef.current = false;
+    }, 150);
+    setDraggingId(null);
     setMessage(null);
     const id = String(event.active.id);
     const to = event.over ? String(event.over.id) : null;
@@ -171,10 +213,21 @@ export function PartnersBoard({ cards, reps }: { cards: ProspectCard[]; reps: Re
         </div>
       ) : null}
 
-      <DndContext id="partners-board" sensors={sensors} onDragEnd={onDragEnd}>
+      <DndContext
+        id="partners-board"
+        sensors={sensors}
+        onDragStart={onDragStart}
+        onDragEnd={onDragEnd}
+      >
         <div className="board" data-cols="6plus">
           {PARTNER_STAGES.map((stage) => (
-            <Column key={stage} stage={stage} cards={cards.filter((c) => c.stage === stage)} />
+            <Column
+              key={stage}
+              stage={stage}
+              cards={cards.filter((c) => c.stage === stage)}
+              draggingId={draggingId}
+              suppressClickRef={suppressClickRef}
+            />
           ))}
         </div>
       </DndContext>

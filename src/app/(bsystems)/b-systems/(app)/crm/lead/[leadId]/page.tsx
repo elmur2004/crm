@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { requirePageRole } from "@/lib/auth/page-guards";
 import { requireLeadAccess } from "@/lib/auth/guards";
 import { getLeadDetail } from "@/lib/services/leads";
-import { listReps } from "@/lib/services/sales-reps";
+import { listBsOwnerReps } from "@/lib/services/sales-reps";
 import { formatCairo } from "@/lib/datetime";
 import { tFor } from "@/lib/i18n/core";
 import { getLocale } from "@/lib/i18n/server";
@@ -68,7 +68,7 @@ export default async function BsLeadDetailPage({
   ]);
   const reps =
     role === "admin" || role === "sales"
-      ? (await listReps("bsystems")).map((r) => ({ id: r.id, name: r.name }))
+      ? (await listBsOwnerReps()).map((r) => ({ id: r.id, name: r.name }))
       : [];
   const latestMeeting = lead.meetings.at(-1);
   const editable = {
