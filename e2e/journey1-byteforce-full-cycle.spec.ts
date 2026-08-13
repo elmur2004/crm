@@ -56,6 +56,15 @@ test("journey 1: ByteForce full cycle to Won", async ({ page }) => {
   const leadLink = page.getByRole("link", { name: "Journey Lead Co" });
   await expect(leadLink).toBeVisible();
 
+  /* Founder fix (ADR-040): the freshly added lead is ALREADY on the CRM board
+     — the New column lists every intake lead before its first move. */
+  await page.goto("/byteforce/crm");
+  await expect(
+    page.locator('[data-stage-key="intake"]').getByRole("link", { name: "Journey Lead Co" }),
+  ).toBeVisible();
+  await page.goBack();
+  await expect(leadLink).toBeVisible();
+
   /* Lead detail — Next action: Following up (T-1). */
   await leadLink.click();
   await page.getByLabel("Next action").selectOption("following_up");

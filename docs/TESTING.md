@@ -516,3 +516,21 @@ every dashboard formula, journeys 1-5 (SPEC §13).
   extension, same wall as /ready). Existing EN strings byte-identical;
   the three new strings shipped as Msg {en, ar}.
 - Verdict: PASS.
+
+## Run 029 — 2026-08-14 — ByteForce board intake-column fix round (ADR-040)
+- Suites/commands: `npx tsc --noEmit` (clean) · `npx vitest run` (93) ·
+  `npx playwright test` (full suite; journey1 extended with the
+  New-column assertion). Local dev, embedded Postgres (per-run
+  instances).
+- Cases: vitest 93 passed / 0 failed / 0 skipped · Playwright full 18
+  passed / 0 failed / 2 skipped (the two skips are the audit opt-in
+  specs, by design). Full e2e wall time 3.9m.
+- Failures: none. (One tsc round during development: Prisma's `in`
+  filter rejects the readonly INTERNAL_STAGES tuple — fixed by
+  spreading into a mutable array before any run was recorded.)
+- SPEC coverage touched: §6.3's board definition changes under founder
+  override (ADR-040) — display only, no §10 transition rows. journey1
+  now proves a freshly added lead renders on /byteforce/crm (New
+  column) BEFORE its first transition; the rest of journey1 passing
+  unchanged shows the five original columns behave identically.
+- Verdict: PASS.

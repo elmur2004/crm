@@ -1,5 +1,11 @@
 # Changelog — user-visible changes per phase/release
 
+## ByteForce board shows every lead (2026-08-14)
+- Adding a lead in ByteForce now shows it on the CRM board immediately:
+  the board gained a "New" first column listing every lead that hasn't
+  been actioned yet (with the date it arrived), exactly like the
+  B-Systems board. Unassigned leads keep their "Unassigned" label.
+
 ## Didn't-answer marker (2026-08-14)
 - Every active card on the main CRM board now carries a small "Didn't
   answer" button — clicking it puts a red "No answer" chip on the card

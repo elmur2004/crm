@@ -800,3 +800,30 @@ R23 copy sign-off — carried in PROGRESS (Entry 011).
   clearing is manual ("Answered — clear flag"). ByteForce is untouched
   (B-Systems only until the founder asks otherwise).
 - Status: Accepted
+
+## ADR-040 — 2026-08-14 — ByteForce CRM board gains the intake column (founder override of §6.3)
+- Context: Founder bug report — "the CRM in ByteForce is not responding
+  to the leads — I added a lead and it's still very empty." SPEC §6.3
+  defines the board as FIVE columns (Following Up … Lost), deliberately
+  excluding intake; a freshly added lead (stage "new") was therefore
+  invisible on /byteforce/crm until its first stage move
+  (CrmBoardBody's BOARD_STAGES filtered "new" out of both the query and
+  the columns). Assignment was NOT the issue: the board query never
+  filtered by salesRepId, and unassigned leads already render with the
+  existing "Unassigned" label.
+- Decision: BOARD_STAGES = the full engine stage set — the board gains
+  a leading New column (matching the B-Systems board), so every
+  ByteForce lead is visible from the moment it is created. Intake cards
+  show their creation datetime as the key datum (pure data — no new
+  user-visible strings; existing EN output byte-identical). Stage sets
+  still come from the engine (§5.1), never hardcoded.
+- Alternatives considered: keeping §6.3 verbatim and pointing the
+  founder at the Leads tables — rejected: the founder's mental model is
+  "the CRM responds to the leads", and the sibling B-Systems board
+  already shows intake; parity is cheaper than explaining an absence.
+- Resolves: founder bug report (overrides SPEC §6.3's five-column
+  definition; §10 transition rows untouched — display only).
+- Consequences: journey1 now asserts the freshly created lead appears
+  in the New column before its first move; dashboards unchanged (the
+  "New (not actioned)" tile already counted intake leads).
+- Status: Accepted

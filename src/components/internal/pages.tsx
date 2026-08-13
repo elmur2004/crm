@@ -371,9 +371,11 @@ export async function LeadDetailBody({ ctx, leadId }: { ctx: InternalAppCtx; lea
 
 /* ---------------- CRM board (§6.3) ---------------- */
 
-/* §6.3 board columns = the engine's stage set minus the intake stage (never
-   hardcoded — §5.1). */
-const BOARD_STAGES = INTERNAL_STAGES.filter((s) => s !== "new");
+/* §6.3 defined five columns (minus intake) — the founder overrode it: "I added
+   a lead and it's still very empty." The board now shows EVERY lead, so intake
+   ("new") gets its own leading column like the B-Systems board (ADR-040). The
+   stage set still comes from the engine, never hardcoded (§5.1). */
+const BOARD_STAGES = [...INTERNAL_STAGES];
 
 export async function CrmBoardBody({ ctx }: { ctx: InternalAppCtx }) {
   const locale = await getLocale();
@@ -394,6 +396,8 @@ export async function CrmBoardBody({ ctx }: { ctx: InternalAppCtx }) {
 
   function keyDatum(lead: (typeof leads)[number]): string {
     switch (lead.stage) {
+      case "new":
+        return formatCairo(lead.createdAt); // intake cards show when they arrived
       case "following_up":
         return lead.followUps[0]
           ? `${t(board.nextPrefix)} ${formatCairo(lead.followUps[0].dueAt)}`

@@ -1043,3 +1043,24 @@ comment, and the ADR-013 mechanism note all fixed; .env.example confirmed tracke
 - Needs founder confirmation: carried from Entry 024 (Owner-list
   roster = active sales accounts) and the Entry 023 thread. Nothing
   new — the flag follows the directive directly.
+
+## Entry 026 — 2026-08-14 — Founder bug: ByteForce CRM board hid intake leads (ADR-040)
+- Done: root-caused "the CRM in ByteForce is not responding to the
+  leads — I added a lead and it's still very empty": CrmBoardBody
+  implemented SPEC §6.3 literally — five columns, intake excluded from
+  BOTH the query and the columns — so a newly added lead (stage "new")
+  never appeared on /byteforce/crm until its first stage move. NOT an
+  assignment bug: the board query never filtered by rep, and unassigned
+  leads already render the "Unassigned" label. Fix (ADR-040): the board
+  uses the full engine stage set — a leading New column like the
+  B-Systems board; intake cards show their creation datetime (data
+  only, no new strings, EN byte-identical). journey1 extended: the
+  fresh lead must be visible in the New column before any transition.
+  Verified: tsc clean, vitest 93/93, Playwright full 18 passed / 2
+  audit-opt-in skipped (TESTING Run 029).
+- In progress: unchanged from Entry 025.
+- Next steps: unchanged from Entry 025.
+- Blockers: none new; Entry 023 founder host actions (g)/(h) stand.
+- Needs founder confirmation: none new — the change implements the
+  founder's report directly (§6.3 override logged in ADR-040). Carried:
+  see Entries 023–025.
