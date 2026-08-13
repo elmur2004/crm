@@ -549,3 +549,24 @@ every dashboard formula, journeys 1-5 (SPEC §13).
   noAnswer false + exactly one "no_answer_cleared" activity row;
   moving an unflagged lead adds no cleared row (no noise).
 - Verdict: PASS.
+
+## Run 031 — 2026-08-14 — To-Do page round (ADR-041)
+- Suites/commands: `npx tsc --noEmit` (clean) · `npx vitest run` (98 —
+  NEW todo.integration.test.ts, 4 tests) · `npx playwright test` (full
+  suite incl. NEW e2e/todo.spec.ts). Local dev, embedded Postgres
+  (per-run instances).
+- Cases: vitest 98 passed / 0 failed / 0 skipped · Playwright full 19
+  passed / 0 failed / 2 skipped (the two skips are the audit opt-in
+  specs, by design). Full e2e wall time 4.0m.
+- Failures: none.
+- SPEC coverage touched: none of the §10 rows — a read-only projection
+  (ADR-041). New coverage: (unit) Cairo-day windowing across the
+  midnight boundary (early-Cairo-morning instant counts as today,
+  yesterday as overdue, tomorrow excluded); latest-record-only
+  selection (superseded follow-ups never resurface; leads that left the
+  stage drop off); role scoping (agent own / sales internal / admin
+  all); admin extras (live meeting + pending statement + open milestone
+  today, completed milestones excluded, extras hidden from sales).
+  (e2e) admin creates a lead, moves it to Following Up dated today via
+  the API, sees the row on /b-systems/todo, clicks through to the lead.
+- Verdict: PASS.

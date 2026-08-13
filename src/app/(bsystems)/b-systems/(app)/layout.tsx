@@ -11,6 +11,7 @@ import { bsRoleOf } from "@/lib/api/bsystems";
 import { tFor, type Msg } from "@/lib/i18n/core";
 import { getLocale } from "@/lib/i18n/server";
 import { nav, roles } from "@/lib/i18n/dict/crm";
+import { todoPage } from "@/lib/i18n/dict/todo";
 
 /* V2 §2 — ONE role-aware B-Systems app. Chrome per the approved prototype
    (spec §2.1): dark indigo header for admin + internal sales; agents/partners
@@ -20,6 +21,7 @@ import { nav, roles } from "@/lib/i18n/dict/crm";
 const NAV: Record<string, Array<{ href: string; label: Msg }>> = {
   bsystems_admin: [
     { href: "/b-systems", label: nav.home },
+    { href: "/b-systems/todo", label: todoPage.navItem },
     { href: "/b-systems/leads", label: nav.leads },
     { href: "/b-systems/crm", label: nav.crm },
     { href: "/b-systems/won-leads", label: nav.wonLeads },
@@ -32,16 +34,19 @@ const NAV: Record<string, Array<{ href: string; label: Msg }>> = {
   ],
   bsystems_sales: [
     { href: "/b-systems/crm", label: nav.crm },
+    { href: "/b-systems/todo", label: todoPage.navItem },
     { href: "/b-systems/won-leads", label: nav.wonLeads },
   ],
   bsystems_agent: [
     { href: "/b-systems/crm", label: nav.crm },
+    { href: "/b-systems/todo", label: todoPage.navItem },
     { href: "/b-systems/won-leads", label: nav.wonLeads },
     { href: "/b-systems/payments", label: nav.payments },
     { href: "/b-systems/profile", label: nav.profile },
   ],
   bsystems_partner: [
     { href: "/b-systems/crm", label: nav.crm },
+    { href: "/b-systems/todo", label: todoPage.navItem },
     { href: "/b-systems/won-leads", label: nav.wonLeads },
     { href: "/b-systems/payments", label: nav.payments },
     { href: "/b-systems/profile", label: nav.profile },

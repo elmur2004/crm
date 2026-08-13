@@ -827,3 +827,39 @@ R23 copy sign-off — carried in PROGRESS (Entry 011).
   in the New column before its first move; dashboards unchanged (the
   "New (not actioned)" tile already counted intake leads).
 - Status: Accepted
+
+## ADR-041 — 2026-08-14 — To-Do page: a read-only projection over existing dated records
+- Context: Founder — "a to-do page which has the actual date of today
+  with the entire tasks of today... following up or proposal or
+  anything in the system with a specific date... just a way of
+  representing what I have to do today, no fancy stuff, so I don't miss
+  anything."
+- Decision: /b-systems/todo and /byteforce/todo (nav "To-Do" for every
+  role, both apps) rendering todoFor(brand, scope, now) from
+  src/lib/services/todo.ts — a PROJECTION over records that already
+  carry dates; no new state, nothing to keep in sync. Two sections:
+  Overdue (danger accent, only when nonempty) then Today; a row = time
+  (clock hidden for date-only records), kind chip, linked name. An item
+  is LIVE only when it is its lead's/prospect's LATEST record AND the
+  parent still sits in the matching stage (follow-up ↔ following_up;
+  arranged outcome-less meeting ↔ meeting_setting) — exactly what the
+  boards' key datum shows, so superseded history never resurfaces and
+  Overdue stays meaningful. Days are CAIRO calendar days
+  (cairoDayWindow, DST-safe via the existing datetime module). Scope
+  mirrors requireLeadAccess in the query: bsystems admin all, internal
+  sales the internal bucket, agents/partners own leads; ByteForce staff
+  all byteforce leads. Partnership-prospect rows, pending statements
+  (expectedDate), and open milestones (expectedEnd) are bsystems
+  ADMIN-only extras.
+- Alternatives considered: a Task table with completion state —
+  rejected: the founder asked for representation, not task management;
+  a table would drift from the records it mirrors. Including every
+  historical follow-up in Overdue — rejected: floods the list with
+  superseded rows and buries what is actually actionable.
+- Resolves: — (founder directive; no SPEC §11 A-#)
+- Consequences: proposals carry no due date in the schema, so
+  "proposal" appears via the follow-up that every sent proposal
+  auto-creates (T-5), not as its own row; if the founder wants
+  dated-proposal rows, that needs a schema addition. Rows disappear
+  when handled (stage moves) rather than being checked off.
+- Status: Accepted

@@ -1083,3 +1083,27 @@ comment, and the ADR-013 mechanism note all fixed; .env.example confirmed tracke
 - Blockers: none new.
 - Needs founder confirmation: none new — implements the directive
   directly. Carried: see Entries 023–025.
+
+## Entry 028 — 2026-08-14 — Founder feature: the To-Do page (ADR-041)
+- Done: /b-systems/todo (all four roles) and /byteforce/todo (staff),
+  nav item "To-Do" in both apps, rendering a plain two-section list —
+  Overdue (danger accent, only when nonempty) and Today — of everything
+  dated in the system: live follow-ups and arranged meetings (scoped:
+  admin all / sales internal bucket / agent+partner own leads /
+  ByteForce staff all byteforce), plus admin-only rows for partnership
+  prospects, pending statements (expectedDate), and open milestones
+  (expectedEnd). Cairo calendar-day windowing (DST-safe), "no fancy
+  stuff": time + kind chip + linked name per row, "Nothing due today."
+  empty state. All new strings Msg {en, ar}
+  (src/lib/i18n/dict/todo.ts); existing EN byte-identical. New service
+  src/lib/services/todo.ts (read-only projection, ADR-041). Tests: +4
+  vitest (98/98), +1 e2e spec (19 passed / 2 skipped), tsc clean
+  (TESTING Run 031).
+- In progress: unchanged from Entry 027.
+- Next steps: founder batch queued — leads-page filters/ordering,
+  ByteForce board full parity (drag + forms + flags), lead archiving.
+- Blockers: none new.
+- Needs founder confirmation: proposals carry no due date of their own
+  — they surface via the follow-up every sent proposal auto-creates
+  (T-5); say the word if dated proposal rows are wanted (schema
+  addition). Carried: see Entries 023–025.

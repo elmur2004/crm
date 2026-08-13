@@ -1,5 +1,16 @@
 # Changelog — user-visible changes per phase/release
 
+## To-Do page (2026-08-14)
+- New "To-Do" section in both apps: one plain page with today's date
+  showing everything in the system that is due today — follow-ups,
+  arranged meetings, and (for the admin) partnership-prospect
+  follow-ups and meetings, statements expected today, and payment
+  milestones due — each row linking straight to the lead or record.
+  Anything already past its date sits in a red "Overdue" section on
+  top, so nothing slips. Everyone sees exactly their own scope: the
+  admin sees everything, internal sales their bucket, agents and
+  partners their own leads.
+
 ## ByteForce board shows every lead (2026-08-14)
 - Adding a lead in ByteForce now shows it on the CRM board immediately:
   the board gained a "New" first column listing every lead that hasn't

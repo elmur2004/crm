@@ -9,6 +9,7 @@ import type { Role } from "@/lib/pipeline-engine/constants";
 import { tFor } from "@/lib/i18n/core";
 import { getLocale } from "@/lib/i18n/server";
 import { nav } from "@/lib/i18n/dict/internal";
+import { todoPage } from "@/lib/i18n/dict/todo";
 
 /* ByteForce app chrome — the prototype's light header (spec §2.1): white bar,
    notched-square mark, orange-tint active nav. Logical properties only (A-12). */
@@ -28,6 +29,7 @@ export async function AppNav({
   const t = tFor(locale);
   const items = [
     { href: basePath, label: t(nav.home) },
+    { href: `${basePath}/todo`, label: t(todoPage.navItem) },
     { href: `${basePath}/leads`, label: t(nav.leads) },
     { href: `${basePath}/crm`, label: t(nav.crm) },
     { href: `${basePath}/clients`, label: t(nav.clients) },
