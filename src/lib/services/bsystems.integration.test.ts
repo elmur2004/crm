@@ -1,7 +1,18 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { db } from "@/lib/db";
 import { resetDb } from "@/tests/db-reset";
-import { applyLeadEvent, createLead, deleteLead, markReadyToClose, setNoAnswer } from "./leads";
+import {
+  applyLeadEvent,
+  createLead,
+  deleteLead,
+  markReadyToClose,
+  setArchived,
+  setNoAnswer,
+} from "./leads";
+import { listBsLeads } from "./bsystems-admin";
+import { internalDashboard } from "./metrics";
+import { todoFor } from "./todo";
+import { cairoToUtc } from "@/lib/datetime";
 import { applyProspectEvent, createProspect } from "./partners";
 import { checkMilestone, uncheckMilestone } from "./milestones";
 import {
@@ -232,6 +243,56 @@ describe('"Didn\'t answer" flag (founder directive, ADR-039)', () => {
     expect(
       await db.activityLog.count({ where: { entityId: lead.id, trigger: "no_answer_cleared" } }),
     ).toBe(1);
+  });
+});
+
+describe("Archive (founder, ADR-043)", () => {
+  it("archiving hides the lead from list, dashboard, and to-do; the Archived view and unarchive bring it back; both moves logged", async () => {
+    const NOW = cairoToUtc("2026-08-20", "12:00");
+    const lead = await makeLead();
+    await db.lead.update({ where: { id: lead.id }, data: { stage: "following_up" } });
+    await db.followUp.create({
+      data: {
+        leadId: lead.id,
+        context: "initial",
+        dueAt: cairoToUtc("2026-08-20", "10:00"),
+        method: "call",
+      },
+    });
+
+    /* visible everywhere before */
+    expect((await listBsLeads("any")).map((l) => l.id)).toEqual([lead.id]);
+    expect((await internalDashboard("bsystems")).totalLeads).toBe(1);
+    expect(
+      (await todoFor({ brand: "bsystems", scope: { kind: "all" }, now: NOW })).today,
+    ).toHaveLength(1);
+
+    await setArchived("bsystems", lead.id, true, admin);
+    const fresh = await db.lead.findUniqueOrThrow({ where: { id: lead.id } });
+    expect(fresh.archived).toBe(true);
+    expect(fresh.archivedAt).not.toBeNull();
+
+    /* hidden from every default surface — but present in the Archived view */
+    expect(await listBsLeads("any")).toHaveLength(0);
+    expect((await internalDashboard("bsystems")).totalLeads).toBe(0);
+    expect(
+      (await todoFor({ brand: "bsystems", scope: { kind: "all" }, now: NOW })).today,
+    ).toHaveLength(0);
+    expect((await listBsLeads("any", { archived: true })).map((l) => l.id)).toEqual([lead.id]);
+
+    /* unarchive restores; no data was lost */
+    await setArchived("bsystems", lead.id, false, admin);
+    const restored = await db.lead.findUniqueOrThrow({ where: { id: lead.id } });
+    expect(restored.archived).toBe(false);
+    expect(restored.archivedAt).toBeNull();
+    expect(restored.stage).toBe("following_up");
+    expect((await listBsLeads("any")).map((l) => l.id)).toEqual([lead.id]);
+
+    const logs = await db.activityLog.findMany({
+      where: { entityId: lead.id, trigger: { in: ["archived", "unarchived"] } },
+      orderBy: { createdAt: "asc" },
+    });
+    expect(logs.map((l) => l.trigger)).toEqual(["archived", "unarchived"]);
   });
 });
 

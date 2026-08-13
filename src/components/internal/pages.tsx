@@ -29,7 +29,8 @@ import { AddLeadForm, AddRepForm, ClientEditForm } from "./forms";
 import { LeadChat } from "@/components/shared/LeadChat";
 import { listLeadComments, mentionableUsersFor } from "@/lib/services/comments";
 import { requireLeadAccess } from "@/lib/auth/guards";
-import { common as crmCommon } from "@/lib/i18n/dict/crm";
+import { archiveMsgs, common as crmCommon } from "@/lib/i18n/dict/crm";
+import { ArchiveButton } from "@/components/shared/ArchiveButton";
 import { LeadEventPanel } from "./LeadEventPanel";
 import { InternalBoard, type InternalBoardLead } from "./InternalBoard";
 import { GroupHistory } from "./GroupHistory";
@@ -167,7 +168,15 @@ export async function LeadsBody({ ctx }: { ctx: InternalAppCtx }) {
 
 /* ---------------- Leads table per rep (§6.1) ---------------- */
 
-export async function RepLeadsBody({ ctx, repId }: { ctx: InternalAppCtx; repId: string }) {
+export async function RepLeadsBody({
+  ctx,
+  repId,
+  archived = false,
+}: {
+  ctx: InternalAppCtx;
+  repId: string;
+  archived?: boolean;
+}) {
   const locale = await getLocale();
   const t = tFor(locale);
   const isUnassigned = repId === "unassigned";
@@ -176,12 +185,15 @@ export async function RepLeadsBody({ ctx, repId }: { ctx: InternalAppCtx; repId:
     : await db.salesRep.findFirst({ where: { id: repId, brand: ctx.brand } });
   if (!isUnassigned && !rep) notFound();
 
+  /* ADR-043: the default view hides archived leads; ?view=archived IS the
+     archive (unarchive lives on the lead detail). */
   const leads = await db.lead.findMany({
-    where: { brand: ctx.brand, salesRepId: isUnassigned ? null : repId },
+    where: { brand: ctx.brand, salesRepId: isUnassigned ? null : repId, archived },
     orderBy: { createdAt: "desc" },
     include: { partner: { select: { companyName: true } } },
   });
 
+  const basePath = `${ctx.basePath}/leads/rep/${repId}`;
   return (
     <div className="space-y-6">
       <div className="page-head">
@@ -194,6 +206,18 @@ export async function RepLeadsBody({ ctx, repId }: { ctx: InternalAppCtx; repId:
           </h1>
         </div>
         <div className="page-actions">
+          <nav className="flex gap-1 flex-wrap" aria-label={t(archiveMsgs.archived)}>
+            <Link href={basePath} className="nav-item" aria-current={archived ? undefined : "page"}>
+              {t(archiveMsgs.active)}
+            </Link>
+            <Link
+              href={`${basePath}?view=archived`}
+              className="nav-item"
+              aria-current={archived ? "page" : undefined}
+            >
+              {t(archiveMsgs.archived)}
+            </Link>
+          </nav>
           {!isUnassigned ? <AddLeadForm apiBase={ctx.apiBase} salesRepId={repId} /> : null}
         </div>
       </div>
@@ -266,10 +290,18 @@ export async function LeadDetailBody({ ctx, leadId }: { ctx: InternalAppCtx; lea
 
   return (
     <div className="space-y-6">
-      <div>
-        <Link href={`${ctx.basePath}/crm`} className="text-sm text-brand-muted underline underline-offset-2">
-          {t(leadDetail.backToBoard)}
-        </Link>
+      <div className="page-head">
+        <div>
+          <Link href={`${ctx.basePath}/crm`} className="text-sm text-brand-muted underline underline-offset-2">
+            {t(leadDetail.backToBoard)}
+          </Link>
+        </div>
+        <div className="page-actions">
+          <ArchiveButton
+            postUrl={`${ctx.apiBase}/leads/${lead.id}/archive`}
+            archived={lead.archived}
+          />
+        </div>
       </div>
 
       <div className="card card--flush0">
@@ -284,6 +316,9 @@ export async function LeadDetailBody({ ctx, leadId }: { ctx: InternalAppCtx; lea
             ) : null}
             {lead.noAnswer ? (
               <span className="badge badge--noanswer">{t(crmCommon.noAnswer)}</span>
+            ) : null}
+            {lead.archived ? (
+              <span className="badge badge--archived">{t(archiveMsgs.archived)}</span>
             ) : null}
           </h1>
         </div>
@@ -386,7 +421,7 @@ export async function CrmBoardBody({ ctx }: { ctx: InternalAppCtx }) {
   const locale = await getLocale();
   const t = tFor(locale);
   const leads = await db.lead.findMany({
-    where: { brand: ctx.brand, stage: { in: BOARD_STAGES } },
+    where: { brand: ctx.brand, archived: false, stage: { in: BOARD_STAGES } },
     include: {
       salesRep: { select: { name: true } },
       partner: { select: { companyName: true } },

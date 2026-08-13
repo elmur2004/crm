@@ -18,15 +18,17 @@ export interface InternalDashboard {
 }
 
 export async function internalDashboard(brand: Brand): Promise<InternalDashboard> {
+  /* ADR-043: archived leads leave every lead-based number; client money
+     (toBeCollected) survives archiving — the financial trail is untouched. */
   const [totalLeads, stageGroups, activeLeads, wonInfos, clients] = await Promise.all([
-    db.lead.count({ where: { brand } }),
-    db.lead.groupBy({ by: ["stage"], where: { brand }, _count: { _all: true } }),
+    db.lead.count({ where: { brand, archived: false } }),
+    db.lead.groupBy({ by: ["stage"], where: { brand, archived: false }, _count: { _all: true } }),
     db.lead.findMany({
-      where: { brand, stage: { notIn: ["won", "lost"] } },
+      where: { brand, archived: false, stage: { notIn: ["won", "lost"] } },
       select: { proposals: { select: { estimatedValue: true, createdAt: true } } },
     }),
     db.wonInfo.findMany({
-      where: { lead: { brand, stage: "won" } },
+      where: { lead: { brand, stage: "won", archived: false } },
       select: { estimatedValue: true },
     }),
     db.client.findMany({ where: { brand }, select: { toBeCollected: true } }),

@@ -608,3 +608,22 @@ every dashboard formula, journeys 1-5 (SPEC §13).
   passing unchanged over the new client board is the regression proof
   for the rewrite of CrmBoardBody.
 - Verdict: PASS.
+
+## Run 034 — 2026-08-14 — Lead archive round (ADR-043)
+- Suites/commands: `npx tsc --noEmit` (clean) · `npx vitest run` (101 —
+  one NEW integration test) · `npx playwright test` (full suite incl.
+  NEW e2e/archive.spec.ts + an /archive 403 line in security-rbac).
+  Local dev, embedded Postgres (per-run instances).
+- Cases: vitest 101 passed / 0 failed / 0 skipped · Playwright full 21
+  passed / 0 failed / 2 skipped (audit opt-in skips, by design). Full
+  e2e wall time 4.1m.
+- Failures: none.
+- SPEC coverage touched: no §10 rows — archive is orthogonal to the
+  pipeline (the stage survives). New coverage: (unit) archiving hides
+  the lead from listBsLeads default / internalDashboard.totalLeads /
+  todoFor, appears under { archived: true }, unarchive restores with
+  stage + archivedAt cleared, both moves activity-logged; (e2e) archive
+  from the detail (inline confirm) → header badge → gone from board and
+  default Leads view → present under ?view=archived → unarchive →
+  back on the board; (e2e) a foreign agent gets 403 on /archive.
+- Verdict: PASS.

@@ -1,5 +1,15 @@
 # Changelog — user-visible changes per phase/release
 
+## Archive leads (2026-08-14)
+- Open any lead and click Archive (with a confirm step): the lead
+  leaves the board, the lists, the dashboard numbers, and the To-Do
+  page — nothing is deleted. The Leads page's new view dropdown has an
+  "Archived" choice that shows everything in the archive; open a lead
+  there and click Unarchive to bring it back exactly where it was.
+  Works in both ByteForce and B-Systems (ByteForce rep tables got an
+  Active/Archived toggle). Money records (clients, won deals,
+  statements, payments) are never hidden by archiving.
+
 ## ByteForce board — full parity with the B-Systems board (2026-08-14)
 - The ByteForce CRM board is now draggable: drop a card on a stage and
   that stage's form opens right there — exactly like the B-Systems

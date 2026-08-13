@@ -21,7 +21,7 @@ export async function adminHome(): Promise<AdminHomeV2> {
     db.partner.count(),
     db.lead.groupBy({
       by: ["stage"],
-      where: { brand: "bsystems", ownerType: { in: ["agent", "partner"] } },
+      where: { brand: "bsystems", ownerType: { in: ["agent", "partner"] }, archived: false },
       _count: { _all: true },
     }),
   ]);
@@ -53,11 +53,14 @@ export function listAgentsDetailed() {
   });
 }
 
-/** V2 §2.2/§2.3 — the unified leads/board source with the owner-bucket filter. */
-export function listBsLeads(ownerType?: string) {
+/** V2 §2.2/§2.3 — the unified leads/board source with the owner-bucket filter.
+    ADR-043: archived leads are hidden by default; the Leads page's Archived
+    view passes { archived: true } — that IS the archive. */
+export function listBsLeads(ownerType?: string, opts?: { archived?: boolean }) {
   return db.lead.findMany({
     where: {
       brand: "bsystems",
+      archived: opts?.archived ?? false,
       ...(ownerType && ownerType !== "any" ? { ownerType } : {}),
     },
     include: {
@@ -76,7 +79,7 @@ export function listBsLeads(ownerType?: string) {
 /** Owner's own board (agent/partner). */
 export function listOwnLeads(userId: string) {
   return db.lead.findMany({
-    where: { brand: "bsystems", ownerUserId: userId },
+    where: { brand: "bsystems", ownerUserId: userId, archived: false },
     include: {
       owner: { select: { name: true } },
       salesRep: { select: { name: true } },

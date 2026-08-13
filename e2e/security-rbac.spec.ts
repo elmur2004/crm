@@ -110,6 +110,10 @@ test("an agent cannot mutate another agent's lead (403, nothing changes)", async
     data: { value: true },
   });
   expect(noAnswer.status()).toBe(403);
+  const archive = await pageB.request.post(`/api/b-systems/leads/${leadId}/archive`, {
+    data: { value: true },
+  });
+  expect(archive.status()).toBe(403);
   /* founder V5: nor read or write A's lead CHAT. */
   const comment = await pageB.request.post(`/api/b-systems/leads/${leadId}/comments`, {
     data: { body: "sneaky @Elmur" },

@@ -1148,3 +1148,28 @@ comment, and the ADR-013 mechanism note all fixed; .env.example confirmed tracke
 - In progress: founder batch continues — lead archiving next.
 - Next steps / Blockers: unchanged otherwise.
 - Needs founder confirmation: none new. Carried: see Entries 023–029.
+
+## Entry 031 — 2026-08-14 — Founder: lead archive (ADR-043)
+- Done: Lead.archived + archivedAt (+migration), setArchived service
+  (activity-logged archived/unarchived), archive routes for both brands
+  (B-Systems behind requireLeadAccess, ByteForce behind
+  requireBrandStaff), and the exclusion sweep: both boards, Leads
+  default lists, rep-card + unassigned counts, all lead-based dashboard
+  numbers, admin-home external pipeline, and the To-Do projection.
+  Archive UI: Archive (inline confirm) / Unarchive on both lead detail
+  pages + "Archived" badge in the headers (.badge--archived, tokens);
+  the B-Systems Leads filter row gained an Active/Archived view select
+  (Archived IS the archive); ByteForce rep-leads tables got a matching
+  Active/Archived toggle. Money-trail surfaces (clients, won leads,
+  statements, payments) deliberately keep archived leads' records. New
+  strings as Msg {en, ar} (archiveMsgs). Verified: tsc clean, vitest
+  101/101, Playwright 21 passed / 2 audit-opt-in skipped (TESTING Run
+  034).
+- In progress: —
+- Next steps: founder review of the whole batch (Entries 027–031).
+- Blockers: none new.
+- Needs founder confirmation: agents/partners can archive their OWN
+  leads but have no archive list of their own — restoring needs the
+  lead URL or the admin's Archived view; say the word if agents should
+  get an Archived toggle on their board/list too. Carried: see Entries
+  023–029.

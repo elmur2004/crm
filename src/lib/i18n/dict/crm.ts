@@ -68,6 +68,19 @@ export const ownerFilters = {
   admin: { en: "Admins", ar: "مديرون" },
 } satisfies Record<string, Msg>;
 
+/* Founder (ADR-043) — archive: soft-hide with a way back. */
+export const archiveMsgs = {
+  archive: { en: "Archive", ar: "أرشفة" },
+  unarchive: { en: "Unarchive", ar: "إلغاء الأرشفة" },
+  archived: { en: "Archived", ar: "مؤرشف" },
+  active: { en: "Active", ar: "نشط" },
+  confirmArchive: {
+    en: "Archive this lead? It leaves the board and lists — restore it any time from the Archived view.",
+    ar: "أرشفة هذا العميل المحتمل؟ سيغادر اللوحة والقوائم — يمكن استعادته في أي وقت من عرض المؤرشف.",
+  },
+  archiveFailed: { en: "Could not archive the lead", ar: "تعذّرت أرشفة العميل المحتمل" },
+} satisfies Record<string, Msg>;
+
 /* Founder — leads list filters + ordering ("filter of the stage and the type
    and the owner", "last edited, last added, closer-to-the-finish first"). */
 export const leadsFilters = {

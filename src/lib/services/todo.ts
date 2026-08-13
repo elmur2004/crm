@@ -51,6 +51,7 @@ export function cairoDayWindow(now: Date): { start: Date; end: Date } {
 function leadWhere(brand: Brand, scope: TodoScope) {
   return {
     brand,
+    archived: false, // ADR-043: archived leads carry no to-dos
     ...(scope.kind === "internal" ? { ownerType: "internal" } : {}),
     ...(scope.kind === "own" ? { ownerUserId: scope.userId } : {}),
   };

@@ -9,7 +9,13 @@ import { formatCairoDate } from "@/lib/datetime";
 import { tFor, type Msg } from "@/lib/i18n/core";
 import { getLocale } from "@/lib/i18n/server";
 import { leadTypeLabel, ownerTypeLabel, stageLabel } from "@/lib/i18n/dict/labels";
-import { common, leadsFilters as lf, leadsPage as m, ownerFilters } from "@/lib/i18n/dict/crm";
+import {
+  archiveMsgs,
+  common,
+  leadsFilters as lf,
+  leadsPage as m,
+  ownerFilters,
+} from "@/lib/i18n/dict/crm";
 import { StageBadge } from "@/components/shared/StageBadge";
 import { BsAddLeadForm } from "@/components/bsystems/leadActions";
 
@@ -38,7 +44,13 @@ const SORT_LABEL: Record<LeadSort, Msg> = {
 export default async function BsLeadsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ owner?: string; stage?: string; type?: string; sort?: string }>;
+  searchParams: Promise<{
+    owner?: string;
+    stage?: string;
+    type?: string;
+    sort?: string;
+    view?: string;
+  }>;
 }) {
   const user = await requirePageRole(
     "/login",
@@ -62,8 +74,9 @@ export default async function BsLeadsPage({
   const sort: LeadSort = (LEAD_SORTS as readonly string[]).includes(params.sort ?? "")
     ? (params.sort as LeadSort)
     : "added";
+  const archived = params.view === "archived"; // ADR-043: this IS the archive
 
-  const fetched = await listBsLeads(owner);
+  const fetched = await listBsLeads(owner, { archived });
   const leads = sortLeads(
     fetched.filter(
       (l) => (stage === "any" || l.stage === stage) && (type === "any" || l.type === type),
@@ -112,6 +125,15 @@ export default async function BsLeadsPage({
               {t(SORT_LABEL[s])}
             </option>
           ))}
+        </select>
+        <select
+          name="view"
+          defaultValue={archived ? "archived" : "active"}
+          aria-label={t(archiveMsgs.archived)}
+          className="field-input w-auto"
+        >
+          <option value="active">{t(archiveMsgs.active)}</option>
+          <option value="archived">{t(archiveMsgs.archived)}</option>
         </select>
         <button type="submit" className="btn-ghost btn--sm">
           {t(lf.apply)}

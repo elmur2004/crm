@@ -11,6 +11,8 @@ import { getLocale } from "@/lib/i18n/server";
 import { leadTypeLabel, ownerTypeLabel } from "@/lib/i18n/dict/labels";
 import { common, crmPage, leadDetail as m } from "@/lib/i18n/dict/crm";
 import { StageBadge } from "@/components/shared/StageBadge";
+import { ArchiveButton } from "@/components/shared/ArchiveButton";
+import { archiveMsgs } from "@/lib/i18n/dict/crm";
 import { GroupHistory } from "@/components/internal/GroupHistory";
 import { HistoryPanel } from "@/components/internal/HistoryPanel";
 import { BsEventPanel } from "@/components/bsystems/BsEventPanel";
@@ -95,6 +97,10 @@ export default async function BsLeadDetailPage({
         </div>
         <div className="page-actions">
           <CopyLeadButton lead={editable} />
+          <ArchiveButton
+            postUrl={`/api/b-systems/leads/${lead.id}/archive`}
+            archived={lead.archived}
+          />
           {access.isAdmin ? <DeleteLeadButton leadId={lead.id} /> : null}
         </div>
       </div>
@@ -109,6 +115,9 @@ export default async function BsLeadDetailPage({
             ) : null}
             {lead.noAnswer ? (
               <span className="badge badge--noanswer">{t(common.noAnswer)}</span>
+            ) : null}
+            {lead.archived ? (
+              <span className="badge badge--archived">{t(archiveMsgs.archived)}</span>
             ) : null}
           </h1>
         </div>

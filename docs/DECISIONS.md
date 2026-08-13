@@ -902,3 +902,34 @@ R23 copy sign-off — carried in PROGRESS (Entry 011).
   e2e/byteforce-board.spec.ts covers drag→form→confirm, the
   didn't-answer toggle, and whole-card open on /byteforce/crm.
 - Status: Accepted
+
+## ADR-043 — 2026-08-14 — Lead archive: a soft-hide flag, no data loss, restorable
+- Context: Founder — "go inside a lead and archive it, it goes into the
+  archive; I can open the archive and unarchive."
+- Decision: Lead.archived Boolean @default(false) + archivedAt
+  DateTime? (migration 20260813232652_lead_archive). setArchived(brand,
+  leadId, value, actor) toggles the flag (activity-logged "archived" /
+  "unarchived"); POST /api/b-systems/leads/[id]/archive behind
+  requireLeadAccess (admin any / sales internal / agent+partner own)
+  and /api/byteforce/leads/[id]/archive behind requireBrandStaff.
+  Archived leads leave: both CRM boards, the Leads lists' default
+  views, the rep-card counts + unassigned count, every lead-based
+  dashboard number, the admin-home external pipeline, and the To-Do
+  projection. The way back: the B-Systems Leads page's new view select
+  ("Active" default / "Archived" — that IS the archive) and a matching
+  Active/Archived toggle on the ByteForce rep-leads tables; unarchive
+  lives on the lead detail (Archive asks an inline confirm à la
+  DeleteLeadButton; Unarchive is one click; an "Archived" badge shows
+  in both detail headers, .badge--archived, surface-tint tokens).
+- Alternatives considered: hard delete — exists already (admin, V2
+  §11) and loses data; a terminal "archived" STAGE — rejected: archive
+  is orthogonal to pipeline position (the stage survives and returns
+  intact on unarchive).
+- Resolves: — (founder directive; no SPEC §11 A-#)
+- Consequences: financial surfaces deliberately KEEP archived leads'
+  records — clients/toBeCollected, Won Leads, statements, and payments
+  are money-trail views, not lead lists. Agent/partner detail tables in
+  the admin's Agents/Partners sections also keep them (management
+  views). An agent who archives an own lead restores it via the lead's
+  URL or asks the admin (agents have no archive list) — flagged below.
+- Status: Accepted

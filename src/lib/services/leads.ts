@@ -147,6 +147,28 @@ export async function setNoAnswer(brand: Brand, leadId: string, value: boolean, 
   });
 }
 
+/* Founder (ADR-043) — archive: a soft-hide flag, no data loss, restorable.
+   Archived leads leave the boards, the default lists, the dashboards, and the
+   To-Do projection; the Archived view on the Leads pages is the way back. */
+export async function setArchived(brand: Brand, leadId: string, value: boolean, actor: Actor) {
+  const lead = await getLead(brand, leadId);
+  if (lead.archived === value) return lead;
+  return db.$transaction(async (tx) => {
+    const fresh = await tx.lead.update({
+      where: { id: lead.id },
+      data: { archived: value, archivedAt: value ? new Date() : null },
+    });
+    await writeLog(tx, {
+      entityType: "lead",
+      entityId: lead.id,
+      actor,
+      action: "update",
+      trigger: value ? "archived" : "unarchived",
+    });
+    return fresh;
+  });
+}
+
 /* V2 §11 + founder V4 — admin delete (hard delete; children cascade). A WON
    lead cascades its whole financial trail: statements (+proof files),
    milestones, the won deal, then the lead. */
