@@ -968,3 +968,64 @@ R23 copy sign-off — carried in PROGRESS (Entry 011).
   clusters; the app orders by timestamps or by curated labels, and the full
   suite passes unchanged.
 - Status: Accepted
+
+## ADR-045 — 2026-08-14 — Undo: a snapshot-inverse behind an allowlist, one step, never financial
+- Context: Founder — "we need an undo button; I don't know what's the best way
+  to do it, but figure out the best way to have an undo button that undoes the
+  last action I did on the system." The system's writes are transactional and
+  side-effecting (a stage move can mint child records, clients, won deals,
+  milestones and statements), so "undo" cannot mean "reverse the last SQL".
+- Decision: an UndoEntry table (migration 20260814131216_undo_entry). Every
+  UNDOABLE mutation writes exactly one row INSIDE its own transaction carrying
+  the INVERSE — the prior state plus the ids that write created — never a
+  replay log. The allowlist is explicit: lead stage event (revert the stage +
+  the auto-cleared no-answer flag, delete the group record(s) it created,
+  restore any record it mutated in place), no-answer toggle, ready-to-close
+  flag, archive/unarchive, lead field edit (prior value of exactly the edited
+  fields), lead create (delete the lead), and partner-prospect stage event.
+  Everything else is simply not recorded.
+  Five guards, all server-side in performUndo:
+  (1) OWNERSHIP — an entry belongs to the user who made the change; admins are
+      not special, they undo their own actions only.
+  (2) RECENCY — only that user's latest unconsumed entry, and only within
+      UNDO_WINDOW_MS (10 minutes); past it the entry is retired, not applied.
+  (3) INTEGRITY — the entity's updatedAt is fingerprinted at write time; if it
+      differs at undo time the answer is "This changed since — undo is no
+      longer safe" and nothing is touched.
+  (4) ONCE — the row is claimed with a conditional updateMany inside the undo's
+      own transaction, so a double-click finds count 0 and gets a clean 409.
+  (5) HONESTY — actions that are NOT undoable retire the user's pending entries
+      (invalidateUndo): a Won transition, a lead delete, a partner conversion, a
+      milestone check/uncheck, a statement created or marked paid. The button
+      goes quiet rather than offering to revert something older than the last
+      thing that happened.
+  Undo is ONE STEP, not a history stack: applying it also retires that user's
+  other pending entries (walking further back would offer inverses whose
+  fingerprints the undo itself has just invalidated). Every undo writes an
+  ActivityLog row (action "update", trigger "undo") — a reversal is history,
+  not a silent rewrite. UI: a snackbar-style pill at the bottom start of every
+  page in both apps (POST /api/undo), labelled with the sentence the server
+  stored when the action happened, in EN or AR.
+- Alternatives considered: full event-sourcing / replay (every write becomes an
+  event and undo replays the log) — rejected: it demands rewriting every
+  service around an event store, and inverse-replaying side effects (client
+  creation, commissions) is exactly the dangerous part; generic DB-level
+  rollback (savepoints, temporal tables, restoring a backup) — rejected: it
+  cannot be scoped to ONE user's last action while other people keep working,
+  and it would silently revert their writes too; a global "trash/restore for
+  everything" — rejected as a much larger product, unasked for; making Won
+  undoable while nothing financial exists yet — rejected: it would have to
+  unwind a WonDeal, its milestones and the auto-created Client, and the moment
+  the rule ("only if untouched") is a moment old it is a data-loss bug.
+- Resolves: — (founder directive; no SPEC §11 A-#)
+- Consequences: the header stays as it was — the pill floats instead, because
+  both app headers are full at 1440px (a chip there pushed nav links into the
+  hidden overflow). persistGroup now RETURNS what it wrote (GroupWrites), which
+  the leads and partners services thread into the snapshot. The fingerprint
+  covers the ENTITY ROW: a change to a child record that never touches the lead
+  row is not detected, so an undo can still delete the group record it created
+  under a later, unrelated child write — bounded by the 10-minute window and by
+  undo only ever deleting ids it recorded itself. Impersonated writes carry the
+  impersonated user's id, so the undo belongs to that account. Seed/system
+  writes have no actor id and are never undoable.
+- Status: Accepted

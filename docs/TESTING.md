@@ -732,3 +732,38 @@ every dashboard formula, journeys 1-5 (SPEC §13).
   regression proof that the inline panel does not disturb the
   full-bleed board's alignment or introduce overflow.
 - Verdict: PASS.
+
+## Run 039 — 2026-08-14 — Undo (ADR-045)
+- Suites/commands: `npx tsc --noEmit` (clean) · `npx vitest run` (126 —
+  ten NEW tests in the NEW src/lib/services/undo.integration.test.ts) ·
+  `npx playwright test` (full suite incl. NEW e2e/undo.spec.ts). Local
+  dev, embedded Postgres (per-run instances).
+- Cases: vitest 126 passed / 0 failed / 0 skipped · Playwright full 24
+  passed / 0 failed / 2 skipped (audit opt-in skips, by design). Full
+  e2e wall time 4.3m.
+- Failures: three during the round, all fixed before the final run —
+  (1) two undo tests written against assumptions that did not hold (the
+  stage label is "Following Up", and backdating only the NEWEST entry
+  fakes a state expiry cannot produce); (2) a real design correction
+  found while fixing them — undo now retires the user's other pending
+  entries so it is ONE step, never a stack offering inverses its own
+  application has invalidated; (3) after the undo pill landed,
+  getByLabel("Search") in the filters spec matched the pill too (its
+  accessible name reads "Undo: Added Sidebar Search Lead") — the spec's
+  locators are exact now.
+- SPEC coverage touched: no §10 rows change — undo REVERSES a row's
+  effect, it never introduces a transition (every application writes an
+  ActivityLog row with trigger "undo"). New coverage: (unit) each
+  allowlisted kind restores its prior state — stage event (stage back,
+  created follow-up gone, entry spent, second call refused), no-answer,
+  ready-to-close, archive/unarchive, field edit (only edited fields
+  restored), lead create (deletes the fresh lead; REFUSES once it has
+  history), prospect stage event; and the guards — another user can
+  neither see nor apply it, an expired entry is neither offered nor
+  applied (and is retired), a fingerprint mismatch after a colleague's
+  move refuses without touching anything, a Won transition is never
+  undoable and silences the button, and money moves (milestone check)
+  plus deletions retire pending entries. (e2e) admin moves a card on the
+  board, the pill names that exact move, one click puts the card back in
+  New and the pill disappears; deleting leaves it quiet.
+- Verdict: PASS.

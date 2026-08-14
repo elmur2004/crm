@@ -721,6 +721,38 @@ label:has(input[required]) .dropzone-title::after {
   }
 }
 
+/* ---------- undo control (ADR-045) — a snackbar pill, both apps ----------
+   Deliberately NOT a header item: both headers are full at 1440px, and a chip
+   up there pushed nav links into the hidden overflow. Floating at the bottom
+   start it costs no layout, carries the full description of what it will
+   revert, and is present on every page of both apps. It renders only while an
+   undoable action is pending, so it is never permanent furniture. */
+.undo-fab {
+  position: fixed; inset-block-end: 18px; inset-inline-start: 18px; z-index: 45;
+  max-width: min(420px, calc(100vw - 36px));
+}
+.undo-btn {
+  display: inline-flex; align-items: center; gap: 8px; max-width: 100%; cursor: pointer;
+  border-radius: 22px; padding-block: 9px; padding-inline: 12px 15px; /* icon side tighter — mirrors under RTL */
+  background: var(--color-toast-surface); color: var(--color-toast-ink); border: none;
+  box-shadow: var(--shadow-toast); font: 600 12.5px var(--font-body);
+  animation: ds-rise .2s ease-out backwards;
+}
+/* lift by mixing the ink INTO the surface: a brightness filter is invisible on
+   a near-black token, and the mix stays token-driven for both brands */
+.undo-btn:hover { background: color-mix(in srgb, var(--color-toast-ink) 15%, var(--color-toast-surface)); }
+.undo-btn:disabled { opacity: .6; cursor: default; }
+.undo-icon { width: 15px; height: 15px; flex: none; }
+.undo-label { flex: none; }
+.undo-what {
+  font-weight: 400; opacity: .78; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+@media (max-width: 560px) {
+  .undo-fab { inset-block-end: 12px; inset-inline-start: 12px; max-width: calc(100vw - 24px); }
+  .undo-what { display: none; } /* the accessible name still carries it */
+}
+
 /* ---------- filter sidebar (founder: "make it as a sidebar", not a top strip)
    Start-side column beside the list from 900px up; below that the same card
    collapses behind the .filter-toggle disclosure (count chip = active filters)

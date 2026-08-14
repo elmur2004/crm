@@ -384,3 +384,26 @@ model ActivityLog {
 
   @@index([entityType, entityId, createdAt])
 }
+
+model UndoEntry {
+  // Founder: "an undo button that undoes the last action I did on the system"
+  // (ADR-045). One row per UNDOABLE mutation, written inside that mutation's
+  // own transaction. `payload` is the INVERSE — a snapshot of the prior state
+  // plus the ids this action created — never a replay log. Rows are consumed
+  // (never deleted) so a double-click cannot apply twice, and non-undoable
+  // actions consume the user's outstanding rows so the button never offers to
+  // revert something older than the last thing that happened.
+  id          String    @id @default(cuid())
+  userId      String // undo is personal: only its author may apply it
+  kind        String // lead_event | lead_no_answer | lead_ready | lead_archive | lead_update | lead_create | prospect_event
+  entityType  String // lead | partner_prospect
+  entityId    String
+  label       String // English snapshot of what will be reverted
+  labelAr     String // Arabic snapshot (bilingual UI, V5)
+  fingerprint String // the entity's updatedAt at write time — changed since = refuse
+  payload     Json
+  createdAt   DateTime  @default(now())
+  consumedAt  DateTime?
+
+  @@index([userId, consumedAt, createdAt])
+}

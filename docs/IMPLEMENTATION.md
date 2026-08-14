@@ -620,3 +620,38 @@ _Format per module:_
   (the filter is the view), but is worth remembering when debugging
   "my card vanished".
 - Last updated: 2026-08-14 (Entry 035, TESTING Run 038)
+
+## Undo — snapshot-inverse with an allowlist (ADR-045)
+- Location: prisma/schema.prisma model UndoEntry (+ migration
+  20260814131216_undo_entry), src/lib/services/undo.ts (recordUndo,
+  invalidateUndo, pendingUndoFor, performUndo, UNDO_WINDOW_MS), the call
+  sites in services/leads.ts (create/update/no-answer/ready/archive/
+  applyLeadEvent + deleteLead), services/partners.ts
+  (applyProspectEvent), services/milestones.ts and services/statements.ts
+  (invalidate only), POST /api/undo, and the UI pair
+  components/shared/UndoControl.tsx (server read) +
+  UndoButton.tsx (client), mounted by both app layouts.
+- What exists / how it works: an undoable mutation calls recordUndo with
+  the entity's POST-mutation updatedAt as a fingerprint, a bilingual
+  label snapshot, and a payload holding the prior state. performUndo
+  claims the newest unconsumed entry atomically, verifies ownership,
+  window, and fingerprint, applies the inverse, retires the user's other
+  pending entries (one step, not a stack) and logs trigger "undo".
+  persistGroup returns GroupWrites {created, updated} so a stage event
+  knows exactly which child rows to delete and which in-place updates to
+  restore. The pill is server-rendered from the layout, so it appears and
+  disappears on the router.refresh() every mutation already performs — no
+  polling.
+- Limitations / gotchas: the fingerprint is the ENTITY ROW's updatedAt —
+  a later change to a CHILD record does not bump it, so an undo can still
+  fire under an unrelated child write (bounded: it only deletes ids it
+  recorded itself, inside 10 minutes). Adding a new undoable action means
+  three things together: record the inverse inside the SAME transaction,
+  extend the UndoKind switch, and add a test — a kind with no branch
+  throws "This action cannot be undone" at apply time, which is safe but
+  useless. Any new financial or destructive path must call invalidateUndo
+  or the button will offer a stale-but-valid older action. E2E locators
+  beware: the pill's accessible name embeds the label ("Undo: Added
+  Sidebar Search Lead"), so substring getByLabel matches can collide —
+  use exact matching.
+- Last updated: 2026-08-14 (Entry 036, ADR-045, TESTING Run 039)

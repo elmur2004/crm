@@ -1331,3 +1331,58 @@ comment, and the ADR-013 mechanism note all fixed; .env.example confirmed tracke
   inside the Filters card — switching bucket costs a click more than
   before; say the word and the tabs come back beside the panel.
   Carried: see Entries 023–034.
+
+## Entry 036 — 2026-08-14 — Founder: Undo the last action (ADR-045)
+- Done: a real undo, designed conservatively (ADR-045). New UndoEntry
+  table (migration 20260814131216_undo_entry): every undoable mutation
+  writes ONE row inside its own transaction holding the INVERSE — the
+  prior state plus the ids that write created — never a replay log.
+  Allowlist: lead stage event (stage + auto-cleared no-answer flag back,
+  the group record it created deleted, anything it mutated in place
+  restored — proposal sent/sentAt, meeting outcome, meeting reschedule),
+  no-answer, ready-to-close, archive/unarchive, lead edit (only the
+  edited fields), lead create (deletes the lead), partner-prospect stage
+  event (incl. the PP-1 dialed-numbers list). Guards: only the author
+  may undo; only their latest unconsumed entry; only within 10 minutes;
+  refused with "This changed since — undo is no longer safe" when the
+  entity's fingerprinted updatedAt moved; claimed atomically so a
+  double-click cannot apply twice; and every application writes an
+  activity row (trigger "undo"). NOT undoable, by design: deletions
+  (the data is gone) and anything financial — a Won transition, a
+  partner conversion, a milestone check/uncheck, a statement created or
+  paid. Those RETIRE the user's pending entries, so the button never
+  offers to revert something older than the last thing that happened;
+  and undo is one step, not a stack (applying it retires the rest).
+  UI: a snackbar-style pill at the bottom start of every page in both
+  apps, labelled with what it will revert ("Undo · Moved Acme Corp to
+  Following Up"), EN/AR from a label snapshot stored at write time. It
+  is NOT in the header: a chip there pushed nav links into the hidden
+  overflow at 1440px (screenshots showed Agents/Registrations
+  disappearing) — noted below in case the founder wants it up there
+  anyway. One click, no confirmation, result via the shared toast.
+  Verified: tsc clean, vitest 126/126 (+10, new undo.integration.test),
+  Playwright 24 passed / 2 audit-opt-in skipped (TESTING Run 039);
+  screenshots reviewed on both brands, in Arabic RTL, and at 390px.
+  brand-auditor on the diff: tokens, scope, both brands' rules, the
+  no-emoji rule and the bilingual Msg layer all clean; it caught one
+  real RTL defect — the pill's asymmetric padding was a physical
+  4-value shorthand, so the tight icon-side padding landed on the text
+  in Arabic (now padding-block/padding-inline) — plus an invisible
+  hover (a brightness filter on a near-black token, now a token
+  color-mix) and one dead dict entry, both fixed. It also re-flagged
+  the KNOWN gap that server-side ApiError strings are English-only
+  (Entry 022 item (i)): the undo refusals ("This changed since — undo
+  is no longer safe") inherit it, and translating them still waits on
+  the error-code scheme.
+- In progress: —
+- Next steps: founder review of requests 1–3 (Entries 034–036).
+- Blockers: none new.
+- Needs founder confirmation: (i) undo is deliberately ONE step and
+  10 minutes — say the word for a longer window or a multi-step stack;
+  (ii) it deliberately refuses anything financial (wins, milestones,
+  statements) and deletions — those need a correction flow, not an
+  undo; (iii) the pill floats at the bottom start rather than sitting
+  in the header (the header is full) — it can move up if the founder
+  prefers, at the cost of nav links at 1440px. Carried: see Entries
+  023–035 (incl. the WIN1252 local-database recreation, the board's
+  owner tabs, and the Arabic wording for Organic).

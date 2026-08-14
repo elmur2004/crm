@@ -4,6 +4,7 @@ import { ApiError } from "@/lib/api-error";
 import { MAX_PIASTERS } from "@/lib/money";
 import { storage, validateAndStore } from "@/lib/storage";
 import { writeLog, type Actor } from "./activity";
+import { invalidateUndo } from "./undo";
 
 /* V2 §7 — Statements & payments.
    "Waiting to be paid out" = every CHECKED milestone of a B-Systems won lead that
@@ -103,6 +104,7 @@ export async function createStatement(
       action: "create",
       trigger: code,
     });
+    await invalidateUndo(tx, actor); // ADR-045: money moves are never undoable
     return statement;
   });
 }
@@ -267,6 +269,7 @@ export async function markStatementPaid(statementId: string, proof: File, actor:
       action: "update",
       trigger: "paid",
     });
+    await invalidateUndo(tx, actor); // ADR-045: money moves are never undoable
     return updated;
   });
 }

@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 
 export async function resetDb(): Promise<void> {
   await db.activityLog.deleteMany();
+  await db.undoEntry.deleteMany(); // ADR-045 — undo snapshots are operational rows too
   await db.attachment.deleteMany(); // references Statement/WonDeal/PortalRep — first
   await db.statement.deleteMany(); // references Milestone (restrict)
   await db.milestone.deleteMany();

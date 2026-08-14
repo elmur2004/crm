@@ -5,6 +5,7 @@ import { ImpersonationBar } from "@/components/shared/ImpersonationBar";
 import { EntitySwitch } from "@/components/shared/EntitySwitch";
 import { LanguageToggle } from "@/components/shared/LanguageToggle";
 import { ShellNav } from "@/components/shared/ShellNav";
+import { UndoControl } from "@/components/shared/UndoControl";
 import { logout } from "@/lib/auth/actions";
 import { requirePageRole } from "@/lib/auth/page-guards";
 import { bsRoleOf } from "@/lib/api/bsystems";
@@ -123,6 +124,7 @@ export default async function BSystemsAppLayout({
         </div>
       </header>
       <main className="page max-w-7xl mx-auto w-full">{children}</main>
+      <UndoControl userId={user.id} />
     </>
   );
 }

@@ -3,7 +3,10 @@ import { expect, test } from "@playwright/test";
 /* Founder (filters round 2): the Leads controls live in a sidebar and lead with
    ONE search box — name, company, or number, matched server-side. This covers
    the partial-number path (with a space in the query), the "no matches" empty
-   state, the Clear filters reset, and the 390px disclosure. */
+   state, the Clear filters reset, and the 390px disclosure.
+   getByLabel("Search", { exact: true }) is deliberate: creating a lead arms the
+   ADR-045 undo pill, whose accessible name ("Undo: Added Sidebar Search Lead")
+   would otherwise also match a substring locator. */
 
 test("admin: search the Leads sidebar by a partial number, then clear the filters", async ({
   page,
@@ -30,7 +33,7 @@ test("admin: search the Leads sidebar by a partial number, then clear the filter
   await expect(page.getByRole("link", { name: "Delta Fresh Foods" })).toBeVisible();
 
   /* Partial number WITH a space — the query is matched digits-only too. */
-  await page.getByLabel("Search").fill("010 7776");
+  await page.getByLabel("Search", { exact: true }).fill("010 7776");
   await page.getByRole("button", { name: "Apply" }).click();
   await page.waitForURL(/q=010\+7776/);
   await expect(page.locator("table.table tbody tr")).toHaveCount(1);
@@ -38,7 +41,7 @@ test("admin: search the Leads sidebar by a partial number, then clear the filter
   await expect(page.getByRole("link", { name: "Delta Fresh Foods" })).toHaveCount(0);
 
   /* A query that matches nothing says so plainly. */
-  await page.getByLabel("Search").fill("zzqqx");
+  await page.getByLabel("Search", { exact: true }).fill("zzqqx");
   await page.getByRole("button", { name: "Apply" }).click();
   await expect(page.getByText("No leads match these filters.")).toBeVisible();
 
@@ -61,7 +64,7 @@ test("admin: search the Leads sidebar by a partial number, then clear the filter
   expect(arabic.status()).toBe(201);
   const { id: arabicId } = (await arabic.json()) as { id: string };
   await page.goto("/b-systems/leads");
-  await page.getByLabel("Search").fill("للأغذية");
+  await page.getByLabel("Search", { exact: true }).fill("للأغذية");
   await page.getByRole("button", { name: "Apply" }).click();
   await expect(page.locator("table.table tbody tr")).toHaveCount(1);
   await expect(page.getByRole("link", { name: "دلتا للأغذية" })).toBeVisible();
@@ -70,13 +73,13 @@ test("admin: search the Leads sidebar by a partial number, then clear the filter
   /* 390px: the sidebar collapses behind the Filters disclosure. */
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/b-systems/leads");
-  await expect(page.getByLabel("Search")).toBeHidden();
+  await expect(page.getByLabel("Search", { exact: true })).toBeHidden();
   await page.getByRole("button", { name: "Filters" }).click();
-  await expect(page.getByLabel("Search")).toBeVisible();
+  await expect(page.getByLabel("Search", { exact: true })).toBeVisible();
 
   /* ...but when something IS filtered it opens on its own, showing what is on. */
   await page.goto("/b-systems/leads?q=Findable");
-  await expect(page.getByLabel("Search")).toHaveValue("Findable");
+  await expect(page.getByLabel("Search", { exact: true })).toHaveValue("Findable");
   await expect(page.getByRole("link", { name: "Sidebar Search Lead" })).toBeVisible();
 
   /* Leave the shared e2e database as we found it. */
@@ -100,14 +103,14 @@ test("admin: search and filter the CRM board cards; ByteForce board filters too"
 
   /* The panel is a disclosure at EVERY width here (the board is full-bleed). */
   await page.getByRole("button", { name: "Filters" }).click();
-  await page.getByLabel("Search").fill("Delta Fresh");
+  await page.getByLabel("Search", { exact: true }).fill("Delta Fresh");
   await page.getByRole("button", { name: "Apply" }).click();
   await page.waitForURL(/q=Delta\+Fresh/);
   await expect(page.locator('[data-deal-card="Delta Fresh Foods"]')).toBeVisible();
   await expect(page.locator('[data-deal-card="Fresh Deal"]')).toHaveCount(0);
 
   /* With a filter on, the panel comes back open showing what is applied. */
-  await expect(page.getByLabel("Search")).toHaveValue("Delta Fresh");
+  await expect(page.getByLabel("Search", { exact: true })).toHaveValue("Delta Fresh");
   await page.getByRole("link", { name: "Clear filters" }).click();
   await page.waitForURL(/\/b-systems\/crm$/);
   await expect(page.locator('[data-deal-card="Fresh Deal"]')).toBeVisible();

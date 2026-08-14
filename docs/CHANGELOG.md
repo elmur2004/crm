@@ -1,5 +1,25 @@
 # Changelog — user-visible changes per phase/release
 
+## Undo your last action (2026-08-14)
+- Did something by mistake? A small "Undo" button now appears at the
+  bottom of the screen right after an action, and it tells you exactly
+  what it will take back — for example "Undo · Moved Acme Corp to
+  Following Up". One click, no questions asked, and the screen updates.
+- It covers moving a lead to another stage (the follow-up, meeting,
+  proposal, negotiation note or lost reason that move created is removed
+  with it), the "Didn't answer" flag, "Mark ready to close", archiving
+  and unarchiving, editing a lead's details, adding a lead, and moving a
+  partnership card. It works the same in both apps and in Arabic.
+- On purpose, some things are NOT undoable: deleting (the data is gone),
+  and anything to do with money — confirming a win, converting a
+  partner, ticking a milestone, creating or paying a statement. After
+  one of those the Undo button simply doesn't appear, so it can never
+  quietly take back something older instead.
+- Other rules that keep it safe: only you can undo your own action, only
+  the last one, only within about ten minutes, and never if someone else
+  has touched that lead in the meantime — in which case it says so
+  instead of overwriting their work.
+
 ## Search and filters on the CRM boards (2026-08-14)
 - The CRM board now has the same search and filters as the Leads page:
   a "Filters" button above the board opens the same card, with the

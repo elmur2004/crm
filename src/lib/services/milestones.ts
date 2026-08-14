@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { ApiError } from "@/lib/api-error";
 import { writeLog, type Actor } from "./activity";
+import { invalidateUndo } from "./undo";
 
 /* V2 §4/§7 — milestone progress (ADMIN ONLY at the API layer). Milestones are
    created by the confirm-win tab (leads service); checking milestone i unlocks
@@ -32,6 +33,7 @@ export async function checkMilestone(milestoneId: string, actor: Actor) {
       action: "milestone_check",
       trigger: "P-8",
     });
+    await invalidateUndo(tx, actor); // ADR-045: money moves are never undoable
   });
 }
 
@@ -60,5 +62,6 @@ export async function uncheckMilestone(milestoneId: string, actor: Actor) {
       action: "milestone_uncheck",
       trigger: "P-8",
     });
+    await invalidateUndo(tx, actor); // ADR-045: money moves are never undoable
   });
 }

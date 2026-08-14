@@ -22,6 +22,16 @@ import {
 } from "./groups";
 import { writeLog, type Actor } from "./activity";
 import { notifyAdmins } from "./notifications";
+import {
+  invalidateUndo,
+  recordUndo,
+  type CreatedRef,
+  type StageEventSnapshot,
+  type UpdatedRef,
+} from "./undo";
+import { formatMsg } from "@/lib/i18n/core";
+import { stageLabel } from "@/lib/i18n/dict/labels";
+import { undoLabels } from "@/lib/i18n/dict/undo";
 
 /* V2 (ADR-030): ByteForce keeps the v1 pipeline; B-Systems runs the unified
    role-aware pipeline (negotiation stage, milestone-tab win, owner buckets). */
@@ -92,6 +102,20 @@ export async function createLead(
       toStage: "new",
       trigger: opts?.attribution ? "PP-5" : "create",
     });
+    /* ADR-045: undoing a fresh lead deletes it — refused later if it has since
+       grown any history (the guard lives in performUndo). */
+    const undoLabel = formatMsg(undoLabels.added, { name: lead.name });
+    await recordUndo({
+      tx,
+      actor,
+      kind: "lead_create",
+      entityType: "lead",
+      entityId: lead.id,
+      fingerprint: lead.updatedAt,
+      label: undoLabel.en,
+      labelAr: undoLabel.ar,
+      payload: {},
+    });
     return lead;
   });
 }
@@ -121,6 +145,18 @@ export async function markReadyToClose(brand: Brand, leadId: string, actor: Acto
       actor,
       action: "update",
       trigger: "B-RTC",
+    });
+    const undoLabel = formatMsg(undoLabels.markedReady, { name: lead.name });
+    await recordUndo({
+      tx,
+      actor,
+      kind: "lead_ready",
+      entityType: "lead",
+      entityId: lead.id,
+      fingerprint: fresh.updatedAt,
+      label: undoLabel.en,
+      labelAr: undoLabel.ar,
+      payload: { readyToClose: false },
     });
     return fresh;
   });
@@ -153,6 +189,21 @@ export async function setNoAnswer(brand: Brand, leadId: string, value: boolean, 
       action: "update",
       trigger: value ? "no_answer" : "no_answer_cleared",
     });
+    const undoLabel = formatMsg(
+      value ? undoLabels.flaggedNoAnswer : undoLabels.clearedNoAnswer,
+      { name: lead.name },
+    );
+    await recordUndo({
+      tx,
+      actor,
+      kind: "lead_no_answer",
+      entityType: "lead",
+      entityId: lead.id,
+      fingerprint: fresh.updatedAt,
+      label: undoLabel.en,
+      labelAr: undoLabel.ar,
+      payload: { noAnswer: !value },
+    });
     return fresh;
   });
 }
@@ -174,6 +225,23 @@ export async function setArchived(brand: Brand, leadId: string, value: boolean, 
       actor,
       action: "update",
       trigger: value ? "archived" : "unarchived",
+    });
+    const undoLabel = formatMsg(value ? undoLabels.archived : undoLabels.unarchived, {
+      name: lead.name,
+    });
+    await recordUndo({
+      tx,
+      actor,
+      kind: "lead_archive",
+      entityType: "lead",
+      entityId: lead.id,
+      fingerprint: fresh.updatedAt,
+      label: undoLabel.en,
+      labelAr: undoLabel.ar,
+      payload: {
+        archived: lead.archived,
+        archivedAt: lead.archivedAt ? lead.archivedAt.toISOString() : null,
+      },
     });
     return fresh;
   });
@@ -215,6 +283,9 @@ export async function deleteLead(brand: Brand, leadId: string, actor: Actor) {
       action: "update",
       trigger: "deleted",
     });
+    /* ADR-045: deletion is NOT undoable (the data is gone) — and it must not
+       leave an older entry behind for the button to offer instead. */
+    await invalidateUndo(tx, actor);
   });
   for (const key of orphanedFileKeys) {
     await storage.delete(key); // best-effort after commit
@@ -257,9 +328,42 @@ export async function updateLead(
       action: "update",
       trigger: "edit",
     });
+    /* ADR-045: the inverse of an edit is the PRIOR value of exactly the fields
+       this call touched — nothing else is put back. */
+    const before: Record<string, string | null> = {};
+    for (const field of EDITABLE_FIELDS) {
+      if (input[field] !== undefined) before[field] = lead[field] ?? null;
+    }
+    const undoLabel = formatMsg(undoLabels.edited, { name: lead.name });
+    await recordUndo({
+      tx,
+      actor,
+      kind: "lead_update",
+      entityType: "lead",
+      entityId: lead.id,
+      fingerprint: updated.updatedAt,
+      label: undoLabel.en,
+      labelAr: undoLabel.ar,
+      payload: { fields: before },
+    });
     return updated;
   });
 }
+
+/* The lead columns updateLead may write — the undo snapshot mirrors exactly
+   these (salesRepId included: reassignment is an edit like any other). */
+const EDITABLE_FIELDS = [
+  "name",
+  "number",
+  "email",
+  "type",
+  "description",
+  "salesRepId",
+  "position",
+  "companyName",
+  "industry",
+  "requirements",
+] as const;
 
 export async function getLead(brand: Brand, leadId: string) {
   const lead = await db.lead.findUnique({ where: { id: leadId } });
@@ -359,6 +463,11 @@ export async function applyLeadEvent(opts: {
       throw new ApiError(409, "This lead just moved — reload and try again");
     }
 
+    /* ADR-045: everything this event writes is collected as it happens, so the
+       undo entry can put the lead back EXACTLY as it was. */
+    const created: CreatedRef[] = [];
+    const updated: UpdatedRef[] = [];
+
     /* Event-specific pre-writes on existing records (§5.3 triggers). */
     if (opts.event.type === "proposal_sent") {
       const unsent = await tx.proposal.findFirst({
@@ -366,6 +475,12 @@ export async function applyLeadEvent(opts: {
         orderBy: { createdAt: "desc" },
       });
       if (!unsent) throw new ApiError(400, "No unsent proposal on this lead");
+      updated.push({
+        model: "proposal",
+        id: unsent.id,
+        sent: unsent.sent,
+        sentAt: unsent.sentAt ? unsent.sentAt.toISOString() : null,
+      });
       await tx.proposal.update({
         where: { id: unsent.id },
         data: { sent: true, sentAt: new Date() },
@@ -377,6 +492,13 @@ export async function applyLeadEvent(opts: {
         orderBy: { createdAt: "desc" },
       });
       if (!meeting) throw new ApiError(400, "No meeting recorded on this lead");
+      updated.push({
+        model: "meeting",
+        id: meeting.id,
+        datetime: meeting.datetime ? meeting.datetime.toISOString() : null,
+        outcome: meeting.outcome,
+        outcomeDestination: meeting.outcomeDestination,
+      });
       await tx.meeting.update({
         where: { id: meeting.id },
         data: {
@@ -386,10 +508,18 @@ export async function applyLeadEvent(opts: {
       });
     }
 
-    await persistGroup(tx, { leadId: lead.id }, result.requiredGroup?.group ?? null, opts.group, {
-      followUpContext:
-        result.requiredGroup?.group === "follow_up" ? result.requiredGroup.context : undefined,
-    });
+    const writes = await persistGroup(
+      tx,
+      { leadId: lead.id },
+      result.requiredGroup?.group ?? null,
+      opts.group,
+      {
+        followUpContext:
+          result.requiredGroup?.group === "follow_up" ? result.requiredGroup.context : undefined,
+      },
+    );
+    created.push(...writes.created);
+    updated.push(...writes.updated);
 
     if (result.toStage !== lead.stage) {
       /* Founder (ADR-039 addendum): ANY stage move signals the client was
@@ -462,6 +592,46 @@ export async function applyLeadEvent(opts: {
       toStage: result.toStage,
       trigger: result.logTrigger,
     });
+
+    /* ADR-045 — the financial line: a move that mints a won deal or a client is
+       NEVER undoable. Undoing it would have to unwind milestones, statements
+       and commissions, so instead it RETIRES this user's pending entries: the
+       button goes quiet rather than offering to revert an older action. */
+    const financial = result.sideEffects.some(
+      (e) => e === "create_won_deal" || e === "create_client",
+    );
+    if (financial) {
+      await invalidateUndo(tx, opts.actor);
+    } else {
+      const after = await tx.lead.findUniqueOrThrow({
+        where: { id: lead.id },
+        select: { updatedAt: true },
+      });
+      const snapshot: StageEventSnapshot = {
+        stage: lead.stage,
+        noAnswer: fresh.noAnswer,
+        created,
+        updated,
+      };
+      const undoLabel = formatMsg(undoLabels.movedTo, {
+        name: lead.name,
+        stage: {
+          en: stageLabel("en", result.toStage),
+          ar: stageLabel("ar", result.toStage),
+        },
+      });
+      await recordUndo({
+        tx,
+        actor: opts.actor,
+        kind: "lead_event",
+        entityType: "lead",
+        entityId: lead.id,
+        fingerprint: after.updatedAt,
+        label: undoLabel.en,
+        labelAr: undoLabel.ar,
+        payload: snapshot as unknown as Prisma.InputJsonValue,
+      });
+    }
   });
 
   if (notifyMeeting) {
@@ -485,16 +655,24 @@ export async function applyLeadEvent(opts: {
 }
 
 /** Persists the required group's child record (shared with partners/portal services). */
+/* Returns what it wrote, so ADR-045 can store the exact inverse: the ids to
+   delete on undo, and the prior values of anything it mutated in place. */
+export interface GroupWrites {
+  created: CreatedRef[];
+  updated: UpdatedRef[];
+}
+
 export async function persistGroup(
   tx: Prisma.TransactionClient,
   parent: { leadId?: string; partnerProspectId?: string; portalDealId?: string },
   group: string | null,
   payload: GroupPayload | undefined,
   extra: { followUpContext?: "initial" | "after_proposal" | "after_meeting" },
-): Promise<void> {
-  if (!group || !payload) return;
+): Promise<GroupWrites> {
+  const writes: GroupWrites = { created: [], updated: [] };
+  if (!group || !payload) return writes;
   if (payload.group === "follow_up" && group === "follow_up") {
-    await tx.followUp.create({
+    const row = await tx.followUp.create({
       data: {
         ...parent,
         context: extra.followUpContext ?? "initial",
@@ -505,8 +683,9 @@ export async function persistGroup(
         followingUpWith: payload.data.followingUpWith ?? null,
       },
     });
+    writes.created.push({ model: "followUp", id: row.id });
   } else if (payload.group === "meeting" && group === "meeting") {
-    await tx.meeting.create({
+    const row = await tx.meeting.create({
       data: {
         ...parent,
         arranged: payload.data.arranged,
@@ -519,6 +698,7 @@ export async function persistGroup(
         technicalSupport: payload.data.technicalSupport ?? null,
       },
     });
+    writes.created.push({ model: "meeting", id: row.id });
   } else if (payload.group === "meeting_reschedule" && group === "meeting_reschedule") {
     const key = parent.leadId
       ? { leadId: parent.leadId }
@@ -530,6 +710,13 @@ export async function persistGroup(
       orderBy: { createdAt: "desc" },
     });
     if (!meeting) throw new ApiError(400, "No meeting to reschedule");
+    writes.updated.push({
+      model: "meeting",
+      id: meeting.id,
+      datetime: meeting.datetime ? meeting.datetime.toISOString() : null,
+      outcome: meeting.outcome,
+      outcomeDestination: meeting.outcomeDestination,
+    });
     await tx.meeting.update({
       where: { id: meeting.id },
       data: {
@@ -543,7 +730,7 @@ export async function persistGroup(
       // Sent is a separate event (T-5) so the auto-move always fires — see IMPLEMENTATION.md
       throw new ApiError(400, "Save the proposal first, then mark it as sent");
     }
-    await tx.proposal.create({
+    const row = await tx.proposal.create({
       data: {
         ...parent,
         service: payload.data.service,
@@ -551,11 +738,13 @@ export async function persistGroup(
         sent: false,
       },
     });
+    writes.created.push({ model: "proposal", id: row.id });
   } else if (payload.group === "lost" && group === "lost") {
-    await tx.lostInfo.create({ data: { ...parent, reason: payload.data.reason } });
+    const row = await tx.lostInfo.create({ data: { ...parent, reason: payload.data.reason } });
+    writes.created.push({ model: "lostInfo", id: row.id });
   } else if (payload.group === "won" && group === "won") {
     if (!parent.leadId) throw new ApiError(400, "Won group applies to leads");
-    await tx.wonInfo.create({
+    const row = await tx.wonInfo.create({
       data: {
         leadId: parent.leadId,
         estimatedValue: payload.data.estimatedValue,
@@ -563,6 +752,7 @@ export async function persistGroup(
         collectedAmount: payload.data.collectedAmount,
       },
     });
+    writes.created.push({ model: "wonInfo", id: row.id });
   } else if (group === "numbers") {
     // PP-1 (V2 §6): the dialed-number selection is consumed by the partners service
   } else if (group === "won_partner" && payload.group === "won_partner") {
@@ -571,12 +761,14 @@ export async function persistGroup(
     // V2 §4: the milestone tab is consumed by the create_won_deal side effect
   } else if (group === "negotiation" && payload.group === "negotiation") {
     if (!parent.leadId) throw new ApiError(400, "Negotiation notes apply to leads");
-    await tx.negotiationNote.create({
+    const row = await tx.negotiationNote.create({
       data: { leadId: parent.leadId, note: payload.data.note },
     });
+    writes.created.push({ model: "negotiationNote", id: row.id });
   } else {
     throw new ApiError(400, `Group payload "${payload.group}" does not match required "${group}"`);
   }
+  return writes;
 }
 
 /* T-9 / A-1 — Client card auto-created/linked, mapped per the A-1 default. */

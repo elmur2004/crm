@@ -8,8 +8,19 @@ import { ApiError } from "@/lib/api-error";
 import { groupPayloadSchema, type GroupPayload, type WonPartnerInput } from "./groups";
 import { persistGroup } from "./leads";
 import { writeLog, type Actor } from "./activity";
+import {
+  invalidateUndo,
+  recordUndo,
+  type CreatedRef,
+  type StageEventSnapshot,
+  type UpdatedRef,
+} from "./undo";
 import { validateAndStore } from "@/lib/storage";
 import { hashPassword } from "@/lib/auth/hash";
+import type { Prisma } from "../../../generated/prisma/client";
+import { formatMsg } from "@/lib/i18n/core";
+import { stageLabel } from "@/lib/i18n/dict/labels";
+import { undoLabels } from "@/lib/i18n/dict/undo";
 
 /* App B Partners pipeline (§7.2–§7.3, §10.2). applyProspectEvent mirrors
    applyLeadEvent on the partners config; updateProspect fires PP-2's auto-return
@@ -241,12 +252,24 @@ export async function applyProspectEvent(opts: {
       throw new ApiError(409, "This card just moved — reload and try again");
     }
 
+    /* ADR-045: collect the inverse as the event writes it. */
+    const created: CreatedRef[] = [];
+    const updated: UpdatedRef[] = [];
+    let numbersBefore: string | undefined;
+
     if (opts.event.type === "meeting_outcome") {
       const meeting = await tx.meeting.findFirst({
         where: { partnerProspectId: prospect.id },
         orderBy: { createdAt: "desc" },
       });
       if (!meeting) throw new ApiError(400, "No meeting recorded on this prospect");
+      updated.push({
+        model: "meeting",
+        id: meeting.id,
+        datetime: meeting.datetime ? meeting.datetime.toISOString() : null,
+        outcome: meeting.outcome,
+        outcomeDestination: meeting.outcomeDestination,
+      });
       await tx.meeting.update({
         where: { id: meeting.id },
         data: { outcome: opts.event.outcome, outcomeDestination: opts.event.destination ?? null },
@@ -259,6 +282,7 @@ export async function applyProspectEvent(opts: {
         where: { id: prospect.id },
         select: { nonAnsweringNumbers: true },
       });
+      numbersBefore = current.nonAnsweringNumbers;
       const existing = parseNumbers(current.nonAnsweringNumbers);
       const merged = [
         ...existing,
@@ -270,7 +294,7 @@ export async function applyProspectEvent(opts: {
       });
     }
 
-    await persistGroup(
+    const writes = await persistGroup(
       tx,
       { partnerProspectId: prospect.id },
       result.requiredGroup?.group ?? null,
@@ -280,6 +304,8 @@ export async function applyProspectEvent(opts: {
           result.requiredGroup?.group === "follow_up" ? result.requiredGroup.context : undefined,
       },
     );
+    created.push(...writes.created);
+    updated.push(...writes.updated);
 
     if (result.toStage !== prospect.stage) {
       await tx.partnerProspect.update({
@@ -361,6 +387,43 @@ export async function applyProspectEvent(opts: {
       toStage: result.toStage,
       trigger: result.logTrigger,
     });
+
+    /* ADR-045 — PP-4 conversion mints a Partner (and possibly a login): never
+       undoable, and it retires this user's pending entries so the button does
+       not offer an older action instead. */
+    if (result.sideEffects.includes("create_partner")) {
+      await invalidateUndo(tx, opts.actor);
+    } else {
+      const after = await tx.partnerProspect.findUniqueOrThrow({
+        where: { id: prospect.id },
+        select: { updatedAt: true },
+      });
+      const snapshot: StageEventSnapshot = {
+        stage: prospect.stage,
+        noAnswer: false, // prospects carry no lead-style flag
+        created,
+        updated,
+        ...(numbersBefore !== undefined ? { nonAnsweringNumbers: numbersBefore } : {}),
+      };
+      const undoLabel = formatMsg(undoLabels.movedTo, {
+        name: prospect.companyName ?? prospect.name,
+        stage: {
+          en: stageLabel("en", result.toStage),
+          ar: stageLabel("ar", result.toStage),
+        },
+      });
+      await recordUndo({
+        tx,
+        actor: opts.actor,
+        kind: "prospect_event",
+        entityType: "partner_prospect",
+        entityId: prospect.id,
+        fingerprint: after.updatedAt,
+        label: undoLabel.en,
+        labelAr: undoLabel.ar,
+        payload: snapshot as unknown as Prisma.InputJsonValue,
+      });
+    }
   });
 
   return { toStage: result.toStage };
