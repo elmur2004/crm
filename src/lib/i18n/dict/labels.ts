@@ -28,6 +28,8 @@ export const leadTypeMsgs: Record<LeadType, Msg> = {
   event_data: { en: "Event data", ar: "بيانات فعالية" },
   personal_connection: { en: "Personal connection", ar: "معرفة شخصية" },
   campaign_lead: { en: "Campaign lead", ar: "عميل من حملة" },
+  /* founder: "organically they just show up" — a lead that arrived on its own */
+  organic: { en: "Organic", ar: "عميل وارد" },
 };
 
 export const ownerTypeMsgs: Record<OwnerType, Msg> = {

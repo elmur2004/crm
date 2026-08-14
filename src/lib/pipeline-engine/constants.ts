@@ -73,11 +73,18 @@ export const STAGE_LABELS: Record<string, string> = {
 
 /* ---------------- field enums (SPEC §6.1, §6.2, §7.2) ---------------- */
 
+/* Founder: "for the lead types we need to add an organic type — so it can be
+   from a campaign, or a personal connection, or organically they just show up".
+   New members go at the END: every dropdown renders this array in order, so
+   appending never reshuffles a form the team already knows. Lead.type is a
+   stored STRING (no enum in the schema), so no migration is needed — the
+   validation boundary is z.enum(LEAD_TYPES) in services/leads.ts. */
 export const LEAD_TYPES = [
   "cold_call",
   "event_data",
   "personal_connection",
   "campaign_lead",
+  "organic",
 ] as const;
 export type LeadType = (typeof LEAD_TYPES)[number];
 
@@ -86,6 +93,7 @@ export const LEAD_TYPE_LABELS: Record<LeadType, string> = {
   event_data: "Event data",
   personal_connection: "Personal connection",
   campaign_lead: "Campaign lead",
+  organic: "Organic",
 };
 
 export const FOLLOW_UP_CONTEXTS = ["initial", "after_proposal", "after_meeting"] as const;

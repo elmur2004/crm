@@ -1,5 +1,13 @@
 # Changelog — user-visible changes per phase/release
 
+## New lead type: Organic (2026-08-14)
+- Lead type now offers "Organic" alongside Cold call, Event data,
+  Personal connection and Campaign lead — for the leads that simply
+  show up on their own. It is available everywhere a type is chosen or
+  shown (both apps' add and edit forms, the partner's add-lead form,
+  the Leads filter sidebar, lead pages and board cards), in English and
+  in Arabic. Existing leads are untouched.
+
 ## Leads filters v2 — a real sidebar and one search box (2026-08-14)
 - The B-Systems Leads filters moved out of the crowded row above the
   table into a proper sidebar next to it: Search, Owner, Stage, Type,

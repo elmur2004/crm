@@ -4,9 +4,12 @@ import { resetDb } from "@/tests/db-reset";
 import {
   applyLeadEvent,
   createLead,
+  createLeadSchema,
   getLeadDetail,
   latestProposalValue,
 } from "./leads";
+import { LEAD_TYPES, LEAD_TYPE_LABELS } from "@/lib/pipeline-engine/constants";
+import { leadTypeLabel } from "@/lib/i18n/dict/labels";
 import { internalDashboard } from "./metrics";
 import { ApiError } from "@/lib/api-error";
 import type { Actor } from "./activity";
@@ -42,6 +45,42 @@ function followUpGroup() {
 
 beforeEach(async () => {
   await resetDb();
+});
+
+describe("Lead types (founder: add an organic type)", () => {
+  it("exposes the full set with a label and an Arabic translation for every member", () => {
+    expect([...LEAD_TYPES]).toEqual([
+      "cold_call",
+      "event_data",
+      "personal_connection",
+      "campaign_lead",
+      "organic",
+    ]);
+    for (const type of LEAD_TYPES) {
+      expect(LEAD_TYPE_LABELS[type]).toBeTruthy();
+      expect(leadTypeLabel("en", type)).toBe(LEAD_TYPE_LABELS[type]);
+      expect(leadTypeLabel("ar", type)).toBeTruthy();
+      expect(leadTypeLabel("ar", type)).not.toBe(LEAD_TYPE_LABELS[type]); // actually translated
+    }
+    expect(leadTypeLabel("en", "organic")).toBe("Organic");
+  });
+
+  it("the create schema accepts organic and the lead stores + renders it", async () => {
+    expect(createLeadSchema.safeParse({ name: "Walk In", number: "0101112222", type: "organic" })
+      .success).toBe(true);
+    const lead = await createLead(
+      "byteforce",
+      { name: "Walk In", number: "0101112222", type: "organic" },
+      actor,
+    );
+    const fresh = await db.lead.findUniqueOrThrow({ where: { id: lead.id } });
+    expect(fresh.type).toBe("organic");
+    expect(leadTypeLabel("en", fresh.type)).toBe("Organic");
+    /* and an unknown type is still refused at the boundary */
+    expect(
+      createLeadSchema.safeParse({ name: "X", number: "1", type: "made_up" }).success,
+    ).toBe(false);
+  });
 });
 
 describe("internal CRM service transitions", () => {

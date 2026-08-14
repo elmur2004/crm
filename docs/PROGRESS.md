@@ -1264,3 +1264,29 @@ comment, and the ADR-013 mechanism note all fixed; .env.example confirmed tracke
   export/import) before Arabic lead names can be typed on that machine;
   say the word and it can be done with the data preserved. Carried: see
   Entries 023–032 (incl. the Entry 031 agent archive-list question).
+
+## Entry 034 — 2026-08-14 — Founder: "organic" lead type
+- Done: LEAD_TYPES gains a fifth member, "organic" (label "Organic",
+  Arabic "عميل وارد" — an inbound lead that arrived on its own; chosen
+  over the literal "تلقائي"/automatic, which reads as machine-made).
+  Appended at the END of the array so no existing dropdown reshuffles.
+  Everything downstream is derived, so it appears with no further
+  edits: both brands' add/edit lead forms, the partner add-lead form,
+  the Leads filter sidebar's Type select, the lead detail, the leads
+  tables and board cards — every one maps over LEAD_TYPES and renders
+  through leadTypeLabel(). Lead.type is a stored STRING (no DB enum),
+  so there is NO migration; the only validation boundary is
+  z.enum(LEAD_TYPES) in services/leads.ts, which now accepts it (and
+  still refuses anything else). Swept for hardcoded type unions
+  (grep campaign_lead / personal_connection): none outside the
+  constants, the i18n dict, tests, and the seed. Verified: tsc clean,
+  vitest 114/114 (+2), Playwright 22 passed / 2 audit-opt-in skipped
+  (TESTING Run 037).
+- In progress: CRM-board filters + search (founder request 2), undo
+  (founder request 3).
+- Next steps: as above.
+- Blockers: none new.
+- Needs founder confirmation: (i) the Arabic wording for Organic —
+  "عميل وارد" (inbound) vs a literal "أورجانيك"; say the word and it
+  changes in one line. Carried: see Entries 023–033 (incl. the WIN1252
+  local-database recreation in Entry 033).

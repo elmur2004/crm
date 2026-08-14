@@ -684,3 +684,23 @@ every dashboard formula, journeys 1-5 (SPEC §13).
   is preserved). qa-sweep passing unchanged at 1440/1024/768/560/390 is
   the regression proof for the new grid layout.
 - Verdict: PASS.
+
+## Run 037 — 2026-08-14 — "Organic" lead type
+- Suites/commands: `npx tsc --noEmit` (clean) · `npx vitest run` (114 —
+  two NEW tests) · `npx playwright test` (full suite, unchanged set).
+  Local dev, embedded Postgres (per-run instances).
+- Cases: vitest 114 passed / 0 failed / 0 skipped · Playwright full 22
+  passed / 0 failed / 2 skipped (audit opt-in skips, by design). Full
+  e2e wall time 3.3m.
+- Failures: none.
+- SPEC coverage touched: §5 lead fields — the lead TYPE set grows from
+  four to five (cold_call, event_data, personal_connection,
+  campaign_lead, organic); no §10 rows (type never gates a transition).
+  New coverage: (unit) the set is exactly those five in order, every
+  member has an English label AND a distinct Arabic translation, and
+  createLeadSchema accepts "organic" while still refusing an unknown
+  type; the created lead stores and renders it. The unchanged e2e suite
+  is the regression proof that every existing type dropdown (both
+  brands' add/edit forms, the partner add-lead form, the leads filter
+  sidebar) still renders and submits — they all map over LEAD_TYPES.
+- Verdict: PASS.
