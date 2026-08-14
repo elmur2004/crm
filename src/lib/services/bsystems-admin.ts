@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
-import type { Prisma } from "../../../generated/prisma/client";
 import { BSYSTEMS_STAGES } from "@/lib/pipeline-engine/constants";
+import { leadSearchWhere, leadTypeWhere } from "./lead-search";
 import { internalDashboard, type InternalDashboard } from "./metrics";
 
 /* V2 §2.1 — the admin Home: the v1 dashboard PLUS agent/partner counts and their
@@ -54,33 +54,14 @@ export function listAgentsDetailed() {
   });
 }
 
-/* Founder (leads filter sidebar): ONE search box that hits the lead name, the
-   company, OR the number — "either way, we put anything into it". Matching is
-   SERVER-SIDE (case-insensitive contains); a query that looks like a phone
-   number is also matched digits-only, so "010 123" finds "0101234567". */
-export function leadSearchWhere(search?: string): Prisma.LeadWhereInput {
-  const q = search?.trim();
-  if (!q) return {};
-  const digits = q.replace(/\D/g, "");
-  /* "looks numeric" = digits plus the usual phone punctuation, nothing else */
-  const numeric = digits.length > 0 && /^[\d\s+()\-.]+$/.test(q);
-  return {
-    OR: [
-      { name: { contains: q, mode: "insensitive" } },
-      { companyName: { contains: q, mode: "insensitive" } },
-      { number: { contains: q } },
-      ...(numeric && digits !== q ? [{ number: { contains: digits } }] : []),
-    ],
-  };
-}
-
 /** V2 §2.2/§2.3 — the unified leads/board source with the owner-bucket filter.
     ADR-043: archived leads are hidden by default; the Leads page's Archived
     view passes { archived: true } — that IS the archive.
-    Founder: `search` narrows by name / company / number, server-side. */
+    Founder: `search` narrows by name / company / number and `type` by lead
+    type — both server-side, shared with the board (§2.3). */
 export function listBsLeads(
   ownerType?: string,
-  opts?: { archived?: boolean; search?: string },
+  opts?: { archived?: boolean; search?: string; type?: string },
 ) {
   return db.lead.findMany({
     where: {
@@ -88,6 +69,7 @@ export function listBsLeads(
       archived: opts?.archived ?? false,
       ...(ownerType && ownerType !== "any" ? { ownerType } : {}),
       ...leadSearchWhere(opts?.search),
+      ...leadTypeWhere(opts?.type),
     },
     include: {
       owner: { select: { name: true } },
@@ -102,10 +84,17 @@ export function listBsLeads(
   });
 }
 
-/** Owner's own board (agent/partner). */
-export function listOwnLeads(userId: string) {
+/** Owner's own board (agent/partner) — same search/type narrowing as the
+    admin board, so agents filter their own cards exactly like the admin. */
+export function listOwnLeads(userId: string, opts?: { search?: string; type?: string }) {
   return db.lead.findMany({
-    where: { brand: "bsystems", ownerUserId: userId, archived: false },
+    where: {
+      brand: "bsystems",
+      ownerUserId: userId,
+      archived: false,
+      ...leadSearchWhere(opts?.search),
+      ...leadTypeWhere(opts?.type),
+    },
     include: {
       owner: { select: { name: true } },
       salesRep: { select: { name: true } },

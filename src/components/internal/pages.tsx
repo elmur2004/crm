@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import type { Brand } from "@/lib/pipeline-engine/constants";
-import { INTERNAL_STAGES } from "@/lib/pipeline-engine/constants";
+import { INTERNAL_STAGES, LEAD_TYPES } from "@/lib/pipeline-engine/constants";
 import { tFor } from "@/lib/i18n/core";
 import { getLocale } from "@/lib/i18n/server";
 import { leadTypeLabel, stageLabel } from "@/lib/i18n/dict/labels";
@@ -34,7 +34,14 @@ import { AddLeadForm, AddRepForm, ClientEditForm } from "./forms";
 import { LeadChat } from "@/components/shared/LeadChat";
 import { listLeadComments, mentionableUsersFor } from "@/lib/services/comments";
 import { requireLeadAccess } from "@/lib/auth/guards";
-import { archiveMsgs, common as crmCommon } from "@/lib/i18n/dict/crm";
+import {
+  archiveMsgs,
+  common as crmCommon,
+  leadsFilters,
+  ownerFilters,
+} from "@/lib/i18n/dict/crm";
+import { FilterPanel } from "@/components/shared/FilterPanel";
+import { leadSearchWhere, leadTypeWhere } from "@/lib/services/lead-search";
 import { ArchiveButton } from "@/components/shared/ArchiveButton";
 import { LeadEventPanel } from "./LeadEventPanel";
 import { InternalBoard, type InternalBoardLead } from "./InternalBoard";
@@ -429,11 +436,31 @@ export async function LeadDetailBody({ ctx, leadId }: { ctx: InternalAppCtx; lea
    stage set still comes from the engine, never hardcoded (§5.1). */
 const BOARD_STAGES = [...INTERNAL_STAGES];
 
-export async function CrmBoardBody({ ctx }: { ctx: InternalAppCtx }) {
+/* Founder (filters round 3): the same search/type narrowing the B-Systems board
+   got — Search + Type only here (ByteForce has no owner buckets; reps have their
+   own pages). Server-side, through the shared lead-search helpers. */
+export async function CrmBoardBody({
+  ctx,
+  params,
+}: {
+  ctx: InternalAppCtx;
+  params?: { q?: string; type?: string };
+}) {
   const locale = await getLocale();
   const t = tFor(locale);
+  const search = (params?.q ?? "").trim();
+  const type = (LEAD_TYPES as readonly string[]).includes(params?.type ?? "")
+    ? params!.type!
+    : "any";
+  const activeCount = [search !== "", type !== "any"].filter(Boolean).length;
   const leads = await db.lead.findMany({
-    where: { brand: ctx.brand, archived: false, stage: { in: BOARD_STAGES } },
+    where: {
+      brand: ctx.brand,
+      archived: false,
+      stage: { in: BOARD_STAGES },
+      ...leadSearchWhere(search),
+      ...leadTypeWhere(type),
+    },
     include: {
       salesRep: { select: { name: true } },
       partner: { select: { companyName: true } },
@@ -494,7 +521,50 @@ export async function CrmBoardBody({ ctx }: { ctx: InternalAppCtx }) {
           <h1 className="u-h1">{t(nav.crm)}</h1>
         </div>
       </div>
-      <InternalBoard leads={cards} reps={reps} basePath={ctx.basePath} apiBase={ctx.apiBase} />
+      <FilterPanel activeCount={activeCount} variant="inline" defaultOpen={activeCount > 0}>
+        <form
+          method="get"
+          className="card filter-card filter-card--inline"
+          aria-label={t(leadsFilters.filters)}
+        >
+          <label className="filter-section">
+            <span className="filter-section-label">{t(leadsFilters.search)}</span>
+            <input
+              type="search"
+              name="q"
+              defaultValue={search}
+              placeholder={t(leadsFilters.searchPlaceholder)}
+              className="field-input"
+            />
+          </label>
+          <label className="filter-section">
+            <span className="filter-section-label">{t(crmCommon.type)}</span>
+            <select name="type" defaultValue={type} className="field-input">
+              <option value="any">{t(ownerFilters.any)}</option>
+              {LEAD_TYPES.map((ty) => (
+                <option key={ty} value={ty}>
+                  {leadTypeLabel(locale, ty)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className="filter-actions">
+            <button type="submit" className="btn-primary btn--sm">
+              {t(leadsFilters.apply)}
+            </button>
+            {activeCount > 0 ? (
+              <Link href={`${ctx.basePath}/crm`} className="filter-reset">
+                {t(leadsFilters.clear)}
+              </Link>
+            ) : null}
+          </div>
+        </form>
+      </FilterPanel>
+      {cards.length === 0 && activeCount > 0 ? (
+        <p className="empty">{t(board.noMatches)}</p>
+      ) : (
+        <InternalBoard leads={cards} reps={reps} basePath={ctx.basePath} apiBase={ctx.apiBase} />
+      )}
     </div>
   );
 }

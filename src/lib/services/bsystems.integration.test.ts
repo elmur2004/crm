@@ -10,7 +10,7 @@ import {
   setNoAnswer,
   updateLead,
 } from "./leads";
-import { listBsLeads } from "./bsystems-admin";
+import { listBsLeads, listOwnLeads } from "./bsystems-admin";
 import { internalDashboard } from "./metrics";
 import { todoFor } from "./todo";
 import { cairoToUtc } from "@/lib/datetime";
@@ -901,6 +901,43 @@ describe("Universal lead search (founder: one box — name, company, or number)"
     );
     expect(ids(await listBsLeads("any", { search: "للأغذية" }))).toEqual([arabic.id]);
     expect(ids(await listBsLeads("any", { search: "النيل" }))).toEqual([arabic.id]);
+  });
+
+  it("narrows by lead TYPE server-side, and combines type + search (board filters)", async () => {
+    const { a, b } = await searchFixtures();
+    expect(ids(await listBsLeads("any", { type: "cold_call" }))).toEqual([a.id]);
+    expect(ids(await listBsLeads("any", { type: "personal_connection" }))).toEqual([b.id]);
+    expect(await listBsLeads("any", { type: "organic" })).toHaveLength(0);
+    expect(ids(await listBsLeads("any", { type: "cold_call", search: "delta" }))).toEqual([a.id]);
+    expect(await listBsLeads("any", { type: "cold_call", search: "karim" })).toHaveLength(0);
+    /* "any" (and undefined) mean no narrowing at all */
+    expect(await listBsLeads("any", { type: "any" })).toHaveLength(3);
+  });
+
+  it("an agent's OWN board takes the same search + type narrowing (listOwnLeads)", async () => {
+    const agent = await makeAgent();
+    const mine = await createLead(
+      "bsystems",
+      {
+        name: "Agent Own Lead",
+        number: "0104445555",
+        type: "organic",
+        companyName: "Own Co",
+      },
+      admin,
+      { ownerType: "agent", ownerUserId: agent.id },
+    );
+    await createLead(
+      "bsystems",
+      { name: "Someone Else", number: "0106667777", type: "cold_call" },
+      admin,
+    );
+    expect(ids(await listOwnLeads(agent.id))).toEqual([mine.id]); // scope unchanged
+    expect(ids(await listOwnLeads(agent.id, { search: "own co" }))).toEqual([mine.id]);
+    expect(ids(await listOwnLeads(agent.id, { type: "organic" }))).toEqual([mine.id]);
+    expect(await listOwnLeads(agent.id, { type: "cold_call" })).toHaveLength(0);
+    /* the other owner's lead never leaks in, whatever the query says */
+    expect(await listOwnLeads(agent.id, { search: "Someone Else" })).toHaveLength(0);
   });
 
   it("returns nothing when nothing matches, and still honours the other filters", async () => {

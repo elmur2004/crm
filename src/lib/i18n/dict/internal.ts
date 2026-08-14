@@ -85,6 +85,11 @@ export const board = {
   meetingPrefix: { en: "Meeting:", ar: "الاجتماع:" },
   meetingNotArranged: { en: "Meeting not arranged", ar: "لم يُرتَّب الاجتماع" },
   estPrefix: { en: "Est:", ar: "تقديري:" },
+  /* founder (filters round 3): search + type filtering on the board too */
+  noMatches: {
+    en: "No cards match these filters.",
+    ar: "لا توجد بطاقات مطابقة لهذه التصفية.",
+  },
 } satisfies Record<string, Msg>;
 
 /* ---- clients (§6.4) ---- */

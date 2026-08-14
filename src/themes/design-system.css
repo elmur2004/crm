@@ -731,6 +731,13 @@ label:has(input[required]) .dropzone-title::after {
 .filter-card {
   display: flex; flex-direction: column; gap: 13px; padding: 15px 15px 16px;
 }
+/* Above a full-bleed board the card is wide, not narrow: the same labelled
+   sections flow into a responsive control grid instead of a tall stack. */
+.filter-card--inline {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 12px 14px; align-items: end;
+}
+.filter-card--inline .filter-actions { grid-column: 1 / -1; }
 .filter-section { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .filter-section-label {
   font: 700 9.5px var(--font-mono); letter-spacing: .16em; text-transform: uppercase; color: var(--color-muted);
@@ -771,10 +778,13 @@ label:has(input[required]) .dropzone-title::after {
 .td-nowrap { white-space: nowrap; } /* meaningful on its own, not only under .table--wrap */
 .table--wrap .stage-chip, .table--wrap .chip-outline, .table--wrap .td-nowrap { white-space: nowrap; }
 
+/* Only the SIDE variant becomes a column on wide screens; the inline variant
+   (above a board) stays a disclosure at every width. */
 @media (min-width: 900px) {
   .filter-layout { grid-template-columns: 232px minmax(0, 1fr); gap: 16px; }
-  .filter-toggle { display: none; }
-  .filter-body, .filter-body[data-open="false"] { display: block; margin-top: 0; }
+  .filter-panel--side .filter-toggle { display: none; }
+  .filter-panel--side .filter-body,
+  .filter-panel--side .filter-body[data-open="false"] { display: block; margin-top: 0; }
 }
 
 /* ---------- responsive hardening (founder rule: every page adapts to any width) ---------- */

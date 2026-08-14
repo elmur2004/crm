@@ -69,12 +69,58 @@ test("admin: search the Leads sidebar by a partial number, then clear the filter
 
   /* 390px: the sidebar collapses behind the Filters disclosure. */
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto("/b-systems/leads?q=Findable");
+  await page.goto("/b-systems/leads");
   await expect(page.getByLabel("Search")).toBeHidden();
   await page.getByRole("button", { name: "Filters" }).click();
+  await expect(page.getByLabel("Search")).toBeVisible();
+
+  /* ...but when something IS filtered it opens on its own, showing what is on. */
+  await page.goto("/b-systems/leads?q=Findable");
   await expect(page.getByLabel("Search")).toHaveValue("Findable");
   await expect(page.getByRole("link", { name: "Sidebar Search Lead" })).toBeVisible();
 
   /* Leave the shared e2e database as we found it. */
   expect((await page.request.delete(`/api/b-systems/leads/${id}`)).ok()).toBe(true);
+});
+
+/* Founder (filters round 3): the same search + filters on the CRM board — an
+   inline disclosure above the full-bleed board, on both apps' boards. */
+test("admin: search and filter the CRM board cards; ByteForce board filters too", async ({
+  page,
+}) => {
+  await page.goto("/login");
+  await page.getByLabel("Email or phone").fill("admin@byteforce.com");
+  await page.getByLabel("Password").fill("password123");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await page.waitForURL(/\/b-systems$/);
+
+  await page.goto("/b-systems/crm");
+  await expect(page.locator('[data-deal-card="Delta Fresh Foods"]')).toBeVisible();
+  await expect(page.locator('[data-deal-card="Fresh Deal"]')).toBeVisible();
+
+  /* The panel is a disclosure at EVERY width here (the board is full-bleed). */
+  await page.getByRole("button", { name: "Filters" }).click();
+  await page.getByLabel("Search").fill("Delta Fresh");
+  await page.getByRole("button", { name: "Apply" }).click();
+  await page.waitForURL(/q=Delta\+Fresh/);
+  await expect(page.locator('[data-deal-card="Delta Fresh Foods"]')).toBeVisible();
+  await expect(page.locator('[data-deal-card="Fresh Deal"]')).toHaveCount(0);
+
+  /* With a filter on, the panel comes back open showing what is applied. */
+  await expect(page.getByLabel("Search")).toHaveValue("Delta Fresh");
+  await page.getByRole("link", { name: "Clear filters" }).click();
+  await page.waitForURL(/\/b-systems\/crm$/);
+  await expect(page.locator('[data-deal-card="Fresh Deal"]')).toBeVisible();
+
+  /* Type narrowing, and a dead query gets the board's own empty state. */
+  await page.goto("/b-systems/crm?type=organic");
+  await expect(page.getByText("No cards match these filters.")).toBeVisible();
+
+  /* ByteForce board: Search + Type (no owner buckets there). */
+  await page.goto("/byteforce/crm?q=Cairo+Textiles");
+  await expect(page.locator('[data-deal-card="Cairo Textiles"]')).toBeVisible();
+  await expect(page.locator('[data-deal-card="Cairo Logistics"]')).toHaveCount(0);
+  await page.getByRole("link", { name: "Clear filters" }).click();
+  await page.waitForURL(/\/byteforce\/crm$/);
+  await expect(page.locator('[data-deal-card="Cairo Logistics"]')).toBeVisible();
 });

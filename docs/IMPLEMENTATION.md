@@ -592,3 +592,31 @@ _Format per module:_
   search and the owner bucket are SQL. If this list ever paginates, both must
   move into the query together or the counts will lie.
 - Last updated: 2026-08-14 (Entry 033, TESTING Run 036)
+
+## Filter panel — one component, two shapes (founder filter rounds 2–3)
+- Location: src/components/shared/FilterPanel.tsx (was
+  components/bsystems/LeadsFilterPanel), the .filter-* block in
+  src/themes/design-system.css, src/lib/services/lead-search.ts
+  (leadSearchWhere + leadTypeWhere), and the three surfaces that mount
+  it: the B-Systems Leads list, the B-Systems board, and CrmBoardBody
+  (ByteForce board).
+- What exists / how it works: one client component owning only
+  open/closed state around server-rendered GET-form children.
+  variant="side" is the Leads list: a disclosure under 900px, and from
+  900px up CSS hides the toggle and pins the body open as the sidebar
+  column (.filter-panel--side scoping — the media query must never
+  match the inline variant). variant="inline" is both boards: a
+  disclosure at EVERY width above the board, because .board is a
+  full-bleed breakout (margin-inline: calc(50% − 50vw + 8px)) computed
+  against its CONTAINER — inside a grid column it would still span the
+  viewport and paint over any side column. Both open automatically when
+  activeCount > 0. The where-clause helpers are brand-agnostic so every
+  lead surface composes the same matching rules.
+- Limitations / gotchas: never move .board into a grid column without
+  also neutralising its breakout — the two cannot coexist. Any new
+  filter must be counted in that page's activeCount or the chip lies.
+  Board filtering is server-side per request: a card that stops
+  matching after a drag disappears on revalidation, which is intended
+  (the filter is the view), but is worth remembering when debugging
+  "my card vanished".
+- Last updated: 2026-08-14 (Entry 035, TESTING Run 038)

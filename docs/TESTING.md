@@ -704,3 +704,31 @@ every dashboard formula, journeys 1-5 (SPEC §13).
   brands' add/edit forms, the partner add-lead form, the leads filter
   sidebar) still renders and submits — they all map over LEAD_TYPES.
 - Verdict: PASS.
+
+## Run 038 — 2026-08-14 — Search + filters on the CRM boards
+- Suites/commands: `npx tsc --noEmit` (clean) · `npx vitest run` (116 —
+  two NEW tests) · `npx playwright test` (full suite incl. a NEW second
+  test in e2e/leads-filters.spec.ts). Local dev, embedded Postgres
+  (per-run instances).
+- Cases: vitest 116 passed / 0 failed / 0 skipped · Playwright full 23
+  passed / 0 failed / 2 skipped (audit opt-in skips, by design). Full
+  e2e wall time 4.5m.
+- Failures: one during the round, fixed before the final run — the
+  390px leg of the Leads spec asserted the sidebar starts CLOSED on a
+  URL that already carried ?q=; the panel now opens itself when a
+  filter is active, so the spec was corrected to assert both halves of
+  that behavior (closed with no filters, auto-open with one).
+- SPEC coverage touched: no §10 rows — board filtering is read-side.
+  New coverage: (unit) listBsLeads narrows by TYPE server-side and
+  composes type+search; "any"/undefined mean no narrowing; listOwnLeads
+  takes the same search/type narrowing while its ownership scope still
+  holds (another owner's lead never leaks in, whatever the query says);
+  (e2e) admin filters the B-Systems board by search — the matching card
+  stays, the others go — the panel reopens showing the applied query,
+  Clear filters restores the full board, a type with no cards shows the
+  board's "No cards match these filters." state, and the ByteForce
+  board filters and clears the same way. qa-sweep passing unchanged on
+  /b-systems/crm and /byteforce/crm at 1440/1024/768/560/390 is the
+  regression proof that the inline panel does not disturb the
+  full-bleed board's alignment or introduce overflow.
+- Verdict: PASS.

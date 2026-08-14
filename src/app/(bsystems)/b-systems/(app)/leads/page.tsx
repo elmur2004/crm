@@ -18,7 +18,7 @@ import {
 } from "@/lib/i18n/dict/crm";
 import { StageBadge } from "@/components/shared/StageBadge";
 import { BsAddLeadForm } from "@/components/bsystems/leadActions";
-import { LeadsFilterPanel } from "@/components/bsystems/LeadsFilterPanel";
+import { FilterPanel } from "@/components/shared/FilterPanel";
 
 export const metadata = { title: "Leads — B-Systems CRM" };
 
@@ -84,11 +84,11 @@ export default async function BsLeadsPage({
   const archived = params.view === "archived"; // ADR-043: this IS the archive
   const search = (params.q ?? "").trim();
 
-  const fetched = await listBsLeads(owner, { archived, search });
+  /* search + owner + type are SQL; only the stage narrowing stays in JS (the
+     admin list is page-sized and the board shares the same service). */
+  const fetched = await listBsLeads(owner, { archived, search, type });
   const leads = sortLeads(
-    fetched.filter(
-      (l) => (stage === "any" || l.stage === stage) && (type === "any" || l.type === type),
-    ),
+    fetched.filter((l) => stage === "any" || l.stage === stage),
     sort,
   );
 
@@ -114,7 +114,7 @@ export default async function BsLeadsPage({
         </div>
       </div>
       <div className="filter-layout">
-        <LeadsFilterPanel activeCount={activeCount}>
+        <FilterPanel activeCount={activeCount} defaultOpen={activeCount > 0}>
           <form method="get" className="card filter-card" aria-label={t(lf.filters)}>
             <label className="filter-section">
               <span className="filter-section-label">{t(lf.search)}</span>
@@ -190,7 +190,7 @@ export default async function BsLeadsPage({
               ) : null}
             </div>
           </form>
-        </LeadsFilterPanel>
+        </FilterPanel>
         <div className="filter-main">
           {leads.length === 0 ? (
             <p className="empty">{activeCount > 0 ? t(m.noMatches) : t(m.empty)}</p>

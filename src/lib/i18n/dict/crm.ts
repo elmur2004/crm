@@ -129,6 +129,11 @@ export const home = {
 export const crmPage = {
   eyebrow: { en: "B-SYSTEMS · CRM", ar: "B-SYSTEMS · إدارة العملاء" },
   title: { en: "CRM", ar: "إدارة العملاء" },
+  /* founder (filters round 3): the board gets the Leads page's search/filters */
+  noMatches: {
+    en: "No cards match these filters.",
+    ar: "لا توجد بطاقات مطابقة لهذه التصفية.",
+  },
   nextPrefix: { en: "Next: ", ar: "التالي: " },
   noFollowUp: { en: "No follow-up set", ar: "لا توجد متابعة محددة" },
   meetingPrefix: { en: "Meeting: ", ar: "الاجتماع: " },

@@ -1290,3 +1290,44 @@ comment, and the ADR-013 mechanism note all fixed; .env.example confirmed tracke
   "عميل وارد" (inbound) vs a literal "أورجانيك"; say the word and it
   changes in one line. Carried: see Entries 023–033 (incl. the WIN1252
   local-database recreation in Entry 033).
+
+## Entry 035 — 2026-08-14 — Founder: search + filters on the CRM boards
+- Done: the Leads sidebar's filter card now serves the BOARDS too.
+  LeadsFilterPanel became the shared components/shared/FilterPanel with
+  a `variant` prop: "side" (the Leads list — disclosure under 900px,
+  pinned-open sidebar column above it) and "inline" (the boards — a
+  disclosure at EVERY width, sitting above the board). Inline is
+  deliberate: .board is a full-bleed breakout whose margin-inline math
+  (50% − 50vw) is measured against its container, so a fixed side
+  column would simply be painted over by the board; and the founder's
+  earlier directive was that the board fills the whole page. The card
+  keeps the same look, with .filter-card--inline flowing its labelled
+  sections into a responsive control grid instead of a tall stack.
+  Both panels now open BY THEMSELVES when a filter is active, so the
+  applied state is never hidden behind a click.
+  B-Systems board (/b-systems/crm): Search + Type for every role, Owner
+  for the admin. No Stage (the columns ARE the stages), no Sort (a
+  board is not a list), no Active/Archived (ADR-043 — archived leaves
+  the board by definition). The admin's five owner-bucket nav links
+  moved INTO the card as the Owner select: one place to filter instead
+  of two competing controls — flagged below since it costs a one-click
+  bucket switch.
+  ByteForce board (/byteforce/crm): the same panel with Search + Type
+  (ByteForce has no owner buckets; reps have their own pages) —
+  CrmBoardBody now takes searchParams.
+  Plumbing: leadSearchWhere moved out of bsystems-admin into the shared
+  services/lead-search.ts and gained leadTypeWhere; listBsLeads takes
+  `type`, listOwnLeads takes `search`+`type`, and the Leads list now
+  narrows by type in SQL too (only its stage filter stays in JS). A
+  filtered board with nothing left shows "No cards match these
+  filters." instead of a wall of empty columns. Verified: tsc clean,
+  vitest 116/116 (+2), Playwright 23 passed / 2 audit-opt-in skipped
+  (TESTING Run 038); screenshots reviewed at 1440 and 390.
+- In progress: undo (founder request 3).
+- Next steps: as above.
+- Blockers: none new.
+- Needs founder confirmation: (i) the CRM board's quick owner tabs
+  (Internal / Agents / Partners / Admins) are now the Owner select
+  inside the Filters card — switching bucket costs a click more than
+  before; say the word and the tabs come back beside the panel.
+  Carried: see Entries 023–034.

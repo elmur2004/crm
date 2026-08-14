@@ -1,5 +1,20 @@
 # Changelog — user-visible changes per phase/release
 
+## Search and filters on the CRM boards (2026-08-14)
+- The CRM board now has the same search and filters as the Leads page:
+  a "Filters" button above the board opens the same card, with the
+  search box (name, company or number), Type, and — for the admin —
+  Owner. Only the matching cards stay on the board; "Clear filters"
+  puts everything back, and if nothing matches the page says so
+  instead of showing a row of empty columns.
+- It opens by itself whenever a filter is on, so you always see what is
+  currently applied — on the Leads page too.
+- The ByteForce board got the same search and Type filter.
+- Note: the admin's Internal / Agents / Partners / Admins tabs on the
+  board are now the "Owner" dropdown inside that card, so all the
+  filtering lives in one place. Say the word if you want the one-click
+  tabs back as well.
+
 ## New lead type: Organic (2026-08-14)
 - Lead type now offers "Organic" alongside Cold call, Event data,
   Personal connection and Campaign lead — for the leads that simply
