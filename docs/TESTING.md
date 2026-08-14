@@ -627,3 +627,27 @@ every dashboard formula, journeys 1-5 (SPEC §13).
   default Leads view → present under ?view=archived → unarchive →
   back on the board; (e2e) a foreign agent gets 403 on /archive.
 - Verdict: PASS.
+
+## Run 035 — 2026-08-14 — Batch hardening round (adversarial review fixes)
+- Suites/commands: `npx tsc --noEmit` (clean) · `npx vitest run` (106 —
+  five NEW tests) · `npx playwright test` (full suite). Local dev,
+  embedded Postgres (per-run instances).
+- Cases: vitest 106 passed / 0 failed / 0 skipped · Playwright full 21
+  passed / 0 failed / 2 skipped (audit opt-in skips, by design). Full
+  e2e wall time 4.1m.
+- Failures: none.
+- SPEC coverage touched: T-0 added as the internal pipeline's generic
+  move id (drag back to intake — ADR-042 addendum; outside the §10.1
+  rows, mirrors B-1/PP-3's fallback role), asserted in the transition
+  test. New coverage: (unit) archived leads are read-only — stage
+  events, ready-to-close, no-answer, and edits all reject with
+  "Unarchive this lead first" and operability returns on unarchive;
+  B-6 groupless proposal-sent return never resurfaces the stale
+  follow-up (the proposal is the latest record); a stale arranged
+  meeting never resurfaces past a newer unarranged one (control case
+  included); Cairo spring-forward-at-midnight day (2026-04-24) starts
+  at the first EXISTING instant with the eve keeping its last hour and
+  windows contiguous; fall-back day contiguous. The unchanged e2e suite
+  (21/2) is the regression proof for the board toast change, the
+  detail-page archived gating, and the To-Do query restructure.
+- Verdict: PASS.

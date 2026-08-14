@@ -172,26 +172,34 @@ export default async function BsLeadDetailPage({
 
       <div className="grid md:grid-cols-2 gap-6">
         <section className="space-y-4">
-          {/* founder: the lead's OWNER edits too — the API enforces access
-              (admin any / sales internal / agent+partner own) */}
-          <EditLeadForm lead={editable} />
+          {/* ADR-043 hardening: an archived lead is read-only — no edits, no
+              events (the API rejects them too); the chat stays open. */}
+          {!lead.archived ? (
+            /* founder: the lead's OWNER edits too — the API enforces access
+               (admin any / sales internal / agent+partner own) */
+            <EditLeadForm lead={editable} />
+          ) : null}
 
           <div className="card card--flush0">
             <div className="card-head">
               <h2 className="u-h3">{t(common.nextAction)}</h2>
             </div>
             <div className="card-pad">
-              <BsEventPanel
-                leadId={lead.id}
-                stage={lead.stage}
-                role={role}
-                reps={reps}
-                hasUnsentProposal={lead.proposals.some((p) => !p.sent)}
-                pendingMeeting={Boolean(
-                  latestMeeting && latestMeeting.outcome === null && latestMeeting.arranged,
-                )}
-                readyToClose={lead.readyToClose}
-              />
+              {lead.archived ? (
+                <p className="u-muted">{t(archiveMsgs.archivedNote)}</p>
+              ) : (
+                <BsEventPanel
+                  leadId={lead.id}
+                  stage={lead.stage}
+                  role={role}
+                  reps={reps}
+                  hasUnsentProposal={lead.proposals.some((p) => !p.sent)}
+                  pendingMeeting={Boolean(
+                    latestMeeting && latestMeeting.outcome === null && latestMeeting.arranged,
+                  )}
+                  readyToClose={lead.readyToClose}
+                />
+              )}
             </div>
           </div>
 

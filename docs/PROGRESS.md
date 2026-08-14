@@ -1173,3 +1173,45 @@ comment, and the ADR-013 mechanism note all fixed; .env.example confirmed tracke
   lead URL or the admin's Archived view; say the word if agents should
   get an Archived toggle on their board/list too. Carried: see Entries
   023–029.
+
+## Entry 032 — 2026-08-14 — Batch hardening round: eight adversarial-review fixes
+- Done: (1) ARCHIVE WRITE-GUARD (ADR-043 addendum): applyLeadEvent,
+  markReadyToClose, setNoAnswer, and updateLead now reject on archived
+  leads (ApiError 400 "Unarchive this lead first" — English pending the
+  error-code scheme, Entry 022 item (i)); chat comments and
+  archive/unarchive stay allowed; both lead detail pages hide the event
+  panel/edit form when archived and show the archivedNote Msg {en, ar}.
+  (2) TO-DO LATEST-RECORD: todoFor now picks the TRUE latest record per
+  lead/prospect first (across follow-ups, meetings, AND proposals — the
+  B-6 groupless proposal-sent return case) and only then checks it is
+  the matching live kind; stale follow-ups and stale arranged meetings
+  can no longer resurface. (3) ADR-043 CLARIFICATION: the To-Do's
+  admin money rows (pending statements, open milestones) now exclude
+  ARCHIVED leads' records — tasks leave with the lead; the
+  Statements/Won Leads PAGES still show the records (money-trail rule
+  unchanged). (4) DST: Egypt's spring-forward happens AT midnight, so
+  the transition day's 00:00 does not exist — cairoDayWindow now clamps
+  to the first existing instant (post-jump 01:00); pinned tests on
+  2026-04-23/24 and the fall-back day. (5) The ByteForce Unassigned
+  card now renders when unassigned leads exist active OR archived
+  (countUnassignedArchived) — the archive stays reachable. (6) ADR-042
+  ADDENDUM: internal drag back to intake logs T-0 (the internal generic
+  move id, mirroring B-1/PP-3's fallback role) instead of "?".
+  (7) Formless drag-to-New failures now surface through the board toast
+  on BOTH boards (InternalBoard and BsBoard) instead of a hidden modal
+  error state. Verified: tsc clean, vitest 106/106 (+5), Playwright 21
+  passed / 2 audit-opt-in skipped (TESTING Run 035).
+- Review claims REFUTED as documented tradeoffs (re-asserted so future
+  reviews don't re-litigate): (a) the admin's Agents/Partners detail
+  tables keeping archived rows is INTENTIONAL — they are management
+  views, per ADR-043's consequences; (b) money-trail surfaces (clients,
+  won leads, statements, payments) keeping archived leads' records is
+  INTENTIONAL per ADR-043 (the To-Do task rows were the inconsistency,
+  fixed in (3)); (c) the non-admin archived-view gap (agents/partners
+  have no archive list of their own) was already flagged for founder
+  confirmation in Entry 031 — not a defect, an open product question.
+- In progress: —
+- Next steps: founder review of the batch (Entries 027–032).
+- Blockers: none new.
+- Needs founder confirmation: carried — see Entries 023–031 (incl. the
+  Entry 031 agent archive-list question).

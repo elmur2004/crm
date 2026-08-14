@@ -229,6 +229,15 @@ describe("Internal CRM (§10.1)", () => {
     expect(drag.toStage).toBe("following_up");
     expect(drag.requiredGroup).toEqual({ group: "follow_up", context: "initial" });
     expect(drag.logTrigger).toBe("T-1"); // drag == matching action
+
+    /* ADR-042 addendum: back-to-intake is formless and logs the internal
+       generic move id (T-0 — mirrors B-1/PP-3's fallback role). */
+    const backToNew = expectOk(
+      transition(internal, { stage: "following_up" }, { type: "drag", to: "new" }, staff),
+    );
+    expect(backToNew.toStage).toBe("new");
+    expect(backToNew.requiredGroup).toBeNull();
+    expect(backToNew.logTrigger).toBe("T-0");
   });
 });
 

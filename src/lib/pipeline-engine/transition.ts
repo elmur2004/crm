@@ -64,6 +64,9 @@ function triggerForAction(config: PipelineConfig, toStage: string): string {
     if (toStage === config.proposalStage) return "T-3";
     if (toStage === config.lostStage) return "T-4";
     if (toStage === config.wonStage) return "T-9";
+    /* ADR-042 addendum: a drag back to intake sits outside the §10.1 rows —
+       T-0 is the internal generic move, mirroring B-1/PP-3's fallback role. */
+    return "T-0";
   }
   if (config.kind === "partners") {
     if (toStage === config.didntAnswerStage) return "PP-1";

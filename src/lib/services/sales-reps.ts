@@ -53,3 +53,10 @@ export async function listBsOwnerReps() {
 export function countUnassigned(brand: Brand) {
   return db.lead.count({ where: { brand, salesRepId: null, archived: false } });
 }
+
+/* Hardening (review): the Unassigned card is the ONLY door to the unassigned
+   view — it must still render when every unassigned lead is archived, or the
+   archive becomes unreachable for that bucket. */
+export function countUnassignedArchived(brand: Brand) {
+  return db.lead.count({ where: { brand, salesRepId: null, archived: true } });
+}

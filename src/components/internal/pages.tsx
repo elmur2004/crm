@@ -16,7 +16,12 @@ import {
   nav,
 } from "@/lib/i18n/dict/internal";
 import { internalDashboard } from "@/lib/services/metrics";
-import { listRepsWithCounts, listReps, countUnassigned } from "@/lib/services/sales-reps";
+import {
+  listRepsWithCounts,
+  listReps,
+  countUnassigned,
+  countUnassignedArchived,
+} from "@/lib/services/sales-reps";
 import { listClients } from "@/lib/services/clients";
 import { getLeadDetail, latestProposalValue } from "@/lib/services/leads";
 import { formatEGP } from "@/lib/money";
@@ -116,9 +121,10 @@ export async function DashboardBody({ ctx }: { ctx: InternalAppCtx }) {
 export async function LeadsBody({ ctx }: { ctx: InternalAppCtx }) {
   const locale = await getLocale();
   const t = tFor(locale);
-  const [reps, unassigned] = await Promise.all([
+  const [reps, unassigned, unassignedArchived] = await Promise.all([
     listRepsWithCounts(ctx.brand),
     countUnassigned(ctx.brand),
+    countUnassignedArchived(ctx.brand),
   ]);
   return (
     <div className="space-y-6">
@@ -145,7 +151,7 @@ export async function LeadsBody({ ctx }: { ctx: InternalAppCtx }) {
             </p>
           </Link>
         ))}
-        {unassigned > 0 ? (
+        {unassigned > 0 || unassignedArchived > 0 ? (
           <Link href={`${ctx.basePath}/leads/rep/unassigned`} className="ecard ecard--accent">
             <div className="ecard-top">
               <span className="ecard-mark" aria-hidden>
@@ -156,7 +162,7 @@ export async function LeadsBody({ ctx }: { ctx: InternalAppCtx }) {
             <p className="ecard-sub">{unassigned} {unassigned === 1 ? t(leadsPage.leadOne) : t(leadsPage.leadMany)}</p>
           </Link>
         ) : null}
-        {reps.length === 0 && unassigned === 0 ? (
+        {reps.length === 0 && unassigned === 0 && unassignedArchived === 0 ? (
           <p className="empty col-span-full">
             {t(leadsPage.noRepsYet)}
           </p>
@@ -360,15 +366,21 @@ export async function LeadDetailBody({ ctx, leadId }: { ctx: InternalAppCtx; lea
               </h2>
             </div>
             <div className="card-pad">
-              <LeadEventPanel
-                apiBase={ctx.apiBase}
-                leadId={lead.id}
-                stage={lead.stage}
-                reps={reps.map((r) => ({ id: r.id, name: r.name }))}
-                latestProposalValue={latestProposalValue(lead.proposals)}
-                hasUnsentProposal={lead.proposals.some((p) => !p.sent)}
-                pendingMeeting={Boolean(latestMeeting && latestMeeting.outcome === null && latestMeeting.arranged)}
-              />
+              {/* ADR-043 hardening: archived = read-only (the API rejects
+                  events too); the chat below stays open. */}
+              {lead.archived ? (
+                <p className="u-muted">{t(archiveMsgs.archivedNote)}</p>
+              ) : (
+                <LeadEventPanel
+                  apiBase={ctx.apiBase}
+                  leadId={lead.id}
+                  stage={lead.stage}
+                  reps={reps.map((r) => ({ id: r.id, name: r.name }))}
+                  latestProposalValue={latestProposalValue(lead.proposals)}
+                  hasUnsentProposal={lead.proposals.some((p) => !p.sent)}
+                  pendingMeeting={Boolean(latestMeeting && latestMeeting.outcome === null && latestMeeting.arranged)}
+                />
+              )}
             </div>
           </div>
         </section>

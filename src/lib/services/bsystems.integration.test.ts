@@ -8,6 +8,7 @@ import {
   markReadyToClose,
   setArchived,
   setNoAnswer,
+  updateLead,
 } from "./leads";
 import { listBsLeads } from "./bsystems-admin";
 import { internalDashboard } from "./metrics";
@@ -293,6 +294,39 @@ describe("Archive (founder, ADR-043)", () => {
       orderBy: { createdAt: "asc" },
     });
     expect(logs.map((l) => l.trigger)).toEqual(["archived", "unarchived"]);
+  });
+
+  it("hardening: an archived lead is read-only — events, flags, and edits reject until unarchived", async () => {
+    const lead = await makeLead();
+    await setArchived("bsystems", lead.id, true, admin);
+
+    const event = {
+      brand: "bsystems" as const,
+      leadId: lead.id,
+      event: { type: "next_action", action: "following_up" } as const,
+      group: {
+        group: "follow_up" as const,
+        data: { date: "2026-09-01", time: "10:00", method: "call" as const },
+      },
+      actor: admin,
+      role: "bsystems_admin" as const,
+    };
+    await expect(applyLeadEvent(event)).rejects.toThrow("Unarchive this lead first");
+    await expect(markReadyToClose("bsystems", lead.id, admin)).rejects.toThrow(
+      "Unarchive this lead first",
+    );
+    await expect(setNoAnswer("bsystems", lead.id, true, admin)).rejects.toThrow(
+      "Unarchive this lead first",
+    );
+    await expect(updateLead("bsystems", lead.id, { name: "Renamed" }, admin)).rejects.toThrow(
+      "Unarchive this lead first",
+    );
+    expect((await db.lead.findUniqueOrThrow({ where: { id: lead.id } })).stage).toBe("new");
+
+    /* unarchiving restores full operability */
+    await setArchived("bsystems", lead.id, false, admin);
+    const r = await applyLeadEvent(event);
+    expect(r.toStage).toBe("following_up");
   });
 });
 

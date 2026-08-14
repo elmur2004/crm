@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/lib/db";
 import { resetDb } from "@/tests/db-reset";
-import { cairoToUtc } from "@/lib/datetime";
-import { todoFor } from "./todo";
+import { cairoToUtc, utcToCairo } from "@/lib/datetime";
+import { cairoDayWindow, todoFor } from "./todo";
 
 /* ADR-041 — the To-Do projection: Cairo-day windowing, live-record selection,
    role scoping, admin extras. Fixed instants throughout — no wall-clock
@@ -63,6 +63,57 @@ describe("To-Do aggregation (ADR-041)", () => {
     const lists = await todoFor({ brand: "bsystems", scope: { kind: "all" }, now: NOW });
     expect(lists.today).toEqual([]);
     expect(lists.overdue).toEqual([]);
+  });
+
+  it("hardening: a B-6 groupless proposal-sent return leaves the PROPOSAL as latest — the stale follow-up never resurfaces", async () => {
+    const lead = await makeLead({ name: "B6 Return", stage: "following_up" });
+    /* pre-proposal follow-up (older), overdue by NOW */
+    await fu(lead.id, cairoToUtc("2026-08-15", "10:00"), new Date("2026-08-14T00:00:00Z"));
+    /* the proposal record is the lead's newest — created when it entered
+       sending_proposal; the B-6 auto-return adds NO new follow-up */
+    await db.proposal.create({
+      data: {
+        leadId: lead.id,
+        service: "x",
+        sent: true,
+        createdAt: new Date("2026-08-16T00:00:00Z"),
+      },
+    });
+
+    const lists = await todoFor({ brand: "bsystems", scope: { kind: "all" }, now: NOW });
+    expect(lists.today).toEqual([]);
+    expect(lists.overdue).toEqual([]); // the stale follow-up must NOT be here
+  });
+
+  it("hardening: a stale arranged meeting never resurfaces past a newer unarranged one", async () => {
+    const lead = await makeLead({ name: "Stale Meeting", stage: "meeting_setting" });
+    await db.meeting.create({
+      data: {
+        leadId: lead.id,
+        arranged: true,
+        datetime: cairoToUtc("2026-08-20", "15:00"),
+        createdAt: new Date("2026-08-14T00:00:00Z"), // old arranged meeting, today
+      },
+    });
+    await db.meeting.create({
+      data: {
+        leadId: lead.id,
+        arranged: false,
+        datetime: cairoToUtc("2026-08-22", "15:00"),
+        createdAt: new Date("2026-08-16T00:00:00Z"), // NEWEST record — a proposed slot
+      },
+    });
+    const lists = await todoFor({ brand: "bsystems", scope: { kind: "all" }, now: NOW });
+    expect(lists.today).toEqual([]); // the stale arranged meeting must NOT show
+
+    /* control: when the latest record IS an arranged outcome-less meeting
+       dated today, the row appears */
+    const live = await makeLead({ name: "Live Meeting", stage: "meeting_setting" });
+    await db.meeting.create({
+      data: { leadId: live.id, arranged: true, datetime: cairoToUtc("2026-08-20", "16:00") },
+    });
+    const lists2 = await todoFor({ brand: "bsystems", scope: { kind: "all" }, now: NOW });
+    expect(lists2.today.map((i) => i.title)).toEqual(["Live Meeting"]);
   });
 
   it("scopes: agent sees only own leads; internal sales the internal bucket; admin everything", async () => {
@@ -147,5 +198,28 @@ describe("To-Do aggregation (ADR-041)", () => {
 
     const sales = await todoFor({ brand: "bsystems", scope: { kind: "internal" }, now: NOW });
     expect(sales.today.map((i) => i.kind)).toEqual(["meeting"]); // extras are admin-only
+  });
+});
+
+describe("cairoDayWindow DST boundaries (hardening)", () => {
+  it("spring-forward at midnight (2026-04-24): the day starts at the first EXISTING instant; the eve keeps its last hour", () => {
+    const { start } = cairoDayWindow(cairoToUtc("2026-04-24", "12:00"));
+    expect(utcToCairo(start).date).toBe("2026-04-24");
+    expect(utcToCairo(new Date(start.getTime() - 60_000)).date).toBe("2026-04-23");
+
+    /* 23:30 on the eve belongs to the EVE's window, and the two windows
+       stay contiguous across the jump */
+    const eve = cairoToUtc("2026-04-23", "23:30");
+    const eveWin = cairoDayWindow(cairoToUtc("2026-04-23", "12:00"));
+    expect(eve.getTime() >= eveWin.start.getTime()).toBe(true);
+    expect(eve.getTime() < eveWin.end.getTime()).toBe(true);
+    expect(eveWin.end.getTime()).toBe(start.getTime());
+  });
+
+  it("fall-back day stays contiguous", () => {
+    const a = cairoDayWindow(cairoToUtc("2026-10-29", "12:00"));
+    const b = cairoDayWindow(cairoToUtc("2026-10-30", "12:00"));
+    expect(a.end.getTime()).toBe(b.start.getTime());
+    expect(utcToCairo(b.start).date).toBe("2026-10-30");
   });
 });

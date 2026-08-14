@@ -218,7 +218,7 @@ export function InternalBoard({
      on drop must not navigate (whole-card onClick checks this ref) */
   const suppressClickRef = useRef(false);
 
-  async function commitDrop(body: unknown, leadId: string) {
+  async function commitDrop(body: unknown, leadId: string, surface: "modal" | "toast" = "modal") {
     setBusy(true);
     setError(null);
     const res = await fetch(`${apiBase}/leads/${leadId}/event`, {
@@ -229,7 +229,11 @@ export function InternalBoard({
     setBusy(false);
     if (!res.ok) {
       const data = (await res.json().catch(() => null)) as { error?: string } | null;
-      setError(data?.error ?? t(common.somethingWentWrong));
+      const text = data?.error ?? t(common.somethingWentWrong);
+      /* hardening (review): the formless drag-to-New path has no modal — a
+         failure there must reach the board toast, not a hidden error state */
+      if (surface === "toast") setMessage(text);
+      else setError(text);
       return;
     }
     setPendingDrop(null);
@@ -257,7 +261,7 @@ export function InternalBoard({
       return;
     }
     if (to === "new") {
-      void commitDrop({ event: { type: "drag", to } }, leadId); // intake — no form
+      void commitDrop({ event: { type: "drag", to } }, leadId, "toast"); // intake — no form
       return;
     }
     setArranged(false);

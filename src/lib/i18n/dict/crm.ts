@@ -79,6 +79,10 @@ export const archiveMsgs = {
     ar: "أرشفة هذا العميل المحتمل؟ سيغادر اللوحة والقوائم — يمكن استعادته في أي وقت من عرض المؤرشف.",
   },
   archiveFailed: { en: "Could not archive the lead", ar: "تعذّرت أرشفة العميل المحتمل" },
+  archivedNote: {
+    en: "This lead is archived — unarchive it to make changes.",
+    ar: "هذا العميل المحتمل مؤرشف — ألغِ الأرشفة لإجراء تغييرات.",
+  },
 } satisfies Record<string, Msg>;
 
 /* Founder — leads list filters + ordering ("filter of the stage and the type

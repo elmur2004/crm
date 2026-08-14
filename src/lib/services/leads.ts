@@ -96,10 +96,19 @@ export async function createLead(
   });
 }
 
+/* ADR-043 hardening: an archived lead is READ-ONLY except the chat and
+   archive/unarchive itself — no stage events, no flags, no edits. Without
+   this, a won-move on an archived lead would mint client/won-deal/dashboard
+   records sourced from an invisible lead. */
+function assertNotArchived(lead: { archived: boolean }) {
+  if (lead.archived) throw new ApiError(400, "Unarchive this lead first");
+}
+
 /* V2 §3 — the always-available "Mark ready to close" flag: card marker + admin
    notification; not a stage transition. */
 export async function markReadyToClose(brand: Brand, leadId: string, actor: Actor) {
   const lead = await getLead(brand, leadId);
+  assertNotArchived(lead);
   if (lead.readyToClose) return lead;
   const updated = await db.$transaction(async (tx) => {
     const fresh = await tx.lead.update({
@@ -130,6 +139,7 @@ export async function markReadyToClose(brand: Brand, leadId: string, actor: Acto
    notification; both moves are activity-logged. */
 export async function setNoAnswer(brand: Brand, leadId: string, value: boolean, actor: Actor) {
   const lead = await getLead(brand, leadId);
+  assertNotArchived(lead);
   if (lead.noAnswer === value) return lead;
   return db.$transaction(async (tx) => {
     const fresh = await tx.lead.update({
@@ -218,6 +228,7 @@ export async function updateLead(
   actor: Actor,
 ) {
   const lead = await getLead(brand, leadId);
+  assertNotArchived(lead); // ADR-043 hardening — edits need an unarchive first
   if (input.salesRepId) {
     const rep = await db.salesRep.findFirst({ where: { id: input.salesRepId, brand } });
     if (!rep) throw new ApiError(404, "Sales rep not found");
@@ -310,6 +321,7 @@ export async function applyLeadEvent(opts: {
   role: Role;
 }): Promise<{ toStage: string }> {
   const lead = await getLead(opts.brand, opts.leadId);
+  assertNotArchived(lead); // ADR-043 hardening — no stage events on archived leads
   const config = configForBrand(opts.brand);
 
   const result = transition(config, { stage: lead.stage }, opts.event, { role: opts.role });

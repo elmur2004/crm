@@ -1,5 +1,22 @@
 # Changelog — user-visible changes per phase/release
 
+## Hardening (2026-08-14)
+- Archived leads are now truly frozen: no stage moves, flags, or edits
+  until you unarchive (the lead page says so plainly; the team chat
+  stays open). Archiving also removes the lead's statement and
+  milestone reminders from the To-Do page — the money records
+  themselves stay on their pages.
+- The To-Do page no longer resurfaces outdated items: an old follow-up
+  that was followed by a sent proposal, or an old confirmed meeting
+  superseded by a newer pending one, stays gone.
+- Days on the To-Do page now change over correctly on Egypt's
+  daylight-saving switch nights — nothing due in the last hour of the
+  eve is skipped.
+- The ByteForce "Unassigned" card stays visible when all its leads are
+  archived, so the archive remains reachable; and dragging a card back
+  to New now reports any error on screen instead of silently snapping
+  back.
+
 ## Archive leads (2026-08-14)
 - Open any lead and click Archive (with a confirm step): the lead
   leaves the board, the lists, the dashboard numbers, and the To-Do
