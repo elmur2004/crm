@@ -721,6 +721,62 @@ label:has(input[required]) .dropzone-title::after {
   }
 }
 
+/* ---------- filter sidebar (founder: "make it as a sidebar", not a top strip)
+   Start-side column beside the list from 900px up; below that the same card
+   collapses behind the .filter-toggle disclosure (count chip = active filters)
+   so the table keeps the full width. Logical properties only — the column flips
+   with [dir="rtl"] for free. ---------- */
+.filter-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; align-items: start; }
+.filter-panel { min-width: 0; }
+.filter-card {
+  display: flex; flex-direction: column; gap: 13px; padding: 15px 15px 16px;
+}
+.filter-section { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.filter-section-label {
+  font: 700 9.5px var(--font-mono); letter-spacing: .16em; text-transform: uppercase; color: var(--color-muted);
+}
+.filter-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 2px; }
+.filter-reset { font: 500 12px var(--font-body); color: var(--color-link); text-decoration: underline; }
+.filter-main { min-width: 0; }
+
+.filter-toggle {
+  display: flex; align-items: center; gap: 9px; width: 100%; cursor: pointer;
+  background: var(--color-surface-card); border: 1px solid var(--color-border);
+  border-radius: var(--radius-control); padding: 11px 14px;
+  font: 600 12.5px var(--font-body); color: var(--color-ink); text-align: start;
+}
+.filter-toggle:hover { border-color: var(--color-muted); }
+.filter-toggle::after {
+  content: ""; width: 7px; height: 7px; margin-inline-start: auto; flex: none;
+  border-inline-end: 1.5px solid currentColor; border-block-end: 1.5px solid currentColor;
+  transform: translateY(-2px) rotate(45deg); transition: transform .15s ease;
+}
+.filter-toggle[aria-expanded="true"]::after { transform: translateY(2px) rotate(-135deg); }
+/* The caret is GLYPH geometry, not layout: with border-inline-end resolving to
+   the left edge under RTL the same rotation would point it sideways, so the
+   mirrored direction gets its own rotations (down when closed, up when open). */
+[dir="rtl"] .filter-toggle::after { transform: translateY(-2px) rotate(-45deg); }
+[dir="rtl"] .filter-toggle[aria-expanded="true"]::after { transform: translateY(2px) rotate(135deg); }
+.filter-count {
+  min-width: 19px; height: 19px; padding: 0 6px; border-radius: 20px; display: inline-grid; place-items: center;
+  background: var(--color-primary); color: var(--color-on-primary); font: 600 10.5px var(--font-body);
+}
+.filter-body { display: none; margin-top: 10px; }
+.filter-body[data-open="true"] { display: block; }
+
+/* A table that shares its row with the sidebar has ~230px less to work with:
+   let the prose cells wrap instead of pushing the trailing columns out of the
+   scroller. The chips stay on one line — they are labels, not prose. */
+.table--wrap th, .table--wrap td { white-space: normal; }
+.td-nowrap { white-space: nowrap; } /* meaningful on its own, not only under .table--wrap */
+.table--wrap .stage-chip, .table--wrap .chip-outline, .table--wrap .td-nowrap { white-space: nowrap; }
+
+@media (min-width: 900px) {
+  .filter-layout { grid-template-columns: 232px minmax(0, 1fr); gap: 16px; }
+  .filter-toggle { display: none; }
+  .filter-body, .filter-body[data-open="false"] { display: block; margin-top: 0; }
+}
+
 /* ---------- responsive hardening (founder rule: every page adapts to any width) ---------- */
 @media (max-width: 640px) {
   .page, .page--detail { --page-pad: 14px; padding: 16px var(--page-pad) 36px; }

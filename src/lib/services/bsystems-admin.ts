@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import type { Prisma } from "../../../generated/prisma/client";
 import { BSYSTEMS_STAGES } from "@/lib/pipeline-engine/constants";
 import { internalDashboard, type InternalDashboard } from "./metrics";
 
@@ -53,15 +54,40 @@ export function listAgentsDetailed() {
   });
 }
 
+/* Founder (leads filter sidebar): ONE search box that hits the lead name, the
+   company, OR the number — "either way, we put anything into it". Matching is
+   SERVER-SIDE (case-insensitive contains); a query that looks like a phone
+   number is also matched digits-only, so "010 123" finds "0101234567". */
+export function leadSearchWhere(search?: string): Prisma.LeadWhereInput {
+  const q = search?.trim();
+  if (!q) return {};
+  const digits = q.replace(/\D/g, "");
+  /* "looks numeric" = digits plus the usual phone punctuation, nothing else */
+  const numeric = digits.length > 0 && /^[\d\s+()\-.]+$/.test(q);
+  return {
+    OR: [
+      { name: { contains: q, mode: "insensitive" } },
+      { companyName: { contains: q, mode: "insensitive" } },
+      { number: { contains: q } },
+      ...(numeric && digits !== q ? [{ number: { contains: digits } }] : []),
+    ],
+  };
+}
+
 /** V2 §2.2/§2.3 — the unified leads/board source with the owner-bucket filter.
     ADR-043: archived leads are hidden by default; the Leads page's Archived
-    view passes { archived: true } — that IS the archive. */
-export function listBsLeads(ownerType?: string, opts?: { archived?: boolean }) {
+    view passes { archived: true } — that IS the archive.
+    Founder: `search` narrows by name / company / number, server-side. */
+export function listBsLeads(
+  ownerType?: string,
+  opts?: { archived?: boolean; search?: string },
+) {
   return db.lead.findMany({
     where: {
       brand: "bsystems",
       archived: opts?.archived ?? false,
       ...(ownerType && ownerType !== "any" ? { ownerType } : {}),
+      ...leadSearchWhere(opts?.search),
     },
     include: {
       owner: { select: { name: true } },

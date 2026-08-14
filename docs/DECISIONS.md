@@ -933,3 +933,38 @@ R23 copy sign-off — carried in PROGRESS (Entry 011).
   views). An agent who archives an own lead restores it via the lead's
   URL or asks the admin (agents have no archive list) — flagged below.
 - Status: Accepted
+
+## ADR-044 — 2026-08-14 — Local PostgreSQL clusters are initialised UTF8 (locale C)
+- Context: The universal lead search (founder: "a search that applies to the
+  mobile number and to the name of the lead or the name of the company")
+  500s on any Arabic query, and Arabic lead names cannot be stored at all:
+  `character with byte sequence 0xd8 0xaf in encoding "UTF8" has no
+  equivalent in encoding "WIN1252"` (SQLSTATE 22P05). Root cause:
+  `embedded-postgres` (ADR-033) runs initdb with no flags, so on Windows the
+  cluster inherits the OS locale — English_United States.1252 — and every
+  database, template0/1 included, is created WIN1252. The platform is
+  bilingual (ADR-037), so this is a hard defect, not a preference.
+- Decision: scripts/local-postgres.ts passes
+  `initdbFlags: ["-E", "UTF8", "--locale=C"]` to every cluster it creates
+  (dev 5433, vitest, Playwright). UTF8 requires a matching locale and C is
+  the portable one on Windows; ILIKE case-insensitivity is unaffected for
+  ASCII and irrelevant for Arabic (no case). A cluster that already exists is
+  never re-initialised, so startLocalPostgres now probes `SHOW
+  server_encoding` on a pre-existing cluster and prints a loud warning naming
+  the data dir when it is not UTF8.
+- Alternatives considered: forcing client_encoding on the connection string —
+  rejected: the DATABASE encoding is the constraint, no client setting lets a
+  WIN1252 database hold Arabic. Sanitising/rejecting non-Latin-1 input at the
+  app layer — rejected: it would amputate half the product's languages.
+  `--locale=en-US.UTF-8` — not available on Windows initdb.
+- Resolves: BUG-006.
+- Consequences: fresh clusters (both test suites, every new dev machine) are
+  UTF8 immediately. The founder's EXISTING .pgdata/dev cluster stays WIN1252
+  until it is deleted and recreated (`npm run db:up` after removing the
+  folder, then `npx prisma migrate deploy` + seed, or an ADR-032 backup
+  export/import to carry data across) — the new warning says so on every
+  start. Managed/production Postgres is UTF8 by default and was never
+  affected. Collation C changes text ORDER BY to byte order on local
+  clusters; the app orders by timestamps or by curated labels, and the full
+  suite passes unchanged.
+- Status: Accepted

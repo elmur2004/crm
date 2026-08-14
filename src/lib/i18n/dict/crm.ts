@@ -86,7 +86,9 @@ export const archiveMsgs = {
 } satisfies Record<string, Msg>;
 
 /* Founder — leads list filters + ordering ("filter of the stage and the type
-   and the owner", "last edited, last added, closer-to-the-finish first"). */
+   and the owner", "last edited, last added, closer-to-the-finish first").
+   V2 of the round: the controls live in a sidebar and lead with one universal
+   search box (name / company / number). */
 export const leadsFilters = {
   filters: { en: "Filters", ar: "التصفية" },
   apply: { en: "Apply", ar: "تطبيق" },
@@ -94,6 +96,14 @@ export const leadsFilters = {
   sortAdded: { en: "Newest added", ar: "الأحدث إضافة" },
   sortUpdated: { en: "Recently updated", ar: "الأحدث تعديلاً" },
   sortPriority: { en: "Pipeline priority", ar: "أولوية خط المبيعات" },
+  search: { en: "Search", ar: "بحث" },
+  searchPlaceholder: {
+    en: "Name, company or number",
+    ar: "الاسم أو الشركة أو الرقم",
+  },
+  view: { en: "View", ar: "العرض" },
+  clear: { en: "Clear filters", ar: "مسح التصفية" },
+  activeCount: { en: "active filters", ar: "تصفية نشطة" },
 } satisfies Record<string, Msg>;
 
 /* ---- admin Home dashboard ---- */
@@ -133,6 +143,10 @@ export const leadsPage = {
   eyebrow: { en: "B-SYSTEMS · LEADS", ar: "B-SYSTEMS · العملاء المحتملون" },
   title: { en: "Leads", ar: "العملاء المحتملون" },
   empty: { en: "No leads in this bucket yet.", ar: "لا يوجد عملاء محتملون في هذه الفئة بعد." },
+  noMatches: {
+    en: "No leads match these filters.",
+    ar: "لا يوجد عملاء محتملون مطابقون لهذه التصفية.",
+  },
 } satisfies Record<string, Msg>;
 
 /* ---- lead detail page (labels keep the trailing colon) ---- */

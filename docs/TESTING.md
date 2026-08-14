@@ -651,3 +651,36 @@ every dashboard formula, journeys 1-5 (SPEC §13).
   (21/2) is the regression proof for the board toast change, the
   detail-page archived gating, and the To-Do query restructure.
 - Verdict: PASS.
+
+## Run 036 — 2026-08-14 — Leads filter sidebar + universal search
+- Suites/commands: `npx tsc --noEmit` (clean) · `npx vitest run` (112 —
+  six NEW tests) · `npx playwright test` (full suite incl. NEW
+  e2e/leads-filters.spec.ts). Local dev, embedded Postgres (per-run
+  instances, now UTF8 — ADR-044).
+- Cases: vitest 112 passed / 0 failed / 0 skipped · Playwright full 22
+  passed / 0 failed / 2 skipped (audit opt-in skips, by design). Full
+  e2e wall time 3.2m.
+- Failures: three during the round, all fixed before the final run —
+  (1) BUG-006: /b-systems/leads?q=<arabic> returned 500 (22P05,
+  WIN1252 cluster) — fixed by ADR-044 and now covered both unit and
+  e2e; (2) a self-inflicted 400 in the new spec (B-Systems lead
+  creation requires companyName); (3) brand-auditor FAIL on the
+  disclosure caret — logical borders with a fixed 45° rotation point
+  sideways under dir="rtl" — fixed with mirrored [dir="rtl"] rotations
+  and re-verified by screenshot in Arabic at 390px (the rest of the
+  diff audited clean: tokens only, correct brand scope, no pink/
+  gradient misuse, every new string a bilingual Msg).
+- SPEC coverage touched: no §10 rows — filtering and search are read-side
+  only. New coverage: (unit) listBsLeads search hits the NAME (partial,
+  case-insensitive), the COMPANY, the NUMBER, one query hitting a name
+  here and a company there, a spaced/punctuated digits query
+  ("010 123" and "010-1234-567" → 0101234567), an ARABIC name and
+  company, no-match, and composition with the owner bucket + the
+  archived view; (e2e) admin searches a partial number with a space,
+  sees exactly one row, gets the "No leads match these filters." empty
+  state on a dead query, resets via Clear filters, round-trips an Arabic
+  lead through the API and the search box, and at 390px finds the
+  sidebar collapsed behind the Filters disclosure (opens it, the query
+  is preserved). qa-sweep passing unchanged at 1440/1024/768/560/390 is
+  the regression proof for the new grid layout.
+- Verdict: PASS.

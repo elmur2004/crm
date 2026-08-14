@@ -1215,3 +1215,52 @@ comment, and the ADR-013 mechanism note all fixed; .env.example confirmed tracke
 - Blockers: none new.
 - Needs founder confirmation: carried — see Entries 023–031 (incl. the
   Entry 031 agent archive-list question).
+
+## Entry 033 — 2026-08-14 — Founder: Leads filter sidebar + universal search (ADR-044)
+- Done: FILTER SIDEBAR — the cramped top strip on /b-systems/leads is
+  gone; every control (Search, Owner, Stage, Type, Sort, View) now sits
+  in a labelled start-side card beside the table (grid, logical
+  properties, tokens only, new .filter-* block in
+  src/themes/design-system.css). Under 900px the same card collapses
+  behind a "Filters" disclosure (LeadsFilterPanel client component)
+  carrying a chip that counts the non-default filters, so the table
+  keeps the full width at 390px; the desktop media query re-opens the
+  body regardless of the toggle state. Still a plain GET form with the
+  SAME param names (owner/stage/type/sort/view — old links keep
+  working), plus a "Clear filters" reset link shown only when something
+  is active. The sidebar costs the table ~230px, so the leads table got
+  .table--wrap (prose cells wrap; chips and the date stay on one line)
+  — all seven columns fit again at 1440.
+  UNIVERSAL SEARCH — new `q` param → listBsLeads({ search }) →
+  leadSearchWhere: server-side, case-insensitive contains over lead
+  name OR companyName OR number, plus a digits-only number match when
+  the query looks like a phone number, so "010 123" finds 0101234567.
+  Never client-filtered. A dead query gets its own empty state ("No
+  leads match these filters.") instead of the bucket message. All new
+  strings are Msg {en, ar} (Search/بحث, "Name, company or number"/
+  "الاسم أو الشركة أو الرقم", Filters/التصفية, Clear filters/مسح
+  التصفية, View/العرض); every existing English string is byte-identical.
+  BUG-006 / ADR-044 — verifying the search in Arabic exposed a real
+  defect underneath the feature: the local Postgres clusters were
+  initialised WIN1252 (Windows locale), so ARABIC TEXT COULD NOT BE
+  STORED OR SEARCHED AT ALL (22P05 → 500 on the leads page). Fixed at
+  the source: initdb now runs `-E UTF8 --locale=C` for every cluster,
+  and a pre-existing non-UTF8 data dir triggers a named warning on
+  start. Verified: tsc clean, vitest 112/112 (+6), Playwright 22 passed
+  / 2 audit-opt-in skipped (TESTING Run 036); screenshots reviewed at
+  1440/1024/768/390 and in Arabic RTL. brand-auditor run on the diff:
+  tokens, brand scope, pink/gradient rules and bilingual strings clean;
+  it caught one real RTL defect — the disclosure caret is drawn with
+  logical borders, so under dir="rtl" the fixed 45° rotation pointed it
+  sideways — fixed with mirrored [dir="rtl"] rotations and re-shot in
+  Arabic at 390px (down when closed, up when open).
+- In progress: —
+- Next steps: founder review of the sidebar (density, which control
+  order he wants) and of the batch (Entries 027–033).
+- Blockers: none new.
+- Needs founder confirmation: (i) NEW — the founder's existing local
+  database (.pgdata/dev) is still a WIN1252 cluster: it must be deleted
+  and recreated (or carried across with an ADR-032 backup
+  export/import) before Arabic lead names can be typed on that machine;
+  say the word and it can be done with the data preserved. Carried: see
+  Entries 023–032 (incl. the Entry 031 agent archive-list question).

@@ -66,3 +66,24 @@ the moment a failure is found; close them with a reference to the fixing commit/
   in, click Log out, inspect the redirect response's Location header.
 - Status: fixed (signOut({redirect: false}) + a relative redirect() —
   commit ce5ff36, Entry 021, TESTING Run 024)
+
+## BUG-006 — 2026-08-14 — Arabic text cannot be stored or searched: local Postgres clusters are WIN1252
+- Severity: major (the platform is bilingual; found while verifying the new
+  Leads search in Arabic, not by a user report)
+- Where: scripts/local-postgres.ts — `embedded-postgres` initdb ran with no
+  flags, so on Windows the cluster inherited English_United States.1252 and
+  every database (template0/1, postgres, crm) was created WIN1252. Any
+  non-Latin-1 character raised SQLSTATE 22P05 `character with byte sequence
+  0xd8 0xaf in encoding "UTF8" has no equivalent in encoding "WIN1252"` —
+  on INSERT (an Arabic lead name) and on SELECT (an Arabic search query),
+  surfacing as a 500 "This page couldn't load" on /b-systems/leads?q=<arabic>.
+- Repro: `SELECT pg_encoding_to_char(encoding) FROM pg_database` on a cluster
+  created before the fix → WIN1252; then insert any Arabic string.
+- Status: fixed (ADR-044 — initdb `-E UTF8 --locale=C` on every local
+  cluster, plus a start-up warning naming any pre-existing non-UTF8 data dir;
+  Entry 033, TESTING Run 036 — unit: an Arabic lead name is found by
+  listBsLeads search; e2e: an Arabic lead is created through the API and
+  found through the Leads search box). The founder's existing .pgdata/dev
+  cluster must be deleted and recreated (or migrated via an ADR-032 backup
+  export/import) to accept Arabic locally; managed Postgres is UTF8 by
+  default and was never affected.

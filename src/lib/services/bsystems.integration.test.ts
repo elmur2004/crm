@@ -832,6 +832,88 @@ describe("Admin user editing (founder V4)", () => {
   });
 });
 
+describe("Universal lead search (founder: one box — name, company, or number)", () => {
+  async function searchFixtures() {
+    const a = await createLead(
+      "bsystems",
+      {
+        name: "Delta Textiles",
+        number: "0101234567",
+        type: "cold_call",
+        companyName: "Nile Trading",
+      },
+      admin,
+    );
+    const b = await createLead(
+      "bsystems",
+      {
+        name: "Karim Hassan",
+        number: "0223339999",
+        type: "personal_connection",
+        companyName: "Delta Foods",
+      },
+      admin,
+    );
+    const c = await createLead(
+      "bsystems",
+      { name: "Unrelated Contact", number: "0501112222", type: "event_data" },
+      admin,
+    );
+    return { a, b, c };
+  }
+
+  const ids = (leads: Array<{ id: string }>) => leads.map((l) => l.id).sort();
+
+  it("matches the lead NAME, case-insensitively and on a partial", async () => {
+    const { a } = await searchFixtures();
+    expect(ids(await listBsLeads("any", { search: "textil" }))).toEqual([a.id]);
+    expect(ids(await listBsLeads("any", { search: "TEXTILES" }))).toEqual([a.id]);
+  });
+
+  it("matches the COMPANY name (and one query may hit a name here, a company there)", async () => {
+    const { a, b } = await searchFixtures();
+    expect(ids(await listBsLeads("any", { search: "nile tra" }))).toEqual([a.id]);
+    /* "delta" is A's NAME and B's COMPANY — both come back */
+    expect(ids(await listBsLeads("any", { search: "delta" }))).toEqual([a.id, b.id].sort());
+  });
+
+  it("matches the NUMBER on a partial", async () => {
+    const { b } = await searchFixtures();
+    expect(ids(await listBsLeads("any", { search: "0223339" }))).toEqual([b.id]);
+  });
+
+  it("matches a SPACED digits query against the stored number (\"010 123\" → 0101234567)", async () => {
+    const { a } = await searchFixtures();
+    expect(ids(await listBsLeads("any", { search: "010 123" }))).toEqual([a.id]);
+    expect(ids(await listBsLeads("any", { search: "010-1234-567" }))).toEqual([a.id]);
+  });
+
+  it("matches ARABIC names — the platform is bilingual, so the database must be UTF8", async () => {
+    const arabic = await createLead(
+      "bsystems",
+      {
+        name: "دلتا للأغذية",
+        number: "0102223333",
+        type: "cold_call",
+        companyName: "شركة النيل",
+      },
+      admin,
+    );
+    expect(ids(await listBsLeads("any", { search: "للأغذية" }))).toEqual([arabic.id]);
+    expect(ids(await listBsLeads("any", { search: "النيل" }))).toEqual([arabic.id]);
+  });
+
+  it("returns nothing when nothing matches, and still honours the other filters", async () => {
+    const { a } = await searchFixtures();
+    expect(await listBsLeads("any", { search: "zzqq" })).toHaveLength(0);
+    /* combines with the owner bucket and the archive view */
+    expect(await listBsLeads("agent", { search: "delta" })).toHaveLength(0);
+    await setArchived("bsystems", a.id, true, admin);
+    expect(await listBsLeads("any", { search: "textil" })).toHaveLength(0);
+    expect(ids(await listBsLeads("any", { search: "textil", archived: true }))).toEqual([a.id]);
+  });
+});
+
 describe("Won-deal math barriers (founder V3)", () => {
   const base = {
     estimatedValue: 100_000_00,

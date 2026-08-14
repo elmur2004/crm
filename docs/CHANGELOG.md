@@ -1,5 +1,28 @@
 # Changelog — user-visible changes per phase/release
 
+## Leads filters v2 — a real sidebar and one search box (2026-08-14)
+- The B-Systems Leads filters moved out of the crowded row above the
+  table into a proper sidebar next to it: Search, Owner, Stage, Type,
+  Sort and View, each under its own small heading, with Apply and a
+  "Clear filters" link that appears as soon as anything is set. On a
+  phone or a narrow window the sidebar folds into a single "Filters"
+  button above the table — it shows a small number telling you how many
+  filters are currently on, and the table keeps the full width.
+- New search box at the top of the sidebar: type anything and it
+  matches the lead's name, the company name, or the phone number — one
+  box, either way. Spaces and dashes in a number don't matter, so
+  "010 123" finds 0101234567, and a part of a word is enough. If
+  nothing matches, the page says so plainly instead of looking empty
+  for no reason. Your links keep working: any Leads address you had
+  bookmarked still opens the same list.
+- Arabic now works everywhere it should: the whole sidebar is
+  translated, and Arabic lead names and companies can finally be saved
+  and searched — the local database was previously built in a
+  Western-European encoding that rejected Arabic letters outright. If
+  you are running the app on your own machine with an older local
+  database, it needs to be recreated once (your data can be carried
+  over) — ask and it will be done.
+
 ## Hardening (2026-08-14)
 - Archived leads are now truly frozen: no stage moves, flags, or edits
   until you unarchive (the lead page says so plainly; the team chat

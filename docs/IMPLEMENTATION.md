@@ -548,3 +548,47 @@ _Format per module:_
   review: "CRM" → "المبيعات", "Retainer" → "عقد دوري" (Entry 022 item
   (j)).
 - Last updated: 2026-08-13 (Entry 022, ADR-037, TESTING Run 025)
+
+## Local Postgres encoding — UTF8 clusters (ADR-044, BUG-006)
+- Location: scripts/local-postgres.ts (INITDB_FLAGS + warnIfNotUtf8),
+  consumed by `npm run db:up` and both suites' global setups.
+- What exists / how it works: every cluster this repo creates is initialised
+  `-E UTF8 --locale=C`. Without those flags initdb inherits the Windows OS
+  locale and builds a WIN1252 cluster in which no Arabic byte can be stored
+  or matched (22P05) — fatal for a bilingual product (ADR-037). Because a
+  cluster is only initialised once, startLocalPostgres additionally probes
+  `SHOW server_encoding` whenever the data dir already existed and warns,
+  naming the folder, if it is not UTF8.
+- Limitations / gotchas: the flags apply at initdb time ONLY — an existing
+  .pgdata/dev from before this change stays WIN1252 until the folder is
+  deleted and recreated (data carries over via the ADR-032 backup
+  export/import). Locale C means text ORDER BY is byte order locally (the app
+  orders by timestamps or curated labels, so nothing shifted); ILIKE
+  case-insensitivity still works for ASCII and is a no-op for Arabic. Prefer
+  a UTF8 database everywhere else too — managed Postgres defaults to it.
+- Last updated: 2026-08-14 (Entry 033, ADR-044, TESTING Run 036)
+
+## Leads filter sidebar + universal search (founder round 2)
+- Location: src/app/(bsystems)/b-systems/(app)/leads/page.tsx,
+  src/components/bsystems/LeadsFilterPanel.tsx, the `.filter-*` /
+  `.table--wrap` block in src/themes/design-system.css,
+  leadSearchWhere/listBsLeads in src/lib/services/bsystems-admin.ts,
+  strings in src/lib/i18n/dict/crm.ts, e2e/leads-filters.spec.ts.
+- What exists / how it works: the filters are a plain GET form (unchanged
+  param names: owner/stage/type/sort/view, new `q`) rendered as a start-side
+  sidebar column from 900px up. Below 900px the SAME markup collapses behind
+  a client-side disclosure (LeadsFilterPanel) whose chip counts the
+  non-default controls; the desktop media query re-shows `.filter-body`
+  regardless of its data-open state, so no JS is needed to reach the filters
+  on a wide screen. Search is server-side only: leadSearchWhere ORs
+  case-insensitive contains over name / companyName / number and, when the
+  query is digits plus phone punctuation, adds a digits-only number match so
+  "010 123" finds 0101234567.
+- Limitations / gotchas: the sidebar costs the table ~230px, which pushed the
+  Created column out of the horizontal scroller — hence `.table--wrap` (prose
+  cells wrap, chips and the date stay on one line). Keep it on any table that
+  sits beside the sidebar. The stage/type narrowing still happens in JS after
+  the fetch (unchanged from round 1 — the admin list is page-sized); only the
+  search and the owner bucket are SQL. If this list ever paginates, both must
+  move into the query together or the counts will lie.
+- Last updated: 2026-08-14 (Entry 033, TESTING Run 036)
