@@ -79,6 +79,9 @@ export function listBsLeads(
       meetings: { orderBy: { createdAt: "desc" }, take: 1 },
       proposals: { orderBy: { createdAt: "desc" }, take: 1 },
       lostInfo: { orderBy: { createdAt: "desc" }, take: 1 },
+      /* founder: the negotiation card shows its response-due date, but only
+         when that follow-up is NEWER than the note the stage was entered with */
+      negotiationNotes: { orderBy: { createdAt: "desc" }, take: 1, select: { createdAt: true } },
     },
     orderBy: { updatedAt: "desc" },
   });
@@ -103,6 +106,9 @@ export function listOwnLeads(userId: string, opts?: { search?: string; type?: st
       meetings: { orderBy: { createdAt: "desc" }, take: 1 },
       proposals: { orderBy: { createdAt: "desc" }, take: 1 },
       lostInfo: { orderBy: { createdAt: "desc" }, take: 1 },
+      /* founder: the negotiation card shows its response-due date, but only
+         when that follow-up is NEWER than the note the stage was entered with */
+      negotiationNotes: { orderBy: { createdAt: "desc" }, take: 1, select: { createdAt: true } },
     },
     orderBy: { updatedAt: "desc" },
   });

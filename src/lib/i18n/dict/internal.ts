@@ -187,6 +187,8 @@ export const events = {
   nextAction: { en: "Next action", ar: "الإجراء التالي" },
   chooseNextAction: { en: "Choose a next action…", ar: "اختر الإجراء التالي…" },
   saveAndMove: { en: "Save & move", ar: "حفظ ونقل" },
+  /* founder: same-stage records — nothing moves, so "Save & move" would lie */
+  saveRecord: { en: "Save record", ar: "حفظ السجل" },
 } satisfies Record<string, Msg>;
 
 /* ---- stage records (GroupHistory) ---- */
@@ -195,6 +197,11 @@ export const records = {
     initial: { en: "Following up", ar: "متابعة" },
     after_proposal: { en: "Following up after proposal", ar: "متابعة بعد العرض" },
     after_meeting: { en: "Following up after meeting", ar: "متابعة بعد الاجتماع" },
+    /* founder: the negotiation's own follow-up — the promised response date */
+    after_negotiation: {
+      en: "Response due after negotiation",
+      ar: "الرد المتوقع بعد التفاوض",
+    },
   } as Record<string, Msg>,
   due: { en: "Due", ar: "تستحق" },
   ownerColon: { en: "Owner:", ar: "المسؤول:" },

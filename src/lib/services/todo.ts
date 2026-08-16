@@ -84,10 +84,15 @@ export async function todoFor(opts: {
      leaves the proposal as the newest record; the stale pre-proposal follow-up
      must never resurface) — then keep the row only when that latest record is
      the matching live kind. This mirrors the boards' key datum exactly. */
+  /* Founder (same-stage records): NEGOTIATION carries a dated follow-up too —
+     "the date we will have a response for them on the proposal" — so the
+     negotiation stage joins the projection, and negotiation NOTES join the
+     latest-record race (a note written on the way in must supersede the
+     follow-up left behind by the previous stage). */
   const stagedLeads = await db.lead.findMany({
     where: {
       ...leadWhere(opts.brand, opts.scope),
-      stage: { in: ["following_up", "meeting_setting"] },
+      stage: { in: ["following_up", "meeting_setting", "negotiation"] },
     },
     select: {
       id: true,
@@ -96,6 +101,7 @@ export async function todoFor(opts: {
       followUps: { orderBy: { createdAt: "desc" }, take: 1 },
       meetings: { orderBy: { createdAt: "desc" }, take: 1 },
       proposals: { orderBy: { createdAt: "desc" }, take: 1, select: { createdAt: true } },
+      negotiationNotes: { orderBy: { createdAt: "desc" }, take: 1, select: { createdAt: true } },
     },
   });
 
@@ -104,12 +110,18 @@ export async function todoFor(opts: {
     const f = lead.followUps[0] ?? null;
     const m = lead.meetings[0] ?? null;
     const p = lead.proposals[0] ?? null;
+    const n = lead.negotiationNotes[0] ?? null;
     const newest = Math.max(
       f?.createdAt.getTime() ?? 0,
       m?.createdAt.getTime() ?? 0,
       p?.createdAt.getTime() ?? 0,
+      n?.createdAt.getTime() ?? 0,
     );
-    if (lead.stage === "following_up" && f && f.createdAt.getTime() === newest) {
+    if (
+      (lead.stage === "following_up" || lead.stage === "negotiation") &&
+      f &&
+      f.createdAt.getTime() === newest
+    ) {
       items.push({
         kind: "follow_up",
         at: f.dueAt,

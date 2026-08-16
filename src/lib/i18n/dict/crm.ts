@@ -140,6 +140,9 @@ export const crmPage = {
   meetingNotArranged: { en: "Meeting not arranged", ar: "لم يتم ترتيب الاجتماع" },
   estPrefix: { en: "Est: ", ar: "تقديري: " },
   noValue: { en: "No value set", ar: "لم تُحدد قيمة" },
+  /* founder: the negotiation card's key datum — the promised response date */
+  responsePrefix: { en: "Response: ", ar: "الرد: " },
+  noResponseDate: { en: "No response date set", ar: "لم يُحدد موعد الرد" },
 } satisfies Record<string, Msg>;
 
 /* ---- Leads (admin list) page ---- */
@@ -223,6 +226,8 @@ export const eventPanel = {
   confirmMoveTo: { en: "Confirm — move to {stage}", ar: "تأكيد — الانتقال إلى {stage}" },
   chooseNextAction: { en: "Choose a next action…", ar: "اختر الإجراء التالي…" },
   saveAndMove: { en: "Save & move", ar: "حفظ ونقل" },
+  /* founder: same-stage records — nothing moves, so "Save & move" would lie */
+  saveRecord: { en: "Save record", ar: "حفظ السجل" },
 } satisfies Record<string, Msg>;
 
 /* ---- role-aware stage forms (roleForms.tsx) ---- */

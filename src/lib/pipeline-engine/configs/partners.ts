@@ -8,6 +8,15 @@ import type { PipelineConfig } from "../types";
 
 const ACTIVE_ACTIONS = ["didnt_answer", "following_up", "meeting_setting", "won", "lost"] as const;
 
+/* Founder: same-stage records — the partnership pipeline has Following Up and
+   Meeting Setting too, so it gets the same "another follow-up" / "reschedule"
+   buttons rather than a special-cased UI on the leads side only. */
+function sameStageExtras(stage: string): string[] {
+  if (stage === "following_up") return ["follow_up_again"];
+  if (stage === "meeting_setting") return ["reschedule_meeting"];
+  return [];
+}
+
 export const partnersConfig: PipelineConfig = {
   kind: "partners",
   stages: PARTNER_STAGES,
@@ -21,7 +30,7 @@ export const partnersConfig: PipelineConfig = {
   lostStage: "lost",
   nextActions(stage) {
     if (stage === "won" || stage === "lost") return [];
-    return ACTIVE_ACTIONS;
+    return [...ACTIVE_ACTIONS, ...sameStageExtras(stage)];
   },
   attendedDestinations() {
     return ["following_up", "won", "lost"]; // ADR-010

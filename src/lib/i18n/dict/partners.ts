@@ -235,6 +235,8 @@ export const pPanel = {
   nextAction: { en: "Next action", ar: "الإجراء التالي" },
   chooseNextAction: { en: "Choose a next action…", ar: "اختر الإجراء التالي…" },
   saveMove: { en: "Save & move", ar: "حفظ ونقل" },
+  /* founder: same-stage records — nothing moves, so "Save & move" would lie */
+  saveRecord: { en: "Save record", ar: "حفظ السجل" },
 } satisfies Record<string, Msg>;
 
 /* ---------- admin edit / delete modals (manage.tsx) ---------- */

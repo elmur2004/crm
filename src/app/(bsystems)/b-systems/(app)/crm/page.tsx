@@ -60,6 +60,15 @@ function keyDatum(locale: Locale, lead: LeadRow): string {
       return lead.proposals[0]?.estimatedValue != null
         ? `${t(m.estPrefix)}${formatEGP(lead.proposals[0].estimatedValue)}`
         : t(m.noValue);
+    case "negotiation": {
+      /* founder: "the date we will have a response for them on the proposal" —
+         shown only while that follow-up is the card's newest record, so the
+         one left behind by a previous stage never masquerades as a promise. */
+      const f = lead.followUps[0];
+      const n = lead.negotiationNotes[0];
+      if (!f || (n && n.createdAt > f.createdAt)) return t(m.noResponseDate);
+      return `${t(m.responsePrefix)}${formatCairo(f.dueAt)}`;
+    }
     case "lost":
       return lead.lostInfo[0]?.reason ?? "";
     default:

@@ -414,3 +414,65 @@ describe("B-Systems unified CRM (REQUIREMENTS-V2)", () => {
     expect(toIntake.requiredGroup).toBeNull();
   });
 });
+
+/* ---------------------------------------------------------------------------
+   Founder: same-stage records — "another follow-up" inside Following Up, the
+   negotiation's promised response date, and a meeting reschedule. New rows
+   OUTSIDE the §10 tables (like B-RTC / no_answer), so they are named for what
+   they do; the engine resolves each to the stage the card is already in.
+   --------------------------------------------------------------------------- */
+describe("Same-stage records (founder)", () => {
+  it("follow_up_again: offered from Following Up on all three pipelines, never moves the card", () => {
+    for (const [config, ctx] of [
+      [internal, staff],
+      [bsystems, admin],
+      [partners, admin],
+    ] as const) {
+      expect(config.nextActions("following_up", ctx.role)).toContain("follow_up_again");
+      const r = expectOk(transition(config, { stage: "following_up" }, act("follow_up_again"), ctx));
+      expect(r.fromStage).toBe("following_up");
+      expect(r.toStage).toBe("following_up");
+      expect(r.requiredGroup).toEqual({ group: "follow_up", context: "initial" });
+      expect(r.logTrigger).toBe("FU-AGAIN");
+      expect(r.sideEffects).toEqual([]);
+    }
+  });
+
+  it("negotiation_follow_up: B-Systems only, carries the after_negotiation context", () => {
+    const r = expectOk(transition(bsystems, { stage: "negotiation" }, act("negotiation_follow_up"), admin));
+    expect(r.toStage).toBe("negotiation");
+    expect(r.requiredGroup).toEqual({ group: "follow_up", context: "after_negotiation" });
+    expect(r.logTrigger).toBe("NEG-DUE");
+
+    /* the internal and partners pipelines have no negotiation stage at all */
+    expect(internal.nextActions("following_up", staff.role)).not.toContain("negotiation_follow_up");
+    expect(partners.nextActions("following_up", admin.role)).not.toContain("negotiation_follow_up");
+  });
+
+  it("reschedule_meeting: records a NEW meeting (not T-7's in-place edit) and stays put", () => {
+    for (const [config, ctx] of [
+      [internal, staff],
+      [bsystems, agent],
+      [partners, admin],
+    ] as const) {
+      const r = expectOk(
+        transition(config, { stage: "meeting_setting" }, act("reschedule_meeting"), ctx),
+      );
+      expect(r.toStage).toBe("meeting_setting");
+      expect(r.requiredGroup).toEqual({ group: "meeting" }); // NOT meeting_reschedule
+      expect(r.logTrigger).toBe("MTG-RESCHEDULE");
+    }
+  });
+
+  it("each is scoped to the stage that owns its record, and terminal stages offer none", () => {
+    const early = transition(bsystems, { stage: "new" }, act("follow_up_again"), admin);
+    expect(early.ok).toBe(false);
+    expect(!early.ok && early.code).toBe("unknown_action");
+
+    const wrongStage = transition(bsystems, { stage: "following_up" }, act("reschedule_meeting"), admin);
+    expect(wrongStage.ok).toBe(false);
+
+    expect(bsystems.nextActions("won", admin.role)).toEqual([]);
+    expect(bsystems.nextActions("lost", admin.role)).toEqual([]);
+  });
+});

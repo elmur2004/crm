@@ -1386,3 +1386,50 @@ comment, and the ADR-013 mechanism note all fixed; .env.example confirmed tracke
   prefers, at the cost of nav links at 1440px. Carried: see Entries
   023–035 (incl. the WIN1252 local-database recreation, the board's
   owner tabs, and the Arabic wording for Organic).
+
+## Entry 037 — 2026-08-17 — Founder: same-stage records (ADR-046)
+- Done: three founder asks, one mechanism. SAME_STAGE_ACTIONS —
+  follow_up_again, negotiation_follow_up, reschedule_meeting — are
+  ordinary engine next actions whose transition resolves to the stage
+  the card is ALREADY in, so persistGroup, the Zod completeness gates,
+  the activity log, ADR-045's undo and ADR-041's To-Do all serve them
+  with no new plumbing. Availability lives in the CONFIGS, not the UI:
+  follow-up-again and reschedule on internal + bsystems + partners
+  (all three own Following Up and Meeting Setting), the negotiation
+  response date on bsystems only. Groups: another follow-up reuses the
+  follow-up group; the negotiation one uses a NEW context
+  "after_negotiation" ("Response due after negotiation") so the record
+  reads as the promised response date; the reschedule writes a NEW
+  meeting record (deliberately NOT T-7's in-place meeting_reschedule) —
+  that is what makes the boards and the To-Do, both latest-record
+  readers, swap to the new slot and stop counting the old one. Triggers
+  are FU-AGAIN / NEG-DUE / MTG-RESCHEDULE, named like the other
+  non-§10 rows (B-RTC, no_answer, archived); the log line reads
+  "group added" with no from → to, because nothing moved, while every
+  pre-existing same-stage case (T-7, re-selecting the current stage)
+  keeps its wording byte-for-byte. Undo says "Recorded another
+  follow-up on X" instead of "Moved X to …". To-Do gained the
+  NEGOTIATION stage, and negotiation notes joined the latest-record
+  race so a follow-up left behind by Following Up cannot resurface
+  there. All three action panels (B-Systems, ByteForce, Partnership)
+  filter the same-stage actions out of the "Next action" select and
+  render them as BUTTONS above it, reusing that stage's own role-aware
+  form; agents keep their V2 §3 day-only follow-up form; a reschedule
+  always records an ARRANGED meeting (the "did you agree?" question is
+  suppressed). The B-Systems board's negotiation card now shows
+  "Response: <date>" while that follow-up is the newest record.
+  Verified: tsc clean, vitest 138/138 (+12), Playwright 25 passed / 2
+  audit-opt-in skipped (TESTING Run 040).
+- In progress: founder requests 2–4 of this round (assign a lead to an
+  agent/partner; the dial + call sheet; permanently delete a user).
+- Next steps: as above.
+- Blockers: none new.
+- Needs founder confirmation: (i) "Log another follow-up" stores the
+  record with the ordinary "Following up" title (the timestamps already
+  separate a repeat from the first) — say the word and repeats get
+  their own label; (ii) the reschedule button always records an
+  ARRANGED meeting; if agents should be able to propose a slot instead,
+  the "did you agree on a time?" question comes back. Carried: see
+  Entries 023–036 (incl. the WIN1252 local-database recreation, the
+  board's owner tabs, the Arabic wording for Organic, and undo's
+  one-step/10-minute/no-financials rules).

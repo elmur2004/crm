@@ -32,6 +32,19 @@ export const leadTypeMsgs: Record<LeadType, Msg> = {
   organic: { en: "Organic", ar: "عميل وارد" },
 };
 
+/* Founder: the same-stage record buttons ("another follow-up", "the response
+   date", "reschedule") — one label map shared by all three action panels, so
+   every pipeline that offers the action offers the same wording. */
+export const sameStageActionMsgs: Record<string, Msg> = {
+  follow_up_again: { en: "Log another follow-up", ar: "تسجيل متابعة أخرى" },
+  negotiation_follow_up: { en: "Set the response date", ar: "تحديد موعد الرد" },
+  reschedule_meeting: { en: "Reschedule the meeting", ar: "إعادة جدولة الاجتماع" },
+};
+
+export function sameStageActionLabel(locale: Locale, action: string): string {
+  return sameStageActionMsgs[action]?.[locale] ?? action;
+}
+
 export const ownerTypeMsgs: Record<OwnerType, Msg> = {
   internal: { en: "Internal", ar: "داخلي" },
   agent: { en: "Agents", ar: "وكلاء" },

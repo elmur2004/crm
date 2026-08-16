@@ -5,12 +5,14 @@ import { useRouter } from "next/navigation";
 import {
   FOLLOW_UP_METHODS,
   MEETING_MODES,
+  SAME_STAGE_FORM_TARGET,
+  isSameStageAction,
 } from "@/lib/pipeline-engine/constants";
 import { internalCrmConfig } from "@/lib/pipeline-engine/configs/internal-crm";
 import { toPiasters, toPounds } from "@/lib/money";
 import { tFor } from "@/lib/i18n/core";
 import { useLocale } from "@/components/shared/LocaleProvider";
-import { stageLabel } from "@/lib/i18n/dict/labels";
+import { sameStageActionLabel, stageLabel } from "@/lib/i18n/dict/labels";
 import { common, events } from "@/lib/i18n/dict/internal";
 
 /* §6.1/§6.2 — selecting a Next Action opens exactly that stage's field group right
@@ -267,6 +269,10 @@ export function LeadEventPanel({
      same sets); the server revalidates with the true role on every event. */
   const terminal = internalCrmConfig.terminalStages.includes(stage);
   const nextActions = internalCrmConfig.nextActions(stage, "byteforce_staff");
+  /* founder: same-stage records are buttons — the card does not move. */
+  const sameStageActions = nextActions.filter(isSameStageAction);
+  const stageActions = nextActions.filter((a) => !isSameStageAction(a));
+  const formTarget = (a: string) => (isSameStageAction(a) ? SAME_STAGE_FORM_TARGET[a] : a);
   const attendedDestinations = internalCrmConfig.attendedDestinations("byteforce_staff");
   const cancelledDestinations = [internalCrmConfig.followUpStage, internalCrmConfig.lostStage];
 
@@ -429,17 +435,38 @@ export function LeadEventPanel({
         </div>
       ) : null}
 
+      {/* founder: "a button inside the lead" — another follow-up while still
+          Following Up, a rescheduled meeting while still Meeting Setting. */}
+      {sameStageActions.length > 0 ? (
+        <div className="flex gap-2 flex-wrap">
+          {sameStageActions.map((a) => (
+            <button
+              key={a}
+              type="button"
+              onClick={() => {
+                /* a reschedule always records an ARRANGED meeting */
+                if (a === "reschedule_meeting") setArranged(true);
+                setAction(a);
+              }}
+              className={btnGhost}
+            >
+              {sameStageActionLabel(locale, a)}
+            </button>
+          ))}
+        </div>
+      ) : null}
+
       {/* §6.1 Next action */}
       <div>
         <label className="block">
           <span className={labelCls}>{t(events.nextAction)}</span>
           <select
-            value={action}
+            value={isSameStageAction(action) ? "" : action}
             onChange={(e) => setAction(e.target.value)}
             className={inputCls}
           >
             <option value="">{t(events.chooseNextAction)}</option>
-            {nextActions.map((a) => (
+            {stageActions.map((a) => (
               <option key={a} value={a}>
                 {stageLabel(locale, a)}
               </option>
@@ -453,16 +480,20 @@ export function LeadEventPanel({
               e.preventDefault();
               void submit({
                 event: { type: "next_action", action },
-                group: groupForTarget(action, new FormData(e.currentTarget)),
+                group: groupForTarget(formTarget(action), new FormData(e.currentTarget)),
               });
             }}
             className="card card-pad mt-3 space-y-3"
           >
-            <p className="u-h3">{stageLabel(locale, action)}</p>
-            {fieldsForTarget(action)}
+            <p className="u-h3">
+              {isSameStageAction(action)
+                ? sameStageActionLabel(locale, action)
+                : stageLabel(locale, action)}
+            </p>
+            {fieldsForTarget(formTarget(action))}
             <div className="flex gap-2">
               <button type="submit" disabled={busy} className={btnPrimary}>
-                {t(events.saveAndMove)}
+                {isSameStageAction(action) ? t(events.saveRecord) : t(events.saveAndMove)}
               </button>
               <button type="button" onClick={() => setAction("")} className={btnGhost}>
                 {t(common.cancel)}

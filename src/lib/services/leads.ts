@@ -7,9 +7,12 @@ import { transition } from "@/lib/pipeline-engine/transition";
 import type { EngineEvent, PipelineConfig } from "@/lib/pipeline-engine/types";
 import {
   LEAD_TYPES,
+  isSameStageAction,
   type Brand,
+  type FollowUpContext,
   type OwnerType,
   type Role,
+  type SameStageAction,
 } from "@/lib/pipeline-engine/constants";
 import { ApiError } from "@/lib/api-error";
 import { storage } from "@/lib/storage";
@@ -402,6 +405,14 @@ export function latestProposalValue(
   return latest.estimatedValue;
 }
 
+/* Founder same-stage records: the undo pill must describe what really happened
+   — a record was added, nothing was moved. */
+const SAME_STAGE_UNDO_LABELS: Record<SameStageAction, (typeof undoLabels)["movedTo"]> = {
+  follow_up_again: undoLabels.followedUpAgain,
+  negotiation_follow_up: undoLabels.responseDate,
+  reschedule_meeting: undoLabels.rescheduledMeeting,
+};
+
 export const leadEventSchema = z.object({
   event: z.discriminatedUnion("type", [
     z.object({ type: z.literal("next_action"), action: z.string() }),
@@ -427,6 +438,13 @@ export async function applyLeadEvent(opts: {
   const lead = await getLead(opts.brand, opts.leadId);
   assertNotArchived(lead); // ADR-043 hardening — no stage events on archived leads
   const config = configForBrand(opts.brand);
+
+  /* Founder: "another follow-up" / "the response date" / "reschedule" — actions
+     that add the stage's own record and leave the card where it is. */
+  const sameStageAction: SameStageAction | null =
+    opts.event.type === "next_action" && isSameStageAction(opts.event.action)
+      ? opts.event.action
+      : null;
 
   const result = transition(config, { stage: lead.stage }, opts.event, { role: opts.role });
   if (!result.ok) {
@@ -583,13 +601,17 @@ export async function applyLeadEvent(opts: {
       }
     }
 
+    /* Founder same-stage records: the card did not move, so the history reads
+       "group added" with no from → to arrow. Every OTHER same-stage case (T-7's
+       delayed meeting, re-selecting the current stage) keeps its existing
+       stage_change wording byte-for-byte. */
     await writeLog(tx, {
       entityType: "lead",
       entityId: lead.id,
       actor: opts.actor,
-      action: result.auto ? "auto_transfer" : "stage_change",
-      fromStage: result.fromStage,
-      toStage: result.toStage,
+      action: sameStageAction ? "group_added" : result.auto ? "auto_transfer" : "stage_change",
+      fromStage: sameStageAction ? null : result.fromStage,
+      toStage: sameStageAction ? null : result.toStage,
       trigger: result.logTrigger,
     });
 
@@ -613,13 +635,15 @@ export async function applyLeadEvent(opts: {
         created,
         updated,
       };
-      const undoLabel = formatMsg(undoLabels.movedTo, {
-        name: lead.name,
-        stage: {
-          en: stageLabel("en", result.toStage),
-          ar: stageLabel("ar", result.toStage),
-        },
-      });
+      const undoLabel = sameStageAction
+        ? formatMsg(SAME_STAGE_UNDO_LABELS[sameStageAction], { name: lead.name })
+        : formatMsg(undoLabels.movedTo, {
+            name: lead.name,
+            stage: {
+              en: stageLabel("en", result.toStage),
+              ar: stageLabel("ar", result.toStage),
+            },
+          });
       await recordUndo({
         tx,
         actor: opts.actor,
@@ -667,7 +691,7 @@ export async function persistGroup(
   parent: { leadId?: string; partnerProspectId?: string; portalDealId?: string },
   group: string | null,
   payload: GroupPayload | undefined,
-  extra: { followUpContext?: "initial" | "after_proposal" | "after_meeting" },
+  extra: { followUpContext?: FollowUpContext },
 ): Promise<GroupWrites> {
   const writes: GroupWrites = { created: [], updated: [] };
   if (!group || !payload) return writes;

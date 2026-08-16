@@ -1,4 +1,4 @@
-import type { Role } from "./constants";
+import type { FollowUpContext, Role } from "./constants";
 
 /* Engine contract (pipeline-engine skill): pure transition core. The engine never
    touches the database — it validates a proposed move and returns what must happen
@@ -10,7 +10,7 @@ export type PipelineKind = "internal" | "partners" | "bsystems";
 
 /** Which stage-owned field group must be saved together with this transition. */
 export type RequiredGroup =
-  | { group: "follow_up"; context: "initial" | "after_proposal" | "after_meeting" }
+  | { group: "follow_up"; context: FollowUpContext }
   | { group: "meeting" }
   | { group: "meeting_reschedule" } // T-7: new date & time on the existing meeting
   | { group: "proposal" }

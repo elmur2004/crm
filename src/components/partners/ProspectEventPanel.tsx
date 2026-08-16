@@ -6,12 +6,14 @@ import {
   FOLLOW_UP_METHODS,
   IMPORTANCE_LEVELS,
   MEETING_MODES,
+  SAME_STAGE_FORM_TARGET,
+  isSameStageAction,
 } from "@/lib/pipeline-engine/constants";
 import { partnersConfig } from "@/lib/pipeline-engine/configs/partners";
 import { BusinessActivityField, businessActivityFrom } from "./forms";
 import { tFor } from "@/lib/i18n/core";
 import { useLocale } from "@/components/shared/LocaleProvider";
-import { stageLabel } from "@/lib/i18n/dict/labels";
+import { sameStageActionLabel, stageLabel } from "@/lib/i18n/dict/labels";
 import {
   followUpMethodLabel,
   importanceOptionLabel,
@@ -293,6 +295,10 @@ export function ProspectEventPanel({
 
   const terminal = partnersConfig.terminalStages.includes(stage);
   const nextActions = partnersConfig.nextActions(stage, "bsystems_admin");
+  /* founder: same-stage records are buttons — the card does not move. */
+  const sameStageActions = nextActions.filter(isSameStageAction);
+  const stageActions = nextActions.filter((a) => !isSameStageAction(a));
+  const formTarget = (a: string) => (isSameStageAction(a) ? SAME_STAGE_FORM_TARGET[a] : a);
   const attendedDestinations = partnersConfig.attendedDestinations("bsystems_admin");
   const cancelledDestinations = [partnersConfig.followUpStage, partnersConfig.lostStage];
 
@@ -420,12 +426,28 @@ export function ProspectEventPanel({
         </div>
       ) : null}
 
+      {/* founder: the partnership pipeline has Following Up and Meeting Setting
+          too — same buttons, same engine actions, no card movement. */}
+      {sameStageActions.length > 0 ? (
+        <div className="flex gap-2 flex-wrap">
+          {sameStageActions.map((a) => (
+            <button key={a} type="button" onClick={() => setAction(a)} className={btnGhost}>
+              {sameStageActionLabel(locale, a)}
+            </button>
+          ))}
+        </div>
+      ) : null}
+
       <div>
         <label className="block">
           <span className={labelCls}>{t(pPanel.nextAction)}</span>
-          <select value={action} onChange={(e) => setAction(e.target.value)} className={inputCls}>
+          <select
+            value={isSameStageAction(action) ? "" : action}
+            onChange={(e) => setAction(e.target.value)}
+            className={inputCls}
+          >
             <option value="">{t(pPanel.chooseNextAction)}</option>
-            {nextActions.map((a) => (
+            {stageActions.map((a) => (
               <option key={a} value={a}>
                 {stageLabel(locale, a)}
               </option>
@@ -439,16 +461,20 @@ export function ProspectEventPanel({
               e.preventDefault();
               void submit({
                 event: { type: "next_action", action },
-                group: groupForTarget(action === "won" ? "won" : action, new FormData(e.currentTarget)),
+                group: groupForTarget(formTarget(action), new FormData(e.currentTarget)),
               });
             }}
             className="card card-pad mt-3 space-y-3"
           >
-            <p className="u-h3">{stageLabel(locale, action)}</p>
-            {fieldsForTarget(action === "won" ? "won" : action)}
+            <p className="u-h3">
+              {isSameStageAction(action)
+                ? sameStageActionLabel(locale, action)
+                : stageLabel(locale, action)}
+            </p>
+            {fieldsForTarget(formTarget(action))}
             <div className="flex gap-2">
               <button type="submit" disabled={busy} className={btnPrimary}>
-                {t(pPanel.saveMove)}
+                {isSameStageAction(action) ? t(pPanel.saveRecord) : t(pPanel.saveMove)}
               </button>
               <button type="button" onClick={() => setAction("")} className={btnGhost}>
                 {t(pCommon.cancel)}

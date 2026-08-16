@@ -1,6 +1,15 @@
 import { INTERNAL_STAGES } from "../constants";
 import type { PipelineConfig } from "../types";
 
+/* Founder: same-stage records — another follow-up while still Following Up, a
+   rescheduled meeting while still Meeting Setting. Offered from the stage that
+   owns the record; the engine resolves them to that same stage. */
+function sameStageExtras(stage: string): string[] {
+  if (stage === "following_up") return ["follow_up_again"];
+  if (stage === "meeting_setting") return ["reschedule_meeting"];
+  return [];
+}
+
 /* Apps A & B CRM (SPEC §6, §10.1). Action-driven only in v1 (A-7).
    ADR-011: a direct "Won" action is exposed from every active stage (T-9's From
    column is "Any active"; §6.1's printed enum omits it). Re-selecting the current
@@ -21,7 +30,7 @@ export const internalCrmConfig: PipelineConfig = {
   lostStage: "lost",
   nextActions(stage) {
     if (stage === "won" || stage === "lost") return [];
-    return ACTIVE_ACTIONS;
+    return [...ACTIVE_ACTIONS, ...sameStageExtras(stage)];
   },
   attendedDestinations() {
     // T-6: destination choice is mandatory

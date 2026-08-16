@@ -85,21 +85,26 @@ export function MeetingFieldsV2({
   reps,
   agreed,
   setAgreed,
+  lockArranged = false,
 }: {
   light: boolean;
   reps: Rep[];
   agreed: boolean;
   setAgreed: (v: boolean) => void;
+  /** founder reschedule: the new slot IS agreed — the question is not asked */
+  lockArranged?: boolean;
 }) {
   const t = tFor(useLocale());
   return (
     <>
-      <label className="flex items-center gap-2">
-        <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} />
-        <span className="field-label">
-          {light ? t(msg.agreedQuestion) : t(msg.arranged)}
-        </span>
-      </label>
+      {!lockArranged ? (
+        <label className="flex items-center gap-2">
+          <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} />
+          <span className="field-label">
+            {light ? t(msg.agreedQuestion) : t(msg.arranged)}
+          </span>
+        </label>
+      ) : null}
       <div className="grid grid-cols-2 gap-3">
         <label className="block">
           <span className={labelCls}>{agreed ? t(msg.date) : t(msg.dateThatSuits)}</span>
@@ -370,6 +375,7 @@ export function GroupFieldsV2({
   reps,
   agreed,
   setAgreed,
+  lockArranged = false,
   milestoneCount,
   setMilestoneCount,
 }: {
@@ -378,6 +384,7 @@ export function GroupFieldsV2({
   reps: Rep[];
   agreed: boolean;
   setAgreed: (v: boolean) => void;
+  lockArranged?: boolean;
   milestoneCount: number;
   setMilestoneCount: (n: number) => void;
 }) {
@@ -385,7 +392,15 @@ export function GroupFieldsV2({
   const light = isLight(role);
   if (target === "following_up") return <FollowUpFieldsV2 light={light} reps={reps} />;
   if (target === "meeting_setting")
-    return <MeetingFieldsV2 light={light} reps={reps} agreed={agreed} setAgreed={setAgreed} />;
+    return (
+      <MeetingFieldsV2
+        light={light}
+        reps={reps}
+        agreed={agreed}
+        setAgreed={setAgreed}
+        lockArranged={lockArranged}
+      />
+    );
   if (target === "sending_proposal") return <ProposalFieldsV2 />;
   if (target === "negotiation") return <NegotiationFields />;
   if (target === "lost") return <LostFieldsV2 />;

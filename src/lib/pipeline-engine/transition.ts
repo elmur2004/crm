@@ -1,3 +1,4 @@
+import { isSameStageAction, type FollowUpContext, type SameStageAction } from "./constants";
 import type {
   EngineContext,
   EngineEvent,
@@ -25,14 +26,33 @@ function ok(
 }
 
 /** T-1's "context per origin": which follow-up context a move into Following Up gets. */
-export function followUpContextFor(
-  config: PipelineConfig,
-  fromStage: string,
-): "initial" | "after_proposal" | "after_meeting" {
+export function followUpContextFor(config: PipelineConfig, fromStage: string): FollowUpContext {
   if (config.proposalStage && fromStage === config.proposalStage) return "after_proposal";
   if (fromStage === config.meetingStage) return "after_meeting";
   return "initial";
 }
+
+/* ---- founder: same-stage records (SAME_STAGE_ACTIONS) ----
+   A same-stage action adds the stage's OWN record without moving the card:
+   another follow-up while still Following Up, the response date promised in
+   Negotiation, a fresh meeting that supersedes the one being rescheduled.
+   Their triggers sit deliberately OUTSIDE the SPEC §10 tables — they are new
+   founder rows, named for what they are (the same convention the existing
+   non-§10 rows use: B-RTC, no_answer, archived). */
+const SAME_STAGE_GROUPS: Record<SameStageAction, RequiredGroup> = {
+  follow_up_again: { group: "follow_up", context: "initial" },
+  negotiation_follow_up: { group: "follow_up", context: "after_negotiation" },
+  /* NOT the "meeting_reschedule" GROUP (T-7 edits the existing meeting in
+     place): this records a NEW meeting, so the boards and the To-Do — which
+     both read the LATEST record — swap to it and the old one stops counting. */
+  reschedule_meeting: { group: "meeting" },
+};
+
+const SAME_STAGE_TRIGGERS: Record<SameStageAction, string> = {
+  follow_up_again: "FU-AGAIN",
+  negotiation_follow_up: "NEG-DUE",
+  reschedule_meeting: "MTG-RESCHEDULE",
+};
 
 /** The field group a given target stage opens (SPEC §6.2 / §7.2 / §8.2). */
 function groupForStage(
@@ -114,6 +134,16 @@ export function transition(
       }
       if (event.action === config.wonStage && !canSetWon(config, ctx)) {
         return reject("won_forbidden", "Only the portal admin can move a deal to Won"); // P-2
+      }
+      /* founder: a same-stage record — the card stays exactly where it is and
+         only the stage's own group is written (see SAME_STAGE_GROUPS). */
+      if (isSameStageAction(event.action)) {
+        return ok({
+          fromStage: from,
+          toStage: from,
+          requiredGroup: SAME_STAGE_GROUPS[event.action],
+          logTrigger: SAME_STAGE_TRIGGERS[event.action],
+        });
       }
       const toStage = event.action;
       return ok({

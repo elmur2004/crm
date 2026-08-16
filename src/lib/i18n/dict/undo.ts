@@ -22,4 +22,17 @@ export const undoLabels = {
   unarchived: { en: "Unarchived {name}", ar: "إلغاء أرشفة {name}" },
   edited: { en: "Edited {name}", ar: "تعديل {name}" },
   added: { en: "Added {name}", ar: "إضافة {name}" },
+  /* founder: same-stage records — nothing MOVED, so "Moved … to …" would lie */
+  followedUpAgain: {
+    en: "Recorded another follow-up on {name}",
+    ar: "تسجيل متابعة أخرى على {name}",
+  },
+  responseDate: {
+    en: "Recorded the response date on {name}",
+    ar: "تسجيل موعد الرد على {name}",
+  },
+  rescheduledMeeting: {
+    en: "Rescheduled the meeting on {name}",
+    ar: "إعادة جدولة الاجتماع على {name}",
+  },
 } satisfies Record<string, Msg>;

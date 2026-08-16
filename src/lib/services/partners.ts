@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { partnersConfig } from "@/lib/pipeline-engine/configs/partners";
 import { transition } from "@/lib/pipeline-engine/transition";
 import type { EngineEvent } from "@/lib/pipeline-engine/types";
-import type { Role } from "@/lib/pipeline-engine/constants";
+import { isSameStageAction, type Role, type SameStageAction } from "@/lib/pipeline-engine/constants";
 import { ApiError } from "@/lib/api-error";
 import { groupPayloadSchema, type GroupPayload, type WonPartnerInput } from "./groups";
 import { persistGroup } from "./leads";
@@ -228,6 +228,13 @@ export async function applyProspectEvent(opts: {
 }): Promise<{ toStage: string }> {
   const prospect = await getProspect(opts.prospectId);
 
+  /* Founder: same-stage records on the partnership cards too (another
+     follow-up, a rescheduled meeting) — the card never leaves its column. */
+  const sameStageAction: SameStageAction | null =
+    opts.event.type === "next_action" && isSameStageAction(opts.event.action)
+      ? opts.event.action
+      : null;
+
   const result = transition(partnersConfig, { stage: prospect.stage }, opts.event, {
     role: opts.role,
   });
@@ -382,9 +389,9 @@ export async function applyProspectEvent(opts: {
       entityType: "partner_prospect",
       entityId: prospect.id,
       actor: opts.actor,
-      action: result.auto ? "auto_transfer" : "stage_change",
-      fromStage: result.fromStage,
-      toStage: result.toStage,
+      action: sameStageAction ? "group_added" : result.auto ? "auto_transfer" : "stage_change",
+      fromStage: sameStageAction ? null : result.fromStage,
+      toStage: sameStageAction ? null : result.toStage,
       trigger: result.logTrigger,
     });
 
@@ -405,13 +412,21 @@ export async function applyProspectEvent(opts: {
         updated,
         ...(numbersBefore !== undefined ? { nonAnsweringNumbers: numbersBefore } : {}),
       };
-      const undoLabel = formatMsg(undoLabels.movedTo, {
-        name: prospect.companyName ?? prospect.name,
-        stage: {
-          en: stageLabel("en", result.toStage),
-          ar: stageLabel("ar", result.toStage),
-        },
-      });
+      const name = prospect.companyName ?? prospect.name;
+      const undoLabel = sameStageAction
+        ? formatMsg(
+            sameStageAction === "reschedule_meeting"
+              ? undoLabels.rescheduledMeeting
+              : undoLabels.followedUpAgain,
+            { name },
+          )
+        : formatMsg(undoLabels.movedTo, {
+            name,
+            stage: {
+              en: stageLabel("en", result.toStage),
+              ar: stageLabel("ar", result.toStage),
+            },
+          });
       await recordUndo({
         tx,
         actor: opts.actor,

@@ -14,6 +14,17 @@ import type { PipelineConfig } from "../types";
 
 const WON_ROLES = ["bsystems_admin", "bsystems_sales"] as const;
 
+/* Founder: same-stage records — another follow-up in Following Up, the
+   response-due date agreed in Negotiation ("the date we will have a response
+   for them on the proposal"), a rescheduled meeting in Meeting Setting. Every
+   role that can act on the lead gets them: they are records, not wins. */
+function sameStageExtras(stage: string): string[] {
+  if (stage === "following_up") return ["follow_up_again"];
+  if (stage === "negotiation") return ["negotiation_follow_up"];
+  if (stage === "meeting_setting") return ["reschedule_meeting"];
+  return [];
+}
+
 export const bsystemsCrmConfig: PipelineConfig = {
   kind: "bsystems",
   stages: BSYSTEMS_STAGES,
@@ -29,7 +40,8 @@ export const bsystemsCrmConfig: PipelineConfig = {
   nextActions(stage, role) {
     if (stage === "won" || stage === "lost") return [];
     const base = ["following_up", "meeting_setting", "sending_proposal", "negotiation", "lost"];
-    return WON_ROLES.includes(role as (typeof WON_ROLES)[number]) ? [...base, "won"] : base;
+    const all = WON_ROLES.includes(role as (typeof WON_ROLES)[number]) ? [...base, "won"] : base;
+    return [...all, ...sameStageExtras(stage)];
   },
   attendedDestinations(role) {
     const base = ["sending_proposal", "negotiation", "lost", "following_up"];

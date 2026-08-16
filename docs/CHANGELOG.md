@@ -1,5 +1,25 @@
 # Changelog — user-visible changes per phase/release
 
+## Follow up again, set a response date, reschedule a meeting (2026-08-17)
+- Inside a lead that is in **Following Up** there is now a **"Log
+  another follow-up"** button. You followed up, they need another call
+  next week — press it, pick the date (and time, and how you will reach
+  them) and save. The lead stays exactly where it is on the board; the
+  new date replaces the old one on the card and on your To-Do page, and
+  both follow-ups stay in the lead's Stage records.
+- Inside a lead in **Negotiation** there is **"Set the response date"** —
+  the day you promised the client an answer on the proposal. It shows on
+  the card as "Response: …" and lands on your To-Do page like any other
+  dated task, so the date cannot be missed.
+- Inside a lead in **Meeting Setting** there is **"Reschedule the
+  meeting"**. It records the new date, time and mode; the board and the
+  To-Do switch to the new appointment and the old one stops showing as
+  overdue — the original still stays in the lead's history.
+- The same two buttons (another follow-up, reschedule) are on the
+  Partnership CRM cards as well, and everything works for every role,
+  in Arabic, and with Undo — which now says "Recorded another follow-up
+  on …" rather than pretending something moved.
+
 ## Undo your last action (2026-08-14)
 - Did something by mistake? A small "Undo" button now appears at the
   bottom of the screen right after an action, and it tells you exactly

@@ -3,10 +3,11 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { bsystemsCrmConfig } from "@/lib/pipeline-engine/configs/bsystems-crm";
+import { SAME_STAGE_FORM_TARGET, isSameStageAction } from "@/lib/pipeline-engine/constants";
 import { btnGhost, btnPrimary, inputCls, labelCls } from "@/components/portal/groupForms";
 import { tFor } from "@/lib/i18n/core";
 import { useLocale } from "@/components/shared/LocaleProvider";
-import { stageLabel } from "@/lib/i18n/dict/labels";
+import { sameStageActionLabel, stageLabel } from "@/lib/i18n/dict/labels";
 import { common, eventPanel as msg } from "@/lib/i18n/dict/crm";
 import {
   FollowUpFieldsV2,
@@ -59,8 +60,14 @@ export function BsEventPanel({
 
   const terminal = bsystemsCrmConfig.terminalStages.includes(stage);
   const nextActions = bsystemsCrmConfig.nextActions(stage, engineRole);
+  /* founder: the same-stage records are BUTTONS, not options in a "where does
+     this go next" select — nothing moves when you press them. */
+  const sameStageActions = nextActions.filter(isSameStageAction);
+  const stageActions = nextActions.filter((a) => !isSameStageAction(a));
   const attendedDestinations = bsystemsCrmConfig.attendedDestinations(engineRole);
   const cancelledDestinations = [bsystemsCrmConfig.followUpStage, bsystemsCrmConfig.lostStage];
+  /* a same-stage action reuses its stage's own field group (V2 §3 role-aware) */
+  const formTarget = (a: string) => (isSameStageAction(a) ? SAME_STAGE_FORM_TARGET[a] : a);
 
   async function submit(body: unknown, onOk?: () => void) {
     setBusy(true);
@@ -249,12 +256,29 @@ export function BsEventPanel({
         </div>
       ) : null}
 
+      {/* founder: "add a button inside the lead" — record another follow-up, the
+          negotiation's response date, or a rescheduled meeting, WITHOUT the card
+          leaving its column. Every role that can act on the lead sees them. */}
+      {sameStageActions.length > 0 ? (
+        <div className="flex gap-2 flex-wrap">
+          {sameStageActions.map((a) => (
+            <button key={a} type="button" onClick={() => setAction(a)} className={btnGhost}>
+              {sameStageActionLabel(locale, a)}
+            </button>
+          ))}
+        </div>
+      ) : null}
+
       <div>
         <label className="block">
           <span className={labelCls}>{t(common.nextAction)}</span>
-          <select value={action} onChange={(e) => setAction(e.target.value)} className={inputCls}>
+          <select
+            value={isSameStageAction(action) ? "" : action}
+            onChange={(e) => setAction(e.target.value)}
+            className={inputCls}
+          >
             <option value="">{t(msg.chooseNextAction)}</option>
-            {nextActions.map((a) => (
+            {stageActions.map((a) => (
               <option key={a} value={a}>
                 {a === "won" ? t(common.confirmWin) : stageLabel(locale, a)}
               </option>
@@ -269,9 +293,11 @@ export function BsEventPanel({
               void submit(
                 {
                   event: { type: "next_action", action },
-                  group: buildGroupPayload(action, new FormData(e.currentTarget), {
+                  group: buildGroupPayload(formTarget(action), new FormData(e.currentTarget), {
                     light,
-                    agreed: formState.agreed,
+                    /* a reschedule always records an ARRANGED meeting — it is a
+                       new date agreed with the client, not a proposed slot */
+                    agreed: action === "reschedule_meeting" ? true : formState.agreed,
                     milestoneCount: formState.milestoneCount,
                   }),
                 },
@@ -282,19 +308,26 @@ export function BsEventPanel({
             }}
             className="mt-3 space-y-3 card card-pad"
           >
-            <p className="u-h3">{action === "won" ? t(common.confirmWin) : stageLabel(locale, action)}</p>
+            <p className="u-h3">
+              {isSameStageAction(action)
+                ? sameStageActionLabel(locale, action)
+                : action === "won"
+                  ? t(common.confirmWin)
+                  : stageLabel(locale, action)}
+            </p>
             <GroupFieldsV2
-              target={action}
+              target={formTarget(action)}
               role={role}
               reps={reps}
-              agreed={formState.agreed}
+              agreed={action === "reschedule_meeting" ? true : formState.agreed}
               setAgreed={formState.setAgreed}
+              lockArranged={action === "reschedule_meeting"}
               milestoneCount={formState.milestoneCount}
               setMilestoneCount={formState.setMilestoneCount}
             />
             <div className="flex gap-2">
               <button type="submit" disabled={busy} className={btnPrimary}>
-                {t(msg.saveAndMove)}
+                {isSameStageAction(action) ? t(msg.saveRecord) : t(msg.saveAndMove)}
               </button>
               <button type="button" onClick={() => setAction("")} className={btnGhost}>
                 {t(common.cancel)}

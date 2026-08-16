@@ -96,13 +96,51 @@ export const LEAD_TYPE_LABELS: Record<LeadType, string> = {
   organic: "Organic",
 };
 
-export const FOLLOW_UP_CONTEXTS = ["initial", "after_proposal", "after_meeting"] as const;
+/* Founder: "when we put it in negotiations we need a follow-up for the
+   negotiation itself — the date we will have a response for them on the
+   proposal." after_negotiation is that record: a follow-up whose due date IS
+   the promised response date. Appended at the END (like LEAD_TYPES) so no
+   stored context ever shifts meaning. */
+export const FOLLOW_UP_CONTEXTS = [
+  "initial",
+  "after_proposal",
+  "after_meeting",
+  "after_negotiation",
+] as const;
 export type FollowUpContext = (typeof FOLLOW_UP_CONTEXTS)[number];
 
 export const FOLLOW_UP_CONTEXT_TITLES: Record<FollowUpContext, string> = {
   initial: "Following up",
   after_proposal: "Following up after proposal",
   after_meeting: "Following up after meeting",
+  after_negotiation: "Response due after negotiation",
+};
+
+/* ---------------- same-stage records (founder) ---------------- */
+
+/* Founder: "if I followed up with them and they need another follow-up, add a
+   button inside the lead", "when we put it in negotiations we need a follow-up
+   for the negotiation itself", "the meeting setting, the same thing — a button
+   to reschedule". These are ENGINE next actions like any other: they run the
+   whole persist/log/undo/To-Do pipeline — they simply resolve to the stage the
+   card is already in, so the record is added and the card never moves. The ids
+   are deliberately NOT stage names, so nothing can confuse them with a move. */
+export const SAME_STAGE_ACTIONS = [
+  "follow_up_again", // Following Up → another follow-up
+  "negotiation_follow_up", // Negotiation → the response-due date
+  "reschedule_meeting", // Meeting Setting → a NEW meeting, superseding the old
+] as const;
+export type SameStageAction = (typeof SAME_STAGE_ACTIONS)[number];
+
+export function isSameStageAction(action: string): action is SameStageAction {
+  return (SAME_STAGE_ACTIONS as readonly string[]).includes(action);
+}
+
+/** The stage whose field group a same-stage action reuses (drives the forms). */
+export const SAME_STAGE_FORM_TARGET: Record<SameStageAction, string> = {
+  follow_up_again: "following_up",
+  negotiation_follow_up: "following_up",
+  reschedule_meeting: "meeting_setting",
 };
 
 export const FOLLOW_UP_METHODS = ["call", "message", "visit"] as const;

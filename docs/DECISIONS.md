@@ -1029,3 +1029,77 @@ R23 copy sign-off — carried in PROGRESS (Entry 011).
   impersonated user's id, so the undo belongs to that account. Seed/system
   writes have no actor id and are never undoable.
 - Status: Accepted
+
+## ADR-046 — 2026-08-17 — Same-stage records: engine next actions that add a record and never move the card
+- Context: three founder asks that are one mechanism. (a) "The follow-up
+  column should have a way of being a brief follow-up — if I followed up
+  with them and they need another follow-up, add a button inside the
+  lead." (b) "When we put it in negotiations we need a follow-up for the
+  negotiation itself — the date we will have a response for them on the
+  proposal." (c) "The meeting setting, the same thing — a button to
+  reschedule." Each needs a NEW dated record while the card stays exactly
+  where it is, and each must reach the boards, the activity log, undo and
+  the To-Do page with no bespoke plumbing.
+- Decision: SAME_STAGE_ACTIONS — three engine next-action ids
+  (follow_up_again, negotiation_follow_up, reschedule_meeting) that the
+  transition core resolves to `toStage === fromStage`. They are ordinary
+  next actions in every other respect, so persistGroup, the Zod
+  completeness gates, ActivityLog (T-10), ADR-045's undo snapshot and
+  ADR-041's To-Do projection all serve them unchanged. Ids are
+  deliberately NOT stage names, so nothing can mistake one for a move.
+  · Availability comes from the CONFIGS, never from the UI:
+    follow_up_again + reschedule_meeting on internal, bsystems AND
+    partners (all three have Following Up and Meeting Setting);
+    negotiation_follow_up on bsystems only (V2 §1's negotiation stage).
+    Every role that can act on the lead gets them — they are records,
+    not wins.
+  · Groups: follow_up_again → the follow-up group, context "initial";
+    negotiation_follow_up → the follow-up group with a NEW context
+    "after_negotiation" (title "Response due after negotiation") so the
+    record reads as the promised response date rather than a generic
+    follow-up; reschedule_meeting → the MEETING group, i.e. a NEW
+    meeting record — NOT T-7's "meeting_reschedule" group, which edits
+    the existing meeting in place. A new record is what makes the boards
+    and the To-Do (both "latest record" readers) swap to the new slot
+    and stop counting the old one, which is exactly what the founder
+    asked for ("a button to reschedule" that supersedes).
+  · Triggers sit OUTSIDE the SPEC §10 tables and are named for what they
+    are — FU-AGAIN, NEG-DUE, MTG-RESCHEDULE — following the existing
+    non-§10 convention (B-RTC, no_answer, archived, undo). They are new
+    founder rows; inventing T-11/B-10 would imply a §10 table row that
+    does not exist.
+  · Activity log: a same-stage action writes action "group_added" with
+    NO from/to stages, because nothing moved. Every other same-stage
+    case (T-7's delayed meeting, re-selecting the current stage) keeps
+    its existing "stage change" wording byte-for-byte.
+  · Undo: the pill says "Recorded another follow-up on X" / "Recorded
+    the response date on X" / "Rescheduled the meeting on X" instead of
+    ADR-045's "Moved X to …", which would be a lie.
+  · To-Do (ADR-041) gains the NEGOTIATION stage, and negotiation NOTES
+    join the latest-record race — otherwise a follow-up left behind by
+    Following Up would resurface the moment the card entered Negotiation.
+  · UI: all three panels (BsEventPanel, LeadEventPanel,
+    ProspectEventPanel) filter same-stage actions OUT of the "Next
+    action" select and render them as buttons above it, reusing that
+    stage's existing role-aware form (SAME_STAGE_FORM_TARGET). Agents
+    keep their V2 §3 day-only follow-up form. A reschedule always
+    records an ARRANGED meeting, so the "did you agree on a time?"
+    question is not asked (lockArranged).
+- Alternatives considered: special-casing the UI with a bespoke endpoint
+  per button — rejected: it would bypass the engine, the undo snapshot
+  and the group gates, and it would have to be built three times. A
+  dedicated "brief follow-up" record type — rejected: it is a follow-up;
+  a second table would fork every reader (boards, To-Do, GroupHistory).
+  Making reschedule reuse T-7's in-place meeting_reschedule group —
+  rejected: mutating the old row hides the history the founder is
+  keeping and leaves nothing for "supersedes" to mean.
+- Resolves: — (founder directive; no SPEC §11 A-#)
+- Consequences: FOLLOW_UP_CONTEXTS gains a fourth member appended at the
+  END (no stored context shifts meaning; `context` is a plain String
+  column, so no migration). follow_up_again deliberately stores context
+  "initial" — a repeat follow-up IS a follow-up, and the timestamps
+  already tell them apart; flagged for the founder in case a distinct
+  label is wanted. The B-Systems board's negotiation card now shows
+  "Response: <date>", but only while that follow-up is newer than the
+  negotiation note the stage was entered with.
+- Status: Accepted

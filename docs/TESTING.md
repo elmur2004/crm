@@ -767,3 +767,39 @@ every dashboard formula, journeys 1-5 (SPEC §13).
   board, the pill names that exact move, one click puts the card back in
   New and the pill disappears; deleting leaves it quiet.
 - Verdict: PASS.
+
+## Run 040 — 2026-08-17 — Same-stage records (ADR-046)
+- Suites/commands: `npx tsc --noEmit` (clean) · `npx vitest run` (138 —
+  eight NEW tests in the NEW src/lib/services/same-stage.integration.test.ts
+  plus four NEW engine cases in transition.test.ts) · `npx playwright
+  test` (full suite incl. NEW e2e/same-stage.spec.ts). Local dev,
+  embedded Postgres (per-run instances).
+- Cases: vitest 138 passed / 0 failed / 0 skipped · Playwright full 25
+  passed / 0 failed / 2 skipped (audit opt-in skips, by design). Full
+  e2e wall time 4.4m.
+- Failures: one during the round, fixed before the final run — the new
+  e2e asserted the rendered follow-up date as "8 Sep 2026, 15:30", but
+  en-GB abbreviates September as "Sept" on this ICU; the assertion is a
+  regex tolerating both (the day/year/time carry the proof).
+- SPEC coverage touched: no §10 row changes — the three new actions are
+  founder rows OUTSIDE the tables (triggers FU-AGAIN, NEG-DUE,
+  MTG-RESCHEDULE) that resolve to the card's current stage. New
+  coverage: (engine) follow_up_again is offered from Following Up on
+  internal/bsystems/partners and returns from===to with the follow-up
+  group; negotiation_follow_up is bsystems-only and carries the new
+  after_negotiation context; reschedule_meeting returns the MEETING
+  group (not T-7's in-place meeting_reschedule) on all three; each is
+  refused from a stage that does not own its record and terminal stages
+  offer none. (integration) a second follow-up is created without the
+  stage moving, logged as group_added with no from/to, and the To-Do
+  swaps to the NEW date while the superseded one leaves Overdue; the
+  agent light form (no time) defaults to 09:00 Cairo; undo names the
+  record ("Recorded another follow-up on …") and removes exactly it;
+  the partnership pipeline behaves identically; the negotiation
+  response date reaches the To-Do while the stale Following-Up record
+  never resurfaces in Negotiation; a rescheduled meeting supersedes the
+  old one on the To-Do and the old one does not linger in Overdue.
+  (e2e) the admin presses "Log another follow-up" on the lead detail,
+  saves a new date, sees two follow-up records and the card still in
+  the Following Up column.
+- Verdict: PASS.
