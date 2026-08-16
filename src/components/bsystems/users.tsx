@@ -252,6 +252,85 @@ export function CreateUserForm() {
   );
 }
 
+/* Founder (ADR-049) — "completely delete a user, not just deactivate it".
+   Distinct from Remove/Reactivate beside it, so a permanent deletion can never
+   be mistaken for the reversible one: it takes TWO deliberate steps and the
+   second one names the person out loud. The server owns the real guards. */
+export function DeleteUserButton({ userId, name }: { userId: string; name: string }) {
+  const router = useRouter();
+  const t = tFor(useLocale());
+  const [confirming, setConfirming] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  if (!confirming) {
+    return (
+      <button type="button" onClick={() => setConfirming(true)} className="btn-danger btn--sm">
+        {t(d.deleteUser)}
+      </button>
+    );
+  }
+  return (
+    <div className="modal-overlay">
+      <div className="modal">
+        <div className="modal-head">
+          <div>
+            <p className="modal-eyebrow">{t(d.deleteEyebrow)}</p>
+            <p className="modal-title">{name}</p>
+          </div>
+          <button
+            type="button"
+            className="modal-close"
+            aria-label={t(d.closeAria)}
+            onClick={() => setConfirming(false)}
+          >
+            ✕
+          </button>
+        </div>
+        <div className="modal-body space-y-3">
+          {error ? (
+            <p role="alert" className="alert-error">
+              {error}
+            </p>
+          ) : null}
+          <p className="text-sm">{t(d.deleteQuestion).replace("{name}", name)}</p>
+          <p className="u-muted">{t(d.deleteKeeps)}</p>
+          <p className="u-muted">{t(d.deleteRemoves)}</p>
+          <p className="u-muted">{t(d.deleteNotUndoable)}</p>
+        </div>
+        <div className="modal-foot">
+          <span className="modal-foot-note">{t(d.deleteDeactivateInstead)}</span>
+          <span className="flex gap-2">
+            <button type="button" className={btnGhost} onClick={() => setConfirming(false)}>
+              {t(common.cancel)}
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={async () => {
+                setBusy(true);
+                setError(null);
+                const res = await fetch(`/api/b-systems/users/${userId}`, { method: "DELETE" });
+                setBusy(false);
+                if (!res.ok) {
+                  const data = (await res.json().catch(() => null)) as { error?: string } | null;
+                  setError(data?.error ?? t(common.somethingWentWrong));
+                  return;
+                }
+                setConfirming(false);
+                router.refresh();
+              }}
+              className="btn-danger btn-danger--solid disabled:opacity-50"
+            >
+              {t(d.deleteConfirm).replace("{name}", name)}
+            </button>
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function ActiveToggle({ userId, active }: { userId: string; active: boolean }) {
   const router = useRouter();
   const t = tFor(useLocale());

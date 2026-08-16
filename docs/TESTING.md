@@ -881,3 +881,34 @@ every dashboard formula, journeys 1-5 (SPEC §13).
   opening another owner's call sheet URL gets the not-found page —
   requireLeadAccess holds on the new route.
 - Verdict: PASS.
+
+## Run 043 — 2026-08-17 — Permanent user deletion (ADR-049)
+- Suites/commands: `npx tsc --noEmit` (clean) · `npx vitest run` (155 —
+  five NEW tests in the NEW
+  src/lib/services/user-delete.integration.test.ts) · `npx playwright
+  test` (full suite; e2e/security-rbac.spec.ts gained a NEW assertion).
+  Local dev, embedded Postgres (per-run instances).
+- Cases: vitest 155 passed / 0 failed / 0 skipped · Playwright full 27
+  passed / 0 failed / 2 skipped (audit opt-in skips, by design). Full
+  e2e wall time 4.4m.
+- Failures: none.
+- SPEC coverage touched: no §10 rows. New coverage: (unit) one fixture
+  carrying EVERY reference a user can hold — agent profile + CV
+  attachment, roles, a notification, an undo entry, two owned leads, a
+  comment, a follow-up they owned, and a statement that paid them — is
+  deleted and each reference asserted where ADR-049 says it lands: the
+  account, roles, PortalRep, the CV attachment row, the notifications
+  and the undo entries are GONE; both leads survive with ownerUserId
+  null + ownerType "admin" and one "owner_deleted" activity row each;
+  the comment survives unlinked with its authorLabel; the follow-up
+  survives with ownerPortalRepId null; the statement survives with
+  closerUserId null and closerLabel intact; their old activity rows keep
+  their denormalised actor label and the deletion itself is logged
+  ("user_deleted"). A partner COMPANY survives its login (Partner.userId
+  nulled, the referred lead's partnerId untouched). Self-delete,
+  bootstrap-admin delete and an unknown id are all refused with nothing
+  destroyed. The delete retires the acting admin's pending undo entry
+  (never undoable). And a control: deactivating leaves the lead with its
+  owner, proving Remove and Delete are genuinely different.
+  (e2e) an agent DELETEing /api/b-systems/users/:id gets 403.
+- Verdict: PASS.

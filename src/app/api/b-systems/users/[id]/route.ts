@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { handleRoute, requireBsAdmin } from "@/lib/auth/guards";
-import { setUserActive, updateUser, updateUserSchema } from "@/lib/services/users";
+import { deleteUser, setUserActive, updateUser, updateUserSchema } from "@/lib/services/users";
 
 const bodySchema = z.object({ active: z.boolean().optional() }).and(updateUserSchema);
 
@@ -19,6 +19,18 @@ export const PATCH = handleRoute(
     if (active !== undefined) {
       await setUserActive(id, active, actor);
     }
+    return Response.json({ ok: true });
+  },
+);
+
+/* Founder (ADR-049) — "completely delete a user, not just deactivate it".
+   Admin only; the service owns the guards (never yourself, never the pinned
+   bootstrap admin) and the fate of every reference. */
+export const DELETE = handleRoute(
+  async (_req: Request, ctx: { params: Promise<{ id: string }> }) => {
+    const user = await requireBsAdmin();
+    const { id } = await ctx.params;
+    await deleteUser(id, { id: user.id, label: user.name });
     return Response.json({ ok: true });
   },
 );

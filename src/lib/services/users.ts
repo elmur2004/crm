@@ -5,7 +5,9 @@ import { ApiError } from "@/lib/api-error";
 import { hashPassword } from "@/lib/auth/hash";
 import { isValidPhone, normalizePhone } from "@/lib/auth/phone";
 import { ROLES, type Role } from "@/lib/pipeline-engine/constants";
+import { storage } from "@/lib/storage";
 import { writeLog, type Actor } from "./activity";
+import { invalidateUndo } from "./undo";
 
 /* V2 §2.10 / §11 — Users management (admin): list everyone, create accounts with
    role/entity assignment, deactivate/reactivate, and IMPERSONATION — the admin
@@ -188,6 +190,132 @@ export async function setUserActive(userId: string, active: boolean, actor: Acto
     });
     return updated;
   });
+}
+
+/* ============================================================================
+   Founder — "give me the ability to completely delete a user, not just
+   deactivate it." (ADR-049)
+
+   Deactivating keeps the account and everything hanging off it; deleting
+   destroys the LOGIN and the person's private artefacts, and PRESERVES every
+   business record they touched. The fate of every reference is decided here,
+   deliberately, rather than left to whatever the FK happens to do:
+
+     owned leads      → KEPT. ownerUserId null + ownerType "admin" (the
+                        unassigned bucket), one activity row each. Deleting a
+                        person must never delete the company's pipeline.
+     agent profile    → DELETED (PortalRep cascades from User) — and its CV
+                        Attachment is deleted FIRST, with the stored file
+                        removed, because Attachment.portalRepId is SET NULL and
+                        would otherwise leave an orphan row and a stray file.
+     follow-up owner  → FollowUp.ownerPortalRepId SET NULL by the FK; the
+                        follow-up itself survives.
+     Partner.userId   → NULLED. The partner COMPANY, its prospect, its leads
+                        and its commissions survive; only the login goes.
+     Statement.closer → closerUserId NULLED (no FK — a plain column).
+                        closerLabel is denormalised, so the money trail keeps
+                        the person's name for ever.
+     lead comments    → KEPT, author unlinked (SetNull); authorLabel carries
+                        the name, exactly like the activity log.
+     notifications    → CASCADE (they were addressed to a login that no longer
+                        exists).
+     UserRole         → CASCADE.
+     UndoEntry        → DELETED (no FK — a plain userId column). Their pending
+                        inverses die with the account.
+     ActivityLog      → KEPT, untouched. actorLabel is denormalised history:
+                        deleting the actor must not rewrite what happened.
+
+   NOT UNDOABLE (like every destructive path): it retires the acting admin's
+   pending undo entries so the button never offers something older instead.
+   ========================================================================== */
+
+/** The pinned, self-healing admin (bootstrap.ts) — deleting it is meaningless. */
+const BOOTSTRAP_ADMIN_EMAIL = "admin@byteforce.com";
+
+export async function deleteUser(userId: string, actor: Actor) {
+  const user = await db.user.findUnique({
+    where: { id: userId },
+    include: { portalRep: { include: { cv: true } }, partner: { select: { id: true } } },
+  });
+  if (!user) throw new ApiError(404, "User not found");
+  if (actor.id === userId) {
+    throw new ApiError(400, "You cannot delete your own account");
+  }
+  if (user.email === BOOTSTRAP_ADMIN_EMAIL) {
+    throw new ApiError(
+      400,
+      "The main admin account cannot be deleted — it is recreated automatically",
+    );
+  }
+
+  const orphanedFileKeys: string[] = [];
+
+  await db.$transaction(async (tx) => {
+    /* 1 — the leads go back to the admin bucket. They are the company's, not
+           the person's; each move is recorded against the lead. */
+    const owned = await tx.lead.findMany({ where: { ownerUserId: userId }, select: { id: true } });
+    if (owned.length > 0) {
+      await tx.lead.updateMany({
+        where: { ownerUserId: userId },
+        data: { ownerUserId: null, ownerType: "admin" },
+      });
+      for (const lead of owned) {
+        await writeLog(tx, {
+          entityType: "lead",
+          entityId: lead.id,
+          actor,
+          action: "update",
+          trigger: "owner_deleted",
+        });
+      }
+    }
+
+    /* 2 — the agent profile's CV: the row AND the file (the FK would only null
+           the link and leave both behind). */
+    if (user.portalRep?.cv) {
+      orphanedFileKeys.push(user.portalRep.cv.storageKey);
+      await tx.attachment.delete({ where: { id: user.portalRep.cv.id } });
+    }
+
+    /* 3 — the partner COMPANY survives; only its login link goes. */
+    if (user.partner) {
+      await tx.partner.update({ where: { id: user.partner.id }, data: { userId: null } });
+    }
+
+    /* 4 — the money trail keeps the name (closerLabel), loses the link. */
+    await tx.statement.updateMany({ where: { closerUserId: userId }, data: { closerUserId: null } });
+
+    /* 5 — their pending inverses die with the account (UndoEntry has no FK). */
+    await tx.undoEntry.deleteMany({ where: { userId } });
+
+    /* 6 — the account itself. UserRole, PortalRep and Notification cascade;
+           LeadComment.authorUserId and Lead.ownerUserId are SET NULL. Anything
+           this policy has NOT resolved would raise a foreign-key error here and
+           abort the whole transaction — nothing is half-deleted. */
+    try {
+      await tx.user.delete({ where: { id: userId } });
+    } catch {
+      throw new ApiError(
+        409,
+        "This account is still referenced by records that cannot be released — deactivate it instead",
+      );
+    }
+
+    await writeLog(tx, {
+      entityType: "user",
+      entityId: userId,
+      actor,
+      action: "update",
+      trigger: "user_deleted",
+    });
+    /* ADR-045: a deletion is never undoable, and it must not leave an older
+       entry behind for the button to offer instead. */
+    await invalidateUndo(tx, actor);
+  });
+
+  for (const key of orphanedFileKeys) {
+    await storage.delete(key); // best-effort, after the commit
+  }
 }
 
 /* ---------- impersonation (V2 §2.10) ---------- */

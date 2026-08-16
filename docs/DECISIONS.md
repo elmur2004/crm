@@ -1220,3 +1220,71 @@ R23 copy sign-off — carried in PROGRESS (Entry 011).
   page's pink. The displayed number carries direction: ltr +
   unicode-bidi: isolate (and dir="ltr"): a "+20 100 …" run reorders
   under RTL otherwise, and on this page the number IS the content.
+
+## ADR-049 — 2026-08-17 — Permanent user deletion: destroy the login, preserve the business record
+- Context: founder — "give me the ability to completely delete a user,
+  not just deactivate it." V2 §11 already had a REVERSIBLE deactivate
+  (Remove / Reactivate); the ask is a genuine hard delete. The schema
+  was audited FIRST: every reference to User was enumerated with its
+  actual ON DELETE clause before a line was written.
+- Decision: deleteUser(userId, actor) — admin only (DELETE
+  /api/b-systems/users/[id] behind requireBsAdmin), one transaction, and
+  an EXPLICIT fate for every reference rather than whatever the FK
+  happens to do:
+  · owned LEADS — KEPT. ownerUserId → null, ownerType → "admin" (the
+    unassigned bucket), one ActivityLog row per lead (trigger
+    "owner_deleted"). The pipeline belongs to the company, not to the
+    person; the FK's SET NULL alone would have left them in a dead
+    "agent" bucket that no board renders.
+  · agent profile (PortalRep) — DELETED (cascades from User); its CV
+    Attachment is deleted FIRST and the stored FILE removed, because
+    Attachment.portalRepId is SET NULL and would otherwise leave an
+    orphan row and a stray file on disk for ever.
+  · FollowUp.ownerPortalRepId — SET NULL by the FK; the follow-up
+    survives its owner.
+  · Partner.userId — NULLED. The partner COMPANY, its prospect, its
+    referred leads and its commissions survive; only the login goes.
+  · Statement.closerUserId — NULLED (there is no FK; it is a plain
+    column). closerLabel is denormalised, so the MONEY TRAIL KEEPS THE
+    NAME — a paid statement must never become anonymous.
+  · LeadComment.authorUserId — SET NULL by the FK; authorLabel carries
+    the name, exactly like the activity log.
+  · Notification, UserRole — CASCADE.
+  · UndoEntry — DELETED (no FK): their pending inverses die with the
+    account.
+  · ActivityLog — KEPT, UNTOUCHED. actorLabel is denormalised history;
+    deleting the actor must not rewrite what happened.
+  Guards: never yourself ("You cannot delete your own account"); never
+  the pinned bootstrap admin admin@byteforce.com (bootstrap.ts recreates
+  it on the next sign-in, so deleting it is meaningless). Anything this
+  policy has NOT released raises a foreign-key error on the final
+  user.delete, which aborts the whole transaction and REFUSES with
+  "still referenced by records that cannot be released — deactivate it
+  instead": nothing is ever half-deleted.
+  NOT UNDOABLE, like every destructive path (ADR-045): it retires the
+  acting admin's pending entries so the Undo button never offers
+  something older instead. The deletion is itself activity-logged
+  (entityType "user", trigger "user_deleted").
+  UI: a "Delete" button beside the reversible "Remove", opening a
+  two-step confirm that NAMES the person, lists what is kept and what is
+  destroyed, says it cannot be undone, and points at Remove for anyone
+  who only wants to block access. It is hidden for yourself and for the
+  bootstrap admin (the server enforces both anyway).
+- Alternatives considered: cascading the leads with the user — rejected
+  outright: it would delete the company's pipeline to remove one login.
+  Anonymising instead of deleting ("Deleted user" placeholder account) —
+  rejected: the founder asked for the account to be GONE, and the
+  denormalised labels already give history a readable actor. Deleting
+  the ActivityLog rows — rejected: an audit trail that can be erased by
+  deleting its actor is not an audit trail. Making it undoable —
+  rejected: consistent with ADR-045, deletions are not undoable because
+  the data is gone.
+- Resolves: — (founder directive; no SPEC §11 A-#)
+- Consequences: a deleted agent's leads land in the ADMIN bucket, not
+  back with whoever referred them — the admin redistributes them with
+  the new "Assign owner" control (ADR-047), which is the intended pair.
+  Statements keep paying out under a name with no account, which is
+  correct: the obligation outlives the login. Deactivate remains the
+  right tool for "block access, keep everything", and the confirm dialog
+  says so.
+- Status: Accepted

@@ -1,5 +1,21 @@
 # Changelog — user-visible changes per phase/release
 
+## Permanently delete a user (2026-08-17)
+- Users now has a **"Delete"** button beside "Remove". Remove is the old,
+  reversible switch-off; **Delete wipes the account for good**. It asks
+  twice and the second question names the person, so the two can never
+  be confused.
+- **What is kept:** their leads — they go back to the admin bucket so you
+  can hand them to someone else with "Assign owner"; their comments;
+  the whole activity log; and every statement, so the money trail still
+  shows who closed what.
+- **What is destroyed:** the login and its roles, the agent profile and
+  its CV file, and their notifications. If the person is a partner's
+  login, the **partner company stays** — only the sign-in goes.
+- You cannot delete yourself, and you cannot delete the main admin
+  account (it is recreated automatically). Deleting cannot be undone,
+  and the deletion itself is recorded.
+
 ## Call the lead from your phone — and see everything while you talk (2026-08-17)
 - Every board card and every lead now has a **"Call"** button. It opens
   a new **call sheet**: one page, built for a phone, with the lead's

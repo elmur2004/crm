@@ -193,6 +193,32 @@ export const usersAdmin = {
   create: { en: "Create", ar: "إنشاء" },
   remove: { en: "Remove", ar: "إزالة" },
   reactivate: { en: "Reactivate", ar: "إعادة تفعيل" },
+  /* founder (ADR-049): permanent deletion, distinct from Remove above it —
+     two deliberate steps, and the second one names the person out loud */
+  deleteUser: { en: "Delete", ar: "حذف" },
+  deleteEyebrow: { en: "Users · Delete permanently", ar: "المستخدمون · حذف نهائي" },
+  deleteQuestion: {
+    en: "Permanently delete {name}? This is not the same as Remove — the account is gone for good.",
+    ar: "حذف {name} نهائيًا؟ هذا يختلف عن «إزالة» — سيختفي الحساب إلى الأبد.",
+  },
+  deleteKeeps: {
+    en: "Kept: their leads (returned to the admin bucket), their comments, the activity log, and every statement — the money trail keeps their name.",
+    ar: "يُحتفظ به: عملاؤهم المحتملون (يعودون إلى فئة المدير)، وتعليقاتهم، وسجل النشاط، وكل كشوف الحساب — يحتفظ سجل المدفوعات باسمهم.",
+  },
+  deleteRemoves: {
+    en: "Destroyed: the login, their roles, their agent profile and CV file, and their notifications. A partner company survives — only its login goes.",
+    ar: "يُحذف: حساب الدخول، والصلاحيات، وملف الوكيل وسيرته الذاتية، والإشعارات. تبقى شركة الشريك — يزول حساب الدخول فقط.",
+  },
+  deleteNotUndoable: {
+    en: "This cannot be undone.",
+    ar: "لا يمكن التراجع عن ذلك.",
+  },
+  deleteDeactivateInstead: {
+    en: "Only need to block access? Use Remove instead — it is reversible.",
+    ar: "هل تريد فقط منع الوصول؟ استخدم «إزالة» — فهي قابلة للتراجع.",
+  },
+  /* "Yes, delete {name}" */
+  deleteConfirm: { en: "Yes, delete {name}", ar: "نعم، احذف {name}" },
 } satisfies Record<string, Msg>;
 
 /** Role badges on the Users page (EN byte-identical to the old ROLE_LABELS). */

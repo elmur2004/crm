@@ -4,7 +4,12 @@ import { bsRoleOf } from "@/lib/api/bsystems";
 import { impersonate } from "@/lib/auth/actions";
 import { listUsers } from "@/lib/services/users";
 import { formatCairoDate } from "@/lib/datetime";
-import { ActiveToggle, CreateUserForm, EditUserButton } from "@/components/bsystems/users";
+import {
+  ActiveToggle,
+  CreateUserForm,
+  DeleteUserButton,
+  EditUserButton,
+} from "@/components/bsystems/users";
 import { tFor } from "@/lib/i18n/core";
 import { getLocale } from "@/lib/i18n/server";
 import { common, roleBadges, usersAdmin as d } from "@/lib/i18n/dict/admin";
@@ -103,6 +108,12 @@ export default async function UsersPage() {
                         </form>
                       ) : null}
                       {u.id !== user.id ? <ActiveToggle userId={u.id} active={u.active} /> : null}
+                      {/* founder (ADR-049): a permanent delete beside the
+                          reversible Remove. Never yourself, never the pinned
+                          bootstrap admin — the server enforces both. */}
+                      {u.id !== user.id && u.email !== "admin@byteforce.com" ? (
+                        <DeleteUserButton userId={u.id} name={u.name} />
+                      ) : null}
                     </span>
                   </td>
                 </tr>

@@ -1527,3 +1527,52 @@ comment, and the ADR-013 mechanism note all fixed; .env.example confirmed tracke
   database recreation, the board's owner tabs, the Arabic wording for
   Organic, undo's one-step/10-minute/no-financials rules, the same-stage
   record labels, and admin-only reassignment).
+
+## Entry 040 — 2026-08-17 — Founder: permanently delete a user (ADR-049)
+- Done: a real hard delete in Users, beside — and deliberately unlike —
+  the reversible Remove. The schema was AUDITED FIRST: every reference
+  to User enumerated with its actual ON DELETE clause, then each one
+  given an explicit fate in one transaction rather than left to the FK.
+  KEPT: the person's leads (ownerUserId null + ownerType "admin", i.e.
+  the admin bucket, one activity row each — the pipeline is the
+  company's, and the new "Assign owner" control from Entry 038 is how it
+  is redistributed); their lead comments (unlinked, authorLabel carries
+  the name); every statement (closerUserId nulled, closerLabel intact —
+  the money trail keeps the name); and the ActivityLog untouched, because
+  actorLabel is denormalised history and deleting the actor must not
+  rewrite what happened. DESTROYED: the login, its roles, the agent
+  PortalRep profile AND its CV attachment row + the stored file, the
+  notifications, and their pending UndoEntry rows. A partner company
+  survives its login (Partner.userId nulled). Guards: never yourself,
+  never the pinned bootstrap admin (bootstrap.ts recreates it anyway),
+  404 on an unknown id — and the user.delete is the LAST statement in
+  the transaction on purpose, so any reference the policy failed to
+  release raises an FK error that aborts everything and refuses cleanly
+  instead of half-deleting. NOT undoable (it retires the acting admin's
+  pending entries) and activity-logged ("user_deleted"). UI: a two-step
+  confirm that names the person, lists what is kept and what is
+  destroyed, says it cannot be undone, and points at Remove for anyone
+  who only wants to block access; hidden for yourself and the bootstrap
+  admin, with the server enforcing both. Two schema surprises found
+  during the audit are written up in IMPLEMENTATION.md: the CV
+  attachment would have been orphaned (row AND file) because
+  Attachment.portalRepId is SET NULL while PortalRep cascades, and
+  Statement.closerUserId / UndoEntry.userId have NO foreign key at all
+  (plain String columns), so nothing in the database would have stopped
+  them pointing at a deleted account. Verified: tsc clean, vitest
+  155/155 (+5), Playwright 27 passed / 2 audit-opt-in skipped (TESTING
+  Run 043).
+- In progress: —
+- Next steps: founder review of this round's four commits (Entries
+  037–040).
+- Blockers: none new.
+- Needs founder confirmation: (i) a deleted person's leads land in the
+  ADMIN bucket rather than being handed to a named colleague — the
+  admin redistributes them with "Assign owner"; say the word if a
+  deletion should ask "give them to whom?" instead; (ii) statements keep
+  paying out under a name with no account, which is deliberate (the
+  obligation outlives the login). Carried: see Entries 023–039 (incl.
+  the WIN1252 local-database recreation, the board's owner tabs, the
+  Arabic wording for Organic, undo's one-step/10-minute/no-financials
+  rules, the same-stage record labels, admin-only reassignment, and the
+  call sheet's single-number/full-chat choices).

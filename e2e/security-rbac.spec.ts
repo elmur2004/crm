@@ -38,6 +38,11 @@ test("agents cannot touch admin surfaces (server-side 403)", async ({ page }) =>
   });
   expect(deactivate.status()).toBe(403);
 
+  /* founder (ADR-049): permanent user deletion is admin-only, same wall as
+     every other Users action — the guard fires before the id is resolved. */
+  const hardDelete = await page.request.delete("/api/b-systems/users/any-id");
+  expect(hardDelete.status()).toBe(403);
+
   const documents = await page.request.post("/api/b-systems/won-leads/any-id/documents", {
     multipart: { kind: "contract", file: { name: "c.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.7") } },
   });

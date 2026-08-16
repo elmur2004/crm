@@ -655,3 +655,31 @@ _Format per module:_
   Sidebar Search Lead"), so substring getByLabel matches can collide —
   use exact matching.
 - Last updated: 2026-08-14 (Entry 036, ADR-045, TESTING Run 039)
+
+## User deletion: the two references the schema does NOT protect (2026-08-17)
+Auditing every `User` reference before writing ADR-049 turned up two that
+look safe and are not, because Prisma's implicit `SET NULL` only covers a
+declared relation:
+
+1. **`Attachment.portalRepId` is `SET NULL`, and `PortalRep` CASCADEs from
+   `User`.** Deleting an agent therefore destroys the profile but leaves its
+   CV Attachment ROW behind with a null owner — and the file itself on disk
+   for ever, reachable by nobody and cleaned by nothing. `deleteUser` deletes
+   the attachment explicitly inside the transaction and removes the stored
+   file after the commit (the same after-commit pattern `deleteLead` uses for
+   statement proofs).
+2. **`Statement.closerUserId` and `UndoEntry.userId` have no foreign key at
+   all** — they are plain `String` columns (grep the migration SQL: no
+   `Statement_closerUserId_fkey`, no `UndoEntry_userId_fkey`). Nothing in the
+   database would have stopped them pointing at a deleted account. They are
+   nulled / deleted by hand, and the ADR pins both.
+
+The general lesson for anything added later: a `userId` column without a
+declared relation is invisible to cascade planning. When adding one, either
+declare the relation or add it to `deleteUser`'s explicit list.
+
+Also worth knowing: `user.delete` is the LAST statement in the transaction on
+purpose. Any reference the policy failed to release raises a foreign-key error
+there, which aborts everything — so a future column can never leave an account
+half-deleted; it produces a clean refusal ("still referenced by records that
+cannot be released — deactivate it instead") instead.
