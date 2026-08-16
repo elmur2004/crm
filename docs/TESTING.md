@@ -829,3 +829,55 @@ every dashboard formula, journeys 1-5 (SPEC §13).
   the wall is requireBsAdmin, so an agent can neither push a lead onto
   a colleague nor pull one to themselves.
 - Verdict: PASS.
+
+## Run 042 — 2026-08-17 — Dial + the call sheet (ADR-048)
+- Suites/commands: `npx tsc --noEmit` (clean) · `npx vitest run` (150 —
+  four NEW tests in the NEW src/lib/phone-dial.test.ts) · `npx
+  playwright test` (full suite incl. the NEW e2e/call-sheet.spec.ts,
+  two tests). Local dev, embedded Postgres (per-run instances).
+- Cases: vitest 150 passed / 0 failed / 0 skipped · Playwright full 27
+  passed / 0 failed / 2 skipped (audit opt-in skips, by design). Full
+  e2e wall time 4.4m.
+- Failures: none in the suites. The brand-auditor subagent on the diff
+  returned FAIL and was fixed before the commit — see the coverage note.
+- brand-auditor (pre-commit, on the diff): one BLOCKING finding and five
+  more, all fixed. (1) BLOCKING — .card-dial filled solid --color-accent,
+  which is the WON cue in both brands (B-Systems Signal Pink /
+  ByteForce orange = --color-stage-won-accent) and would have repainted
+  every card in every column with it, at a size where white-on-accent
+  measures 3.13:1 / 3.34:1 against the 4.5:1 AA floor; it is now an
+  outlined link-ink mono chip, AA-clean in both brands and legible as an
+  ACTION rather than a status. (2) .call-cta-number carried a gratuitous
+  opacity: .9 on the most important string on the page — removed.
+  (3) the number had no bidi isolation, so a "+20 100 …" run reorders
+  under dir="rtl" — now direction: ltr + unicode-bidi: isolate and
+  dir="ltr" on the span (the first place in the repo this bites).
+  (4) the aria-label used a hand-rolled .replace instead of the
+  canonical formatMsg composer. (5) the dial chip used --font-body for
+  an uppercase micro-chip where every sibling uses --font-mono.
+  (6) eleven strings in the new dict/call.ts were byte-for-byte
+  duplicates of dict/crm's leadDetail — deleted; the call sheet reads
+  the lead detail's own labels, so the two can never drift. Plus three
+  cleanups: hover transitions for the new controls, the handset glyph
+  no longer hidden at ≤560px (the very device the page is for), and the
+  lead-detail Call button moved from accent to primary so the page has
+  one pink object (Ready to close), not two. Everything else passed:
+  zero hardcoded colors/fonts/radii, logical properties throughout,
+  every string a Msg, no emoji, correct brand scope both sides.
+- SPEC coverage touched: no §10 rows — the call sheet is read-only.
+  New coverage: (unit) tel: sanitising strips spaces / dashes / dots /
+  brackets, keeps an international prefix, normalises a 00 prefix to +,
+  and returns null for a number with no digits. (e2e) the Call chip on
+  a board card navigates to the call sheet — proving it neither drags
+  the card nor triggers the whole-card navigation; the dial button
+  carries the accessible name "Call now — +20 100 123-4567" (the number
+  as typed) while its href is the sanitised "tel:+201001234567"; the
+  sheet shows the lead's company, industry, position and requirements,
+  a mailto: link for the email, and the Details / Latest update / Stage
+  records / History sections; the lead-detail header's Call button
+  reaches the same page; the sheet has NO horizontal overflow at
+  1440/1024/768/560/390 (the §15 sweep, run in this spec because the
+  page needs a lead id and qa-sweep's list is id-free); and an agent
+  opening another owner's call sheet URL gets the not-found page —
+  requireLeadAccess holds on the new route.
+- Verdict: PASS.

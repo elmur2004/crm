@@ -1151,3 +1151,72 @@ R23 copy sign-off — carried in PROGRESS (Entry 011).
   what puts the person's name on the lead. getLeadDetail now includes
   the owner account so the detail can name the person.
 - Status: Accepted
+
+## ADR-048 — 2026-08-17 — The call sheet: a phone-first page behind a tel: link
+- Context: founder — "when using the system from the phone there should
+  be a button to call the lead instantly so it dials the lead. And
+  whenever you dial, it opens the page where all the information of the
+  lead is displayed — his name, his industry, the last update, the last
+  comment, all of his story — the stage records, the details, all inside
+  that page that pops up when we click dial, so I can talk with him on
+  the phone and see everything."
+- Decision: a real ROUTE, not a modal —
+  /b-systems/crm/lead/[leadId]/call and
+  /byteforce/leads/lead/[leadId]/call — both rendering the shared server
+  component components/shared/CallSheet.tsx, guarded by
+  requireLeadAccess (the URL is not a way around the walls; an agent
+  opening a colleague's call sheet gets the 404 page).
+  · The DIALER is opened by a plain `<a href="tel:…">`, never a script.
+    That is what makes the founder's sentence literally true: the OS
+    takes over, and returning from the call leaves the sheet exactly as
+    it was, still scrolled where you left it. A modal would not survive
+    the hand-off and could not be linked to from a board card.
+  · The href is sanitised by lib/phone-dial.ts (leading "+" or "00"→"+",
+    digits only); the number is DISPLAYED exactly as the team typed it.
+    Deliberately separate from auth/phone.ts's normalizePhone, which
+    produces a login identifier for a stored account — a lead's number
+    is free text (landlines, extensions, foreign numbers) and must never
+    be rewritten in the database.
+  · Order is the order you need mid-call: a STICKY identity block (name,
+    company, stage/flags, the big Call button, back-link) that stays a
+    thumb away however far you scroll; then other contacts (the email as
+    a mailto:), the essentials grid, the LATEST update, the chat, the
+    negotiation notes, the full stage records, the full history.
+  · Everything below the sticky block REUSES the lead detail's own
+    renderers — GroupHistory, LeadChat, HistoryPanel, StageBadge, the
+    .fields-grid — so the call sheet cannot drift from the lead page.
+    "Latest update" is HistoryPanel over history.slice(0, 1): one
+    renderer, one wording, no second implementation of "what happened".
+  · Entry points: a "Call" button in the lead-detail header (both
+    brands) and a "Call" chip on every board card. The card chip stops
+    propagation on BOTH click and pointerdown, so it neither starts a
+    drag nor triggers the card's whole-card navigation.
+- Alternatives considered: a modal over the board — rejected: it cannot
+  be deep-linked, and the founder wants the page still there after the
+  call. Rendering the lead detail with a `?call=1` flag — rejected: the
+  lead page is a two-column work surface built for a desktop; the call
+  sheet is a single reading column with a sticky CTA, and mixing them
+  would compromise both. A click-to-call integration (WhatsApp/VoIP) —
+  out of scope; tel: is what "so it dials the lead" means on a phone.
+- Resolves: — (founder directive; no SPEC §11 A-#)
+- Consequences: Lead carries exactly ONE number in the schema
+  (alternativeNumbers exists only on PartnerProspect, §7.2/V2 §6), so
+  "any alternative numbers" is served by the email as a mailto: line;
+  giving a lead several numbers would be a schema addition — flagged for
+  the founder. The chat on the call sheet is the FULL LeadChat
+  (composer included), which is deliberate: a note taken during the call
+  is the note most worth having.
+- Status: Accepted
+
+  ADDENDUM (brand-auditor, pre-commit): the board card's dial chip is
+  OUTLINED in link ink, not filled with --color-accent. Accent is the
+  Won cue in both brands (B-Systems Signal Pink; ByteForce orange IS
+  --color-stage-won-accent), so filling a chip that appears on every
+  card in every column would have destroyed that cue and blown SPEC
+  §4.3's 12% share on the densest view in the product — and white on
+  either accent measures ~3.1–3.3:1 at 10px against AA's 4.5:1. The
+  lead-detail Call button is --color-primary for the same reason: it is
+  the page's one true action, and "Ready to close" already owns the
+  page's pink. The displayed number carries direction: ltr +
+  unicode-bidi: isolate (and dir="ltr"): a "+20 100 …" run reorders
+  under RTL otherwise, and on this page the number IS the content.

@@ -656,7 +656,8 @@ label:has(input[required]) .dropzone-title::after {
 /* .bcard keeps its own tuned .12s transition (drag must track the cursor) */
 .tile, .ecard, .card, .action-pill, .hub-card,
 .btn-primary, .btn-ghost, .btn-danger, .btn-accent,
-.nav-item, .switcher-seg, .bell, .row-toggle, .field-input, .dropzone {
+.nav-item, .switcher-seg, .bell, .row-toggle, .field-input, .dropzone,
+.call-cta, .card-dial {
   transition:
     background-color .15s ease, border-color .15s ease, color .15s ease,
     box-shadow .18s ease, transform .18s ease, opacity .15s ease;
@@ -844,4 +845,63 @@ label:has(input[required]) .dropzone-title::after {
   .ms-amount { margin-inline-start: 0; width: 100%; text-align: start; }
   .page-head { align-items: flex-start; flex-direction: column; }
   .page-actions { width: 100%; }
+}
+
+/* ---------- call sheet (founder: "a button to call the lead instantly … and it
+   opens the page where all the information of the lead is displayed") ----------
+   PHONE-FIRST: this page is read one-handed, mid-call. The identity block and
+   the dial button are STICKY so the number stays one thumb away however far you
+   scroll into the story; everything below it is the existing lead-detail
+   renderers. Logical properties only — it mirrors under [dir="rtl"] for free. */
+.call-sheet { display: flex; flex-direction: column; gap: 16px; max-width: 720px; margin-inline: auto; }
+.call-top {
+  position: sticky; inset-block-start: 0; z-index: 20;
+  display: flex; flex-direction: column; gap: 8px;
+  padding: 14px 16px 16px; margin-block-start: -6px;
+  background: var(--color-surface-card);
+  border: 1px solid var(--color-border); border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+}
+.call-name { margin: 0; font: 700 24px/1.15 var(--font-display); letter-spacing: -.022em; color: var(--color-heading); }
+.call-company { margin: 0; font: 400 13px/1.4 var(--font-body); color: var(--color-muted); }
+.call-badges { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+/* the one thing this page exists for: a big, unmissable target (≥ 52px tall) */
+.call-cta {
+  display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap;
+  min-height: 54px; padding: 12px 18px; margin-block-start: 4px;
+  border-radius: var(--radius-control);
+  background: var(--color-primary); color: var(--color-on-primary);
+  font: 600 16px var(--font-body); text-decoration: none; text-align: center;
+}
+.call-cta:hover { background: color-mix(in srgb, var(--color-ink) 10%, var(--color-primary)); }
+.call-cta:active { transform: scale(.98); }
+.call-cta-icon { width: 20px; height: 20px; flex: none; }
+.call-cta-label { flex: none; }
+/* the number is a LTR run even in Arabic: without isolation the leading "+"
+   and the grouped digits reorder around the surrounding RTL text */
+.call-cta-number {
+  font: 600 15px var(--font-mono); letter-spacing: .04em; word-break: break-all;
+  direction: ltr; unicode-bidi: isolate;
+}
+.call-back { font: 400 12.5px var(--font-body); }
+.call-line { display: block; font: 500 14px var(--font-body); word-break: break-word; }
+/* the board card's dial chip — an ACTION, so it is outlined in link ink, not
+   filled with the accent: accent is the Won cue in both brands (Signal Pink /
+   ByteForce orange) and would repaint every card in every column with it, at a
+   size where white-on-accent misses AA. Mono uppercase like every other
+   micro-chip in this file. */
+.card-dial {
+  display: inline-flex; align-items: center; font: 500 10px var(--font-mono);
+  letter-spacing: .12em; text-transform: uppercase; text-decoration: none;
+  border-radius: 5px; padding: 3px 8px; min-height: 20px;
+  background: transparent; color: var(--color-link);
+  border: 1px solid var(--color-border);
+}
+.card-dial:hover { border-color: var(--color-link); background: var(--color-surface); }
+@media (max-width: 560px) {
+  .call-top { padding: 12px 13px 14px; }
+  .call-name { font-size: 21px; }
+  /* stack label above number rather than let a long international number wrap —
+     the button stays one clean tap target, glyph included */
+  .call-cta { flex-direction: column; gap: 2px; padding-block: 10px; }
 }

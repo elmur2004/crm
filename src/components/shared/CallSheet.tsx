@@ -1,0 +1,240 @@
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { db } from "@/lib/db";
+import type { Brand } from "@/lib/pipeline-engine/constants";
+import { ApiError } from "@/lib/api-error";
+import { requireLeadAccess } from "@/lib/auth/guards";
+import { getLeadDetail } from "@/lib/services/leads";
+import { listLeadComments, mentionableUsersFor } from "@/lib/services/comments";
+import { formatCairo } from "@/lib/datetime";
+import { telHref } from "@/lib/phone-dial";
+import { formatMsg, tFor } from "@/lib/i18n/core";
+import { getLocale } from "@/lib/i18n/server";
+import { leadTypeLabel, ownerTypeLabel } from "@/lib/i18n/dict/labels";
+import { callSheet as m } from "@/lib/i18n/dict/call";
+/* the facts this page shows are the LEAD DETAIL's facts — same labels, same
+   Arabic, one source (dict/crm); only the call sheet's own strings live in
+   dict/call */
+import { archiveMsgs, common as crmCommon, leadDetail as ld } from "@/lib/i18n/dict/crm";
+import { StageBadge } from "@/components/shared/StageBadge";
+import { LeadChat } from "@/components/shared/LeadChat";
+import { GroupHistory } from "@/components/internal/GroupHistory";
+import { HistoryPanel } from "@/components/internal/HistoryPanel";
+
+/* Founder — the call sheet: "whenever you dial, it opens the page where all the
+   information of the lead is displayed — his name, his industry, the last
+   update, the last comment, all of his story — the stage records, the details,
+   all inside that page … so I can talk with him on the phone and see
+   everything."
+
+   One page, PHONE-FIRST, in the order you need it mid-call: who you are ringing
+   and the dial button first (sticky, so it stays reachable one-handed however
+   far you scroll), then the essentials, the last thing that happened, the
+   conversation, the stage records and the full history. Everything below the
+   sticky block reuses the existing lead-detail renderers (GroupHistory /
+   LeadChat / HistoryPanel) rather than restating them.
+
+   The tel: link — not a script — is what opens the dialer, so coming back from
+   the call leaves this page exactly as it was. Access is re-checked
+   server-side by requireLeadAccess: the URL is not a way around the walls. */
+
+export async function CallSheet({
+  brand,
+  leadId,
+  leadPath,
+  apiBase,
+}: {
+  brand: Brand;
+  leadId: string;
+  /** "/b-systems/crm/lead" | "/byteforce/leads/lead" */
+  leadPath: string;
+  apiBase: string;
+}) {
+  const locale = await getLocale();
+  const t = tFor(locale);
+
+  let access;
+  let detail;
+  try {
+    access = await requireLeadAccess(leadId);
+    detail = await getLeadDetail(brand, leadId);
+  } catch (e) {
+    if (e instanceof ApiError) notFound();
+    throw e;
+  }
+  const { lead, history } = detail;
+
+  const [comments, mentionables, negotiationNotes] = await Promise.all([
+    listLeadComments(leadId),
+    mentionableUsersFor(leadId),
+    brand === "bsystems"
+      ? db.negotiationNote.findMany({ where: { leadId }, orderBy: { createdAt: "desc" } })
+      : Promise.resolve([]),
+  ]);
+
+  const dial = telHref(lead.number);
+  const ownerLine = [
+    ownerTypeLabel(locale, lead.ownerType),
+    lead.owner?.name,
+    lead.salesRep?.name,
+    lead.partner?.companyName,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
+  const facts: Array<{ label: string; value: string }> = [
+    { label: t(ld.fieldOwner), value: ownerLine },
+    { label: t(ld.fieldType), value: leadTypeLabel(locale, lead.type) },
+    { label: t(ld.fieldIndustry), value: lead.industry ?? "—" },
+    { label: t(ld.fieldPosition), value: lead.position ?? "—" },
+    { label: t(ld.fieldCompany), value: lead.companyName ?? "—" },
+    { label: t(ld.fieldDateCreated), value: formatCairo(lead.createdAt) },
+    { label: t(ld.fieldRequirements), value: lead.requirements ?? "—" },
+    { label: t(ld.fieldNotes), value: lead.description ?? "—" },
+  ];
+
+  return (
+    <div className="call-sheet">
+      {/* 1 — who you are ringing, and the button that rings them */}
+      <div className="call-top">
+        <p className="u-eyebrow">{t(m.eyebrow)}</p>
+        <h1 className="call-name">{lead.name}</h1>
+        {lead.companyName ? <p className="call-company">{lead.companyName}</p> : null}
+        <p className="call-badges">
+          <StageBadge stage={lead.stage} />
+          {lead.readyToClose ? (
+            <span className="badge badge--accent">{t(crmCommon.readyToClose)}</span>
+          ) : null}
+          {lead.noAnswer ? (
+            <span className="badge badge--noanswer">{t(crmCommon.noAnswer)}</span>
+          ) : null}
+          {lead.archived ? (
+            <span className="badge badge--archived">{t(archiveMsgs.archived)}</span>
+          ) : null}
+        </p>
+        {dial ? (
+          <a
+            href={dial}
+            className="call-cta"
+            aria-label={t(formatMsg(m.callNowAria, { number: lead.number }))}
+          >
+            <svg
+              className="call-cta-icon"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden
+            >
+              <path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .3 1.9.6 2.8a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.1a2 2 0 0 1 2.1-.5c.9.3 1.8.5 2.8.6a2 2 0 0 1 1.7 2Z" />
+            </svg>
+            <span className="call-cta-label">{t(m.callNow)}</span>
+            <span className="call-cta-number" dir="ltr">
+              {lead.number}
+            </span>
+          </a>
+        ) : (
+          <p className="u-muted">{t(m.noNumber)}</p>
+        )}
+        <p className="call-back">
+          <Link href={`${leadPath}/${lead.id}`} className="text-brand-link underline underline-offset-2">
+            {t(m.backToLead)}
+          </Link>
+        </p>
+      </div>
+
+      {/* other ways to reach them — the schema keeps ONE number per lead */}
+      {lead.email ? (
+        <div className="card card--flush0">
+          <div className="card-head">
+            <h2 className="u-h3">{t(m.otherContacts)}</h2>
+          </div>
+          <div className="card-pad">
+            <a
+              href={`mailto:${lead.email}`}
+              className="call-line text-brand-link underline underline-offset-2"
+            >
+              {lead.email}
+            </a>
+            <p className="u-muted">{t(m.sendEmail)}</p>
+          </div>
+        </div>
+      ) : null}
+
+      {/* 2 — the essentials, in reading order */}
+      <div className="card card--flush0">
+        <div className="card-head">
+          <h2 className="u-h3">{t(m.details)}</h2>
+        </div>
+        <div className="fields-grid">
+          {facts.map((f) => (
+            <div key={f.label} className="fields-cell">
+              <p className="fields-label">{f.label}</p>
+              <p className="fields-value whitespace-pre-wrap">{f.value}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* 3 — the last thing that happened, with its date */}
+      <div className="card card--flush0">
+        <div className="card-head">
+          <h2 className="u-h3">{t(m.latestUpdate)}</h2>
+        </div>
+        <div className="card-pad">
+          <HistoryPanel entries={history.slice(0, 1)} />
+        </div>
+      </div>
+
+      {/* 4 — the conversation (and a place to jot a note mid-call) */}
+      <LeadChat
+        postUrl={`${apiBase}/leads/${lead.id}/comments`}
+        comments={comments.map((c) => ({ ...c, createdAt: c.createdAt.toISOString() }))}
+        mentionables={mentionables}
+        currentUserId={access.user.id}
+      />
+
+      {negotiationNotes.length > 0 ? (
+        <div className="card card--flush0">
+          <div className="card-head">
+            <h2 className="u-h3">{t(ld.negotiationNotes)}</h2>
+          </div>
+          <div className="card-pad">
+            <ul className="space-y-2 text-sm">
+              {negotiationNotes.map((n) => (
+                <li key={n.id}>
+                  <p className="whitespace-pre-wrap">{n.note}</p>
+                  <p className="record-time">{formatCairo(n.createdAt)}</p>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      ) : null}
+
+      {/* 5 — his whole story: every stage record */}
+      <div>
+        <h2 className="u-h3 mb-2">{t(ld.stageRecords)}</h2>
+        <GroupHistory
+          followUps={lead.followUps}
+          meetings={lead.meetings}
+          proposals={lead.proposals}
+          lostInfo={lead.lostInfo}
+          won={lead.wonInfo}
+        />
+      </div>
+
+      {/* 6 — and the full activity history underneath it */}
+      <div className="card card--flush0">
+        <div className="card-head">
+          <h2 className="u-h3">{t(ld.history)}</h2>
+        </div>
+        <div className="card-pad">
+          <HistoryPanel entries={history} />
+        </div>
+      </div>
+    </div>
+  );
+}

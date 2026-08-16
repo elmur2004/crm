@@ -40,6 +40,7 @@ import {
   leadsFilters,
   ownerFilters,
 } from "@/lib/i18n/dict/crm";
+import { callSheet } from "@/lib/i18n/dict/call";
 import { FilterPanel } from "@/components/shared/FilterPanel";
 import { leadSearchWhere, leadTypeWhere } from "@/lib/services/lead-search";
 import { ArchiveButton } from "@/components/shared/ArchiveButton";
@@ -310,6 +311,12 @@ export async function LeadDetailBody({ ctx, leadId }: { ctx: InternalAppCtx; lea
           </Link>
         </div>
         <div className="page-actions">
+          {/* founder: the dial entry point — opens the phone-first call sheet.
+              PRIMARY, not accent: calling the lead is the page's one true
+              action, and accent is already the Ready-to-close cue here. */}
+          <Link href={`${ctx.basePath}/leads/lead/${lead.id}/call`} className="btn-primary">
+            {t(callSheet.navLabel)}
+          </Link>
           <ArchiveButton
             postUrl={`${ctx.apiBase}/leads/${lead.id}/archive`}
             archived={lead.archived}

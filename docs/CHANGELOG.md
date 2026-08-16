@@ -1,5 +1,26 @@
 # Changelog — user-visible changes per phase/release
 
+## Call the lead from your phone — and see everything while you talk (2026-08-17)
+- Every board card and every lead now has a **"Call"** button. It opens
+  a new **call sheet**: one page, built for a phone, with the lead's
+  name and company at the top and a big **"Call now"** button that hands
+  the number straight to your phone's dialer. Tapping "Call" on a card
+  never drags it and never opens the wrong page.
+- The number is cleaned up for dialling (spaces, dashes and brackets
+  removed, 00 turned into +) while still being shown exactly as it was
+  typed.
+- Underneath the button, in the order you need it while talking: the
+  email (tap to write), the details (owner, type, industry, position,
+  company, requirements, notes, date created), the **latest update**,
+  the **chat** — where you can type a note mid-call — the negotiation
+  notes, every **stage record** (follow-ups, meetings, proposals, lost
+  and won details) and the full **history**.
+- The name and the Call button stay pinned to the top as you scroll, so
+  the number is always one thumb away. The page works at every width,
+  in Arabic, and it obeys the same access rules as the lead itself.
+- Because the phone's dialer takes over, coming back from the call
+  leaves the page exactly where you left it.
+
 ## Assign a lead to an agent or a partner (2026-08-17)
 - Open any lead and press **"Assign owner"** (admin only). Pick one of
   your agents, partners or internal sales colleagues and the lead

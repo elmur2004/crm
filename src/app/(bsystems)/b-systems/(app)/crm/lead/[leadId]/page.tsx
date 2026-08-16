@@ -10,6 +10,7 @@ import { tFor, type Msg } from "@/lib/i18n/core";
 import { getLocale } from "@/lib/i18n/server";
 import { leadTypeLabel, ownerTypeLabel } from "@/lib/i18n/dict/labels";
 import { common, crmPage, leadDetail as m } from "@/lib/i18n/dict/crm";
+import { callSheet } from "@/lib/i18n/dict/call";
 import { StageBadge } from "@/components/shared/StageBadge";
 import { ArchiveButton } from "@/components/shared/ArchiveButton";
 import { archiveMsgs } from "@/lib/i18n/dict/crm";
@@ -117,6 +118,12 @@ export default async function BsLeadDetailPage({
           </Link>
         </div>
         <div className="page-actions">
+          {/* founder: the dial entry point — opens the phone-first call sheet.
+              PRIMARY, not accent: calling the lead is the page's one true
+              action, and accent is already the Ready-to-close cue here. */}
+          <Link href={`/b-systems/crm/lead/${lead.id}/call`} className="btn-primary">
+            {t(callSheet.navLabel)}
+          </Link>
           <CopyLeadButton lead={editable} />
           {access.isAdmin && !lead.archived ? (
             <AssignLeadButton

@@ -20,6 +20,7 @@ import { tFor } from "@/lib/i18n/core";
 import { useLocale } from "@/components/shared/LocaleProvider";
 import { stageLabel } from "@/lib/i18n/dict/labels";
 import { board as msg, common } from "@/lib/i18n/dict/crm";
+import { callSheet } from "@/lib/i18n/dict/call";
 import { stageKey } from "./stageColors";
 import {
   GroupFieldsV2,
@@ -97,6 +98,17 @@ function LeadCard({
           {lead.ownerLabel}
         </span>
         {lead.noAnswer ? <span className="badge badge--noanswer">{t(common.noAnswer)}</span> : null}
+        {/* founder: dial straight from the card. stopPropagation on BOTH the
+            click and the pointer-down so it neither drags the card nor
+            triggers the whole-card navigation. */}
+        <Link
+          href={`/b-systems/crm/lead/${lead.id}/call`}
+          className="card-dial"
+          onClick={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
+        >
+          {t(callSheet.navLabel)}
+        </Link>
       </div>
       {lead.keyDatum || (lead.stage !== "won" && lead.stage !== "lost") ? (
         <div className="bcard-meta">

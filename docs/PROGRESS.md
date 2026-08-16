@@ -1469,3 +1469,61 @@ comment, and the ADR-013 mechanism note all fixed; .env.example confirmed tracke
   WIN1252 local-database recreation, the board's owner tabs, the Arabic
   wording for Organic, undo's one-step/10-minute/no-financials rules,
   and the same-stage record labels).
+
+## Entry 039 — 2026-08-17 — Founder: dial the lead + the call sheet (ADR-048)
+- Done: a real route per brand — /b-systems/crm/lead/[leadId]/call and
+  /byteforce/leads/lead/[leadId]/call — both rendering the shared server
+  component components/shared/CallSheet.tsx behind requireLeadAccess (an
+  agent opening a colleague's call-sheet URL gets the not-found page,
+  proved by e2e). PHONE-FIRST: a STICKY identity block (name, company,
+  stage + flags, a 54px "Call now" button, the back-link) stays a thumb
+  away however far you scroll; below it, in the order you need mid-call
+  — other contacts (the email as a mailto:), the essentials grid
+  (owner · type · industry · position · company · created · requirements
+  · notes), the LATEST update, the chat, the negotiation notes, every
+  stage record, and the full history. Everything under the sticky block
+  REUSES the lead detail's own renderers (GroupHistory, LeadChat,
+  HistoryPanel, StageBadge, .fields-grid) so the two pages cannot drift;
+  "Latest update" is HistoryPanel over history.slice(0,1) rather than a
+  second implementation of "what happened". The dialer is opened by a
+  plain <a href="tel:…">, never a script — which is exactly why coming
+  back from the call leaves the sheet on screen, as the founder
+  described. lib/phone-dial.ts sanitises the href (leading + or 00→+,
+  digits only) while the number is DISPLAYED as typed; it is
+  deliberately separate from auth/phone.ts's normalizePhone, which
+  produces login identifiers for stored accounts. Entry points: a Call
+  button in both brands' lead-detail headers and a Call chip on every
+  board card, stopping propagation on BOTH click and pointerdown so it
+  neither drags the card nor triggers the whole-card navigation. New CSS
+  is tokens + logical properties only, and the spec sweeps the page for
+  horizontal overflow at 1440/1024/768/560/390 itself (qa-sweep's path
+  list is id-free, so the check lives with the spec that owns a lead
+  id). brand-auditor on the diff returned FAIL and every finding was
+  fixed before the commit: the blocker was the board card's dial chip
+  filled with --color-accent — the WON cue in BOTH brands (Signal Pink /
+  ByteForce orange is literally --color-stage-won-accent) — which would
+  have repainted every card in every column with it, at a size where
+  white-on-accent measures 3.13:1 / 3.34:1 against AA's 4.5:1; it is now
+  an outlined link-ink mono chip that reads as an action. It also caught
+  a real RTL defect (the phone number had no bidi isolation, so "+20 100
+  …" reorders in Arabic — now direction: ltr + unicode-bidi: isolate),
+  a gratuitous opacity cut on the number, a hand-rolled .replace where
+  formatMsg belongs, eleven dict strings duplicated from dict/crm's
+  leadDetail (deleted — the call sheet reads the lead detail's own
+  labels so they cannot drift), and three cleanups. Verified: tsc clean,
+  vitest 150/150 (+4), Playwright 27 passed / 2 audit-opt-in skipped
+  (TESTING Run 042).
+- In progress: founder request 4 of this round (permanently delete a
+  user).
+- Next steps: as above.
+- Blockers: none new.
+- Needs founder confirmation: (i) a Lead carries exactly ONE number in
+  the schema (alternative numbers exist only on partnership prospects),
+  so the call sheet's "other contacts" is the email; several numbers per
+  lead would be a small schema addition — say the word; (ii) the chat on
+  the call sheet is the FULL chat with its composer, so a note taken
+  during the call can be typed there and then — say so if it should be
+  read-only. Carried: see Entries 023–038 (incl. the WIN1252 local-
+  database recreation, the board's owner tabs, the Arabic wording for
+  Organic, undo's one-step/10-minute/no-financials rules, the same-stage
+  record labels, and admin-only reassignment).
