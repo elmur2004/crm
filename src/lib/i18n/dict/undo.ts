@@ -35,4 +35,7 @@ export const undoLabels = {
     en: "Rescheduled the meeting on {name}",
     ar: "إعادة جدولة الاجتماع على {name}",
   },
+  /* founder: hand a lead to an agent or a partner — undo returns it to the
+     previous owner (the referral attribution was never touched either way) */
+  assigned: { en: "Assigned {name} to {owner}", ar: "إسناد {name} إلى {owner}" },
 } satisfies Record<string, Msg>;

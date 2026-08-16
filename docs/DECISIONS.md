@@ -1103,3 +1103,51 @@ R23 copy sign-off — carried in PROGRESS (Entry 011).
   "Response: <date>", but only while that follow-up is newer than the
   negotiation note the stage was entered with.
 - Status: Accepted
+
+## ADR-047 — 2026-08-17 — Lead OWNERSHIP is assignable; referral ATTRIBUTION is not
+- Context: founder — "inside the lead I have a button or an option to
+  assign it to one of my partners or one of my agents who will be
+  responsible for that lead, and it will be visible in his system and
+  counted as his lead, and he is the owner."
+- Decision: assignLeadOwner(leadId, targetUserId, actor) sets
+  Lead.ownerUserId and DERIVES Lead.ownerType from the target account's
+  role (bsystems_agent → "agent", bsystems_partner → "partner",
+  bsystems_sales → "internal"). Those two columns already are the
+  system's answer to "whose lead is this": listOwnLeads scopes the
+  agent/partner board by ownerUserId, requireLeadAccess gates by it, the
+  owner buckets and filters read ownerType, the To-Do scope mirrors the
+  guard, and the won-lead / commission surfaces key off the owner. So
+  one write makes the lead appear on that person's board and count as
+  theirs everywhere, with no per-surface changes.
+  · ADMIN ONLY (requireBsAdmin, not requireLeadAccess): handing work to
+    someone else is a management act. An agent must never be able to
+    push their own lead onto a colleague, nor pull one to themselves.
+  · Targets must be ACTIVE and APPROVED and hold an assignable role;
+    admins are deliberately not offered — the admin bucket is where an
+    unassigned lead sits, not a person's workload.
+  · Lead.partnerId is NOT touched, and the code says so at the call
+    site. It is the PP-5 referral ATTRIBUTION — which partner company
+    introduced the lead — and SPEC §5.5 makes it permanent. Ownership
+    (who works it, whose commission surfaces list it) and attribution
+    (who brought it) are different facts; conflating them would
+    silently rewrite the money trail. The lead detail now shows both:
+    "Agents · Karim" beside "Partner: Referrer LLC".
+  · The new owner is notified (Notification type "assigned",
+    userId-addressed, deep-linked through Notification.leadId) inside
+    the same transaction — the founder's "visible in his system".
+  · UNDOABLE (ADR-045 kind "lead_assign"): the inverse is exactly the
+    two ownership columns. Blocked on archived leads by the existing
+    assertNotArchived guard.
+- Alternatives considered: reusing Lead.partnerId as "the partner who
+  owns it" — rejected, see above. A separate assignment table with
+  history — rejected: ownership is a single current fact and the
+  ActivityLog already records every handover ("assigned"). Letting the
+  lead's own owner reassign it — rejected: that is delegation, and the
+  founder framed this as the admin distributing work.
+- Resolves: — (founder directive; no SPEC §11 A-#)
+- Consequences: assigning to a bsystems_sales account sets ownerType
+  "internal" AND records ownerUserId, which internal-bucket views did
+  not previously carry — harmless (they filter by ownerType) and it is
+  what puts the person's name on the lead. getLeadDetail now includes
+  the owner account so the detail can name the person.
+- Status: Accepted

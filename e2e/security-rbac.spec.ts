@@ -47,6 +47,14 @@ test("agents cannot touch admin surfaces (server-side 403)", async ({ page }) =>
     data: { name: "x", companyName: "x", number: "1", businessActivity: "x" },
   });
   expect(prospects.status()).toBe(403);
+
+  /* founder (assignment): handing a lead to someone is a MANAGEMENT act —
+     an agent can neither push their own lead onto a colleague nor pull one
+     to themselves, even on a lead they own. */
+  const assign = await page.request.post("/api/b-systems/leads/any-id/assign", {
+    data: { userId: "any-user" },
+  });
+  expect(assign.status()).toBe(403);
 });
 
 test("an agent cannot mutate another agent's lead (403, nothing changes)", async ({ browser }) => {

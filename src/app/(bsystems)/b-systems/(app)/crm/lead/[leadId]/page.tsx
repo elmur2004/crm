@@ -6,7 +6,7 @@ import { requireLeadAccess } from "@/lib/auth/guards";
 import { getLeadDetail } from "@/lib/services/leads";
 import { listBsOwnerReps } from "@/lib/services/sales-reps";
 import { formatCairo } from "@/lib/datetime";
-import { tFor } from "@/lib/i18n/core";
+import { tFor, type Msg } from "@/lib/i18n/core";
 import { getLocale } from "@/lib/i18n/server";
 import { leadTypeLabel, ownerTypeLabel } from "@/lib/i18n/dict/labels";
 import { common, crmPage, leadDetail as m } from "@/lib/i18n/dict/crm";
@@ -16,7 +16,15 @@ import { archiveMsgs } from "@/lib/i18n/dict/crm";
 import { GroupHistory } from "@/components/internal/GroupHistory";
 import { HistoryPanel } from "@/components/internal/HistoryPanel";
 import { BsEventPanel } from "@/components/bsystems/BsEventPanel";
-import { CopyLeadButton, DeleteLeadButton, EditLeadForm } from "@/components/bsystems/leadActions";
+import {
+  AssignLeadButton,
+  CopyLeadButton,
+  DeleteLeadButton,
+  EditLeadForm,
+  type AssignableOwner,
+} from "@/components/bsystems/leadActions";
+import { listAssignableOwners } from "@/lib/services/users";
+import { roles as roleMsgs } from "@/lib/i18n/dict/crm";
 import { LeadChat } from "@/components/shared/LeadChat";
 import { listLeadComments, mentionableUsersFor } from "@/lib/services/comments";
 import type { BsFormRole } from "@/components/bsystems/roleForms";
@@ -72,6 +80,19 @@ export default async function BsLeadDetailPage({
     role === "admin" || role === "sales"
       ? (await listBsOwnerReps()).map((r) => ({ id: r.id, name: r.name }))
       : [];
+  /* founder: only the admin hands a lead to someone — labels resolved here so
+     the client component stays string-free (V5 bilingual rule) */
+  const roleLabels: Record<string, Msg> = roleMsgs;
+  const assignableOwners: AssignableOwner[] = access.isAdmin
+    ? (await listAssignableOwners()).map((o) => ({
+        id: o.id,
+        name: o.name,
+        company: o.company,
+        roleLabel: t(
+          roleLabels[o.roles.find((r) => roleLabels[r]) ?? ""] ?? roleMsgs.bsystems_agent,
+        ),
+      }))
+    : [];
   const latestMeeting = lead.meetings.at(-1);
   const editable = {
     id: lead.id,
@@ -97,6 +118,13 @@ export default async function BsLeadDetailPage({
         </div>
         <div className="page-actions">
           <CopyLeadButton lead={editable} />
+          {access.isAdmin && !lead.archived ? (
+            <AssignLeadButton
+              leadId={lead.id}
+              owners={assignableOwners}
+              currentOwnerUserId={lead.ownerUserId}
+            />
+          ) : null}
           <ArchiveButton
             postUrl={`/api/b-systems/leads/${lead.id}/archive`}
             archived={lead.archived}
@@ -138,6 +166,9 @@ export default async function BsLeadDetailPage({
             <p className="fields-label">{t(m.fieldOwner)}</p>
             <p className="fields-value">
               {ownerTypeLabel(locale, lead.ownerType)}
+              {/* founder: the assigned person by name; the referring partner
+                  company stays visible beside it — a different fact */}
+              {lead.owner ? ` · ${lead.owner.name}` : ""}
               {lead.salesRep ? ` · ${lead.salesRep.name}` : ""}
               {lead.partner ? ` · ${lead.partner.companyName}` : ""}
             </p>

@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import type { Prisma } from "../../../generated/prisma/client";
 
 /* V2 §10 — in-app notifications. userId=null rows broadcast to every admin; the
    nav bell polls (ADR-009 pattern). WhatsApp delivery is future scope (the agent
@@ -13,6 +14,25 @@ export async function notifyAdmins(input: {
   await db.notification.create({
     data: {
       userId: null, // broadcast to admins
+      type: input.type,
+      title: input.title,
+      body: input.body,
+      leadId: input.leadId ?? null,
+    },
+  });
+}
+
+/* Founder (lead assignment): "it will be visible in his system". A notification
+   addressed to ONE account — their bell already polls the same endpoint and
+   deep-links through Notification.leadId to the lead. Written inside the
+   assigning transaction so the ownership change and the news are atomic. */
+export async function notifyUser(
+  tx: Prisma.TransactionClient,
+  input: { userId: string; type: "assigned"; title: string; body: string; leadId?: string },
+) {
+  await tx.notification.create({
+    data: {
+      userId: input.userId,
       type: input.type,
       title: input.title,
       body: input.body,

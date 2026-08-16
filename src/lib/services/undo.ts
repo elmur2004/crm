@@ -31,6 +31,7 @@ export type UndoKind =
   | "lead_archive"
   | "lead_update"
   | "lead_create"
+  | "lead_assign" // founder: hand a lead to an agent/partner — restores the prior owner
   | "prospect_event";
 
 /** A child row this action CREATED — undo deletes exactly these ids. */
@@ -238,6 +239,19 @@ async function undoLead(
       const archived = Boolean(payload.archived);
       const archivedAt = payload.archivedAt ? new Date(String(payload.archivedAt)) : null;
       await tx.lead.update({ where: { id: lead.id }, data: { archived, archivedAt } });
+      return;
+    }
+    case "lead_assign": {
+      /* Only the two OWNERSHIP columns go back. partnerId (the PP-5 referral
+         attribution) was never part of the assignment, so it is not part of
+         its inverse either. */
+      await tx.lead.update({
+        where: { id: lead.id },
+        data: {
+          ownerUserId: payload.ownerUserId ? String(payload.ownerUserId) : null,
+          ownerType: String(payload.ownerType),
+        },
+      });
       return;
     }
     case "lead_update": {

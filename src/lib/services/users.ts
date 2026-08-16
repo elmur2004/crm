@@ -24,6 +24,27 @@ export function listUsers() {
   });
 }
 
+/* Founder (lead assignment) — the accounts a lead may be handed to: live,
+   approved agents, partners and internal sales. Admins are deliberately absent:
+   the admin bucket is where an UNASSIGNED lead sits, not a person's workload. */
+export async function listAssignableOwners() {
+  const users = await db.user.findMany({
+    where: {
+      active: true,
+      registrationStatus: "approved",
+      roles: { some: { role: { in: ["bsystems_agent", "bsystems_partner", "bsystems_sales"] } } },
+    },
+    include: { roles: true, partner: { select: { companyName: true } } },
+    orderBy: { name: "asc" },
+  });
+  return users.map((u) => ({
+    id: u.id,
+    name: u.name,
+    company: u.partner?.companyName ?? null,
+    roles: u.roles.map((r) => r.role),
+  }));
+}
+
 /** V2 §2.8 Registrations — every account with type + date. */
 export function listRegistrations() {
   return db.user.findMany({

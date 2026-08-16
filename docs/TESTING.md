@@ -803,3 +803,29 @@ every dashboard formula, journeys 1-5 (SPEC §13).
   saves a new date, sees two follow-up records and the card still in
   the Following Up column.
 - Verdict: PASS.
+
+## Run 041 — 2026-08-17 — Assign a lead to an agent or partner (ADR-047)
+- Suites/commands: `npx tsc --noEmit` (clean) · `npx vitest run` (146 —
+  eight NEW tests in the NEW src/lib/services/assign.integration.test.ts)
+  · `npx playwright test` (full suite; e2e/security-rbac.spec.ts gained
+  a NEW assertion). Local dev, embedded Postgres (per-run instances).
+- Cases: vitest 146 passed / 0 failed / 0 skipped · Playwright full 25
+  passed / 0 failed / 2 skipped (audit opt-in skips, by design). Full
+  e2e wall time 4.3m.
+- Failures: none.
+- SPEC coverage touched: no §10 rows — assignment is ownership, not a
+  transition. New coverage: (unit) an assignment moves the lead onto the
+  target's board (listOwnLeads) and off the previous owner's; ownerType
+  derives per role (agent / partner / internal) and the owner-bucket
+  queries follow; partnerId AND source survive a handover on a
+  PP-5-attributed lead; the new owner gets one "assigned" notification
+  carrying the leadId; the assignment is activity-logged with the
+  admin's label; the To-Do projection follows the new owner; undo
+  restores the previous ownerUserId + ownerType; and the guards refuse
+  admins, ByteForce staff, deactivated accounts, pending registrations,
+  unknown users, archived leads and cross-brand leads. listAssignableOwners
+  returns only live approved agents/partners/internal sales.
+  (e2e) an agent POSTing /api/b-systems/leads/:id/assign gets 403 —
+  the wall is requireBsAdmin, so an agent can neither push a lead onto
+  a colleague nor pull one to themselves.
+- Verdict: PASS.

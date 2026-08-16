@@ -24,7 +24,7 @@ import {
   type WonDealInput,
 } from "./groups";
 import { writeLog, type Actor } from "./activity";
-import { notifyAdmins } from "./notifications";
+import { notifyAdmins, notifyUser } from "./notifications";
 import {
   invalidateUndo,
   recordUndo,
@@ -250,6 +250,91 @@ export async function setArchived(brand: Brand, leadId: string, value: boolean, 
   });
 }
 
+/* ============================================================================
+   Founder — assign a lead to an agent or a partner: "inside the lead I have a
+   button or an option to assign it to one of my partners or one of my agents
+   who will be responsible for that lead, and it will be visible in his system
+   and counted as his lead, and he is the owner."
+
+   OWNERSHIP is Lead.ownerUserId + Lead.ownerType. It is what every "whose lead
+   is this" surface reads: listOwnLeads scopes the agent/partner board by
+   ownerUserId, requireLeadAccess gates by it, the owner buckets, the To-Do
+   scope, Won Leads and the commission/closer surfaces all key off it.
+
+   Lead.partnerId is DELIBERATELY NOT TOUCHED HERE. It is the PP-5 referral
+   ATTRIBUTION — which partner company introduced this lead — and SPEC §5.5
+   makes it permanent. Handing the lead to someone else to work does not rewrite
+   who brought it in; conflating the two would silently move commissions.
+   ========================================================================== */
+
+/** The owner bucket implied by the target account's role (V2 §1). */
+export function ownerTypeForRole(roles: readonly string[]): OwnerType | null {
+  if (roles.includes("bsystems_agent")) return "agent";
+  if (roles.includes("bsystems_partner")) return "partner";
+  if (roles.includes("bsystems_sales")) return "internal";
+  return null;
+}
+
+/** Admin-only (the route enforces requireBsAdmin) — B-Systems leads only. */
+export async function assignLeadOwner(leadId: string, targetUserId: string, actor: Actor) {
+  const lead = await getLead("bsystems", leadId);
+  assertNotArchived(lead); // ADR-043 hardening — unarchive before reassigning
+
+  const target = await db.user.findUnique({
+    where: { id: targetUserId },
+    include: { roles: true },
+  });
+  if (!target) throw new ApiError(404, "User not found");
+  if (!target.active) throw new ApiError(400, "That account is deactivated");
+  if (target.registrationStatus !== "approved") {
+    throw new ApiError(400, "That registration is still awaiting approval");
+  }
+  const ownerType = ownerTypeForRole(target.roles.map((r) => r.role));
+  if (!ownerType) {
+    throw new ApiError(400, "Assign a lead to an agent, a partner or an internal sales account");
+  }
+  if (lead.ownerUserId === target.id && lead.ownerType === ownerType) return lead;
+
+  const updated = await db.$transaction(async (tx) => {
+    const fresh = await tx.lead.update({
+      where: { id: lead.id },
+      data: { ownerUserId: target.id, ownerType },
+    });
+    await writeLog(tx, {
+      entityType: "lead",
+      entityId: lead.id,
+      actor,
+      action: "update",
+      trigger: "assigned",
+    });
+    /* founder: "visible in his system" — their own bell, deep-linked. */
+    await notifyUser(tx, {
+      userId: target.id,
+      type: "assigned",
+      title: `Assigned to you: ${lead.name}`,
+      body: `${actor.label} made you the owner of "${lead.name}"${
+        lead.companyName ? ` (${lead.companyName})` : ""
+      }.`,
+      leadId: lead.id,
+    });
+    const undoLabel = formatMsg(undoLabels.assigned, { name: lead.name, owner: target.name });
+    await recordUndo({
+      tx,
+      actor,
+      kind: "lead_assign",
+      entityType: "lead",
+      entityId: lead.id,
+      fingerprint: fresh.updatedAt,
+      label: undoLabel.en,
+      labelAr: undoLabel.ar,
+      /* the inverse: exactly the two ownership columns, nothing else */
+      payload: { ownerUserId: lead.ownerUserId, ownerType: lead.ownerType },
+    });
+    return fresh;
+  });
+  return updated;
+}
+
 /* V2 §11 + founder V4 — admin delete (hard delete; children cascade). A WON
    lead cascades its whole financial trail: statements (+proof files),
    milestones, the won deal, then the lead. */
@@ -379,6 +464,9 @@ export async function getLeadDetail(brand: Brand, leadId: string) {
     where: { id: leadId },
     include: {
       salesRep: true,
+      /* founder (assignment): the detail names the PERSON who owns the lead,
+         not just the bucket — that is what "he is the owner" means */
+      owner: { select: { id: true, name: true } },
       partner: { select: { id: true, companyName: true } },
       followUps: { orderBy: { createdAt: "asc" }, include: { ownerSalesRep: true } },
       meetings: { orderBy: { createdAt: "asc" } },

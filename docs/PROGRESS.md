@@ -1433,3 +1433,39 @@ comment, and the ADR-013 mechanism note all fixed; .env.example confirmed tracke
   Entries 023–036 (incl. the WIN1252 local-database recreation, the
   board's owner tabs, the Arabic wording for Organic, and undo's
   one-step/10-minute/no-financials rules).
+
+## Entry 038 — 2026-08-17 — Founder: assign a lead to an agent or partner (ADR-047)
+- Done: an admin-only "Assign owner" control on the B-Systems lead
+  detail. It picks from active + approved bsystems_agent /
+  bsystems_partner / bsystems_sales accounts and writes
+  Lead.ownerUserId, deriving Lead.ownerType from the target's role — the
+  two columns every "whose lead is this" surface already reads, so the
+  lead appears on that person's board (listOwnLeads scopes by
+  ownerUserId), in their To-Do, and counts as theirs on the
+  owner-bucket, won-lead and commission surfaces with no per-surface
+  change. The wall is requireBsAdmin, deliberately NOT requireLeadAccess:
+  handing work to someone else is a management act, so an agent can
+  neither push their own lead onto a colleague nor pull one to
+  themselves (proved by a new rbac e2e line). Lead.partnerId is NOT
+  touched and the code says why — it is the PP-5 referral ATTRIBUTION,
+  permanent per SPEC §5.5, a different fact from ownership; the detail
+  now shows both ("Agents · Karim" beside "Partner: Referrer LLC"). The
+  new owner is notified inside the same transaction (Notification type
+  "assigned", addressed to them, deep-linked via leadId — their bell
+  already polls it), the assignment is activity-logged ("assigned"), and
+  it is UNDOABLE via a new ADR-045 kind "lead_assign" whose inverse is
+  exactly the two ownership columns. Archived leads are refused by the
+  existing assertNotArchived guard. Verified: tsc clean, vitest 146/146
+  (+8), Playwright 25 passed / 2 audit-opt-in skipped (TESTING Run 041).
+- In progress: founder requests 3–4 of this round (the dial + call
+  sheet; permanently delete a user).
+- Next steps: as above.
+- Blockers: none new.
+- Needs founder confirmation: (i) only the ADMIN can reassign — if a
+  team lead or the lead's current owner should be able to hand it on,
+  say so and the guard widens; (ii) admins are not offered as assignees
+  (the admin bucket is where an unassigned lead sits) — say the word to
+  make "assign to me" possible. Carried: see Entries 023–037 (incl. the
+  WIN1252 local-database recreation, the board's owner tabs, the Arabic
+  wording for Organic, undo's one-step/10-minute/no-financials rules,
+  and the same-stage record labels).

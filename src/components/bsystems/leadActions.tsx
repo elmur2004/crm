@@ -7,7 +7,7 @@ import { LEAD_TYPES } from "@/lib/pipeline-engine/constants";
 import { tFor } from "@/lib/i18n/core";
 import { useLocale } from "@/components/shared/LocaleProvider";
 import { leadTypeLabel } from "@/lib/i18n/dict/labels";
-import { common, leadDetail, leadForm } from "@/lib/i18n/dict/crm";
+import { assignLead, common, leadDetail, leadForm } from "@/lib/i18n/dict/crm";
 
 /* V2 §2.2 — admin lead actions: edit any field, copy the lead's data, delete. */
 
@@ -98,6 +98,121 @@ export function DeleteLeadButton({ leadId, redirectTo = "/b-systems/crm" }: { le
         {t(leadForm.keepIt)}
       </button>
     </span>
+  );
+}
+
+/* Founder — "inside the lead I have a button or an option to assign it to one
+   of my partners or one of my agents who will be responsible for that lead".
+   Admin-only (the API is behind requireBsAdmin); the owner bucket is derived
+   server-side from the chosen account's role. The lead's referral attribution
+   (Partner: …) is a different thing entirely and is never touched. */
+export interface AssignableOwner {
+  id: string;
+  name: string;
+  company: string | null;
+  /** pre-translated on the server so this component stays string-free */
+  roleLabel: string;
+}
+
+export function AssignLeadButton({
+  leadId,
+  owners,
+  currentOwnerUserId,
+}: {
+  leadId: string;
+  owners: AssignableOwner[];
+  currentOwnerUserId: string | null;
+}) {
+  const t = tFor(useLocale());
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [userId, setUserId] = useState(currentOwnerUserId ?? "");
+
+  if (!open) {
+    return (
+      <button type="button" onClick={() => setOpen(true)} className={btnGhost}>
+        {t(assignLead.assign)}
+      </button>
+    );
+  }
+  return (
+    <div className="modal-overlay">
+      <div className="modal">
+        <div className="modal-head">
+          <div>
+            <p className="modal-eyebrow">{t(assignLead.eyebrow)}</p>
+            <p className="modal-title">{t(assignLead.assign)}</p>
+          </div>
+          <button
+            type="button"
+            className="modal-close"
+            aria-label={t(common.cancel)}
+            onClick={() => setOpen(false)}
+          >
+            ✕
+          </button>
+        </div>
+        <form
+          onSubmit={async (e) => {
+            e.preventDefault();
+            setBusy(true);
+            setError(null);
+            const res = await fetch(`/api/b-systems/leads/${leadId}/assign`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ userId }),
+            });
+            setBusy(false);
+            if (!res.ok) {
+              const data = (await res.json().catch(() => null)) as { error?: string } | null;
+              setError(data?.error ?? t(common.somethingWentWrong));
+              return;
+            }
+            setOpen(false);
+            router.refresh();
+          }}
+          className="contents"
+        >
+          <div className="modal-body space-y-3">
+            {error ? (
+              <p role="alert" className="alert-error">
+                {error}
+              </p>
+            ) : null}
+            <label className="block">
+              <span className={labelCls}>{t(assignLead.owner)}</span>
+              <select
+                required
+                value={userId}
+                onChange={(ev) => setUserId(ev.target.value)}
+                className={inputCls}
+              >
+                <option value="">{t(assignLead.choose)}</option>
+                {owners.map((o) => (
+                  <option key={o.id} value={o.id}>
+                    {`${o.name} — ${o.roleLabel}${o.company ? ` · ${o.company}` : ""}`}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {owners.length === 0 ? <p className="u-muted">{t(assignLead.noOwners)}</p> : null}
+          </div>
+          <div className="modal-foot">
+            <span className="modal-foot-note">{t(assignLead.note)}</span>
+            <span className="flex gap-2">
+              <button type="button" className={btnGhost} onClick={() => setOpen(false)}>
+                {t(common.cancel)}
+              </button>
+              <button type="submit" disabled={busy || !userId} className={btnPrimary}>
+                {t(assignLead.confirm)}
+              </button>
+            </span>
+          </div>
+        </form>
+      </div>
+    </div>
   );
 }
 

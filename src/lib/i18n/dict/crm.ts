@@ -195,6 +195,24 @@ export const leadForm = {
   copied: { en: "Copied!", ar: "تم النسخ!" },
 } satisfies Record<string, Msg>;
 
+/* ---- founder: assign a lead to an agent / partner (admin only) ---- */
+
+export const assignLead = {
+  assign: { en: "Assign owner", ar: "إسناد المالك" },
+  eyebrow: { en: "LEAD · OWNER", ar: "العميل المحتمل · المالك" },
+  owner: { en: "Responsible for this lead", ar: "المسؤول عن هذا العميل المحتمل" },
+  choose: { en: "Choose an agent, partner or colleague…", ar: "اختر وكيلًا أو شريكًا أو زميلًا…" },
+  confirm: { en: "Assign", ar: "إسناد" },
+  noOwners: {
+    en: "No active agent, partner or internal sales account yet.",
+    ar: "لا يوجد حساب وكيل أو شريك أو مبيعات داخلية نشط بعد.",
+  },
+  note: {
+    en: "The lead moves to their board and counts as theirs. The referring partner does not change.",
+    ar: "ينتقل العميل المحتمل إلى لوحته ويُحتسب له. لا يتغيّر الشريك المُحيل.",
+  },
+} satisfies Record<string, Msg>;
+
 /* ---- BsEventPanel (lead-detail action panel) ---- */
 
 export const eventPanel = {

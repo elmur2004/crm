@@ -1,5 +1,20 @@
 # Changelog — user-visible changes per phase/release
 
+## Assign a lead to an agent or a partner (2026-08-17)
+- Open any lead and press **"Assign owner"** (admin only). Pick one of
+  your agents, partners or internal sales colleagues and the lead
+  becomes theirs: it appears on their CRM board, on their To-Do page,
+  and it counts as their lead everywhere — they are the owner.
+- They get a notification in their bell ("Assigned to you: …") that
+  opens the lead in one click.
+- The **referring partner does not change**. If a partner introduced
+  the lead, that credit stays on the lead permanently — assigning it to
+  someone to work on is a separate thing, and the lead now shows both:
+  who owns it and who brought it.
+- Assigning is undoable for a few minutes like any other action, and it
+  is recorded in the lead's history with who did it and when. Archived
+  leads must be unarchived first.
+
 ## Follow up again, set a response date, reschedule a meeting (2026-08-17)
 - Inside a lead that is in **Following Up** there is now a **"Log
   another follow-up"** button. You followed up, they need another call
