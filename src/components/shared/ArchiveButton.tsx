@@ -10,7 +10,17 @@ import { archiveMsgs as m, common } from "@/lib/i18n/dict/crm";
    an inline confirm (the DeleteLeadButton pattern); unarchiving is one click.
    Both brands pass their own postUrl. */
 
-export function ArchiveButton({ postUrl, archived }: { postUrl: string; archived: boolean }) {
+export function ArchiveButton({
+  postUrl,
+  archived,
+  confirmText,
+}: {
+  postUrl: string;
+  archived: boolean;
+  /** ADR-053: vault records reuse this button — their confirm copy must not
+      say "lead". Defaults to the original lead wording. */
+  confirmText?: string;
+}) {
   const t = tFor(useLocale());
   const router = useRouter();
   const [confirming, setConfirming] = useState(false);
@@ -54,7 +64,7 @@ export function ArchiveButton({ postUrl, archived }: { postUrl: string; archived
   }
   return (
     <span className="inline-flex items-center gap-2 flex-wrap">
-      <span className="text-sm text-brand-muted">{t(m.confirmArchive)}</span>
+      <span className="text-sm text-brand-muted">{confirmText ?? t(m.confirmArchive)}</span>
       {error ? <span className="text-sm text-brand-danger">{error}</span> : null}
       <button type="button" disabled={busy} onClick={toggle} className="btn-primary">
         {t(m.archive)}

@@ -120,6 +120,28 @@ test("B-Systems admin: accounting screens clean at every width", async ({ page }
   expect(errors).toEqual([]);
 });
 
+/* ADR-053 — the vault's seven screens at every width. */
+test("B-Systems admin: vault screens clean at every width", async ({ page }) => {
+  test.setTimeout(180_000); // 7 paths × 5 widths, plus dev-mode first-hit compiles
+  const errors: string[] = [];
+  collectErrors(page, errors);
+  await page.goto("/login");
+  await page.getByLabel("Email or phone").fill("admin@byteforce.com");
+  await page.getByLabel("Password").fill("password123");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await page.waitForURL(/\/b-systems$/);
+  await sweep(page, errors, [
+    "/b-systems/vault",
+    "/b-systems/vault/forms",
+    "/b-systems/vault/sheets",
+    "/b-systems/vault/documents",
+    "/b-systems/vault/tasks",
+    "/b-systems/vault/employees",
+    "/b-systems/vault/archive",
+  ]);
+  expect(errors).toEqual([]);
+});
+
 test("mobile menu reaches EVERY admin section at 390px (incl. switcher + logout)", async ({
   page,
 }) => {
@@ -142,6 +164,7 @@ test("mobile menu reaches EVERY admin section at 390px (incl. switcher + logout)
     "Registrations",
     "Statements",
     "Accounting", // ADR-052
+    "Data Vault", // ADR-053
     "Users",
   ]) {
     await expect(page.getByRole("menu").getByRole("link", { name: label, exact: true })).toBeVisible();

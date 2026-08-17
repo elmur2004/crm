@@ -65,25 +65,25 @@ export async function searchVault(term: string, perGroup = PER_GROUP): Promise<V
       id: f.id,
       title: f.name,
       subtitle: f.notes,
-      href: `/b-systems/vault/forms?highlight=${f.id}`,
+      href: `/b-systems/vault/forms?q=${encodeURIComponent(f.name)}`,
     })),
     sheets: sheets.map((s) => ({
       id: s.id,
       title: s.name,
       subtitle: s.type,
-      href: `/b-systems/vault/sheets?highlight=${s.id}`,
+      href: `/b-systems/vault/sheets?q=${encodeURIComponent(s.name)}`,
     })),
     documents: documents.map((d) => ({
       id: d.id,
       title: d.name,
       subtitle: d.description ?? d.type,
-      href: `/b-systems/vault/documents?highlight=${d.id}`,
+      href: `/b-systems/vault/documents?q=${encodeURIComponent(d.name)}`,
     })),
     tasks: tasks.map((t) => ({
       id: t.id,
       title: t.name,
       subtitle: t.employee.name,
-      href: `/b-systems/vault/tasks?highlight=${t.id}`,
+      href: `/b-systems/vault/tasks?q=${encodeURIComponent(t.name)}`,
     })),
   };
 

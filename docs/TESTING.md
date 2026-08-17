@@ -1172,3 +1172,55 @@ every dashboard formula, journeys 1-5 (SPEC §13).
   refused, real OOXML accepted); vault global search across the four
   kinds (archived excluded, 2-character minimum).
 - Verdict: PASS.
+
+## Run 049 — 2026-08-18 — Vault Phase 5: the six screens + e2e (ADR-053)
+- Suites/commands: `npx tsc --noEmit` (clean) · `npx vitest run` (266
+  passed — unchanged from Run 048; Phase 5 is UI over the tested
+  services) · `npx playwright test` (40 passed / 0 failed / 2 skipped
+  (audit opt-in, by design), 7.3m wall — up from 35: four vault e2e
+  tests + the vault qa-sweep). Local dev, embedded Postgres (per-run
+  instances), production `next build` under the Playwright webServer.
+- Cases: the vault journey — admin creates an employee CARD, assigns a
+  task due today, clicks Complete: the RESULT PANEL opens (never a bare
+  error), "Save & complete" with nothing recorded surfaces the server's
+  422 message and the task stays Open with nothing committed; typing a
+  result note and completing in the same step flips the row to
+  Completed with the frozen "On time" verdict. A sheet created from an
+  uploaded CSV shows the count read from the file itself (3 rows,
+  header detected) with the file link served through /api/files. A
+  document (PDF) archives — confirm-click, leaves the default list —
+  appears on the Archive tab with its Archived badge, and restores in
+  one click back into the documents list. The 403 matrix fires all 20
+  vault endpoints (employees/forms/sheets/documents/tasks incl.
+  result/complete/reopen/archive + search, every method) as internal
+  sales, agent AND data-entry — 60 live refusals — and each role's
+  /b-systems/vault page visit bounces to its own landing; partner
+  accounts are provisioned mid-flow rather than seeded, and the
+  identical requireBsAdmin role list refuses them by construction. The
+  qa-sweep covers all seven vault screens at 1440/1024/768/560/390 —
+  console-clean, no horizontal overflow — and the 390px mobile menu now
+  asserts the Data Vault nav item.
+- Brand audit: the brand-auditor agent on the new UI returned FAIL
+  (narrow) and every finding was fixed before commit: dict CTA labels
+  carried a hardcoded "+ " prefix (now JSX chrome per the accounting
+  precedent, dict labels clean and reused as modal titles); the
+  overview's activity table showed raw entityType/action tokens (now
+  Msg-mapped closed vocabularies; the free-form trigger column stays
+  deliberately technical mono/LTR — it embeds names and dates); ×
+  close buttons were labelled "Cancel" (now "Close"); u-ltr scoping
+  (deadline dates and filenames isolated, a translated link un-LTR'd);
+  aria-pressed on a link swapped for aria-current. Also fixed in the
+  same pass, found by hand: bare form controls missing the design
+  system's .field-input class, and a .field/.check-row class conflict
+  that would have stacked checkbox rows vertically. Re-audit criteria —
+  zero hardcoded colors/fonts, tokens/design-system classes only,
+  Signal Pink untouched (status chips reuse the accounting indigo
+  intake/following tints), RTL logical properties, every string a
+  Msg — PASS.
+- Failures: none in the final runs. One mid-round hazard worth
+  recording: an earlier Playwright run was started before the audit
+  fixes landed and would have tested a stale build — it was killed and
+  re-run clean rather than trusted (its zombie next-server on :3100
+  needed a manual kill; the per-run DB ports made the rest safe).
+- SPEC coverage touched: none (vault is INTEGRATION-PLAN scope).
+- Verdict: PASS.

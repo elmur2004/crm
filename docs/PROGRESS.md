@@ -1892,3 +1892,57 @@ comment, and the ADR-013 mechanism note all fixed; .env.example confirmed tracke
   a contact-info email column is wanted on the card. (iii) Vault lists
   ship unpaginated this phase (fresh start; filters + search are
   DB-side) — revisit when tables grow. Carried: see Entries 043–044.
+
+## Entry 046 — 2026-08-18 — Data Vault Phase 5: the six screens (ADR-053)
+- Done: the vault UI, composed ONLY from existing design-system classes
+  (founder decision §7.8 — the CRM's current design is the model; the
+  .dc.html bundle ignored). Seven screens under /b-systems/vault behind
+  requireBsAdminPage: OVERVIEW (six stat tiles incl. overdue-highlight,
+  vault-wide grouped search whose hits deep-link into pre-filtered
+  lists, recent-activity table with Msg-mapped entity/action
+  vocabulary), FORMS (table + modal with the duplicate-URL 409
+  handshake surfaced as a "save anyway" acknowledgement checkbox),
+  SHEETS (link-vs-file rows, CSV auto-count shown with its as-of date,
+  Replace file appends a version — the count-pill shows the version
+  count, predecessors stay servable), DOCUMENTS (typed files, replace =
+  append), TASKS (assignee ecards with open/overdue/completed counts
+  that filter the table; open-first deadline-ascending table with live
+  Overdue badges, frozen Late verdicts, completed-on stamps; the RESULT
+  PANEL opens from Complete — text/files/links, "Save result" vs "Save
+  & complete", the server's 422 shown inline; Reopen on completed
+  rows), EMPLOYEES (card management, deactivate/reactivate with
+  history kept, show-deactivated toggle), ARCHIVE (four per-kind
+  sections, one-click restore). ONE new nav item "Data Vault" /
+  "خزنة البيانات" in the bsystems_admin NAV array only. Undo: archive/
+  restore ride the header Undo (wired in Phase 4); completion instead
+  invalidates pending entries — documented in ADR-053 §7. The shared
+  ArchiveButton gained an optional confirmText so vault records stop
+  borrowing the lead-specific confirm copy. Fixed mid-phase (own
+  review, not the auditor): an empty result-panel textarea would have
+  NULLed previously saved result text through the additive routes —
+  empty now means "leave stored text alone", and the panel prefills
+  the saved note. brand-auditor: FAIL (narrow) → all findings fixed
+  pre-commit (see TESTING Run 049). Verified: tsc clean, vitest
+  266/266, Playwright 40 passed / 2 audit skips (+4 vault e2e: the
+  gate journey, CSV count, archive/restore round-trip, the 60-refusal
+  403 matrix; +1 vault qa-sweep at five widths incl. the 390px menu) —
+  TESTING Run 049.
+- In progress: — (Phases 4–5 complete; both commits LOCAL ONLY per the
+  founder's no-push override — production auto-deploys from main).
+- Next steps: founder tests locally (npm run db:up + npm run dev →
+  /b-systems/vault as admin@byteforce.com: add an employee card, a
+  task, try completing without a result, upload a CSV sheet, archive/
+  restore a document, watch the header Undo after an archive). Then
+  Phase 6 founder-side: retire the port-3001 Vault app (fresh start —
+  nothing migrated).
+- Blockers: none. Commits are NOT pushed — awaiting founder's local
+  test.
+- Needs founder confirmation: carried from Entry 045 — (i) XLSX/XLS
+  manual counts (CSV auto-counts), (ii) no email on employee cards,
+  (iii) unpaginated lists this phase. New: (iv) task reassignment and
+  result-link removal are edit-modal/log-visible only — links cannot be
+  deleted once recorded (append-only reading of the result record);
+  say the word if link removal is wanted. (v) The reference app's
+  per-column sort controls were not rebuilt (default orders: forms/
+  documents newest-first, sheets by user-entered date, tasks open-first
+  by deadline) — flag if column sorting matters day-one.

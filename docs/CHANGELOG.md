@@ -453,3 +453,15 @@
   upload-sniffing upgrade: OOXML container discrimination (a bare ZIP renamed
   .docx/.xlsx is now refused everywhere), full CFB signature, CSV/TXT text
   sniff. No UI yet — the six screens land in Phase 5.
+
+## Data Vault module — Phase 5: the six screens (2026-08-18)
+- Full vault section under B-Systems admin: overview (counts, vault-wide
+  search, recent activity), forms (duplicate-URL "save anyway" handshake),
+  sheets (link or uploaded file, CSV auto-count, versioned file replacement),
+  documents (typed files, versioned replacement), tasks (assignee cards, the
+  result panel gating completion, live overdue badges, frozen lateness
+  verdicts, reopen), employees (cards, deactivate-not-delete), and the
+  per-kind Archive with one-click restore. Bilingual EN/AR throughout
+  (authored Arabic — the reference app was English-only); one new admin-only
+  nav item; server-side 403 wall on every route; archive/restore wired into
+  the header Undo.
