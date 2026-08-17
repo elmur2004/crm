@@ -35,8 +35,20 @@ const MODELS = [
   "negotiationNote",
   "notification",
   "leadComment",
+  /* data vault (ADR-053) — BEFORE attachment: Attachment rows now reference
+     VaultSheet/VaultDocument/VaultTask (vault employee before its tasks) */
+  "vaultEmployee",
+  "vaultForm",
+  "vaultSheet",
+  "vaultDocument",
+  "vaultTask",
   "attachment",
   "activityLog",
+  /* ADR-053 hardening: undoEntry had silently fallen OUT of the backup (the
+     exact failure mode INTEGRATION-PLAN §3 warns about — it was already in
+     resetDb). No relations, so order is free; restoring it keeps stale undo
+     offers from surviving a restore they no longer match. */
+  "undoEntry",
   /* accounting (ADR-052) — parents before children */
   "acctSettings",
   "acctRosterMember",

@@ -32,7 +32,8 @@ export type UndoKind =
   | "lead_update"
   | "lead_create"
   | "lead_assign" // founder: hand a lead to an agent/partner — restores the prior owner
-  | "prospect_event";
+  | "prospect_event"
+  | "vault_archive"; // ADR-053: archive/restore of a vault record — the SAFE vault mutations
 
 /** A child row this action CREATED — undo deletes exactly these ids. */
 export type CreatedRef =
@@ -70,11 +71,45 @@ interface LeadFieldsSnapshot {
 
 /* ---------------------------------------------------------------- recording */
 
+/* ADR-053 — the vault's four archivable kinds join the undo surface. The
+   delegate map keeps performUndo generic: every vault inverse is the same
+   {archived, archivedAt} restore, whatever the table. */
+export type UndoEntityType =
+  | "lead"
+  | "partner_prospect"
+  | "vault_form"
+  | "vault_sheet"
+  | "vault_document"
+  | "vault_task";
+
+/** The minimum surface a vault-archive inverse needs (structural, so the four
+    concrete delegates unify — the ArchivableDelegate pattern). */
+type VaultArchiveDelegate = {
+  findUnique(args: { where: { id: string } }): Promise<{ id: string; updatedAt: Date } | null>;
+  update(args: {
+    where: { id: string };
+    data: { archived: boolean; archivedAt: Date | null };
+  }): Promise<unknown>;
+};
+
+const VAULT_DELEGATES: Record<string, (tx: Prisma.TransactionClient) => VaultArchiveDelegate> = {
+  vault_form: (tx) => tx.vaultForm,
+  vault_sheet: (tx) => tx.vaultSheet,
+  vault_document: (tx) => tx.vaultDocument,
+  vault_task: (tx) => tx.vaultTask,
+};
+
+function isVaultEntityType(
+  t: string,
+): t is "vault_form" | "vault_sheet" | "vault_document" | "vault_task" {
+  return t in VAULT_DELEGATES;
+}
+
 export interface RecordUndoInput {
   tx: Prisma.TransactionClient;
   actor: Actor;
   kind: UndoKind;
-  entityType: "lead" | "partner_prospect";
+  entityType: UndoEntityType;
   entityId: string;
   /** the entity's updatedAt AFTER the mutation — the integrity fingerprint */
   fingerprint: Date;
@@ -184,6 +219,26 @@ export async function performUndo(actor: Actor): Promise<{ label: string; labelA
         throw new ApiError(409, CHANGED_SINCE);
       }
       await undoLead(tx, entry, lead, actor);
+    } else if (isVaultEntityType(entry.entityType)) {
+      /* ADR-053 — vault archive/restore: same fingerprint discipline, one
+         generic inverse ({archived, archivedAt} put back exactly). */
+      if ((entry.kind as UndoKind) !== "vault_archive") {
+        throw new ApiError(400, "This action cannot be undone");
+      }
+      const delegate = VAULT_DELEGATES[entry.entityType](tx);
+      const row = await delegate.findUnique({ where: { id: entry.entityId } });
+      if (!row) throw new ApiError(400, CHANGED_SINCE);
+      if (row.updatedAt.toISOString() !== entry.fingerprint) {
+        throw new ApiError(409, CHANGED_SINCE);
+      }
+      const payload = entry.payload as { archived?: unknown; archivedAt?: unknown };
+      await delegate.update({
+        where: { id: entry.entityId },
+        data: {
+          archived: Boolean(payload.archived),
+          archivedAt: payload.archivedAt ? new Date(String(payload.archivedAt)) : null,
+        },
+      });
     } else {
       const prospect = await tx.partnerProspect.findUnique({ where: { id: entry.entityId } });
       if (!prospect) throw new ApiError(400, CHANGED_SINCE);
@@ -194,7 +249,12 @@ export async function performUndo(actor: Actor): Promise<{ label: string; labelA
     }
 
     await writeLog(tx, {
-      entityType: entry.entityType === "lead" ? "lead" : "partner_prospect",
+      entityType:
+        entry.entityType === "lead"
+          ? "lead"
+          : isVaultEntityType(entry.entityType)
+            ? entry.entityType
+            : "partner_prospect",
       entityId: entry.entityId,
       actor,
       action: "update",

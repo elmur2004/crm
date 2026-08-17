@@ -711,3 +711,26 @@ not match required "won_agent"` (both sides identical — the mismatch is that
 neither branch matched). The new integration tests caught it before the commit.
 When adding a stage group, add its arm to `persistGroup` first, even if the
 body is only a comment saying which side effect consumes it.
+
+## Vault (ADR-053): two traps met while porting the sniffing rules (2026-08-18)
+
+1. **Test fixtures with literal control bytes.** The partners cv fixture read
+   as `Buffer.from("PK")` in every editor view, but the file actually contains
+   `PK\x03\x04` with RAW 0x03/0x04 bytes inside the string literal — invisible
+   in normal display, and any "exact string" patch against what you *see*
+   misses. Found via `od -c`. The replacement writes the escape sequence
+   (`"PK"`) so the bytes are visible in source from now on.
+2. **The upgraded OOXML check is stricter than what two old call sites
+   relied on.** sniffOk's docx rule was a bare "PK" prefix — any ZIP passed.
+   Tightening it (container listing must show `[Content_Types].xml` + a
+   `word/` part) is exactly the reference app's rule and a real security fix,
+   but it silently flips the verdict on any existing fixture that faked a docx
+   with zip bytes. Both call sites (cv uploads, won-deal contract PDFs reuse
+   the cv rule) were audited; only the fixture needed updating. When
+   strengthening a validator, grep the tests for the OLD weakest accepted
+   input first — each one is a decision to make, not a failure to chase.
+3. **Undo's `performUndo` was a two-way branch** (lead | prospect) with the
+   final ActivityLog line hardcoding the same ternary. Adding the vault kinds
+   forced it into a delegate map + type guard; the log line now passes the
+   entry's own entityType through. Any future undoable entity should extend
+   `VAULT_DELEGATES`-style maps rather than adding a third hand-rolled branch.

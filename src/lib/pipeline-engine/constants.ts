@@ -187,6 +187,12 @@ export const LOG_ENTITY_TYPES = [
   "acct_target",
   "acct_settings",
   "acct_books",
+  /* data vault (ADR-053) — add-only; entityId is the vault row id */
+  "vault_employee",
+  "vault_form",
+  "vault_sheet",
+  "vault_document",
+  "vault_task",
 ] as const;
 export type LogEntityType = (typeof LOG_ENTITY_TYPES)[number];
 
@@ -206,5 +212,13 @@ export const LOG_ACTIONS = [
   "approve", // expense / payroll approval — the cash gate
   "unapprove",
   "import", // the one-time books import (founder decision 4)
+  /* data vault (ADR-053) — add-only. Archive/restore become first-class verbs
+     (the vault's whole delete story), completion/reopen are the task
+     invariants, replace_file marks a version append on sheets/documents. */
+  "archive",
+  "restore",
+  "complete",
+  "reopen",
+  "replace_file",
 ] as const;
 export type LogAction = (typeof LOG_ACTIONS)[number];

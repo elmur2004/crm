@@ -441,3 +441,15 @@
   one-time Import screen for the old app's JSON export with reconciliation
   totals. Bilingual EN/AR throughout; company switcher + month picker; admin
   only, with a server-side 403 wall on every route.
+
+## Data Vault module — Phase 4: schema, services, invariants (2026-08-18)
+- New `Vault*` schema (employees-as-cards, forms, sheets, documents, tasks;
+  files as appended Attachment rows) with backup + reset registration; native
+  services re-implementing the reference app's rules: the sheet link-XOR-file
+  invariant, the task result gate (422 without a recorded result), lateness
+  computed once at completion and frozen forever, audited reopening,
+  archive-not-delete with undo on archive/restore, the duplicate-URL 409
+  handshake, CSV auto-counting, and vault-wide grouped search. Platform-wide
+  upload-sniffing upgrade: OOXML container discrimination (a bare ZIP renamed
+  .docx/.xlsx is now refused everywhere), full CFB signature, CSV/TXT text
+  sniff. No UI yet — the six screens land in Phase 5.

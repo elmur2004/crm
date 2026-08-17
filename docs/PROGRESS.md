@@ -1842,3 +1842,53 @@ comment, and the ADR-013 mechanism note all fixed; .env.example confirmed tracke
   word if either is wanted; (iv) the loans screen keeps the SPA's
   delete-loan action (hard delete with cascade to its payments; treasury
   moves stay, as in the SPA) — confirm that is still the wanted shape.
+
+## Entry 045 — 2026-08-18 — Data Vault Phase 4: schema, services, invariants (ADR-053)
+- Done: the vault rebuild-on-top began per the approved plan
+  (INTEGRATION-PLAN Phase 4, founder decisions §7.1–§7.4). One
+  migration adds five `Vault*` models — employees as assignee CARDS
+  (name/title/company/active; every auth column of the reference app
+  deleted, not rebuilt), forms, sheets, documents, tasks — plus three
+  vault FK columns on the shared Attachment model (files ride the
+  storage abstraction + /api/files, founder §7.2: no S3 anywhere; a
+  replaced file APPENDS a row, so predecessors stay servable). All
+  registered in backup MODELS + resetDb() in the same commit — and the
+  pre-existing undoEntry omission from backup MODELS (the silent
+  failure INTEGRATION-PLAN §5.5 warns about) was fixed while there.
+  src/lib/services/vault/* re-implements the reference rules natively:
+  link-XOR-file (Zod union + 422 service assertion), the task RESULT
+  GATE (422, nothing commits), lateness computed ONCE at completion
+  then FROZEN (no recompute path exists; the pure math mirrors the
+  reference lateness.ts over Cairo calendar dates), audited reopening
+  (result survives, erased values logged), archive-not-delete on all
+  four kinds with read-only-while-archived hardening (ADR-043
+  pattern), the duplicate-URL 409 handshake, CSV auto-count with the
+  ported header heuristic, grouped vault search. Undo: new
+  vault_archive kind — archive/restore are undoable snapshot-inverses;
+  every other vault mutation invalidates pending entries; completion
+  is deliberately NOT undoable (it freezes a performance record —
+  reopen is the audited way back). Platform-wide security upgrade
+  ported from the reference: sniffOk now discriminates OOXML
+  containers ([Content_Types].xml + word//xl//ppt/), checks the full
+  CFB signature, and text-sniffs CSV/TXT — a bare ZIP renamed .docx no
+  longer passes ANY upload rule (the old fixture proved the hole; the
+  updated test proves the fix). Verified: tsc clean, vitest 266/266
+  (+50), Playwright untouched-green (TESTING Run 048).
+- In progress: Phase 5 — the six vault screens under /b-systems/vault
+  (next commit).
+- Next steps: Phase 5 UI (overview, forms, sheets, documents, tasks
+  with the result panel, employees, archive) + nav item + vault e2e +
+  rbac lines + qa-sweep; then Phase 6 decommission is founder-side
+  (fresh start — no data migration, §7.4).
+- Blockers: none. Commits stay LOCAL — no push until the founder tests
+  (standing override; production auto-deploys from main).
+- Needs founder confirmation: (i) XLSX/XLS sheets are stored but not
+  auto-counted (CSV is) — counting OOXML needs a spreadsheet
+  dependency the stack rules gate behind an ADR; those sheets use the
+  manual count + required as-of date, exactly the reference's own
+  legacy-.xls path. Say the word if auto-counted XLSX is worth the new
+  dependency. (ii) Employee cards carry no email (it was the reference
+  app's login/invitation identity — auth, therefore deleted); flag if
+  a contact-info email column is wanted on the card. (iii) Vault lists
+  ship unpaginated this phase (fresh start; filters + search are
+  DB-side) — revisit when tables grow. Carried: see Entries 043–044.

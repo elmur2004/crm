@@ -381,8 +381,19 @@ describe("Upload validation (§7.2, §15)", () => {
     const big = Buffer.concat([Buffer.from("%PDF-1.7"), Buffer.alloc(10 * 1024 * 1024 + 1)]);
     await expect(validateAndStore("cv", new File([big], "cv.pdf"))).rejects.toThrow(/too large/);
 
-    /* Valid docx magic passes. */
-    const docx = Buffer.concat([Buffer.from("PK"), Buffer.alloc(256, 2)]);
+    /* ADR-053 upgrade: a bare ZIP renamed .docx no longer passes — the OOXML
+       container itself is inspected ([Content_Types].xml + the word/ prefix). */
+    const bareZip = Buffer.concat([Buffer.from("PK\u0003\u0004"), Buffer.alloc(256, 2)]);
+    await expect(validateAndStore("cv", new File([bareZip], "cv.docx"))).rejects.toThrow(
+      /does not match/,
+    );
+
+    /* A real OOXML wordprocessing container passes. */
+    const docx = Buffer.concat([
+      Buffer.from("PK\u0003\u0004"),
+      Buffer.from("[Content_Types].xml word/document.xml"),
+      Buffer.alloc(256, 2),
+    ]);
     const stored = await validateAndStore("cv", new File([docx], "cv.docx"));
     expect(stored.key).toMatch(/\.docx$/);
   });

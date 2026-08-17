@@ -367,12 +367,19 @@ model Notification {
 
 model Attachment {
   // kinds: cv | recording | proposal | contract | payment_proof (V2 §5/§7)
+  //      | vault_sheet | vault_document | vault_attachment (ADR-053)
   id                String           @id @default(cuid())
   kind              String
   portalRepId       String?          @unique
   partnerProspectId String?
   wonDealId         String?
   statementId       String?
+  /* ADR-053 — vault file homes. Sheet/document FKs are deliberately NOT unique:
+     replacing a file APPENDS a new row and the predecessors stay servable, so
+     the vault's never-delete rule covers the files too (newest = current). */
+  vaultSheetId      String?
+  vaultDocumentId   String?
+  vaultTaskId       String?
   filename          String
   storageKey        String
   mime              String
@@ -381,7 +388,14 @@ model Attachment {
   prospect          PartnerProspect? @relation(fields: [partnerProspectId], references: [id], onDelete: Cascade)
   wonDeal           WonDeal?         @relation(fields: [wonDealId], references: [id])
   statement         Statement?       @relation(fields: [statementId], references: [id])
+  vaultSheet        VaultSheet?      @relation(fields: [vaultSheetId], references: [id], onDelete: Cascade)
+  vaultDocument     VaultDocument?   @relation(fields: [vaultDocumentId], references: [id], onDelete: Cascade)
+  vaultTask         VaultTask?       @relation(fields: [vaultTaskId], references: [id], onDelete: Cascade)
   createdAt         DateTime         @default(now())
+
+  @@index([vaultSheetId])
+  @@index([vaultDocumentId])
+  @@index([vaultTaskId])
 }
 
 model LeadComment {
@@ -614,4 +628,112 @@ model AcctSettings {
   id             String @id @default(cuid())
   company        String @unique
   openingBalance Int    @default(0) // piasters, cash before the first month
+}
+
+/* ============================= DATA VAULT (ADR-053) =============================
+   Rebuild-on-top of the reference Vault app (docs/INTEGRATION-PLAN.md Phases 4-5,
+   founder decisions §7.1-§7.4): its schema/services are the SPEC, nothing is
+   ported. Admin-only — employees are assignee CARDS, never logins (every auth
+   column of the old Employee model is deleted, not migrated). Company is a tag
+   ("byteforce" | "bsystems"; null on employees/tasks = both/none). Calendar facts
+   (deadline, sheet dateCreated, count as-of) are "YYYY-MM-DD" STRINGS per the
+   ADR-052 §1 precedent — the lateness rule is day arithmetic on Cairo calendar
+   dates, and instants would re-introduce day-shift bugs. Files live as
+   Attachment rows through the storage abstraction (§7.2 — no S3 anywhere).
+   Archive = flag + timestamp (ADR-043 pattern), restorable, never deleted. */
+
+model VaultEmployee {
+  // assignee card: name / title / company. NOT an account (founder §7.3).
+  id        String      @id @default(cuid())
+  name      String
+  title     String?
+  company   String? // byteforce | bsystems | null = both
+  active    Boolean     @default(true) // deactivate, never delete (old BR-13)
+  tasks     VaultTask[]
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  @@index([active])
+}
+
+model VaultForm {
+  id         String    @id @default(cuid())
+  company    String // byteforce | bsystems
+  name       String
+  url        String // http/https only (old BR-01); duplicate URL = 409 handshake
+  notes      String?
+  archived   Boolean   @default(false)
+  archivedAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([company, archived])
+  @@index([url])
+}
+
+model VaultSheet {
+  id              String       @id @default(cuid())
+  company         String
+  name            String
+  type            String // leads | employees | data | campaign_leads
+  /* old BR-02 — a link XOR an uploaded file, never both, never neither.
+     Enforced by the Zod discriminated union AND re-asserted in the service;
+     the columns are nullable because the DB cannot express the union. */
+  storage         String // link | file
+  url             String?
+  dateCreated     String // "YYYY-MM-DD" — user-entered, distinct from createdAt
+  recordCount     Int?
+  recordCountAsOf String? // "YYYY-MM-DD" — required whenever the count is manual (old BR-03)
+  notes           String?
+  files           Attachment[] // newest = current; predecessors stay (version history)
+  archived        Boolean      @default(false)
+  archivedAt      DateTime?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@index([company, archived])
+  @@index([type])
+}
+
+model VaultDocument {
+  id          String       @id @default(cuid())
+  company     String
+  name        String
+  description String?
+  type        String // contract | proposal | invoice | report | presentation | brand_asset | legal | hr | other
+  files       Attachment[] // required ≥1 (service invariant); newest = current
+  archived    Boolean      @default(false)
+  archivedAt  DateTime?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@index([company, archived])
+  @@index([type])
+}
+
+model VaultTask {
+  id          String        @id @default(cuid())
+  employeeId  String
+  employee    VaultEmployee @relation(fields: [employeeId], references: [id])
+  name        String
+  description String?
+  company     String? // optional (old D-05)
+  deadline    String // "YYYY-MM-DD" calendar date, evaluated in Cairo (old D-06)
+  status      String        @default("open") // open | completed — completion ONLY via completeVaultTask
+  /* the RESULT GATE (old BR-05): a task cannot complete without a recorded
+     result — text, ≥1 file attachment, or ≥1 link. resultLinks is a JSON array
+     [{url,label}] (house precedent: nonAnsweringNumbers, mentions). */
+  resultText  String?
+  resultLinks String        @default("[]")
+  completedAt DateTime? // server-stamped (old BR-06)
+  wasLate     Boolean? // FROZEN at completion (old BR-07) — no recompute path exists
+  daysLate    Int? // frozen with wasLate; deadline edits never touch either
+  attachments Attachment[] // kind vault_attachment — result files
+  archived    Boolean       @default(false)
+  archivedAt  DateTime?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@index([employeeId, status, deadline])
+  @@index([company, archived])
 }

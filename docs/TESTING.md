@@ -1124,3 +1124,51 @@ every dashboard formula, journeys 1-5 (SPEC §13).
   zero hardcoded colors/fonts, tokens/design-system classes only, RTL
   logical properties + dir="ltr" Latin runs, every string a Msg — PASS.
 - Verdict: PASS.
+
+## Run 048 — 2026-08-18 — Vault Phase 4: schema, services, invariants (ADR-053)
+- Suites/commands: `npx tsc --noEmit` (clean) · `npx vitest run`
+  (266 = baseline 216 + 50 new across
+  src/lib/services/vault/{lateness,row-count}.test.ts and
+  vault.integration.test.ts) · `npx playwright test` (untouched
+  baseline — the new migration deploys under it). Local dev, embedded
+  Postgres (per-run instances).
+- Cases: vitest 266 passed / 0 failed / 0 skipped · Playwright 35
+  passed / 0 failed / 2 skipped (audit opt-in, by design).
+- Failures: one during the round — a new CSV-count test expected the
+  all-text file ("Name,Note" over prose cells) to lose a header row,
+  but the ported A-1 heuristic DELIBERATELY reads an all-text row 1 as
+  data so headerless lists are never undercounted (the reference app
+  documents the same limitation); the expectation was fixed to assert
+  the documented behaviour. Also updated (intentionally, same commit):
+  the partners cv fixture that passed a bare "PK" zip as .docx — the
+  ADR-053 sniffing upgrade now REJECTS that, and the test proves both
+  the rejection and that a real OOXML container still passes.
+- SPEC coverage touched: none (vault is INTEGRATION-PLAN scope). New
+  coverage encodes the reference app's invariants natively: the sheet
+  link-XOR-file rule (Zod union at the boundary + 422 service assertion
+  against final state, both directions, no orphaned rows/blobs); the
+  task RESULT GATE (422 with nothing committed, whitespace text
+  refused, any ONE of text/file/link passes, saved-earlier results
+  count, double completion refused); LATENESS computed once at
+  completion and FROZEN (late-by-3 and on-the-day cases; deadline
+  edited a month out after completion — wasLate/daysLate/completedAt
+  untouched; live overdue flag distinct from the frozen record; the
+  pure math unit-tested for the Cairo midnight boundary, the
+  21:30-UTC-is-next-day-Cairo edge, and winter UTC+2); reopening
+  (clears the trio, keeps result text/files/links, logs the erased
+  values, refuses open tasks, refuses archived tasks); archive-not-
+  delete on all four kinds (out of default lists and counts, read-only
+  while archived, restorable, archived duplicates stop clashing);
+  duplicate-URL 409 handshake (warn → acknowledge → both live);
+  append-only activity (create/complete/archive/restore each leave
+  their entry with actor label + open→completed stages); undo of the
+  SAFE mutations only (archive offers a personal snapshot-inverse,
+  fingerprint refuses a changed record, task completion INVALIDATES
+  pending undo); employee cards (open/overdue/completed counts,
+  archived tasks excluded, deactivated cards take no new tasks but keep
+  frozen history); CSV auto-count with as-of=today plus version-append
+  on file replacement (predecessor Attachment rows retained); the
+  upgraded sniffing (bare zip renamed .xlsx refused, binary .csv
+  refused, real OOXML accepted); vault global search across the four
+  kinds (archived excluded, 2-character minimum).
+- Verdict: PASS.

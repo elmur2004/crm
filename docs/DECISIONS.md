@@ -1646,3 +1646,113 @@ R23 copy sign-off — carried in PROGRESS (Entry 011).
   B-Systems media hiding is enforced in the UI/nav and route validation;
   imported B-Systems media rows (should any exist) still compute.
 - Status: Accepted
+
+## ADR-053 — 2026-08-18 — Data Vault module: rebuild-on-top architecture
+
+- Context: INTEGRATION-PLAN Phases 4–5 under the founder's §7 decisions —
+  rebuild the Vault app natively on the CRM stack, port NOTHING (the old
+  codebase at "Data Managment System/" is reference/spec only); no S3
+  anywhere — files ride the CRM storage abstraction + Attachment rows;
+  ADMIN-ONLY (employees are assignee cards, never logins); start fresh;
+  no reminder emails; the CRM design system is the model. The reference
+  app's SPEC.md, schema.prisma and server modules (forms, sheets,
+  documents, tasks/complete/lateness, archive, search, files) define the
+  business rules re-implemented here.
+- Decision: five `Vault*` Prisma models (VaultEmployee, VaultForm,
+  VaultSheet, VaultDocument, VaultTask) + three vault FK columns on the
+  shared Attachment model, registered in backup MODELS and resetDb() in
+  the same commit as the migration. Services in src/lib/services/vault/*
+  (constants, common, lateness, row-count, archive, employees, forms,
+  sheets, documents, tasks, search), every mutation writing ActivityLog
+  inside its own transaction. The judgement calls, each mirroring the
+  reference or an existing house ADR rather than inventing:
+  1. CALENDAR FACTS ARE "YYYY-MM-DD" STRINGS (deadline, sheet
+     dateCreated, count as-of) — the ADR-052 §1 precedent. The reference
+     used @db.Date columns for the same reason; strings keep the
+     lateness rule pure day arithmetic on Cairo calendar dates with no
+     timezone day-shift class of bug. computeLateness mirrors the
+     reference lateness.ts exactly (late = completed after 23:59:59
+     Cairo on the deadline date; deadline-day completion is ON TIME —
+     the generous reading, since this is a performance record).
+  2. EMPLOYEES ARE CARDS: name/title/company/active only. The reference
+     Employee's email was its login + invitation identity — auth-adjacent
+     — so it is DELETED with the rest of the auth layer, not carried.
+     Cards deactivate (reference BR-13), never delete; deactivated cards
+     take no new tasks but keep their history and frozen lateness.
+  3. FILES: REPLACE = APPEND. The reference kept a StoredFile version
+     chain (version int + replacesId). Here the vault FKs on Attachment
+     are deliberately NON-unique: replacing a sheet/document file
+     appends a new Attachment row, newest = current, predecessors stay
+     servable through /api/files (which already refuses non-admins for
+     unknown kinds by its default branch). Version history for free,
+     and never-delete now covers the files themselves.
+  4. TASK RESULT LINKS are a JSON-array column (resultLinks, house
+     precedent: nonAnsweringNumbers/mentions) instead of a second
+     attachment table; result FILES are Attachment rows (vault_attachment).
+     The RESULT GATE re-checks inside the completion transaction: text
+     OR ≥1 file OR ≥1 link, else 422 and nothing commits. completeVaultTask
+     is the only path that sets status "completed"; lateness is computed
+     there once and FROZEN (no recompute call exists anywhere — deadline
+     edits never touch it). Reopen clears the trio, keeps the result, and
+     logs the erased values in the trigger (provenance).
+  5. SNIFFING UPGRADE, PLATFORM-WIDE: the reference's stronger content
+     inspection is ported into storage sniffOk — OOXML ZIP discrimination
+     ([Content_Types].xml + word//xl//ppt/ prefix, read uncompressed —
+     no bomb surface), full 8-byte CFB signature for xls/doc, and a
+     CSV/TXT text sniff (no NUL, no control soup, consistent delimiter).
+     This CLOSED the pre-existing hole where any ZIP renamed .docx
+     passed the cv rule on a bare "PK" check; the existing fixture test
+     was updated to prove both directions.
+  6. ROW COUNTING: CSV is auto-counted (the reference's RFC-4180 parse +
+     header heuristic A-1 ported verbatim, pure code); XLSX/XLS are
+     stored but NOT auto-counted — the reference used exceljs, and a new
+     spreadsheet dependency is not worth an ADR-gated stack deviation
+     for a nice-to-have. Those sheets keep the manual count with a
+     REQUIRED as-of date (reference BR-03) — the exact path the
+     reference itself used for legacy .xls (its DV-05). Revisit if the
+     founder wants auto-counted XLSX.
+  7. UNDO: one new kind, vault_archive — archive/restore of the four
+     entity kinds are the vault's SAFE mutations and are undoable
+     (snapshot-inverse {archived, archivedAt}; UndoEntry.entityType
+     widened to the vault types; performUndo grew a generic vault
+     branch with the same fingerprint discipline). Every OTHER vault
+     mutation invalidates pending undo entries; task COMPLETION is
+     explicitly NOT undoable — it freezes a lateness record, and reopen
+     is the audited way back.
+  8. LOG VOCABULARY extended add-only: vault_* entity types + archive /
+     restore / complete / reopen / replace_file actions (archive verbs
+     become first-class; leads keep their historical update+trigger
+     encoding untouched).
+  9. DUPLICATE-URL HANDSHAKE (reference FR-F08 "warn, never block") is
+     an HTTP 409 naming the clashing form; the client re-submits with
+     acknowledgeDuplicate=true to file it anyway. Archived forms do not
+     clash.
+  10. XOR (reference BR-02): sheet link-vs-file is a Zod discriminated
+     union at the boundary AND a service assertion against the FINAL row
+     state (422). Uploading a file to a linked sheet flips it to file
+     mode and clears the url, keeping the invariant.
+  11. NO PAGINATION on the vault lists this phase (fresh start, founder
+     re-enters data; the reference paginated at 50/page for its 2,000-row
+     NFR) — filters + DB-side search only. Flagged for revisit when
+     tables grow.
+  12. BACKUP: the five models joined MODELS (before attachment, FK-safe)
+     and resetDb(); the pre-existing undoEntry OMISSION from MODELS —
+     the exact silent-failure INTEGRATION-PLAN §5.5 warns about — was
+     fixed in the same commit.
+- Alternatives considered: porting the reference services (rejected —
+  founder §7.1 binds to rebuild); a StoredFile-style version table
+  (rejected — append-only Attachment rows give the same history with no
+  new model); exceljs for XLSX counts (rejected this phase, see 6);
+  DateTime deadline (rejected — day-shift, see 1); making completion
+  undoable (rejected — it would silently erase a frozen performance
+  record; reopen exists and is logged); per-entity createdBy columns
+  (rejected — admin-only module, ActivityLog already carries the actor
+  on every mutation).
+- Resolves: INTEGRATION-PLAN Phases 4–5 (Phase 4 this commit; Phase 5
+  the next); founder decisions §7.1–§7.4, §7.7, §7.8.
+- Consequences: Phase 5 builds the vault screens over these services;
+  employee self-service (if ever wanted) is a new role touching
+  proxy.ts/landing/NAV per the plan's §6.1 warning; Phase 6 decommission
+  of the port-3001 app happens founder-side (fresh start = no data
+  migration).
+- Status: Accepted

@@ -60,9 +60,18 @@ export const localStorageDriver: Storage = {
 
 export const storage: Storage = localStorageDriver;
 
-/* ---------- validation (SPEC §7.2, §8.1, §15) ---------- */
+/* ---------- validation (SPEC §7.2, §8.1, §15 + ADR-053) ---------- */
 
-export type UploadKind = "cv" | "recording" | "payment_proof";
+export type UploadKind =
+  | "cv"
+  | "recording"
+  | "payment_proof"
+  /* data vault (ADR-053): sheet files, document files, task-result files */
+  | "vault_sheet"
+  | "vault_document"
+  | "vault_attachment";
+
+const VAULT_MAX = 25 * 1024 * 1024; // the reference app's 25 MB cap (its D-09)
 
 const RULES: Record<
   UploadKind,
@@ -87,10 +96,140 @@ const RULES: Record<
     extensions: ["png", "jpg", "jpeg", "webp"],
     mimes: ["image/png", "image/jpeg", "image/webp"],
   },
+  /* vault allowlists mirror the reference app's per-context lists exactly */
+  vault_sheet: {
+    maxBytes: VAULT_MAX,
+    extensions: ["xlsx", "xls", "csv"],
+    mimes: [
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "application/vnd.ms-excel",
+      "text/csv",
+    ],
+  },
+  vault_document: {
+    maxBytes: VAULT_MAX,
+    extensions: ["pdf", "docx", "xlsx"],
+    mimes: [
+      "application/pdf",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    ],
+  },
+  vault_attachment: {
+    maxBytes: VAULT_MAX,
+    extensions: ["pdf", "docx", "xlsx", "pptx", "png", "jpg", "jpeg", "txt"],
+    mimes: [
+      "application/pdf",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+      "image/png",
+      "image/jpeg",
+      "text/plain",
+    ],
+  },
 };
 
+/* ---- content inspection helpers (ADR-053 — ported as a RULE, not as code,
+   from the reference Vault app's inspect.ts: a platform-wide upgrade) ---- */
+
+/** ZIP local-file-header signature. */
+function isZip(bytes: Buffer): boolean {
+  return (
+    bytes.length > 4 &&
+    bytes[0] === 0x50 &&
+    bytes[1] === 0x4b &&
+    (bytes[2] === 0x03 || bytes[2] === 0x05 || bytes[2] === 0x07)
+  );
+}
+
+/**
+ * OOXML files (docx/xlsx/pptx) are ZIP containers, and a bare "PK" check would
+ * accept ANY zip renamed to .docx. The part *names* are stored uncompressed in
+ * the archive headers, so reading the raw bytes for "[Content_Types].xml" plus
+ * the flavour prefix ("word/", "xl/", "ppt/") discriminates the real thing
+ * without decompressing anything (no decompression-bomb surface).
+ */
+function ooxmlFlavour(bytes: Buffer): "docx" | "xlsx" | "pptx" | null {
+  if (!isZip(bytes)) return null;
+  const text = bytes.toString("latin1");
+  if (!text.includes("[Content_Types].xml")) return null;
+  if (text.includes("xl/")) return "xlsx";
+  if (text.includes("word/")) return "docx";
+  if (text.includes("ppt/")) return "pptx";
+  return null;
+}
+
+/** Legacy Office compound-document header (.xls / .doc). */
+function isCompoundDoc(bytes: Buffer): boolean {
+  const sig = [0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1];
+  return bytes.length > 8 && sig.every((b, i) => bytes[i] === b);
+}
+
+/**
+ * CSV and plain text have no magic bytes at all, so they get a deliberate
+ * sniff: must decode as text (no NUL, no control-byte soup), and "csv" further
+ * wants a consistent delimiter across the first lines. Heuristic by nature —
+ * unit-tested in src/lib/services/vault/row-count.test.ts alongside the
+ * counting rules that share it.
+ */
+export function sniffText(bytes: Buffer): "csv" | "txt" | null {
+  const sample = bytes.subarray(0, Math.min(bytes.length, 64 * 1024));
+  if (sample.includes(0)) return null; // NUL byte — binary
+
+  let decoded: string;
+  try {
+    decoded = new TextDecoder("utf-8", { fatal: true }).decode(sample);
+  } catch {
+    // Not valid UTF-8; allow latin-1 text but reject control soup.
+    decoded = sample.toString("latin1");
+    const control = [...decoded].filter(
+      (ch) => ch.charCodeAt(0) < 9 || (ch.charCodeAt(0) > 13 && ch.charCodeAt(0) < 32),
+    ).length;
+    if (control / decoded.length > 0.01) return null;
+  }
+
+  const clean = decoded.replace(/^﻿/, "");
+  if (clean.trim().length === 0) return null;
+
+  const lines = clean
+    .split(/\r\n|\n|\r/)
+    .filter((l) => l.trim().length > 0)
+    .slice(0, 20);
+  if (lines.length === 0) return null;
+
+  for (const delim of [",", ";", "\t", "|"]) {
+    const counts = lines.map((l) => splitOutsideQuotes(l, delim).length);
+    const first = counts[0] ?? 0;
+    if (first > 1 && counts.every((c) => c === first)) return "csv";
+  }
+  return "txt";
+}
+
+/** Delimiter counting that ignores separators inside quoted fields. */
+function splitOutsideQuotes(line: string, delim: string): string[] {
+  const out: string[] = [];
+  let cur = "";
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i]!;
+    if (ch === '"') {
+      if (inQuotes && line[i + 1] === '"') {
+        cur += '"';
+        i++;
+      } else inQuotes = !inQuotes;
+    } else if (ch === delim && !inQuotes) {
+      out.push(cur);
+      cur = "";
+    } else cur += ch;
+  }
+  out.push(cur);
+  return out;
+}
+
 function sniffOk(kind: UploadKind, ext: string, bytes: Buffer): boolean {
-  if (bytes.length < 12) return false;
+  /* text formats may legitimately be tiny; binary formats under 12 bytes are junk */
+  if (bytes.length < 12 && ext !== "csv" && ext !== "txt") return false;
   if (kind === "recording") {
     if (ext === "mp3") {
       // ID3 tag or MPEG frame sync
@@ -110,9 +249,32 @@ function sniffOk(kind: UploadKind, ext: string, bytes: Buffer): boolean {
       bytes.subarray(8, 12).toString("ascii") === "WEBP"
     );
   }
-  if (ext === "pdf") return bytes.subarray(0, 5).toString("ascii") === "%PDF-";
-  if (ext === "doc") return bytes.readUInt32BE(0) === 0xd0cf11e0; // OLE
-  return bytes[0] === 0x50 && bytes[1] === 0x4b; // docx = zip "PK"
+  /* document-ish kinds (cv + the vault kinds) — the type is decided by the
+     BYTES, never the extension (the reference app's BR-04, kept verbatim) */
+  switch (ext) {
+    case "pdf":
+      return bytes.subarray(0, 5).toString("ascii") === "%PDF-";
+    case "doc":
+    case "xls":
+      return isCompoundDoc(bytes); // OLE/BIFF container
+    case "docx":
+      return ooxmlFlavour(bytes) === "docx"; // upgraded from bare "PK" (ADR-053)
+    case "xlsx":
+      return ooxmlFlavour(bytes) === "xlsx";
+    case "pptx":
+      return ooxmlFlavour(bytes) === "pptx";
+    case "png":
+      return bytes.readUInt32BE(0) === 0x89504e47;
+    case "jpg":
+    case "jpeg":
+      return bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+    case "csv":
+      return sniffText(bytes) !== null; // any real text; prose named .csv still counts as csv
+    case "txt":
+      return sniffText(bytes) !== null;
+    default:
+      return false;
+  }
 }
 
 /** Validates a browser File and stores it. Returns Attachment-ready fields. */

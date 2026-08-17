@@ -17,7 +17,13 @@ export async function resetDb(): Promise<void> {
   await db.acctSettings.deleteMany();
   await db.activityLog.deleteMany();
   await db.undoEntry.deleteMany(); // ADR-045 — undo snapshots are operational rows too
-  await db.attachment.deleteMany(); // references Statement/WonDeal/PortalRep — first
+  await db.attachment.deleteMany(); // references Statement/WonDeal/PortalRep + vault rows — first
+  /* data vault (ADR-053) — children before parents (task references employee) */
+  await db.vaultTask.deleteMany();
+  await db.vaultSheet.deleteMany();
+  await db.vaultDocument.deleteMany();
+  await db.vaultForm.deleteMany();
+  await db.vaultEmployee.deleteMany();
   await db.statement.deleteMany(); // references Milestone (restrict)
   await db.milestone.deleteMany();
   await db.wonDeal.deleteMany();
