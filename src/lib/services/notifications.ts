@@ -6,7 +6,9 @@ import type { Prisma } from "../../../generated/prisma/client";
    confirmation copy references it only). */
 
 export async function notifyAdmins(input: {
-  type: "meeting_request" | "ready_to_close" | "registration";
+  /* "needs_owner": ADR-051 — a data-entry user added a lead that belongs to
+     nobody until the admin assigns it. */
+  type: "meeting_request" | "ready_to_close" | "registration" | "needs_owner";
   title: string;
   body: string;
   leadId?: string;

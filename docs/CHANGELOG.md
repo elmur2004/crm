@@ -1,5 +1,27 @@
 # Changelog — user-visible changes per phase/release
 
+## A "Data entry" user who only adds (2026-08-17)
+- New account type: **Data entry**. Tick it in Users like any other role.
+- They can do exactly two things: **add a lead** and **add a partner or
+  agent card** (CV included). That is the whole list — they cannot move a
+  card, edit or delete anything, confirm a win, assign an owner, or open
+  Won Leads, Statements, Users, Registrations, Agents or the Partners
+  directory. Typing an address in by hand does not get them in either;
+  the rules are enforced on the server, not by hiding buttons.
+- **What they add has no owner.** It waits until you decide who takes
+  it. They never appear in the "Assign owner" list themselves.
+- So you can find that queue, the Leads filters (and the CRM board's
+  owner filter) gained an **"Unassigned"** choice, and **you get a
+  notification** each time — "New lead added by X — needs an owner" —
+  that opens the lead when you click it.
+- Their own page shows what they have entered and whether it is still
+  **Waiting for an owner** or has been **Picked up**. They can correct a
+  typo until someone picks it up; after that it is read-only to them.
+- Every lead and card now quietly records **who typed it in** — separate
+  from who owns it — whoever entered it.
+- Small fix everywhere: if you open a page your account does not have,
+  you now land on your own home page instead of the sign-in screen.
+
 ## Partners & Agents — follow up on both from one board (2026-08-17)
 - The **Partnership CRM** is now **"Partners & Agents"**. Same board,
   same columns, same everything you already use — it just holds two

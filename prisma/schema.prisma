@@ -40,6 +40,12 @@ model User {
      its Won gate — the link back to the card that created it (SetNull on a hard
      account delete: the card stays converted, exactly like Partner.userId). */
   agentProspect PartnerProspect? @relation("ProspectAgent")
+  /* who typed the record in (ADR-051). Declared as RELATIONS on purpose: a
+     userId column with no relation is invisible to cascade planning
+     (IMPLEMENTATION.md, ADR-049). SET NULL — deleting the person who entered a
+     lead must never delete the lead. */
+  createdLeads     Lead[]            @relation("LeadCreator")
+  createdProspects PartnerProspect[] @relation("ProspectCreator")
   ownedLeads    Lead[]         @relation("LeadOwner")
   notifications Notification[]
   leadComments  LeadComment[]  @relation("CommentAuthor")
@@ -48,7 +54,8 @@ model User {
 }
 
 model UserRole {
-  // roles: byteforce_staff | bsystems_admin | bsystems_sales | bsystems_agent | bsystems_partner
+  // roles: byteforce_staff | bsystems_admin | bsystems_sales | bsystems_agent
+  //      | bsystems_partner | bsystems_data_entry (ADR-051 — add-only)
   userId String
   role   String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -92,6 +99,10 @@ model Lead {
   noAnswer     Boolean    @default(false) // founder: "didn't answer" card marker (ADR-039) — a flag, not a stage
   archived     Boolean    @default(false) // founder: archive (ADR-043) — soft-hide, restorable, no data loss
   archivedAt   DateTime?
+  /* ADR-051 — who TYPED this in, which is never who OWNS it. Set on every
+     create path (audit data), and the data-entry role's own list reads it. */
+  createdByUserId String?
+  createdBy    User?      @relation("LeadCreator", fields: [createdByUserId], references: [id])
   owner        User?      @relation("LeadOwner", fields: [ownerUserId], references: [id])
   salesRep     SalesRep?  @relation(fields: [salesRepId], references: [id])
   partner      Partner?   @relation(fields: [partnerId], references: [id])
@@ -111,6 +122,7 @@ model Lead {
   @@index([brand, ownerType])
   @@index([ownerUserId])
   @@index([partnerId])
+  @@index([createdByUserId])
 }
 
 model FollowUp {
@@ -237,6 +249,8 @@ model PartnerProspect {
   converted           Boolean      @default(false)
   agentUserId         String?      @unique // set by the won_agent gate
   agentUser           User?        @relation("ProspectAgent", fields: [agentUserId], references: [id])
+  createdByUserId     String? // ADR-051 — who typed the card in
+  createdBy           User?        @relation("ProspectCreator", fields: [createdByUserId], references: [id])
   followUps           FollowUp[]
   meetings            Meeting[]
   lostInfo            LostInfo[]
@@ -249,6 +263,7 @@ model PartnerProspect {
 
   @@index([stage])
   @@index([kind])
+  @@index([createdByUserId])
 }
 
 model Partner {

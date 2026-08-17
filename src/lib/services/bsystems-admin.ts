@@ -67,7 +67,14 @@ export function listBsLeads(
     where: {
       brand: "bsystems",
       archived: opts?.archived ?? false,
-      ...(ownerType && ownerType !== "any" ? { ownerType } : {}),
+      /* ADR-051 — "unassigned" is not an owner BUCKET, it is the absence of an
+         owner inside the internal one (A-6): no rep, no account. It is where a
+         data-entry user's leads land and wait for the admin to decide. */
+      ...(ownerType === "unassigned"
+        ? { ownerType: "internal", salesRepId: null, ownerUserId: null }
+        : ownerType && ownerType !== "any"
+          ? { ownerType }
+          : {}),
       ...leadSearchWhere(opts?.search),
       ...leadTypeWhere(opts?.type),
     },

@@ -1,5 +1,6 @@
 import type { Msg } from "@/lib/i18n/core";
 import { pPipeline } from "./partners";
+import { entryPage } from "./entry";
 
 /* B-Systems core surface dictionary (shell + admin home + CRM board + leads +
    lead detail + role-aware stage forms). EN strings are byte-identical to the
@@ -20,6 +21,10 @@ export const nav = {
   registrations: { en: "Registrations", ar: "طلبات التسجيل" },
   statements: { en: "Statements", ar: "كشوف الحساب" },
   users: { en: "Users", ar: "المستخدمون" },
+  /* ADR-051 — the data-entry role's single destination. The PAGE's own
+     title, so the nav item and the h1 cannot disagree (as partnersAndAgents
+     above). The role BADGE is a different surface and keeps its own wording. */
+  dataEntry: entryPage.title,
   payments: { en: "Payments", ar: "المدفوعات" },
   profile: { en: "Profile", ar: "الملف الشخصي" },
   logOut: { en: "Log out", ar: "تسجيل الخروج" },
@@ -31,6 +36,7 @@ export const roles = {
   bsystems_sales: { en: "Internal sales", ar: "مبيعات داخلية" },
   bsystems_agent: { en: "Agent", ar: "وكيل" },
   bsystems_partner: { en: "Partner", ar: "شريك" },
+  bsystems_data_entry: { en: "Data entry", ar: "إدخال بيانات" },
 } satisfies Record<string, Msg>;
 
 /* ---- shared bits across the surface ---- */
@@ -69,6 +75,9 @@ export const ownerFilters = {
   agent: { en: "Agents", ar: "وكلاء" },
   partner: { en: "Partners", ar: "شركاء" },
   admin: { en: "Admins", ar: "مديرون" },
+  /* ADR-051 — the queue a data-entry user fills: internal bucket, no rep,
+     no owner. This is A-6's unassigned state, now findable. */
+  unassigned: { en: "Unassigned", ar: "غير مُسند" },
 } satisfies Record<string, Msg>;
 
 /* Founder (ADR-043) — archive: soft-hide with a way back. */

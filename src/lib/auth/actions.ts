@@ -5,26 +5,14 @@ import { redirect } from "next/navigation";
 import { signIn, signOut } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { identifierKind, normalizePhone } from "./phone";
+import { landingFor } from "./landing";
 import type { Role } from "@/lib/pipeline-engine/constants";
 
 /* Consolidated sign-in (ADR-028): one action, one page. After authentication the
    user lands where their roles point. NOTE: auth() cannot see the just-set session
    cookie within the same request, so the landing roles are read from the DB. */
 
-const LANDING_PRIORITY: Array<[Role, string]> = [
-  ["bsystems_admin", "/b-systems"],
-  ["byteforce_staff", "/byteforce"],
-  ["bsystems_sales", "/b-systems/crm"],
-  ["bsystems_agent", "/b-systems/crm"],
-  ["bsystems_partner", "/b-systems/crm"],
-];
-
-function landingFor(roles: Role[]): string {
-  for (const [role, target] of LANDING_PRIORITY) {
-    if (roles.includes(role)) return target;
-  }
-  return "/login?error=1";
-}
+/* the map itself lives in ./landing so the page guards can share it */
 
 export async function login(formData: FormData): Promise<void> {
   /* self-healing: the admin account is guaranteed usable (created/repaired,

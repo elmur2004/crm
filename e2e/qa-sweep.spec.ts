@@ -76,6 +76,20 @@ test("B-Systems internal sales: CRM + Won Leads clean", async ({ page }) => {
   expect(errors).toEqual([]);
 });
 
+/* ADR-051 — the data-entry role's single page has two tables and two modals of
+   its own, so it gets the same width + console treatment as every other screen. */
+test("B-Systems data entry: its one page clean at every width", async ({ page }) => {
+  const errors: string[] = [];
+  collectErrors(page, errors);
+  await page.goto("/login");
+  await page.getByLabel("Email or phone").fill("entry@b-systems.example");
+  await page.getByLabel("Password").fill("entry123");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await page.waitForURL(/\/b-systems\/entry$/);
+  await sweep(page, errors, ["/b-systems/entry"]);
+  expect(errors).toEqual([]);
+});
+
 test("mobile menu reaches EVERY admin section at 390px (incl. switcher + logout)", async ({
   page,
 }) => {

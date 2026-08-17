@@ -1448,3 +1448,120 @@ R23 copy sign-off — carried in PROGRESS (Entry 011).
   `pPipeline.title` rather than restating it, so the nav item and the
   page heading cannot disagree.
 - Status: Accepted
+
+## ADR-051 — 2026-08-17 — The data-entry role: two create permissions, no ownership
+
+- Context: the founder — "I want to add a type of user called data entry.
+  This user is just able to add leads or partners or agents. They can add
+  in the CRMs — either the CRM of the partners or the CRM of the leads.
+  They are just adding, and they will not be the owner of what they add.
+  It will be with no owner until the admin decides which owner is these
+  leads. But they are just adding leads." Every existing role owns
+  something: admins own the company's pipeline, sales own the internal
+  bucket, agents and partners own their own leads. This one owns nothing
+  by design, which is a shape the system had no room for.
+- Decision: `bsystems_data_entry`, a least-privilege role enforced
+  SERVER-SIDE, never by a hidden button.
+  1. THE PERMISSION SET IS TWO CREATE ACTIONS. `POST
+     /api/b-systems/leads` and `POST /api/b-systems/partners-pipeline`
+     (plus that card's CV upload, because the CV is part of adding an
+     agent). Nothing else. The wall is built by CONSTRUCTION rather than
+     by enumeration: every other B-Systems endpoint already names the
+     roles it accepts, and none of them names this one, so a new
+     endpoint written tomorrow refuses it by default. Only two guards
+     mention it — `requireProspectCreator` (admin or data entry) and the
+     lead-create route's list — and both are named for the ACT, not the
+     role.
+  2. OWNERSHIP USES THE STATE THAT ALREADY MEANT THIS. `bucketFor`
+     returns `{ ownerType: "internal", owned: false }` and the route
+     also strips any `salesRepId`, so the lead lands exactly where A-6's
+     "unassigned" has always lived: internal bucket, no rep, no owner
+     account. No new state, no new column, no new enum value. The admin
+     hands it on with ADR-047's "Assign owner", which is the pair.
+     A data-entry account is never itself assignable — `ownerTypeForRole`
+     returns null for it and `listAssignableOwners` does not select it.
+  3. THE QUEUE IS FINDABLE. A lead nobody owns is invisible in a
+     board built around owner buckets, so the Leads sidebar (and the CRM
+     board's matching control) gains an "Unassigned" owner choice —
+     `{ ownerType: "internal", salesRepId: null, ownerUserId: null }`,
+     special-cased in `listBsLeads` because it is the ABSENCE of an
+     owner inside a bucket, not a bucket. And every entered lead
+     broadcasts a `needs_owner` notification to the admins ("New lead
+     added by X — needs an owner"), deep-linked through the existing
+     `Notification.leadId`, exactly like the ready-to-close flag.
+  4. WHO TYPED IT IN IS NOT WHO OWNS IT. `Lead.createdByUserId` and
+     `PartnerProspect.createdByUserId` are new nullable FKs (SET NULL),
+     stamped by `createLead`/`createProspect` on EVERY path — it is
+     useful audit data whoever entered the record, and making it
+     universal means the data-entry view is a query, not a special case.
+     They are declared as real RELATIONS, not bare String ids, because
+     IMPLEMENTATION.md's ADR-049 lesson is that a `userId` column
+     without a relation is invisible to cascade planning.
+  5. THEIR OWN PAGE, AND ONLY IT. `/b-systems/entry`: the two Add
+     buttons and a read-only list of what THEY entered, with each row's
+     state named from their point of view ("Waiting for an owner" /
+     "Picked up"). Their nav has exactly one item, which is the honest
+     picture of the permission set.
+  6. THEY MAY CORRECT WHAT THEY TYPED, BRIEFLY. Fixing a typo a minute
+     later is the same act as typing it; editing after someone has
+     picked the record up is not. So `assertCanCorrect` allows a PATCH
+     only when the row was created by this user AND is structurally
+     untouched — a lead still in `new` with no owner, no rep and not
+     archived; a card still in `lead` and not converted. Defined
+     structurally, never by a clock. NEEDS FOUNDER CONFIRMATION.
+  7. THE ONE-STEP UNDO STAYS, AND IS ALREADY BOUNDED. ADR-045's undo is
+     personal (only its author may apply it) and `lead_create` only ever
+     deletes a lead that still has NO child records — so a data-entry
+     user can retract a lead they just typed by mistake, and can do
+     nothing else with it. That is deliberately not the same permission
+     as DELETE, which they are refused: undo retracts your own last
+     keystroke, deletion removes the company's record. `createProspect`
+     records no undo entry at all, so cards are not retractable this way.
+  8. SIGNED-IN USERS NO LONGER BOUNCE TO THE SIGN-IN FORM.
+     `requirePageRole` used to redirect any failure to `/login`. With a
+     role that has one page, every other B-Systems URL would have looked
+     like an expired session, so it now sends an AUTHENTICATED user to
+     their own landing (`landingFor`, lifted out of the sign-in action
+     into `lib/auth/landing.ts` so guards can share it) and keeps
+     `/login` for genuinely unauthenticated requests.
+- Alternatives considered: a new owner bucket or a "pending assignment"
+  flag — rejected, A-6's unassigned state already means exactly this and
+  a second way to say it would have to be taught to every filter, badge
+  and metric. Giving them `bsystems_sales` with a narrower UI — rejected
+  outright: that is hidden-button security, and sales own the internal
+  bucket. Letting them see the boards read-only — rejected: the founder
+  said "just adding", and read access to other people's leads is the
+  thing least-privilege exists to prevent. Making the correction window
+  time-based (e.g. ten minutes, like undo) — rejected: a clock says
+  nothing about whether a colleague has started working the lead, while
+  "still in intake, still unowned" says exactly that. Auto-assigning
+  entered leads round-robin — rejected: "the admin decides which owner
+  is these leads" is the requirement.
+- Resolves: — (founder directive; no SPEC §11 A-#)
+- Consequences: the role is scoped to B-SYSTEMS only, because the
+  founder named "the CRM of the partners or the CRM of the leads", both
+  of which are B-Systems; whether data entry should also add ByteForce
+  leads NEEDS FOUNDER CONFIRMATION (`staffRolesForBrand` deliberately
+  does not include it, so today the ByteForce API refuses it). A
+  data-entry user has no notifications of their own and no access to the
+  notifications endpoint, so the shell's bell is not rendered for them.
+  Deleting a data-entry account leaves every lead and card they entered
+  intact with `createdByUserId` nulled — the record is the company's,
+  the same principle ADR-049 applied to owned leads.
+  brand-auditor on the diff returned FAIL and every finding was fixed
+  before the commit. The sharpest one was a permission that existed on
+  the server and nowhere in the UI: `assertCanCorrect` grants the
+  correction right to CARDS as well as leads, and `CorrectEntryButtons`
+  already had the branch, but the cards table never rendered the button
+  — a live capability sitting behind dead UI. It renders now (and the
+  modal drops the company field for an agent card, which has none). It
+  also caught a `card card-pad` wrapper around a form that renders its
+  own card (both Add actions now sit in `.page-actions`, as they do on
+  every other page), three column labels re-declared byte-for-byte
+  instead of reusing dict/crm's `common` — including in the modal that
+  edits those very cells — an Arabic drift between the nav item and the
+  page heading (`nav.dataEntry` now REFERENCES `entryPage.title`, the
+  same fix ADR-050 made for Partners & Agents), an unused string, a
+  one-word CTA, and the phone/email INPUTS lacking the `dir="ltr"` their
+  read-only cells already had.
+- Status: Accepted

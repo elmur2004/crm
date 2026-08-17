@@ -14,6 +14,7 @@ const ASSIGNABLE_ROLES = [
   "bsystems_sales",
   "bsystems_agent",
   "bsystems_partner",
+  "bsystems_data_entry", // ADR-051 — add-only
   "byteforce_staff",
 ];
 

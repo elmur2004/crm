@@ -289,7 +289,10 @@ export async function deleteUser(userId: string, actor: Actor) {
     await tx.undoEntry.deleteMany({ where: { userId } });
 
     /* 6 — the account itself. UserRole, PortalRep and Notification cascade;
-           LeadComment.authorUserId and Lead.ownerUserId are SET NULL. Anything
+           LeadComment.authorUserId, Lead.ownerUserId, PartnerProspect.
+           agentUserId (ADR-050) and both createdByUserId columns (ADR-051) are
+           SET NULL — a converted agent's card stays converted, and a record
+           keeps existing after the person who typed it in is gone. Anything
            this policy has NOT resolved would raise a foreign-key error here and
            abort the whole transaction — nothing is half-deleted. */
     try {

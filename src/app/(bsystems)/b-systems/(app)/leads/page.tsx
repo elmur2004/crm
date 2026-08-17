@@ -39,6 +39,9 @@ const OWNER_KEYS: Array<{ key: string; label: Msg }> = [
   { key: "agent", label: ownerFilters.agent },
   { key: "partner", label: ownerFilters.partner },
   { key: "admin", label: ownerFilters.admin },
+  /* ADR-051 — the queue the data-entry role fills: internal, no rep, no
+     owner. Without it a lead that belongs to nobody is unfindable. */
+  { key: "unassigned", label: ownerFilters.unassigned },
 ];
 
 const SORT_LABEL: Record<LeadSort, Msg> = {

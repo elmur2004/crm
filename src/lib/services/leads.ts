@@ -83,6 +83,10 @@ export async function createLead(
         brand,
         ownerType: opts?.ownerType ?? "internal",
         ownerUserId: opts?.ownerUserId ?? null,
+        /* ADR-051 — who TYPED it in, on EVERY create path, not just the
+           data-entry role's: it is useful audit data whoever entered it, and
+           it is never the same question as who OWNS the lead. */
+        createdByUserId: actor.id,
         salesRepId: input.salesRepId ?? null,
         name: input.name,
         number: input.number,

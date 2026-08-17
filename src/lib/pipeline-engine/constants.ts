@@ -9,6 +9,11 @@ export const ROLES = [
   "bsystems_sales", // internal sales — CRM + Won Leads
   "bsystems_agent", // external agent (was portal rep) — CRM, Won Leads, Payments, Profile
   "bsystems_partner", // partner-company account (auto-provisioned) — same as agent
+  /* founder (ADR-051): "a type of user called data entry. This user is just
+     able to add leads or partners or agents... they will not be the owner of
+     what they add." A least-privilege role: two create actions and nothing
+     else — no stage moves, no edits, no admin sections, no ownership. */
+  "bsystems_data_entry",
 ] as const;
 export type Role = (typeof ROLES)[number];
 

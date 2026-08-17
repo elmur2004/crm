@@ -1,4 +1,4 @@
-import { handleRoute, requireBsAdmin } from "@/lib/auth/guards";
+import { handleRoute, requireProspectCreator } from "@/lib/auth/guards";
 import { ApiError } from "@/lib/api-error";
 import { createProspect, createProspectSchema } from "@/lib/services/partners";
 
@@ -7,7 +7,7 @@ import { createProspect, createProspectSchema } from "@/lib/services/partners";
    the public signup form — CV included. */
 
 export const POST = handleRoute(async (req: Request) => {
-  const user = await requireBsAdmin();
+  const user = await requireProspectCreator();
   const contentType = req.headers.get("content-type") ?? "";
 
   let raw: unknown;

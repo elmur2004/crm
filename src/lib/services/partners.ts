@@ -140,6 +140,7 @@ export async function createProspect(
           email: input.email ?? null,
           number: input.number,
           description: input.description ?? null,
+          createdByUserId: actor.id, // ADR-051 — audit, on every create path
         },
       });
       if (storedCv) {

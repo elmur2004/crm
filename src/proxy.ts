@@ -32,7 +32,8 @@ function allowed(pathname: string, roles: Role[]): boolean {
       roles.includes("bsystems_admin") ||
       roles.includes("bsystems_sales") ||
       roles.includes("bsystems_agent") ||
-      roles.includes("bsystems_partner")
+      roles.includes("bsystems_partner") ||
+      roles.includes("bsystems_data_entry")
     );
   }
   return true; // /portal keeps only its public landing/signup pages

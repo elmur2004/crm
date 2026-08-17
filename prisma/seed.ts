@@ -16,7 +16,8 @@ import { normalizePhone } from "../src/lib/auth/phone";
    demo passwords must never exist on a live system. Force with SEED_DEMO=1.
      ByteForce staff   sara@byteforce.example    / byteforce123
      B-Systems sales   omar@b-systems.example    / bsystems123
-     Agent             01001234567               / partner123 */
+     Agent             01001234567               / partner123
+     Data entry        entry@b-systems.example   / entry123   (ADR-051) */
 
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! });
 const db = new PrismaClient({ adapter });
@@ -95,6 +96,15 @@ export async function seed() {
     email: "omar@b-systems.example",
     password: "bsystems123",
     roles: ["bsystems_sales"],
+  });
+
+  /* ADR-051 — the least-privilege data-entry account: adds leads and cards,
+     owns neither, sees nothing else. */
+  await upsertUser({
+    name: "Hala Nabil",
+    email: "entry@b-systems.example",
+    password: "entry123",
+    roles: ["bsystems_data_entry"],
   });
 
   const repUser = await upsertUser({

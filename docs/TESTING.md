@@ -974,3 +974,57 @@ every dashboard formula, journeys 1-5 (SPEC §13).
   directory not, and the Registrations approval queue never mentioning
   them.
 - Verdict: PASS.
+
+## Run 045 — 2026-08-17 — The data-entry role (ADR-051)
+- Suites/commands: `npx tsc --noEmit` (clean) · `npx vitest run` (174 —
+  TEN new tests in the NEW
+  src/lib/services/data-entry.integration.test.ts) · `npx playwright
+  test` (full suite; NEW spec e2e/data-entry.spec.ts). Local dev,
+  embedded Postgres (per-run instances).
+- Cases: vitest 174 passed / 0 failed / 0 skipped · Playwright full 30
+  passed / 0 failed / 2 skipped (audit opt-in skips, by design). Full
+  e2e wall time 4.9m.
+- Failures: none in the end. Two were found and fixed during the round.
+  (i) The new e2e's first draft asserted 403 against invented lead ids
+  and got 404 — `requireLeadAccess` resolves the id BEFORE the role, so
+  those assertions were proving "no such row", not "no such right". Every
+  refusal now runs against a REAL id: the admin's own lead, and the
+  data-entry user's own card. (ii) The new spec then broke journey 5 in
+  the full run only: the suite shares one seeded database and journey 5
+  drags a specific card by position, so the two leads and two cards this
+  spec adds pushed "Fresh Deal" down the New column and the drag missed.
+  The spec now deletes everything it created (via the admin) before it
+  ends — worth remembering for any future spec that writes to the
+  B-Systems board.
+- SPEC coverage touched: no §10 rows (a role, not a transition).
+  New coverage: (unit) a lead entered by a data-entry user lands
+  ownerType "internal" with ownerUserId AND salesRepId null in stage
+  "new" — A-6's unassigned state, not a new one — carries
+  createdByUserId, and broadcasts a `needs_owner` notification to every
+  admin (userId null) deep-linked by leadId; the admin finds exactly
+  that lead under the new "Unassigned" owner filter and an OWNED lead is
+  absent from it; assigning it (ADR-047) removes it from the queue while
+  the creator stays on record; a data-entry account never appears in
+  listAssignableOwners; a card they add carries the creator and sits in
+  intake. The correction rule is proved from four directions: allowed
+  while the lead is untouched, refused the moment it moves a stage,
+  refused as soon as it has an owner even in intake, refused outright on
+  someone else's entry, refused on a CONVERTED card but allowed on an
+  intake one — and refused for anyone who is not a data-entry user at
+  all (an admin holding the role too goes through the admin door). Their
+  own view lists only their rows and flips each one to read-only once it
+  moves.
+  (e2e) the qa-sweep gained the new page — console-clean and free of
+  horizontal overflow at 1440/1024/768/560/390, signed in as the seeded
+  data-entry account. And a real data-entry session: signs in and lands on its ONE page,
+  has no CRM/Users/Won-Leads nav, ADDS a lead and an agent card through
+  the UI, sees the lead as "Waiting for an owner", creates a second card
+  through the API (201) and CORRECTS it (200) — then is refused 403 on
+  thirteen mutations against real ids, including a stage move on its own
+  card, every mutation of an admin's lead (event, assign, archive,
+  ready, no-answer, PATCH, comment), Users create/update, reps,
+  registrations approval and milestones, plus DELETE of its own card;
+  and every admin page URL bounces it back to its own landing rather
+  than to a sign-in form. The admin then finds the entered lead waiting
+  under ?owner=unassigned while their own owned lead is not there.
+- Verdict: PASS.

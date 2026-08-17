@@ -34,6 +34,7 @@ const FILTERS: Array<{ key: string; label: Msg }> = [
   { key: "agent", label: ownerFilters.agent },
   { key: "partner", label: ownerFilters.partner },
   { key: "admin", label: ownerFilters.admin },
+  { key: "unassigned", label: ownerFilters.unassigned }, // ADR-051
 ];
 
 type LeadRow = Awaited<ReturnType<typeof listBsLeads>>[number];

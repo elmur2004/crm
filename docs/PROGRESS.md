@@ -1663,3 +1663,82 @@ comment, and the ADR-013 mechanism note all fixed; .env.example confirmed tracke
   Organic, undo's one-step/10-minute/no-financials rules, the same-stage
   record labels, admin-only reassignment, the call sheet's single-
   number/full-chat choices, and deletion's admin-bucket landing).
+
+## Entry 042 — 2026-08-17 — Founder: the data-entry role (ADR-051)
+- Done: `bsystems_data_entry`, a genuine least-privilege account —
+  "just able to add leads or partners or agents... they will not be the
+  owner of what they add." Its whole permission set is TWO create
+  actions (a B-Systems lead, and a Partners & Agents card of either
+  kind, plus that card's CV because the CV is part of adding an agent).
+  The wall is built by CONSTRUCTION, not by enumeration: every other
+  B-Systems endpoint already names the roles it accepts and none of them
+  names this one, so an endpoint written tomorrow refuses it by default;
+  only two guards mention the role at all, and both are named for the
+  ACT (`requireProspectCreator`) rather than the person. OWNERSHIP uses
+  the state that already meant this rather than a new one: `bucketFor`
+  returns internal-and-unowned and the route strips any rep, so an
+  entered lead lands exactly in A-6's unassigned state (internal bucket,
+  no rep, no owner) and the admin hands it on with ADR-047's "Assign
+  owner" — a data-entry account is never itself assignable. Because a
+  lead nobody owns is invisible on a board organised by owner buckets,
+  the Leads sidebar and the CRM board both gained an "Unassigned" owner
+  choice (special-cased in listBsLeads, since it is the ABSENCE of an
+  owner inside a bucket, not a bucket), and every entered lead
+  broadcasts a `needs_owner` notification to the admins, deep-linked
+  through the existing Notification.leadId exactly like ready-to-close.
+  New `createdByUserId` on Lead and PartnerProspect records who TYPED a
+  record in — stamped on EVERY create path, because it is useful audit
+  data whoever entered it and it makes the data-entry view a query
+  rather than a special case; both are declared as real relations with
+  ON DELETE SET NULL, per IMPLEMENTATION.md's ADR-049 lesson that a
+  userId column without a relation is invisible to cascade planning.
+  Their own page /b-systems/entry is the two Add buttons and a read-only
+  record of what they entered, each row labelled from their point of
+  view ("Waiting for an owner" / "Picked up"); their nav has exactly one
+  item, which is the honest picture of the permission set. They may
+  CORRECT an entry they made while it is structurally untouched (a lead
+  still in New with no owner, no rep, not archived; a card still in Lead
+  and not converted) — never by a clock, and re-checked server-side on
+  every PATCH. One general fix fell out of the role: `requirePageRole`
+  used to send every failure to /login, which for an account with one
+  page made every other URL look like an expired session; a SIGNED-IN
+  user now lands on their own home instead, and /login is kept for
+  genuinely unauthenticated requests. Seeded as
+  entry@b-systems.example / entry123 (demo environments only), and the
+  page joins the qa-sweep so it is checked for console errors and
+  horizontal overflow at every width like every other screen.
+  brand-auditor on the diff returned FAIL and every finding was fixed
+  before the commit — the sharpest being a permission that existed on
+  the server and nowhere in the UI: the correction right covers CARDS
+  too and the component already carried the branch, but the cards table
+  never rendered the button. It does now (minus the company field on an
+  agent card, which has none). It also caught a card wrapping a form
+  that renders its own card, three column labels re-declared instead of
+  reusing dict/crm's `common` — in the very modal that edits those
+  cells — an Arabic drift between the nav item and the page heading (the
+  nav now REFERENCES the page title, as ADR-050 did), an unused string,
+  a one-word CTA, and phone/email INPUTS lacking the `dir="ltr"` their
+  read-only cells already had.
+  Verified: tsc clean, vitest 174/174 (+10), Playwright 30 passed / 2
+  audit-opt-in skipped (+2 new specs, TESTING Run 045).
+- In progress: —
+- Next steps: founder review of this round's two commits (Entries
+  041–042).
+- Blockers: none new.
+- Needs founder confirmation: (i) SCOPE — the role is B-SYSTEMS ONLY,
+  because the request named "the CRM of the partners or the CRM of the
+  leads", both of which are B-Systems; whether a data-entry user should
+  also add BYTEFORCE leads is an open question and today the ByteForce
+  API refuses them; (ii) the CORRECTION WINDOW — they may fix an entry
+  they made until someone picks it up (still in intake, still unowned);
+  say the word and it becomes strictly add-only, or gains a longer
+  window; (iii) they may also UNDO their own just-added lead through the
+  existing one-step undo, which deletes it only while it has no history
+  — deliberately not the same thing as the DELETE they are refused; (iv)
+  an entered lead notifies EVERY admin — say so if it should go to one
+  named person instead. Carried: see Entries 023–041 (incl. the WIN1252
+  local-database recreation, the board's owner tabs, the Arabic wording
+  for Organic, undo's one-step/10-minute/no-financials rules, the
+  same-stage record labels, admin-only reassignment, the call sheet's
+  single-number/full-chat choices, deletion's admin-bucket landing, and
+  the deliberate partner/agent asymmetry in card-creation strictness).

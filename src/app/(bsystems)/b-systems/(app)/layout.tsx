@@ -52,6 +52,9 @@ const NAV: Record<string, Array<{ href: string; label: Msg }>> = {
     { href: "/b-systems/payments", label: nav.payments },
     { href: "/b-systems/profile", label: nav.profile },
   ],
+  /* ADR-051 — the data-entry role adds and nothing else, so it has exactly ONE
+     destination. A one-item nav is the honest picture of the permission set. */
+  bsystems_data_entry: [{ href: "/b-systems/entry", label: nav.dataEntry }],
 };
 
 const ROLE_LABELS: Record<string, Msg> = roles;
@@ -65,6 +68,7 @@ export default async function BSystemsAppLayout({
     "bsystems_sales",
     "bsystems_agent",
     "bsystems_partner",
+    "bsystems_data_entry",
   );
   const locale = await getLocale();
   const t = tFor(locale);
@@ -107,7 +111,10 @@ export default async function BSystemsAppLayout({
         />
         <div className="user">
           <LanguageToggle />
-          <NotificationsBell />
+          {/* ADR-051: a data-entry account receives no notifications and is not
+              granted the notifications endpoint — a bell that can only ever
+              poll a 403 is worse than no bell. */}
+          {role === "bsystems_data_entry" ? null : <NotificationsBell />}
           <EntitySwitch roles={user.roles} current="bsystems" />
           <span className="user-avatar" aria-hidden>
             {initials}

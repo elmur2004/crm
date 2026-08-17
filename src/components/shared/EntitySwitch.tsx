@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { Role } from "@/lib/pipeline-engine/constants";
+import { landingFor } from "@/lib/auth/landing";
 import { tFor } from "@/lib/i18n/core";
 import { getLocale } from "@/lib/i18n/server";
 import { shell } from "@/lib/i18n/dict/auth";
@@ -8,10 +9,16 @@ import { shell } from "@/lib/i18n/dict/auth";
    roles span BOTH companies — single-entity users never see the other side.
    Access itself stays server-side (proxy + guards); this is navigation only. */
 
-const BS_ROLES: Role[] = ["bsystems_admin", "bsystems_sales", "bsystems_agent", "bsystems_partner"];
+const BS_ROLES: Role[] = [
+  "bsystems_admin",
+  "bsystems_sales",
+  "bsystems_agent",
+  "bsystems_partner",
+  "bsystems_data_entry",
+];
 
 export function bsLandingFor(roles: Role[]): string {
-  return roles.includes("bsystems_admin") ? "/b-systems" : "/b-systems/crm";
+  return landingFor(roles.filter((r) => BS_ROLES.includes(r)));
 }
 
 export async function EntitySwitch({ roles, current }: { roles: Role[]; current: "byteforce" | "bsystems" }) {

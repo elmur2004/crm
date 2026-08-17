@@ -63,6 +63,24 @@ export async function requireBsAdmin(): Promise<CurrentUser> {
   return requireRole("bsystems_admin");
 }
 
+/* ---- ADR-051: the data-entry role's TWO permissions, and nothing else ----
+
+   Founder: "This user is just able to add leads or partners or agents... They
+   are just adding, and they will not be the owner of what they add."
+   These guards are deliberately narrow and named for the ACT, not the role, so
+   the permission set stays readable: everything else in the B-Systems API
+   keeps its own role list, which does not mention data entry — so every other
+   endpoint refuses it by construction rather than by remembering to. */
+
+/** May add a card to the Partners & Agents board (admin, or data entry). */
+export async function requireProspectCreator(): Promise<CurrentUser> {
+  return requireRole("bsystems_admin", "bsystems_data_entry");
+}
+
+/* the predicate itself is pure and lives in ./roles, so services and their
+   tests can use it without pulling next-auth in; re-exported for route code */
+export { isDataEntry } from "./roles";
+
 /** V2 lead access: admin → any B-Systems lead; sales → internal-bucket leads;
     agent/partner → ONLY their own (ownerUserId). ByteForce: staff only. */
 export async function requireLeadAccess(leadId: string): Promise<{

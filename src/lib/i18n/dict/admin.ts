@@ -227,6 +227,7 @@ export const roleBadges: Record<string, Msg> = {
   bsystems_sales: { en: "Internal sales", ar: "مبيعات داخلية" },
   bsystems_agent: { en: "Agent", ar: "وكيل" },
   bsystems_partner: { en: "Partner", ar: "شريك" },
+  bsystems_data_entry: { en: "Data entry", ar: "إدخال بيانات" },
   byteforce_staff: { en: "ByteForce", ar: "ByteForce" },
 };
 
@@ -236,6 +237,7 @@ export const regRoleBadges: Record<string, Msg> = {
   bsystems_sales: { en: "Internal sales", ar: "مبيعات داخلية" },
   bsystems_agent: { en: "Agent", ar: "وكيل" },
   bsystems_partner: { en: "Partner", ar: "شريك" },
+  bsystems_data_entry: { en: "Data entry", ar: "إدخال بيانات" },
   byteforce_staff: { en: "ByteForce staff", ar: "فريق ByteForce" },
 };
 
@@ -245,6 +247,7 @@ export const assignableRoleLabels: Record<string, Msg> = {
   bsystems_sales: { en: "B-Systems internal sales", ar: "مبيعات B-Systems الداخلية" },
   bsystems_agent: { en: "B-Systems agent", ar: "وكيل B-Systems" },
   bsystems_partner: { en: "B-Systems partner", ar: "شريك B-Systems" },
+  bsystems_data_entry: { en: "B-Systems data entry", ar: "إدخال بيانات B-Systems" },
   byteforce_staff: { en: "ByteForce staff", ar: "فريق ByteForce" },
 };
 
