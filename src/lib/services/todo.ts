@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import type { Brand } from "@/lib/pipeline-engine/constants";
 import { cairoToUtc, utcToCairo } from "@/lib/datetime";
+import { prospectTitle } from "./partners";
 
 /* Founder (ADR-041) — the To-Do page: "the actual date of today with the
    entire tasks of today... just a way of representing what I have to do today,
@@ -154,6 +155,8 @@ export async function todoFor(opts: {
         where: { stage: { in: ["following_up", "meeting_setting"] } },
         select: {
           id: true,
+          kind: true, // partner card ⇒ the company, agent card ⇒ the person
+          name: true,
           companyName: true,
           stage: true,
           followUps: { orderBy: { createdAt: "desc" }, take: 1 },
@@ -187,7 +190,7 @@ export async function todoFor(opts: {
           kind: "prospect_follow_up",
           at: f.dueAt,
           withTime: true,
-          title: prospect.companyName,
+          title: prospectTitle(prospect),
           href: `/b-systems/partners-pipeline/${prospect.id}`,
         });
       }
@@ -203,7 +206,7 @@ export async function todoFor(opts: {
           kind: "prospect_meeting",
           at: m.datetime,
           withTime: true,
-          title: prospect.companyName,
+          title: prospectTitle(prospect),
           href: `/b-systems/partners-pipeline/${prospect.id}`,
         });
       }

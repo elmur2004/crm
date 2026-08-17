@@ -1,8 +1,12 @@
 import type { Locale, Msg } from "@/lib/i18n/core";
 
-/* Partners surface (App B): acquisition board (§7.2), prospect detail,
-   directory (§7.3), partner detail (§7.4), admin manage modals. EN values are
-   byte-identical to the original literals — the e2e suite asserts on them. */
+/* Partners & Agents surface (App B): acquisition board (§7.2), prospect detail,
+   directory (§7.3), partner detail (§7.4), admin manage modals.
+
+   EN values were byte-identical to the original literals; the founder-directed
+   rename of this section ("Partnership CRM" → "Partners & Agents") is the one
+   deliberate exception, applied here and in every e2e assertion that read the
+   old wording. Everything else stays byte-identical. */
 
 /* ---------- shared buttons / errors / field names ---------- */
 
@@ -19,13 +23,23 @@ export const pCommon = {
   companyName: { en: "Company name", ar: "اسم الشركة" },
   role: { en: "Role", ar: "المنصب" },
   number: { en: "Number", ar: "الرقم" },
-  email: { en: "Email", ar: "البريد الإلكتروني" },
   description: { en: "Description", ar: "الوصف" },
-  address: { en: "Address", ar: "العنوان" },
   importance: { en: "Importance", ar: "الأهمية" },
   keyPersonName: { en: "Key person name", ar: "اسم الشخص المسؤول" },
   keyPersonRole: { en: "Key person role", ar: "منصب الشخص المسؤول" },
 } satisfies Record<string, Msg>;
+
+/* ---------- card kind (founder: one board, partners AND agents) ---------- */
+
+export const kindMsgs: Record<string, Msg> = {
+  partner: { en: "Partner", ar: "شريك" },
+  agent: { en: "Agent", ar: "وكيل" },
+};
+
+/** The chip / dropdown label for a card's kind. */
+export function prospectKindLabel(locale: Locale, value: string): string {
+  return kindMsgs[value]?.[locale] ?? value;
+}
 
 /* ---------- fixed enums (values stay English on the wire) ---------- */
 
@@ -82,8 +96,8 @@ export function meetingModeLabel(locale: Locale, value: string): string {
 /* ---------- pipeline board page (§7.2) ---------- */
 
 export const pPipeline = {
-  eyebrow: { en: "B-SYSTEMS · PARTNERS PIPELINE", ar: "B-SYSTEMS · مسار الشركاء" },
-  title: { en: "Partners Pipeline", ar: "مسار الشركاء" },
+  eyebrow: { en: "B-SYSTEMS · PARTNERS & AGENTS", ar: "B-SYSTEMS · الشركاء والوكلاء" },
+  title: { en: "Partners & Agents", ar: "الشركاء والوكلاء" },
   awaitingNewNumber: { en: "Awaiting a new number", ar: "بانتظار رقم جديد" },
   nextAt: { en: "Next: {dt}", ar: "التالي: {dt}" },
   noFollowUpSet: { en: "No follow-up set", ar: "لا توجد متابعة محددة" },
@@ -120,7 +134,18 @@ export const pProspect = {
   altNumbers: { en: "Alternative numbers:", ar: "أرقام بديلة:" },
   emailField: { en: "Email:", ar: "البريد الإلكتروني:" },
   businessActivityField: { en: "Business activity:", ar: "النشاط التجاري:" },
+  addressField: { en: "Address:", ar: "العنوان:" },
+  specialityField: { en: "Speciality:", ar: "التخصص:" },
+  cvField: { en: "CV:", ar: "السيرة الذاتية:" },
+  noCv: { en: "No CV on this card yet.", ar: "لا توجد سيرة ذاتية على هذه البطاقة بعد." },
   viewInDirectory: { en: "View in Partners directory", ar: "عرض في دليل الشركاء" },
+  viewInAgents: { en: "View in Agents", ar: "عرض في الوكلاء" },
+  /* the email follows this line as its own bidi-isolated run, so the sentence
+     deliberately ends without one — never interpolate an address into RTL prose */
+  agentAccountCreated: {
+    en: "Agent account created — they sign in with",
+    ar: "تم إنشاء حساب الوكيل — يسجّل الدخول باستخدام",
+  },
   recordingsTitle: { en: "Cold-call recordings", ar: "تسجيلات الاتصال المباشر" },
   noRecordings: { en: "No recordings yet.", ar: "لا توجد تسجيلات بعد." },
   recordingMissing: {
@@ -165,9 +190,26 @@ export const pDirectory = {
 export const pForms = {
   businessActivity: { en: "Business activity", ar: "النشاط التجاري" },
   specifyActivity: { en: "Specify the activity", ar: "حدد النشاط" },
-  addPartnerLead: { en: "Add partner lead", ar: "إضافة شريك محتمل" },
-  newPartnerLead: { en: "New partner lead", ar: "شريك محتمل جديد" },
-  savePartnerLead: { en: "Save partner lead", ar: "حفظ الشريك المحتمل" },
+  addPartnerLead: { en: "Add partner or agent", ar: "إضافة شريك أو وكيل" },
+  newPartnerLead: { en: "New partner or agent", ar: "شريك أو وكيل جديد" },
+  savePartnerLead: { en: "Save card", ar: "حفظ البطاقة" },
+  /* founder: "whenever I'm adding someone into the CRM, it could be a partner
+     or an agent" — so the FIRST control on the form asks which. */
+  whichKind: { en: "What are you adding?", ar: "ما الذي تضيفه؟" },
+  kindLocked: {
+    en: "Chosen once: a card stays a partner or an agent — the Won step differs for each.",
+    ar: "يُختار مرة واحدة: تبقى البطاقة شريكًا أو وكيلًا — لأن خطوة «مكسب» تختلف بينهما.",
+  },
+  /* founder: only the name and the number are required on an agent card */
+  agentOptionalHint: {
+    en: "Only the name and the number are required — add the rest whenever you have it.",
+    ar: "الاسم والرقم فقط مطلوبان — أضف الباقي متى توفّر لديك.",
+  },
+  cvOptionalHint: {
+    en: "Optional — it moves to the agent's profile when you set them Won.",
+    ar: "اختيارية — تنتقل إلى ملف الوكيل عند تحويله إلى «مكسب».",
+  },
+  saveCv: { en: "Save CV", ar: "حفظ السيرة الذاتية" },
   altNumbersTitle: { en: "Alternative numbers", ar: "أرقام بديلة" },
   altNumbersHint: {
     en: "Saving new number(s) returns this card to Lead automatically. You can also add them later — nothing is required now.",
@@ -197,8 +239,15 @@ export const pPanel = {
     en: "Won saves only when the partner record is complete.",
     ar: "لا يُحفظ «مكسب» إلا عند اكتمال بيانات الشريك.",
   },
-  password: { en: "Password", ar: "كلمة المرور" },
+  /* founder: "once I put them Won, I have to create for them a user and a
+     password — they will not apply, I will create for them a user and a
+     password." Both credentials are REQUIRED on the agent gate. */
+  wonAgentHint: {
+    en: "Won creates the agent's account: they sign in with this email and password straight away — no registration to approve.",
+    ar: "«مكسب» ينشئ حساب الوكيل: يسجّل الدخول بهذا البريد وكلمة المرور فورًا — دون طلب تسجيل ينتظر الموافقة.",
+  },
   passwordPh: { en: "Partner's sign-in password", ar: "كلمة مرور دخول الشريك" },
+  agentPasswordPh: { en: "Agent's sign-in password", ar: "كلمة مرور دخول الوكيل" },
   passwordHint: {
     en: "Email + password create the partner's account automatically.",
     ar: "البريد الإلكتروني وكلمة المرور ينشئان حساب الشريك تلقائيًا.",
@@ -242,7 +291,7 @@ export const pPanel = {
 /* ---------- admin edit / delete modals (manage.tsx) ---------- */
 
 export const pManage = {
-  prospectEyebrow: { en: "Partnership CRM · Edit", ar: "إدارة الشراكات · تعديل" },
+  prospectEyebrow: { en: "Partners & Agents · Edit", ar: "الشركاء والوكلاء · تعديل" },
   partnerEyebrow: { en: "Partners · Edit", ar: "الشركاء · تعديل" },
   yesDelete: { en: "Yes, delete", ar: "نعم، احذف" },
   keepIt: { en: "Keep it", ar: "الإبقاء عليه" },
@@ -262,8 +311,8 @@ export const pLead = {
 /* ---------- page <title>s ---------- */
 
 export const pMeta = {
-  pipelineTitle: { en: "Partnership CRM — B-Systems CRM", ar: "إدارة الشراكات — B-Systems CRM" },
-  prospectTitle: { en: "Partner prospect — B-Systems CRM", ar: "شريك محتمل — B-Systems CRM" },
+  pipelineTitle: { en: "Partners & Agents — B-Systems CRM", ar: "الشركاء والوكلاء — B-Systems CRM" },
+  prospectTitle: { en: "Partner or agent — B-Systems CRM", ar: "شريك أو وكيل — B-Systems CRM" },
   directoryTitle: { en: "Partners — B-Systems CRM", ar: "الشركاء — B-Systems CRM" },
   partnerTitle: { en: "Partner — B-Systems CRM", ar: "شريك — B-Systems CRM" },
 } satisfies Record<string, Msg>;

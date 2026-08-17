@@ -17,6 +17,7 @@ export type RequiredGroup =
   | { group: "lost" }
   | { group: "won" } // internal Won fields (§6.2)
   | { group: "won_partner" } // §7.2 completeness gate fields
+  | { group: "won_agent" } // founder: the AGENT card's gate — profile + credentials
   | { group: "won_deal" } // V2 §4: milestone tab (percent + dated milestones)
   | { group: "negotiation" } // V2: note
   | { group: "numbers" }; // PP-1: reveal Number 2 / Number 3
@@ -24,6 +25,7 @@ export type RequiredGroup =
 export type SideEffectKind =
   | "create_client" // T-9 (A-1)
   | "create_partner" // PP-4
+  | "create_agent" // PP-4a — founder: the admin mints the agent's account
   | "create_won_deal"; // P-6
 
 export type EngineEvent =

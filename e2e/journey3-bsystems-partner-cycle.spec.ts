@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
-/* V2 §6 journey 3 — Partnership CRM (ADMIN-owned in V2):
+/* V2 §6 journey 3 — Partners & Agents, the PARTNER card (ADMIN-owned in V2):
    prospect with mp3 record → Didn't Answer records WHICH number went unanswered
    (no new number required) → an alternative number added later auto-returns the
    card to Lead (unbounded loop) → simplified meeting (date+time+mode) → Won gate
@@ -12,7 +12,7 @@ const MP3 = Buffer.concat([Buffer.from("ID3"), Buffer.alloc(4096, 1)]);
 test("journey 3: partnership acquisition to attributed CRM lead (V2 numbers flow)", async ({
   page,
 }) => {
-  /* V2: the Partnership CRM belongs to the ADMIN. */
+  /* V2: the Partners & Agents board belongs to the ADMIN. */
   await page.goto("/login");
   await page.getByLabel("Email or phone").fill("admin@byteforce.com");
   await page.getByLabel("Password").fill("password123");
@@ -21,14 +21,14 @@ test("journey 3: partnership acquisition to attributed CRM lead (V2 numbers flow
 
   /* Create the prospect (§7.2 Lead stage fields). */
   await page.goto("/b-systems/partners-pipeline");
-  await page.getByRole("button", { name: "Add partner lead" }).click();
+  await page.getByRole("button", { name: "Add partner or agent" }).click();
   await page.getByLabel("Name", { exact: true }).fill("Dina Fawzy");
   await page.getByLabel("Company name").fill("Fawzy Logistics");
   await page.getByLabel("Number", { exact: true }).fill("0227654321");
   /* fixed dropdown; "Other activities" opens the free-text box */
   await page.getByLabel("Business activity").selectOption("Other activities");
   await page.getByLabel("Specify the activity").fill("Freight & logistics");
-  await page.getByRole("button", { name: "Save partner lead" }).click();
+  await page.getByRole("button", { name: "Save card" }).click();
   const card = page.getByRole("link", { name: /Fawzy Logistics/ });
   await expect(card).toBeVisible();
 
@@ -128,7 +128,7 @@ test("journey 3: partnership acquisition to attributed CRM lead (V2 numbers flow
   ).toBeVisible();
 });
 
-/* Founder V4 — the Partnership CRM board drags like the main CRM, and the
+/* Founder V4 — the Partners & Agents board drags like the main CRM, and the
    admin can edit + delete a card from its detail page. */
 
 async function dragTo(page: Page, card: Locator, column: Locator) {
@@ -154,12 +154,12 @@ test("founder V4: partners board drag opens the stage form; edit + delete from d
 
   /* A fresh card to drag. */
   await page.goto("/b-systems/partners-pipeline");
-  await page.getByRole("button", { name: "Add partner lead" }).click();
+  await page.getByRole("button", { name: "Add partner or agent" }).click();
   await page.getByLabel("Name", { exact: true }).fill("Omar Draggy");
   await page.getByLabel("Company name").fill("Draggy Freight");
   await page.getByLabel("Number", { exact: true }).fill("0100000123");
   await page.getByLabel("Business activity").selectOption("HR company");
-  await page.getByRole("button", { name: "Save partner lead" }).click();
+  await page.getByRole("button", { name: "Save card" }).click();
   const card = page.locator('[data-deal-card="Draggy Freight"]');
   await expect(card).toBeVisible();
 

@@ -26,7 +26,7 @@ const NAV: Record<string, Array<{ href: string; label: Msg }>> = {
     { href: "/b-systems/leads", label: nav.leads },
     { href: "/b-systems/crm", label: nav.crm },
     { href: "/b-systems/won-leads", label: nav.wonLeads },
-    { href: "/b-systems/partners-pipeline", label: nav.partnershipCrm },
+    { href: "/b-systems/partners-pipeline", label: nav.partnersAndAgents },
     { href: "/b-systems/partners", label: nav.partners },
     { href: "/b-systems/agents", label: nav.agents },
     { href: "/b-systems/registrations", label: nav.registrations },

@@ -16,6 +16,11 @@
 .u-muted { font: 400 12.5px/1.5 var(--font-body); color: var(--color-muted); }
 .u-footnote { margin: 14px 0 0; font: 400 12px/1.5 var(--font-body); color: var(--color-muted); }
 .u-mono { font: 500 10.5px var(--font-mono); letter-spacing: .16em; color: var(--color-muted); text-transform: uppercase; }
+/* Latin digits inside RTL prose — a phone number, an id — need their OWN bidi
+   run, or the leading "+" and the digit groups reorder around the Arabic text
+   (the defect ADR-048 found on the call sheet, generalised as a utility). It
+   only isolates: colour, size and weight stay with whatever class it joins. */
+.u-ltr { direction: ltr; unicode-bidi: isolate; }
 
 /* ---------- 2.1 app shell / header ---------- */
 .app-header {

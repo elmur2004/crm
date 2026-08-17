@@ -2,10 +2,23 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { BusinessActivityField, businessActivityFrom } from "./forms";
+import {
+  AgentProspectFields,
+  BusinessActivityField,
+  PartnerProspectFields,
+  agentNameFrom,
+  businessActivityFrom,
+} from "./forms";
 import { tFor } from "@/lib/i18n/core";
 import { useLocale } from "@/components/shared/LocaleProvider";
-import { importanceOptionLabel, pCommon, pManage } from "@/lib/i18n/dict/partners";
+import {
+  importanceOptionLabel,
+  pCommon,
+  pForms,
+  pManage,
+  prospectKindLabel,
+} from "@/lib/i18n/dict/partners";
+import { fields as authFields, signup } from "@/lib/i18n/dict/auth";
 
 /* Founder V4 — admin edit + delete for pipeline cards and directory partners. */
 
@@ -40,12 +53,16 @@ function useAction() {
 
 export interface ProspectEditable {
   id: string;
+  /** partner | agent — fixed at creation, so the modal shows THAT field set */
+  kind: string;
   name: string;
-  companyName: string;
+  companyName: string | null;
   role: string | null;
   email: string | null;
   number: string;
-  businessActivity: string;
+  businessActivity: string | null;
+  address: string | null;
+  speciality: string | null;
   description: string | null;
 }
 
@@ -54,6 +71,7 @@ export function EditProspectButton({ prospect }: { prospect: ProspectEditable })
   const locale = useLocale();
   const t = tFor(locale);
   const [open, setOpen] = useState(false);
+  const agent = prospect.kind === "agent";
   if (!open) {
     return (
       <button type="button" onClick={() => setOpen(true)} className="btn-ghost btn--sm">
@@ -61,13 +79,14 @@ export function EditProspectButton({ prospect }: { prospect: ProspectEditable })
       </button>
     );
   }
+  const [first = "", ...rest] = prospect.name.trim().split(/\s+/);
   return (
     <div className="modal-overlay">
       <div className="modal">
         <div className="modal-head">
           <div>
             <p className="modal-eyebrow">{t(pManage.prospectEyebrow)}</p>
-            <p className="modal-title">{prospect.companyName}</p>
+            <p className="modal-title">{prospect.companyName ?? prospect.name}</p>
           </div>
           <button type="button" className="modal-close" aria-label={t(pCommon.close)} onClick={() => setOpen(false)}>
             ✕
@@ -80,15 +99,26 @@ export function EditProspectButton({ prospect }: { prospect: ProspectEditable })
             void run(
               `/api/b-systems/partners-pipeline/${prospect.id}`,
               "PATCH",
-              {
-                name: String(fd.get("name")),
-                companyName: String(fd.get("companyName")),
-                role: String(fd.get("role") || "") || undefined,
-                email: String(fd.get("email") || "") || undefined,
-                number: String(fd.get("number")),
-                businessActivity: businessActivityFrom(fd),
-                description: String(fd.get("description") || "") || undefined,
-              },
+              agent
+                ? {
+                    /* the kind is NOT in the payload: it is immutable, and the
+                       server ignores the other kind's columns anyway */
+                    name: agentNameFrom(fd),
+                    email: String(fd.get("email") || "") || undefined,
+                    number: String(fd.get("number")),
+                    address: String(fd.get("address")),
+                    speciality: String(fd.get("speciality")),
+                    description: String(fd.get("description") || "") || undefined,
+                  }
+                : {
+                    name: String(fd.get("name")),
+                    companyName: String(fd.get("companyName")),
+                    role: String(fd.get("role") || "") || undefined,
+                    email: String(fd.get("email") || "") || undefined,
+                    number: String(fd.get("number")),
+                    businessActivity: businessActivityFrom(fd),
+                    description: String(fd.get("description") || "") || undefined,
+                  },
               () => setOpen(false),
             );
           }}
@@ -96,28 +126,26 @@ export function EditProspectButton({ prospect }: { prospect: ProspectEditable })
         >
           <div className="modal-body space-y-3">
             {error ? <p className="alert-error">{error}</p> : null}
+            <p>
+              <span className="badge badge--entity">{prospectKindLabel(locale, prospect.kind)}</span>
+            </p>
+            <p className="field-hint">{t(pForms.kindLocked)}</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <label className="block">
-                <span className={labelCls}>{t(pCommon.name)}</span>
-                <input type="text" name="name" required defaultValue={prospect.name} className={inputCls} />
-              </label>
-              <label className="block">
-                <span className={labelCls}>{t(pCommon.companyName)}</span>
-                <input type="text" name="companyName" required defaultValue={prospect.companyName} className={inputCls} />
-              </label>
-              <label className="block">
-                <span className={labelCls}>{t(pCommon.role)}</span>
-                <input type="text" name="role" defaultValue={prospect.role ?? ""} className={inputCls} />
-              </label>
-              <label className="block">
-                <span className={labelCls}>{t(pCommon.number)}</span>
-                <input type="tel" name="number" required defaultValue={prospect.number} className={inputCls} />
-              </label>
-              <label className="block">
-                <span className={labelCls}>{t(pCommon.email)}</span>
-                <input type="email" name="email" defaultValue={prospect.email ?? ""} className={inputCls} />
-              </label>
-              <BusinessActivityField defaultValue={prospect.businessActivity} />
+              {agent ? (
+                <AgentProspectFields
+                  withCv={false}
+                  defaults={{
+                    firstName: first,
+                    lastName: rest.join(" "),
+                    number: prospect.number,
+                    email: prospect.email,
+                    address: prospect.address,
+                    speciality: prospect.speciality,
+                  }}
+                />
+              ) : (
+                <PartnerProspectFields defaults={prospect} />
+              )}
             </div>
             <label className="block">
               <span className={labelCls}>{t(pCommon.description)}</span>
@@ -260,7 +288,7 @@ export function EditPartnerButton({ partner }: { partner: PartnerEditable }) {
                 <input type="tel" name="number" required defaultValue={partner.number} className={inputCls} />
               </label>
               <label className="block">
-                <span className={labelCls}>{t(pCommon.email)}</span>
+                <span className={labelCls}>{t(signup.email)}</span>
                 <input type="email" name="email" defaultValue={partner.email ?? ""} className={inputCls} />
               </label>
               <label className="block">
@@ -274,7 +302,7 @@ export function EditPartnerButton({ partner }: { partner: PartnerEditable }) {
               <BusinessActivityField defaultValue={partner.businessActivity} />
             </div>
             <label className="block">
-              <span className={labelCls}>{t(pCommon.address)}</span>
+              <span className={labelCls}>{t(authFields.address)}</span>
               <input type="text" name="address" required defaultValue={partner.address} className={inputCls} />
             </label>
           </div>

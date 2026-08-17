@@ -7,6 +7,7 @@ import { tFor } from "@/lib/i18n/core";
 import { useLocale } from "@/components/shared/LocaleProvider";
 import { leadTypeLabel } from "@/lib/i18n/dict/labels";
 import { pCommon, pLead } from "@/lib/i18n/dict/partners";
+import { signup } from "@/lib/i18n/dict/auth";
 
 /* §7.4 / PP-5 — add a lead inside a partner's detail: §6.1 lead fields + optional
    assign-to-rep (A-6, default Unassigned). The server stamps the attribution. */
@@ -78,7 +79,7 @@ export function PartnerAddLeadClient({
           <input type="tel" name="number" required className={inputCls} />
         </label>
         <label className="block">
-          <span className={labelCls}>{t(pCommon.email)}</span>
+          <span className={labelCls}>{t(signup.email)}</span>
           <input type="email" name="email" className={inputCls} />
         </label>
         <label className="block">

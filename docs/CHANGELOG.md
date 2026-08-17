@@ -1,5 +1,37 @@
 # Changelog — user-visible changes per phase/release
 
+## Partners & Agents — follow up on both from one board (2026-08-17)
+- The **Partnership CRM** is now **"Partners & Agents"**. Same board,
+  same columns, same everything you already use — it just holds two
+  kinds of card now, so partners and agents sit side by side and you
+  follow them up together.
+- The **Add** button asks first: **partner or agent?** Choosing changes
+  the fields underneath. A partner asks for what it always asked for. An
+  **agent asks exactly what the public application form asks** — first
+  name, last name, phone, email, address, speciality and their **CV** —
+  so a person you add by hand ends up identical to one who applied.
+- But on an agent card **only the name and the number are required.**
+  Everything else — email, address, speciality, the CV — is optional, so
+  you can open a card in the middle of a phone call with nothing else in
+  hand and fill the rest in whenever it arrives. (Partner cards are
+  unchanged: company name and business activity are still required.)
+- Every card wears a small **Partner** or **Agent** chip so you can tell
+  them apart at a glance.
+- Dragging, follow-ups, meetings, the "didn't answer" number picker,
+  recordings, lost reasons — all of it works the same on both kinds.
+- **Won is where they differ, and where the questions get asked.** A
+  partner still becomes a partner in the directory. An **agent becomes
+  an account**: the Won step fills in whatever the card already knows
+  and asks for the rest — address, speciality, and **the email and
+  password you choose for them**. They can sign in immediately, with no
+  registration to approve, and any CV on the card moves onto their
+  profile. They appear in **Agents**, not in the Partners directory.
+  If a field is missing, the Won step says exactly which one.
+- **People who apply on their own still just wait in Registrations.**
+  They never appear on the board. Only the ones you put there do.
+- The card's page shows the agent's address, speciality and CV, and
+  after they are Won it tells you which email they sign in with.
+
 ## Permanently delete a user (2026-08-17)
 - Users now has a **"Delete"** button beside "Remove". Remove is the old,
   reversible switch-off; **Delete wipes the account for good**. It asks

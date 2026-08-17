@@ -1288,3 +1288,163 @@ R23 copy sign-off — carried in PROGRESS (Entry 011).
   right tool for "block access, keep everything", and the confirm dialog
   says so.
 - Status: Accepted
+
+## ADR-050 — 2026-08-17 — Partners & Agents: one board, two card kinds, two Won gates
+
+- Context: the founder — "I want the CRM of the partners to be the CRM of
+  the partners and agents. So whenever I'm adding someone into the CRM,
+  it could be a partner or an agent, each one with their specific
+  fields, but they all appear as cards in the CRM so I can follow up
+  with the partners and the agents at the same time. Whenever someone is
+  applying and is waiting in the registration, they will be just waiting
+  in the registration — they will not appear in the CRM. The agents that
+  appear in the CRM are the ones I put. And once I put them Won, I have
+  to create for them a user and a password — they will not apply, I will
+  create for them a user and a password. And the partners as it is.
+  We're just adding the agents." Clarified the same day: "the fields of
+  adding an agent is the fields when he applies by himself."
+  Until now the §7.2 board carried exactly one thing — a partner company
+  on its way into the directory. Agents arrived only through the public
+  signup form and the Registrations queue, so an agent the founder was
+  courting had nowhere to live: no card, no follow-ups, no meetings, no
+  cold-call recording, no pipeline at all.
+- Decision: ONE board, TWO kinds of card, and the pipeline itself does
+  not change. `PartnerProspect.kind` is "partner" | "agent" (default
+  "partner", so every existing row keeps its meaning and its data).
+  1. FIELDS ARE KIND-CONDITIONAL, IN ZOD, NOT IN THE DATABASE.
+     companyName and businessActivity became NULLABLE and `address` +
+     `speciality` were added, because one table now holds two shapes.
+     Requiredness lives in `createProspectSchema`'s superRefine and in
+     one shared `kindIssues()` helper the edit path re-runs, and the two
+     kinds are DELIBERATELY ASYMMETRIC:
+     · partner ⇒ companyName + businessActivity, exactly as before
+       ("and the partners as it is" — not relaxed);
+     · agent ⇒ NOTHING beyond the base name + number. Founder: "the CV
+       should be optional. Everything is optional other than the name
+       and the number... just to not confuse this one." The number, as
+       one of the two mandatory fields, is held to the signup form's
+       `isValidPhone` rule.
+     Only the columns belonging to the card's kind are ever written; the
+     other set stays null whatever the payload says. A future reader
+     should not "fix" the asymmetry into symmetry — it is the founder's.
+  2. THE AGENT FIELD SET IS THE SIGNUP FORM'S, not a set we designed —
+     first name, last name, phone, email, address, speciality, CV —
+     reusing dict/auth's `fields` and `signup` Msgs so the CRM form and
+     the public form cannot drift apart. The same field SET, a laxer
+     rule about which are required: the admin is usually opening the
+     card mid-phone-call. Minus the password: at signup the applicant
+     sets their own; here the ADMIN sets it at the Won gate, which is
+     the founder's whole point.
+     THE STRICTNESS MOVES TO THE GATE, which is what this pipeline's
+     gates are for (PP-4 already blocks until the partner record is
+     complete). `wonAgentSchema` requires firstName, lastName, address,
+     speciality, email, password and phone — prefilled from the card
+     where it has them, typed in at the gate where it does not. That is
+     not merely tidy: `PortalRep.address` and `.speciality` are NOT NULL
+     columns, so the gate is the last honest place to insist. Every
+     message names its own field (and uses Zod's `error` option, not
+     just `min`, so a MISSING field reads the same as an empty one
+     instead of "expected string, received undefined").
+  3. THE KIND IS CHOSEN ONCE AND IS IMMUTABLE. `updateProspectSchema`
+     does not contain `kind` at all, and `updateProspect` re-validates
+     against the STORED kind and writes only that kind's columns. The
+     Won gate's behaviour hangs off the kind, so a card that could
+     switch mid-pipeline could convert into the wrong thing.
+  4. THE ENGINE IS PARAMETERIZED, NOT FORKED. `partnersConfigFor(kind)`
+     returns the one partners config with the Won gate swapped:
+     `won_partner`/`create_partner` or `won_agent`/`create_agent`.
+     Stages, next actions, drag rules, same-stage records, PP-1/PP-2's
+     numbers flow and every stage form are literally the same code, so
+     an agent card follows up, misses calls, returns to Lead on a new
+     number, meets, is lost — all of it — exactly like a partner card.
+  5. PP-4a, THE AGENT WON GATE, MINTS THE WHOLE ACCOUNT IN ONE
+     TRANSACTION: User (email + normalized phone, hashed password AND
+     the `passwordPlain` admin-visibility copy, `active: true`,
+     `registrationStatus: "approved"`), the `bsystems_agent` UserRole,
+     and the PortalRep profile — the same three writes `signupRep`
+     makes, minus the waiting. Approved from birth is the founder's rule
+     stated positively: the admin created them, so there is nothing to
+     approve. Duplicate email or phone is refused with the signup path's
+     own message and nothing is written.
+  6. THE CV SURVIVES THE JOURNEY. The card owns it as an Attachment of
+     kind "cv" (the prospect's attachment relation is filtered by kind
+     everywhere, so it never appears in the cold-call recordings
+     player), optional at creation and addable later. At the gate it is
+     RE-PARENTED onto the created PortalRep — moved, not copied — so the
+     file is neither duplicated nor orphaned and the agent's profile
+     shows exactly what a self-applied agent's would. It is optional
+     EVERYWHERE — card and gate alike: an agent converted without one
+     simply has no CV yet and can upload it from their own profile.
+     Neither dropzone marks its input `required`, because the design
+     system stars any required dropzone in accent and a star on
+     "optional" copy contradicts itself.
+  7. REGISTRATIONS AND THE BOARD STAY DISJOINT. No code path links a
+     signup to a prospect; a signup still creates a pending user visible
+     only in Registrations, and a test asserts it creates no card.
+  8. THE SECTION IS RENAMED "Partners & Agents" / "الشركاء والوكلاء" —
+     nav, eyebrow, h1, page titles, edit-modal eyebrow, the add button
+     ("Add partner or agent"), the save button ("Save card") and the two
+     To-Do row labels. This is a founder-directed English rename, so it
+     is the ONE sanctioned exception to the byte-identical-EN rule
+     (ADR-037); every e2e assertion that read the old wording was
+     updated in the same commit. The ROUTE /b-systems/partners-pipeline
+     is deliberately unchanged: no dead links, no redirects to maintain.
+- Alternatives considered: a SECOND board/table for agents — rejected,
+  it is the exact opposite of "they all appear as cards in the CRM so I
+  can follow up with the partners and the agents at the same time", and
+  it would have duplicated the whole pipeline. Making the agent columns
+  NOT NULL with a discriminator per table (table-per-kind) — rejected:
+  the shared pipeline is the feature, and every child record
+  (FollowUp/Meeting/LostInfo/Attachment) already points at
+  PartnerProspect. Enforcing requiredness in the DB with CHECK
+  constraints — rejected: Prisma cannot express it and the error would
+  reach the user as a constraint violation instead of a field message.
+  Letting the kind be edited — rejected, see (3). Creating the agent
+  account at CARD creation instead of at Won — rejected: it would put a
+  live login in the world for someone who is still a prospect, and the
+  founder tied the account explicitly to "once I put them Won".
+  Auto-generating the agent's password — rejected: the founder says "I
+  will create for them a user and a password", and the partner gate
+  already works that way (ADR-034's supersession of the V2 §8 auto
+  password). Splitting the card's single `name` into firstName/lastName
+  COLUMNS — rejected as two columns earning nothing: the gate prefills
+  from a first-space split and the admin confirms or corrects it before
+  the profile is written.
+- Resolves: — (founder directive; no SPEC §11 A-#)
+- Consequences: `PartnerProspect.agentUserId` is a new optional FK to
+  User with ON DELETE SET NULL, so an agent whose account is hard-
+  deleted (ADR-049) leaves the card converted with no account — the same
+  policy Partner.userId already has. `deleteProspect` deletes an
+  unconverted agent card's CV file with it, but a CONVERTED agent's CV
+  has already moved to their profile and is untouched, which is right:
+  the account outlives the card. The partners board has no FilterPanel
+  today, so there is no Kind filter — the chip on every card plus the
+  `data-kind` attribute carry the distinction; adding a filter later is
+  the CRM board's existing searchParams pattern. `listAgentsDetailed()`
+  is an unfiltered PortalRep query, so a converted agent appears in the
+  Agents section with no change at all — and, since no Partner row is
+  created, never in the Partners directory.
+  brand-auditor on the diff returned FAIL and every finding was fixed
+  before the commit. Two were real defects: the CV dropzone marked its
+  input `required` while its own copy said "optional", firing the design
+  system's accent required-star on a contradiction; and an agent card's
+  subtitle is a PHONE NUMBER while the converted-agent line ends in an
+  EMAIL — both Latin runs inside RTL prose with no isolation, the defect
+  ADR-048 found on the call sheet. The fix generalises that one: a
+  `.u-ltr { direction: ltr; unicode-bidi: isolate }` utility now carries
+  every number and address on these pages (including the "·"-joined
+  number lists, isolated per item rather than as one block), and
+  `pProspect.agentAccountCreated` deliberately ENDS before the email
+  instead of interpolating it — `formatMsg` is a plain substitution and
+  cannot isolate what it inserts. The rest were reuse corrections: the
+  kind chip now uses the board's own `.bcard-chips` + `.bcard-tag` (10px,
+  in scale with every other chip on a card) instead of a hand-rolled
+  flex row and the 12px table chip; the edit modal and the detail h1 use
+  `badge badge--entity`, already the "what kind of record is this" badge
+  in Registrations and Users; and `pCommon.address` / `pCommon.email` /
+  `pPanel.password` — byte-identical clones of dict/auth's own labels,
+  which this work put side by side in a single file — were deleted in
+  favour of the auth dict. `nav.partnersAndAgents` now REFERENCES
+  `pPipeline.title` rather than restating it, so the nav item and the
+  page heading cannot disagree.
+- Status: Accepted

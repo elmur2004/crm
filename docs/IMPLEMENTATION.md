@@ -683,3 +683,31 @@ purpose. Any reference the policy failed to release raises a foreign-key error
 there, which aborts everything — so a future column can never leave an account
 half-deleted; it produces a clean refusal ("still referenced by records that
 cannot be released — deactivate it instead") instead.
+
+## The prospect's attachment relation is kind-mixed (ADR-050)
+
+`PartnerProspect.recordings` is named for what it used to hold, but it is just
+`Attachment[]` — every row whose `partnerProspectId` points at the card. Since
+an AGENT card also carries a CV there, **the relation name lies**: an unfiltered
+`include: { recordings: true }` now returns the CV too, and rendering it would
+drop a PDF into the `<audio>`/`<video>` player list.
+
+Every read that means "cold-call recordings" therefore filters explicitly —
+`recordings: { where: { kind: "recording" } }` — and the CV is fetched as its
+own `findFirst({ where: { partnerProspectId, kind: "cv" } })`. The two places
+that deliberately do NOT filter are `deleteProspect` (it must collect every
+storage key the card owns, CV included) and the `attachment.deleteMany` beside
+it. If a third attachment kind is ever hung off a prospect, grep
+`partnerProspectId` and give each read its own kind filter — renaming the
+relation would be a bigger migration than it is worth.
+
+## A new stage group needs an arm in `persistGroup`, even when it writes nothing
+
+The `won_agent` gate is consumed by the `create_agent` side effect, not by a
+child record — exactly like `won_partner` and `won_deal`. But `persistGroup`
+(leads.ts) ends in an `else { throw }`, so a group with no arm fails **inside
+the transaction** with the confusing message `Group payload "won_agent" does
+not match required "won_agent"` (both sides identical — the mismatch is that
+neither branch matched). The new integration tests caught it before the commit.
+When adding a stage group, add its arm to `persistGroup` first, even if the
+body is only a comment saying which side effect consumes it.

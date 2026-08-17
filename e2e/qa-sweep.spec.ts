@@ -92,7 +92,7 @@ test("mobile menu reaches EVERY admin section at 390px (incl. switcher + logout)
     "Leads",
     "CRM",
     "Won Leads",
-    "Partnership CRM",
+    "Partners & Agents",
     "Partners",
     "Agents",
     "Registrations",

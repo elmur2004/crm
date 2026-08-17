@@ -6,14 +6,20 @@ import {
   addRecording,
   applyProspectEvent,
   createProspect,
+  createProspectSchema,
   deletePartner,
   deleteProspect,
   getPartnerDetail,
   getProspectDetail,
+  listPartners,
   parseNumbers,
   updatePartner,
+  updateProspect,
 } from "./partners";
 import { applyLeadEvent, createLead } from "./leads";
+import { listAgentsDetailed } from "./bsystems-admin";
+import { signupRep } from "./portal-reps";
+import { verifyPassword } from "@/lib/auth/hash";
 import { storage, validateAndStore } from "@/lib/storage";
 import type { Actor } from "./activity";
 
@@ -27,6 +33,7 @@ const role = "bsystems_admin" as const;
 function makeProspect() {
   return createProspect(
     {
+      kind: "partner" as const,
       name: "Hany Mansour",
       companyName: "Mansour Trading",
       number: "0223456789",
@@ -378,5 +385,348 @@ describe("Upload validation (§7.2, §15)", () => {
     const docx = Buffer.concat([Buffer.from("PK"), Buffer.alloc(256, 2)]);
     const stored = await validateAndStore("cv", new File([docx], "cv.docx"));
     expect(stored.key).toMatch(/\.docx$/);
+  });
+});
+
+/* ---------------------------------------------------------------------------
+   Founder: "I want the CRM of the partners to be the CRM of the partners AND
+   agents." One board, two kinds of card — the pipeline is unchanged, the field
+   set and the Won gate are not. PP-4a is the agent gate.
+   --------------------------------------------------------------------------- */
+
+const PDF = Buffer.concat([Buffer.from("%PDF-1.7"), Buffer.alloc(2048, 7)]);
+const cvFile = () => new File([PDF], "cv.pdf", { type: "application/pdf" });
+
+function makeAgent(overrides: Record<string, unknown> = {}) {
+  return createProspect(
+    {
+      kind: "agent" as const,
+      name: "Nour Adel",
+      number: "01099887766",
+      email: "nour.adel@example.com",
+      address: "12 Tahrir St, Giza",
+      speciality: "ERP consulting",
+      ...overrides,
+    },
+    actor,
+  );
+}
+
+const AGENT_GATE = {
+  firstName: "Nour",
+  lastName: "Adel",
+  address: "12 Tahrir St, Giza",
+  speciality: "ERP consulting",
+  email: "nour.adel@example.com",
+  password: "agentpass123",
+  phone: "01099887766",
+};
+
+async function agentToWon(prospectId: string, gate = AGENT_GATE) {
+  return applyProspectEvent({
+    prospectId,
+    event: { type: "next_action", action: "won" },
+    group: { group: "won_agent", data: gate },
+    actor,
+    role,
+  });
+}
+
+describe("Partners & Agents: kind-conditional validation", () => {
+  it("a PARTNER card still requires company name and business activity", () => {
+    const missing = createProspectSchema.safeParse({
+      kind: "partner",
+      name: "Hany Mansour",
+      number: "0223456789",
+      businessActivity: "Import/export",
+    });
+    expect(missing.success).toBe(false);
+    expect(JSON.stringify(missing.error?.issues)).toMatch(/companyName/);
+
+    const noActivity = createProspectSchema.safeParse({
+      kind: "partner",
+      name: "Hany Mansour",
+      companyName: "Mansour Trading",
+      number: "0223456789",
+    });
+    expect(noActivity.success).toBe(false);
+    expect(JSON.stringify(noActivity.error?.issues)).toMatch(/businessActivity/);
+
+    /* the original shape still parses, and kind defaults to partner */
+    const ok = createProspectSchema.safeParse({
+      name: "Hany Mansour",
+      companyName: "Mansour Trading",
+      number: "0223456789",
+      businessActivity: "Import/export",
+    });
+    expect(ok.success).toBe(true);
+    expect(ok.data!.kind).toBe("partner");
+  });
+
+  /* Founder: "everything is optional other than the name and the number...
+     just to not confuse this one" — the admin usually opens an agent card
+     mid-phone-call. The requirements live at the Won gate instead. */
+  it("an AGENT card needs ONLY a name and a number", async () => {
+    const minimal = createProspectSchema.safeParse({
+      kind: "agent",
+      name: "Nour Adel",
+      number: "01099887766",
+    });
+    expect(minimal.success).toBe(true);
+
+    /* and it really saves that way — no company fields, no signup fields */
+    const saved = await createProspect(minimal.data!, actor);
+    expect(saved.kind).toBe("agent");
+    expect(saved.name).toBe("Nour Adel");
+    expect(saved.email).toBeNull();
+    expect(saved.address).toBeNull();
+    expect(saved.speciality).toBeNull();
+    expect(saved.companyName).toBeNull();
+    expect(saved.businessActivity).toBeNull();
+    expect(saved.stage).toBe("lead");
+
+    /* the number is one of the two mandatory fields, so it is held to the
+       signup form's rule */
+    const badNumber = createProspectSchema.safeParse({
+      kind: "agent",
+      name: "Nour Adel",
+      number: "not-a-phone",
+    });
+    expect(badNumber.success).toBe(false);
+    expect(JSON.stringify(badNumber.error?.issues)).toMatch(/valid phone/);
+
+    const noName = createProspectSchema.safeParse({ kind: "agent", number: "01099887766" });
+    expect(noName.success).toBe(false);
+  });
+
+  it("the kind is fixed at creation — an edit can never switch the field set", async () => {
+    const p = await makeAgent();
+    /* the payload has no `kind` at all (the schema drops it), and the partner
+       columns stay null however the caller phrases the edit */
+    const edited = await updateProspect(
+      p.id,
+      { name: "Nour A. Adel", companyName: "Sneaky Co", businessActivity: "HR company" },
+      actor,
+    );
+    expect(edited.kind).toBe("agent");
+    expect(edited.name).toBe("Nour A. Adel");
+    expect(edited.companyName).toBeNull();
+    expect(edited.businessActivity).toBeNull();
+
+    /* a PARTNER card keeps its own rules on edit — "the partners as it is" */
+    const partnerCard = await makeProspect();
+    await expect(updateProspect(partnerCard.id, { companyName: "" }, actor)).rejects.toThrow(
+      /Company name/,
+    );
+  });
+});
+
+describe("PP-4a: the agent Won gate creates the account", () => {
+  it("runs the full pipeline and mints User + role + PortalRep with a working password", async () => {
+    const p = await makeAgent();
+    expect(p.kind).toBe("agent");
+    expect(p.companyName).toBeNull();
+
+    /* the SHARED pipeline: didn't answer -> new number -> follow-up */
+    await applyProspectEvent({
+      prospectId: p.id,
+      event: { type: "next_action", action: "didnt_answer" },
+      group: { group: "numbers", data: { dialedNumbers: ["01099887766"] } },
+      actor,
+      role,
+    });
+    const returned = await addAlternativeNumbers(p.id, ["01055554444"], actor, role);
+    expect(returned.stage).toBe("lead"); // PP-2 works on agent cards too
+    await applyProspectEvent({
+      prospectId: p.id,
+      event: { type: "next_action", action: "following_up" },
+      group: { group: "follow_up", data: { date: "2026-09-12", time: "10:00", method: "call" } },
+      actor,
+      role,
+    });
+
+    /* the gate holds until it is complete — an agent card cannot use the
+       partner gate, and an incomplete agent gate is refused */
+    await expect(
+      applyProspectEvent({
+        prospectId: p.id,
+        event: { type: "next_action", action: "won" },
+        group: { group: "won_partner", data: COMPLETE_GATE },
+        actor,
+        role,
+      }),
+    ).rejects.toThrow(/won_agent/);
+    await expect(agentToWon(p.id, { ...AGENT_GATE, password: "short" })).rejects.toThrow();
+    expect((await getProspectDetail(p.id)).prospect.stage).toBe("following_up");
+    expect(await db.user.count({ where: { email: AGENT_GATE.email } })).toBe(0);
+
+    await agentToWon(p.id);
+
+    const { prospect } = await getProspectDetail(p.id);
+    expect(prospect.stage).toBe("won");
+    expect(prospect.converted).toBe(true);
+
+    const user = await db.user.findUniqueOrThrow({
+      where: { email: "nour.adel@example.com" },
+      include: { roles: true, portalRep: true },
+    });
+    expect(user.name).toBe("Nour Adel");
+    expect(user.phone).toBe("01099887766");
+    expect(user.active).toBe(true);
+    /* founder: the admin created them, so they never sit in Registrations */
+    expect(user.registrationStatus).toBe("approved");
+    expect(user.roles.map((r) => r.role)).toEqual(["bsystems_agent"]);
+    expect(await verifyPassword("agentpass123", user.passwordHash)).toBe(true);
+    expect(user.passwordPlain).toBe("agentpass123"); // admin-visibility rule
+    expect(user.portalRep!.firstName).toBe("Nour");
+    expect(user.portalRep!.lastName).toBe("Adel");
+    expect(user.portalRep!.address).toBe("12 Tahrir St, Giza");
+    expect(user.portalRep!.speciality).toBe("ERP consulting");
+    expect(prospect.agentUserId).toBe(user.id);
+
+    /* PP-4a is on the record, and NO directory partner was created */
+    const log = await db.activityLog.findFirst({
+      where: { entityType: "portal_rep", entityId: user.portalRep!.id, trigger: "PP-4a" },
+    });
+    expect(log).toBeTruthy();
+    expect(await db.partner.count()).toBe(0);
+  });
+
+  /* The founder's trade: adding is frictionless, the GATE is strict. A card
+     created with nothing but a name and a number cannot become an account
+     until the admin supplies everything PortalRep and the login need. */
+  it("refuses a bare card until address, speciality, email and password are given", async () => {
+    const p = await createProspect(
+      { kind: "agent" as const, name: "Nour Adel", number: "01099887766" },
+      actor,
+    );
+    const bare = { firstName: "Nour", lastName: "Adel", phone: "01099887766" };
+
+    await expect(agentToWon(p.id, bare as never)).rejects.toThrow(/Address is required/);
+    await expect(
+      agentToWon(p.id, { ...bare, address: "12 Tahrir St, Giza" } as never),
+    ).rejects.toThrow(/Speciality is required/);
+    await expect(
+      agentToWon(p.id, {
+        ...bare,
+        address: "12 Tahrir St, Giza",
+        speciality: "ERP consulting",
+      } as never),
+    ).rejects.toThrow(/sign-in/); // the email IS the login
+    const named = {
+      ...bare,
+      address: "12 Tahrir St, Giza",
+      speciality: "ERP consulting",
+      email: "nour.adel@example.com",
+    };
+    await expect(agentToWon(p.id, named as never)).rejects.toThrow(/sign-in password/);
+    await expect(agentToWon(p.id, { ...named, password: "short" } as never)).rejects.toThrow(
+      /8 characters/,
+    );
+
+    /* nothing was created by any of those attempts */
+    expect((await getProspectDetail(p.id)).prospect.stage).toBe("lead");
+    expect(await db.portalRep.count()).toBe(0);
+
+    /* complete → the account exists, built entirely from gate input */
+    await agentToWon(p.id);
+    const rep = await db.portalRep.findFirstOrThrow();
+    expect(rep.address).toBe("12 Tahrir St, Giza");
+    expect(rep.speciality).toBe("ERP consulting");
+  });
+
+  it("a converted agent appears in Agents and NEVER in the partners directory", async () => {
+    const p = await makeAgent();
+    await agentToWon(p.id);
+
+    const agents = await listAgentsDetailed();
+    expect(agents.map((a) => `${a.firstName} ${a.lastName}`)).toContain("Nour Adel");
+    expect(await listPartners()).toHaveLength(0);
+
+    /* and the partner side is untouched: a partner card still converts to a
+       directory Partner and creates no agent profile */
+    const partnerCard = await makeProspect();
+    await applyProspectEvent({
+      prospectId: partnerCard.id,
+      event: { type: "next_action", action: "won" },
+      group: { group: "won_partner", data: COMPLETE_GATE },
+      actor,
+      role,
+    });
+    expect((await listPartners()).map((x) => x.companyName)).toEqual(["Mansour Trading"]);
+    expect(await listAgentsDetailed()).toHaveLength(1); // still just the agent
+  });
+
+  it("refuses a duplicate email or phone with a clear message, and nothing is written", async () => {
+    const first = await makeAgent();
+    await agentToWon(first.id);
+
+    const dupEmail = await makeAgent({ number: "01077776666", email: "other@example.com" });
+    await expect(agentToWon(dupEmail.id)).rejects.toThrow(/email already exists/);
+
+    const dupPhone = await makeAgent({ number: "01066665555", email: "third@example.com" });
+    await expect(
+      agentToWon(dupPhone.id, { ...AGENT_GATE, email: "third@example.com" }),
+    ).rejects.toThrow(/phone number already exists/);
+
+    /* both cards stayed put; only the first account exists */
+    expect((await getProspectDetail(dupEmail.id)).prospect.stage).toBe("lead");
+    expect((await getProspectDetail(dupPhone.id)).prospect.stage).toBe("lead");
+    expect(await db.portalRep.count()).toBe(1);
+    expect(await db.user.count({ where: { email: "third@example.com" } })).toBe(0);
+  });
+
+  it("the CV collected on the card becomes the agent's profile CV — one file, never orphaned", async () => {
+    const p = await createProspect(
+      {
+        kind: "agent" as const,
+        name: "Nour Adel",
+        number: "01099887766",
+        email: "nour.adel@example.com",
+        address: "12 Tahrir St, Giza",
+        speciality: "ERP consulting",
+      },
+      actor,
+      { cv: cvFile() },
+    );
+
+    /* it hangs off the card and is NOT in the recordings player list */
+    const { prospect } = await getProspectDetail(p.id);
+    expect(prospect.cv?.filename).toBe("cv.pdf");
+    expect(prospect.recordings).toHaveLength(0);
+    const key = prospect.cv!.storageKey;
+
+    await agentToWon(p.id);
+
+    const rep = await db.portalRep.findFirstOrThrow({ include: { cv: true } });
+    expect(rep.cv?.filename).toBe("cv.pdf");
+    expect(rep.cv?.storageKey).toBe(key); // moved, not copied
+    expect(await db.attachment.count({ where: { partnerProspectId: p.id } })).toBe(0);
+    await expect(storage.read(key)).resolves.toBeTruthy(); // the file survived
+  });
+});
+
+describe("Registrations stay separate from the board", () => {
+  it("a public signup creates a pending user and NO pipeline card", async () => {
+    const before = await db.partnerProspect.count();
+    const { userId } = await signupRep(
+      {
+        firstName: "Walid",
+        lastName: "Sami",
+        phone: "01033332222",
+        email: "walid.sami@example.com",
+        address: "5 Corniche, Alexandria",
+        speciality: "Logistics software",
+        password: "applicant123",
+        confirmPassword: "applicant123",
+      },
+      cvFile(),
+    );
+    const user = await db.user.findUniqueOrThrow({ where: { id: userId } });
+    expect(user.registrationStatus).toBe("pending"); // waits in Registrations
+    /* the founder's rule: an applicant waits in the registration, they do not
+       appear on the board — only the ones the admin puts there do */
+    expect(await db.partnerProspect.count()).toBe(before);
+    expect(await db.partnerProspect.count({ where: { email: "walid.sami@example.com" } })).toBe(0);
   });
 });

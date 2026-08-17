@@ -912,3 +912,65 @@ every dashboard formula, journeys 1-5 (SPEC §13).
   owner, proving Remove and Delete are genuinely different.
   (e2e) an agent DELETEing /api/b-systems/users/:id gets 403.
 - Verdict: PASS.
+
+## Run 044 — 2026-08-17 — Partners & Agents: agent cards + PP-4a (ADR-050)
+- Suites/commands: `npx tsc --noEmit` (clean) · `npx vitest run` (164 —
+  NINE new tests in src/lib/services/partners.integration.test.ts) ·
+  `npx playwright test` (full suite; NEW spec
+  e2e/partners-agents.spec.ts, and journey3 + qa-sweep + security-rbac
+  updated for the founder-directed rename). Local dev, embedded
+  Postgres (per-run instances).
+- Cases: vitest 164 passed / 0 failed / 0 skipped · Playwright full 28
+  passed / 0 failed / 2 skipped (audit opt-in skips, by design). Full
+  e2e wall time 3.9m.
+- Failures: none. One defect was caught by the new tests before the
+  commit: `persistGroup` (leads.ts) had no arm for the `won_agent`
+  group, so every agent Won threw "Group payload does not match
+  required" from inside the transaction — the gate is consumed by the
+  side effect, not written as a child record, exactly like won_partner.
+- SPEC coverage touched: §7.2's Won gate now has a second form (PP-4a,
+  a founder row outside the §10.2 table, named like the other non-§10
+  rows). PP-1/PP-2/PP-3 are re-exercised on an AGENT card to prove the
+  pipeline is genuinely shared, not copied.
+  New coverage: (unit) kind-conditional validation both ways — a
+  partner card without companyName or without businessActivity is
+  rejected on those paths and an unlabelled payload still defaults to
+  "partner", while an agent card parses AND SAVES with nothing but a
+  name and a number (every other column null, stage lead), rejects a
+  malformed number, and rejects a missing name; the strictness that left
+  card creation is proved to live at the gate instead — a bare card is
+  refused four times over, once per missing field, each with its own
+  named message (address, then speciality, then the sign-in email, then
+  the password, then the 8-character rule), with nothing created until
+  the gate is complete and the resulting PortalRep carrying values that
+  existed only in the gate; the kind is immutable (an edit naming
+  companyName on an agent card leaves the column null and the kind
+  unchanged) while a PARTNER card still refuses an emptied company name;
+  a full agent journey — didn't answer → alternative number
+  auto-returns to Lead (PP-2) → follow-up → Won — where the partner gate
+  is REFUSED on an agent card, an 8-character-short password is
+  refused with nothing created, and the complete gate produces a User
+  (name, phone, active, registrationStatus "approved", a
+  bcrypt-verifiable password, the passwordPlain copy), the
+  bsystems_agent role, the PortalRep profile (first/last/address/
+  speciality), the card's agentUserId, the PP-4a activity row — and NO
+  directory Partner; a converted agent appears in listAgentsDetailed()
+  and NOT in listPartners(), while a partner card converted alongside it
+  still produces its directory Partner and no agent profile; duplicate
+  email and duplicate phone are each refused with the signup path's
+  message, both cards stay in Lead and nothing is written; the CV
+  uploaded with the card is visible on the card, absent from the
+  recordings list, and after conversion is the PortalRep's CV with the
+  SAME storage key (moved, not copied) and the file still readable; and
+  a public signup creates a pending user and NO PartnerProspect.
+  (e2e) the new spec creates an agent card through the UI with ONLY a
+  name, a number and a CV (kind picker → signup field set), asserts the
+  kind chip and data-kind on the board and the CV on the card, follows
+  up, opens the Won gate — where the name and number are prefilled, the
+  speciality box is provably EMPTY, and the admin types address,
+  speciality, email and password — converts, and then
+  signs in AS THAT AGENT with the admin-set email + password, landing on
+  /b-systems/crm — with the Agents section listing them, the Partners
+  directory not, and the Registrations approval queue never mentioning
+  them.
+- Verdict: PASS.

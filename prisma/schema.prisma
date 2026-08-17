@@ -36,6 +36,10 @@ model User {
   roles         UserRole[]
   portalRep     PortalRep? // agent profile (model name kept from v1)
   partner       Partner? // partner-company account link (V2 §8)
+  /* founder: an AGENT card on the Partners & Agents board mints this account at
+     its Won gate — the link back to the card that created it (SetNull on a hard
+     account delete: the card stays converted, exactly like Partner.userId). */
+  agentProspect PartnerProspect? @relation("ProspectAgent")
   ownedLeads    Lead[]         @relation("LeadOwner")
   notifications Notification[]
   leadComments  LeadComment[]  @relation("CommentAuthor")
@@ -210,28 +214,41 @@ model Client {
 }
 
 model PartnerProspect {
-  // App B partners pipeline (§7.2) + V2 §6 numbers rework
+  // App B Partners & Agents pipeline (§7.2) + V2 §6 numbers rework.
+  // founder: ONE board, TWO kinds of card — a partner company or an agent.
+  // The stages, forms and records are identical; only the kind-specific fields
+  // and the Won gate differ, so requiredness is CONDITIONAL (Zod superRefine)
+  // and the columns are nullable here: partner ⇒ companyName + businessActivity,
+  // agent ⇒ address + speciality (mirroring the public agent signup form).
   id                  String       @id @default(cuid())
+  kind                String       @default("partner") // partner | agent
   name                String
-  companyName         String
-  role                String?
+  companyName         String? // partner only
+  role                String? // partner only
   email               String?
   number              String // primary/registered number
   nonAnsweringNumbers String       @default("[]") // JSON array — V2 §6
   alternativeNumbers  String       @default("[]") // JSON array — unbounded
-  businessActivity    String
+  businessActivity    String? // partner only
+  address             String? // agent only (signup field)
+  speciality          String? // agent only (signup field)
   description         String?
   stage               String       @default("lead")
   converted           Boolean      @default(false)
+  agentUserId         String?      @unique // set by the won_agent gate
+  agentUser           User?        @relation("ProspectAgent", fields: [agentUserId], references: [id])
   followUps           FollowUp[]
   meetings            Meeting[]
   lostInfo            LostInfo[]
+  // every Attachment hanging off this card: cold-call recordings AND, for an
+  // agent card, the CV collected at creation (queries filter by `kind`)
   recordings          Attachment[]
   partner             Partner?
   createdAt           DateTime     @default(now())
   updatedAt           DateTime     @updatedAt
 
   @@index([stage])
+  @@index([kind])
 }
 
 model Partner {

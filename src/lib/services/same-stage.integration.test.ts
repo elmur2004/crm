@@ -160,6 +160,7 @@ describe("(a) another follow-up while still Following Up", () => {
     const actor = await makeActor();
     const prospect = await createProspect(
       {
+        kind: "partner" as const,
         name: "Hany Mansour",
         companyName: "Mansour Trading",
         number: "0223456789",

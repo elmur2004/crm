@@ -606,6 +606,7 @@ describe("PP-4 partner account provisioning (founder: admin sets the credentials
   function makeProspect() {
     return createProspect(
       {
+        kind: "partner" as const,
         name: "Hany Mansour",
         companyName: "Mansour Trading",
         number: "0223456789",

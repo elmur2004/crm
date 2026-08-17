@@ -19,21 +19,30 @@ import { stageKey } from "@/components/bsystems/stageColors";
 import { tFor } from "@/lib/i18n/core";
 import { useLocale } from "@/components/shared/LocaleProvider";
 import { stageLabel } from "@/lib/i18n/dict/labels";
-import { pCommon, pPipeline } from "@/lib/i18n/dict/partners";
+import { pCommon, pPipeline, prospectKindLabel } from "@/lib/i18n/dict/partners";
 import {
   ProspectGroupFields,
   prospectGroupPayload,
   type ProspectGateDefaults,
 } from "./ProspectEventPanel";
 
-/* Founder V4 — the Partnership CRM board drags like the main CRM: a drop opens
+/* Founder V4 — the Partners & Agents board drags like the main CRM: a drop opens
    the target stage's form (numbers picker, follow-up, meeting, the Won
-   completeness gate, lost reason); cancel reverts; Won conversion via the gate. */
+   completeness gate, lost reason); cancel reverts; Won conversion via the gate.
+
+   Founder V6 — the board carries BOTH kinds of card. Everything about a card is
+   shared except its headline (a partner's company vs. an agent's own name) and
+   a small kind chip, so the two are told apart at a glance. */
 
 export interface ProspectCard {
   id: string;
-  companyName: string;
-  name: string;
+  /** the card's headline — the partner company, or the agent */
+  title: string;
+  kind: string;
+  /** the line under the headline: the partner's contact, the agent's number */
+  subtitle: string;
+  /** true when the subtitle is digits — it gets its own bidi run (RTL) */
+  subtitleNumeric: boolean;
   stage: string;
   converted: boolean;
   keyDatum: string;
@@ -61,7 +70,8 @@ function Card({
       ref={setNodeRef}
       {...attributes}
       {...listeners}
-      data-deal-card={card.companyName}
+      data-deal-card={card.title}
+      data-kind={card.kind}
       onClick={() => {
         /* founder: the whole card opens the prospect — but never right after a
            drag (the browser fires a click on drop; the guard swallows it) */
@@ -80,14 +90,21 @@ function Card({
         className="bcard-name"
         onClick={(e) => e.stopPropagation()}
       >
-        {card.companyName}
+        {card.title}
       </Link>
-      <p className="bcard-rep whitespace-normal">{card.name}</p>
-      {card.converted ? (
-        <p className="mt-1.5">
-          <span className="badge badge--converted">{t(pPipeline.converted)}</span>
+      {card.subtitle ? (
+        <p className={`bcard-rep whitespace-normal${card.subtitleNumeric ? " u-ltr" : ""}`}>
+          {card.subtitle}
         </p>
       ) : null}
+      {/* the board's own chip row + chip scale (the leads boards use both), so
+          the kind reads as card furniture rather than a second badge */}
+      <div className="bcard-chips">
+        <span className="bcard-tag">{prospectKindLabel(locale, card.kind)}</span>
+        {card.converted ? (
+          <span className="badge badge--converted">{t(pPipeline.converted)}</span>
+        ) : null}
+      </div>
       {card.keyDatum ? (
         <div className="bcard-meta">
           <span className="bcard-meta-dot" aria-hidden />
@@ -244,7 +261,7 @@ export function PartnersBoard({ cards, reps }: { cards: ProspectCard[]; reps: Re
                   </span>
                   {stageLabel(locale, pending.to)}
                 </p>
-                <p className="modal-title">{pendingCard.companyName}</p>
+                <p className="modal-title">{pendingCard.title}</p>
               </div>
               <button
                 type="button"
@@ -267,7 +284,11 @@ export function PartnersBoard({ cards, reps }: { cards: ProspectCard[]; reps: Re
                 void commit(
                   {
                     event: { type: "drag", to: pending.to },
-                    group: prospectGroupPayload(pending.to, new FormData(e.currentTarget)),
+                    group: prospectGroupPayload(
+                      pending.to,
+                      new FormData(e.currentTarget),
+                      pendingCard.kind,
+                    ),
                   },
                   pending.id,
                 );

@@ -1,4 +1,5 @@
 import type { Msg } from "@/lib/i18n/core";
+import { pPipeline } from "./partners";
 
 /* B-Systems core surface dictionary (shell + admin home + CRM board + leads +
    lead detail + role-aware stage forms). EN strings are byte-identical to the
@@ -11,7 +12,9 @@ export const nav = {
   leads: { en: "Leads", ar: "العملاء المحتملون" },
   crm: { en: "CRM", ar: "إدارة العملاء" },
   wonLeads: { en: "Won Leads", ar: "الصفقات المكسوبة" },
-  partnershipCrm: { en: "Partnership CRM", ar: "إدارة الشراكات" },
+  /* founder rename: the section carries partner AND agent cards. It is the
+     PAGE'S OWN title, not a copy — nav and h1 can never disagree. */
+  partnersAndAgents: pPipeline.title,
   partners: { en: "Partners", ar: "الشركاء" },
   agents: { en: "Agents", ar: "الوكلاء" },
   registrations: { en: "Registrations", ar: "طلبات التسجيل" },

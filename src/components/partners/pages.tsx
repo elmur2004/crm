@@ -1,13 +1,24 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
-import { getPartnerDetail, getProspectDetail, listPartners, parseNumbers } from "@/lib/services/partners";
+import {
+  getPartnerDetail,
+  getProspectDetail,
+  listPartners,
+  parseNumbers,
+  prospectTitle,
+} from "@/lib/services/partners";
 import { listBsOwnerReps } from "@/lib/services/sales-reps";
 import { formatCairo, formatCairoDate } from "@/lib/datetime";
 import { StageBadge } from "@/components/shared/StageBadge";
 import { GroupHistory } from "@/components/internal/GroupHistory";
 import { HistoryPanel } from "@/components/internal/HistoryPanel";
-import { AddProspectForm, AlternativeNumbersForm, RecordingUpload } from "./forms";
+import {
+  AddProspectForm,
+  AlternativeNumbersForm,
+  ProspectCvUpload,
+  RecordingUpload,
+} from "./forms";
 import { PartnerAddLeadClient } from "./PartnerAddLead";
 import { ProspectEventPanel } from "./ProspectEventPanel";
 import { PartnersBoard, type ProspectCard } from "./PartnersBoard";
@@ -22,10 +33,13 @@ import {
   pDirectory,
   pPipeline,
   pProspect,
+  prospectKindLabel,
 } from "@/lib/i18n/dict/partners";
+import { formatMsg } from "@/lib/i18n/core";
 
-/* App B Partners: acquisition board (§7.2), prospect detail, directory (§7.3),
-   partner detail with attributed leads (§7.4). */
+/* App B Partners & Agents: acquisition board (§7.2) carrying BOTH kinds of card,
+   prospect detail, partners directory (§7.3), partner detail with attributed
+   leads (§7.4). */
 
 export async function PartnersPipelineBody() {
   const locale = await getLocale();
@@ -54,25 +68,36 @@ export async function PartnersPipelineBody() {
       case "lost":
         return p.lostInfo[0]?.reason ?? "";
       default:
-        return businessActivityLabel(locale, p.businessActivity);
+        /* the card's own headline datum: a partner trades in an activity, an
+           agent sells a speciality */
+        return p.kind === "agent"
+          ? (p.speciality ?? "")
+          : businessActivityLabel(locale, p.businessActivity ?? "");
     }
   }
 
   const reps = (await listBsOwnerReps()).map((r) => ({ id: r.id, name: r.name }));
   const cards: ProspectCard[] = prospects.map((p) => ({
     id: p.id,
-    companyName: p.companyName,
-    name: p.name,
+    title: prospectTitle(p),
+    kind: p.kind,
+    /* under the headline: the partner's contact person, the agent's number
+       (the agent IS the headline, so their number is the useful second line) */
+    subtitle: p.kind === "agent" ? p.number : p.name,
+    subtitleNumeric: p.kind === "agent",
     stage: p.stage,
     converted: p.converted,
     keyDatum: keyDatum(p),
     defaults: {
+      kind: p.kind,
       companyName: p.companyName,
       name: p.name,
       role: p.role,
       number: p.number,
       email: p.email,
       businessActivity: p.businessActivity,
+      address: p.address,
+      speciality: p.speciality,
     },
     cardNumbers: [p.number, ...parseNumbers(p.alternativeNumbers)],
   }));
@@ -106,6 +131,18 @@ export async function ProspectDetailBody({ prospectId }: { prospectId: string })
   const t = tFor(locale);
   const reps = await listBsOwnerReps();
   const latestMeeting = prospect.meetings.at(-1);
+  const agent = prospect.kind === "agent";
+  const gateDefaults = {
+    kind: prospect.kind,
+    companyName: prospect.companyName,
+    name: prospect.name,
+    role: prospect.role,
+    number: prospect.number,
+    email: prospect.email,
+    businessActivity: prospect.businessActivity,
+    address: prospect.address,
+    speciality: prospect.speciality,
+  };
 
   return (
     <div className="space-y-6">
@@ -119,7 +156,8 @@ export async function ProspectDetailBody({ prospectId }: { prospectId: string })
           </Link>
           <p className="u-eyebrow mt-3">{t(pPipeline.eyebrow)}</p>
           <h1 className="u-h1 flex items-center gap-3 flex-wrap">
-            {prospect.companyName}
+            {prospectTitle(prospect)}
+            <span className="badge badge--entity">{prospectKindLabel(locale, prospect.kind)}</span>
             <StageBadge stage={prospect.stage} header />
             {prospect.converted ? (
               <span className="badge badge--converted">{t(pPipeline.converted)}</span>
@@ -131,12 +169,15 @@ export async function ProspectDetailBody({ prospectId }: { prospectId: string })
           <EditProspectButton
             prospect={{
               id: prospect.id,
+              kind: prospect.kind,
               name: prospect.name,
               companyName: prospect.companyName,
               role: prospect.role,
               email: prospect.email,
               number: prospect.number,
               businessActivity: prospect.businessActivity,
+              address: prospect.address,
+              speciality: prospect.speciality,
               description: prospect.description,
             }}
           />
@@ -161,14 +202,22 @@ export async function ProspectDetailBody({ prospectId }: { prospectId: string })
               </div>
               <div className="fields-cell">
                 <p className="fields-value">
-                  <span className="fields-label block mb-1.5">{t(pProspect.numberField)}</span> {prospect.number}
+                  <span className="fields-label block mb-1.5">{t(pProspect.numberField)}</span>{" "}
+                  <span className="u-ltr">{prospect.number}</span>
                 </p>
               </div>
               {parseNumbers(prospect.nonAnsweringNumbers).length > 0 ? (
                 <div className="fields-cell">
                   <p className="fields-value">
                     <span className="fields-label block mb-1.5">{t(pProspect.nonAnswering)}</span>{" "}
-                    {parseNumbers(prospect.nonAnsweringNumbers).join(" · ")}
+                    {/* each number is its own LTR run — a joined string would
+                        reorder as one block in Arabic */}
+                    {parseNumbers(prospect.nonAnsweringNumbers).map((n, i) => (
+                      <span key={n}>
+                        {i > 0 ? " · " : ""}
+                        <span className="u-ltr">{n}</span>
+                      </span>
+                    ))}
                   </p>
                 </div>
               ) : null}
@@ -176,21 +225,59 @@ export async function ProspectDetailBody({ prospectId }: { prospectId: string })
                 <div className="fields-cell">
                   <p className="fields-value">
                     <span className="fields-label block mb-1.5">{t(pProspect.altNumbers)}</span>{" "}
-                    {parseNumbers(prospect.alternativeNumbers).join(" · ")}
+                    {parseNumbers(prospect.alternativeNumbers).map((n, i) => (
+                      <span key={n}>
+                        {i > 0 ? " · " : ""}
+                        <span className="u-ltr">{n}</span>
+                      </span>
+                    ))}
                   </p>
                 </div>
               ) : null}
               <div className="fields-cell">
                 <p className="fields-value">
-                  <span className="fields-label block mb-1.5">{t(pProspect.emailField)}</span> {prospect.email ?? "—"}
+                  <span className="fields-label block mb-1.5">{t(pProspect.emailField)}</span>{" "}
+                  <span className="u-ltr">{prospect.email ?? "—"}</span>
                 </p>
               </div>
-              <div className="fields-cell">
-                <p className="fields-value">
-                  <span className="fields-label block mb-1.5">{t(pProspect.businessActivityField)}</span>{" "}
-                  {businessActivityLabel(locale, prospect.businessActivity)}
-                </p>
-              </div>
+              {agent ? (
+                <>
+                  <div className="fields-cell">
+                    <p className="fields-value">
+                      <span className="fields-label block mb-1.5">{t(pProspect.addressField)}</span>{" "}
+                      {prospect.address ?? "—"}
+                    </p>
+                  </div>
+                  <div className="fields-cell">
+                    <p className="fields-value">
+                      <span className="fields-label block mb-1.5">{t(pProspect.specialityField)}</span>{" "}
+                      {prospect.speciality ?? "—"}
+                    </p>
+                  </div>
+                  <div className="fields-cell">
+                    <p className="fields-value">
+                      <span className="fields-label block mb-1.5">{t(pProspect.cvField)}</span>{" "}
+                      {prospect.cv ? (
+                        <a
+                          href={`/api/files/${prospect.cv.id}`}
+                          className="text-brand-primary underline underline-offset-2"
+                        >
+                          {prospect.cv.filename}
+                        </a>
+                      ) : (
+                        t(pProspect.noCv)
+                      )}
+                    </p>
+                  </div>
+                </>
+              ) : (
+                <div className="fields-cell">
+                  <p className="fields-value">
+                    <span className="fields-label block mb-1.5">{t(pProspect.businessActivityField)}</span>{" "}
+                    {businessActivityLabel(locale, prospect.businessActivity ?? "")}
+                  </p>
+                </div>
+              )}
               {prospect.description ? (
                 <div className="fields-cell">
                   <p className="fields-value whitespace-pre-wrap">{prospect.description}</p>
@@ -208,6 +295,22 @@ export async function ProspectDetailBody({ prospectId }: { prospectId: string })
                   </p>
                 </div>
               ) : null}
+              {/* PP-4a: the account this card minted — the admin's proof that the
+                  agent can sign in, and the way into the Agents section */}
+              {prospect.agentUser ? (
+                <div className="fields-cell">
+                  <p className="fields-value">
+                    {/* the address is NOT interpolated into the sentence: an
+                        LTR email inside RTL prose has to be its own bidi run,
+                        which a {var} substitution cannot give it */}
+                    {t(pProspect.agentAccountCreated)}{" "}
+                    <span className="u-ltr">{prospect.agentUser.email ?? "—"}</span>{" "}
+                    <Link href="/b-systems/agents" className="text-brand-primary underline underline-offset-2">
+                      {t(pProspect.viewInAgents)}
+                    </Link>
+                  </p>
+                </div>
+              ) : null}
             </div>
           </div>
 
@@ -217,6 +320,14 @@ export async function ProspectDetailBody({ prospectId }: { prospectId: string })
               inDidntAnswer={prospect.stage === "didnt_answer"}
             />
           </div>
+
+          {/* the agent card's CV: attach it whenever it arrives — the Won gate
+              moves it onto the agent's profile, CV and all */}
+          {agent ? (
+            <div className="card card-pad">
+              <ProspectCvUpload prospectId={prospect.id} />
+            </div>
+          ) : null}
 
           <div className="card card-pad space-y-3">
             <h2 className="u-mono">{t(pProspect.recordingsTitle)}</h2>
@@ -254,14 +365,7 @@ export async function ProspectDetailBody({ prospectId }: { prospectId: string })
               pendingMeeting={Boolean(
                 latestMeeting && latestMeeting.outcome === null && latestMeeting.arranged,
               )}
-              defaults={{
-                companyName: prospect.companyName,
-                name: prospect.name,
-                role: prospect.role,
-                number: prospect.number,
-                email: prospect.email,
-                businessActivity: prospect.businessActivity,
-              }}
+              defaults={gateDefaults}
               cardNumbers={[prospect.number, ...parseNumbers(prospect.alternativeNumbers)]}
             />
           </div>

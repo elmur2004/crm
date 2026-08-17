@@ -12,8 +12,9 @@ export const todoPage = {
   empty: { en: "Nothing due today.", ar: "لا توجد مهام مستحقة اليوم." },
   kindFollowUp: { en: "Follow-up", ar: "متابعة" },
   kindMeeting: { en: "Meeting", ar: "اجتماع" },
-  kindProspectFollowUp: { en: "Partner prospect follow-up", ar: "متابعة شريك محتمل" },
-  kindProspectMeeting: { en: "Partner prospect meeting", ar: "اجتماع شريك محتمل" },
+  /* the board carries partner AND agent cards — the row must fit both */
+  kindProspectFollowUp: { en: "Partner or agent follow-up", ar: "متابعة شريك أو وكيل" },
+  kindProspectMeeting: { en: "Partner or agent meeting", ar: "اجتماع شريك أو وكيل" },
   kindStatement: { en: "Statement expected", ar: "كشف حساب متوقع" },
   kindMilestone: { en: "Milestone due", ar: "مرحلة دفع مستحقة" },
 } satisfies Record<string, Msg>;

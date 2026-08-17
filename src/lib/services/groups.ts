@@ -99,6 +99,36 @@ export const wonPartnerSchema = z
   });
 export type WonPartnerInput = z.infer<typeof wonPartnerSchema>;
 
+/* Founder: the AGENT card's Won gate — the completeness gate PP-4 already is,
+   for the other kind of card. "Once I put them Won, I have to create for them a
+   user and a password — they will not apply, I will create for them a user and
+   a password." So email AND password are both required: they are the
+   credentials the admin hands over. Address and speciality are required HERE
+   rather than at card creation (which asks only for a name and a number) —
+   partly because the founder wants adding to be frictionless, and partly
+   because PortalRep.address / .speciality are NOT NULL columns: this gate is
+   the last honest place to insist. Each message names its own field so the
+   admin sees exactly what is missing, PP-4 style. */
+/* `error` (not just `min`) so a MISSING field reads the same as an empty one —
+   otherwise Zod answers "expected string, received undefined", which tells the
+   admin nothing about which box to fill. */
+const gateField = (message: string) => z.string({ error: message }).min(1, message);
+
+export const wonAgentSchema = z.object({
+  firstName: gateField("First name is required").max(100),
+  lastName: gateField("Last name is required").max(100),
+  address: gateField("Address is required — it goes on the agent's profile").max(400),
+  speciality: gateField("Speciality is required — it goes on the agent's profile").max(200),
+  /* the login — prefilled from the card when it has one, typed in here when not */
+  email: gateField("Enter a valid email — it is the agent's sign-in").email(
+    "Enter a valid email — it is the agent's sign-in",
+  ),
+  password: gateField("Set the agent's sign-in password").min(8, "At least 8 characters"),
+  /* prefilled from the card's number; the agent's second identifier (ADR-016) */
+  phone: gateField("Phone number is required").max(50),
+});
+export type WonAgentInput = z.infer<typeof wonAgentSchema>;
+
 /* V2 §1: the negotiation stage's group — a note entry (accumulates). */
 export const negotiationSchema = z.object({
   note: z.string().min(1).max(2000),
@@ -193,6 +223,7 @@ export const groupPayloadSchema = z.discriminatedUnion("group", [
   z.object({ group: z.literal("lost"), data: lostSchema }),
   z.object({ group: z.literal("won"), data: wonSchema }),
   z.object({ group: z.literal("won_partner"), data: wonPartnerSchema }),
+  z.object({ group: z.literal("won_agent"), data: wonAgentSchema }),
   z.object({ group: z.literal("won_deal"), data: wonDealSchema }),
   z.object({ group: z.literal("negotiation"), data: negotiationSchema }),
   z.object({ group: z.literal("numbers"), data: numbersSchema }),

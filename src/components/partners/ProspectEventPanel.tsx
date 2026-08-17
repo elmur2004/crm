@@ -21,6 +21,7 @@ import {
   pCommon,
   pPanel,
 } from "@/lib/i18n/dict/partners";
+import { fields as authFields, signup } from "@/lib/i18n/dict/auth";
 
 /* §7.2 — the Partners pipeline's action panel. Same one-mutation commit model as
    the internal CRM (ADR-023); Won opens the completeness gate (PP-4); Didn't
@@ -77,7 +78,7 @@ function FollowUpFields({ reps }: { reps: Rep[] }) {
   );
 }
 
-function WonGateFields({ defaults }: { defaults: { companyName: string; name: string; role: string | null; number: string; email: string | null; businessActivity: string } }) {
+function WonGateFields({ defaults }: { defaults: ProspectGateDefaults }) {
   const locale = useLocale();
   const t = tFor(locale);
   return (
@@ -88,7 +89,7 @@ function WonGateFields({ defaults }: { defaults: { companyName: string; name: st
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <label className="block">
           <span className={labelCls}>{t(pCommon.companyName)}</span>
-          <input type="text" name="companyName" required defaultValue={defaults.companyName} className={inputCls} />
+          <input type="text" name="companyName" required defaultValue={defaults.companyName ?? ""} className={inputCls} />
         </label>
         <label className="block">
           <span className={labelCls}>{t(pCommon.keyPersonName)}</span>
@@ -103,11 +104,11 @@ function WonGateFields({ defaults }: { defaults: { companyName: string; name: st
           <input type="tel" name="number" required defaultValue={defaults.number} className={inputCls} />
         </label>
         <label className="block">
-          <span className={labelCls}>{t(pCommon.email)}</span>
+          <span className={labelCls}>{t(signup.email)}</span>
           <input type="email" name="email" defaultValue={defaults.email ?? ""} className={inputCls} />
         </label>
         <label className="block">
-          <span className={labelCls}>{t(pPanel.password)}</span>
+          <span className={labelCls}>{t(authFields.password)}</span>
           <input
             type="text"
             name="password"
@@ -131,10 +132,68 @@ function WonGateFields({ defaults }: { defaults: { companyName: string; name: st
         </label>
       </div>
       <label className="block">
-        <span className={labelCls}>{t(pCommon.address)}</span>
+        <span className={labelCls}>{t(authFields.address)}</span>
         <input type="text" name="address" required className={inputCls} />
       </label>
-      <BusinessActivityField defaultValue={defaults.businessActivity} />
+      <BusinessActivityField defaultValue={defaults.businessActivity ?? undefined} />
+    </>
+  );
+}
+
+/* Founder (PP-4a): the AGENT card's Won gate. The profile half is prefilled
+   from the card — the admin only confirms it — and the credential half is the
+   admin's to set, because an agent added here never applies for anything. */
+function WonAgentGateFields({ defaults }: { defaults: ProspectGateDefaults }) {
+  const t = tFor(useLocale());
+  const [first = "", ...rest] = defaults.name.trim().split(/\s+/);
+  return (
+    <>
+      <p className="field-hint">{t(pPanel.wonAgentHint)}</p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <label className="block">
+          <span className={labelCls}>{t(authFields.firstName)}</span>
+          <input type="text" name="firstName" required defaultValue={first} className={inputCls} />
+        </label>
+        <label className="block">
+          <span className={labelCls}>{t(authFields.lastName)}</span>
+          <input type="text" name="lastName" required defaultValue={rest.join(" ")} className={inputCls} />
+        </label>
+        <label className="block">
+          <span className={labelCls}>{t(signup.phone)}</span>
+          <input type="tel" name="phone" required defaultValue={defaults.number} className={inputCls} />
+        </label>
+        <label className="block">
+          <span className={labelCls}>{t(signup.email)}</span>
+          <input type="email" name="email" required defaultValue={defaults.email ?? ""} className={inputCls} />
+        </label>
+        <label className="block">
+          <span className={labelCls}>{t(authFields.password)}</span>
+          <input
+            type="text"
+            name="password"
+            required
+            minLength={8}
+            autoComplete="off"
+            placeholder={t(pPanel.agentPasswordPh)}
+            className={inputCls}
+          />
+        </label>
+        <label className="block">
+          <span className={labelCls}>{t(authFields.speciality)}</span>
+          <input
+            type="text"
+            name="speciality"
+            required
+            defaultValue={defaults.speciality ?? ""}
+            placeholder={t(signup.specialityPlaceholder)}
+            className={inputCls}
+          />
+        </label>
+      </div>
+      <label className="block">
+        <span className={labelCls}>{t(authFields.address)}</span>
+        <input type="text" name="address" required defaultValue={defaults.address ?? ""} className={inputCls} />
+      </label>
     </>
   );
 }
@@ -142,16 +201,20 @@ function WonGateFields({ defaults }: { defaults: { companyName: string; name: st
 /* ---------- shared stage-form builders (panel + draggable board) ---------- */
 
 export type ProspectGateDefaults = {
-  companyName: string;
+  /** partner | agent — chosen at creation, fixed afterwards */
+  kind: string;
+  companyName: string | null;
   name: string;
   role: string | null;
   number: string;
   email: string | null;
-  businessActivity: string;
+  businessActivity: string | null;
+  address: string | null;
+  speciality: string | null;
 };
 
 /** target stage → the group payload harvested from the form (V2 §6 shapes). */
-export function prospectGroupPayload(target: string, fd: FormData) {
+export function prospectGroupPayload(target: string, fd: FormData, kind = "partner") {
   if (target === "following_up")
     return {
       group: "follow_up" as const,
@@ -176,6 +239,19 @@ export function prospectGroupPayload(target: string, fd: FormData) {
     };
   if (target === "lost")
     return { group: "lost" as const, data: { reason: String(fd.get("reason")) } };
+  if (target === "won" && kind === "agent")
+    return {
+      group: "won_agent" as const,
+      data: {
+        firstName: String(fd.get("firstName")),
+        lastName: String(fd.get("lastName")),
+        address: String(fd.get("address")),
+        speciality: String(fd.get("speciality")),
+        email: String(fd.get("email")),
+        password: String(fd.get("password")),
+        phone: String(fd.get("phone")),
+      },
+    };
   if (target === "won")
     return {
       group: "won_partner" as const,
@@ -247,7 +323,12 @@ export function ProspectGroupFields({
         <textarea name="reason" required rows={3} className={inputCls} />
       </label>
     );
-  if (target === "won") return <WonGateFields defaults={defaults} />;
+  if (target === "won")
+    return defaults.kind === "agent" ? (
+      <WonAgentGateFields defaults={defaults} />
+    ) : (
+      <WonGateFields defaults={defaults} />
+    );
   if (target === "didnt_answer")
     return (
       <div className="space-y-2">
@@ -280,7 +361,7 @@ export function ProspectEventPanel({
   stage: string;
   reps: Rep[];
   pendingMeeting: boolean;
-  defaults: { companyName: string; name: string; role: string | null; number: string; email: string | null; businessActivity: string };
+  defaults: ProspectGateDefaults;
   /** all numbers on the card (primary + alternatives) — V2 §6 dialed selection */
   cardNumbers: string[];
 }) {
@@ -323,7 +404,7 @@ export function ProspectEventPanel({
   }
 
   const groupForTarget = (target: string, fd: FormData) =>
-    prospectGroupPayload(target, fd);
+    prospectGroupPayload(target, fd, defaults.kind);
   const fieldsForTarget = (target: string) => (
     <ProspectGroupFields target={target} reps={reps} defaults={defaults} cardNumbers={cardNumbers} />
   );

@@ -1576,3 +1576,90 @@ comment, and the ADR-013 mechanism note all fixed; .env.example confirmed tracke
   Arabic wording for Organic, undo's one-step/10-minute/no-financials
   rules, the same-stage record labels, admin-only reassignment, and the
   call sheet's single-number/full-chat choices).
+
+## Entry 041 — 2026-08-17 — Founder: Partners & Agents — agents live on the partnership board (ADR-050)
+- Done: the section is now "Partners & Agents" and carries BOTH kinds of
+  card, with the pipeline itself untouched. A prospect has a `kind`
+  ("partner" | "agent", default partner — every existing row keeps its
+  meaning and its data; companyName/businessActivity merely became
+  nullable and `address`/`speciality`/`agentUserId` were added). The one
+  Add button asks WHICH first and swaps the field set beneath it. The
+  agent field set is the PUBLIC SIGNUP FORM's, field for field — first
+  name, last name, phone, email, address, speciality, CV — reusing
+  dict/auth's own Msgs so the CRM form and the public form cannot drift;
+  the password is deliberately absent, because the founder is explicit
+  that the ADMIN creates the credentials at Won. Requiredness is
+  KIND-CONDITIONAL in Zod (one `kindIssues()` helper shared by create
+  and edit), never in the database, and the kind is IMMUTABLE after
+  creation — `updateProspectSchema` has no `kind` field and the service
+  re-validates against the STORED kind and writes only that kind's
+  columns. The engine is PARAMETERIZED, not forked: `partnersConfigFor
+  (kind)` returns the same partners config with the Won gate swapped, so
+  drag, next actions, same-stage records, PP-1's dialed-number picker
+  and PP-2's auto-return work on an agent card because it is literally
+  the same code path (the new e2e proves it by running an agent through
+  didn't-answer → new number → follow-up → Won). PP-4a is the divergence:
+  the agent gate mints the whole account in ONE transaction — User
+  (email + normalized phone, hashed password AND the passwordPlain
+  admin-visibility copy, active, `registrationStatus: "approved"` so
+  they never sit in Registrations), the bsystems_agent role and the
+  PortalRep profile — the same three writes signupRep makes, minus the
+  waiting; duplicate email or phone is refused with the signup path's
+  own message and nothing is written. The CV survives the journey: the
+  card owns it as an Attachment of kind "cv" (every prospect query
+  filters the attachment relation by kind, so it never reaches the
+  cold-call player), optional at creation and addable later from the
+  card, and at the gate it is RE-PARENTED onto the new PortalRep —
+  moved, not copied, so nothing is duplicated or orphaned and the
+  agent's profile shows exactly what a self-applied agent's would.
+  Verified end to end that a converted agent appears in the Agents
+  section and NEVER in the Partners directory, that a converted partner
+  behaves exactly as before, and that a public signup still creates only
+  a pending user and no card. The rename ("Partnership CRM" → "Partners
+  & Agents" / "الشركاء والوكلاء") reaches the nav, eyebrow, h1, page
+  titles, the edit modal, the add/save buttons and the two To-Do row
+  labels; it is the one sanctioned exception to ADR-037's
+  byte-identical-EN rule and every affected e2e assertion moved with it.
+  The ROUTE /b-systems/partners-pipeline is unchanged on purpose — no
+  dead links, no redirects to maintain.
+  brand-auditor on the diff returned FAIL and every finding was fixed
+  before the commit: the CV dropzone was marked `required` while its own
+  copy said "optional" (which fires the design system's accent required-
+  star on a contradiction), and TWO Latin runs sat unisolated inside RTL
+  prose — the agent card's phone-number subtitle and the converted-agent
+  line's email — the same defect ADR-048 found on the call sheet, now
+  generalised into a `.u-ltr` utility that also fixed the pre-existing
+  "·"-joined number lists. It also caught the kind chip using a table
+  chip at board-card size (now the board's own `.bcard-chips` +
+  `.bcard-tag`), the edit modal nesting a chip larger than its own
+  caption (now `badge badge--entity`, the badge Registrations and Users
+  already use for exactly this), and three byte-identical label clones
+  this work had put side by side in one file (`pCommon.address` /
+  `pCommon.email` / `pPanel.password`, deleted in favour of dict/auth).
+  The nav item now REFERENCES the page title rather than restating it.
+  Verified: tsc clean, vitest 164/164 (+9), Playwright 28 passed / 2
+  audit-opt-in skipped (+1 new spec, TESTING Run 044).
+- In progress: the data-entry role (a least-privilege user who may only
+  ADD leads and cards, owning nothing).
+- Next steps: as above.
+- Blockers: none new.
+- Needs founder confirmation: (i) PARTNER cards still require company
+  name and business activity while AGENT cards require only name and
+  number — that asymmetry is exactly as directed ("the partners as it
+  is"), but say the word and partner cards loosen the same way; (ii) the
+  partners board has no filter
+  sidebar today, so there is NO Kind filter — the chip on every card
+  carries the distinction; say the word and it gets the CRM board's
+  filter panel (search + kind); (iii) an agent card stores ONE `name`,
+  and the Won gate prefills first/last by splitting on the first space
+  for the admin to confirm — say so if the card itself should collect
+  the two names separately; (iv) the CV is OPTIONAL when the admin
+  creates the card (they may be adding someone they met before any CV
+  exists) and can be attached later — at signup it stays required; (v)
+  a converted agent's account survives deleting their card, mirroring
+  the partner rule, and a hard-deleted account leaves the card converted
+  with no login. Carried: see Entries 023–040 (incl. the WIN1252 local-
+  database recreation, the board's owner tabs, the Arabic wording for
+  Organic, undo's one-step/10-minute/no-financials rules, the same-stage
+  record labels, admin-only reassignment, the call sheet's single-
+  number/full-chat choices, and deletion's admin-bucket landing).

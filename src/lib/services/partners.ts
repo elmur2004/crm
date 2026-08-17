@@ -1,11 +1,20 @@
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { partnersConfig } from "@/lib/pipeline-engine/configs/partners";
+import {
+  PROSPECT_KINDS,
+  partnersConfig,
+  partnersConfigFor,
+} from "@/lib/pipeline-engine/configs/partners";
 import { transition } from "@/lib/pipeline-engine/transition";
 import type { EngineEvent } from "@/lib/pipeline-engine/types";
 import { isSameStageAction, type Role, type SameStageAction } from "@/lib/pipeline-engine/constants";
 import { ApiError } from "@/lib/api-error";
-import { groupPayloadSchema, type GroupPayload, type WonPartnerInput } from "./groups";
+import {
+  groupPayloadSchema,
+  type GroupPayload,
+  type WonAgentInput,
+  type WonPartnerInput,
+} from "./groups";
 import { persistGroup } from "./leads";
 import { writeLog, type Actor } from "./activity";
 import {
@@ -15,29 +24,82 @@ import {
   type StageEventSnapshot,
   type UpdatedRef,
 } from "./undo";
-import { validateAndStore } from "@/lib/storage";
+import { storage, validateAndStore } from "@/lib/storage";
 import { hashPassword } from "@/lib/auth/hash";
+import { isValidPhone, normalizePhone } from "@/lib/auth/phone";
 import type { Prisma } from "../../../generated/prisma/client";
 import { formatMsg } from "@/lib/i18n/core";
 import { stageLabel } from "@/lib/i18n/dict/labels";
 import { undoLabels } from "@/lib/i18n/dict/undo";
 
-/* App B Partners pipeline (§7.2–§7.3, §10.2). applyProspectEvent mirrors
+/* App B Partners & Agents pipeline (§7.2–§7.3, §10.2). applyProspectEvent mirrors
    applyLeadEvent on the partners config; updateProspect fires PP-2's auto-return
    when a new number lands on a Didn't-Answer card; the PP-4 completeness gate is
-   the won_partner Zod schema and conversion creates the directory Partner. */
+   the won_partner Zod schema and conversion creates the directory Partner.
 
-export const createProspectSchema = z.object({
+   Founder: one board, TWO kinds of card. A `partner` card is exactly what it has
+   always been. An `agent` card collects the PUBLIC SIGNUP form's fields (first +
+   last name, phone, email, address, speciality, CV) minus the password, and its
+   Won gate mints the account the admin promises ("I will create for them a user
+   and a password"). Requiredness is therefore CONDITIONAL on the kind — enforced
+   here in Zod, not in the database, so both kinds live in one table. */
+
+const prospectFields = z.object({
   name: z.string().min(1).max(200),
-  companyName: z.string().min(1).max(200),
+  companyName: z.string().max(200).optional(),
   role: z.string().max(200).optional(),
   email: z.string().email().optional().or(z.literal("").transform(() => undefined)),
   number: z.string().min(1).max(50),
-  businessActivity: z.string().min(1).max(300),
+  businessActivity: z.string().max(300).optional(),
+  address: z.string().max(400).optional(),
+  speciality: z.string().max(200).optional(),
   description: z.string().max(2000).optional(),
 });
 
-export const updateProspectSchema = createProspectSchema.partial();
+type ProspectFields = Partial<z.infer<typeof prospectFields>>;
+
+const required = (value: string | undefined | null) => Boolean(value && value.trim());
+
+/** The kind-conditional rules, shared by create (Zod) and edit (service).
+
+    Founder: "the CV should be optional. Everything is optional other than the
+    name and the number... just to not confuse this one." An agent card is
+    typically opened mid-phone-call with nothing else in hand, so it asks the
+    SIGNUP FORM'S FIELDS but demands only name + number — and the requirements
+    move to the Won gate (wonAgentSchema), which is exactly what this pipeline's
+    gates are for. A PARTNER card is deliberately NOT relaxed: "and the partners
+    as it is" — companyName + businessActivity stay required. The asymmetry is
+    intentional; do not "fix" it. */
+function kindIssues(kind: string, data: ProspectFields): Array<{ path: string; message: string }> {
+  const issues: Array<{ path: string; message: string }> = [];
+  if (kind === "agent") {
+    /* the number is one of the two mandatory fields, so it is held to the
+       signup form's rule (portal-reps.signupSchema) */
+    if (data.number !== undefined && !isValidPhone(data.number)) {
+      issues.push({ path: "number", message: "Enter a valid phone number" });
+    }
+  } else {
+    if (!required(data.companyName)) {
+      issues.push({ path: "companyName", message: "Company name is required" });
+    }
+    if (!required(data.businessActivity)) {
+      issues.push({ path: "businessActivity", message: "Business activity is required" });
+    }
+  }
+  return issues;
+}
+
+export const createProspectSchema = prospectFields
+  .extend({ kind: z.enum(PROSPECT_KINDS).default("partner") })
+  .superRefine((data, ctx) => {
+    for (const issue of kindIssues(data.kind, data)) {
+      ctx.addIssue({ code: "custom", path: [issue.path], message: issue.message });
+    }
+  });
+
+/* kind is deliberately absent: it is chosen at creation and FIXED afterwards —
+   the Won gate (directory partner vs. agent account) depends on it. */
+export const updateProspectSchema = prospectFields.partial();
 
 /* V2 §6 — unbounded alternative numbers; JSON-array helpers. */
 export function parseNumbers(json: string): string[] {
@@ -49,32 +111,63 @@ export function parseNumbers(json: string): string[] {
   }
 }
 
+/** The card's headline: a partner company, or the agent's own name. */
+export function prospectTitle(p: { kind: string; name: string; companyName: string | null }): string {
+  return p.kind === "agent" ? p.name : (p.companyName ?? p.name);
+}
+
 export async function createProspect(
   input: z.infer<typeof createProspectSchema>,
   actor: Actor,
+  opts?: { cv?: File },
 ) {
-  return db.$transaction(async (tx) => {
-    const prospect = await tx.partnerProspect.create({
-      data: {
-        name: input.name,
-        companyName: input.companyName,
-        role: input.role ?? null,
-        email: input.email ?? null,
-        number: input.number,
-        businessActivity: input.businessActivity,
-        description: input.description ?? null,
-      },
+  const agent = input.kind === "agent";
+  /* The CV is stored BEFORE the transaction (validation can reject) and deleted
+     again if the write fails — the signup path's rule, so no file is orphaned. */
+  const storedCv = agent && opts?.cv ? await validateAndStore("cv", opts.cv) : null;
+  try {
+    return await db.$transaction(async (tx) => {
+      const prospect = await tx.partnerProspect.create({
+        data: {
+          kind: input.kind,
+          name: input.name,
+          /* only the fields the kind owns are written — the other set stays null */
+          companyName: agent ? null : (input.companyName ?? null),
+          role: agent ? null : (input.role ?? null),
+          businessActivity: agent ? null : (input.businessActivity ?? null),
+          address: agent ? (input.address ?? null) : null,
+          speciality: agent ? (input.speciality ?? null) : null,
+          email: input.email ?? null,
+          number: input.number,
+          description: input.description ?? null,
+        },
+      });
+      if (storedCv) {
+        await tx.attachment.create({
+          data: {
+            kind: "cv",
+            partnerProspectId: prospect.id,
+            filename: storedCv.filename,
+            storageKey: storedCv.key,
+            mime: storedCv.mime,
+            size: storedCv.size,
+          },
+        });
+      }
+      await writeLog(tx, {
+        entityType: "partner_prospect",
+        entityId: prospect.id,
+        actor,
+        action: "create",
+        toStage: "lead",
+        trigger: "create",
+      });
+      return prospect;
     });
-    await writeLog(tx, {
-      entityType: "partner_prospect",
-      entityId: prospect.id,
-      actor,
-      action: "create",
-      toStage: "lead",
-      trigger: "create",
-    });
-    return prospect;
-  });
+  } catch (err) {
+    if (storedCv) await storage.delete(storedCv.key);
+    throw err;
+  }
 }
 
 export async function getProspect(prospectId: string) {
@@ -90,8 +183,11 @@ export async function getProspectDetail(prospectId: string) {
       followUps: { orderBy: { createdAt: "asc" }, include: { ownerSalesRep: true } },
       meetings: { orderBy: { createdAt: "asc" } },
       lostInfo: { orderBy: { createdAt: "asc" } },
-      recordings: { orderBy: { createdAt: "asc" } },
+      /* the card's attachments are recordings AND (agent cards) the CV — the
+         player list must only ever see the recordings */
+      recordings: { where: { kind: "recording" }, orderBy: { createdAt: "asc" } },
       partner: true,
+      agentUser: { select: { id: true, name: true, email: true } },
     },
   });
   if (!prospect) throw new ApiError(404, "Partner prospect not found");
@@ -108,7 +204,12 @@ export async function getProspectDetail(prospectId: string) {
       fileOk: (await storage.size(r.storageKey).catch(() => null)) !== null,
     })),
   );
-  return { prospect: { ...prospect, recordings }, history };
+  /* the agent card's CV (kind "cv" on the same parent) — shown on the card and
+     re-parented onto the PortalRep at conversion */
+  const cv = await db.attachment.findFirst({
+    where: { partnerProspectId: prospectId, kind: "cv" },
+  });
+  return { prospect: { ...prospect, recordings, cv }, history };
 }
 
 export async function updateProspect(
@@ -117,17 +218,39 @@ export async function updateProspect(
   actor: Actor,
 ) {
   const prospect = await getProspect(prospectId);
+  const agent = prospect.kind === "agent";
+
+  /* The kind is FIXED at creation (the Won gate depends on it), so an edit can
+     never switch a card from one field set to the other — it only re-validates
+     the SAME kind's rules against the merged record. */
+  const merged = {
+    name: input.name ?? prospect.name,
+    companyName: input.companyName ?? prospect.companyName ?? undefined,
+    role: input.role ?? prospect.role ?? undefined,
+    email: input.email ?? prospect.email ?? undefined,
+    number: input.number ?? prospect.number,
+    businessActivity: input.businessActivity ?? prospect.businessActivity ?? undefined,
+    address: input.address ?? prospect.address ?? undefined,
+    speciality: input.speciality ?? prospect.speciality ?? undefined,
+  };
+  const issues = kindIssues(prospect.kind, merged);
+  if (issues.length > 0) throw new ApiError(400, issues.map((i) => i.message).join("; "));
+
   return db.$transaction(async (tx) => {
     await tx.partnerProspect.update({
       where: { id: prospect.id },
       data: {
         ...(input.name !== undefined && { name: input.name }),
-        ...(input.companyName !== undefined && { companyName: input.companyName }),
-        ...(input.role !== undefined && { role: input.role ?? null }),
         ...(input.email !== undefined && { email: input.email ?? null }),
         ...(input.number !== undefined && { number: input.number }),
-        ...(input.businessActivity !== undefined && { businessActivity: input.businessActivity }),
         ...(input.description !== undefined && { description: input.description ?? null }),
+        /* the other kind's columns stay untouched, whatever the payload says */
+        ...(!agent && input.companyName !== undefined && { companyName: input.companyName }),
+        ...(!agent && input.role !== undefined && { role: input.role ?? null }),
+        ...(!agent &&
+          input.businessActivity !== undefined && { businessActivity: input.businessActivity }),
+        ...(agent && input.address !== undefined && { address: input.address }),
+        ...(agent && input.speciality !== undefined && { speciality: input.speciality }),
       },
     });
     await writeLog(tx, {
@@ -235,7 +358,9 @@ export async function applyProspectEvent(opts: {
       ? opts.event.action
       : null;
 
-  const result = transition(partnersConfig, { stage: prospect.stage }, opts.event, {
+  /* the shared config, with the Won gate this card's kind requires (PP-4/PP-4a) */
+  const config = partnersConfigFor(prospect.kind);
+  const result = transition(config, { stage: prospect.stage }, opts.event, {
     role: opts.role,
   });
   if (!result.ok) throw new ApiError(400, result.message);
@@ -383,6 +508,77 @@ export async function applyProspectEvent(opts: {
           trigger: "PP-4",
         });
       }
+
+      if (effect === "create_agent") {
+        /* PP-4a (founder): "once I put them Won, I have to create for them a user
+           and a password — they will not apply, I will create for them a user and
+           a password." So this mints the whole account the signup flow would have
+           produced, minus the waiting: approved from birth, never a Registration.
+           Same three writes as signupRep + the CV, in ONE transaction. */
+        const gate = (opts.group as { group: "won_agent"; data: WonAgentInput }).data;
+        const email = gate.email.trim().toLowerCase();
+        const phone = normalizePhone(gate.phone);
+        if (!isValidPhone(phone)) throw new ApiError(400, "Enter a valid phone number");
+        if (await tx.user.findUnique({ where: { email } })) {
+          throw new ApiError(409, "An account with this email already exists");
+        }
+        if (await tx.user.findUnique({ where: { phone } })) {
+          throw new ApiError(409, "An account with this phone number already exists");
+        }
+
+        const name = `${gate.firstName} ${gate.lastName}`;
+        const user = await tx.user.create({
+          data: {
+            name,
+            email,
+            phone,
+            passwordHash: await hashPassword(gate.password),
+            passwordPlain: gate.password, // admin-visibility copy (schema comment)
+            active: true,
+            /* the ADMIN created this account — it never sits in Registrations */
+            registrationStatus: "approved",
+          },
+        });
+        await tx.userRole.create({ data: { userId: user.id, role: "bsystems_agent" } });
+        const rep = await tx.portalRep.create({
+          data: {
+            userId: user.id,
+            firstName: gate.firstName,
+            lastName: gate.lastName,
+            address: gate.address,
+            speciality: gate.speciality,
+          },
+        });
+        /* the CV collected on the card becomes the agent's profile CV — moved,
+           never copied, so the stored file is neither duplicated nor orphaned */
+        const cv = await tx.attachment.findFirst({
+          where: { partnerProspectId: prospect.id, kind: "cv" },
+        });
+        if (cv) {
+          await tx.attachment.update({
+            where: { id: cv.id },
+            data: { portalRepId: rep.id, partnerProspectId: null },
+          });
+        }
+        await tx.partnerProspect.update({
+          where: { id: prospect.id },
+          data: { converted: true, agentUserId: user.id },
+        });
+        await writeLog(tx, {
+          entityType: "user",
+          entityId: user.id,
+          actor: opts.actor,
+          action: "create",
+          trigger: "agent_account",
+        });
+        await writeLog(tx, {
+          entityType: "portal_rep",
+          entityId: rep.id,
+          actor: opts.actor,
+          action: "create",
+          trigger: "PP-4a",
+        });
+      }
     }
 
     await writeLog(tx, {
@@ -395,10 +591,10 @@ export async function applyProspectEvent(opts: {
       trigger: result.logTrigger,
     });
 
-    /* ADR-045 — PP-4 conversion mints a Partner (and possibly a login): never
-       undoable, and it retires this user's pending entries so the button does
-       not offer an older action instead. */
-    if (result.sideEffects.includes("create_partner")) {
+    /* ADR-045 — PP-4/PP-4a conversion mints a Partner or a whole agent account:
+       never undoable, and it retires this user's pending entries so the button
+       does not offer an older action instead. */
+    if (result.sideEffects.includes("create_partner") || result.sideEffects.includes("create_agent")) {
       await invalidateUndo(tx, opts.actor);
     } else {
       const after = await tx.partnerProspect.findUniqueOrThrow({
@@ -412,7 +608,7 @@ export async function applyProspectEvent(opts: {
         updated,
         ...(numbersBefore !== undefined ? { nonAnsweringNumbers: numbersBefore } : {}),
       };
-      const name = prospect.companyName ?? prospect.name;
+      const name = prospectTitle(prospect);
       const undoLabel = sameStageAction
         ? formatMsg(
             sameStageAction === "reschedule_meeting"
@@ -469,6 +665,46 @@ export async function addRecording(prospectId: string, file: File, actor: Actor)
     });
     return attachment;
   });
+}
+
+/** The agent card's CV — attached at creation or added later, replaced in place.
+    At the Won gate it is re-parented onto the PortalRep, so the agent's profile
+    carries exactly the document a self-applied agent's would. */
+export async function setProspectCv(prospectId: string, file: File, actor: Actor) {
+  const prospect = await getProspect(prospectId);
+  if (prospect.kind !== "agent") throw new ApiError(400, "Only agent cards carry a CV");
+  const stored = await validateAndStore("cv", file);
+  const previous = await db.attachment.findFirst({
+    where: { partnerProspectId: prospect.id, kind: "cv" },
+  });
+  try {
+    const attachment = await db.$transaction(async (tx) => {
+      if (previous) await tx.attachment.delete({ where: { id: previous.id } });
+      const created = await tx.attachment.create({
+        data: {
+          kind: "cv",
+          partnerProspectId: prospect.id,
+          filename: stored.filename,
+          storageKey: stored.key,
+          mime: stored.mime,
+          size: stored.size,
+        },
+      });
+      await writeLog(tx, {
+        entityType: "partner_prospect",
+        entityId: prospect.id,
+        actor,
+        action: "update",
+        trigger: "cv_added",
+      });
+      return created;
+    });
+    if (previous) await storage.delete(previous.storageKey);
+    return attachment;
+  } catch (err) {
+    await storage.delete(stored.key);
+    throw err;
+  }
 }
 
 /* ---------- directory (§7.3–§7.4) ---------- */

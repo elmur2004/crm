@@ -171,7 +171,7 @@ test("internal sales: internal bucket only, no admin APIs; brands stay partition
   const partnersApi = await salesPage.request.post("/api/b-systems/partners-pipeline", {
     data: { name: "x", companyName: "x", number: "1", businessActivity: "x" },
   });
-  expect(partnersApi.status()).toBe(403); // V2: Partnership CRM is admin-only
+  expect(partnersApi.status()).toBe(403); // V2: Partners & Agents is admin-only
 
   /* Agents cannot reach ByteForce (page redirect + API 403). */
   await agentPage.goto("/byteforce");

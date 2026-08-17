@@ -146,6 +146,7 @@ describe("Undo — the allowlisted kinds restore the prior state", () => {
     const actor = await makeUser();
     const prospect = await createProspect(
       {
+        kind: "partner" as const,
         name: "Hany Mansour",
         companyName: "Mansour Trading",
         number: "0223456789",
