@@ -432,3 +432,12 @@
   (single company or "Export ALL"), replacing per company in one transaction
   and reporting exact reconciliation numbers. No UI yet — screens land in
   Phase 2.
+
+## Accounting module — Phase 2: the eleven screens + import UI (2026-08-18)
+- Full accounting section under B-Systems admin: dashboard, income, expenses
+  (approval workflow + auto-payroll from the roster), clients A/R ledger,
+  payroll roster (effective-dated), media buying (ByteForce only — hidden for
+  B-Systems), loans, treasury, monthly P&L, departments, targets, and the
+  one-time Import screen for the old app's JSON export with reconciliation
+  totals. Bilingual EN/AR throughout; company switcher + month picker; admin
+  only, with a server-side 403 wall on every route.

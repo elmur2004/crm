@@ -1074,3 +1074,53 @@ every dashboard formula, journeys 1-5 (SPEC §13).
   re-import replaces idempotently; a single-company file demands its
   company; junk files 400.
 - Verdict: PASS.
+
+## Run 047 — 2026-08-18 — Accounting Phase 2: the eleven screens + import UI (ADR-052)
+- Suites/commands: `npx tsc --noEmit` (clean) · `npx vitest run` (216 —
+  unchanged from Run 046; this commit is UI + routes over the tested
+  engine) · `npx playwright test` (full suite; NEW e2e/accounting.spec.ts,
+  4 tests, + a 13-path accounting sweep in qa-sweep.spec.ts). Local dev,
+  embedded Postgres (per-run instances).
+- Cases: vitest 216 passed / 0 failed · Playwright 35 passed / 0 failed /
+  2 skipped (audit opt-in, by design), ~6.1m wall.
+- Failures: two during the round. (i) The new qa-sweep test (13 paths ×
+  5 widths plus dev-mode first-hit compilation of 12 new pages) blew the
+  60s default test timeout — it now sets 240s for itself. (ii) None
+  functional. Observed and triaged as benign: the dev webserver
+  occasionally prints "The destination stream closed early" when a
+  Playwright navigation abandons a page mid-render; browser consoles
+  stayed clean (the sweep asserts on those).
+- SPEC coverage touched: none (INTEGRATION-PLAN scope). New coverage:
+  (e2e) an admin books a month through the UI — adds a collected income
+  (4,321 EGP), an expense that stays ON HOLD (1,111 EGP), sees the
+  dashboard carry income/on-hold but NOT spend, approves the expense from
+  its row and watches month net land on exactly EGP 3,210 — the cash
+  basis and the approval gate proved through real screens. Founder
+  decision 5 proved three ways: Media Buying visible under the ByteForce
+  filter, absent from the strip under company=bsystems, and its URL
+  bounces to the dashboard. The import screen ingests a minimal
+  single-company export end-to-end (file input → summary), reports the
+  derived totals (EGP 600 = 100 opening + 500 collected) and the
+  B-Systems dashboard then shows them. The 403 matrix fires all 21
+  accounting endpoints (income/expenses/payroll-paid/roster/media/loans/
+  loan-payments/treasury/settings/targets/import, every method) as
+  internal sales, agent AND data-entry — 63 live refusals — and each
+  role's page visit bounces to its own landing; partner accounts are
+  provisioned mid-flow rather than seeded, and the identical
+  requireBsAdmin role list refuses them by construction. The qa-sweep
+  covers all twelve accounting screens (media under ByteForce; the
+  dashboard also under the B-Systems filter) at 1440/1024/768/560/390 —
+  console-clean, no horizontal overflow — and the 390px mobile menu now
+  asserts the Accounting nav item.
+- Brand audit: the brand-auditor agent on the new UI returned FAIL
+  (narrow) and both findings were fixed before commit: the generic
+  "positive" status chip had reused the WON (Signal Pink) tint for
+  Collected/Paid/Active/Settled/Deposit — the majority states of mature
+  books, which would have drowned the Won cue (the ADR-046 precedent) —
+  now an indigo intake tint; and the "Ad budget held" KPI rendered its
+  money value in accent ink — the accent tone is now removed from the
+  tile API entirely so it cannot drift back. A third informational
+  finding (an unlabelled switcher group) also fixed. Re-audit criteria:
+  zero hardcoded colors/fonts, tokens/design-system classes only, RTL
+  logical properties + dir="ltr" Latin runs, every string a Msg — PASS.
+- Verdict: PASS.

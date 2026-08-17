@@ -90,6 +90,36 @@ test("B-Systems data entry: its one page clean at every width", async ({ page })
   expect(errors).toEqual([]);
 });
 
+/* ADR-052 — the accounting module's twelve screens (media only under the
+   ByteForce filter; the dashboard also swept under the B-Systems filter,
+   where Media Buying must be absent) at every width. */
+test("B-Systems admin: accounting screens clean at every width", async ({ page }) => {
+  test.setTimeout(240_000); // 13 paths × 5 widths, plus dev-mode first-hit compiles
+  const errors: string[] = [];
+  collectErrors(page, errors);
+  await page.goto("/login");
+  await page.getByLabel("Email or phone").fill("admin@byteforce.com");
+  await page.getByLabel("Password").fill("password123");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await page.waitForURL(/\/b-systems$/);
+  await sweep(page, errors, [
+    "/b-systems/accounting",
+    "/b-systems/accounting?company=bsystems",
+    "/b-systems/accounting/income",
+    "/b-systems/accounting/expenses",
+    "/b-systems/accounting/clients",
+    "/b-systems/accounting/roster",
+    "/b-systems/accounting/media",
+    "/b-systems/accounting/loans",
+    "/b-systems/accounting/treasury",
+    "/b-systems/accounting/report",
+    "/b-systems/accounting/departments",
+    "/b-systems/accounting/targets",
+    "/b-systems/accounting/import",
+  ]);
+  expect(errors).toEqual([]);
+});
+
 test("mobile menu reaches EVERY admin section at 390px (incl. switcher + logout)", async ({
   page,
 }) => {
@@ -111,6 +141,7 @@ test("mobile menu reaches EVERY admin section at 390px (incl. switcher + logout)
     "Agents",
     "Registrations",
     "Statements",
+    "Accounting", // ADR-052
     "Users",
   ]) {
     await expect(page.getByRole("menu").getByRole("link", { name: label, exact: true })).toBeVisible();

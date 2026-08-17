@@ -1788,3 +1788,57 @@ comment, and the ADR-013 mechanism note all fixed; .env.example confirmed tracke
   excludes the two gitignored reference archives from typechecking
   (~484 alien errors from their own stacks); they remain untouched on
   disk. Carried: see Entries 023–042.
+
+## Entry 044 — 2026-08-18 — Accounting module Phase 2: the eleven screens + import UI (ADR-052)
+- Done: the accounting UI, composed ONLY from existing design-system
+  classes and B-Systems tokens (founder decision 8 — the CRM's current
+  design is the model). Twelve screens under /b-systems/accounting —
+  dashboard (stat tiles, treasury hero, target meter), income (cash-basis
+  rows with collect toggle), expenses (approval workflow with Paid /
+  On-hold chips, derived payroll section with "from roster" badges and
+  the linked-manual-row option), clients (derived A/R ledger + per-client
+  statement with running balance; free-text names until Phase 7), payroll
+  roster (effective-dated add/edit/toggle), media buying (received/sent
+  with live fee split — HIDDEN entirely under company=bsystems: no tab,
+  URL bounces), loans (+payments with optional treasury cash moves),
+  treasury (month waterfall, system opening balance, movements),
+  monthly P&L (by-type cards + 6-month trend meters), departments
+  (profitability + overhead, month/all-time), targets, and the IMPORT
+  screen (file upload → per-company row counts + piaster-exact derived
+  totals for manual reconciliation against the old app). One new nav item
+  "Accounting"/"الحسابات" in the bsystems_admin array only. Company is a
+  FILTER (switcher + month picker write URL params; every view is
+  linkable). 15 new admin-only API routes (21 endpoints incl. Phase 1's
+  import) all through requireBsAdmin + a service layer that writes
+  ActivityLog inside each transaction and calls invalidateUndo on every
+  financial mutation (money is never undoable, ADR-045). New dict module
+  src/lib/i18n/dict/accounting.ts (~300 Msg entries) with Arabic seeded
+  from the SPA's own AR dictionary. brand-auditor on the new UI returned
+  FAIL (narrow) and every finding was fixed before commit — the sharpest:
+  the generic positive chip wore the WON/Signal-Pink tint on the majority
+  states of the books (Collected/Paid/Active/Settled), diluting the Won
+  cue exactly as the ADR-046 precedent warns; it is indigo now, and the
+  accent KPI tone was removed from the tile API so it cannot return.
+  Verified: tsc clean, vitest 216/216, Playwright 35 passed / 2 audit
+  skips (+5 tests: the booking journey, the media-hiding proof, the
+  import round-trip, the 63-refusal 403 matrix, the 13-path accounting
+  qa-sweep at five widths) — TESTING Run 047.
+- In progress: — (Phases 1–2 complete; both commits LOCAL ONLY per the
+  founder's no-push override — production auto-deploys from main).
+- Next steps: founder tests locally (npm run db:up + npm run dev →
+  /b-systems/accounting as admin@byteforce.com; Import screen accepts the
+  old app's JSON export). Then Phase 3 cutover: freeze day, final export,
+  import, reconcile side-by-side, retire the Worker. Phase 7 later links
+  client names to CRM Client records.
+- Blockers: none. Commits are NOT pushed — awaiting founder's local test.
+- Needs founder confirmation: (i) carried from Entry 043 — string
+  calendar dates, imported deduction/bonus honoured but not editable,
+  orphan-reference drops on import, tsconfig excludes the two reference
+  archives; (ii) SCREEN CONSOLIDATION — none: all eleven SPA tabs map
+  1:1 to screens (P&L kept as "Monthly P&L" at /report), Import is the
+  twelfth; (iii) the SPA's "Reset everything" and Excel import/export
+  menu items were deliberately NOT rebuilt (the CRM has full-system
+  backup/restore; a one-click books wipe felt founder-hostile) — say the
+  word if either is wanted; (iv) the loans screen keeps the SPA's
+  delete-loan action (hard delete with cascade to its payments; treasury
+  moves stay, as in the SPA) — confirm that is still the wanted shape.
