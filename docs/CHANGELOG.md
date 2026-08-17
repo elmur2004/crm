@@ -421,3 +421,14 @@
 ## [0.0.0] — 2026-08-08
 - Project starter: master specification, process tooling, brand token files for both
   companies. No application features yet.
+
+## Accounting module — Phase 1: engine + import service (2026-08-17)
+- New `Acct*` schema (11 models, company-tagged, Int piasters) with backup +
+  reset registration; pure accounting engine re-implementing the legacy app's
+  rules (cash-basis income, approval-gated expenses, derived auto-payroll with
+  effective-dated salaries, media pass-through, loans with 50-piaster
+  settlement epsilon, treasury carry-forward, client A/R, P&L, departments,
+  targets); admin-only import endpoint accepting the old app's own JSON export
+  (single company or "Export ALL"), replacing per company in one transaction
+  and reporting exact reconciliation numbers. No UI yet — screens land in
+  Phase 2.

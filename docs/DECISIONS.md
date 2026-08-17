@@ -1565,3 +1565,84 @@ R23 copy sign-off — carried in PROGRESS (Entry 011).
   one-word CTA, and the phone/email INPUTS lacking the `dir="ltr"` their
   read-only cells already had.
 - Status: Accepted
+
+## ADR-052 — 2026-08-17 — Accounting module: rebuild-on-top architecture
+
+- Context: the founder approved docs/INTEGRATION-PLAN.md with decisions
+  §7.1–§7.8 — build BOTH satellite apps natively on the CRM stack, port
+  nothing; admin-only; fresh start with a one-time upload of the old
+  accounting app's own JSON export (no code ever reads Cloudflare KV);
+  B-Systems keeps hiding Media Buying; client linking deferred to a new
+  Phase 7; the CRM's current design system is the model. The reference
+  SPA (D:\CRM\Accounting\public\index.html, gitignored) is the complete
+  spec: its pure functions ARE the business rules and its migrate()
+  function is an executable schema.
+- Decision: eleven `Acct*` Prisma models (AcctIncome, AcctExpense,
+  AcctRosterMember, AcctRosterSegment, AcctPayrollPayment,
+  AcctTreasuryMove, AcctLoan, AcctLoanPayment, AcctMediaEntry,
+  AcctTarget, AcctSettings), every row tagged `company`
+  ("byteforce" | "bsystems", the existing Brand union — company is a
+  FILTER on one admin screen set, not a tenant), registered in backup
+  MODELS + resetDb() in the same commit as the migration. A pure,
+  framework-free engine (src/lib/accounting/engine.ts) re-implements the
+  SPA's arithmetic at Int piaster scale with "now" as an explicit
+  parameter; src/lib/accounting/books.ts is the single DB→engine bridge;
+  src/lib/accounting/import.ts accepts the SPA's own export (single
+  company or the two-company "Export ALL" wrapper) behind admin-only
+  POST /api/b-systems/accounting/import. The judgement calls, each
+  mirroring the SPA rather than inventing:
+  1. MONTHS AND DATES ARE STRINGS ("YYYY-MM", "YYYY-MM-DD"), not
+     DateTime. The whole engine is lexicographic month arithmetic over
+     calendar facts; instants would re-introduce timezone day-shift for
+     zero gain. The wall clock enters only via cairoMonth()/cairoToday()
+     (Africa/Cairo, SPEC §2).
+  2. PAYROLL IS DERIVED, NEVER MATERIALISED. Only roster segments and
+     approval marks (AcctPayrollPayment = the SPA's payrollPaid map as
+     rows) persist; the engine re-derives salary rows every read, so the
+     importer cannot under-count (the plan's ETL trap §5.3). A manual
+     payroll expense LINKED via rosterId replaces that person's derived
+     row for its month; unlinked rows add on top.
+  3. MONEY IS INT PIASTERS (×100 on import — lossless; ADR-018), with
+     the 50-piaster loan-settlement epsilon (the SPA's 0.5 EGP).
+  4. THE IMPORTER MIRRORS migrate()'s TOLERANCE in Zod: collections
+     coerced to arrays, pre-approval expenses become Paid, no-`since`
+     members start this month, one target per period. Old uid() ids are
+     re-minted as cuids with rosterId / payrollPaid-key / mediaRef
+     REMAPPED through an id table; orphan references are dropped
+     (arithmetically neutral in the SPA — nothing resolves them).
+     Import REPLACES one company's books in ONE transaction
+     (re-import = idempotent), writes an acct_books/import ActivityLog
+     row, and consumes pending undo entries (money is never undoable,
+     ADR-045). It returns the engine's derived reconciliation numbers
+     (treasury now, month net, A/R, A/P, committed salary) for the
+     founder's side-by-side check against the old dashboard.
+  5. SPA-REVEALED FIELDS KEPT: expense `deduction`/`bonus` (read by
+     expenseAmount(): payroll net = amount − deduction + bonus) exist in
+     legacy data though the current form never writes them — carried as
+     nullable columns. income.mediaRef → AcctIncome.mediaEntryId, a real
+     relation (SET NULL), per the ADR-049 lesson on bare-id columns; so
+     is AcctExpense.rosterId.
+  6. UNKNOWN type strings survive import unvalidated (the SPA displays
+     `MAP[t] || t`); the unions in src/lib/accounting/constants.ts
+     constrain NEW rows (Zod at the routes), not history.
+  7. LOG VOCABULARY extended add-only: acct_* entity types plus
+     delete / approve / unapprove / import actions.
+  8. tsconfig.json now EXCLUDES the two gitignored reference folders
+     ("Data Managment System", "Accounting") — they are archives to
+     rebuild from (§7.1), and sweeping them broke `tsc --noEmit` with
+     ~484 alien errors from a different stack.
+- Alternatives considered: DateTime columns (rejected — day-shift risk,
+  see 1); materialising payroll rows on import (rejected — the plan
+  names it the canonical ETL trap); per-company schemas or a tenant
+  column set (rejected — founder folded both companies into one admin
+  screen with a filter); Decimal money (rejected — ADR-018 piasters);
+  validating type enums strictly on import (rejected — the export is
+  history, not input).
+- Resolves: INTEGRATION-PLAN Phases 1–2; founder decisions §7.1, §7.3,
+  §7.4, §7.5, §7.8 cited above.
+- Consequences: Phase 2 builds the eleven screens over this engine;
+  Phase 3 (cutover) is a founder-run import + reconciliation; Phase 7
+  will link client names to CRM Client records (kept free-text now).
+  B-Systems media hiding is enforced in the UI/nav and route validation;
+  imported B-Systems media rows (should any exist) still compute.
+- Status: Accepted

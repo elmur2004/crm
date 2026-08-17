@@ -1742,3 +1742,49 @@ comment, and the ADR-013 mechanism note all fixed; .env.example confirmed tracke
   same-stage record labels, admin-only reassignment, the call sheet's
   single-number/full-chat choices, deletion's admin-bucket landing, and
   the deliberate partner/agent asymmetry in card-creation strictness).
+
+## Entry 043 — 2026-08-17 — Accounting module Phase 1: schema, piaster engine, import service (ADR-052)
+- Done: the accounting rebuild-on-top began exactly where the approved
+  plan pointed (INTEGRATION-PLAN Phases 1–2, founder decisions §7).
+  One migration adds the eleven `Acct*` models — income, expenses,
+  roster members + effective-dated salary segments, payroll approval
+  marks, treasury moves, loans + payments, media ledger, targets,
+  per-company settings — every row tagged company
+  ("byteforce"|"bsystems", the Brand union: a filter, not a tenant),
+  all registered in backup MODELS and resetDb() in the same commit.
+  src/lib/accounting/ holds the pure engine (the SPA's functions
+  re-implemented line-for-line at Int piaster scale, "now" always a
+  parameter), the DB→engine books bridge, and the importer for the old
+  app's own JSON export (single company or the "Export ALL" wrapper)
+  behind admin-only POST /api/b-systems/accounting/import. Payroll is
+  DERIVED at read time — the importer writes roster segments and
+  approval marks, never salary rows, so it cannot under-count. Import
+  replaces one company's books in one transaction, logs
+  acct_books/import, consumes pending undo entries (money is never
+  undoable, ADR-045) and returns the engine's reconciliation numbers
+  for the founder's side-by-side check. 42 new tests encode the
+  business rules (cash basis, approval-gates-cash, auto-payroll incl.
+  the linked-row replacement, media pass-through, the 50-piaster loan
+  epsilon, treasury carry-forward, client A/R, P&L, departments) and
+  prove the import reproduces the old dashboard to the piaster.
+  Verified: tsc clean, vitest 216/216 (+42), Playwright untouched 30
+  passed / 2 audit skips (TESTING Run 046).
+- In progress: Phase 2 — the eleven screens + import UI under
+  /b-systems/accounting (next commit).
+- Next steps: Phase 2 UI; then Phase 3 cutover is founder-run (export
+  from the old app on freeze day, upload here, reconcile totals).
+- Blockers: none. NOTE (per founder override this session): commits stay
+  LOCAL — no push until the founder tests locally.
+- Needs founder confirmation: (i) date/month columns are calendar
+  STRINGS mirroring the SPA (ADR-052 §1) — instants would day-shift;
+  flag if a DateTime audit trail per money row is wanted beyond
+  createdAt/updatedAt. (ii) The SPA reads expense `deduction`/`bonus`
+  fields its own form can no longer write — they are imported and
+  honoured (payroll net = amount − deduction + bonus) but Phase 2's
+  expense form, mirroring the SPA's, does not offer them; say the word
+  if the fields should be editable. (iii) Orphan payrollPaid keys and
+  dangling rosterId links in the export are dropped/nulled on import —
+  arithmetically neutral, noted for transparency. (iv) tsconfig now
+  excludes the two gitignored reference archives from typechecking
+  (~484 alien errors from their own stacks); they remain untouched on
+  disk. Carried: see Entries 023–042.

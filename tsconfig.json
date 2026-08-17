@@ -36,6 +36,11 @@
     ".next/dev/types/**/*.ts"
   ],
   "exclude": [
-    "node_modules"
+    "node_modules",
+    /* reference sources to rebuild FROM, never part of this build (ADR-052,
+       INTEGRATION-PLAN §7.1) — both are gitignored archives with their own
+       stacks; sweeping them broke `tsc --noEmit` with ~484 alien errors */
+    "Data Managment System",
+    "Accounting"
   ]
 }

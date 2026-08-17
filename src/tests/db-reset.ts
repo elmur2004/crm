@@ -3,6 +3,18 @@ import { db } from "@/lib/db";
 /* Deletes all operational rows in FK-safe order. Used by integration tests. */
 
 export async function resetDb(): Promise<void> {
+  /* accounting (ADR-052) — children before parents */
+  await db.acctLoanPayment.deleteMany();
+  await db.acctLoan.deleteMany();
+  await db.acctIncome.deleteMany(); // references AcctMediaEntry
+  await db.acctExpense.deleteMany(); // references AcctRosterMember
+  await db.acctMediaEntry.deleteMany();
+  await db.acctPayrollPayment.deleteMany();
+  await db.acctRosterSegment.deleteMany();
+  await db.acctRosterMember.deleteMany();
+  await db.acctTreasuryMove.deleteMany();
+  await db.acctTarget.deleteMany();
+  await db.acctSettings.deleteMany();
   await db.activityLog.deleteMany();
   await db.undoEntry.deleteMany(); // ADR-045 — undo snapshots are operational rows too
   await db.attachment.deleteMany(); // references Statement/WonDeal/PortalRep — first

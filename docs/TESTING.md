@@ -1028,3 +1028,49 @@ every dashboard formula, journeys 1-5 (SPEC §13).
   than to a sign-in form. The admin then finds the entered lead waiting
   under ?owner=unassigned while their own owned lead is not there.
 - Verdict: PASS.
+
+## Run 046 — 2026-08-17 — Accounting Phase 1: schema + piaster engine + importer (ADR-052)
+- Suites/commands: `npx tsc --noEmit` (clean — after excluding the two
+  gitignored reference archives from the sweep, which contributed ~484
+  pre-existing alien errors) · `npx vitest run` (216 = baseline 174 +
+  42 new in src/lib/accounting/engine.test.ts and
+  import.integration.test.ts) · `npx playwright test` (untouched
+  baseline). Local dev, embedded Postgres (per-run instances).
+- Cases: vitest 216 passed / 0 failed / 0 skipped · Playwright 30
+  passed / 0 failed / 2 skipped (audit opt-in, by design), 4.9m wall.
+- Failures: one during the round — the importer test first asserted 2
+  stored targets after re-import, but the B-Systems fixture document
+  deliberately has none (expectation fixed to 1, the ByteForce target).
+- SPEC coverage touched: none (accounting is INTEGRATION-PLAN scope,
+  not SPEC §10). New coverage encodes the SPA's business rules at
+  piaster scale: cash basis (a late payment lands in its paidMonth, a
+  pending item only in A/R); approval-gates-cash (on-hold expenses
+  absent from spend/net/treasury, present in A/P); auto-payroll
+  derivation (start month, effective-dated raise, deactivation-forward,
+  payrollPaid approval marks, LINKED manual row replaces the auto row
+  for its month while an UNLINKED one adds on top, memberUpsert
+  same-month replacement with partial patches); media pass-through
+  (only the fee in profit, budget washes through treasury, held ≠
+  debt); loans (partial repayment, floor at zero, the 50-piaster
+  settlement epsilon proved from both sides — 50 settles, 51 stays
+  open, and totals still carry the 50); treasury running balance
+  (opening + monthly nets + moves, liveTreasury at the newest active
+  month incl. future months, derived payroll draining cash only once
+  approved); the derived client A/R ledger (running statement lines,
+  trimmed names, no-client rows excluded); monthly P&L by type with
+  the 6-month trend; department profitability (tagged income vs cost,
+  media_fee as pure income, untagged overhead, all-time scope); the
+  dashboard reconciliation pass. The importer proves Phase 1's
+  definition of done — a representative two-company export (on-hold
+  expense, mid-year raise, member leaving this month, linked manual
+  payroll, legacy no-`paid`-key row, deduction/bonus payroll row,
+  partially-forwarded media budget, partial loan repayment, ε-settled
+  lent loan, orphan payrollPaid key, a 1,999.5-EGP amount) reproduces
+  the old dashboard EXACTLY in piasters: treasury 8,550.00 · month net
+  3,000.00 · A/R 3,000.00 · A/P 12,300.00 · committed salary 8,000.00 —
+  and the reported numbers equal a fresh engine pass over the stored
+  rows; payroll never materialises as expense rows; old-id links
+  (rosterId, payrollPaid keys, mediaRef) remap onto new cuids;
+  re-import replaces idempotently; a single-company file demands its
+  company; junk files 400.
+- Verdict: PASS.

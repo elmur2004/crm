@@ -439,3 +439,179 @@ model UndoEntry {
 
   @@index([userId, consumedAt, createdAt])
 }
+
+/* ============================ ACCOUNTING (ADR-052) ============================
+   Rebuild-on-top of the reference SPA (docs/INTEGRATION-PLAN.md §2–3): the
+   SPA's migrate()/state shape is the field spec. Every row carries `company`
+   ("byteforce" | "bsystems" — the Brand union; company is a FILTER, not a
+   tenant). Money is Int piasters (EGP ×100 on import — lossless; ADR-018).
+   Months are "YYYY-MM" and day-dates are "YYYY-MM-DD" STRINGS, exactly as the
+   SPA stores them: the whole engine is lexicographic month arithmetic on
+   calendar facts, not instants — a DateTime would re-introduce the timezone
+   day-shift class of bug for zero gain (ADR-052). Payroll is NEVER a stored
+   row: the engine derives it from roster segments at read time; only the
+   approval marks (AcctPayrollPayment) and linked manual overrides persist. */
+
+model AcctIncome {
+  id            String  @id @default(cuid())
+  company       String // byteforce | bsystems
+  month         String // "YYYY-MM" the item belongs to (issue month)
+  type          String // invoice | media_fee | consulting | loan_in | other
+  client        String  @default("") // free text this phase (linking = Phase 7)
+  serviceLine   String  @default("") // dept id or "" (SPA: income always has one)
+  amount        Int // piasters
+  note          String  @default("")
+  collected     Boolean @default(false)
+  collectedDate String? // "YYYY-MM-DD" — cash basis: counts when collected
+  paidMonth     String? // "YYYY-MM" the cash landed in (incomeMonth precedence)
+  mediaEntryId  String? // fee income minted by a media "received" (SPA mediaRef)
+  mediaEntry    AcctMediaEntry? @relation(fields: [mediaEntryId], references: [id], onDelete: SetNull)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([company, month])
+  @@index([company, collected])
+}
+
+model AcctExpense {
+  id          String  @id @default(cuid())
+  company     String
+  month       String // "YYYY-MM"
+  type        String // payroll | subscription | media | rent | freelancer | tax | admin | loan_repay | other
+  name        String  @default("") // payee
+  serviceLine String  @default("") // dept id or "" = shared overhead
+  amount      Int // piasters
+  /* payroll net = amount − deduction + bonus. The SPA's expenseAmount() reads
+     these though its current form never writes them — legacy rows in the
+     export may carry them, so they are kept (the SPA is the spec). */
+  deduction   Int?
+  bonus       Int?
+  note        String  @default("")
+  paid        Boolean @default(false) // approval gate: on-hold never touches cash
+  paidDate    String? // "YYYY-MM-DD"
+  /* a manual payroll row LINKED to a person replaces that person's derived
+     auto-salary for its month; unlinked = extra on top (SPA autoPayroll). */
+  rosterId    String?
+  rosterMember AcctRosterMember? @relation(fields: [rosterId], references: [id], onDelete: SetNull)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([company, month])
+}
+
+model AcctRosterMember {
+  id          String  @id @default(cuid())
+  company     String
+  name        String
+  role        String  @default("")
+  serviceLine String  @default("")
+  account     String  @default("") // payment account no.
+  since       String // "YYYY-MM" first month on payroll
+  segments    AcctRosterSegment[]
+  payrollPayments AcctPayrollPayment[]
+  linkedExpenses  AcctExpense[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([company])
+}
+
+model AcctRosterSegment {
+  // effective-dated salary/active history: a change "as of" month m applies
+  // from m onward; earlier months keep their previous segment (SPA memberAt).
+  id       String  @id @default(cuid())
+  memberId String
+  from     String // "YYYY-MM"
+  salary   Int // piasters
+  active   Boolean @default(true)
+  member   AcctRosterMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([memberId, from]) // memberUpsert replaces the same-month segment
+}
+
+model AcctPayrollPayment {
+  // the SPA's payrollPaid map ("month:rosterId" → paidDate) as rows: the
+  // approval mark for one person's DERIVED salary in one month.
+  id       String @id @default(cuid())
+  company  String
+  memberId String
+  month    String // "YYYY-MM"
+  paidDate String // "YYYY-MM-DD"
+  member   AcctRosterMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([memberId, month])
+  @@index([company, month])
+}
+
+model AcctTreasuryMove {
+  id        String @id @default(cuid())
+  company   String
+  month     String // "YYYY-MM"
+  kind      String // deposit | withdraw
+  label     String @default("")
+  amount    Int // piasters
+  date      String // "YYYY-MM-DD"
+  tag       String @default("") // "" | media | loan (SPA provenance tag)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([company, month])
+}
+
+model AcctLoan {
+  id        String @id @default(cuid())
+  company   String
+  direction String // borrowed (liability) | lent (receivable)
+  party     String
+  principal Int // piasters
+  date      String // "YYYY-MM-DD"
+  dueDate   String @default("")
+  note      String @default("")
+  payments  AcctLoanPayment[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([company])
+}
+
+model AcctLoanPayment {
+  id     String @id @default(cuid())
+  loanId String
+  amount Int // piasters
+  date   String // "YYYY-MM-DD"
+  note   String @default("")
+  loan   AcctLoan @relation(fields: [loanId], references: [id], onDelete: Cascade)
+}
+
+model AcctMediaEntry {
+  // pass-through ledger: client ad budget is NOT revenue — only the fee is.
+  id        String @id @default(cuid())
+  company   String
+  month     String // "YYYY-MM"
+  client    String
+  type      String // received | sent
+  amount    Int // piasters
+  feeAmount Int? // received only: the agency fee minted as income
+  date      String // "YYYY-MM-DD"
+  ref       String @default("")
+  feeIncomes AcctIncome[]
+  createdAt DateTime @default(now())
+
+  @@index([company, month])
+}
+
+model AcctTarget {
+  id      String @id @default(cuid())
+  company String
+  period  String // "YYYY-MM"
+  goal    Int // piasters (collected-income goal)
+
+  @@unique([company, period])
+}
+
+model AcctSettings {
+  // per-company scalars: today only the system opening balance.
+  id             String @id @default(cuid())
+  company        String @unique
+  openingBalance Int    @default(0) // piasters, cash before the first month
+}

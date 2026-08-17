@@ -37,6 +37,18 @@ const MODELS = [
   "leadComment",
   "attachment",
   "activityLog",
+  /* accounting (ADR-052) — parents before children */
+  "acctSettings",
+  "acctRosterMember",
+  "acctRosterSegment",
+  "acctPayrollPayment",
+  "acctMediaEntry",
+  "acctIncome", // references AcctMediaEntry
+  "acctExpense", // references AcctRosterMember
+  "acctTreasuryMove",
+  "acctLoan",
+  "acctLoanPayment",
+  "acctTarget",
 ] as const;
 type ModelName = (typeof MODELS)[number];
 

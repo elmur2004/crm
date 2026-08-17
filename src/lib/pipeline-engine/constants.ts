@@ -174,6 +174,19 @@ export const LOG_ENTITY_TYPES = [
   "partner",
   "statement", // V2 §7
   "user", // V2 §11 (users management / impersonation)
+  /* accounting (ADR-052) — one type per money table; acct_books = whole-company
+     operations (the import). entityId is the row id (or the company for books). */
+  "acct_income",
+  "acct_expense",
+  "acct_roster_member",
+  "acct_payroll_payment",
+  "acct_treasury_move",
+  "acct_loan",
+  "acct_loan_payment",
+  "acct_media_entry",
+  "acct_target",
+  "acct_settings",
+  "acct_books",
 ] as const;
 export type LogEntityType = (typeof LOG_ENTITY_TYPES)[number];
 
@@ -188,5 +201,10 @@ export const LOG_ACTIONS = [
   "won_deal_update",
   "update",
   "comment", // founder: the lead mini chat
+  /* accounting (ADR-052) — add-only */
+  "delete", // accounting rows hard-delete (money is never undoable, ADR-045)
+  "approve", // expense / payroll approval — the cash gate
+  "unapprove",
+  "import", // the one-time books import (founder decision 4)
 ] as const;
 export type LogAction = (typeof LOG_ACTIONS)[number];
