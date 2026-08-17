@@ -2,7 +2,7 @@
 
 > Produced 2026-08-17 from a six-agent deep analysis (5 analyzers + 1 synthesizer,
 > ~567k tokens over every file of both projects and the CRM's integration surface).
-> Status: AWAITING FOUNDER DECISIONS (§6). No implementation has started.
+> Status: APPROVED 2026-08-17 with founder decisions (see §7). BUILD IN PROGRESS.
 
 ## 1. What you have
 
@@ -97,3 +97,25 @@ If keeping existing data (the app is weeks old — likely mostly demo): scripted
 6. **Client linking:** connect accounting client names to CRM `Client` records now, later, or never?
 7. **Task emails:** keep assignment/deadline-reminder emails to employees (requires production SMTP + a scheduler) or drop them since employees no longer log in?
 8. **The design bundle** (`Vault.dc.html` / `Sales Platform.dc.html`): do those designs *restyle* what gets built here (affecting Phases 2 and 5), or are they documentation of the current look?
+
+
+## 7. Founder decisions (2026-08-17) — FINAL
+
+1. **Build BOTH on top — port nothing.** The Vault codebase is reference material only, same as the
+   Accounting SPA: every feature is re-implemented natively on the CRM stack (Next 16 / Prisma 7 /
+   NextAuth session / Msg i18n / token design system). Neither folder's code enters src/.
+2. **No AWS/S3 anywhere in the vault module.** Files go through the CRM's local storage
+   abstraction (UPLOADS_DIR) + Attachment rows only.
+3. **Admin-only, both modules** ("for now, at least"). Employees are cards, not logins.
+4. **Start fresh — no data migration.** Vault: empty. Accounting: the founder will upload an
+   export file from the live app; the module ships an admin Import screen accepting that file.
+   No code ever reads Cloudflare KV.
+5. **B-Systems keeps hiding Media Buying** (media:false rule preserved).
+6. **Accounting ↔ CRM client linking: YES, but as its own later phase** (new Phase 7).
+7. **Task reminder emails: DROPPED.** No SMTP, no scheduler.
+8. **The CRM's current design system is the design model for everything.** The .dc.html design
+   bundle is ignored.
+
+Phase plan adjustments: Phase 0 shrinks (no KV export by us — the founder supplies the file; no
+Vault snapshot — fresh start); "port" language in Phases 4-5 becomes "rebuild to feature parity
+using the old app purely as the spec"; new Phase 7 = client linking.

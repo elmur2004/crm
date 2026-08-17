@@ -25,3 +25,7 @@ backups/
 .pgdata/
 
 .audit/
+
+# integration reference sources — never committed (INTEGRATION-PLAN §7.1)
+/Data Managment System/
+/Accounting/
