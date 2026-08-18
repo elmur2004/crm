@@ -19,6 +19,7 @@ export function AcctHead({
   title,
   sub,
   showMonth = true,
+  actions,
 }: {
   view: AcctView;
   locale: Locale;
@@ -30,6 +31,8 @@ export function AcctHead({
   title: Msg;
   sub?: Msg;
   showMonth?: boolean;
+  /** rendered beside the company/month controls (e.g. the Import / Export link) */
+  actions?: React.ReactNode;
 }) {
   const t = tFor(locale);
   return (
@@ -42,7 +45,10 @@ export function AcctHead({
         <h1 className="u-h1">{t(title)}</h1>
         {sub ? <p className="u-sub">{t(sub)}</p> : null}
       </div>
-      <AcctControls company={view.company} month={view.month} showMonth={showMonth} />
+      <div className="page-actions">
+        {actions}
+        <AcctControls company={view.company} month={view.month} showMonth={showMonth} />
+      </div>
     </div>
   );
 }

@@ -6,7 +6,8 @@ import { formatEGP } from "@/lib/money";
 import { loadBooks } from "@/lib/accounting/books";
 import { dashboard } from "@/lib/accounting/engine";
 import { cairoMonth } from "@/lib/accounting/now";
-import { acctView } from "@/lib/accounting/params";
+import Link from "next/link";
+import { acctQuery, acctView } from "@/lib/accounting/params";
 import { monthLabel } from "@/lib/accounting/format";
 import { AcctHead, AcctKpi } from "@/components/accounting/AcctHead";
 
@@ -45,6 +46,14 @@ export default async function AcctDashboardPage({
         eyebrowAccent
         title={acct.tabDashboard}
         sub={acct.dashSub}
+        actions={
+          /* founder: "where is the import link" — the 12-item nav strip can
+             overflow with its scrollbar hidden, so the dashboard carries a
+             visible door to Import / Export as well */
+          <Link href={`/accounting/import${acctQuery(view)}`} className="btn-ghost">
+            {t(acct.tabImport)}
+          </Link>
+        }
       />
 
       {/* hero: treasury on the brand gradient (the SPA's corner shapes included) */}
