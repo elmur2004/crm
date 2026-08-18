@@ -139,6 +139,11 @@
     linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
     linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
   background-size: 60px 60px;
+  /* accounting-module ONLY (founder, by screenshot): the original app's green
+     status pills return for Collected/Paid/Settled. Exception to the R4 no-green
+     ruling, scoped to .acct-chip — never a general success color. */
+  --color-acct-positive: #1B7A44;
+  --color-acct-positive-tint: #E6F4EC;
 }
 
 /* Rules encoded as comments (enforced by /brand-audit):

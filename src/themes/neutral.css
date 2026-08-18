@@ -193,4 +193,9 @@
   .login-pane { padding: 44px 24px; }
   .login-billboard { flex-direction: row; min-height: 200px; }
   .login-bb { padding: 24px; gap: 14px; }
+  /* accounting-module ONLY (founder, by screenshot): the original app's green
+     status pills return for Collected/Paid/Settled. Exception to the R4 no-green
+     ruling, scoped to .acct-chip — never a general success color. */
+  --color-acct-positive: #1B7A44;
+  --color-acct-positive-tint: #E6F4EC;
 }

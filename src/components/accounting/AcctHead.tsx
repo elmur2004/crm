@@ -82,17 +82,12 @@ export function AcctKpi({
   );
 }
 
-/** token-driven status chip: good=indigo intake tint (NOT the won/accent chip —
-    Signal Pink stays the Won cue only, brand-audit ADR-046 precedent: Collected/
-    Paid/Active are the MAJORITY states of mature books and would drown it) ·
-    wait=following tint · off=didn't-answer tint */
+/** status chip in the ORIGINAL app's coloring (founder, by screenshot):
+    good=green pill (Collected/Paid/Settled — accounting-scoped exception to the
+    R4 no-green ruling), wait=lavender (Pending), off=amber (On hold). */
 export function AcctChip({ kind, children }: { kind: "good" | "wait" | "off"; children: ReactNode }) {
-  const key = kind === "good" ? "intake" : kind === "wait" ? "following" : "didnt-answer";
-  return (
-    <span className="stage-chip" data-stage-key={key}>
-      {children}
-    </span>
-  );
+  const mod = kind === "good" ? "acct-chip--good" : kind === "wait" ? "acct-chip--wait" : "acct-chip--off";
+  return <span className={`acct-chip ${mod}`}>{children}</span>;
 }
 
 /** dashboard stat tile (tokens only; tone via brand utilities) */

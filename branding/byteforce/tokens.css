@@ -122,6 +122,11 @@
      else stays flat color blocks. */
   --bf-grad-mid: #A24966;
   --gradient-hero: linear-gradient(100deg, var(--bf-orange) 0%, var(--bf-grad-mid) 52%, var(--bf-violet) 100%);
+  /* accounting-module ONLY (founder, by screenshot): the original app's green
+     status pills return for Collected/Paid/Settled. Exception to the R4 no-green
+     ruling, scoped to .acct-chip — never a general success color. */
+  --color-acct-positive: #1B7A44;
+  --color-acct-positive-tint: #E6F4EC;
 }
 
 /* Rules encoded as comments (enforced by /brand-audit):

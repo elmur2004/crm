@@ -564,6 +564,17 @@ label:has(input[required]) .dropzone-title::after {
 .ms-row--done .ms-amount { color: var(--color-heading); }
 .ms-mask { font: 700 13px var(--font-mono); letter-spacing: .1em; color: var(--color-muted); }
 
+/* ---------- accounting status chips (founder, by screenshot: the ORIGINAL
+   app's coloring — green Collected, lavender Pending, amber on-hold) ---------- */
+.acct-chip {
+  display: inline-block; padding: 3px 10px; border-radius: 999px;
+  font: 700 10.5px var(--font-mono); letter-spacing: .08em; text-transform: uppercase;
+  white-space: nowrap;
+}
+.acct-chip--good { background: var(--color-acct-positive-tint); color: var(--color-acct-positive); }
+.acct-chip--wait { background: var(--color-primary-tint); color: var(--color-primary); }
+.acct-chip--off { background: color-mix(in srgb, var(--color-warning) 14%, transparent); color: var(--color-warning); }
+
 /* ---------- lead team chat (founder: mini chat inside every lead) ---------- */
 .chat-thread { display: flex; flex-direction: column; gap: 10px; max-height: 360px; overflow-y: auto; padding-inline-end: 4px; }
 .chat-msg {
