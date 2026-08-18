@@ -21,6 +21,10 @@ async function dragTo(page: Page, card: Locator, column: Locator) {
   await page.mouse.down();
   await page.mouse.move(from.x + from.width - 10, from.y + from.height / 2 + 12, { steps: 4 });
   await page.mouse.move(to.x + to.width / 2, to.y + 60, { steps: 14 });
+  /* the travel can auto-scroll the board — land on the column's LIVE box so
+     the drop cannot drift into a neighbour */
+  const settled = (await column.boundingBox())!;
+  await page.mouse.move(settled.x + settled.width / 2, settled.y + 60, { steps: 2 });
   await page.mouse.up();
 }
 

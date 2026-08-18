@@ -486,3 +486,47 @@
   tests, including against the founder's real export). The vault exports
   and re-imports everything it holds — records and files — as one
   admin-only file with a confirm step on the destructive import.
+
+## WhatsApp beside every Call (2026-08-19)
+
+- Every place a lead can be called now also offers "message on WhatsApp",
+  right next to the Call control: the cards on both CRM boards, both lead
+  detail headers, and the phone-first call sheet (a second big button under
+  Call now). Opens in a new tab; on cards it neither drags nor opens the
+  lead — exactly like the Call chip.
+- wa.me needs the country code, so the link builds it: locally-typed
+  Egyptian mobiles (01x…) get +20 prefixed automatically, explicit +/00
+  numbers pass through as typed, and a number with no confident country
+  form (a landline, a foreign trunk format) simply shows no WhatsApp
+  button rather than a wrong link. The displayed number is never rewritten.
+
+## Partners & Agents: Kind filter + Call/WhatsApp (2026-08-19)
+
+- The Partners & Agents board now has the CRM boards' filter card: Kind
+  (All | Partners | Agents) plus the same one-box search (name / company /
+  number — spaced digits find packed numbers). Filtering is server-side
+  and lives in the URL, so a filtered view can be bookmarked.
+- Call + WhatsApp reach every partner/agent number: chips on each prospect
+  card, the pair on the prospect detail header, chips beside EACH
+  alternative number, on the directory partner's number, and beside each
+  agent's phone in the Agents section.
+
+## The header nav is a slider + the vault wears the B-Systems mark (2026-08-19)
+
+- When the header sections do not fit (the clipped "Registrations"), arrows
+  now appear at the ends of the strip and slide it; the cut edge fades so
+  it is obvious there is more. Works unchanged in Arabic, on every app
+  shell and module, and the section you are ON is always scrolled into
+  view.
+- The Data Vault's header logo is now the real B-Systems mark, whatever
+  the company filter shows.
+
+## Board columns stop growing (2026-08-19)
+
+- A long column no longer stretches the whole CRM page: past roughly five
+  cards it caps and scrolls inside itself, with a visible thin scrollbar
+  tinted to the stage color. All three boards (ByteForce, B-Systems,
+  Partners & Agents).
+- Dragging works from and into scrolled columns: the dragged card's visual
+  now rides an overlay above the board, so a clipping column can never
+  swallow it mid-drag; the card left behind ghosts until the drop lands.

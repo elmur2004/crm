@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   DndContext,
+  DragOverlay,
   PointerSensor,
   useDraggable,
   useDroppable,
@@ -49,41 +50,16 @@ export interface BsBoardLead {
   waHref: string | null;
 }
 
-function LeadCard({
-  lead,
-  dragging,
-  suppressClickRef,
-}: {
-  lead: BsBoardLead;
-  dragging: boolean;
-  suppressClickRef: { current: boolean };
-}) {
+/* The card's CONTENT — shared verbatim by the in-column draggable and the
+   DragOverlay clone. Founder: columns cap their height and scroll inside now,
+   so the dragged visual must ride an overlay — a transformed card inside a
+   scrolling, clipping column would vanish under its neighbours. */
+function LeadCardBody({ lead }: { lead: BsBoardLead }) {
   const t = tFor(useLocale());
   const router = useRouter();
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
-    id: lead.id,
-  });
   const [busy, setBusy] = useState(false);
   return (
-    <div
-      ref={setNodeRef}
-      {...attributes}
-      {...listeners}
-      data-deal-card={lead.name}
-      data-stage-key={stageKey(lead.stage)}
-      onClick={() => {
-        /* founder: the whole card opens the lead — but never right after a
-           drag (the browser fires a click on drop; the guard swallows it) */
-        if (suppressClickRef.current) return;
-        router.push(`/b-systems/crm/lead/${lead.id}`);
-      }}
-      style={
-        transform
-          ? { transform: `translate(${transform.x}px, ${transform.y}px)`, zIndex: 30 }
-          : undefined
-      }
-      className={`bcard touch-none ${isDragging || dragging ? "bcard--lift" : ""}`}
-    >
+    <>
       {lead.readyToClose ? <span className="bcard-badge">{t(common.readyToClose)}</span> : null}
       <div className="bcard-name-row">
         <Link
@@ -175,6 +151,39 @@ function LeadCard({
           </span>
         </div>
       ) : null}
+    </>
+  );
+}
+
+function LeadCard({
+  lead,
+  dragging,
+  suppressClickRef,
+}: {
+  lead: BsBoardLead;
+  dragging: boolean;
+  suppressClickRef: { current: boolean };
+}) {
+  const router = useRouter();
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: lead.id,
+  });
+  return (
+    <div
+      ref={setNodeRef}
+      {...attributes}
+      {...listeners}
+      data-deal-card={lead.name}
+      data-stage-key={stageKey(lead.stage)}
+      onClick={() => {
+        /* founder: the whole card opens the lead — but never right after a
+           drag (the browser fires a click on drop; the guard swallows it) */
+        if (suppressClickRef.current) return;
+        router.push(`/b-systems/crm/lead/${lead.id}`);
+      }}
+      className={`bcard touch-none ${isDragging || dragging ? "bcard--ghost" : ""}`}
+    >
+      <LeadCardBody lead={lead} />
     </div>
   );
 }
@@ -197,16 +206,11 @@ function Column({
   const { setNodeRef, isOver } = useDroppable({ id: stage });
   const blocked = wonBlocked && stage === "won";
   const overCls = isOver ? (blocked ? "col--over-blocked" : "col--over-valid") : "";
-  /* the column hosting the active drag lifts its overflow clip + stacks above
-     its siblings (design-system.css .col[data-drag-origin]) so the dragged
-     card never disappears behind neighboring columns */
-  const hostsActiveDrag = draggingId !== null && leads.some((l) => l.id === draggingId);
   return (
     <div
       ref={setNodeRef}
       data-stage={stage}
       data-stage-key={stageKey(stage)}
-      data-drag-origin={hostsActiveDrag ? "" : undefined}
       className={`col ${overCls}`}
     >
       <div className="col-bar" aria-hidden />
@@ -338,6 +342,24 @@ export function BsBoard({
             />
           ))}
         </div>
+        {/* the dragged card's visual — position:fixed, never clipped by the
+            scrolling column it left; the source card stays put, ghosted.
+            aria-hidden: the clone is pure paint — it must never double the
+            card's links/buttons in the accessibility tree (the live region
+            already narrates the drag), and it lingers briefly through the
+            drop animation. */}
+        <DragOverlay>
+          {draggingId ? (
+            (() => {
+              const l = leads.find((x) => x.id === draggingId);
+              return l ? (
+                <div className="bcard bcard--lift" aria-hidden>
+                  <LeadCardBody lead={l} />
+                </div>
+              ) : null;
+            })()
+          ) : null}
+        </DragOverlay>
       </DndContext>
 
       {pendingDrop && pendingLead ? (

@@ -319,11 +319,21 @@
 .col-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 13px 9px; }
 .col-title { font: 700 10.5px var(--font-mono); letter-spacing: .16em; text-transform: uppercase; color: var(--stage-bar, var(--color-muted)); }
 .col-cards { display: flex; flex-direction: column; gap: 9px; padding: 0 9px 12px; min-height: 40px; }
-/* Founder fix: while a column hosts the active drag it must not clip the card
-   (overflow) nor let sibling columns paint over it — lift the clip and raise
-   the whole column above its (z-index: auto) siblings for the drag's duration.
-   The .col-bar carries its own top radius so the corners stay rounded. */
-.col[data-drag-origin] { overflow: visible; position: relative; z-index: 30; }
+/* Founder: "the CRM is becoming very long because one column is long — make
+   the column stop and add a slider in the column itself when it passes five
+   leads or something." The card list caps at roughly five cards and scrolls
+   INSIDE the column — with a scrollbar he can SEE (thin, stage-tinted), not
+   the invisible kind. The dragged card's visual rides the DragOverlay now, so
+   this inner clip can never swallow it (the old .col[data-drag-origin]
+   overflow lift is retired with the transform-drag it served). */
+.col-cards {
+  max-height: min(62vh, 510px); overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--stage-bar, var(--color-muted)) 55%, transparent) transparent;
+}
+/* the source card while its visual is on the overlay — present, but clearly
+   the origin of an in-flight move */
+.bcard--ghost { opacity: .35; }
 .col--over-valid {
   border-color: var(--stage-bar);
   outline: 2px solid color-mix(in srgb, var(--stage-bar, var(--color-primary)) 33%, transparent); outline-offset: 2px;

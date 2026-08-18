@@ -2003,3 +2003,65 @@ comment, and the ADR-013 mechanism note all fixed; .env.example confirmed tracke
   if it should fall back to muted ink under bsystems. (vii) The module
   switcher labels read ACCOUNTING / VAULT (الحسابات / الخزنة) — flag if
   different wording is wanted.
+
+## Entry 048 — 2026-08-19 — WhatsApp everywhere, Partners/Agents filter + chips, nav slider, column cap
+
+- Done: four founder requests, four commits, all verified and pushed
+  (production deploys from main):
+  (1) a857484 — "a WhatsApp (message on WhatsApp) button on every lead next
+  to the call button": waHref in src/lib/phone-dial.ts (explicit +/00 kept;
+  locally-typed Egyptian mobiles get 20 prefixed; other 0-leading numbers
+  get NO link rather than a wrong one — unit-tested), and the button beside
+  every Call control: both CRM board cards (guarded chips), both lead
+  detail headers, and a second big outlined button on the call sheet. New
+  tab, noopener, neutral link-ink (no WhatsApp green in the palette).
+  (2) f83f6c6 — "the agents as cards are separated from their partners":
+  the Partners & Agents board wears the boards' disclosure filter card with
+  Kind (All | Partners | Agents) + the one-box search (name / company /
+  number), query-param driven, narrowed server-side (prospectKindWhere /
+  prospectSearchWhere, integration-tested); "also add call and whatsapp in
+  agents and partners": chips on prospect cards, the pair on the prospect
+  detail header, chips beside EACH alternative number, on the directory
+  partner's number, and beside each agent's phone (shared NumberActions).
+  (3) b5cf66b — the header nav is a real slider (founder screenshot:
+  "Registrations" clipped): chevrons appear over the strip's ends only when
+  it overflows, the clipped edge fades (masked, works on every header
+  ground, RTL-flipped), a press pages max(70% of the strip, 160px), the
+  active item auto-scrolls into view; all four shells compose ShellNav so
+  it lands everywhere. Plus: the vault header logo is PINNED to the real
+  B-Systems mark (founder: "add the bsystems logo for the vault").
+  (4) column cap — "add a slider in the column itself when it passes five
+  leads": .col-cards caps at min(62vh, 510px) ≈ five cards and scrolls
+  inside with a VISIBLE thin stage-tinted scrollbar, on all three boards;
+  drags now ride a DragOverlay (aria-hidden visual clone; source card
+  ghosts at 35%) so a scrolled/clipped column can never swallow the dragged
+  card — proven by a drag from a scrolled column in e2e.
+- Verification (TESTING Run 051): tsc clean per commit; vitest 279/279;
+  Playwright final gate 46 passed / 2 audit skips (baseline 43 + 3 new
+  founder-behavior tests); brand audit PASS. Implementation traps written
+  up in IMPLEMENTATION (2026-08-19): the third phone normalisation, board
+  card test-geometry contract, DragOverlay + auto-scroll drop drift, the
+  squeezed-strip 30px lesson.
+- Needs founder confirmation:
+  (i) HIS MESSAGE WAS CUT OFF — "so the stages of the agents are as
+  following" arrived with no list. Agent cards currently run the SAME
+  stages as partners on the Partners & Agents board (Lead → Didn't Answer →
+  Following Up → Meeting Setting → Won / Lost). If agents need their OWN
+  stage set, send the list — that is a pipeline-config change
+  (partnersConfigFor) we will gate and test separately.
+  (ii) wa.me country-code rule: Egyptian mobiles typed locally (01x…) are
+  assumed +20; 0-leading numbers that are NOT Egyptian mobiles (landlines,
+  foreign trunk formats) deliberately show no WhatsApp button. Flag if a
+  different default is wanted.
+  (iii) A prospect's NON-ANSWERING numbers list carries no call/WhatsApp
+  chips on purpose (that pile did not answer); alternative numbers do.
+  (iv) The column cap is ~5 cards (min(62vh, 510px)) — say the word to size
+  it differently.
+  Carried items from Entry 047 remain open.
+- Next steps: founder tests on production: a board card's WhatsApp chip and
+  the call sheet's big WhatsApp button; /b-systems/partners-pipeline →
+  Filters → Kind = Agents; call/wa chips on a prospect page's numbers, a
+  directory partner, and the Agents section; narrow the window until the
+  header arrows appear and slide; stack 6+ leads in one column and watch it
+  scroll inside itself — then drag one of the deep cards out.
+- Blockers: none.

@@ -734,3 +734,59 @@ body is only a comment saying which side effect consumes it.
    forced it into a delegate map + type guard; the log line now passes the
    entry's own entityType through. Any future undoable entity should extend
    `VAULT_DELEGATES`-style maps rather than adding a third hand-rolled branch.
+
+## Board card chips: the geometry contract for tests (2026-08-19)
+
+Adding Call/WhatsApp chips onto every board card broke FOUR e2e tests over
+three runs, each a different flavour of the same assumption:
+
+1. **`card.click()` clicks the geometric CENTER** — which, on a chip-bearing
+   card, may be a chip that `stopPropagation`s on purpose. The whole-card
+   navigation test now clicks the card's subtitle line (`.bcard-rep`): plain
+   text, no handlers, always bubbles to the card.
+2. **Drag helpers that grab "the middle-right edge"** land on the chips row
+   at some card heights. journey3's `dragTo` now grabs the subtitle's own
+   box; the byteforce/journey helpers keep their proven grab points but any
+   NEW drag helper should grab `.bcard-rep`.
+3. **`card.getByRole("link")` with no name** assumed one link per card
+   (data-entry's cleanup did — deriving the card id from "the" href). Three
+   links live there now; always name the link.
+4. **A failed cleanup cascades.** data-entry's strict-mode abort left rows on
+   the shared serial DB and journey5's drag then missed — the spec's own
+   comment predicted exactly this. When a spec fails mid-run, suspect the
+   NEXT failures are its debris before treating them as real.
+
+Also: wa.me link building (`waDigits` in `src/lib/phone-dial.ts`) is a THIRD
+phone normalization, deliberately separate from `telDigits` (dialer, keeps
+numbers as typed) and `auth/normalizePhone` (login identity). wa.me demands
+bare country-code digits; the Egyptian-mobile inference (01x → 20…) is a
+business default, and anything 0-leading that isn't an EG mobile yields NO
+link rather than a wrong one. Do not merge these three — their failure modes
+differ (a wrong dial is retyped; a wrong wa.me link messages a stranger).
+
+## DragOverlay replaces the transform-drag on all three boards (2026-08-19)
+
+The founder's column cap (`.col-cards` max-height + inner scroll) is
+incompatible with dnd-kit's default transform-follow: a transformed card
+inside a scrolling, clipping column vanishes under siblings (the old
+`.col[data-drag-origin]` overflow lift was a partial fix and is retired).
+Each board's card is now split into a pure `…CardBody` (all content, hooks
+included) rendered by (a) the in-column draggable shell — which stays PUT and
+ghosts to 35% while dragging — and (b) a `<DragOverlay>` clone. The clone is
+`aria-hidden` and carries no `data-deal-card`: it lingers through the drop
+animation, and for that window it must not double the card's links in the
+accessibility tree (a bare `getByRole` hitting two identical name links is a
+strict-mode FAIL — Playwright does not retry those). DragOverlay is
+position:fixed; the page-entry animation uses fill-mode `backwards`
+specifically so no ancestor keeps a transform that would trap it.
+
+Drag helpers got one more rule: after the coarse travel, RE-MEASURE the
+target column and land on its live box before `mouse.up`. dnd-kit
+auto-scrolls the board mid-drag; coordinates measured before `mouse.down`
+can be a column off by drop time on a loaded machine.
+
+And the nav slider's own trap, for the record: a "stalled" chevron that
+moves 30px per press is not a broken animation — 30px was 70% of a strip
+squeezed to ~43px by the header's fixed logo + user cluster. `slide()` pages
+by `max(70% of the strip, 160px)` now, and the spec runs at a width where
+the strip has a workable share.

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   DndContext,
+  DragOverlay,
   PointerSensor,
   useDraggable,
   useDroppable,
@@ -56,39 +57,14 @@ export interface ProspectCard {
 
 type Rep = { id: string; name: string };
 
-function Card({
-  card,
-  suppressClickRef,
-}: {
-  card: ProspectCard;
-  suppressClickRef: { current: boolean };
-}) {
+/* The card's CONTENT — shared verbatim by the in-column draggable and the
+   DragOverlay clone. Founder: columns cap their height and scroll inside now,
+   so the dragged visual must ride an overlay, never the clipping column. */
+function CardBody({ card }: { card: ProspectCard }) {
   const locale = useLocale();
   const t = tFor(locale);
-  const router = useRouter();
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
-    id: card.id,
-  });
   return (
-    <div
-      ref={setNodeRef}
-      {...attributes}
-      {...listeners}
-      data-deal-card={card.title}
-      data-kind={card.kind}
-      onClick={() => {
-        /* founder: the whole card opens the prospect — but never right after a
-           drag (the browser fires a click on drop; the guard swallows it) */
-        if (suppressClickRef.current) return;
-        router.push(`/b-systems/partners-pipeline/${card.id}`);
-      }}
-      style={
-        transform
-          ? { transform: `translate(${transform.x}px, ${transform.y}px)`, zIndex: 30 }
-          : undefined
-      }
-      className={`bcard touch-none ${isDragging ? "bcard--lift" : ""}`}
-    >
+    <>
       <Link
         href={`/b-systems/partners-pipeline/${card.id}`}
         className="bcard-name"
@@ -139,6 +115,37 @@ function Card({
           <span className="min-w-0 whitespace-normal">{card.keyDatum}</span>
         </div>
       ) : null}
+    </>
+  );
+}
+
+function Card({
+  card,
+  suppressClickRef,
+}: {
+  card: ProspectCard;
+  suppressClickRef: { current: boolean };
+}) {
+  const router = useRouter();
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: card.id,
+  });
+  return (
+    <div
+      ref={setNodeRef}
+      {...attributes}
+      {...listeners}
+      data-deal-card={card.title}
+      data-kind={card.kind}
+      onClick={() => {
+        /* founder: the whole card opens the prospect — but never right after a
+           drag (the browser fires a click on drop; the guard swallows it) */
+        if (suppressClickRef.current) return;
+        router.push(`/b-systems/partners-pipeline/${card.id}`);
+      }}
+      className={`bcard touch-none ${isDragging ? "bcard--ghost" : ""}`}
+    >
+      <CardBody card={card} />
     </div>
   );
 }
@@ -157,16 +164,11 @@ function Column({
   const locale = useLocale();
   const t = tFor(locale);
   const { setNodeRef, isOver } = useDroppable({ id: stage });
-  /* the column hosting the active drag lifts its overflow clip + stacks above
-     its siblings (design-system.css .col[data-drag-origin]) so the dragged
-     card never disappears behind neighboring columns */
-  const hostsActiveDrag = draggingId !== null && cards.some((c) => c.id === draggingId);
   return (
     <div
       ref={setNodeRef}
       data-stage={stage}
       data-stage-key={stageKey(stage)}
-      data-drag-origin={hostsActiveDrag ? "" : undefined}
       className={`col ${isOver ? "col--over-valid" : ""}`}
     >
       <div className="col-bar" aria-hidden />
@@ -275,6 +277,24 @@ export function PartnersBoard({ cards, reps }: { cards: ProspectCard[]; reps: Re
             />
           ))}
         </div>
+        {/* the dragged card's visual — position:fixed, never clipped by the
+            scrolling column it left; the source card stays put, ghosted.
+            aria-hidden: the clone is pure paint — it must never double the
+            card's links/buttons in the accessibility tree (the live region
+            already narrates the drag), and it lingers briefly through the
+            drop animation. */}
+        <DragOverlay>
+          {draggingId
+            ? (() => {
+                const c = cards.find((x) => x.id === draggingId);
+                return c ? (
+                  <div className="bcard bcard--lift" aria-hidden>
+                    <CardBody card={c} />
+                  </div>
+                ) : null;
+              })()
+            : null}
+        </DragOverlay>
       </DndContext>
 
       {pending && pendingCard ? (

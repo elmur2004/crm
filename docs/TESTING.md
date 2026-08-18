@@ -1261,3 +1261,42 @@ every dashboard formula, journeys 1-5 (SPEC §13).
   module gating), the ADR-052/053 accounting + vault e2e journeys, ADR-019
   token parity, ADR-054 round-trip proofs (directive C).
 - Verdict: PASS — all three ADR-054 commits green at their gates.
+
+## Run 051 — 2026-08-19 — WhatsApp, Kind filter, nav slider, column cap (four founder requests)
+
+- Suites/commands: `npx tsc --noEmit` clean at every commit; `npx vitest run`
+  (embedded per-run Postgres) and `npx playwright test` (prod build + embedded
+  e2e Postgres) per gate; brand-auditor subagent over the session's UI work.
+- Cases: vitest 279 passed / 0 failed (274 baseline + 4 wa.me normalisation
+  units in phone-dial.test.ts + 1 prospect kind/search server-side narrowing
+  integration case). Playwright FINAL GATE 46 passed / 0 failed / 2 skipped
+  (the standing audit skips) — 43-test baseline + three new: the Partners &
+  Agents Kind-filter/chips smoke, the nav-slider walk, and the column-cap
+  drag-from-scrolled-column proof. call-sheet.spec additionally asserts the
+  wa.me hrefs (card chip + call-sheet button).
+- Failure history across the mid-work runs (all spec-side, no product
+  defects; every root cause is written up in IMPLEMENTATION 2026-08-19):
+  (1) byteforce-board whole-card click hit the new WhatsApp chip at the
+  card's geometric center → clicks the subtitle line now. (2) data-entry's
+  cleanup derived a card id from "the card's only link" — three links live
+  on a card now; the strict-mode abort left rows on the shared serial DB
+  and journey5's drag missed on the shifted board → the cleanup names the
+  link, journey5 recovered on the rerun. (3) The new nav-slider spec ran at
+  900px, where the admin header leaves the strip ~43px — a press "moved
+  only 30px" because 30px WAS 70% of the strip; slide() now pages by
+  max(70%, 160px) and the spec runs at 1180px. (4) After the DragOverlay
+  refactor, journey3 hit a strict-mode double (the aria-visible overlay
+  clone during the drop animation) and journey4/5 drops drifted a column
+  under load (board auto-scroll between measure and drop) → overlay clones
+  are aria-hidden; all dragTo helpers re-measure the target column and land
+  on its live box before mouse.up; the byteforce cap test cleans up by
+  ARCHIVE (the ByteForce API deliberately has no lead delete).
+- Brand audit: PASS — chips/nav/masks tokens-only, logical properties
+  throughout, rtl: chevron flips, no WhatsApp green anywhere (deliberate),
+  #000 mask-image literals judged alpha-only geometry inside the themes
+  allowlist; vault logo pin keeps scope integrity.
+- SPEC coverage touched: §15 sweep (all five widths on the changed screens),
+  §10 drag rows re-proven under DragOverlay (journeys 1-5, same-stage,
+  no-answer, undo all green), ADR-043 archive as test cleanup, ADR-051
+  data-entry walls re-proven.
+- Verdict: PASS — final gate green at the tip carrying all four commits.
