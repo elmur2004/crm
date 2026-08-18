@@ -8,7 +8,7 @@
    Cards float #FFFFFF on the Paper canvas per the approved prototype (R1).
    ========================================================================= */
 
-:root[data-brand="bsystems"] {
+[data-brand="bsystems"] {
   /* The brand three */
   --bs-indigo:   #1D267D;   /* Systems Indigo  — 60% — the anchor */
   --bs-lavender: #D4ADFC;   /* Process Lavender — 28% — the air   */
@@ -55,6 +55,12 @@
   --color-success: var(--bs-indigo);       /* founder ruling on R4: NO green anywhere —
                                               success indicators stay in-palette */
   --color-on-success: #FFFFFF;
+  --color-warning: #B8860B;                /* functional amber — on-hold / receivable
+                                              figures (ADR-054 dashboard exception).
+                                              Uniform across brands like the danger
+                                              red (ADR-014 precedent); the reference
+                                              SPA used this exact amber in BOTH
+                                              tenants. */
 
   /* Tint pairs (prototype-derived; spec §1.2) */
   --color-primary-tint: #E9EBF7;           /* rep-label chips, grid-card marks */

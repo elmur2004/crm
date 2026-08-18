@@ -1,3 +1,5 @@
+<!-- Asset exemption (SPEC §4.4 precedent, spec §2.14 login billboard): favicons
+     cannot consume CSS variables; these literals mirror branding/*/tokens.css exactly. -->
 <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
   <defs>
     <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">

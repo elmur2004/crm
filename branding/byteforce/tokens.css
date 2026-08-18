@@ -7,7 +7,7 @@
    official book — ADR-001.
    ========================================================================= */
 
-:root[data-brand="byteforce"] {
+[data-brand="byteforce"] {
   /* Brand palette */
   --bf-orange: #F15C24;        /* Bold Orange  — primary / CTA / logo frame */
   --bf-violet: #53449B;        /* Royal Violet — secondary / headings / nav */
@@ -46,6 +46,12 @@
   --color-success: var(--bf-violet);      /* founder ruling on R4: no green — stay
                                              in-palette (violet), matching B-Systems */
   --color-on-success: #FFFFFF;
+  --color-warning: #B8860B;               /* functional amber — on-hold / receivable
+                                             figures (ADR-054 dashboard exception).
+                                             Uniform across brands like the danger
+                                             red (ADR-014 precedent); the reference
+                                             SPA used this exact amber in BOTH
+                                             tenants. */
 
   /* Tint pairs (prototype-derived; spec §1.2) */
   --color-primary-tint: #FBEAE2;          /* active nav bg, entity-card marks */
@@ -107,7 +113,15 @@
   --shadow-lift: 0 14px 30px rgba(0, 0, 0, 0.18);
   --shadow-modal: 0 30px 70px rgba(0, 0, 0, 0.4);
   --shadow-toast: 0 18px 44px rgba(0, 0, 0, 0.45);
-  --gradient-hero: none; /* ByteForce has no gradient language — flat color blocks */
+  /* Signature gradient (ADR-054): the founder kept the ORIGINAL accounting
+     app's hero, whose ByteForce banner runs Bold Orange → mid → Royal Violet.
+     That sanctions a ByteForce gradient for HERO MOMENTS ONLY — today exactly
+     the kept-design accounting DASHBOARD: its hero banner and its target
+     meter's under-goal fill (the SPA's own progressfill). The mid-stop is
+     gradient-internal, like the B-Systems --bs-grad-mid-* pair. Everything
+     else stays flat color blocks. */
+  --bf-grad-mid: #A24966;
+  --gradient-hero: linear-gradient(100deg, var(--bf-orange) 0%, var(--bf-grad-mid) 52%, var(--bf-violet) 100%);
 }
 
 /* Rules encoded as comments (enforced by /brand-audit):

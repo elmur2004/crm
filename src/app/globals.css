@@ -1,6 +1,9 @@
-/* Canonical brand tokens — scoped :root[data-brand="…"], so they activate ONLY when
-   a route group's root layout stamps data-brand on its <html> element (there is no
-   top-level layout; see ARCHITECTURE.md §6). Every root layout imports this file.
+/* Canonical brand tokens — scoped [data-brand="…"], activating under ANY element
+   that carries the attribute: each route group's root layout stamps it on <html>
+   (there is no top-level layout; see ARCHITECTURE.md §6), and the two MODULE
+   shells re-stamp it on a wrapping <div> so the whole module re-brands with the
+   ?company= filter (ADR-054 — custom properties re-resolve per element, so the
+   nearest [data-brand] ancestor wins). Every root layout imports this file.
    The two branding files are the ONLY place brand values may live (SPEC §4.1). */
 @import "../../branding/byteforce/tokens.css";
 @import "../../branding/b-systems/tokens.css";
@@ -40,6 +43,7 @@
   --color-brand-danger-border: var(--color-danger-border);
   --color-brand-danger-ink: var(--color-danger-ink);
   --color-brand-success: var(--color-success);
+  --color-brand-warning: var(--color-warning);
   --color-brand-on-success: var(--color-on-success);
   --color-brand-primary-tint: var(--color-primary-tint);
   --color-brand-primary-tint-ink: var(--color-primary-tint-ink);

@@ -39,7 +39,10 @@ Dashboards: numbers in ink, labels in violet, the one number that matters may be
 
 - Only the five palette values (plus the functional danger tint) anywhere in App A.
 - Character: premium, minimal, strategic — generous whitespace, flat color blocks, no
-  gradients, no decorative noise.
+  decorative noise. ONE sanctioned gradient (ADR-054): `--gradient-hero`
+  (orange→`--bf-grad-mid`→violet), hero moments only — today exactly the kept-design
+  accounting dashboard (its hero banner + target meter's under-goal fill). Never a
+  default background anywhere else.
 - Bilingual: EN/AR equal citizens — CSS logical properties, layouts survive `dir="rtl"`.
 - No emoji in UI copy.
 - Logo: never rotate, recolor, stretch, add effects, or place on busy/red backgrounds;

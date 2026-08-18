@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ImpersonationBar } from "@/components/shared/ImpersonationBar";
 import { EntitySwitch } from "@/components/shared/EntitySwitch";
 import { LanguageToggle } from "@/components/shared/LanguageToggle";
+import { ModuleBrandScope, ModuleLogo } from "@/components/shared/ModuleBrandScope";
 import { UndoControl } from "@/components/shared/UndoControl";
 import { AcctModuleNav } from "@/components/accounting/AcctModuleNav";
 import { logout } from "@/lib/auth/actions";
@@ -31,12 +32,13 @@ export default async function AccountingShellLayout({
     .toUpperCase();
 
   return (
-    <>
+    <ModuleBrandScope module="accounting">
       <ImpersonationBar />
       <header className="app-header">
-        {/* clicking the module mark goes to THIS module's dashboard */}
+        {/* the active COMPANY's real mark + the module wordmark (directive D);
+            clicking it goes to THIS module's dashboard */}
         <Link href="/accounting" className="shrink-0 flex items-center gap-3" aria-label={t(acct.navItem)}>
-          <span className="wordmark">{t(acct.navItem)}</span>
+          <ModuleLogo module="accounting" wordmark={t(acct.navItem)} />
         </Link>
         <AcctModuleNav
           extras={
@@ -70,6 +72,6 @@ export default async function AccountingShellLayout({
       </header>
       <main className="page max-w-7xl mx-auto w-full">{children}</main>
       <UndoControl userId={user.id} />
-    </>
+    </ModuleBrandScope>
   );
 }

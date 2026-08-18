@@ -40,9 +40,14 @@ hand-written (package.json, tsconfig, configs, `src/app/`) — see IMPLEMENTATIO
 ## 3. Route map (final — ADR-007 for `/`)
 
 There is **no top-level `src/app/layout.tsx`** — that is load-bearing. The brand tokens
-are scoped `:root[data-brand]`, so `data-brand` must sit on `<html>`, and in Next.js
-multiple root layouts exist only when every route lives inside a route group that owns
-its topmost layout. Physical structure (URL segments unchanged):
+are scoped `[data-brand]` (bare attribute since ADR-054 — it matches `<html>` AND any
+nested element, so the module shells can re-stamp a company's brand on a wrapping div
+per `?company=`), and in Next.js multiple root layouts exist only when every route
+lives inside a route group that owns its topmost layout. Since ADR-054 the Accounting
+and Data Vault MODULES are top-level route groups of their own —
+`src/app/(accounting)/accounting/**` (`/accounting/*`) and `src/app/(vault)/vault/**`
+(`/vault/*`), admin-only, reached through the four-segment module switcher
+(EntitySwitch). Physical structure (URL segments unchanged):
 
 ```
 src/app/(home)/layout.tsx + page.tsx     →  /            neutral <html>, no data-brand
@@ -476,14 +481,17 @@ model ActivityLog {                         // §5.6 — product feature, not ju
 1. **Canonical tokens** — `branding/byteforce/tokens.css` and
    `branding/b-systems/tokens.css` are the only files where brand values exist. Both
    are imported once in `src/app/globals.css`; each is scoped to
-   `:root[data-brand="…"]` so they coexist inertly.
-2. **Brand selection is structural, not stateful** — there is NO top-level
-   `src/app/layout.tsx`; every route lives in a route group owning its root layout
-   (structure in §3), and the brand groups render
-   `<html data-brand="byteforce|bsystems">`. The tokens' `:root[data-brand]` scoping
-   only matches when the attribute sits on `<html>` — which this structure guarantees.
-   No client-side switching, no flash of wrong brand, brand bleed is structurally
-   impossible.
+   `[data-brand="…"]` (bare attribute since ADR-054) so they coexist inertly.
+2. **Brand selection is structural, with ONE sanctioned nested scope** — there is NO
+   top-level `src/app/layout.tsx`; every route lives in a route group owning its root
+   layout (structure in §3), and the brand groups render
+   `<html data-brand="byteforce|bsystems">`. Since ADR-054 the `[data-brand]` scoping
+   also matches nested elements: the two MODULE shells (accounting, vault) re-stamp
+   the active company's brand on a div wrapping their whole shell
+   (`ModuleBrandScope`, reading `?company=`) — custom properties re-resolve per
+   element, so the nearest scope wins with no flash and no client-side theme state.
+   Everywhere else the attribute still sits only on `<html>`, so brand bleed stays
+   structurally impossible.
 3. **Tailwind mapping (ADR-004)** — `@theme inline` in `globals.css` maps utility
    names to the semantic variables, e.g. `--color-brand-primary: var(--color-primary)`
    → `bg-brand-primary` resolves at runtime against the active `data-brand` scope.

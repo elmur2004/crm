@@ -77,6 +77,20 @@ test("employee card → task → gate refuses → result completes → On time",
   await expect(row.getByText("On time", { exact: true })).toBeVisible(); // frozen at completion
 });
 
+test("the vault brand follows the company filter; 'all' wears neutral", async ({ page }) => {
+  await login(page, "admin@byteforce.com", "password123", /\/b-systems$/);
+
+  /* no filter = all companies = the NEUTRAL scope (directive D) */
+  await page.goto("/vault");
+  await expect(page.locator('div[data-brand="neutral"]')).toBeVisible();
+
+  /* a single company's filter dresses the module in that company's brand */
+  await page.goto("/vault/forms?company=byteforce");
+  await expect(page.locator('div[data-brand="byteforce"]')).toBeVisible();
+  await page.goto("/vault/forms?company=bsystems");
+  await expect(page.locator('div[data-brand="bsystems"]')).toBeVisible();
+});
+
 test("a CSV sheet upload is counted from the file itself", async ({ page }) => {
   await login(page, "admin@byteforce.com", "password123", /\/b-systems$/);
   await page.goto("/vault/sheets");

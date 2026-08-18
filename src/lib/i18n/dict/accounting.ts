@@ -30,7 +30,10 @@ export const acct = {
   tabImport: { en: "Import", ar: "الاستيراد" },
 
   /* dashboard */
-  dashEyebrow: { en: "ACCOUNTING · OVERVIEW", ar: "الحسابات · نظرة عامة" },
+  /* ADR-054 dashboard exception: the SPA's head — "OVERVIEW · JUNE 2026"
+     (the month is appended by the page; CSS uppercases) */
+  dashEyebrow: { en: "Overview", ar: "نظرة عامة" },
+  nowWord: { en: "now", ar: "الآن" },
   dashSub: {
     en: "Every figure here is for the selected month. Treasury, loan and client balances are cumulative.",
     ar: "كل الأرقام هنا للشهر المحدد. أرصدة الخزينة والقروض والعملاء تراكمية.",

@@ -14,6 +14,8 @@ export function AcctHead({
   view,
   locale,
   eyebrow,
+  eyebrowExtra,
+  eyebrowAccent = false,
   title,
   sub,
   showMonth = true,
@@ -21,6 +23,10 @@ export function AcctHead({
   view: AcctView;
   locale: Locale;
   eyebrow: Msg;
+  /** appended after the eyebrow as " · extra" — the SPA's "Overview · June 2026" */
+  eyebrowExtra?: string;
+  /** ADR-054 dashboard exception: the SPA's brand-colored (accent) eyebrow */
+  eyebrowAccent?: boolean;
   title: Msg;
   sub?: Msg;
   showMonth?: boolean;
@@ -29,11 +35,43 @@ export function AcctHead({
   return (
     <div className="page-head">
       <div>
-        <p className="u-eyebrow">{t(eyebrow)}</p>
+        <p className={eyebrowAccent ? "u-eyebrow acct-eyebrow-accent" : "u-eyebrow"}>
+          {t(eyebrow)}
+          {eyebrowExtra ? ` · ${eyebrowExtra}` : null}
+        </p>
         <h1 className="u-h1">{t(title)}</h1>
         {sub ? <p className="u-sub">{t(sub)}</p> : null}
       </div>
       <AcctControls company={view.company} month={view.month} showMonth={showMonth} />
+    </div>
+  );
+}
+
+/* ---- ADR-054 dashboard exception: the ORIGINAL SPA's KPI card ----
+   White card, 3px inline-start accent edge, uppercase label, COLORED figure.
+   Tones map the SPA's semantic coloring onto brand tokens (see the .acct-kpi
+   rules); `accent` mirrors the SPA passing/omitting its accent bar. */
+export type AcctKpiTone = "success" | "danger" | "warning" | "net" | "muted";
+
+export function AcctKpi({
+  label,
+  value,
+  sub,
+  tone,
+  accent = false,
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+  tone?: AcctKpiTone;
+  accent?: boolean;
+}) {
+  return (
+    <div className="acct-kpi" data-tone={tone}>
+      {accent ? <span className="acct-kpi-accent" aria-hidden /> : null}
+      <span className="acct-kpi-label">{label}</span>
+      <span className="acct-kpi-value">{value}</span>
+      {sub ? <span className="acct-kpi-sub">{sub}</span> : null}
     </div>
   );
 }

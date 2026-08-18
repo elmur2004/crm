@@ -72,14 +72,18 @@ test("admin books income + expense, approves it, and the dashboard moves", async
 test("B-Systems company filter hides Media Buying entirely", async ({ page }) => {
   await login(page, "admin@byteforce.com", "password123", /\/b-systems$/);
 
-  /* under ByteForce the tab exists */
+  /* under ByteForce the tab exists — and the module WEARS the ByteForce brand
+     (directive D: the shell re-stamps [data-brand] with the company) */
   await page.goto("/accounting?company=byteforce");
   await expect(page.getByRole("link", { name: "Media Buying" })).toBeVisible();
+  await expect(page.locator('div[data-brand="byteforce"]')).toBeVisible();
+  await expect(page.locator('div[data-brand="bsystems"]')).toHaveCount(0);
 
-  /* under B-Systems it is gone from the strip… */
+  /* under B-Systems it is gone from the strip — and the brand swaps whole */
   await page.goto("/accounting?company=bsystems");
   await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Media Buying" })).toHaveCount(0);
+  await expect(page.locator('div[data-brand="bsystems"]')).toBeVisible();
 
   /* …and the URL itself bounces back to the dashboard */
   await page.goto("/accounting/media?company=bsystems");

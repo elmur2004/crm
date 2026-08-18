@@ -8,7 +8,7 @@
    values — they are brand billboards, not themed components (spec §2.14).
    ========================================================================= */
 
-:root[data-brand="neutral"] {
+[data-brand="neutral"] {
   --color-primary: #1A191C;
   --color-on-primary: #FFFFFF;
   --color-secondary: #53449B;
@@ -34,6 +34,7 @@
   --color-danger-border-strong: #E0A79E;
   --color-danger-ink: #8E2C20;
   --color-success: #1A191C; /* founder ruling on R4: no green — neutral uses ink */
+  --color-warning: #B8860B; /* functional amber, uniform across scopes (ADR-054) */
   --color-on-success: #FFFFFF;
   --color-primary-tint: #E7E5DF;
   --color-primary-tint-ink: #1A191C;

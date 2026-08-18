@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ImpersonationBar } from "@/components/shared/ImpersonationBar";
 import { EntitySwitch } from "@/components/shared/EntitySwitch";
 import { LanguageToggle } from "@/components/shared/LanguageToggle";
+import { ModuleBrandScope, ModuleLogo } from "@/components/shared/ModuleBrandScope";
 import { UndoControl } from "@/components/shared/UndoControl";
 import { VaultModuleNav } from "@/components/vault/VaultModuleNav";
 import { logout } from "@/lib/auth/actions";
@@ -31,12 +32,13 @@ export default async function VaultShellLayout({
     .toUpperCase();
 
   return (
-    <>
+    <ModuleBrandScope module="vault">
       <ImpersonationBar />
       <header className="app-header">
-        {/* clicking the module mark goes to THIS module's overview */}
+        {/* the active COMPANY mark when filtered, the neutral home lockup on "all"
+            (directive D); clicking it goes to THIS module's overview */}
         <Link href="/vault" className="shrink-0 flex items-center gap-3" aria-label={t(vault.navItem)}>
-          <span className="wordmark">{t(vault.navItem)}</span>
+          <ModuleLogo module="vault" wordmark={t(vault.navItem)} />
         </Link>
         <VaultModuleNav
           extras={
@@ -70,6 +72,6 @@ export default async function VaultShellLayout({
       </header>
       <main className="page max-w-7xl mx-auto w-full">{children}</main>
       <UndoControl userId={user.id} />
-    </>
+    </ModuleBrandScope>
   );
 }
