@@ -10,7 +10,7 @@ export const vault = {
   navItem: { en: "Data Vault", ar: "خزنة البيانات" },
 
   /* shell */
-  metaTitle: { en: "Data Vault — B-Systems", ar: "خزنة البيانات — B-Systems" },
+  metaTitle: { en: "Data Vault", ar: "خزنة البيانات" },
   eyebrow: { en: "DATA VAULT", ar: "خزنة البيانات" },
 
   /* tabs */

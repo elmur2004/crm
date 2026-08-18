@@ -33,11 +33,11 @@ test("employee card → task → gate refuses → result completes → On time",
   await login(page, "admin@byteforce.com", "password123", /\/b-systems$/);
 
   /* the nav item exists and lands on the overview */
-  await page.goto("/b-systems/vault");
+  await page.goto("/vault");
   await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();
 
   /* ---- the employee CARD (a card, not an account) */
-  await page.goto("/b-systems/vault/employees");
+  await page.goto("/vault/employees");
   await page.getByRole("button", { name: "+ Add employee" }).click();
   const modal = page.locator(".modal");
   await modal.getByLabel("Name").fill("Vault E2E Employee");
@@ -47,7 +47,7 @@ test("employee card → task → gate refuses → result completes → On time",
   await expect(page.getByText("Vault E2E Employee").first()).toBeVisible();
 
   /* ---- the task, due today */
-  await page.goto("/b-systems/vault/tasks");
+  await page.goto("/vault/tasks");
   await page.getByRole("button", { name: "+ Add task" }).click();
   await modal.getByLabel("Name").fill("Vault E2E gated task");
   await modal.getByLabel("Assignee").selectOption({ label: "Vault E2E Employee" });
@@ -79,7 +79,7 @@ test("employee card → task → gate refuses → result completes → On time",
 
 test("a CSV sheet upload is counted from the file itself", async ({ page }) => {
   await login(page, "admin@byteforce.com", "password123", /\/b-systems$/);
-  await page.goto("/b-systems/vault/sheets");
+  await page.goto("/vault/sheets");
   await page.getByRole("button", { name: "+ Add sheet" }).click();
   const modal = page.locator(".modal");
   await modal.getByLabel("Name").fill("Vault E2E csv sheet");
@@ -101,7 +101,7 @@ test("a document archives (leaves the list) and restores from the Archive tab", 
   page,
 }) => {
   await login(page, "admin@byteforce.com", "password123", /\/b-systems$/);
-  await page.goto("/b-systems/vault/documents");
+  await page.goto("/vault/documents");
   await page.getByRole("button", { name: "+ Add document" }).click();
   const modal = page.locator(".modal");
   await modal.getByLabel("Name").fill("Vault E2E contract");
@@ -121,13 +121,13 @@ test("a document archives (leaves the list) and restores from the Archive tab", 
   await expect(page.locator("tr", { hasText: "Vault E2E contract" })).toHaveCount(0);
 
   /* the Archive tab holds it, restorable in one click */
-  await page.goto("/b-systems/vault/archive");
+  await page.goto("/vault/archive");
   const archivedRow = page.locator("tr", { hasText: "Vault E2E contract" });
   await expect(archivedRow.getByText("Archived", { exact: true })).toBeVisible();
   await archivedRow.getByRole("button", { name: "Unarchive" }).click();
   await expect(page.locator("tr", { hasText: "Vault E2E contract" })).toHaveCount(0);
 
-  await page.goto("/b-systems/vault/documents");
+  await page.goto("/vault/documents");
   await expect(page.locator("tr", { hasText: "Vault E2E contract" })).toHaveCount(1);
 });
 
@@ -135,26 +135,26 @@ test("every vault route refuses non-admin roles (server-side 403 matrix)", async
   browser,
 }) => {
   const routes: Array<[string, string]> = [
-    ["POST", "/api/b-systems/vault/employees"],
-    ["PATCH", "/api/b-systems/vault/employees/x"],
-    ["POST", "/api/b-systems/vault/forms"],
-    ["PATCH", "/api/b-systems/vault/forms/x"],
-    ["POST", "/api/b-systems/vault/forms/x/archive"],
-    ["POST", "/api/b-systems/vault/sheets"],
-    ["PATCH", "/api/b-systems/vault/sheets/x"],
-    ["POST", "/api/b-systems/vault/sheets/x/file"],
-    ["POST", "/api/b-systems/vault/sheets/x/archive"],
-    ["POST", "/api/b-systems/vault/documents"],
-    ["PATCH", "/api/b-systems/vault/documents/x"],
-    ["POST", "/api/b-systems/vault/documents/x/file"],
-    ["POST", "/api/b-systems/vault/documents/x/archive"],
-    ["POST", "/api/b-systems/vault/tasks"],
-    ["PATCH", "/api/b-systems/vault/tasks/x"],
-    ["POST", "/api/b-systems/vault/tasks/x/result"],
-    ["POST", "/api/b-systems/vault/tasks/x/complete"],
-    ["POST", "/api/b-systems/vault/tasks/x/reopen"],
-    ["POST", "/api/b-systems/vault/tasks/x/archive"],
-    ["GET", "/api/b-systems/vault/search?q=x"],
+    ["POST", "/api/vault/employees"],
+    ["PATCH", "/api/vault/employees/x"],
+    ["POST", "/api/vault/forms"],
+    ["PATCH", "/api/vault/forms/x"],
+    ["POST", "/api/vault/forms/x/archive"],
+    ["POST", "/api/vault/sheets"],
+    ["PATCH", "/api/vault/sheets/x"],
+    ["POST", "/api/vault/sheets/x/file"],
+    ["POST", "/api/vault/sheets/x/archive"],
+    ["POST", "/api/vault/documents"],
+    ["PATCH", "/api/vault/documents/x"],
+    ["POST", "/api/vault/documents/x/file"],
+    ["POST", "/api/vault/documents/x/archive"],
+    ["POST", "/api/vault/tasks"],
+    ["PATCH", "/api/vault/tasks/x"],
+    ["POST", "/api/vault/tasks/x/result"],
+    ["POST", "/api/vault/tasks/x/complete"],
+    ["POST", "/api/vault/tasks/x/reopen"],
+    ["POST", "/api/vault/tasks/x/archive"],
+    ["GET", "/api/vault/search?q=x"],
   ];
 
   const sessions: Array<[string, string, RegExp]> = [
@@ -178,7 +178,7 @@ test("every vault route refuses non-admin roles (server-side 403 matrix)", async
     }
 
     /* the PAGES bounce a signed-in non-admin to their own landing, never 500 */
-    await page.goto("/b-systems/vault");
+    await page.goto("/vault");
     await expect(page).not.toHaveURL(/\/vault/);
 
     await context.close();

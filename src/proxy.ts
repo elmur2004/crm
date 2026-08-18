@@ -25,6 +25,11 @@ function loginPathFor(): string {
 
 function allowed(pathname: string, roles: Role[]): boolean {
   if (pathname.startsWith("/byteforce")) return roles.includes("byteforce_staff");
+  /* ADR-054: the Accounting and Data Vault MODULES — switcher peers of the two
+     CRMs, admin-only. The page guards (requireBsAdminPage) stay the real wall. */
+  if (pathname.startsWith("/accounting") || pathname.startsWith("/vault")) {
+    return roles.includes("bsystems_admin");
+  }
   if (pathname.startsWith("/b-systems")) {
     // V2 (ADR-030): the role-aware B-Systems CRM — per-section scoping happens
     // in the page guards; any B-Systems role may enter the app shell.
@@ -60,5 +65,11 @@ export default auth((req) => {
 });
 
 export const config = {
-  matcher: ["/byteforce/:path*", "/b-systems/:path*", "/portal/:path*"],
+  matcher: [
+    "/byteforce/:path*",
+    "/b-systems/:path*",
+    "/portal/:path*",
+    "/accounting/:path*",
+    "/vault/:path*",
+  ],
 };

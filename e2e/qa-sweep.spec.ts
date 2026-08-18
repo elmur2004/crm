@@ -20,7 +20,13 @@ async function sweep(page: Page, errors: string[], paths: string[]) {
     for (const width of VIEWPORTS) {
       await page.setViewportSize({ width, height: 900 });
       await page.goto(path);
-      await page.waitForLoadState("networkidle");
+      /* networkidle is the right settle signal, but a Link prefetch canceled
+         by the next navigation can wedge Chromium's in-flight counter so the
+         event never fires even on a silent network (seen on the accounting
+         module's query-carrying nav links). Bound the wait: the genuine quiet
+         case fires in <1s; the wedged case proceeds — console errors are
+         still collected by the listeners and fail the test on their own. */
+      await page.waitForLoadState("networkidle", { timeout: 10_000 }).catch(() => undefined);
       const overflow = await page.evaluate(
         () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
       );
@@ -103,19 +109,19 @@ test("B-Systems admin: accounting screens clean at every width", async ({ page }
   await page.getByRole("button", { name: "Sign in" }).click();
   await page.waitForURL(/\/b-systems$/);
   await sweep(page, errors, [
-    "/b-systems/accounting",
-    "/b-systems/accounting?company=bsystems",
-    "/b-systems/accounting/income",
-    "/b-systems/accounting/expenses",
-    "/b-systems/accounting/clients",
-    "/b-systems/accounting/roster",
-    "/b-systems/accounting/media",
-    "/b-systems/accounting/loans",
-    "/b-systems/accounting/treasury",
-    "/b-systems/accounting/report",
-    "/b-systems/accounting/departments",
-    "/b-systems/accounting/targets",
-    "/b-systems/accounting/import",
+    "/accounting",
+    "/accounting?company=bsystems",
+    "/accounting/income",
+    "/accounting/expenses",
+    "/accounting/clients",
+    "/accounting/roster",
+    "/accounting/media",
+    "/accounting/loans",
+    "/accounting/treasury",
+    "/accounting/report",
+    "/accounting/departments",
+    "/accounting/targets",
+    "/accounting/import",
   ]);
   expect(errors).toEqual([]);
 });
@@ -131,13 +137,13 @@ test("B-Systems admin: vault screens clean at every width", async ({ page }) => 
   await page.getByRole("button", { name: "Sign in" }).click();
   await page.waitForURL(/\/b-systems$/);
   await sweep(page, errors, [
-    "/b-systems/vault",
-    "/b-systems/vault/forms",
-    "/b-systems/vault/sheets",
-    "/b-systems/vault/documents",
-    "/b-systems/vault/tasks",
-    "/b-systems/vault/employees",
-    "/b-systems/vault/archive",
+    "/vault",
+    "/vault/forms",
+    "/vault/sheets",
+    "/vault/documents",
+    "/vault/tasks",
+    "/vault/employees",
+    "/vault/archive",
   ]);
   expect(errors).toEqual([]);
 });
@@ -163,16 +169,66 @@ test("mobile menu reaches EVERY admin section at 390px (incl. switcher + logout)
     "Agents",
     "Registrations",
     "Statements",
-    "Accounting", // ADR-052
-    "Data Vault", // ADR-053
     "Users",
   ]) {
     await expect(page.getByRole("menu").getByRole("link", { name: label, exact: true })).toBeVisible();
   }
   await expect(page.getByRole("menu").getByRole("button", { name: "Log out" })).toBeVisible();
-  await expect(page.getByRole("menu").getByRole("group", { name: "Switch company" })).toBeVisible();
+  const sheetSwitcher = page.getByRole("menu").getByRole("group", { name: "Switch company" });
+  await expect(sheetSwitcher).toBeVisible();
+  /* ADR-054: Accounting and Data Vault left the nav — they are MODULE segments
+     on the switcher now, reachable from the sheet too. */
+  await expect(sheetSwitcher.getByRole("link", { name: "ACCOUNTING" })).toBeVisible();
+  await expect(sheetSwitcher.getByRole("link", { name: "VAULT" })).toBeVisible();
   await page.getByRole("menu").getByRole("link", { name: "Statements", exact: true }).click();
   await page.waitForURL(/\/b-systems\/statements$/);
+});
+
+/* ADR-054 — the founder's module directive: Accounting and Data Vault are
+   switcher PEERS of the two CRMs. One admin session walks all four shells
+   through the switcher itself, and each shell marks its own segment current. */
+test("the module switcher moves between all four shells", async ({ page }) => {
+  await page.goto("/login");
+  await page.getByLabel("Email or phone").fill("admin@byteforce.com");
+  await page.getByLabel("Password").fill("password123");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await page.waitForURL(/\/b-systems$/);
+
+  const switcher = () => page.locator(".user").getByRole("group", { name: "Switch company" });
+  await expect(switcher().getByRole("link", { name: "B-SYSTEMS" })).toHaveAttribute(
+    "aria-current",
+    "true",
+  );
+
+  await switcher().getByRole("link", { name: "ACCOUNTING" }).click();
+  await page.waitForURL(/\/accounting/);
+  await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
+  await expect(switcher().getByRole("link", { name: "ACCOUNTING" })).toHaveAttribute(
+    "aria-current",
+    "true",
+  );
+
+  await switcher().getByRole("link", { name: "VAULT" }).click();
+  await page.waitForURL(/\/vault/);
+  await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();
+  await expect(switcher().getByRole("link", { name: "VAULT" })).toHaveAttribute(
+    "aria-current",
+    "true",
+  );
+
+  await switcher().getByRole("link", { name: "BYTEFORCE" }).click();
+  await page.waitForURL(/\/byteforce$/);
+  await expect(switcher().getByRole("link", { name: "BYTEFORCE" })).toHaveAttribute(
+    "aria-current",
+    "true",
+  );
+
+  await switcher().getByRole("link", { name: "B-SYSTEMS" }).click();
+  await page.waitForURL(/\/b-systems$/);
+  await expect(switcher().getByRole("link", { name: "B-SYSTEMS" })).toHaveAttribute(
+    "aria-current",
+    "true",
+  );
 });
 
 test("B-Systems agent + public screens: clean console, no horizontal overflow", async ({

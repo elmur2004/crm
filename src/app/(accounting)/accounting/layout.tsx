@@ -1,0 +1,75 @@
+import Link from "next/link";
+import { ImpersonationBar } from "@/components/shared/ImpersonationBar";
+import { EntitySwitch } from "@/components/shared/EntitySwitch";
+import { LanguageToggle } from "@/components/shared/LanguageToggle";
+import { UndoControl } from "@/components/shared/UndoControl";
+import { AcctModuleNav } from "@/components/accounting/AcctModuleNav";
+import { logout } from "@/lib/auth/actions";
+import { requireBsAdminPage } from "@/lib/auth/page-guards";
+import { tFor } from "@/lib/i18n/core";
+import { getLocale } from "@/lib/i18n/server";
+import { nav, roles } from "@/lib/i18n/dict/crm";
+import { acct } from "@/lib/i18n/dict/accounting";
+
+/* ADR-054 — the accounting module's app shell: same chrome contract as the two
+   CRM shells (header, module nav, switcher, language toggle, user cluster,
+   logout), composed from the same components. Admin-only: the proxy gates the
+   route group coarsely and this guard is the real wall. No notifications bell —
+   the bell belongs to the CRM pipelines, not the books. */
+
+export default async function AccountingShellLayout({
+  children,
+}: Readonly<{ children: React.ReactNode }>) {
+  const user = await requireBsAdminPage();
+  const locale = await getLocale();
+  const t = tFor(locale);
+  const initials = user.name
+    .split(/\s+/)
+    .map((w) => w[0])
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
+
+  return (
+    <>
+      <ImpersonationBar />
+      <header className="app-header">
+        {/* clicking the module mark goes to THIS module's dashboard */}
+        <Link href="/accounting" className="shrink-0 flex items-center gap-3" aria-label={t(acct.navItem)}>
+          <span className="wordmark">{t(acct.navItem)}</span>
+        </Link>
+        <AcctModuleNav
+          extras={
+            <>
+              <LanguageToggle />
+              <EntitySwitch roles={user.roles} current="accounting" />
+              <form action={logout.bind(null, "/login")}>
+                <button type="submit" className="nav-item">
+                  {t(nav.logOut)}
+                </button>
+              </form>
+            </>
+          }
+        />
+        <div className="user">
+          <LanguageToggle />
+          <EntitySwitch roles={user.roles} current="accounting" />
+          <span className="user-avatar" aria-hidden>
+            {initials}
+          </span>
+          <span className="user-meta">
+            <span className="user-name block">{user.name}</span>
+            <span className="user-role block">{t(roles.bsystems_admin)}</span>
+          </span>
+          <form action={logout.bind(null, "/login")}>
+            <button type="submit" className="nav-item" title={user.name}>
+              {t(nav.logOut)}
+            </button>
+          </form>
+        </div>
+      </header>
+      <main className="page max-w-7xl mx-auto w-full">{children}</main>
+      <UndoControl userId={user.id} />
+    </>
+  );
+}

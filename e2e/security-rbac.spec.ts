@@ -190,6 +190,16 @@ test("internal sales: internal bucket only, no admin APIs; brands stay partition
   });
   expect(crossBrand.status()).toBe(403);
 
+  /* ADR-054: the Accounting and Data Vault MODULES are bsystems_admin-only —
+     the proxy turns every other signed-in role away at the door (the fine
+     matrices live in accounting.spec / vault.spec). */
+  for (const p of [agentPage, staffPage]) {
+    await p.goto("/accounting");
+    await expect(p).toHaveURL(/\/login/);
+    await p.goto("/vault");
+    await expect(p).toHaveURL(/\/login/);
+  }
+
   await agent.close();
   await sales.close();
   await staff.close();

@@ -13,8 +13,6 @@ import { tFor, type Msg } from "@/lib/i18n/core";
 import { getLocale } from "@/lib/i18n/server";
 import { nav, roles } from "@/lib/i18n/dict/crm";
 import { todoPage } from "@/lib/i18n/dict/todo";
-import { acct } from "@/lib/i18n/dict/accounting";
-import { vault } from "@/lib/i18n/dict/vault";
 
 /* V2 §2 — ONE role-aware B-Systems app. Chrome per the approved prototype
    (spec §2.1): dark indigo header for admin + internal sales; agents/partners
@@ -33,8 +31,8 @@ const NAV: Record<string, Array<{ href: string; label: Msg }>> = {
     { href: "/b-systems/agents", label: nav.agents },
     { href: "/b-systems/registrations", label: nav.registrations },
     { href: "/b-systems/statements", label: nav.statements },
-    { href: "/b-systems/accounting", label: acct.navItem }, // ADR-052 — admin only
-    { href: "/b-systems/vault", label: vault.navItem }, // ADR-053 — admin only
+    /* ADR-054: Accounting and Data Vault left this nav — they are MODULES on
+       the switcher now (EntitySwitch), peers of the two CRMs. */
     { href: "/b-systems/users", label: nav.users },
   ],
   bsystems_sales: [

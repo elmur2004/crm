@@ -31,11 +31,11 @@ test("admin books income + expense, approves it, and the dashboard moves", async
   await login(page, "admin@byteforce.com", "password123", /\/b-systems$/);
 
   /* the nav item exists and lands on the dashboard */
-  await page.goto("/b-systems/accounting");
+  await page.goto("/accounting");
   await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
 
   /* ---- income: 4,321 EGP collected today (cash basis: lands this month) */
-  await page.goto("/b-systems/accounting/income");
+  await page.goto("/accounting/income");
   await page.getByRole("button", { name: "+ Add income" }).click();
   const modal = page.locator(".modal");
   await modal.getByLabel("Client name").fill("E2E Client");
@@ -46,7 +46,7 @@ test("admin books income + expense, approves it, and the dashboard moves", async
   await expect(page.locator("tr", { hasText: "E2E Client" }).getByText("Collected", { exact: true })).toBeVisible();
 
   /* ---- expense: 1,111 EGP, stays ON HOLD — must not touch cash yet */
-  await page.goto("/b-systems/accounting/expenses");
+  await page.goto("/accounting/expenses");
   await page.getByRole("button", { name: "+ Add expense" }).click();
   await modal.getByLabel("Name / payee").fill("E2E Hosting");
   await modal.getByLabel("Amount (EGP)").fill("1111");
@@ -56,16 +56,16 @@ test("admin books income + expense, approves it, and the dashboard moves", async
   await expect(row.getByText("On hold", { exact: true })).toBeVisible();
 
   /* ---- dashboard: income counted, expense only in "to be paid", net = income */
-  await page.goto("/b-systems/accounting");
+  await page.goto("/accounting");
   await expect(page.getByText("EGP 4,321").first()).toBeVisible(); // collected + net
   await expect(page.getByText("EGP 1,111").first()).toBeVisible(); // on hold tile
 
   /* ---- approve the expense — NOW it hits cash */
-  await page.goto("/b-systems/accounting/expenses");
+  await page.goto("/accounting/expenses");
   await row.locator("button").first().click(); // the ✓ approve toggle
   await expect(row.getByText("Paid", { exact: true })).toBeVisible();
 
-  await page.goto("/b-systems/accounting");
+  await page.goto("/accounting");
   await expect(page.getByText("EGP 3,210").first()).toBeVisible(); // 4,321 − 1,111
 });
 
@@ -73,17 +73,17 @@ test("B-Systems company filter hides Media Buying entirely", async ({ page }) =>
   await login(page, "admin@byteforce.com", "password123", /\/b-systems$/);
 
   /* under ByteForce the tab exists */
-  await page.goto("/b-systems/accounting?company=byteforce");
+  await page.goto("/accounting?company=byteforce");
   await expect(page.getByRole("link", { name: "Media Buying" })).toBeVisible();
 
   /* under B-Systems it is gone from the strip… */
-  await page.goto("/b-systems/accounting?company=bsystems");
+  await page.goto("/accounting?company=bsystems");
   await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Media Buying" })).toHaveCount(0);
 
   /* …and the URL itself bounces back to the dashboard */
-  await page.goto("/b-systems/accounting/media?company=bsystems");
-  await page.waitForURL(/\/b-systems\/accounting\?company=bsystems/);
+  await page.goto("/accounting/media?company=bsystems");
+  await page.waitForURL(/\/accounting\?company=bsystems/);
 });
 
 test("the import screen ingests the old app's export and reports the derived totals", async ({
@@ -117,7 +117,7 @@ test("the import screen ingests the old app's export and reports the derived tot
     payrollPaid: {},
   };
 
-  await page.goto("/b-systems/accounting/import");
+  await page.goto("/accounting/import");
   await page.locator('input[name="file"]').setInputFiles({
     name: "bsystems-accounting-export.json",
     mimeType: "application/json",
@@ -130,7 +130,7 @@ test("the import screen ingests the old app's export and reports the derived tot
   await expect(page.getByText("EGP 600").first()).toBeVisible(); // 100 opening + 500 collected
 
   /* the dashboard under the B-Systems filter shows the imported treasury */
-  await page.goto("/b-systems/accounting?company=bsystems");
+  await page.goto("/accounting?company=bsystems");
   await expect(page.getByText("EGP 600").first()).toBeVisible();
   await expect(page.getByText("Imported Co")).toHaveCount(0); // client names live on their own tab
 });
@@ -139,27 +139,27 @@ test("every accounting route refuses non-admin roles (server-side 403 matrix)", 
   browser,
 }) => {
   const routes: Array<[string, string]> = [
-    ["POST", "/api/b-systems/accounting/income"],
-    ["PATCH", "/api/b-systems/accounting/income/x"],
-    ["DELETE", "/api/b-systems/accounting/income/x?company=byteforce"],
-    ["POST", "/api/b-systems/accounting/expenses"],
-    ["PATCH", "/api/b-systems/accounting/expenses/x"],
-    ["DELETE", "/api/b-systems/accounting/expenses/x?company=byteforce"],
-    ["POST", "/api/b-systems/accounting/payroll-paid"],
-    ["POST", "/api/b-systems/accounting/roster"],
-    ["PATCH", "/api/b-systems/accounting/roster/x"],
-    ["DELETE", "/api/b-systems/accounting/roster/x?company=byteforce"],
-    ["POST", "/api/b-systems/accounting/media"],
-    ["POST", "/api/b-systems/accounting/loans"],
-    ["DELETE", "/api/b-systems/accounting/loans/x?company=byteforce"],
-    ["POST", "/api/b-systems/accounting/loans/x/payments"],
-    ["POST", "/api/b-systems/accounting/treasury"],
-    ["PATCH", "/api/b-systems/accounting/treasury/x"],
-    ["DELETE", "/api/b-systems/accounting/treasury/x?company=byteforce"],
-    ["PUT", "/api/b-systems/accounting/settings"],
-    ["POST", "/api/b-systems/accounting/targets"],
-    ["DELETE", "/api/b-systems/accounting/targets/x?company=byteforce"],
-    ["POST", "/api/b-systems/accounting/import"],
+    ["POST", "/api/accounting/income"],
+    ["PATCH", "/api/accounting/income/x"],
+    ["DELETE", "/api/accounting/income/x?company=byteforce"],
+    ["POST", "/api/accounting/expenses"],
+    ["PATCH", "/api/accounting/expenses/x"],
+    ["DELETE", "/api/accounting/expenses/x?company=byteforce"],
+    ["POST", "/api/accounting/payroll-paid"],
+    ["POST", "/api/accounting/roster"],
+    ["PATCH", "/api/accounting/roster/x"],
+    ["DELETE", "/api/accounting/roster/x?company=byteforce"],
+    ["POST", "/api/accounting/media"],
+    ["POST", "/api/accounting/loans"],
+    ["DELETE", "/api/accounting/loans/x?company=byteforce"],
+    ["POST", "/api/accounting/loans/x/payments"],
+    ["POST", "/api/accounting/treasury"],
+    ["PATCH", "/api/accounting/treasury/x"],
+    ["DELETE", "/api/accounting/treasury/x?company=byteforce"],
+    ["PUT", "/api/accounting/settings"],
+    ["POST", "/api/accounting/targets"],
+    ["DELETE", "/api/accounting/targets/x?company=byteforce"],
+    ["POST", "/api/accounting/import"],
   ];
 
   const sessions: Array<[string, string, RegExp]> = [
@@ -183,7 +183,7 @@ test("every accounting route refuses non-admin roles (server-side 403 matrix)", 
     }
 
     /* the PAGES bounce a signed-in non-admin to their own landing, never 500 */
-    await page.goto("/b-systems/accounting");
+    await page.goto("/accounting");
     await expect(page).not.toHaveURL(/\/accounting/);
 
     await context.close();

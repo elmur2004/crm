@@ -23,10 +23,13 @@ export function ShellNav({
   const [open, setOpen] = useState(false);
   const t = tFor(useLocale());
 
-  /* longest matching href wins so /b-systems doesn't stay active on /b-systems/crm */
+  /* longest matching href wins so /b-systems doesn't stay active on /b-systems/crm.
+     Module navs carry ?company=&month= on every item (the view survives
+     navigation) — match on the PATH alone. */
+  const pathOf = (href: string) => href.split("?")[0]!;
   const active = items
-    .filter((i) => pathname === i.href || pathname.startsWith(`${i.href}/`))
-    .sort((a, b) => b.href.length - a.href.length)[0]?.href;
+    .filter((i) => pathname === pathOf(i.href) || pathname.startsWith(`${pathOf(i.href)}/`))
+    .sort((a, b) => pathOf(b.href).length - pathOf(a.href).length)[0]?.href;
 
   useEffect(() => setOpen(false), [pathname]); // navigating closes the sheet
 

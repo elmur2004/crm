@@ -172,4 +172,9 @@ export const shell = {
   openMenu: { en: "Open menu", ar: "فتح القائمة" },
   closeMenu: { en: "Close menu", ar: "إغلاق القائمة" },
   switchCompany: { en: "Switch company", ar: "تبديل الشركة" },
+  /* module switcher segments (ADR-054) — the two CRMs keep their literal brand
+     names; the modules are words, so they translate. Uppercase EN matches the
+     brand segments; Arabic has no case. */
+  switchAccounting: { en: "ACCOUNTING", ar: "الحسابات" },
+  switchVault: { en: "VAULT", ar: "الخزنة" },
 } satisfies Record<string, Msg>;

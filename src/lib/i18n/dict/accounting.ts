@@ -9,7 +9,7 @@ export const acct = {
   navItem: { en: "Accounting", ar: "الحسابات" },
 
   /* shell */
-  metaTitle: { en: "Accounting — B-Systems", ar: "الحسابات — B-Systems" },
+  metaTitle: { en: "Accounting", ar: "الحسابات" },
   company: { en: "Company", ar: "الشركة" },
   month: { en: "Month", ar: "الشهر" },
   prevMonth: { en: "Previous month", ar: "الشهر السابق" },
