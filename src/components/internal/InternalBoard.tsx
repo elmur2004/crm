@@ -49,6 +49,8 @@ export interface InternalBoardLead {
   keyDatum: string;
   noAnswer: boolean;
   latestProposalValue: number | null; // Won form prefill (ADR-011)
+  /** wa.me link, precomputed server-side (null when no confident country code) */
+  waHref: string | null;
 }
 
 type Rep = { id: string; name: string };
@@ -117,6 +119,20 @@ function LeadCard({
         >
           {t(callSheet.navLabel)}
         </Link>
+        {/* founder: "message on WhatsApp" beside every Call — a new tab, same
+            guards so it neither drags nor opens the lead */}
+        {lead.waHref ? (
+          <a
+            href={lead.waHref}
+            target="_blank"
+            rel="noopener"
+            className="card-dial"
+            onClick={(e) => e.stopPropagation()}
+            onPointerDown={(e) => e.stopPropagation()}
+          >
+            {t(callSheet.whatsapp)}
+          </a>
+        ) : null}
       </div>
       {lead.keyDatum || active ? (
         <div className="bcard-meta">

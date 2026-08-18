@@ -45,6 +45,8 @@ export interface BsBoardLead {
   readyToClose: boolean;
   noAnswer: boolean;
   keyDatum: string;
+  /** wa.me link, precomputed server-side (null when no confident country code) */
+  waHref: string | null;
 }
 
 function LeadCard({
@@ -109,6 +111,20 @@ function LeadCard({
         >
           {t(callSheet.navLabel)}
         </Link>
+        {/* founder: "message on WhatsApp" beside every Call — a new tab, same
+            guards so it neither drags nor opens the lead */}
+        {lead.waHref ? (
+          <a
+            href={lead.waHref}
+            target="_blank"
+            rel="noopener"
+            className="card-dial"
+            onClick={(e) => e.stopPropagation()}
+            onPointerDown={(e) => e.stopPropagation()}
+          >
+            {t(callSheet.whatsapp)}
+          </a>
+        ) : null}
       </div>
       {lead.keyDatum || (lead.stage !== "won" && lead.stage !== "lost") ? (
         <div className="bcard-meta">

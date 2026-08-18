@@ -891,6 +891,15 @@ label:has(input[required]) .dropzone-title::after {
 }
 .call-cta:hover { background: color-mix(in srgb, var(--color-ink) 10%, var(--color-primary)); }
 .call-cta:active { transform: scale(.98); }
+/* the WhatsApp sibling (founder: "message on WhatsApp" beside every Call) —
+   outlined in link ink like the boards' dial chip, so the filled primary
+   button stays the sheet's one true action. Neutral on purpose: no
+   WhatsApp-green in the palette; the label is identification enough. */
+.call-cta--wa {
+  background: transparent; color: var(--color-link);
+  border: 1px solid var(--color-border);
+}
+.call-cta--wa:hover { background: var(--color-surface); border-color: var(--color-link); }
 .call-cta-icon { width: 20px; height: 20px; flex: none; }
 .call-cta-label { flex: none; }
 /* the number is a LTR run even in Arabic: without isolation the leading "+"

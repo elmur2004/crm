@@ -6,6 +6,7 @@ import { listBsOwnerReps } from "@/lib/services/sales-reps";
 import { LEAD_TYPES } from "@/lib/pipeline-engine/constants";
 import { formatCairo } from "@/lib/datetime";
 import { formatEGP } from "@/lib/money";
+import { waHref } from "@/lib/phone-dial";
 import { tFor, type Locale, type Msg } from "@/lib/i18n/core";
 import { getLocale } from "@/lib/i18n/server";
 import { leadTypeLabel, ownerTypeLabel } from "@/lib/i18n/dict/labels";
@@ -131,6 +132,7 @@ export default async function BsCrmPage({
     readyToClose: l.readyToClose,
     noAnswer: l.noAnswer,
     keyDatum: keyDatum(locale, l),
+    waHref: waHref(l.number),
   }));
 
   const reps =

@@ -30,10 +30,15 @@ test("dial from the board card opens the call sheet with a dialable tel: link", 
   expect(created.status()).toBe(201);
   const { id } = (await created.json()) as { id: string };
 
-  /* the card's Call chip must NOT drag the card nor open the lead detail */
+  /* the card's Call chip must NOT drag the card nor open the lead detail.
+     Founder: a WhatsApp chip sits BESIDE it — wa.me with the country code
+     prefixed onto the number, opening in a new tab. */
   await page.goto("/b-systems/crm");
   const card = page.locator('[data-deal-card="Dial Smoke Lead"]');
   await expect(card).toBeVisible();
+  const cardWa = card.getByRole("link", { name: "WhatsApp", exact: true });
+  await expect(cardWa).toHaveAttribute("href", "https://wa.me/201001234567");
+  await expect(cardWa).toHaveAttribute("target", "_blank");
   await card.getByRole("link", { name: "Call", exact: true }).click();
   await page.waitForURL(new RegExp(`/b-systems/crm/lead/${id}/call$`));
 
@@ -41,6 +46,12 @@ test("dial from the board card opens the call sheet with a dialable tel: link", 
   const dial = page.getByRole("link", { name: "Call now — +20 100 123-4567" });
   await expect(dial).toBeVisible();
   await expect(dial).toHaveAttribute("href", "tel:+201001234567");
+
+  /* … and its WhatsApp sibling, normalised the wa.me way (+20 → 20) */
+  const wa = page.getByRole("link", { name: "Message on WhatsApp — +20 100 123-4567" });
+  await expect(wa).toBeVisible();
+  await expect(wa).toHaveAttribute("href", "https://wa.me/201001234567");
+  await expect(wa).toHaveAttribute("target", "_blank");
 
   /* his story, on one page */
   await expect(page.getByRole("heading", { level: 1, name: "Dial Smoke Lead" })).toBeVisible();

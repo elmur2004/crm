@@ -16,6 +16,11 @@ export const callSheet = {
   /* "Call now — 01001234567" (the accessible name of the dial button) */
   callNowAria: { en: "Call now — {number}", ar: "اتصل الآن — {number}" },
   noNumber: { en: "No number on this lead", ar: "لا يوجد رقم لهذا العميل المحتمل" },
+  /* founder: "a WhatsApp (message on WhatsApp) button on every lead next to
+     the call button." The brand name stays "WhatsApp" in both languages. */
+  whatsapp: { en: "WhatsApp", ar: "WhatsApp" },
+  /* "Message on WhatsApp — 01001234567" (accessible name; opens a new tab) */
+  whatsappAria: { en: "Message on WhatsApp — {number}", ar: "مراسلة عبر WhatsApp — {number}" },
   otherContacts: { en: "Other contacts", ar: "وسائل اتصال أخرى" },
   sendEmail: { en: "Send an email", ar: "إرسال بريد إلكتروني" },
   details: { en: "Details", ar: "التفاصيل" },

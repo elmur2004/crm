@@ -27,3 +27,27 @@ export function telHref(raw: string | null | undefined): string | null {
   const digits = telDigits(raw);
   return digits ? `tel:${digits}` : null;
 }
+
+/* Founder: "add a WhatsApp (message on WhatsApp) button on every lead next to
+   the call button." wa.me refuses local numbers — the path must be COUNTRY
+   CODE + subscriber digits, no "+", no leading zero. The team types Egyptian
+   mobiles the local way ("01001234567"), so that shape gets Egypt's 20
+   prefixed; an explicit +/00 country code is honoured as typed; any other
+   0-leading number (landlines have no WhatsApp; a foreign trunk prefix is
+   unguessable) yields NO link rather than a wrong one. Same philosophy as
+   telDigits above: the displayed number is never rewritten — only the href. */
+export function waDigits(raw: string): string | null {
+  const tel = telDigits(raw);
+  if (!tel) return null;
+  if (tel.startsWith("+")) return tel.slice(1); // explicit country code
+  if (/^01\d{8,9}$/.test(tel)) return `2${tel}`; // Egyptian mobile, local shape
+  if (tel.startsWith("0")) return null; // 0-leading, not an EG mobile: ambiguous
+  return tel; // already bare country-code digits ("201…", "9665…")
+}
+
+/** `https://wa.me/` href, or null when no confident country-coded form exists. */
+export function waHref(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const digits = waDigits(raw);
+  return digits ? `https://wa.me/${digits}` : null;
+}

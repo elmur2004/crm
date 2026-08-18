@@ -7,7 +7,7 @@ import { requireLeadAccess } from "@/lib/auth/guards";
 import { getLeadDetail } from "@/lib/services/leads";
 import { listLeadComments, mentionableUsersFor } from "@/lib/services/comments";
 import { formatCairo } from "@/lib/datetime";
-import { telHref } from "@/lib/phone-dial";
+import { telHref, waHref } from "@/lib/phone-dial";
 import { formatMsg, tFor } from "@/lib/i18n/core";
 import { getLocale } from "@/lib/i18n/server";
 import { leadTypeLabel, ownerTypeLabel } from "@/lib/i18n/dict/labels";
@@ -73,6 +73,7 @@ export async function CallSheet({
   ]);
 
   const dial = telHref(lead.number);
+  const wa = waHref(lead.number);
   const ownerLine = [
     ownerTypeLabel(locale, lead.ownerType),
     lead.owner?.name,
@@ -138,6 +139,33 @@ export async function CallSheet({
         ) : (
           <p className="u-muted">{t(m.noNumber)}</p>
         )}
+        {/* founder: "message on WhatsApp" beside every Call — on the
+            phone-first screen that means a second big button, outlined so
+            dialing stays the primary act. New tab: coming back from WhatsApp
+            leaves this page exactly as it was. */}
+        {wa ? (
+          <a
+            href={wa}
+            target="_blank"
+            rel="noopener"
+            className="call-cta call-cta--wa"
+            aria-label={t(formatMsg(m.whatsappAria, { number: lead.number }))}
+          >
+            <svg
+              className="call-cta-icon"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden
+            >
+              <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
+            </svg>
+            <span className="call-cta-label">{t(m.whatsapp)}</span>
+          </a>
+        ) : null}
         <p className="call-back">
           <Link href={`${leadPath}/${lead.id}`} className="text-brand-link underline underline-offset-2">
             {t(m.backToLead)}

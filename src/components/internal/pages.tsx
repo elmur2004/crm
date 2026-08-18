@@ -26,6 +26,7 @@ import { listClients } from "@/lib/services/clients";
 import { getLeadDetail, latestProposalValue } from "@/lib/services/leads";
 import { formatEGP } from "@/lib/money";
 import { formatCairo, formatCairoDate } from "@/lib/datetime";
+import { waHref } from "@/lib/phone-dial";
 import { StatCard } from "@/components/shared/StatCard";
 import { AnimatedValue } from "@/components/shared/AnimatedValue";
 import { StageBadge } from "@/components/shared/StageBadge";
@@ -317,6 +318,13 @@ export async function LeadDetailBody({ ctx, leadId }: { ctx: InternalAppCtx; lea
           <Link href={`${ctx.basePath}/leads/lead/${lead.id}/call`} className="btn-primary">
             {t(callSheet.navLabel)}
           </Link>
+          {/* founder: "message on WhatsApp" beside every Call — outlined, since
+              dialing stays the page's one primary action */}
+          {waHref(lead.number) ? (
+            <a href={waHref(lead.number)!} target="_blank" rel="noopener" className="btn-ghost">
+              {t(callSheet.whatsapp)}
+            </a>
+          ) : null}
           <ArchiveButton
             postUrl={`${ctx.apiBase}/leads/${lead.id}/archive`}
             archived={lead.archived}
@@ -518,6 +526,7 @@ export async function CrmBoardBody({
     keyDatum: keyDatum(lead),
     noAnswer: lead.noAnswer,
     latestProposalValue: lead.proposals[0]?.estimatedValue ?? null,
+    waHref: waHref(lead.number),
   }));
 
   return (

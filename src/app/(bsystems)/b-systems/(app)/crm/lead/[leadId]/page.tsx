@@ -6,6 +6,7 @@ import { requireLeadAccess } from "@/lib/auth/guards";
 import { getLeadDetail } from "@/lib/services/leads";
 import { listBsOwnerReps } from "@/lib/services/sales-reps";
 import { formatCairo } from "@/lib/datetime";
+import { waHref } from "@/lib/phone-dial";
 import { tFor, type Msg } from "@/lib/i18n/core";
 import { getLocale } from "@/lib/i18n/server";
 import { leadTypeLabel, ownerTypeLabel } from "@/lib/i18n/dict/labels";
@@ -124,6 +125,13 @@ export default async function BsLeadDetailPage({
           <Link href={`/b-systems/crm/lead/${lead.id}/call`} className="btn-primary">
             {t(callSheet.navLabel)}
           </Link>
+          {/* founder: "message on WhatsApp" beside every Call — outlined, since
+              dialing stays the page's one primary action */}
+          {waHref(lead.number) ? (
+            <a href={waHref(lead.number)!} target="_blank" rel="noopener" className="btn-ghost">
+              {t(callSheet.whatsapp)}
+            </a>
+          ) : null}
           <CopyLeadButton lead={editable} />
           {access.isAdmin && !lead.archived ? (
             <AssignLeadButton

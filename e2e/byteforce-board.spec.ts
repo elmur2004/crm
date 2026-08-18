@@ -51,8 +51,11 @@ test("ByteForce board: drag opens the stage form; didn't-answer toggles; whole c
   await card.getByRole("button", { name: "Answered — clear flag" }).click();
   await expect(card.getByText("No answer", { exact: true })).toHaveCount(0);
 
-  /* Whole card opens the lead. */
-  await card.click();
+  /* Whole card opens the lead — clicked on its subtitle line: plain text that
+     bubbles to the card handler. The geometric center is no longer neutral
+     ground (the chips row now carries Call + WhatsApp, which swallow clicks
+     on purpose). */
+  await card.locator(".bcard-rep").click();
   await page.waitForURL(/\/byteforce\/leads\/lead\//);
   await expect(page.getByText("Parity Deal").first()).toBeVisible();
 });
