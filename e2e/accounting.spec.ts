@@ -121,13 +121,12 @@ test("the import screen ingests the old app's export and reports the derived tot
     payrollPaid: {},
   };
 
-  await page.goto("/accounting/import");
+  await page.goto("/accounting/import?company=bsystems");
   await page.locator('input[name="file"]').setInputFiles({
     name: "bsystems-accounting-export.json",
     mimeType: "application/json",
     buffer: Buffer.from(JSON.stringify(fixture)),
   });
-  await page.locator('select[name="company"]').selectOption("bsystems");
   await page.getByRole("button", { name: "Import books" }).click();
 
   await expect(page.getByText("Imported. Reconcile these totals against the old app:")).toBeVisible();
@@ -163,7 +162,6 @@ test("the import screen ingests the old app's export and reports the derived tot
 
   /* and both Export controls sit beside Import on the screen itself */
   await page.goto("/accounting/import?company=bsystems");
-  await expect(page.getByRole("link", { name: /Export backup \(JSON\)/ })).toBeVisible();
   await expect(page.getByRole("link", { name: "Export ALL companies (JSON)" })).toBeVisible();
 });
 

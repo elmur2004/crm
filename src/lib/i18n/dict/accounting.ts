@@ -335,10 +335,10 @@ export const acct = {
 
   /* import */
   importEyebrow: { en: "ACCOUNTING · IMPORT & EXPORT", ar: "الحسابات · استيراد وتصدير" },
-  importTitle: { en: "Import from the old app", ar: "الاستيراد من التطبيق القديم" },
+  importTitle: { en: "Import / Export", ar: "الاستيراد والتصدير" },
   importSub: {
-    en: "Upload the old accounting app's own JSON export — one company's backup, or the \"Export ALL companies\" file. Importing REPLACES that company's books here, then shows the derived totals so you can reconcile them against the old dashboard before trusting the cutover.",
-    ar: "ارفع ملف التصدير JSON من تطبيق الحسابات القديم — نسخة شركة واحدة أو ملف \"تصدير كل الشركات\". الاستيراد يستبدل دفاتر تلك الشركة هنا، ثم يعرض الإجماليات المشتقة لمطابقتها مع لوحة التطبيق القديم قبل اعتماد الانتقال.",
+    en: "The same JSON files as the old app, in both directions.",
+    ar: "نفس ملفات JSON كما في التطبيق القديم، في الاتجاهين.",
   },
   importFile: { en: "Export file (JSON)", ar: "ملف التصدير (JSON)" },
   importFileHint: {

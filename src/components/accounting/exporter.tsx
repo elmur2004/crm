@@ -18,17 +18,17 @@ export function ExportPanel() {
     company: params.get("company") ?? undefined,
     month: params.get("month") ?? undefined,
   });
+  /* founder: one Export button, like the original — the all-companies file
+     is the complete export (both companies, reimports anywhere). */
+  void view;
+  void acctCompanies;
   return (
     <section className="card card-pad space-y-3 max-w-2xl">
-      <h2 className="u-h3">{t(acct.exportTitle)}</h2>
-      <p className="u-muted">{t(acct.exportSub)}</p>
-      <div className="flex flex-wrap gap-3">
-        <a href={`/api/accounting/export?company=${view.company}`} className="btn-primary" download>
-          {t(acct.exportCompany)} — {t(acctCompanies[view.company]!)}
-        </a>
+      <div className="flex items-center gap-3 flex-wrap">
         <a href="/api/accounting/export?all=1" className="btn-ghost" download>
           {t(acct.exportAll)}
         </a>
+        <span className="u-muted">{t(acct.exportSub)}</span>
       </div>
     </section>
   );

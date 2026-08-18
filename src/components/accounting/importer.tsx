@@ -5,8 +5,9 @@ import { useRouter } from "next/navigation";
 import { tFor } from "@/lib/i18n/core";
 import { useLocale } from "@/components/shared/LocaleProvider";
 import { formatEGP } from "@/lib/money";
+import { useSearchParams } from "next/navigation";
 import { acct, acctCompanies } from "@/lib/i18n/dict/accounting";
-import { ACCT_COMPANIES } from "@/lib/accounting/constants";
+import { acctView } from "@/lib/accounting/params";
 
 /* ADR-052, founder decision 4 — the one-time import screen. Upload the old
    app's own JSON export; the server replaces that company's books and returns
@@ -32,13 +33,17 @@ interface CompanySummary {
 export function ImportPanel() {
   const t = tFor(useLocale());
   const router = useRouter();
+  const params = useSearchParams();
+  const view = acctView({
+    company: params.get("company") ?? undefined,
+    month: params.get("month") ?? undefined,
+  });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<CompanySummary[] | null>(null);
 
   return (
     <section className="card card-pad space-y-4 max-w-2xl">
-      <p className="alert-error">{t(acct.importReplaceWarning)}</p>
       <form
         className="space-y-4"
         onSubmit={async (e) => {
@@ -60,25 +65,20 @@ export function ImportPanel() {
           router.refresh();
         }}
       >
+        {/* founder: "I just need to import this file" — one input, one button.
+            The all-companies file names its own companies; a single-company
+            file lands in the company currently selected in the header. */}
         <label className="field">
           <span className="field-label">{t(acct.importFile)}</span>
           <input name="file" type="file" accept="application/json,.json" required className="field-input" />
-          <span className="field-hint">{t(acct.importFileHint)}</span>
         </label>
-        <label className="field">
-          <span className="field-label">{t(acct.importCompanyLabel)}</span>
-          <select name="company" className="field-input">
-            {ACCT_COMPANIES.map((c) => (
-              <option key={c} value={c}>
-                {t(acctCompanies[c]!)}
-              </option>
-            ))}
-          </select>
-          <span className="field-hint">{t(acct.importCompanyHint)}</span>
-        </label>
-        <button type="submit" className="btn-primary" disabled={busy}>
-          {t(busy ? acct.importWorking : acct.importRun)}
-        </button>
+        <input type="hidden" name="company" value={view.company} />
+        <div className="flex items-center gap-3 flex-wrap">
+          <button type="submit" className="btn-primary" disabled={busy}>
+            {t(busy ? acct.importWorking : acct.importRun)}
+          </button>
+          <span className="u-muted">{t(acct.importReplaceWarning)}</span>
+        </div>
         {error ? <p className="alert-error">{error}</p> : null}
       </form>
 
