@@ -137,6 +137,34 @@ test("the import screen ingests the old app's export and reports the derived tot
   await page.goto("/accounting?company=bsystems");
   await expect(page.getByText("EGP 600").first()).toBeVisible();
   await expect(page.getByText("Imported Co")).toHaveCount(0); // client names live on their own tab
+
+  /* ---- ADR-054 directive C: the EXPORT beside Import emits the ORIGINAL
+     SPA's file — same shape, same money-in-EGP, the SPA's own filename */
+  const exported = await page.request.get("/api/accounting/export?company=bsystems");
+  expect(exported.ok()).toBeTruthy();
+  expect(exported.headers()["content-disposition"]).toMatch(
+    /bsystems-accounting-\d{4}-\d{2}-\d{2}\.json/,
+  );
+  const doc = (await exported.json()) as {
+    openingBalance: number;
+    income: Array<{ client: string; amount: number }>;
+    payrollPaid: Record<string, string>;
+  };
+  expect(doc.openingBalance).toBe(100);
+  expect(doc.income[0]!.client).toBe("Imported Co");
+  expect(doc.income[0]!.amount).toBe(500);
+
+  /* the "Export ALL companies" wrapper names both tenants like the SPA's */
+  const all = await page.request.get("/api/accounting/export?all=1");
+  expect(all.headers()["content-disposition"]).toMatch(/all-companies-\d{4}-\d{2}-\d{2}\.json/);
+  const wrapper = (await all.json()) as Record<string, { openingBalance: number }>;
+  expect(wrapper["bsystems"]!.openingBalance).toBe(100);
+  expect(wrapper["byteforce"]).toBeDefined();
+
+  /* and both Export controls sit beside Import on the screen itself */
+  await page.goto("/accounting/import?company=bsystems");
+  await expect(page.getByRole("link", { name: /Export backup \(JSON\)/ })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Export ALL companies (JSON)" })).toBeVisible();
 });
 
 test("every accounting route refuses non-admin roles (server-side 403 matrix)", async ({
@@ -164,6 +192,8 @@ test("every accounting route refuses non-admin roles (server-side 403 matrix)", 
     ["POST", "/api/accounting/targets"],
     ["DELETE", "/api/accounting/targets/x?company=byteforce"],
     ["POST", "/api/accounting/import"],
+    ["GET", "/api/accounting/export?company=byteforce"], // ADR-054
+    ["GET", "/api/accounting/export?all=1"],
   ];
 
   const sessions: Array<[string, string, RegExp]> = [
@@ -181,7 +211,7 @@ test("every accounting route refuses non-admin roles (server-side 403 matrix)", 
       const res = await page.request.fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
-        data: "{}",
+        data: method === "GET" ? undefined : "{}",
       });
       expect(res.status(), `${identifier} ${method} ${url}`).toBe(403);
     }

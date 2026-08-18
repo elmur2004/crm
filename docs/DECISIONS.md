@@ -1756,3 +1756,146 @@ R23 copy sign-off — carried in PROGRESS (Entry 011).
   of the port-3001 app happens founder-side (fresh start = no data
   migration).
 - Status: Accepted
+
+## ADR-054 — 2026-08-18 — Accounting & Vault as switcher modules, per-company brand, module import/export
+
+- Context: four founder directives amending the ADR-052/053 integration:
+  (A) "The data vault or the accounting are not pages — they should be
+  treated as MODULES: like when we switch from B-Systems CRM to
+  ByteForce's CRM, we can switch to Accounting (which includes both
+  companies' accounting) and we can switch to Data Vault." (B) each
+  module gets its own IMPORT and EXPORT button; (C) exports must match
+  the ORIGINAL apps' behaviour — accounting emits the reference SPA's
+  exact JSON shapes so files round-trip between old and new systems in
+  both directions; (D) "ByteForce accounting with ByteForce branding,
+  and B-Systems accounting with its branding as well." Plus one design
+  amendment (founder, with a screenshot of the SPA's dashboard): "I
+  like this dashboard design, so keep it from the original" — the
+  accounting DASHBOARD keeps the original app's design language; the
+  rest of the module stays on the CRM design system (§7.8 amended for
+  that one screen). Delivered as three local commits.
+- Decision:
+  1. MODULES AT THE SWITCHER (commit 1). Two new top-level route groups
+     — src/app/(accounting)/accounting/** and src/app/(vault)/vault/**
+     — each with its own <html> root layout (both brands' font stacks;
+     vault also loads the neutral scope) and its own app shell built
+     from the SAME chrome components (app-header, ShellNav via the new
+     AcctModuleNav / VaultModuleNav client wrappers, LanguageToggle,
+     user cluster, logout, UndoControl; deliberately no notifications
+     bell — the bell belongs to the CRM pipelines). EntitySwitch is now
+     the four-segment MODULE switcher — BYTEFORCE | B-SYSTEMS |
+     ACCOUNTING | VAULT — with the module segments rendered ONLY for
+     bsystems_admin; every non-admin sees exactly what it saw before
+     (a lone segment still renders nothing). proxy.ts gates /accounting
+     and /vault to bsystems_admin (matcher extended); requireBsAdminPage
+     in each shell + every page stays the real wall. APIs moved to
+     /api/accounting/** and /api/vault/** (requireBsAdmin unchanged).
+     The two items left the bsystems_admin NAV. The in-page tab strips
+     (AcctNav/VaultNav) were RETIRED — the module's sections live in
+     its shell header like every other app's; AcctModuleNav carries the
+     ?company=&month= view on every link (client component — layouts
+     cannot read searchParams) and still hides Media Buying under
+     company=bsystems (founder decision §7.5). ShellNav learned to
+     match active state on the PATH of a query-carrying href (not a
+     fork — five lines in place).
+  2. PER-COMPANY BRAND INSIDE THE MODULES (commit 2, directive D). The
+     token scopes changed from `:root[data-brand=…]` to `[data-brand=…]`
+     (branding/*/tokens.css, src/themes/neutral.css): custom properties
+     re-resolve per element, so the NEAREST [data-brand] ancestor wins
+     and a nested div can re-brand a subtree. The new ModuleBrandScope
+     client component reads ?company= and stamps the brand on a div
+     wrapping the ENTIRE shell (header + main + undo), re-applying the
+     surface/ink/body-font utilities body normally carries. Accounting:
+     byteforce (default — the SPA's default tenant) | bsystems. Vault:
+     the company FILTER byteforce | bsystems dresses the module in that
+     company's full brand; no filter ("all") wears the NEUTRAL scope —
+     no single company may claim the all-companies view. ModuleLogo
+     renders the active company's REAL mark (neutral: the platform's
+     two-mark home lockup) beside the module wordmark. VaultModuleNav
+     preserves ?company= across sections so the brand survives
+     navigation.
+  3. THE DASHBOARD DESIGN EXCEPTION (commit 2). One screen — the
+     accounting dashboard — keeps the reference SPA's design: the
+     full-width gradient hero (treasury balance · now, the corner
+     geometry as an inline currentColor SVG) and the KPI cards with a
+     3px inline-start accent edge, uppercase labels and COLORED figures
+     (.acct-hero / .acct-kpi* in design-system.css, token-driven, so
+     the company switch restyles it; logical properties — the accent
+     edge flips under RTL). Token consequences, in-palette and minimal:
+     · ByteForce --gradient-hero is no longer `none` — the founder's
+       screenshot sanctions the SPA's orange→violet banner
+       (100deg, --bf-orange → --bf-grad-mid #A24966 → --bf-violet) as
+       ByteForce's hero-moments gradient. Its only consumers under the
+       byteforce scope today are the accounting hero and the target
+       meter's under-goal fill (the SPA's own progressfill behaviour).
+     · --color-warning #B8860B joined BOTH brand files + neutral — a
+       FUNCTIONAL amber, uniform across brands exactly like the
+       ADR-014 danger red (the SPA used this same amber in both
+       tenants). ADR-019 token parity holds (test green).
+     · The KPI label keeps the SPA's sans (700 uppercase --font-body), a
+       documented deviation from the mono .tile-label precedent — it is part
+       of the kept design. The brand-colored page eyebrow (SPA style) renders
+       Signal Pink under the B-Systems company — a multi-word pink run the
+       B-Systems rules normally forbid; kept because the SPA's own bsystems
+       tenant did exactly this, FLAGGED for founder confirmation in PROGRESS.
+     · Figure tones map the SPA's semantics onto tokens, not hexes:
+       income/owed-to-us → success (violet/indigo — the no-green
+       rulings stand), expenses/A-P/negative-net → danger, on-hold/
+       A-R/salary/clients-owe → warning, positive net → --color-link
+       (which IS the brands' violet #53449B / indigo #1D267D pair, the
+       SPA's C.violet per tenant), zero balances → muted.
+  4. MODULE IMPORT/EXPORT (commit 3, directives B + C).
+     · ACCOUNTING EXPORT (src/lib/accounting/export.ts + GET
+       /api/accounting/export): emits the SPA's EXACT shapes — the
+       single-company migrate() state document and the two-company
+       "Export ALL" wrapper — with money as EGP numbers (piasters ÷100,
+       lossless), optional fields omitted-when-null exactly as the
+       SPA's own rows carry them, explicit nulls kept on collectedDate/
+       paidMonth/paidDate, roster members carrying the legacy top-level
+       salary/active pair (earliest segment — creation-time semantics),
+       payrollPaid keyed "YYYY-MM:memberId" against ids in the same
+       file, and the SPA's own filenames ({company}-accounting-
+       {YYYY-MM-DD}.json / all-companies-{YYYY-MM-DD}.json, Cairo
+       today). Ids are our cuids — the SPA treats ids as opaque
+       strings, and every in-file reference resolves. Round-trip proof
+       in vitest (export.integration.test.ts): old-file → import →
+       export gives IDENTICAL engine dashboards for every month in
+       scope (the parser mirroring migrate() is the referee), the
+       orphan payrollPaid key being the one legitimate count delta;
+       export → import → export is a fixpoint; and the founder's real
+       all-companies file (backups/, gitignored) runs the same proof
+       when present. The Export controls sit beside Import on the
+       import screen (tab now "Import / Export").
+     · VAULT EXPORT/IMPORT (src/lib/services/vault/backup.ts + GET
+       /api/vault/export + POST /api/vault/import): the global backup
+       pattern, module-scoped — the five Vault* tables, the Attachment
+       rows whose vault FKs are set, and those files as base64; its own
+       app marker ("…-vault") so global and vault files refuse each
+       other. Import REPLACES the vault (rows in one transaction, ids
+       preserved so relations and frozen lateness survive; blobs after
+       commit), and the UI (a Data section on the overview) requires a
+       ticked confirm box before the destructive import. Round-trip
+       integration test included.
+     · Both modules' import/export are admin-only, logged to
+       ActivityLog (LOG_ACTIONS grew "export"; LOG_ENTITY_TYPES grew
+       "vault_backup"; acct export logs on acct_books), and the
+       destructive imports invalidate pending undo entries (ADR-045).
+- Alternatives considered: keeping the modules under /b-systems with nav
+  items (rejected — directive A names them switcher peers); stamping the
+  brand via <html> mutation from a client effect (rejected — flash of
+  wrong brand and fights the server render; the div scope is pure CSS);
+  a new module-specific gradient token for ByteForce (rejected — the
+  founder's screenshot IS a sanctioning of the brand's hero gradient;
+  one token, hero moments only); per-brand distinct warning hues
+  (rejected — warning is FUNCTIONAL like the danger red, and the SPA
+  itself used one amber in both tenants); exporting piasters or new
+  field names (rejected — directive C binds to the SPA's shape);
+  comparing round-trip documents byte-for-byte (rejected — ids are
+  re-minted by design; engine-derived equality is the meaningful
+  contract); making the vault export SPA-shaped (not applicable — the
+  vault's reference app had no export; the global backup pattern is the
+  house precedent).
+- Resolves: founder directives A–D (2026-08-18) and the dashboard design
+  amendment; amends ADR-052 §Phase-2 placement, ADR-053 Phase 5
+  placement, and §7.8 for the one dashboard screen.
+- Status: Accepted

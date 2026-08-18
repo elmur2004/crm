@@ -1224,3 +1224,40 @@ every dashboard formula, journeys 1-5 (SPEC §13).
   needed a manual kill; the per-run DB ports made the rest safe).
 - SPEC coverage touched: none (vault is INTEGRATION-PLAN scope).
 - Verdict: PASS.
+
+## Run 050 — 2026-08-18 — ADR-054: modules at the switcher, per-company brand, module import/export
+- Suites/commands: `npm test` (vitest, embedded per-run Postgres) and
+  `npx playwright test` (prod build + embedded e2e Postgres) — run at each of
+  the three ADR-054 commits; the numbers below are the final (commit 3) gate.
+  `npx tsc --noEmit` clean (src; .next validator noise is stale generated
+  types the running dev server owns). brand-auditor subagent run after the
+  commit-2 UI work.
+- Cases: vitest 274 passed / 0 failed (266 baseline + 8 new: 5 accounting
+  export round-trip incl. the founder's REAL all-companies file, 3 vault
+  module backup round-trip). Playwright 43 passed / 0 failed / 2 skipped
+  (the standing audit skips) — 40-test baseline + the four-shell switcher
+  walk, the vault brand-follows-filter proof, and the vault export/import
+  round-trip; the accounting spec additionally asserts the brand swap, the
+  SPA-shaped export (filename + EGP figures + ALL-companies wrapper), and
+  two GET export rows in its 403 matrix (now 23 routes × 3 non-admin roles).
+- Failures: one mid-work Playwright failure at commit 1 (accounting qa-sweep,
+  240s timeout): a Link prefetch canceled by the next navigation wedged
+  Chromium's in-flight counter so `networkidle` never fired on a silent
+  network (trace: zero pending requests, healthy 0.6s/load pace). Fixed in
+  the sweep helper — the networkidle wait is now bounded at 10s and falls
+  through (console errors still fail the test on their own); qa-sweep then
+  9/9 green (accounting sweep 42s). Not filed as a BUG — a test-harness
+  flake class, no product defect.
+- Brand audit (commit 2): FAIL → resolved. Medium: the dashboard target
+  meter's under-goal gradient fill sat outside the gradient sanction — the
+  kept-SPA design includes it, so the ByteForce token comment + ADR-054 now
+  name the meter fill explicitly. Low (flagged to founder in PROGRESS): the
+  SPA's brand-colored dashboard eyebrow renders Signal Pink as a multi-word
+  run under company=bsystems. Info items: KPI label keeps the SPA's sans
+  (documented in ADR-054), asset-exemption comments added to the two module
+  favicons, ARCHITECTURE + byteforce-brand skill updated to the bare
+  [data-brand] scoping and the sanctioned ByteForce hero gradient.
+- SPEC coverage touched: §15 sweep/security rows (qa-sweep, security-rbac
+  module gating), the ADR-052/053 accounting + vault e2e journeys, ADR-019
+  token parity, ADR-054 round-trip proofs (directive C).
+- Verdict: PASS — all three ADR-054 commits green at their gates.

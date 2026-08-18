@@ -27,7 +27,7 @@ export const acct = {
   tabPnl: { en: "Monthly P&L", ar: "الأرباح والخسائر الشهرية" },
   tabDepartments: { en: "Departments", ar: "الأقسام" },
   tabTargets: { en: "Targets", ar: "الأهداف" },
-  tabImport: { en: "Import", ar: "الاستيراد" },
+  tabImport: { en: "Import / Export", ar: "الاستيراد والتصدير" },
 
   /* dashboard */
   /* ADR-054 dashboard exception: the SPA's head — "OVERVIEW · JUNE 2026"
@@ -324,8 +324,17 @@ export const acct = {
   progress: { en: "Progress", ar: "التقدّم" },
   incomeGoalEgp: { en: "Income goal (EGP)", ar: "هدف الدخل (ج.م)" },
 
+  /* export (ADR-054, directives B + C — the SPA's own menu wording) */
+  exportTitle: { en: "Export the books", ar: "تصدير الدفاتر" },
+  exportSub: {
+    en: "The same JSON files the original app writes — they import back into the old system or this one, in either direction.",
+    ar: "نفس ملفات JSON التي يكتبها التطبيق الأصلي — تُستورد مرة أخرى في النظام القديم أو هنا، في الاتجاهين.",
+  },
+  exportCompany: { en: "Export backup (JSON)", ar: "تصدير نسخة احتياطية (JSON)" },
+  exportAll: { en: "Export ALL companies (JSON)", ar: "تصدير كل الشركات (JSON)" },
+
   /* import */
-  importEyebrow: { en: "ACCOUNTING · ONE-TIME IMPORT", ar: "الحسابات · استيراد لمرة واحدة" },
+  importEyebrow: { en: "ACCOUNTING · IMPORT & EXPORT", ar: "الحسابات · استيراد وتصدير" },
   importTitle: { en: "Import from the old app", ar: "الاستيراد من التطبيق القديم" },
   importSub: {
     en: "Upload the old accounting app's own JSON export — one company's backup, or the \"Export ALL companies\" file. Importing REPLACES that company's books here, then shows the derived totals so you can reconcile them against the old dashboard before trusting the cutover.",

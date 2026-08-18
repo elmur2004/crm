@@ -193,6 +193,9 @@ export const LOG_ENTITY_TYPES = [
   "vault_sheet",
   "vault_document",
   "vault_task",
+  /* ADR-054 — whole-module operations on the vault (its own export/import);
+     entityId is the literal "vault", the acct_books precedent */
+  "vault_backup",
 ] as const;
 export type LogEntityType = (typeof LOG_ENTITY_TYPES)[number];
 
@@ -220,5 +223,8 @@ export const LOG_ACTIONS = [
   "complete",
   "reopen",
   "replace_file",
+  /* ADR-054 — module import/export are logged, add-only: export marks a books
+     or vault download (import already exists above) */
+  "export",
 ] as const;
 export type LogAction = (typeof LOG_ACTIONS)[number];

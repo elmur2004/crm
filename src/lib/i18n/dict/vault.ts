@@ -93,6 +93,26 @@ export const vault = {
   somethingWentWrong: { en: "Something went wrong", ar: "حدث خطأ ما" },
   archivedBadge: { en: "Archived", ar: "مؤرشف" },
 
+  /* module import & export (ADR-054, founder directive B) */
+  dataTitle: { en: "Data — import & export", ar: "البيانات — استيراد وتصدير" },
+  exportButton: { en: "Export vault (JSON)", ar: "تصدير الخزنة (JSON)" },
+  exportHint: {
+    en: "Everything in the vault — records and files — as one file.",
+    ar: "كل محتوى الخزنة — سجلات وملفات — في ملف واحد.",
+  },
+  importFile: { en: "Vault export file (JSON)", ar: "ملف تصدير الخزنة (JSON)" },
+  importConfirm: {
+    en: "I understand this replaces ALL vault data with the file's contents.",
+    ar: "أفهم أن هذا يستبدل كل بيانات الخزنة بمحتوى الملف.",
+  },
+  importReplaceWarning: {
+    en: "Importing REPLACES the vault's current records and files. Export a backup first.",
+    ar: "الاستيراد يستبدل سجلات الخزنة وملفاتها الحالية. صدّر نسخة احتياطية أولًا.",
+  },
+  importRun: { en: "Import vault", ar: "استيراد الخزنة" },
+  importWorking: { en: "Importing…", ar: "جارٍ الاستيراد…" },
+  importDone: { en: "Imported:", ar: "تم الاستيراد:" },
+
   /* forms */
   formsTitle: { en: "Forms", ar: "النماذج" },
   formsSub: {

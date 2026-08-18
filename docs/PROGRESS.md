@@ -1946,3 +1946,60 @@ comment, and the ADR-013 mechanism note all fixed; .env.example confirmed tracke
   per-column sort controls were not rebuilt (default orders: forms/
   documents newest-first, sheets by user-entered date, tasks open-first
   by deadline) — flag if column sorting matters day-one.
+
+## Entry 047 — 2026-08-18 — ADR-054: modules at the switcher, per-company brand, module import/export
+- Done: four founder directives (A–D) plus one design amendment, delivered
+  as three local commits (NO PUSH — the founder's standing local-test rule):
+  (1) 61ad026 — Accounting and Data Vault became switcher-level MODULES:
+  top-level route groups (accounting)/(vault) with their own <html> root
+  layouts and app shells (same chrome components; no notifications bell by
+  design), URLs now /accounting/* and /vault/*, APIs /api/accounting/** and
+  /api/vault/**; EntitySwitch is the four-segment module switcher
+  (BYTEFORCE | B-SYSTEMS | ACCOUNTING | VAULT, module segments admin-only,
+  non-admins see exactly what they saw); proxy.ts gates both module paths to
+  bsystems_admin; the two items left the B-Systems nav; the in-page tab
+  strips retired in favour of the shells' header navs (AcctModuleNav keeps
+  ?company=&month= on every link; VaultModuleNav keeps ?company=); ShellNav
+  matches active state on the path of a query-carrying href. (2) 5501945 —
+  directive D: token scopes went bare-[data-brand]; ModuleBrandScope
+  re-stamps the company brand on a div around the whole shell (accounting
+  byteforce-default|bsystems; vault byteforce|bsystems|neutral-on-All);
+  ModuleLogo wears the active company's real mark (neutral: the home
+  lockup); PLUS the founder's design amendment — the accounting DASHBOARD
+  keeps the ORIGINAL SPA's design (gradient treasury hero with the corner
+  geometry, KPI cards with inline-start accent edges and colored figures)
+  as token-driven .acct-hero/.acct-kpi classes; ByteForce gained its
+  sanctioned --gradient-hero (orange→violet, hero moments only), both
+  brands + neutral gained the functional --color-warning amber; brand
+  audit passed after documenting the meter-fill sanction. (3) this commit —
+  directives B+C: accounting EXPORT beside Import emitting the ORIGINAL
+  SPA's exact JSON shapes (single-company migrate() doc + the ALL-companies
+  wrapper, EGP numbers, SPA filenames, omit-null optional fields) with
+  vitest round-trip proofs — old-file→import→export identical engine
+  dashboards for every month (also proven against the founder's REAL
+  backups/all-companies-2026-08-17.json), export→import→export a fixpoint;
+  the vault got module-scoped export/import (five Vault* tables + vault
+  Attachment rows + base64 files, own app marker, REPLACE import behind a
+  ticked confirm box); both admin-only, ActivityLog'd (new "export" action,
+  "vault_backup" entity type), destructive imports invalidate undo.
+  Verified per commit; final gate: vitest 274/274, Playwright 43 passed /
+  2 audit skips (TESTING Run 050).
+- In progress: — (all three commits LOCAL ONLY, awaiting the founder's
+  local test).
+- Next steps: founder tests locally — see "how to test": sign in as
+  admin@byteforce.com, use the header switcher to move BYTEFORCE ⇄
+  B-SYSTEMS ⇄ ACCOUNTING ⇄ VAULT; in /accounting flip the company switcher
+  and watch the whole module re-brand (dashboard hero included); in /vault
+  set the company filter (All = neutral look); import/export live on
+  /accounting/import ("Import / Export" tab) and the Data section at the
+  bottom of /vault.
+- Blockers: none. Commits NOT pushed.
+- Needs founder confirmation: carried from Entry 046 — (i) XLSX/XLS manual
+  counts, (ii) no email on employee cards, (iii) unpaginated vault lists,
+  (iv) result links not deletable once recorded, (v) no per-column sort.
+  New: (vi) the kept-SPA dashboard eyebrow renders Signal Pink as a
+  multi-word run under the B-Systems company (the SPA did exactly this;
+  B-Systems brand rules normally cap pink at single words) — say the word
+  if it should fall back to muted ink under bsystems. (vii) The module
+  switcher labels read ACCOUNTING / VAULT (الحسابات / الخزنة) — flag if
+  different wording is wanted.

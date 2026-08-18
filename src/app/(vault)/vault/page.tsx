@@ -7,6 +7,7 @@ import { formatCairo } from "@/lib/datetime";
 import { vaultOverview } from "@/lib/services/vault/overview";
 import { searchVault } from "@/lib/services/vault/search";
 import { VaultHead } from "@/components/vault/VaultHead";
+import { VaultDataPanel } from "@/components/vault/data-panel";
 
 /* ADR-053 Phase 5 — the vault landing: live counts, vault-wide search, and
    the module's recent activity (append-only, newest first). Admin only. */
@@ -177,6 +178,9 @@ export default async function VaultOverviewPage({
           </div>
         )}
       </section>
+
+      {/* ADR-054 directive B — the module's own import & export */}
+      <VaultDataPanel />
     </div>
   );
 }

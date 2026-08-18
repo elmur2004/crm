@@ -465,3 +465,24 @@
   (authored Arabic — the reference app was English-only); one new admin-only
   nav item; server-side 403 wall on every route; archive/restore wired into
   the header Undo.
+
+## Modules at the switcher + per-company brand + module import/export (2026-08-18)
+
+- Accounting and Data Vault are now MODULES on the company switcher
+  (BYTEFORCE | B-SYSTEMS | ACCOUNTING | VAULT — the module segments are
+  admin-only), living at `/accounting/*` and `/vault/*` with their own
+  app shells and section navs. They left the B-Systems nav.
+- The modules wear the active company's WHOLE brand: accounting follows
+  its company switcher (ByteForce default — orange & Lama Sans; B-Systems
+  — indigo), the vault follows its company filter and wears the neutral
+  look on "All".
+- The accounting DASHBOARD keeps the original app's design (founder
+  request): the gradient treasury hero and the color-coded KPI cards,
+  re-branding with the company.
+- Each module has its own Import and Export. Accounting's export writes
+  the ORIGINAL app's exact JSON files (`{company}-accounting-DATE.json`
+  and `all-companies-DATE.json`) — they re-import into the old system or
+  this one, either direction, with identical derived totals (proven in
+  tests, including against the founder's real export). The vault exports
+  and re-imports everything it holds — records and files — as one
+  admin-only file with a confirm step on the destructive import.

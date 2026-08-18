@@ -77,6 +77,52 @@ test("employee card → task → gate refuses → result completes → On time",
   await expect(row.getByText("On time", { exact: true })).toBeVisible(); // frozen at completion
 });
 
+test("the vault exports its own file and a re-import restores it (ADR-054)", async ({
+  page,
+}) => {
+  await login(page, "admin@byteforce.com", "password123", /\/b-systems$/);
+
+  /* the two controls live on the overview's Data section */
+  await page.goto("/vault");
+  await expect(page.getByRole("link", { name: "Export vault (JSON)" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Import vault" })).toBeVisible();
+
+  /* seed one employee card through the module's own API, then export */
+  const created = await page.request.post("/api/vault/employees", {
+    data: { name: "Export Round-Trip Employee", title: "QA" },
+  });
+  expect(created.status()).toBe(201);
+  const exported = await page.request.get("/api/vault/export");
+  expect(exported.ok()).toBeTruthy();
+  expect(exported.headers()["content-disposition"]).toMatch(/vault-export-\d{4}-\d{2}-\d{2}\.json/);
+  const payload = (await exported.json()) as {
+    app: string;
+    tables: Record<string, Array<{ name?: string }>>;
+  };
+  expect(payload.app).toContain("vault");
+  expect(
+    payload.tables["vaultEmployee"]!.some((e) => e.name === "Export Round-Trip Employee"),
+  ).toBeTruthy();
+
+  /* REPLACE-import the same file back — the module accepts its own export */
+  const imported = await page.request.post("/api/vault/import", {
+    multipart: {
+      export: {
+        name: "vault-export.json",
+        mimeType: "application/json",
+        buffer: Buffer.from(JSON.stringify(payload)),
+      },
+    },
+  });
+  expect(imported.ok()).toBeTruthy();
+  const { counts } = (await imported.json()) as { counts: Record<string, number> };
+  expect(counts["vaultEmployee"]).toBeGreaterThanOrEqual(1);
+
+  /* the employee card survived the destructive round-trip */
+  await page.goto("/vault/employees");
+  await expect(page.getByText("Export Round-Trip Employee").first()).toBeVisible();
+});
+
 test("the vault brand follows the company filter; 'all' wears neutral", async ({ page }) => {
   await login(page, "admin@byteforce.com", "password123", /\/b-systems$/);
 
@@ -169,6 +215,8 @@ test("every vault route refuses non-admin roles (server-side 403 matrix)", async
     ["POST", "/api/vault/tasks/x/reopen"],
     ["POST", "/api/vault/tasks/x/archive"],
     ["GET", "/api/vault/search?q=x"],
+    ["GET", "/api/vault/export"], // ADR-054 — module import/export
+    ["POST", "/api/vault/import"],
   ];
 
   const sessions: Array<[string, string, RegExp]> = [
