@@ -200,6 +200,15 @@ export function parseExportFile(raw: unknown, company: AcctCompany | null): Pars
     throw new ApiError(400, "Not a valid accounting export file");
   }
   const obj = raw as Record<string, unknown>;
+  /* founder mix-up guard: the CRM's own full-system backup looks nothing like
+     an accounting export, but the person holding it deserves to be told WHAT
+     they picked and where it goes instead of a generic refusal. */
+  if (obj["app"] === "byteforce-bsystems-sales-platform" && "tables" in obj) {
+    throw new ApiError(
+      400,
+      "This is the sales platform's FULL-SYSTEM backup file — restore it from the admin Backup screen, not here. Accounting wants the OLD accounting app's export (Data → Export backup (JSON) / Export ALL companies), e.g. all-companies-2026-08-17.json",
+    );
+  }
   const isWrapper = ACCT_COMPANIES.some(
     (c) => c in obj && typeof obj[c] === "object" && obj[c] !== null,
   );
