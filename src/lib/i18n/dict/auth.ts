@@ -171,6 +171,10 @@ export const shell = {
   backToAdmin: { en: "Back to admin", ar: "العودة إلى حساب المدير" },
   openMenu: { en: "Open menu", ar: "فتح القائمة" },
   closeMenu: { en: "Close menu", ar: "إغلاق القائمة" },
+  /* founder (screenshot: "Registrations" clipped to "Regi"): the desktop nav
+     strip is a slider — chevrons page it when it overflows */
+  navScrollBack: { en: "Scroll navigation backward", ar: "تمرير شريط التنقل للخلف" },
+  navScrollForward: { en: "Scroll navigation forward", ar: "تمرير شريط التنقل للأمام" },
   switchCompany: { en: "Switch company", ar: "تبديل الشركة" },
   /* module switcher segments (ADR-054) — the two CRMs keep their literal brand
      names; the modules are words, so they translate. Uppercase EN matches the

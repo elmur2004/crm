@@ -55,6 +55,46 @@
 
 .app-nav { display: flex; gap: 2px; min-width: 0; overflow-x: auto; scrollbar-width: none; }
 .app-nav::-webkit-scrollbar { display: none; }
+/* founder (screenshot: "Registrations" clipped to "Regi"): the desktop strip
+   is a SLIDER. The wrapper hosts absolutely-positioned chevrons (no layout
+   shift, so measurement never feeds back) and a mask fades the clipped edge —
+   masks work over every header ground (white, indigo, module brands). The
+   start/end vocabulary is logical; [dir="rtl"] flips the gradients. NOTE:
+   these rules sit BEFORE the ≤820px media block so .nav-desktop's display:none
+   still wins there (the sheet takes over). */
+.nav-strip { position: relative; display: flex; align-items: center; min-width: 0; }
+.nav-strip .app-nav { width: 100%; }
+.nav-scroll {
+  position: absolute; inset-block: 0; margin-block: auto; z-index: 2;
+  width: 24px; height: 30px; display: grid; place-items: center; padding: 0;
+  border: none; border-radius: 7px; background: transparent; color: inherit; cursor: pointer;
+}
+.nav-scroll--start { inset-inline-start: -4px; }
+.nav-scroll--end { inset-inline-end: -4px; }
+.nav-scroll:hover { background: var(--color-primary-tint); color: var(--color-primary); }
+[data-brand="bsystems"] .app-header .nav-scroll:hover {
+  background: color-mix(in srgb, var(--color-on-primary) 14%, transparent); color: var(--color-on-primary);
+}
+.nav-strip[data-fade="start"] .app-nav {
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 34px);
+  mask-image: linear-gradient(to right, transparent, #000 34px);
+}
+.nav-strip[data-fade="end"] .app-nav {
+  -webkit-mask-image: linear-gradient(to left, transparent, #000 34px);
+  mask-image: linear-gradient(to left, transparent, #000 34px);
+}
+.nav-strip[data-fade="both"] .app-nav {
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 34px, #000 calc(100% - 34px), transparent);
+  mask-image: linear-gradient(to right, transparent, #000 34px, #000 calc(100% - 34px), transparent);
+}
+[dir="rtl"] .nav-strip[data-fade="start"] .app-nav {
+  -webkit-mask-image: linear-gradient(to left, transparent, #000 34px);
+  mask-image: linear-gradient(to left, transparent, #000 34px);
+}
+[dir="rtl"] .nav-strip[data-fade="end"] .app-nav {
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 34px);
+  mask-image: linear-gradient(to right, transparent, #000 34px);
+}
 
 /* small screens: the nav collapses into a menu sheet (spec R9 evolved —
    founder rule: every feature reachable at ANY width) */

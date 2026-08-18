@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useLocale } from "@/components/shared/LocaleProvider";
@@ -10,7 +10,16 @@ import { shell } from "@/lib/i18n/dict/auth";
 /* Design-system nav (spec §2.1) — desktop: inline items; small screens (≤820px):
    a menu button opening a full-width sheet with tap-friendly rows. `extras`
    (entity switcher, log out) render inside the sheet too, so every control
-   stays reachable however tight the screen gets. */
+   stays reachable however tight the screen gets.
+
+   Founder (screenshot: "Registrations" cut to "Regi"): the desktop strip used
+   to scroll with NO affordance — clipped items were invisible in practice. It
+   is now a proper slider: when (and only when) the strip overflows, chevrons
+   appear over its ends and the clipped edge fades out (a mask, so it works on
+   every header ground — white, indigo, the module brands). All the math is
+   LOGICAL start/end — |scrollLeft| is the distance from the inline start in
+   both directions — so Arabic works unchanged. The active item is brought
+   into view on navigation: the page you are ON is never the hidden one. */
 
 export function ShellNav({
   items,
@@ -22,6 +31,8 @@ export function ShellNav({
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const t = tFor(useLocale());
+  const stripRef = useRef<HTMLElement | null>(null);
+  const [fade, setFade] = useState({ start: false, end: false });
 
   /* longest matching href wins so /b-systems doesn't stay active on /b-systems/crm.
      Module navs carry ?company=&month= on every item (the view survives
@@ -33,20 +44,103 @@ export function ShellNav({
 
   useEffect(() => setOpen(false), [pathname]); // navigating closes the sheet
 
+  const measure = useCallback(() => {
+    const el = stripRef.current;
+    if (!el) return;
+    const max = el.scrollWidth - el.clientWidth;
+    const pos = Math.abs(el.scrollLeft); // distance from the LOGICAL start
+    setFade({ start: max > 1 && pos > 1, end: max > 1 && pos < max - 1 });
+  }, []);
+
+  useEffect(() => {
+    const el = stripRef.current;
+    if (!el) return;
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    /* a late font swap changes item widths without resizing the strip */
+    document.fonts?.ready.then(measure).catch(() => undefined);
+    return () => ro.disconnect();
+  }, [measure, items.length]);
+
+  /* the current page's tab must never be the hidden one */
+  useEffect(() => {
+    stripRef.current
+      ?.querySelector('[aria-current="page"]')
+      ?.scrollIntoView({ behavior: "instant", block: "nearest", inline: "nearest" });
+    measure();
+  }, [active, measure]);
+
+  /* dir is LOGICAL (+1 toward the inline end); under RTL the same motion is a
+     negative scrollLeft. A press pages by 70% of the visible strip — with a
+     160px FLOOR: on a shell whose header squeezes the strip down to a sliver,
+     70% of almost-nothing would crawl, and the arrows must still move you. */
+  function slide(dir: 1 | -1) {
+    const el = stripRef.current;
+    if (!el) return;
+    const rtl = getComputedStyle(el).direction === "rtl";
+    const page = Math.max(el.clientWidth * 0.7, 160);
+    el.scrollBy({ left: dir * (rtl ? -1 : 1) * page, behavior: "smooth" });
+  }
+
+  const chevron = (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <polyline points="9 6 15 12 9 18" />
+    </svg>
+  );
+
   return (
     <>
-      <nav className="app-nav nav-desktop">
-        {items.map((item) => (
-          <Link
-            key={item.href}
-            href={item.href}
-            className="nav-item"
-            aria-current={item.href === active ? "page" : undefined}
+      <div
+        className="nav-strip nav-desktop"
+        data-fade={
+          fade.start && fade.end ? "both" : fade.start ? "start" : fade.end ? "end" : undefined
+        }
+      >
+        {fade.start ? (
+          <button
+            type="button"
+            className="nav-scroll nav-scroll--start"
+            aria-label={t(shell.navScrollBack)}
+            onClick={() => slide(-1)}
           >
-            {item.label}
-          </Link>
-        ))}
-      </nav>
+            {/* the glyph points toward the LOGICAL start */}
+            <span className="inline-block -scale-x-100 rtl:scale-x-100">{chevron}</span>
+          </button>
+        ) : null}
+        <nav className="app-nav" ref={stripRef} onScroll={measure}>
+          {items.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              className="nav-item"
+              aria-current={item.href === active ? "page" : undefined}
+            >
+              {item.label}
+            </Link>
+          ))}
+        </nav>
+        {fade.end ? (
+          <button
+            type="button"
+            className="nav-scroll nav-scroll--end"
+            aria-label={t(shell.navScrollForward)}
+            onClick={() => slide(1)}
+          >
+            <span className="inline-block rtl:-scale-x-100">{chevron}</span>
+          </button>
+        ) : null}
+      </div>
 
       <button
         type="button"

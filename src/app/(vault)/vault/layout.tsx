@@ -2,7 +2,8 @@ import Link from "next/link";
 import { ImpersonationBar } from "@/components/shared/ImpersonationBar";
 import { EntitySwitch } from "@/components/shared/EntitySwitch";
 import { LanguageToggle } from "@/components/shared/LanguageToggle";
-import { ModuleBrandScope, ModuleLogo } from "@/components/shared/ModuleBrandScope";
+import { ModuleBrandScope } from "@/components/shared/ModuleBrandScope";
+import { BrandLogo } from "@/components/shared/BrandLogo";
 import { UndoControl } from "@/components/shared/UndoControl";
 import { VaultModuleNav } from "@/components/vault/VaultModuleNav";
 import { logout } from "@/lib/auth/actions";
@@ -35,10 +36,13 @@ export default async function VaultShellLayout({
     <ModuleBrandScope module="vault">
       <ImpersonationBar />
       <header className="app-header">
-        {/* the active COMPANY mark when filtered, the neutral home lockup on "all"
-            (directive D); clicking it goes to THIS module's overview */}
+        {/* founder: "add the bsystems logo for the vault" — the module's header
+            identity is PINNED to the real B-Systems mark whatever the company
+            filter shows (the content below still re-brands with the filter);
+            clicking it goes to THIS module's overview */}
         <Link href="/vault" className="shrink-0 flex items-center gap-3" aria-label={t(vault.navItem)}>
-          <ModuleLogo module="vault" wordmark={t(vault.navItem)} />
+          <BrandLogo brand="bsystems" variant="mark" height={36} />
+          <span className="wordmark">{t(vault.navItem)}</span>
         </Link>
         <VaultModuleNav
           extras={

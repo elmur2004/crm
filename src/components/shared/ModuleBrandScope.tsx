@@ -42,9 +42,11 @@ export function ModuleBrandScope({
 }
 
 /* The module header's mark follows the active company (founder directive D):
-   the REAL logo of the branded company; the neutral vault view (company=all)
-   wears the platform's two-mark home lockup instead — no single company may
-   claim the "all" view. Always paired with the module wordmark. */
+   the REAL logo of the branded company; the neutral view (company=all) wears
+   the platform's two-mark home lockup instead. Always paired with the module
+   wordmark. The VAULT no longer uses this: the founder pinned its header to
+   the B-Systems mark outright (see the vault layout) — accounting still
+   follows its company switcher here. */
 export function ModuleLogo({ module, wordmark }: { module: ModuleName; wordmark: string }) {
   const brand = moduleBrand(module, useSearchParams().get("company"));
   return (
