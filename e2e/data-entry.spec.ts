@@ -141,9 +141,10 @@ test("data entry: adds a lead and a card, owns neither, and is walled out of eve
   const enteredLeadId = lastSegment(await entered.getAttribute("href"));
   await adminPage.goto("/b-systems/partners-pipeline");
   const enteredCardId = lastSegment(
+    /* the NAME link specifically — the card also carries Call/WhatsApp links */
     await adminPage
       .locator('[data-deal-card="Rania Saad"]')
-      .getByRole("link")
+      .getByRole("link", { name: "Rania Saad" })
       .getAttribute("href"),
   );
   for (const url of [

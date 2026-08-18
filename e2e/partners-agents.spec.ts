@@ -96,3 +96,79 @@ test("an agent card runs the shared pipeline and its Won gate creates a working 
   await expect(agentPage).toHaveURL(/\/b-systems\/crm$/);
   await agentCtx.close();
 });
+
+/* Founder: "make sure that the agents as cards are separated from their
+   partners — first of all add a filter for agents and partners. Also add call
+   and whatsapp in agents and partners." */
+test("the Kind filter separates the two kinds, and cards expose Call + WhatsApp", async ({
+  page,
+}) => {
+  await page.goto("/login");
+  await page.getByLabel("Email or phone").fill("admin@byteforce.com");
+  await page.getByLabel("Password").fill("password123");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page).toHaveURL(/\/b-systems$/);
+
+  const partnerRes = await page.request.post("/api/b-systems/partners-pipeline", {
+    data: {
+      kind: "partner",
+      name: "Kindfilter Contact",
+      companyName: "Kindfilter Partners Co",
+      number: "0105551111",
+      businessActivity: "HR company",
+    },
+  });
+  expect(partnerRes.status()).toBe(201);
+  const partnerId = ((await partnerRes.json()) as { id: string }).id;
+  const agentRes = await page.request.post("/api/b-systems/partners-pipeline", {
+    data: { kind: "agent", name: "Kindfilter Agent", number: "01055522233" },
+  });
+  expect(agentRes.status()).toBe(201);
+  const agentId = ((await agentRes.json()) as { id: string }).id;
+
+  /* unfiltered: both kinds share the board */
+  await page.goto("/b-systems/partners-pipeline");
+  await expect(page.locator('[data-deal-card="Kindfilter Partners Co"]')).toBeVisible();
+  const agentCard = page.locator('[data-deal-card="Kindfilter Agent"]');
+  await expect(agentCard).toBeVisible();
+
+  /* the card's chip pair: tel: dials the number as typed; wa.me gets Egypt's
+     country code prefixed onto the locally-typed mobile, in a new tab */
+  await expect(agentCard.getByRole("link", { name: "Call", exact: true })).toHaveAttribute(
+    "href",
+    "tel:01055522233",
+  );
+  const wa = agentCard.getByRole("link", { name: "WhatsApp", exact: true });
+  await expect(wa).toHaveAttribute("href", "https://wa.me/201055522233");
+  await expect(wa).toHaveAttribute("target", "_blank");
+
+  /* Agents only — driven through the filter UI, landing on ?kind=agent;
+     narrowing is server-side, so NO partner card renders at all */
+  await page.getByRole("button", { name: "Filters" }).click();
+  await page.getByLabel("Kind").selectOption("agent");
+  await page.getByRole("button", { name: "Apply", exact: true }).click();
+  await page.waitForURL(/kind=agent/);
+  await expect(page.locator('[data-deal-card="Kindfilter Agent"]')).toBeVisible();
+  await expect(page.locator('[data-deal-card][data-kind="partner"]')).toHaveCount(0);
+
+  /* and the prospect detail header carries the same pair (scoped to the
+     header actions — the number cells repeat the chips inline) */
+  await page.locator('[data-deal-card="Kindfilter Agent"]').locator(".bcard-rep").click();
+  await page.waitForURL(new RegExp(`/b-systems/partners-pipeline/${agentId}$`));
+  const headActions = page.locator(".page-actions");
+  await expect(headActions.getByRole("link", { name: "Call", exact: true })).toHaveAttribute(
+    "href",
+    "tel:01055522233",
+  );
+  await expect(headActions.getByRole("link", { name: "WhatsApp", exact: true })).toHaveAttribute(
+    "href",
+    "https://wa.me/201055522233",
+  );
+
+  expect((await page.request.delete(`/api/b-systems/partners-pipeline/${partnerId}`)).ok()).toBe(
+    true,
+  );
+  expect((await page.request.delete(`/api/b-systems/partners-pipeline/${agentId}`)).ok()).toBe(
+    true,
+  );
+});

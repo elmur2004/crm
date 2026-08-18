@@ -101,6 +101,16 @@ export const pPipeline = {
   awaitingNewNumber: { en: "Awaiting a new number", ar: "بانتظار رقم جديد" },
   nextAt: { en: "Next: {dt}", ar: "التالي: {dt}" },
   noFollowUpSet: { en: "No follow-up set", ar: "لا توجد متابعة محددة" },
+  /* founder: "first of all add a filter for agents and partners" — All |
+     Partners | Agents, in the boards' shared disclosure filter card */
+  filterKind: { en: "Kind", ar: "النوع" },
+  filterAllKinds: { en: "All", ar: "الكل" },
+  filterPartners: { en: "Partners", ar: "شركاء" },
+  filterAgents: { en: "Agents", ar: "وكلاء" },
+  noMatches: {
+    en: "No cards match these filters.",
+    ar: "لا توجد بطاقات مطابقة لهذه التصفية.",
+  },
   meetingAt: { en: "Meeting: {dt}", ar: "الاجتماع: {dt}" },
   notArranged: { en: "Not arranged", ar: "لم يُرتَّب بعد" },
   emptyColumn: { en: "Nothing here yet", ar: "لا شيء هنا بعد" },

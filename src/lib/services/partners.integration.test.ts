@@ -13,6 +13,8 @@ import {
   getProspectDetail,
   listPartners,
   parseNumbers,
+  prospectKindWhere,
+  prospectSearchWhere,
   updatePartner,
   updateProspect,
 } from "./partners";
@@ -739,5 +741,37 @@ describe("Registrations stay separate from the board", () => {
        appear on the board — only the ones the admin puts there do */
     expect(await db.partnerProspect.count()).toBe(before);
     expect(await db.partnerProspect.count({ where: { email: "walid.sami@example.com" } })).toBe(0);
+  });
+});
+
+describe("Founder: the board's Kind filter + search narrow SERVER-SIDE", () => {
+  it("kind, one-box search (name/company/number, digits-aware), and their composition", async () => {
+    await makeProspect(); // partner — "Mansour Trading", 0223456789
+    await createProspect({ kind: "agent", name: "Aya Selim", number: "01099887766" }, actor);
+
+    /* All | Partners | Agents */
+    expect(await db.partnerProspect.count({ where: prospectKindWhere("any") })).toBe(2);
+    const agents = await db.partnerProspect.findMany({ where: prospectKindWhere("agent") });
+    expect(agents.map((p) => p.name)).toEqual(["Aya Selim"]);
+    const partners = await db.partnerProspect.findMany({ where: prospectKindWhere("partner") });
+    expect(partners.map((p) => p.companyName)).toEqual(["Mansour Trading"]);
+
+    /* the lead boards' search semantics: case-insensitive company/name match,
+       and a spaced phone query finds the packed number */
+    expect(
+      await db.partnerProspect.count({ where: prospectSearchWhere("mansour trading") }),
+    ).toBe(1);
+    const byNumber = await db.partnerProspect.findMany({
+      where: prospectSearchWhere("010 9988"),
+    });
+    expect(byNumber.map((p) => p.name)).toEqual(["Aya Selim"]);
+
+    /* the two controls compose into one where clause */
+    expect(
+      await db.partnerProspect.count({
+        where: { ...prospectKindWhere("agent"), ...prospectSearchWhere("mansour") },
+      }),
+    ).toBe(0);
+    expect(await db.partnerProspect.count({ where: prospectSearchWhere("") })).toBe(2);
   });
 });

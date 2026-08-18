@@ -101,6 +101,30 @@ export const createProspectSchema = prospectFields
    the Won gate (directory partner vs. agent account) depends on it. */
 export const updateProspectSchema = prospectFields.partial();
 
+/* Founder: "first of all add a filter for agents and partners" — the board's
+   Kind filter, plus the same one-box search the lead boards carry (name /
+   company / number, digits-aware). Server-side, like every lead surface;
+   mirrors lead-search.ts for the PartnerProspect shape. */
+export function prospectKindWhere(kind?: string): Prisma.PartnerProspectWhereInput {
+  return kind === "partner" || kind === "agent" ? { kind } : {};
+}
+
+export function prospectSearchWhere(search?: string): Prisma.PartnerProspectWhereInput {
+  const q = search?.trim();
+  if (!q) return {};
+  const digits = q.replace(/\D/g, "");
+  /* "looks numeric" = digits plus the usual phone punctuation, nothing else */
+  const numeric = digits.length > 0 && /^[\d\s+()\-.]+$/.test(q);
+  return {
+    OR: [
+      { name: { contains: q, mode: "insensitive" } },
+      { companyName: { contains: q, mode: "insensitive" } },
+      { number: { contains: q } },
+      ...(numeric && digits !== q ? [{ number: { contains: digits } }] : []),
+    ],
+  };
+}
+
 /* V2 §6 — unbounded alternative numbers; JSON-array helpers. */
 export function parseNumbers(json: string): string[] {
   try {

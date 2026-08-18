@@ -6,8 +6,11 @@ import {
   getProspectDetail,
   listPartners,
   parseNumbers,
+  prospectKindWhere,
+  prospectSearchWhere,
   prospectTitle,
 } from "@/lib/services/partners";
+import { telHref, waHref } from "@/lib/phone-dial";
 import { listBsOwnerReps } from "@/lib/services/sales-reps";
 import { formatCairo, formatCairoDate } from "@/lib/datetime";
 import { StageBadge } from "@/components/shared/StageBadge";
@@ -23,6 +26,8 @@ import { PartnerAddLeadClient } from "./PartnerAddLead";
 import { ProspectEventPanel } from "./ProspectEventPanel";
 import { PartnersBoard, type ProspectCard } from "./PartnersBoard";
 import { DeleteEntityButton, EditPartnerButton, EditProspectButton } from "./manage";
+import { FilterPanel } from "@/components/shared/FilterPanel";
+import { NumberActions } from "@/components/shared/NumberActions";
 import { ApiError } from "@/lib/api-error";
 import { tFor } from "@/lib/i18n/core";
 import { getLocale } from "@/lib/i18n/server";
@@ -35,16 +40,26 @@ import {
   pProspect,
   prospectKindLabel,
 } from "@/lib/i18n/dict/partners";
+import { callSheet } from "@/lib/i18n/dict/call";
+import { leadsFilters as lf } from "@/lib/i18n/dict/crm";
 import { formatMsg } from "@/lib/i18n/core";
 
 /* App B Partners & Agents: acquisition board (§7.2) carrying BOTH kinds of card,
    prospect detail, partners directory (§7.3), partner detail with attributed
    leads (§7.4). */
 
-export async function PartnersPipelineBody() {
+export async function PartnersPipelineBody({
+  kind = "any",
+  search = "",
+}: {
+  /** "any" | "partner" | "agent" — founder: "add a filter for agents and partners" */
+  kind?: string;
+  search?: string;
+} = {}) {
   const locale = await getLocale();
   const t = tFor(locale);
   const prospects = await db.partnerProspect.findMany({
+    where: { ...prospectKindWhere(kind), ...prospectSearchWhere(search) },
     orderBy: { updatedAt: "desc" },
     include: {
       followUps: { orderBy: { createdAt: "desc" }, take: 1 },
@@ -52,6 +67,8 @@ export async function PartnersPipelineBody() {
       lostInfo: { orderBy: { createdAt: "desc" }, take: 1 },
     },
   });
+  /* the disclosure chip counts every control that is off its default */
+  const activeCount = [search !== "", kind !== "any"].filter(Boolean).length;
 
   function keyDatum(p: (typeof prospects)[number]): string {
     switch (p.stage) {
@@ -100,6 +117,8 @@ export async function PartnersPipelineBody() {
       speciality: p.speciality,
     },
     cardNumbers: [p.number, ...parseNumbers(p.alternativeNumbers)],
+    telHref: telHref(p.number),
+    waHref: waHref(p.number),
   }));
 
   return (
@@ -113,7 +132,52 @@ export async function PartnersPipelineBody() {
           <AddProspectForm />
         </div>
       </div>
-      <PartnersBoard cards={cards} reps={reps} />
+      {/* founder: "first of all add a filter for agents and partners" — the
+          CRM boards' disclosure filter card, INLINE (the board is a full-bleed
+          breakout, so a fixed side column would be painted over by it), with
+          the Kind control plus the same one-box search. Narrowing is
+          server-side, in the same query this page always ran. */}
+      <FilterPanel activeCount={activeCount} variant="inline" defaultOpen={activeCount > 0}>
+        <form
+          method="get"
+          className="card filter-card filter-card--inline"
+          aria-label={t(lf.filters)}
+        >
+          <label className="filter-section">
+            <span className="filter-section-label">{t(lf.search)}</span>
+            <input
+              type="search"
+              name="q"
+              defaultValue={search}
+              placeholder={t(lf.searchPlaceholder)}
+              className="field-input"
+            />
+          </label>
+          <label className="filter-section">
+            <span className="filter-section-label">{t(pPipeline.filterKind)}</span>
+            <select name="kind" defaultValue={kind} className="field-input">
+              <option value="any">{t(pPipeline.filterAllKinds)}</option>
+              <option value="partner">{t(pPipeline.filterPartners)}</option>
+              <option value="agent">{t(pPipeline.filterAgents)}</option>
+            </select>
+          </label>
+          <div className="filter-actions">
+            <button type="submit" className="btn-primary btn--sm">
+              {t(lf.apply)}
+            </button>
+            {activeCount > 0 ? (
+              <Link href="/b-systems/partners-pipeline" className="filter-reset">
+                {t(lf.clear)}
+              </Link>
+            ) : null}
+          </div>
+        </form>
+      </FilterPanel>
+      {cards.length === 0 && activeCount > 0 ? (
+        <p className="empty">{t(pPipeline.noMatches)}</p>
+      ) : (
+        <PartnersBoard cards={cards} reps={reps} />
+      )}
     </div>
   );
 }
@@ -165,6 +229,25 @@ export async function ProspectDetailBody({ prospectId }: { prospectId: string })
           </h1>
         </div>
         <div className="page-actions">
+          {/* founder: "add call and whatsapp in agents and partners" — reach
+              the card's primary number straight from the header. Call is the
+              page's one true action (the lead detail's rule); WhatsApp opens
+              a new tab. */}
+          {telHref(prospect.number) ? (
+            <a href={telHref(prospect.number)!} className="btn-primary">
+              {t(callSheet.navLabel)}
+            </a>
+          ) : null}
+          {waHref(prospect.number) ? (
+            <a
+              href={waHref(prospect.number)!}
+              target="_blank"
+              rel="noopener"
+              className="btn-ghost"
+            >
+              {t(callSheet.whatsapp)}
+            </a>
+          ) : null}
           {/* founder V4: the admin edits and deletes pipeline cards */}
           <EditProspectButton
             prospect={{
@@ -204,6 +287,7 @@ export async function ProspectDetailBody({ prospectId }: { prospectId: string })
                 <p className="fields-value">
                   <span className="fields-label block mb-1.5">{t(pProspect.numberField)}</span>{" "}
                   <span className="u-ltr">{prospect.number}</span>
+                  <NumberActions number={prospect.number} locale={locale} />
                 </p>
               </div>
               {parseNumbers(prospect.nonAnsweringNumbers).length > 0 ? (
@@ -225,10 +309,13 @@ export async function ProspectDetailBody({ prospectId }: { prospectId: string })
                 <div className="fields-cell">
                   <p className="fields-value">
                     <span className="fields-label block mb-1.5">{t(pProspect.altNumbers)}</span>{" "}
+                    {/* founder: call/wa PER number — each alternative gets its
+                        own chip pair, right where the number is printed */}
                     {parseNumbers(prospect.alternativeNumbers).map((n, i) => (
                       <span key={n}>
                         {i > 0 ? " · " : ""}
                         <span className="u-ltr">{n}</span>
+                        <NumberActions number={n} locale={locale} />
                       </span>
                     ))}
                   </p>
@@ -505,7 +592,11 @@ export async function PartnerDetailBody({ partnerId }: { partnerId: string }) {
           </div>
           <div className="fields-cell">
             <p className="fields-value">
-              <span className="fields-label block mb-1.5">{t(pProspect.numberField)}</span> {partner.number}
+              <span className="fields-label block mb-1.5">{t(pProspect.numberField)}</span>{" "}
+              <span className="u-ltr">{partner.number}</span>
+              {/* founder: "add call and whatsapp in agents and partners" —
+                  the directory partner's number gets the same chip pair */}
+              <NumberActions number={partner.number} locale={locale} />
             </p>
           </div>
           <div className="fields-cell">

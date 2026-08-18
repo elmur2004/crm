@@ -132,13 +132,15 @@ test("journey 3: partnership acquisition to attributed CRM lead (V2 numbers flow
    admin can edit + delete a card from its detail page. */
 
 async function dragTo(page: Page, card: Locator, column: Locator) {
-  const from = (await card.boundingBox())!;
+  /* grab the SUBTITLE line — plain text with no handlers of its own, so the
+     pointer reaches the card's drag listeners. Edge geometry is no longer
+     safe ground: the chips row (kind + Call + WhatsApp) swallows pointerdown
+     on purpose, and where it sits depends on the card's height. */
+  const from = (await card.locator(".bcard-rep").boundingBox())!;
   const to = (await column.boundingBox())!;
-  /* grab the middle-right edge, clear of the top-left company link (which
-     stops pointer propagation), and cross the sensor's activation distance */
-  await page.mouse.move(from.x + from.width - 10, from.y + from.height / 2);
+  await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
   await page.mouse.down();
-  await page.mouse.move(from.x + from.width - 10, from.y + from.height / 2 + 12, { steps: 4 });
+  await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2 + 12, { steps: 4 });
   await page.mouse.move(to.x + to.width / 2, to.y + 60, { steps: 14 });
   await page.mouse.up();
 }

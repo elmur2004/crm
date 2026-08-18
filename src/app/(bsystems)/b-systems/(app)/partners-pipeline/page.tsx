@@ -9,7 +9,16 @@ export async function generateMetadata() {
   return { title: tFor(locale)(pMeta.pipelineTitle) };
 }
 
-export default async function Page() {
+export default async function Page({
+  searchParams,
+}: {
+  searchParams: Promise<{ kind?: string; q?: string }>;
+}) {
   await requireBsAdminPage();
-  return <PartnersPipelineBody />;
+  /* founder: "add a filter for agents and partners" — query-param driven, the
+     narrowing itself happens server-side in the body's query */
+  const params = await searchParams;
+  const kind = params.kind === "partner" || params.kind === "agent" ? params.kind : "any";
+  const search = (params.q ?? "").trim();
+  return <PartnersPipelineBody kind={kind} search={search} />;
 }

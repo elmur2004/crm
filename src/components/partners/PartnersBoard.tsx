@@ -20,6 +20,7 @@ import { tFor } from "@/lib/i18n/core";
 import { useLocale } from "@/components/shared/LocaleProvider";
 import { stageLabel } from "@/lib/i18n/dict/labels";
 import { pCommon, pPipeline, prospectKindLabel } from "@/lib/i18n/dict/partners";
+import { callSheet } from "@/lib/i18n/dict/call";
 import {
   ProspectGroupFields,
   prospectGroupPayload,
@@ -48,6 +49,9 @@ export interface ProspectCard {
   keyDatum: string;
   defaults: ProspectGateDefaults;
   cardNumbers: string[];
+  /** dial / wa.me links for the card's primary number, precomputed server-side */
+  telHref: string | null;
+  waHref: string | null;
 }
 
 type Rep = { id: string; name: string };
@@ -103,6 +107,30 @@ function Card({
         <span className="bcard-tag">{prospectKindLabel(locale, card.kind)}</span>
         {card.converted ? (
           <span className="badge badge--converted">{t(pPipeline.converted)}</span>
+        ) : null}
+        {/* founder: "add call and whatsapp in agents and partners" — the lead
+            boards' chip pair, same guards so neither drags nor opens the card */}
+        {card.telHref ? (
+          <a
+            href={card.telHref}
+            className="card-dial"
+            onClick={(e) => e.stopPropagation()}
+            onPointerDown={(e) => e.stopPropagation()}
+          >
+            {t(callSheet.navLabel)}
+          </a>
+        ) : null}
+        {card.waHref ? (
+          <a
+            href={card.waHref}
+            target="_blank"
+            rel="noopener"
+            className="card-dial"
+            onClick={(e) => e.stopPropagation()}
+            onPointerDown={(e) => e.stopPropagation()}
+          >
+            {t(callSheet.whatsapp)}
+          </a>
         ) : null}
       </div>
       {card.keyDatum ? (
