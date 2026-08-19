@@ -22,6 +22,7 @@ import { useLocale } from "@/components/shared/LocaleProvider";
 import { stageLabel } from "@/lib/i18n/dict/labels";
 import { board as msg, common } from "@/lib/i18n/dict/crm";
 import { callSheet } from "@/lib/i18n/dict/call";
+import { CardGrip, useMouseOnlyListeners, type CardDrag } from "@/components/shared/CardGrip";
 import { stageKey } from "./stageColors";
 import {
   GroupFieldsV2,
@@ -54,12 +55,15 @@ export interface BsBoardLead {
    DragOverlay clone. Founder: columns cap their height and scroll inside now,
    so the dragged visual must ride an overlay — a transformed card inside a
    scrolling, clipping column would vanish under its neighbours. */
-function LeadCardBody({ lead }: { lead: BsBoardLead }) {
+function LeadCardBody({ lead, drag }: { lead: BsBoardLead; drag?: CardDrag }) {
   const t = tFor(useLocale());
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   return (
     <>
+      {/* founder (phone): the card scrolls, THIS drags. Lives in the body so
+          the DragOverlay clone is identical to the card it stands in for. */}
+      <CardGrip drag={drag} label={t(common.dragHandle)} />
       {lead.readyToClose ? <span className="bcard-badge">{t(common.readyToClose)}</span> : null}
       <div className="bcard-name-row">
         <Link
@@ -165,14 +169,16 @@ function LeadCard({
   suppressClickRef: { current: boolean };
 }) {
   const router = useRouter();
-  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+  const { attributes, listeners, setActivatorNodeRef, setNodeRef, isDragging } = useDraggable({
     id: lead.id,
   });
+  /* a MOUSE still drags the whole card; a finger scrolls it and drags by the
+     grip instead (see components/shared/CardGrip) */
+  const mouseDrag = useMouseOnlyListeners(listeners);
   return (
     <div
       ref={setNodeRef}
-      {...attributes}
-      {...listeners}
+      {...mouseDrag}
       data-deal-card={lead.name}
       data-stage-key={stageKey(lead.stage)}
       onClick={() => {
@@ -181,9 +187,9 @@ function LeadCard({
         if (suppressClickRef.current) return;
         router.push(`/b-systems/crm/lead/${lead.id}`);
       }}
-      className={`bcard touch-none ${isDragging || dragging ? "bcard--ghost" : ""}`}
+      className={`bcard ${isDragging || dragging ? "bcard--ghost" : ""}`}
     >
-      <LeadCardBody lead={lead} />
+      <LeadCardBody lead={lead} drag={{ attributes, listeners, setActivatorNodeRef }} />
     </div>
   );
 }

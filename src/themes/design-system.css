@@ -303,6 +303,10 @@
    line up with the page padding. */
 .board {
   display: flex; gap: 12px; align-items: flex-start; overflow-x: auto; padding-bottom: 12px;
+  /* panning the columns on a phone must not trigger the OS edge-swipe back.
+     Deliberately NOT set on .col-cards: the founder wants the page to keep
+     scrolling once a column bottoms out. */
+  overscroll-behavior-x: contain;
   margin-inline: calc(50% - 50vw + 8px);
   /* columns START aligned with the centered content edge (max-w-7xl = 1280px),
      while the scroll area still uses the whole viewport — on wide monitors the
@@ -355,7 +359,54 @@
   color: var(--color-ink); font-family: var(--font-body);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05); /* fixed rest shadow, all brands (spec §1.4) */
   transition: box-shadow .12s ease, transform .12s ease;
+  position: relative; /* anchors the grip rail */
+  /* Founder, on his phone: "when I try to scroll using the cards it drags the
+     card... I cannot reach the leads under the column because I cannot
+     scroll." The card USED to carry touch-action:none (dnd-kit's activator
+     requirement), which forbids any pan starting on it — and cards cover the
+     whole board, so the column's inner scroll, the board's horizontal scroll
+     and the page scroll all died at once. `manipulation` allows BOTH pans (and
+     pinch-zoom, which the app's default viewport permits); it only drops the
+     double-tap-zoom delay on the card's tap-to-open. touch-action:none now
+     lives on .bcard-grip alone. Never `pan-y` here — measured to kill the
+     board's horizontal pan. */
+  touch-action: manipulation;
 }
+/* the rail's gutter, only on cards that HAVE one — the agents page renders a
+   read-only .bcard with no grip and must not gain a dead 34px margin */
+.bcard:has(> .bcard-grip) { padding-inline-end: 34px; }
+/* The drag button the founder asked for: "I should have a button to drag the
+   card." 26 x 44px, centred on the card's inline end: past the WCAG 2.5.8 24px
+   minimum on BOTH axes and at the 44px thumb target, while staying a button
+   rather than a rail. Quiet by default (hairline + muted dots, the .card-dial
+   idiom): it should read as part of the card, not shout. Logical properties
+   throughout, so it sits on the card's LEFT in Arabic with no extra rule.
+
+   This is the ONLY touch-action:none in the app's own CSS — the one place a
+   gesture is a drag and not a scroll — and that is exactly why it is BOUNDED.
+   It first shipped as a full-card-height rail, and stacked cards turned that
+   into one unbroken 26px-wide no-scroll strip running the entire length of the
+   column: on a 390px phone it started at the horizontal centre of the screen
+   and ran straight down the right-thumb zone, so a thumb landing anywhere in
+   it still could not scroll — the founder's original complaint wearing a
+   smaller hat, and past the sensor's 6px it became an unasked-for stage move.
+   Bounding the height cuts that dead area by about three quarters and leaves a
+   scrollable gutter above and below every grip. Never grow it back to the
+   card's height, and never enlarge the hit area with a pseudo-element: the
+   pseudo-element inherits touch-action and rebuilds the strip invisibly. */
+.bcard-grip {
+  position: absolute; inset-block: 0; inset-inline-end: 4px;
+  width: 26px; height: 44px; margin-block: auto; /* abspos + inset-block:0 = centred */
+  display: grid; place-items: center;
+  margin-inline: 0; padding: 0;
+  border: 1px solid var(--color-hairline); border-radius: 8px;
+  background: transparent; color: var(--color-muted);
+  cursor: grab; touch-action: none;
+  user-select: none; -webkit-user-select: none;
+}
+.bcard-grip:hover { background: var(--color-surface-tint); color: var(--color-ink); }
+.bcard-grip:active { cursor: grabbing; }
+.bcard-grip:focus-visible { outline: 2px solid var(--color-primary); outline-offset: -2px; }
 .bcard--lift {
   border-color: var(--stage-bar, var(--color-primary)); box-shadow: var(--shadow-lift);
   transform: rotate(-1.4deg) scale(1.02); opacity: .95;

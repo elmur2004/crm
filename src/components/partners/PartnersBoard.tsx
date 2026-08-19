@@ -21,7 +21,11 @@ import { tFor } from "@/lib/i18n/core";
 import { useLocale } from "@/components/shared/LocaleProvider";
 import { stageLabel } from "@/lib/i18n/dict/labels";
 import { pCommon, pPipeline, prospectKindLabel } from "@/lib/i18n/dict/partners";
+/* the grip's label is the one shared board string this file needs — the same
+   key the two CRM boards use, not a duplicate in dict/partners */
+import { common } from "@/lib/i18n/dict/crm";
 import { callSheet } from "@/lib/i18n/dict/call";
+import { CardGrip, useMouseOnlyListeners, type CardDrag } from "@/components/shared/CardGrip";
 import {
   ProspectGroupFields,
   prospectGroupPayload,
@@ -60,11 +64,14 @@ type Rep = { id: string; name: string };
 /* The card's CONTENT — shared verbatim by the in-column draggable and the
    DragOverlay clone. Founder: columns cap their height and scroll inside now,
    so the dragged visual must ride an overlay, never the clipping column. */
-function CardBody({ card }: { card: ProspectCard }) {
+function CardBody({ card, drag }: { card: ProspectCard; drag?: CardDrag }) {
   const locale = useLocale();
   const t = tFor(locale);
   return (
     <>
+      {/* founder (phone): the card scrolls, THIS drags. Lives in the body so
+          the DragOverlay clone is identical to the card it stands in for. */}
+      <CardGrip drag={drag} label={t(common.dragHandle)} />
       <Link
         href={`/b-systems/partners-pipeline/${card.id}`}
         className="bcard-name"
@@ -127,14 +134,16 @@ function Card({
   suppressClickRef: { current: boolean };
 }) {
   const router = useRouter();
-  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+  const { attributes, listeners, setActivatorNodeRef, setNodeRef, isDragging } = useDraggable({
     id: card.id,
   });
+  /* a MOUSE still drags the whole card; a finger scrolls it and drags by the
+     grip instead (see components/shared/CardGrip) */
+  const mouseDrag = useMouseOnlyListeners(listeners);
   return (
     <div
       ref={setNodeRef}
-      {...attributes}
-      {...listeners}
+      {...mouseDrag}
       data-deal-card={card.title}
       data-kind={card.kind}
       onClick={() => {
@@ -143,9 +152,9 @@ function Card({
         if (suppressClickRef.current) return;
         router.push(`/b-systems/partners-pipeline/${card.id}`);
       }}
-      className={`bcard touch-none ${isDragging ? "bcard--ghost" : ""}`}
+      className={`bcard ${isDragging ? "bcard--ghost" : ""}`}
     >
-      <CardBody card={card} />
+      <CardBody card={card} drag={{ attributes, listeners, setActivatorNodeRef }} />
     </div>
   );
 }

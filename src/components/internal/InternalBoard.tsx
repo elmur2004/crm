@@ -22,6 +22,7 @@ import { useLocale } from "@/components/shared/LocaleProvider";
 import { stageLabel } from "@/lib/i18n/dict/labels";
 import { board as msg, common } from "@/lib/i18n/dict/crm";
 import { callSheet } from "@/lib/i18n/dict/call";
+import { CardGrip, useMouseOnlyListeners, type CardDrag } from "@/components/shared/CardGrip";
 import { stageKey } from "@/components/bsystems/stageColors";
 import {
   FollowUpFields,
@@ -63,10 +64,12 @@ function LeadCardBody({
   lead,
   basePath,
   apiBase,
+  drag,
 }: {
   lead: InternalBoardLead;
   basePath: string;
   apiBase: string;
+  drag?: CardDrag;
 }) {
   const t = tFor(useLocale());
   const router = useRouter();
@@ -74,6 +77,9 @@ function LeadCardBody({
   const active = lead.stage !== "won" && lead.stage !== "lost";
   return (
     <>
+      {/* founder (phone): the card scrolls, THIS drags. Lives in the body so
+          the DragOverlay clone is identical to the card it stands in for. */}
+      <CardGrip drag={drag} label={t(common.dragHandle)} />
       <div className="bcard-name-row">
         <Link
           href={`${basePath}/leads/lead/${lead.id}`}
@@ -162,14 +168,16 @@ function LeadCard({
   suppressClickRef: { current: boolean };
 }) {
   const router = useRouter();
-  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+  const { attributes, listeners, setActivatorNodeRef, setNodeRef, isDragging } = useDraggable({
     id: lead.id,
   });
+  /* a MOUSE still drags the whole card; a finger scrolls it and drags by the
+     grip instead (see components/shared/CardGrip) */
+  const mouseDrag = useMouseOnlyListeners(listeners);
   return (
     <div
       ref={setNodeRef}
-      {...attributes}
-      {...listeners}
+      {...mouseDrag}
       data-deal-card={lead.name}
       data-stage-key={stageKey(lead.stage)}
       onClick={() => {
@@ -178,9 +186,14 @@ function LeadCard({
         if (suppressClickRef.current) return;
         router.push(`${basePath}/leads/lead/${lead.id}`);
       }}
-      className={`bcard touch-none ${isDragging || dragging ? "bcard--ghost" : ""}`}
+      className={`bcard ${isDragging || dragging ? "bcard--ghost" : ""}`}
     >
-      <LeadCardBody lead={lead} basePath={basePath} apiBase={apiBase} />
+      <LeadCardBody
+        lead={lead}
+        basePath={basePath}
+        apiBase={apiBase}
+        drag={{ attributes, listeners, setActivatorNodeRef }}
+      />
     </div>
   );
 }

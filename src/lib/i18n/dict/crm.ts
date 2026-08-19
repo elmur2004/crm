@@ -66,6 +66,9 @@ export const common = {
   nextAction: { en: "Next action", ar: "الإجراء التالي" },
   confirmWin: { en: "Confirm win", ar: "تأكيد المكسب" },
   ownerFilter: { en: "Owner filter", ar: "تصفية حسب المالك" },
+  /* the board card's drag grip (founder, on his phone): a finger on the CARD
+     scrolls, a finger on the GRIP drags */
+  dragHandle: { en: "Drag to move this card", ar: "اسحب لنقل هذه البطاقة" },
 } satisfies Record<string, Msg>;
 
 /* Owner-bucket filter chips (EN mirrors OWNER_TYPE_LABELS + "Any"). */
