@@ -294,7 +294,7 @@ Each dashboard number must be backed by a tested query — see §13.
 Identical to App A in structure and behavior (§6.1–§6.5), themed B-Systems, operating on B-Systems data only. Navigation: **Home | Leads | CRM | Clients | Partners Pipeline | Partners**.
 
 ### 7.2 Partners Pipeline (partner acquisition board)
-Six columns: **Lead | Didn't Answer | Following Up | Meeting Setting | Won | Lost**.
+Six columns for a **partner** card: **Lead | Didn't Answer | Following Up | Meeting Setting | Won | Lost**. Agent cards run their own six columns — see §7.2a.
 
 **Lead stage fields:**
 
@@ -328,6 +328,33 @@ Six columns: **Lead | Didn't Answer | Following Up | Meeting Setting | Won | Los
 | Importance | enum: `High` / `Medium` / `Low` — yes |
 
 On completion, the partner is **automatically transferred to the Partners directory** (record created with `date_joined = now`); the pipeline card remains in Won as history with a "Converted" badge (assumption A-5).
+
+### 7.2a Agent cards (`PartnerProspect.kind = agent`)
+Founder: *"agents stages : lead , contacted , didn't answer , meeting settting , qualified , lost , when he is in qualified he becomes an agent and we create a user for hiim and fill in the data of him and I can assing leads for agents also"*.
+
+Six columns for an **agent** card, in this order: **Lead | Contacted | Didn't Answer | Meeting Setting | Qualified | Lost**.
+
+Same board, same engine, same config family as §7.2 — only two role slots carry different stage keys: **Contacted** plays the follow-up role (it is the stage that carries a dated follow-up, with the context-per-origin rule of T-1) and **Qualified** plays the terminal-success role. Terminal stages are **Qualified** and **Lost**. Partner cards are unaffected by any of this.
+
+**Lead stage fields (agent):** Name and Number are required; Email, Address, Speciality, Description and a CV upload are optional (the public agent-signup field set, minus the password).
+
+**Didn't Answer / Meeting Setting / Lost:** identical field groups and logic to §7.2.
+
+**Contacted:** the follow-up group (date, time, method, owner, following-up-with) — identical to §6.2's Following Up.
+
+**Qualified stage — the account gate.** Qualified is only savable when all of these are filled:
+
+| Field | Required |
+|---|---|
+| First name | yes |
+| Last name | yes |
+| Phone number | yes |
+| Email | yes |
+| Password (set by the admin) | yes |
+| Speciality | yes |
+| Address | yes |
+
+On completion the agent's **account is minted in the same transaction**: a User (active, `registrationStatus = approved` — never a pending Registration), the `bsystems_agent` role, a PortalRep profile carrying the name/address/speciality, and the card's CV re-parented onto that profile. The card stays in Qualified as history with a "Converted" badge (A-5), and the new account is **immediately assignable as a lead owner** (§7.4 / the To-Do assign) with no further step.
 
 ### 7.3 Partners directory
 - Cards, one per partner, showing the **Company name** (importance badge optional).
@@ -475,6 +502,18 @@ Every row below is a rule the code must implement and a test case §13 must cove
 | PP-4 | Won gate satisfied (§7.2 required fields) and Won saved | Any active | Won | Auto-create Partner in directory (`date_joined = now`); pipeline card stays in Won with "Converted" badge (A-5) |
 | PP-5 | Lead added inside a Partner + Next action selected | — | B-Systems CRM at matching stage | Lead created with `source = partner`, permanent "Partner: {Company}" badge, auto `Date created`; partner's leads table shows live stage |
 
+### 10.2a Agents Pipeline (App B — `PartnerProspect.kind = agent`)
+
+Six columns: **Lead | Contacted | Didn't Answer | Meeting Setting | Qualified | Lost**. Same engine and the same config family as §10.2; only the follow-up and terminal-success SLOTS carry different stage keys (Contacted plays the follow-up role, Qualified plays the Won role). Partner cards are unaffected.
+
+| # | Trigger | From | To | Side effects |
+|---|---|---|---|---|
+| PA-1 | Next action = Didn't answer | Lead / active | Didn't Answer | Record which number(s) went unanswered; reveal Number 2 / Number 3 (as PP-1) |
+| PA-2 | Non-empty value saved in Number 2 or Number 3 | Didn't Answer | Lead | Automatic return; History: "Returned to Lead — new number added" (as PP-2) |
+| PA-3 | Next action = Contacted / Meeting setting / Lost | Lead / active | Matching stage | Same groups & logic as PP-3 — Contacted opens the Follow-up group (context per origin) |
+| PA-4 | Agent gate satisfied (§7.2a required fields) and Qualified saved | Any active | Qualified | Mint the agent's account (User + `bsystems_agent` role + PortalRep + CV re-parent) with the admin-set credentials; card stays in Qualified with the "Converted" badge (A-5); the account is immediately assignable as a lead owner |
+| PA-5 | Meeting outcome = Attended | Meeting Setting | Contacted / Qualified / Lost (user choice) | As PP-3 / ADR-010 — no proposals stage; Qualified routes through the PA-4 gate |
+
 ### 10.3 Portal CRM (App C)
 
 | # | Trigger | From | To | Side effects |
@@ -498,7 +537,7 @@ Every row below is a rule the code must implement and a test case §13 must cove
 | A-2 | Can a card revisit a stage (e.g. second meeting)? | Yes — groups accumulate as history (§5.2) |
 | A-3 | Meeting Delayed / Cancelled behavior | Delayed → new date, stays; Cancelled → choose Following Up or Lost |
 | A-4 | Portal sign-up approval | Active immediately; admin can deactivate |
-| A-5 | After a partner converts (PP-4) | Card stays in Won column as history with "Converted" badge |
+| A-5 | After a partner or agent converts (PP-4 / PA-4) | Card stays in its terminal-success column — Won for partners, Qualified for agents — as history with a "Converted" badge |
 | A-6 | Owner of partner-sourced leads | Optional assign-to-rep at creation; else "Unassigned (Partner leads)" bucket |
 | A-7 | Drag & drop on internal CRMs | Not in v1 (action-driven only); possible later extension |
 | A-8 | Are `bsystems_staff` and `portal_admin` the same people? | One account may hold both roles |
@@ -536,9 +575,9 @@ Rules:
 
 ## 13. Testing strategy
 
-**Unit tests** — the pipeline engine transition function (every row of §10 as a case, including illegal moves), and every dashboard formula in §6.5 / §8.5 against fixture data with known expected numbers.
+**Unit tests** — the pipeline engine transition function (every row of §10 — §10.2a's PA rows included — as a case, including illegal moves), and every dashboard formula in §6.5 / §8.5 against fixture data with known expected numbers.
 
-**Integration tests** — automatic side effects: T-5 proposal-sent auto-move; T-6 attended-destination flow; T-9 client auto-creation; PP-2 auto-return on new number; PP-4 partner conversion; PP-5 partner-lead attribution into the CRM; P-2 server-side rejection of a rep setting Won (API level, not just UI); P-6 WonDeal auto-creation; P-7/P-8 milestone generation, locking, and unlock; upload validation (type/size) for CVs and recordings.
+**Integration tests** — automatic side effects: T-5 proposal-sent auto-move; T-6 attended-destination flow; T-9 client auto-creation; PP-2 / PA-2 auto-return on new number; PP-4 partner conversion; PA-4 agent conversion (account minted and immediately assignable); PP-5 partner-lead attribution into the CRM; P-2 server-side rejection of a rep setting Won (API level, not just UI); P-6 WonDeal auto-creation; P-7/P-8 milestone generation, locking, and unlock; upload validation (type/size) for CVs and recordings.
 
 **E2E journeys (Playwright)** — each must pass before its phase closes and every run is logged in `TESTING.md`:
 1. ByteForce full cycle: add rep → add lead → Following Up → Meeting (attended → proposal) → Sent ✓ → auto Following Up (after proposal) → Won → Client card exists → dashboard numbers correct.
@@ -561,7 +600,7 @@ DoD: app boots with both themes demonstrable; engine unit tests green; ARCHITECT
 **Phase 1 — App A: ByteForce CRM.** §6 complete: Leads, field groups, CRM board, Clients, Dashboard; transitions T-1…T-10; journeys 1–2 pass.
 DoD: every §6 field persists; all §10.1 rows tested; dashboard formulas verified; branded per §4.2.
 
-**Phase 2 — App B: B-Systems CRM + Partners.** Clone of App A on B-Systems data & theme; Partners Pipeline; Partners directory; attribution flow (§7); PP-1…PP-5; journey 3 passes.
+**Phase 2 — App B: B-Systems CRM + Partners.** Clone of App A on B-Systems data & theme; Partners Pipeline; Partners directory; attribution flow (§7); PP-1…PP-5 and PA-1…PA-5; journey 3 passes.
 DoD: uploads validated & playable; auto-return and conversion gates verified; attribution visible end-to-end.
 
 **Phase 3 — App C: Portal, rep layer.** Landing (gradient + mesh hero), sign-up with CV, login, rep CRM with drag & drop and Won restriction, Won Deals read view with locks, Profile (§8.1–§8.4); P-1…P-5; journey 4 passes.

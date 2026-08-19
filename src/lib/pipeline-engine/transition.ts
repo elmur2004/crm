@@ -89,9 +89,11 @@ function triggerForAction(config: PipelineConfig, toStage: string): string {
     return "T-0";
   }
   if (config.kind === "partners") {
-    if (toStage === config.didntAnswerStage) return "PP-1";
-    if (toStage === config.wonStage) return "PP-4";
-    return "PP-3";
+    /* ADR-057 — partner cards keep PP-*; agent cards carry §10.2a's PA-*. The
+       ids live on the config, so the core never names a pipeline's rows. */
+    if (toStage === config.didntAnswerStage) return config.triggers?.didntAnswer ?? "PP-1";
+    if (toStage === config.wonStage) return config.triggers?.won ?? "PP-4";
+    return config.triggers?.generic ?? "PP-3";
   }
   if (config.kind === "bsystems") {
     if (toStage === config.wonStage) return "B-9"; // confirm win (V2 §4)
@@ -213,7 +215,11 @@ export function transition(
          partners meeting outcomes are PP-3 ("same logic as T-6–T-8"); portal
          delayed/cancelled fall under P-3's "same rules as T-1…T-8". */
       const outcomeTrigger = (internalRow: string): string =>
-        config.kind === "internal" ? internalRow : config.kind === "partners" ? "PP-3" : "B-7";
+        config.kind === "internal"
+          ? internalRow
+          : config.kind === "partners"
+            ? (config.triggers?.generic ?? "PP-3")
+            : "B-7";
 
       if (event.outcome === "delayed") {
         // T-7 (A-3): require a new date & time; card stays
@@ -257,7 +263,7 @@ export function transition(
         config.kind === "internal"
           ? "T-6"
           : config.kind === "partners"
-            ? "PP-3"
+            ? (config.triggers?.generic ?? "PP-3")
             : event.destination === config.wonStage
               ? "B-9" // attended → confirm win (V2 §4)
               : "B-7";
@@ -286,7 +292,8 @@ export function transition(
         fromStage: from,
         toStage: config.intakeStage,
         requiredGroup: null,
-        logTrigger: "PP-2", // History: "Returned to Lead — new number added"
+        // History: "Returned to Lead — new number added" (PP-2 / PA-2)
+        logTrigger: config.triggers?.numberAdded ?? "PP-2",
         auto: true,
       });
     }

@@ -1,10 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { transition } from "./transition";
 import { internalCrmConfig as internal } from "./configs/internal-crm";
-import { partnersConfig as partners } from "./configs/partners";
+import {
+  agentsConfig as agents,
+  partnersConfig as partners,
+  partnersConfigFor,
+} from "./configs/partners";
 import { bsystemsCrmConfig as bsystems } from "./configs/bsystems-crm";
 import type { EngineEvent, TransitionOk, TransitionResult } from "./types";
-import type { Role } from "./constants";
+import { AGENT_STAGES, PARTNER_STAGES, SAME_STAGE_FORM_SLOT, type Role } from "./constants";
 
 /* Every SPEC §10 row (v1) and REQUIREMENTS-V2 B-row has at least one test named
    after it, plus illegal-move rejections. Milestone mutations and creation flows
@@ -323,6 +327,297 @@ describe("Partners pipeline (§10.2)", () => {
   it("partners follow-up context after meeting is after_meeting (shared T-1 rule)", () => {
     const r = expectOk(transition(partners, { stage: "meeting_setting" }, act("following_up"), bstaff));
     expect(r.requiredGroup).toEqual({ group: "follow_up", context: "after_meeting" });
+  });
+});
+
+/* ---------------------------------------------------------------------------
+   ADR-057 — the AGENT variant of the partners pipeline. Founder: "agents stages
+   : lead , contacted , didn't answer , meeting settting , qualified , lost ,
+   when he is in qualified he becomes an agent". One engine, one config family:
+   `contacted` plays the followUpStage role and `qualified` plays the wonStage
+   role, so every §10.2a row below runs the SAME code as its §10.2 twin.
+   --------------------------------------------------------------------------- */
+describe("Agents pipeline (§10.2a)", () => {
+  const bstaff: { role: Role } = { role: "bsystems_admin" };
+
+  it("the config is the founder's vocabulary in the founder's column order", () => {
+    expect(agents.stages).toEqual([
+      "lead",
+      "contacted",
+      "didnt_answer",
+      "meeting_setting",
+      "qualified",
+      "lost",
+    ]);
+    expect(agents.stages).toEqual(AGENT_STAGES);
+    expect(agents.terminalStages).toEqual(["qualified", "lost"]);
+    expect(agents.followUpStage).toBe("contacted");
+    expect(agents.wonStage).toBe("qualified");
+    /* the shared slots are untouched — that is what makes this a parameterization */
+    expect(agents.intakeStage).toBe("lead");
+    expect(agents.meetingStage).toBe("meeting_setting");
+    expect(agents.didntAnswerStage).toBe("didnt_answer");
+    expect(agents.lostStage).toBe("lost");
+    expect(agents.proposalStage).toBeNull();
+    expect(agents.dragEnabled).toBe(true);
+    expect(agents.wonRoles).toBeNull();
+    expect(agents.kind).toBe("partners"); // one engine, one pipeline kind
+    expect(partnersConfigFor("agent")).toBe(agents);
+    expect(partnersConfigFor("partner")).toBe(partners);
+    expect(partnersConfigFor("anything else")).toBe(partners);
+  });
+
+  it("PA-1: Didn't answer from Lead or any active reveals the Number 2/3 fields", () => {
+    for (const stage of ["lead", "contacted", "meeting_setting"]) {
+      const r = expectOk(transition(agents, { stage }, act("didnt_answer"), bstaff));
+      expect(r.toStage).toBe("didnt_answer");
+      expect(r.requiredGroup).toEqual({ group: "numbers" });
+      expect(r.logTrigger).toBe("PA-1");
+    }
+  });
+
+  it("PA-2: new number saved in Didn't Answer → automatic return to Lead", () => {
+    const r = expectOk(
+      transition(agents, { stage: "didnt_answer" }, { type: "number_added", slot: 2 }, bstaff),
+    );
+    expect(r.toStage).toBe("lead");
+    expect(r.requiredGroup).toBeNull();
+    expect(r.auto).toBe(true);
+    expect(r.logTrigger).toBe("PA-2");
+  });
+
+  it("PA-2 illegal: number_added outside Didn't Answer does not move the card", () => {
+    for (const stage of ["lead", "contacted", "meeting_setting"]) {
+      expect(transition(agents, { stage }, { type: "number_added", slot: 3 }, bstaff).ok).toBe(
+        false,
+      );
+    }
+  });
+
+  it("PA-3: Contacted / Meeting setting / Lost behave like PP-3, context per origin", () => {
+    const fu = expectOk(transition(agents, { stage: "lead" }, act("contacted"), bstaff));
+    expect(fu.toStage).toBe("contacted");
+    expect(fu.requiredGroup).toEqual({ group: "follow_up", context: "initial" });
+    expect(fu.logTrigger).toBe("PA-3");
+
+    const afterMeeting = expectOk(
+      transition(agents, { stage: "meeting_setting" }, act("contacted"), bstaff),
+    );
+    expect(afterMeeting.requiredGroup).toEqual({ group: "follow_up", context: "after_meeting" });
+
+    const meet = expectOk(transition(agents, { stage: "lead" }, act("meeting_setting"), bstaff));
+    expect(meet.requiredGroup).toEqual({ group: "meeting" });
+    expect(meet.logTrigger).toBe("PA-3");
+
+    for (const stage of ["lead", "contacted", "didnt_answer", "meeting_setting"]) {
+      const lost = expectOk(transition(agents, { stage }, act("lost"), bstaff));
+      expect(lost.toStage).toBe("lost");
+      expect(lost.requiredGroup).toEqual({ group: "lost" });
+      expect(lost.logTrigger).toBe("PA-3");
+    }
+  });
+
+  it("PA-4: Qualified requires the agent gate and mints the account", () => {
+    for (const stage of ["lead", "contacted", "didnt_answer", "meeting_setting"]) {
+      const r = expectOk(transition(agents, { stage }, act("qualified"), bstaff));
+      expect(r.toStage).toBe("qualified");
+      expect(r.requiredGroup).toEqual({ group: "won_agent" });
+      expect(r.sideEffects).toEqual(["create_agent"]);
+      expect(r.logTrigger).toBe("PA-4");
+    }
+  });
+
+  it("PA-4: a drag into Qualified is the same move as the action — same gate, same trigger", () => {
+    const dragged = expectOk(
+      transition(agents, { stage: "lead" }, { type: "drag", to: "qualified" }, bstaff),
+    );
+    const chosen = expectOk(transition(agents, { stage: "lead" }, act("qualified"), bstaff));
+    expect(dragged.toStage).toBe(chosen.toStage);
+    expect(dragged.requiredGroup).toEqual(chosen.requiredGroup);
+    expect(dragged.sideEffects).toEqual(chosen.sideEffects);
+    expect(dragged.logTrigger).toBe(chosen.logTrigger);
+  });
+
+  it("PA-5 + ADR-010: attended destinations are Contacted / Qualified / Lost", () => {
+    expect(agents.attendedDestinations("bsystems_admin")).toEqual([
+      "contacted",
+      "qualified",
+      "lost",
+    ]);
+
+    const toContacted = expectOk(
+      transition(
+        agents,
+        { stage: "meeting_setting" },
+        { type: "meeting_outcome", outcome: "attended", destination: "contacted" },
+        bstaff,
+      ),
+    );
+    expect(toContacted.requiredGroup).toEqual({ group: "follow_up", context: "after_meeting" });
+    expect(toContacted.logTrigger).toBe("PA-3"); // ADR-021: the owning pipeline's row id
+
+    const toQualified = expectOk(
+      transition(
+        agents,
+        { stage: "meeting_setting" },
+        { type: "meeting_outcome", outcome: "attended", destination: "qualified" },
+        bstaff,
+      ),
+    );
+    expect(toQualified.requiredGroup).toEqual({ group: "won_agent" });
+    expect(toQualified.sideEffects).toContain("create_agent");
+
+    /* no proposals stage, and the partner pipeline's own keys are not stages
+       here — both must be refused */
+    for (const bad of ["sending_proposal", "following_up", "won"]) {
+      const r = transition(
+        agents,
+        { stage: "meeting_setting" },
+        { type: "meeting_outcome", outcome: "attended", destination: bad },
+        bstaff,
+      );
+      expect(r.ok).toBe(false);
+    }
+
+    const delayed = expectOk(
+      transition(
+        agents,
+        { stage: "meeting_setting" },
+        { type: "meeting_outcome", outcome: "delayed" },
+        bstaff,
+      ),
+    );
+    expect(delayed.toStage).toBe("meeting_setting");
+    expect(delayed.requiredGroup).toEqual({ group: "meeting_reschedule" });
+    expect(delayed.logTrigger).toBe("PA-3");
+
+    for (const dest of ["contacted", "lost"]) {
+      const cancelled = expectOk(
+        transition(
+          agents,
+          { stage: "meeting_setting" },
+          { type: "meeting_outcome", outcome: "cancelled", destination: dest },
+          bstaff,
+        ),
+      );
+      expect(cancelled.toStage).toBe(dest);
+    }
+    expect(
+      transition(
+        agents,
+        { stage: "meeting_setting" },
+        { type: "meeting_outcome", outcome: "cancelled", destination: "qualified" },
+        bstaff,
+      ).ok,
+    ).toBe(false);
+  });
+
+  it("illegal: the partner vocabulary is not available on an agent card", () => {
+    for (const action of ["following_up", "won"]) {
+      const r = transition(agents, { stage: "lead" }, act(action), bstaff);
+      expect(r.ok).toBe(false);
+      expect(!r.ok && r.code).toBe("unknown_action");
+    }
+    /* a card stranded on a stage this board no longer has cannot be operated */
+    for (const dead of ["following_up", "won"]) {
+      const r = transition(agents, { stage: dead }, act("lost"), bstaff);
+      expect(r.ok).toBe(false);
+      expect(!r.ok && r.code).toBe("event_invalid_for_stage");
+    }
+    expect(agents.stages).not.toContain("won");
+    expect(agents.stages).not.toContain("following_up");
+  });
+
+  it("qualified and lost are terminal — no further transitions, no next actions", () => {
+    for (const stage of ["qualified", "lost"]) {
+      const r = transition(agents, { stage }, act("contacted"), bstaff);
+      expect(r.ok).toBe(false);
+      expect(!r.ok && r.code).toBe("terminal_stage");
+      expect(agents.nextActions(stage, "bsystems_admin")).toEqual([]);
+    }
+  });
+
+  it("same-stage records hang on the AGENT's own slots", () => {
+    expect(agents.nextActions("contacted", "bsystems_admin")).toContain("follow_up_again");
+    const again = expectOk(
+      transition(agents, { stage: "contacted" }, act("follow_up_again"), bstaff),
+    );
+    expect(again.fromStage).toBe("contacted");
+    expect(again.toStage).toBe("contacted");
+    expect(again.requiredGroup).toEqual({ group: "follow_up", context: "initial" });
+    expect(again.logTrigger).toBe("FU-AGAIN");
+
+    const resched = expectOk(
+      transition(agents, { stage: "meeting_setting" }, act("reschedule_meeting"), bstaff),
+    );
+    expect(resched.requiredGroup).toEqual({ group: "meeting" });
+    expect(resched.logTrigger).toBe("MTG-RESCHEDULE");
+
+    /* the same-stage form must resolve through the SLOT, never a literal key */
+    expect(agents[SAME_STAGE_FORM_SLOT.follow_up_again]).toBe("contacted");
+    expect(partners[SAME_STAGE_FORM_SLOT.follow_up_again]).toBe("following_up");
+    expect(agents[SAME_STAGE_FORM_SLOT.reschedule_meeting]).toBe("meeting_setting");
+  });
+});
+
+/* The slot-derivation refactor rewrote nextActions / attendedDestinations /
+   terminalStages for BOTH kinds. This is the regression net: the partner board
+   the founder did not ask us to touch must return byte-identical sets. */
+describe("The partner pipeline is unchanged (§10.2 regression net)", () => {
+  const bstaff: { role: Role } = { role: "bsystems_admin" };
+
+  it("stages, terminal stages and slots are exactly what they were", () => {
+    expect(partners.stages).toEqual(PARTNER_STAGES);
+    expect(partners.stages).toEqual([
+      "lead",
+      "didnt_answer",
+      "following_up",
+      "meeting_setting",
+      "won",
+      "lost",
+    ]);
+    expect(partners.terminalStages).toEqual(["won", "lost"]);
+    expect(partners.followUpStage).toBe("following_up");
+    expect(partners.wonStage).toBe("won");
+    expect(partners.wonRequiredGroup).toEqual({ group: "won_partner" });
+    expect(partners.wonSideEffect).toBe("create_partner");
+  });
+
+  it("next actions and attended destinations are the exact arrays they always were", () => {
+    expect(partners.nextActions("lead", bstaff.role)).toEqual([
+      "didnt_answer",
+      "following_up",
+      "meeting_setting",
+      "won",
+      "lost",
+    ]);
+    expect(partners.nextActions("following_up", bstaff.role)).toEqual([
+      "didnt_answer",
+      "following_up",
+      "meeting_setting",
+      "won",
+      "lost",
+      "follow_up_again",
+    ]);
+    expect(partners.nextActions("meeting_setting", bstaff.role)).toEqual([
+      "didnt_answer",
+      "following_up",
+      "meeting_setting",
+      "won",
+      "lost",
+      "reschedule_meeting",
+    ]);
+    expect(partners.nextActions("won", bstaff.role)).toEqual([]);
+    expect(partners.nextActions("lost", bstaff.role)).toEqual([]);
+    expect(partners.attendedDestinations(bstaff.role)).toEqual(["following_up", "won", "lost"]);
+  });
+
+  it("the agent vocabulary is not available on a partner card", () => {
+    for (const action of ["contacted", "qualified"]) {
+      const r = transition(partners, { stage: "lead" }, act(action), bstaff);
+      expect(r.ok).toBe(false);
+      expect(!r.ok && r.code).toBe("unknown_action");
+    }
   });
 });
 

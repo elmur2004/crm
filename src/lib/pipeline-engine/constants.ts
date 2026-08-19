@@ -52,6 +52,22 @@ export const PARTNER_STAGES = [
 ] as const;
 export type PartnerStage = (typeof PARTNER_STAGES)[number];
 
+/* Founder: "agents stages : lead , contacted , didn't answer , meeting settting ,
+   qualified , lost , when he is in qualified he becomes an agent". The AGENT
+   cards on the Partners & Agents board run their OWN stage vocabulary on the
+   SAME engine (ADR-057): `contacted` plays the follow-up role and `qualified`
+   plays the Won role — the account gate. This array IS the board's column
+   order, exactly as the founder dictated it. */
+export const AGENT_STAGES = [
+  "lead",
+  "contacted",
+  "didnt_answer",
+  "meeting_setting",
+  "qualified",
+  "lost",
+] as const;
+export type AgentStage = (typeof AGENT_STAGES)[number];
+
 /* V2 (ADR-030): the unified B-Systems CRM pipeline — negotiation is NEW. */
 export const BSYSTEMS_STAGES = [
   "new",
@@ -72,6 +88,9 @@ export const STAGE_LABELS: Record<string, string> = {
   meeting_setting: "Meeting Setting",
   sending_proposal: "Sending Proposals",
   negotiation: "Negotiation",
+  /* agent pipeline (ADR-057) — no collision: no other pipeline uses these keys */
+  contacted: "Contacted",
+  qualified: "Qualified",
   won: "Won",
   lost: "Lost",
 };
@@ -141,7 +160,18 @@ export function isSameStageAction(action: string): action is SameStageAction {
   return (SAME_STAGE_ACTIONS as readonly string[]).includes(action);
 }
 
-/** The stage whose field group a same-stage action reuses (drives the forms). */
+/** The config SLOT whose field group a same-stage action reuses (drives the
+    forms). A slot, not a stage key: the agent pipeline's follow-up stage is
+    `contacted`, so a literal map would render an empty form on agent cards
+    (ADR-057). Read it as `config[SAME_STAGE_FORM_SLOT[action]]`. */
+export const SAME_STAGE_FORM_SLOT: Record<SameStageAction, "followUpStage" | "meetingStage"> = {
+  follow_up_again: "followUpStage",
+  negotiation_follow_up: "followUpStage",
+  reschedule_meeting: "meetingStage",
+};
+
+/** @deprecated Use SAME_STAGE_FORM_SLOT against the card's own config — this
+    literal map is only correct for pipelines whose slots hold these keys. */
 export const SAME_STAGE_FORM_TARGET: Record<SameStageAction, string> = {
   follow_up_again: "following_up",
   negotiation_follow_up: "following_up",

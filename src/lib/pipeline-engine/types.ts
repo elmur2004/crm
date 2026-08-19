@@ -91,4 +91,14 @@ export interface PipelineConfig {
   wonRoles: readonly Role[] | null; // null = any role with pipeline access
   wonRequiredGroup: RequiredGroup | null;
   wonSideEffect: SideEffectKind | null;
+  /** SPEC §10 row ids this pipeline stamps on the ActivityLog (T-10). Optional:
+      omitted means the historic per-kind defaults. ADR-057 gives the agent
+      variant of the partners pipeline its own §10.2a ids (PA-*) so each
+      normative row has a trigger to assert on. */
+  triggers?: {
+    didntAnswer?: string; // PP-1 / PA-1
+    numberAdded?: string; // PP-2 / PA-2
+    generic?: string; // PP-3 / PA-3
+    won?: string; // PP-4 / PA-4
+  };
 }
