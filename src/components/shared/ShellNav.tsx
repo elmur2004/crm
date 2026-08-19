@@ -44,12 +44,26 @@ export function ShellNav({
 
   useEffect(() => setOpen(false), [pathname]); // navigating closes the sheet
 
+  /* Measured off the ITEMS' fractional rects, never off scrollWidth/clientWidth:
+     those are integer-rounded, so at a fractional browser zoom (90%, 110%) a
+     label clipped by up to 1px yielded max = 0 — no chevron, no fade, silently
+     truncated text. That is exactly the founder's "Registrations → Regi"
+     screenshot coming back at a zoom step. getBoundingClientRect is sub-pixel,
+     and comparing the content's edges with the strip's box also removes the
+     scrollLeft sign handling that RTL needed. */
   const measure = useCallback(() => {
     const el = stripRef.current;
     if (!el) return;
-    const max = el.scrollWidth - el.clientWidth;
-    const pos = Math.abs(el.scrollLeft); // distance from the LOGICAL start
-    setFade({ start: max > 1 && pos > 1, end: max > 1 && pos < max - 1 });
+    const kids = [...el.children].map((c) => c.getBoundingClientRect());
+    if (kids.length === 0) return setFade({ start: false, end: false });
+    const box = el.getBoundingClientRect();
+    const hiddenLeft = box.left - Math.min(...kids.map((r) => r.left));
+    const hiddenRight = Math.max(...kids.map((r) => r.right)) - box.right;
+    const rtl = getComputedStyle(el).direction === "rtl";
+    setFade({
+      start: (rtl ? hiddenRight : hiddenLeft) > 0.5,
+      end: (rtl ? hiddenLeft : hiddenRight) > 0.5,
+    });
   }, []);
 
   useEffect(() => {

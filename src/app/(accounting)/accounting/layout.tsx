@@ -70,7 +70,14 @@ export default async function AccountingShellLayout({
           </form>
         </div>
       </header>
-      <main className="page max-w-7xl mx-auto w-full">{children}</main>
+      {/* ADR-056: the full-width query container the board measures itself
+          against. `50cqw` is the content width EXCLUDING the scrollbar —
+          the quantity `50vw` cannot express — so the full-bleed board is
+          pixel-exact at every browser zoom. Drop this wrapper and the
+          board silently falls back to the old vw arithmetic. */}
+      <div className="shell-body">
+        <main className="page max-w-7xl mx-auto w-full">{children}</main>
+      </div>
       <UndoControl userId={user.id} />
     </ModuleBrandScope>
   );

@@ -1994,3 +1994,199 @@ R23 copy sign-off — carried in PROGRESS (Entry 011).
     ownerTypeForRole itself is still untouched, so the roster still
     excludes admins.
 - Status: Accepted
+
+## ADR-056 — 2026-08-19 — Drag by a handle on touch; layout arithmetic leaves viewport units behind
+- Context: two founder reports on the same day, both about the SAME class of
+  mistake — a layout rule written against a quantity that is not the one the
+  browser actually uses.
+  (A) On his phone: "the scroller of the columns and the CRM is not working —
+  when I try to scroll using the cards it drags the card. I should have a
+  button to drag the card, otherwise I'm just scrolling even if I'm touching
+  the card... I cannot reach the leads under the column because I cannot
+  scroll."
+  (B) On his desktop: "when I zoom in and out the UI gets so scattered."
+  (A) traced to `touch-action: none`, which dnd-kit requires on a drag
+  activator, sitting on the CARD — and cards cover the whole board, so the
+  column's inner scroll, the board's horizontal scroll and page-scroll chaining
+  all died on the same rule. (B) traced to `.board`'s full-bleed breakout being
+  written in `vw`: `100vw` INCLUDES the classic scrollbar, the space the page
+  can actually use does not, and Chromium keeps that scrollbar at a fixed
+  PHYSICAL thickness — 15/zoom CSS px. The `+8px` fudge cancelled it at exactly
+  100% zoom and nowhere else.
+- Decision, part A — DRAG BY A HANDLE ON TOUCH; A MOUSE STILL DRAGS THE CARD.
+  · Every board card gains `<CardGrip>` (src/components/shared/CardGrip.tsx):
+    a real `<button type="button">`, **26 x 44px centred on the card's inline
+    end**, labelled by a NEW i18n key `common.dragHandle` ("Drag to move this
+    card" / Arabic). It is the ONLY element in the app's own CSS allowed
+    `touch-action: none`, and it is therefore BOUNDED IN BOTH AXES. It first
+    shipped as a full-card-height rail; review round (below) showed that
+    stacked cards turn a full-height rail into one unbroken 26px-wide
+    no-scroll strip running the entire length of the column — on a 390px phone
+    it begins at the horizontal centre of the screen and runs down the
+    right-thumb zone, so a thumb landing in it still cannot scroll (the
+    founder's own bug, at 12% of the width) and past the sensor's 6px it
+    becomes an unasked-for stage move. 26 x 44 clears WCAG 2.5.8's 24px
+    minimum on both axes, hits the 44px thumb target, and cuts the dead area
+    by about three quarters.
+  · The card is an ordinary surface again: `touch-action: manipulation`, which
+    permits BOTH pans and pinch-zoom and only drops the double-tap-zoom delay
+    on the card's tap-to-open. NOT `pan-y` — measured to kill the board's
+    horizontal pan — and NOT `pan-x pan-y`, which would forbid the pinch-zoom
+    the app's default viewport otherwise allows.
+  · The card shell keeps dnd-kit's listeners but GATED TO A MOUSE
+    (`useMouseOnlyListeners`): `pointerType !== "mouse"` returns before the
+    sensor ever sees the event. Desktop behaviour is unchanged — whole-card
+    drag, whole-card click-to-open, and the post-drop click suppression.
+    PEN falls on the touch side of that gate deliberately: a pen obeys
+    `touch-action` exactly like a finger, so letting it drag the whole card
+    would re-create the founder's bug on a stylus tablet.
+  · The grip lives inside each board's CardBody, not in the draggable shell, so
+    the DragOverlay clone is pixel-identical to the card it replaces and nothing
+    reflows under the finger at pick-up. The clone passes no `drag` prop: its
+    grip is inert and `tabIndex={-1}`, so the `aria-hidden` clone adds no second
+    button to the accessibility tree.
+  · The card div no longer spreads dnd-kit's `attributes`, so it loses
+    `role="button"` / `tabIndex=0`. That is a net a11y gain — a role=button div
+    full of links and buttons was invalid, and the card had no key handler
+    anyway; the `.bcard-name` link remains the keyboard path.
+- Decision, part B — NO VIEWPORT UNITS IN LAYOUT ARITHMETIC THAT MUST AGREE
+  WITH THE SCROLLABLE CONTENT AREA. Use container query units.
+  · The four app shells wrap `<main class="page">` in `<div class="shell-body">`,
+    which is `container-type: inline-size`. `.board`'s breakout becomes
+    `margin-inline: calc(50% - 50cqw)` and
+    `padding-inline: max(var(--page-pad), calc(50cqw - 640px + var(--page-pad)))`.
+    `cqw` resolves against the container's CONTENT box, which EXCLUDES the
+    scrollbar — the quantity `vw` cannot express. The ±8px fudge is deleted. The
+    old vw pair stays ABOVE the cqw pair as a legacy fallback: an engine without
+    container query units keeps today's behaviour instead of breaking.
+  · MEASURED in real Chromium with real scrollbars (Playwright launched with
+    `ignoreDefaultArgs: ['--hide-scrollbars']`), 1440 device px, before and
+    after, at zoom 25/50/67/80/90/100/125/150/200/300%:
+      page overflow  BEFORE +22 / +7 / +3 / +2 / +1 / 0 / 0 / 0 / 0 / +48
+                     AFTER    0 at every step
+      board.left     BEFORE −22 / −7 / −3 / −1.5 / −0.5 / +0.5 / +2 / +3 / +4 / +5.5
+                     AFTER    0.00 at every step
+      first column − page title
+                     BEFORE 0 on the wide branch, −6 / −5 / −4 / −2.5 at 125-300%
+                     AFTER    0.00 at every step
+      and the board slid 15.0px sideways at 50% zoom (7.5 at 100%, 5.0 at 150%)
+      purely because the page grew long enough to scroll. AFTER: 0.
+  · Both visual intents survive: the board still fills the viewport, and its
+    columns still start at the centered content edge.
+- Decision, part C — THE COLUMN CAP IS DERIVED FROM THE CARD, NOT FROM vh
+  ALONE. `.col-cards` was `max-height: min(62vh, 510px)` — the founder's "about
+  five cards" written in viewport units against a fixed-px card. MEASURED, it
+  showed 2.54 cards at 100% zoom, 1.26 at 200% and 0.83 at 300%: at high zoom a
+  column could not display ONE whole card. It is now
+  `clamp(2 tall cards + gap + padding, 62vh, 5 reference cards + 4 gaps +
+  padding)` — a **429px floor and a 928px ceiling** with today's values. It is
+  still a hard cap, so the endless column he asked us to kill cannot return.
+  · THE TWO ENDS ARE SIZED FROM DIFFERENT CARDS, on purpose, because their
+    directions of safety are opposite. Measured in Chromium on the shipped CSS
+    at a 218px column, on the richest card in the app (B-Systems: name +
+    company + owner chip + Call + WhatsApp + the meta row's two buttons):
+    **186.3px** as it renders with a one-line name, **190.4px** with the name
+    at its 2-line clamp, **202.4px** with a long key datum on top.
+    `--bcard-h: 176px` sizes the CEILING and is deliberately SHORTER than any
+    of those: a ceiling written against the tallest card would let the box
+    grow to nearly six ordinary cards, i.e. weaker capping. `--bcard-h-max:
+    204px` sizes the FLOOR, for the mirror reason — a floor written against a
+    short card shows a sliver LESS than two whole cards the moment a name
+    wraps, which is the common case. The first cut used one constant (176px)
+    for both and called it "the richest card"; it was not — the seeded
+    B-Systems card already measured 186.3px, so the floor delivered 1.94 cards,
+    not two. Caught in review, measured, split.
+    NOT a mathematical guarantee: `.bcard-meta` carries no line clamp, so a
+    freakishly long key datum can still beat 204px.
+  · THE MIDDLE IS "UNCHANGED" ONLY INSIDE A BAND — 62vh rules while the
+    viewport is 692px to 1497px tall. The founder's 1440x760 monitor at 100%
+    is inside it (62vh = 471px), which is the whole of the "nothing moves at
+    your usual zoom" claim: it is about HIS zoom, not every screen. Outside the
+    band an end takes over — the floor from roughly 1.1x zoom in, the ceiling
+    only above ~1500 CSS px of viewport height, where the column IS taller than
+    the old flat 510px ceiling (558px at 1440x900, 893px at 2560x1440). That is
+    the fix and not a regression: 510px was 2.9 cards and he asked for five.
+  · THE FLOOR IS A FLOOR ON THE COLUMN BOX, NOT ON WHAT FITS THE SCREEN. Past
+    about 2x zoom the viewport is itself shorter than two cards (380px at 200%,
+    253px at 300% on his monitor), so the second card is reached by scrolling
+    the PAGE. Rejected in review: capping the floor to the viewport
+    (`min(429px, 100vh − chrome)`). At 300% that resolves to well under one
+    card and hands straight back the 0.83-of-a-card column this rule exists to
+    delete — a strictly worse answer than the one it "fixes".
+- Alternatives considered:
+  · A LONG-PRESS to start a touch drag (dnd-kit TouchSensor + delay) instead of
+    a handle — rejected: the founder asked for a button in words, a hidden
+    250ms gesture is undiscoverable, and it still needs `touch-action: none` on
+    the card, which is the actual bug.
+  · Padding-relative bleed (`margin-inline: calc(-1 * var(--page-pad))`) —
+    measured exact at every zoom and needs no wrapper div, but it caps the board
+    at the 1280px content column: board.left 0.5 → 80 and width 1424 → 1280 on a
+    1440 monitor, roughly 1280px of scroll rail lost on a 2560 monitor. Rejected
+    — the founder explicitly asked for the opposite ("the board fills the whole
+    page, not the centered column").
+  · `container-type` on `body` in globals.css (zero layout edits, also measured
+    correct) — rejected in favour of an explicit wrapper: an implicit
+    whole-document query container is invisible to the next engineer.
+  · `scrollbar-gutter: stable both-edges` on `html`, which would also remove the
+    residual sideways shift of the CENTERED column (not just the board) when a
+    page starts or stops scrolling — NOT SHIPPED. It permanently reserves
+    15/zoom px on BOTH sides of every page at every width (a 30px dead strip at
+    100% on a 1440 monitor) and is far too founder-visible to adopt unasked.
+    Flagged for confirmation in PROGRESS.
+  · DELIBERATELY LEFT, from the ranked zoom-fragility list, with reasons:
+    (1) `.login-pane { padding: 56px clamp(32px, 6vw, 84px) }` in neutral.css —
+    the sign-in gutter widens as the CSS viewport widens, which is the same
+    responsive behaviour as the breakpoint ladder, on one screen, with no
+    overflow and nothing to line up against. (2) `.nav-sheet` / its backdrop
+    pinned at `top: 54px` with `max-height: calc(100vh - 54px)` — correct
+    against the <=820px header height, but the ImpersonationBar sits ABOVE the
+    header, so while impersonating the sheet covers the header instead of
+    hanging off it. Real, not zoom-related, and unpicking the constant means
+    threading a header-height custom property through all four shells; it would
+    have put the burger sheet and the mobile-menu tests at risk inside a commit
+    about zoom. (3) `.modal { max-height: 90vh }` — expected to clip its head or
+    foot at high zoom, MEASURED at 100/150/200/250/300%: clippedTop 0 and
+    clippedBottom 0 every time. Not a bug; do not "fix" it.
+  · "Fixing" the responsive breakpoint ladder so zooming to 176% does not turn
+    the desktop nav into a burger — DELIBERATELY NOT DONE. Browser zoom shrinks
+    the CSS viewport, so crossing a breakpoint is the responsive system working
+    exactly as designed, and suppressing it would break the founder's own rule
+    that every feature stays reachable at any width.
+- Resolves: — (two founder directives, 2026-08-19; no SPEC §11 A-#)
+- Consequences:
+  · A card is 22px narrower inside (a 34px inline-end gutter for the rail, and
+    only on cards that HAVE a rail — `.bcard:has(> .bcard-grip)`, so the
+    read-only mini board on the Agents page keeps its full width). Names and
+    subtitles are already 2-line clamped and the chips row already wraps, so
+    nothing overflows, but rich cards run one line taller.
+  · The three existing mouse drag helpers that grab `card.width - 10` now land
+    INSIDE the 26px rail, so they exercise the handle path; journey3 and the
+    whole-card open tests grab `.bcard-rep` and exercise the mouse path. The new
+    spec pins the rail's width so shrinking it cannot silently drop that
+    coverage.
+  · A missing `.shell-body` wrapper does not error — `50cqw` falls back to the
+    viewport size, i.e. straight back to the old bug. e2e/zoom.spec.ts asserts
+    the container per route (A10) precisely because that failure is silent.
+  · Columns are TALLER than before at ≥110% zoom (a 429px floor against 236px at
+    200%), so board pages that used to fit the window at high zoom now scroll
+    vertically. That is the right trade: two readable cards beat one clipped one.
+    They are also taller on a screen over ~1500 CSS px tall, where the ceiling
+    (928px) sits above the old flat 510px one — see part C.
+  · TESTS MAY NOT PIN THE CAP TO A LITERAL. `min(62vh, 510px)` made
+    `clientHeight <= 520` true at every viewport height; `clamp(429px, 62vh,
+    928px)` does not (62vh alone passes 520 above an 839px-tall viewport, and
+    the suite already runs specs at 900px). e2e/byteforce-board.spec.ts derives
+    the clamp from the `--bcard-h` / `--bcard-h-max` / `--bcard-gap` /
+    `--col-cards-pad-b` custom properties the CSS itself declares, so it is
+    viewport-independent; e2e/zoom.spec.ts A6 measures a LIVE `.bcard` and now
+    seeds names that WRAP to the 2-line clamp, so its live oracle and the frozen
+    px constant cannot drift apart in silence again.
+  · The module switcher now leaves the header at ≤600px instead of ≤400px. It is
+    a rigid 307px strip inside a `flex: none` cluster, so between roughly 400px
+    and 555px the HEADER pushed the whole page sideways (+48px at a 480px
+    viewport = 300% zoom on a 1440 monitor). qa-sweep samples 560 and 390 and
+    stepped straight over that band. It rides into the sheet with Log out.
+  · The nav slider's overflow test is measured off the items' fractional rects
+    instead of integer `scrollWidth - clientWidth`, so a label clipped by under
+    1px at a fractional zoom no longer hides the chevron.
+- Status: Accepted

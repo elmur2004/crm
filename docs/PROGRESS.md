@@ -2175,3 +2175,136 @@ comment, and the ADR-013 mechanism note all fixed; .env.example confirmed tracke
   take one back and check the lead page reads "Admins · <your name>";
   press Undo on the header afterwards.
 - Blockers: none.
+
+## Entry 050 — 2026-08-19 — Two founder fixes: a drag handle for touch, and a zoom-proof layout
+
+- Done: two founder reports, one session, two commits (ADR-056).
+  (A) "in the mobile interface, the scroller of the columns and the CRM is not
+  working — when I try to scroll using the cards it drags the card. I should
+  have a button to drag the card... I cannot reach the leads under the column
+  because I cannot scroll."
+  · NEW src/components/shared/CardGrip.tsx — `<CardGrip>` (a real
+    `<button type="button">`, 26 x 44px centred on the card's inline end, six
+    dots, aria-label from the new `common.dragHandle` key, EN + AR) and
+    `useMouseOnlyListeners()`, which gates dnd-kit's `onPointerDown` to
+    `pointerType === "mouse"`.
+  · BsBoard / InternalBoard / PartnersBoard — the card body renders the grip
+    (so the DragOverlay clone is identical to the card it replaces and nothing
+    reflows at pick-up); the shell keeps the gated listeners and drops
+    `{...attributes}` and `touch-none`. The clone passes no `drag` prop, so its
+    grip is inert and `tabIndex={-1}` inside the existing `aria-hidden` wrapper.
+  · design-system.css — `.bcard` gains `position: relative` and
+    `touch-action: manipulation`; `.bcard:has(> .bcard-grip)` gains the 34px
+    inline-end gutter (so the Agents page's read-only mini board is untouched);
+    the new `.bcard-grip` rule is the ONE place in the app allowed
+    `touch-action: none`; `.board` gains `overscroll-behavior-x: contain` so
+    panning columns cannot trigger the OS edge-swipe back.
+  (B) "when I zoom in and out the UI gets so scattered."
+  · The four app shells wrap `<main class="page">` in `<div class="shell-body">`
+    (`container-type: inline-size`), and `.board`'s full-bleed breakout is
+    rewritten in `cqw` — the content width EXCLUDING the scrollbar, which is the
+    quantity `vw` cannot express. The ±8px scrollbar fudge is deleted; the old
+    vw pair stays above as a legacy fallback.
+  · `.col-cards`'s cap becomes `clamp(2 TALL cards + gap + padding, 62vh,
+    5 REFERENCE cards + 4 gaps + padding)` off `--bcard-h-max` / `--bcard-h` /
+    `--bcard-gap` / `--col-cards-pad-b` (429px floor, 928px ceiling).
+  · Swept from the ranked list: `.undo-fab`'s `100vw` (scrollbar-inclusive) →
+    `100%`, which for a fixed element excludes it; `.acct-hero-value`'s
+    `clamp(36px, 6vw, 60px)` → `6cqi` against the hero card itself, so the
+    figure keeps its proportion to its own px-sized label across the zoom range.
+  · Two defects the new spec FOUND: the header's module switcher pushed the page
+    48-64px sideways between ~400px and ~555px (BUG-010 — it now leaves the
+    header at ≤600px, riding into the sheet with Log out), and ShellNav's
+    integer `scrollWidth - clientWidth` hid the slider chevron when a label was
+    clipped by under 1px at a fractional zoom (BUG-011 — measured off the items'
+    fractional rects now, with logical start/end from `direction`).
+- Verification: tsc clean on both commits. vitest 284/284 (unchanged — neither
+  commit touches a service). Playwright, three targeted runs, all
+  `.last-run.json` `"status": "passed"`: commit 1's board set 15/15; commit 2's
+  zoom + nav + board set 18/18; commit 2's blast-radius set (qa-sweep, the two
+  portal journeys, accounting, vault, undo, impersonation) 23/23. BOTH new specs
+  were seen RED first — e2e/board-touch.spec.ts measured scrollTop 0 with
+  `touch-action: none` back on the card, and e2e/zoom.spec.ts failed at the 50%
+  and 80% zoom models with +7px and +2px of real horizontal page overflow before
+  the CSS change. Full numbers in TESTING Run 053.
+- Review round + FULL GATE on the final tree (folded into both commits, no new
+  ADR — ADR-056, IMPLEMENTATION and BUG-009 amended in place). Six findings
+  adjudicated against the code; four fixed, two refuted:
+  · FIXED — `--bcard-h: 176px` was documented as "the RICHEST card" and was not.
+    Measured in the real app: the seeded B-Systems card is 186.3px, 190.4px with
+    the name at its 2-line clamp, 202.4px with a long key datum too. Split into
+    `--bcard-h` (176px, sizes the CEILING, deliberately short) and
+    `--bcard-h-max` (204px, sizes the FLOOR) — floor 373px → **429px**. A6 now
+    seeds names that WRAP, so its live-card oracle and the frozen constant
+    cannot drift apart in silence again.
+  · FIXED — the grip was a full-card-height rail, so stacked cards made one
+    unbroken 26px `touch-action: none` strip down the whole column, starting at
+    the horizontal centre of a 390px phone. 26 x 44px centred now; a new
+    assertion caps its height at half a card, and a new gesture proves the
+    gutter beside it scrolls.
+  · FIXED — e2e/board-touch.spec.ts reset the column with `el.scrollTop = 0`
+    between two touch gestures, which can swallow the next swipe that starts
+    inside that scroller. Real `touchSwipe` resets, live geometry for every
+    sample point.
+  · FIXED — e2e/byteforce-board.spec.ts asserted `clientHeight <= 520`, true
+    under the old flat 510px ceiling at any viewport and true today only because
+    this file happens to run at 1280x720. It derives the clamp from the CSS's
+    own custom properties now.
+  · REFUTED — "the ceiling moving 510px → 928px is a regression". It is the fix:
+    510px was 2.9 cards and the founder asked for about five. Comment and
+    CHANGELOG now state the 692-1497px band inside which "the middle is
+    unchanged" is true.
+  · REFUTED — "cap the floor to the viewport so the column always fits the
+    screen". At 300% that resolves to well under one card, i.e. exactly the
+    0.83-of-a-card column BUG-009 exists to delete. The floor is a floor on the
+    column BOX; past ~2x the screen is shorter than two cards and the page
+    scrolls. Wording corrected instead.
+  Gate on the final tree: `npx tsc --noEmit` clean · vitest **284/284**, 23
+  files · FULL Playwright **59 passed / 2 skipped** (the audit opt-ins),
+  `.last-run.json` `"status": "passed"`, `failedTests: []`, 9.1m. Brand audit
+  PASS on the changed surfaces (no hex/font-family added, tokens only, logical
+  properties throughout — `inset-inline-end` / `inset-block` / `margin-block`).
+  TESTING Run 054.
+- Needs founder confirmation:
+  (i) THE CENTRED COLUMN STILL SHIFTS BY HALF A SCROLLBAR. The BOARD's jump is
+  gone. What remains is that every page's centred content moves by SB/2 —
+  7.5px at 100% zoom, 15px at 50% — when a page grows long enough to gain a
+  vertical scrollbar (or short enough to lose one). One line fixes it,
+  `html { scrollbar-gutter: stable both-edges }`, and the cost is a permanent
+  reserved strip of 15/zoom px on BOTH sides of EVERY page at every width — a
+  30px dead band at 100% on a 1440 monitor, taken out of content. We did not
+  ship it unasked. Say the word and it is one line.
+  (ii) THE COLUMN CAP'S SIZE. The floor and ceiling are now honest (never
+  shorter than two whole cards, never more than about five). The MIDDLE is still
+  62vh, which on a normal laptop window resolves to ~471px — about 2.5 of the
+  richest cards, or 3.2 of the lighter ByteForce ones. So "about five cards" is
+  what you get when you zoom OUT, not at your usual zoom. If you want five cards
+  at normal zoom, that is one number: drop 62vh and let the ceiling
+  (5 cards = 928px) rule. It will make a full column about twice as tall as it
+  is today. Two consequences that ARE already live and worth knowing: on a
+  screen taller than ~1500 points a full column is taller than it used to be
+  (558px at 1440x900, 893px at 2560x1440, against the old flat 510px), and past
+  about 200% zoom the column box is taller than the screen, so the second card
+  is reached by scrolling the page.
+  (iii) THE COMPANY SWITCHER LEAVES THE HEADER EARLIER. It used to stay in the
+  header down to 400px; it now moves into the burger menu below 600px, because
+  between roughly 400 and 555px it was pushing the whole page sideways. Nothing
+  is lost — it is in the menu, same as Log out — but the header looks different
+  on a narrow window and at 300% zoom.
+  (iv) A STYLUS NOW NEEDS THE GRIP, like a finger. A pen obeys the same browser
+  scrolling rules as a touch, so letting it drag the whole card would re-create
+  exactly the bug you reported. A mouse is unchanged.
+  (v) CARDS ARE 22px NARROWER INSIDE, to make room for the grip rail. Rich cards
+  (long company name + Call + WhatsApp + the two meta buttons) may run one line
+  taller — MEASURED since: the richest B-Systems card is 186.3px, 190.4px once
+  the name wraps to its second line, 202.4px with a long key datum as well.
+  Worth an eyes-on pass on all three boards, in English and Arabic.
+  Carried items from Entries 047, 048 and 049 remain open.
+- Next steps: founder test on the PHONE first — open /byteforce/crm with a long
+  column, swipe with a finger starting ON a card (the column should scroll),
+  swipe sideways (the board should slide), scroll past the bottom of a column
+  (the page should keep going), then drag one card to the next stage by the grip
+  on its edge. Then on the desktop: set the browser to 50%, 80% and 200% zoom on
+  a board page and check nothing runs off the side and the board does not move
+  when you filter it. Answer (i) and (ii) above and the rest is one line each.
+- Blockers: none.

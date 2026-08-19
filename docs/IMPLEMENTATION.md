@@ -790,3 +790,149 @@ moves 30px per press is not a broken animation — 30px was 70% of a strip
 squeezed to ~43px by the header's fixed logo + user cluster. `slide()` pages
 by `max(70% of the strip, 160px)` now, and the spec runs at a width where
 the strip has a workable share.
+
+## The touch-action trap: a drag activator is a scroll killer (2026-08-19)
+
+dnd-kit's PointerSensor needs `touch-action: none` on whatever starts a drag,
+because the browser would otherwise steal the gesture for panning. Put that on
+the CARD — which is what `bcard touch-none` did on all three boards — and you
+have told the browser "no pan may BEGIN here". Cards cover essentially the whole
+board, so on a phone that one declaration killed three scrolls at once: the
+column's own `overflow-y`, the board's `overflow-x`, AND the page-scroll
+chaining past the bottom of the column. The founder's report reads like three
+separate bugs; it is one line of CSS.
+
+Rules that follow, and the traps inside them:
+
+* `touch-action: none` belongs on a SMALL DEDICATED HANDLE and nowhere else.
+  `.bcard-grip` is the only place in `src/themes/design-system.css` that carries
+  it. Anything that inherits or expands that rule (a pseudo-element used to grow
+  the hit area, for instance) re-creates a dead scroll zone.
+* SMALL MEANS BOUNDED IN BOTH AXES, and the second axis is the one that gets
+  missed. The grip first shipped 26px wide by the FULL CARD HEIGHT — small in
+  the axis anyone thinks about, and in the other axis a strip that STACKS: with
+  a 9px gap between cards, a column of them is one effectively unbroken 26px
+  no-scroll band running the entire length of the column. Measured at 390px
+  with the shipped `--page-pad`, the card sits at x 23-221 and the band at
+  x 195-221 — it starts at the horizontal centre of the screen and runs down
+  the natural right-thumb zone. A 140px vertical swipe there leaves
+  `scrollTop` at 0 and emits `pointerdown, pointerup` with no `pointercancel`
+  (the browser never claims the gesture), against `pointerdown,
+  pointercancel` + `scrollTop 125` for the same swipe on the card body — the
+  founder's original report reproduced inside the thing that was supposed to
+  fix it, and past the sensor's `distance: 6` it is a real stage move, which on
+  a drop into New commits with no confirmation form at all. It is 26 x 44px
+  centred now (`inset-block: 0; margin-block: auto`), which clears WCAG 2.5.8
+  on both axes, hits the 44px thumb target and leaves a live scrollable gutter
+  above and below every grip. `e2e/board-touch.spec.ts` pins BOTH ends: the
+  grip's height must be ≥ 24px and ≤ half the card, and a swipe that starts in
+  the rail's own column but below the button must scroll the list.
+* On the card use `manipulation`, not `pan-y`. MEASURED with CDP touch events:
+  `none` gives scrollTop 0 / scrollLeft 0; `manipulation` and `pan-x pan-y` both
+  give 79 / 79; `pan-y` gives 79 / **0** — it silently kills the board's
+  horizontal pan, which is exactly the "plausible fix" someone will try next.
+  `manipulation` also keeps pinch-zoom, which the app's default Next viewport
+  allows.
+* The handle forwards dnd-kit's `onPointerDown` and THEN calls
+  `stopPropagation()`. Never `preventDefault()` there:
+  `bindActivatorToSensorInstantiator` bails on `nativeEvent.defaultPrevented`,
+  so preventing the default would kill the very drag the handle exists to start.
+  Binding the same activator to both the handle and its ancestor card is safe —
+  dnd-kit stamps `nativeEvent.dndKit` and ignores the bubbled second call.
+* The mouse gate reads `pointerType` off the REACT SYNTHETIC event, before the
+  sensor sees it. Never re-spread raw `listeners` onto the card div; that is the
+  regression `src/components/shared/CardGrip.tsx` exists to prevent, and it is
+  invisible on a desktop test run.
+* The grip is rendered by the card BODY, not by the draggable shell, because the
+  DragOverlay clone renders that body verbatim. A shell-only grip would make the
+  clone 26px wider in content than the card it replaces, so the clamped name and
+  the wrapping chips row would visibly re-flow under the founder's finger at the
+  instant of pick-up.
+* Playwright cannot swipe. `page.touchscreen` exposes only `tap()`, so a touch
+  PAN must be driven over CDP `Input.dispatchTouchEvent`
+  (touchStart / touchMove x N / touchEnd, then ~400ms for the fling to settle).
+  See `e2e/board-touch.spec.ts`.
+* NEVER RESET A SCROLLER PROGRAMMATICALLY BETWEEN TWO TOUCH GESTURES. An
+  `el.scrollTop = 0` assignment can leave the scroller in a state where the very
+  next touch sequence that STARTS INSIDE IT is swallowed — the same swipe scores
+  145 on a fresh page and 0 after the assignment, and is fine again on the
+  second try or when it starts outside the reset element. That makes the
+  assertion after it pass or fail for a reason that has nothing to do with the
+  CSS under test. Put the scroller back with the same `touchSwipe` helper (a
+  bounded loop, then assert `scrollTop === 0`) and re-read every box afterwards.
+  Sample points must come from LIVE geometry too: the fling decides how far the
+  column travelled, so a card picked by index can be half off screen by the time
+  you touch it — pick the card whose rect is provably inside the list.
+* dnd-kit AUTO-SCROLLS a scrollable ancestor while a drag hovers near its edge.
+  Any "dragging did not scroll the column" assertion is therefore only honest at
+  `scrollTop === 0` with an upward drag (or at the bottom with a downward one);
+  anywhere in the middle the auto-scroll is real and the test is measuring the
+  wrong thing.
+
+## The scrollbar / vw trap: `100vw` is not the width you can use (2026-08-19)
+
+`100vw` INCLUDES the classic scrollbar. `documentElement.clientWidth` does not.
+Chromium keeps that scrollbar at a fixed PHYSICAL thickness, so in CSS px it is
+`15 / zoom` — 30px at 50% zoom, 15px at 100%, 7.5px at 200%. Any layout rule that
+mixes `vw` with the space the page can actually use is therefore wrong at every
+zoom except the one it was tuned at, and its error CHANGES SIGN across the
+ladder.
+
+`.board`'s full-bleed breakout was `margin-inline: calc(50% - 50vw + 8px)`. The
+`+8px` cancels exactly one scrollbar (16 ≈ 2×8) at exactly 100% zoom. Everywhere
+else `overflow = SB/2 − 8` and `board.left = 8 − SB/2`: the page genuinely gained
+a horizontal scrollbar at every step below ~94%, and the board's start edge went
+off-screen (−7px at 50%, −22px at 25%). Worse, `SB` is 0 when the page does not
+scroll and 15/zoom when it does, so the WHOLE BOARD slid sideways by 7.5px at
+100% zoom (15px at 50%) the moment a filter or a new card made the page long
+enough to scroll. That lateral jump under a title that does not move is what
+"the UI gets so scattered" means.
+
+The fix is a unit that already means the right thing: `cqw` resolves against a
+container's CONTENT box, which excludes the scrollbar. `.shell-body` (a plain
+`<div>` the four shells wrap around `<main class="page">`) is
+`container-type: inline-size`, and the board's arithmetic is written in `cqw`
+with the old `vw` pair left above it as a legacy fallback.
+
+Traps to know before touching any of it again:
+
+* A MISSING WRAPPER DOES NOT ERROR. With no eligible container, `50cqw` falls
+  back to the small-viewport size — the same value `vw` gives — so the route
+  silently reverts to the bug. `e2e/zoom.spec.ts` asserts the container per
+  route (A10) for exactly this reason.
+* HEADLESS CHROMIUM HIDES SCROLLBARS. playwright-core pushes `--hide-scrollbars`
+  into every headless launch, so `100vw === clientWidth` in the suite and nowhere
+  else. That is why `qa-sweep.spec.ts` and `nav-slider.spec.ts` have asserted "no
+  horizontal overflow" for months while the founder's real Chrome overflowed by
+  7px at 50% zoom. `e2e/zoom.spec.ts` opts out with
+  `test.use({ launchOptions: { ignoreDefaultArgs: ['--hide-scrollbars'] } })`.
+  Keep that opt-out SCOPED TO THAT FILE — putting it in `playwright.config.ts`
+  moves geometry by 15px under the whole existing suite.
+* MODELLING ZOOM TAKES THREE KNOBS, and no single one of them is zoom:
+  (a) viewport scaling (`1440/z` x `760/z`) for the layout half — this is what
+  moves media queries and what vh/vw resolve to; (b) a forced scrollbar width
+  (`html::-webkit-scrollbar { width: 15/z }`) for the half (a) cannot express —
+  and it MUST be injected with `context.addInitScript`, because injecting it
+  after load does not relayout an already-created scrollbar and silently keeps
+  measuring 15px; (c) `documentElement.style.zoom` for the fractional-pixel
+  half, used only for overlap/drift checks — it never moves a media query, so it
+  must not be used to test breakpoints. The spec also forces
+  `html { overflow-y: scroll }`, because a zoomed-OUT viewport makes the page
+  short, the scrollbar disappears, and the bug hides just as thoroughly as
+  `--hide-scrollbars` hides it.
+* `container-type: inline-size` was CHECKED for two side effects that the CSS
+  containment spec would predict, and neither reproduces in current Chromium
+  (verified with dedicated probes, not by reading): a `position: fixed` element
+  inside the container stays viewport-anchored after a 900px scroll (top 0,
+  height = viewport), and the container does NOT trap a `z-index: 60` descendant
+  below a `z-index: 20` sticky header painted outside it. The app has no portals
+  — every modal, toast and the undo pill render inline inside the page tree — so
+  if a future engine changes either behaviour, every modal in both apps starts
+  scrolling with the page or hiding under the header. Re-run those two probes
+  before upgrading a browser baseline.
+* VIEWPORT UNITS ARE STILL FINE where the thing being sized genuinely is a share
+  of the viewport and is not required to agree with the content area:
+  `.bell-menu { min(360px, 90vw) }`, `.toast { min(520px, 88vw) }`,
+  `.login-shell { min-height: 100vh }`, `.modal { max-height: 90vh }` (measured:
+  clips nothing at any zoom, do not "fix" it). The ones that were wrong are the
+  ones whose result had to LINE UP with something else.

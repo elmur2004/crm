@@ -550,3 +550,57 @@
 - The ByteForce To-Do is unchanged for now: ByteForce leads carry a sales
   rep NAME, not an account, so there is no colleague's system to move the
   work into. Tell us how you want it to behave there.
+
+## Cards get a grip, so your thumb can scroll again (2026-08-19)
+
+- On the phone: **touching a card now scrolls, it does not drag.** The column
+  scrolls inside itself, the board slides sideways, and the page keeps
+  scrolling past the bottom of a column — so the leads underneath are
+  reachable again.
+- To MOVE a card, use the little **grip on its edge** — six dots, a thumb-sized
+  button halfway down. Drag from there and the card goes to the next stage
+  exactly as before. Tapping the grip does nothing; tapping the card still
+  opens the lead. Everything around the grip — above it, below it — scrolls
+  like the rest of the card, so there is no strip of card you cannot scroll.
+- On a computer **nothing changed**: the mouse still drags the whole card.
+- Why it was broken, in one line: the card itself was the drag handle, and a
+  drag handle has to tell the browser "no scrolling starts here". Cards cover
+  the whole board, so that one rule switched off all three scrolls at once.
+- All three boards (ByteForce, B-Systems, Partners & Agents). In Arabic the
+  grip sits on the card's left, where it belongs.
+
+## The layout survives browser zoom (2026-08-19)
+
+- **Zoom out and nothing slides off the side any more.** At 90%, 80%, 67%, 50%
+  and 25% the CRM page used to grow a horizontal scrollbar and push the board's
+  left edge off the screen — up to 22px gone at 25%. That is fixed at every
+  zoom step, on all three boards.
+- **The board no longer jumps sideways on its own.** It used to shift by up to
+  15px the moment a page grew long enough to scroll — filter the board, add a
+  card, and everything under the title moved. It now stays exactly where the
+  title says it should be, at every zoom.
+- The board keeps what you asked for: it still **fills the whole page** rather
+  than the centered column, and its first column still **starts level with the
+  page title**. Both are now pixel-exact from 25% to 300% zoom instead of only
+  at 100%.
+- **The "about five cards" column cap is real again.** It was written against
+  the window height, so what you actually got was two and a half cards at
+  normal zoom and less than ONE card at 300%. A column is now never SHORTER
+  than two whole cards however far you zoom in, and never more than about five
+  however far you zoom out — and it still caps and scrolls inside itself, so
+  the endless column cannot come back. (Two honest notes: past about 200% zoom
+  the screen itself is shorter than two cards, so you scroll the page to reach
+  the second one — still far better than the sliver of a card you got before.
+  And on a screen taller than about 1500 points, a full column is now taller
+  than it used to be: that is the "about five cards" you asked for arriving,
+  where the old cap stopped at under three. Tell us if you want five cards at
+  normal zoom too — that is one number, see below.)
+- Two smaller things found on the way and fixed: at very narrow widths (and at
+  300% zoom) the **company switcher** in the header was pushing the whole page
+  sideways — it now moves into the menu at the same width where Log out
+  already does; and the header's **section arrows** could go missing when a
+  section name was clipped by less than a pixel at an in-between zoom, which
+  was the "Registrations → Regi" problem coming back quietly.
+- One thing we did NOT change on purpose: zooming in far enough still turns the
+  desktop menu into the burger menu. That is the same behaviour as making the
+  window narrow, and it is what keeps every section reachable at any size.

@@ -91,11 +91,29 @@ test("a long column scrolls inside itself and a scrolled-to card still drags out
   const list = page.locator('[data-stage="new"] .col-cards');
   await expect(list.locator('[data-deal-card^="Cap Lead"]')).toHaveCount(7);
 
-  /* capped and scrollable INSIDE — the page no longer stretches with it */
-  const capped = await list.evaluate(
-    (el) => el.scrollHeight > el.clientHeight && el.clientHeight <= 520,
+  /* capped and scrollable INSIDE — the page no longer stretches with it.
+     Measured against the LIVE cap, never a literal: the cap used to be a flat
+     `min(62vh, 510px)`, where `<= 520` held at every viewport height, and is
+     now `clamp(floor, 62vh, ceiling)` — so a bare literal would be pinned to
+     whatever viewport this file happens to run at (1280x720 by default; the
+     suite already runs other specs at 900px tall, where the same expression
+     resolves to 558). The clamp is re-derived here from the card constants the
+     CSS itself declares, so this stays true at any viewport. */
+  const cap = await list.evaluate((el) => {
+    const cs = getComputedStyle(el);
+    const px = (name: string) => parseFloat(cs.getPropertyValue(name));
+    const floor = 2 * px("--bcard-h-max") + px("--bcard-gap") + px("--col-cards-pad-b");
+    const ceiling = 5 * px("--bcard-h") + 4 * px("--bcard-gap") + px("--col-cards-pad-b");
+    return {
+      scrollsInside: el.scrollHeight > el.clientHeight,
+      clientHeight: el.clientHeight,
+      expected: Math.min(Math.max(0.62 * window.innerHeight, floor), ceiling),
+    };
+  });
+  expect(cap.scrollsInside, "the long column must scroll inside itself").toBe(true);
+  expect(cap.clientHeight, `the column is not at its declared cap`).toBeLessThanOrEqual(
+    cap.expected + 1,
   );
-  expect(capped).toBe(true);
 
   /* the DOM-last card needs the inner scroll to be reached; once reached it
      drags out exactly like any other card */

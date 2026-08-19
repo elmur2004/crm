@@ -57,3 +57,70 @@ test("the admin nav strip slides: the end chevron reveals the clipped sections",
   );
   expect(overflow).toBeLessThanOrEqual(1);
 });
+
+/* A9 (zoom round) — the founder's ORIGINAL screenshot was "Registrations" cut
+   to "Regi" with no way to know there was more. The slider fixed that, but its
+   overflow test read `scrollWidth - clientWidth`: both are integer-rounded, so
+   at a fractional browser zoom a label clipped by up to 1px measured as "no
+   overflow" and the chevron never appeared — the same silent truncation, back
+   at 90% and 110%. The affordance is now measured off the items' fractional
+   rects. This walks the band and asserts the rule directly: if the strip really
+   clips a label, there is a way to reach it. */
+test("A9: a chevron exists whenever the nav strip really clips a section", async ({ page }) => {
+  test.setTimeout(180_000);
+  await page.goto("/login");
+  await page.getByLabel("Email or phone").fill("admin@byteforce.com");
+  await page.getByLabel("Password").fill("password123");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await page.waitForURL(/\/b-systems$/);
+
+  /* the strip's own overflow, measured sub-pixel — never via scrollWidth */
+  const clips = () =>
+    page.locator(".nav-strip .app-nav").evaluate((el) => {
+      const box = el.getBoundingClientRect();
+      const kids = [...el.children].map((c) => c.getBoundingClientRect());
+      if (kids.length === 0) return 0;
+      const hiddenStart = box.left - Math.min(...kids.map((r) => r.left));
+      const hiddenEnd = Math.max(...kids.map((r) => r.right)) - box.right;
+      return Math.max(hiddenStart, hiddenEnd);
+    });
+  const chevrons = () => page.getByRole("button", { name: /Scroll navigation/ }).count();
+
+  /* (a) layout zoom: 85% → 125% of a 1180px window, all still above the 820px
+     breakpoint where the desktop strip gives way to the burger */
+  for (const z of [0.85, 0.9, 0.95, 1, 1.05, 1.1, 1.15, 1.2, 1.25]) {
+    await page.setViewportSize({ width: Math.round(1180 / z), height: Math.round(800 / z) });
+    await page.goto("/b-systems");
+    await page.locator(".nav-strip .app-nav").waitFor();
+    await page.waitForTimeout(350); // measure() after layout + the font swap
+    const hidden = await clips();
+    if (hidden > 0.5) {
+      expect(
+        await chevrons(),
+        `the strip clips ${hidden.toFixed(2)}px at zoom ${z} with no chevron to reach it`,
+      ).toBeGreaterThan(0);
+    }
+  }
+
+  /* (b) FRACTIONAL pixels — what layout zoom alone cannot produce, and where
+     the rounded measurement used to lose the chevron */
+  await page.setViewportSize({ width: 1180, height: 800 });
+  await page.goto("/b-systems");
+  await page.locator(".nav-strip .app-nav").waitFor();
+  for (const z of [0.98, 1.02, 1.04, 1.06, 1.08, 1.12]) {
+    await page.evaluate((v) => {
+      document.documentElement.style.zoom = String(v);
+    }, z);
+    await page.waitForTimeout(250);
+    const hidden = await clips();
+    if (hidden > 0.5) {
+      expect(
+        await chevrons(),
+        `the strip clips ${hidden.toFixed(2)}px at CSS zoom ${z} with no chevron to reach it`,
+      ).toBeGreaterThan(0);
+    }
+  }
+  await page.evaluate(() => {
+    document.documentElement.style.zoom = "";
+  });
+});

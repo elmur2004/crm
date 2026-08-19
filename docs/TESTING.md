@@ -1337,3 +1337,133 @@ every dashboard formula, journeys 1-5 (SPEC §13).
   1-5 / qa-sweep / security-rbac all re-run green under the changed shared
   component.
 - Verdict: PASS — final gate green on the tree that was pushed.
+
+## Run 053 — 2026-08-19 — Two founder fixes: the drag handle on touch, and zoom-proof layout
+
+- Suites/commands: `npx tsc --noEmit` · `npm test` (vitest, embedded per-run
+  Postgres, launched from `D:\CRM` — see the lowercase-cwd trap in Run 052) ·
+  `npx playwright test` on two targeted sets, each a full prod build + embedded
+  e2e Postgres on port 3100.
+- Cases:
+  · tsc clean (0 errors) on both commits.
+  · vitest **284 passed / 0 failed**, 23 files — unchanged from Run 052's
+    baseline. Neither commit touches a service, so no unit case was added; the
+    behaviour under change is geometry and gestures, which only Playwright can
+    see.
+  · COMMIT 1 set — `board-touch` (4, new) + `byteforce-board` (2) + `journey3`
+    (2) + `journey4` (1) + `journey5` (1) + `partners-agents` (2) + `no-answer`
+    (1) + `same-stage` (1) + `i18n` (1): **15 passed / 0 failed**
+    (`test-results/.last-run.json` → `"status": "passed"`, `failedTests: []`).
+  · COMMIT 2 set A — `zoom` (5, new) + `nav-slider` (2, one new) +
+    `board-touch` (4) + `byteforce-board` (2) + `journey3` (2) +
+    `partners-agents` (2) + `i18n` (1): **18 passed / 0 failed**.
+  · COMMIT 2 set B (the global-CSS/layout blast radius) — `qa-sweep` (9) +
+    `journey4` (1) + `journey5` (1) + `accounting` (4) + `vault` (6) + `undo`
+    (1) + `impersonation` (1): **23 passed / 0 failed**, `.last-run.json`
+    `"status": "passed"`. Duration 6.4m.
+- BOTH new specs were seen RED FIRST, on purpose — a suite that was never red
+  proves nothing:
+  · e2e/board-touch.spec.ts: with `touch-action: none` put back on `.bcard`,
+    the column's scrollTop after a CDP touch swipe that starts on a card
+    measured **0** against an expectation of `> 20`. Restored → green.
+  · e2e/zoom.spec.ts: run against the pre-fix tree (source stashed, spec kept)
+    it failed A1 with the full measured table —
+    page overflow +22 / +7 / +3 / +2 / +1 / 0 / 0 / 0 / 0 / +48 and
+    board.left −22 / −7 / −3 / −1.5 / −0.5 / +0.5 / +2 / +3 / +4 / +5.5 at zoom
+    25 / 50 / 67 / 80 / 90 / 100 / 125 / 150 / 200 / 300%. **Red at the 50% and
+    80% models specifically** (+7px and +2px of real horizontal page overflow),
+    plus A5 red at 50% ("the board moved 15.0px sideways just because the page
+    scrolls") and A6 red at 200% ("the column collapsed to 1.64 cards").
+    After the fix: overflow 0, board.left 0.00, first-column-minus-title 0.00 at
+    every one of the ten zooms; A5 0px; A6 ≥ 2.59 cards everywhere and still
+    capping (scrollHeight 1157 vs clientHeight 373-928).
+- NEW TEST INFRASTRUCTURE, and the reason it exists: headless Chromium launches
+  with `--hide-scrollbars`, so `100vw === documentElement.clientWidth` in the
+  suite and nowhere else — which is exactly why qa-sweep's and nav-slider's
+  overflow assertions were green while real Chrome overflowed. e2e/zoom.spec.ts
+  declares `test.use({ launchOptions: { ignoreDefaultArgs: ['--hide-scrollbars'] } })`,
+  SCOPED TO THAT FILE (putting it in playwright.config.ts would shift geometry
+  by 15px under the whole existing suite). Zoom is modelled with three knobs:
+  viewport scaling for layout, a forced `html::-webkit-scrollbar` width injected
+  via `context.addInitScript` for the scrollbar half (injecting after load does
+  not relayout an existing scrollbar), and `documentElement.style.zoom` for
+  fractional pixels. It also forces `html { overflow-y: scroll }`, because a
+  zoomed-out viewport makes the page short and the scrollbar — and therefore the
+  bug — disappears.
+- Failures: none on either final tree. One genuine defect was DISCOVERED by the
+  new spec at the 300% model and fixed in the same commit: the header's module
+  switcher pushed the page 48-64px sideways at a 480px viewport (BUG-010).
+- SPEC coverage touched: §2.7 board / column cap (ADR-056 A+B+C), the three
+  boards' drag contract (ADR-042, ADR-050 unchanged in behaviour for a mouse),
+  §15 "no horizontal overflow on every major screen" — now asserted along a
+  ZOOM axis as well as a width axis, and for the first time with real
+  scrollbars.
+- Verdict: PASS for both commits. The full suite is the next gate's job; the
+  sets above cover every spec that touches the changed CSS, the four shells, the
+  three boards and the nav slider.
+
+## Run 054 — 2026-08-19 — Review round + FULL gate on the drag-handle / zoom pair
+
+- Suites/commands: `npx tsc --noEmit` · `npx vitest run` (embedded per-run
+  Postgres, launched from `D:\CRM` — see the lowercase-cwd trap in Run 052) ·
+  `npx playwright test`, the WHOLE suite, one full prod build + embedded e2e
+  Postgres on a pid-derived port.
+- Cases:
+  · tsc clean (0 errors) on the final tree.
+  · vitest **284 passed / 0 failed**, 23 files, 84.2s — unchanged from Run 053.
+    Nothing under test here is a service: the changes are CSS geometry, a
+    gesture surface and three e2e oracles.
+  · Playwright, FULL SUITE: **59 passed / 0 failed / 2 skipped**, 61 total,
+    9.1m. The 2 skips are the standing audit opt-ins (`e2e/audit.spec.ts`).
+    `test-results/.last-run.json` → `{"status": "passed", "failedTests": []}`
+    — read directly, not inferred from piped output.
+    Against Run 053's baseline (46 + 2 skips before the To-Do work): +4
+    board-touch, +5 zoom, +1 nav-slider A9, +3 todo-assign = 59.
+  · MEASUREMENT RUN, before any code change, to settle finding 1 with numbers
+    instead of arithmetic: a throwaway spec rendered all three boards in the
+    real app, read every `.bcard` rect, then mutated the names to force the
+    2-line clamp and the key datum to a long string and re-read. Result, at a
+    218px column: B-Systems CRM 186.3 / 190.4 / **202.4px**, Partners pipeline
+    160.1 / 160.1 / 176.2px, ByteForce CRM 147.2 / 162.2 / 178.3px. The shipped
+    `--bcard-h: 176px` was documented as "the RICHEST card" and is beaten by the
+    plain seeded B-Systems card. Spec deleted; the numbers are now in
+    design-system.css, ADR-056 part C and BUG-009.
+- What the round changed, and what each change is pinned by:
+  · Cap floor 373px → **429px**, off a NEW `--bcard-h-max: 204px`; `--bcard-h`
+    keeps sizing the ceiling. Pinned by zoom A6 (live card rect, and the seeded
+    names now WRAP to the 2-line clamp so the live oracle and the frozen
+    constant cannot drift apart unnoticed) and by byteforce-board, which derives
+    the whole clamp from the CSS custom properties instead of the old literal
+    `clientHeight <= 520` — that literal was viewport-independent only under the
+    retired flat 510px ceiling.
+  · Grip: full card height → **26 x 44px centred**. Pinned by two NEW
+    assertions in board-touch: the grip's height is ≥24px (WCAG 2.5.8, both
+    axes now) and ≤ half the card, and a NEW gesture (1b) swipes from the rail's
+    own column BELOW the button and requires the column to scroll further.
+  · board-touch's two `el.scrollTop = 0` / `el.scrollLeft = 0` resets replaced
+    by real `touchSwipe` resets in a bounded loop, and the horizontal-pan check
+    moved last so it needs no reset at all. Sample points come from live
+    geometry (a `page.evaluate` that picks a card provably inside the list),
+    because the fling decides how far the column travelled.
+- Failures: none. No debris on the shared serial DB — every spec that seeds
+  leads archives them (ADR-043), and the run's specs ran in file order with the
+  drag-dependent journeys (3, 4, 5) green after board-touch and byteforce-board.
+- Port note: 3100 was held for the whole session by an unrelated project's
+  server (`D:\Healthcare App`, 404s on `/login`). Rather than kill another
+  workstream's process, the full suite ran through a throwaway copy of
+  playwright.config.ts with 3100 → 3105 and nothing else changed; the copy was
+  deleted before commit. If this recurs, the config is one `process.env` read
+  away from taking a port override.
+- SPEC coverage touched: §2.7 board / column cap (ADR-056 part C, amended in
+  place), the three boards' touch drag contract (ADR-056 part A, amended in
+  place), §15 no-horizontal-overflow along the zoom axis (unchanged).
+- Verdict: PASS. Brand audit PASS on the changed surfaces — no hex or
+  `font-family` added anywhere in the diff, the new `.bcard-grip` rule uses
+  `--color-hairline` / `--color-muted` / `--color-surface-tint` / `--color-ink`
+  / `--color-primary` only (all three token files define each), and every new
+  box property is logical (`inset-inline-end`, `inset-block`, `margin-block`,
+  `margin-inline`), so the grip still flips to the card's left in Arabic — which
+  board-touch asserts. The one repo-wide hex hit,
+  `src/app/api/files/[id]/route.ts`, is the standalone missing-file HTML page
+  served outside the app shell and outside the theming layer: pre-existing,
+  documented, untouched here.

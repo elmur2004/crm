@@ -87,3 +87,99 @@ the moment a failure is found; close them with a reference to the fixing commit/
   cluster must be deleted and recreated (or migrated via an ADR-032 backup
   export/import) to accept Arabic locally; managed Postgres is UTF8 by
   default and was never affected.
+
+## BUG-007 — 2026-08-19 — board cards kill every scroll on a phone
+- Severity: major (the whole CRM is unusable on the founder's phone: "I cannot
+  reach the leads under the column because I cannot scroll")
+- Where: `src/components/{bsystems/BsBoard,internal/InternalBoard,partners/PartnersBoard}.tsx`
+  — each card div spread dnd-kit's `{...listeners}` AND carried Tailwind's
+  `touch-none` (`touch-action: none`), which forbids any pan from starting on
+  the element. Cards cover essentially the whole board, so `.col-cards`
+  `overflow-y`, `.board` `overflow-x` and page-scroll chaining all died at once
+  and every gesture became a card drag.
+- Repro: on a touch device open /byteforce/crm (or either B-Systems board) with
+  more than five leads in one stage and swipe with a finger starting on a card —
+  nothing scrolls; the card is dragged instead.
+- Status: fixed (ADR-056 part A — a dedicated `.bcard-grip` button owns
+  `touch-action: none`, the card takes `manipulation`, and the card shell's
+  dnd-kit listeners are gated to `pointerType === "mouse"`; commit "board cards
+  get a drag handle so touch can scroll the columns", Entry 050, TESTING Run
+  053. Pinned by e2e/board-touch.spec.ts, which was seen RED first: with
+  `touch-action: none` back on the card the column's scrollTop measured 0.)
+
+## BUG-008 — 2026-08-19 — the board overflows the page and jumps sideways at browser zoom
+- Severity: major (founder: "when I zoom in and out the UI gets so scattered")
+- Where: `src/themes/design-system.css` `.board` —
+  `margin-inline: calc(50% - 50vw + 8px)` with a matching `-8px` on the padding.
+  `100vw` includes the classic scrollbar; the usable width does not; and in CSS
+  px that scrollbar is `15 / zoom`, so the `+8px` cancelled it at exactly 100%
+  zoom and nowhere else. Measured page overflow `SB/2 − 8` = +22px at 25% zoom,
+  +7 at 50%, +2 at 80%, +1 at 90%; board start edge `8 − SB/2` = −22px at 25%,
+  −7 at 50%. Independently, the scrollbar exists only while the page scrolls, so
+  the whole board slid 15.0px sideways at 50% zoom (7.5 at 100%, 5.0 at 150%)
+  whenever content crossed the fold.
+- Repro: real Chrome (NOT headless — see below), a board page long enough to
+  scroll, browser zoom 50%: the page gains a horizontal scrollbar and the
+  board's left edge is 7px off-screen. Then filter the board short enough that
+  the page stops scrolling: the board jumps 15px sideways.
+- Note on why the suite never saw it: headless Chromium launches with
+  `--hide-scrollbars`, so `100vw === clientWidth` and the existing overflow
+  assertions in qa-sweep.spec.ts and nav-slider.spec.ts passed for the wrong
+  reason. e2e/zoom.spec.ts opts out of that flag, scoped to itself.
+- Status: fixed (ADR-056 part B — `.shell-body` query container + `cqw`
+  arithmetic, ±8px deleted; measured 0 overflow / 0 left / 0 jump at 25% → 300%;
+  commit "the layout survives browser zoom", Entry 050, TESTING Run 053)
+
+## BUG-009 — 2026-08-19 — the "about five cards" column cap collapses to one card at high zoom
+- Severity: major (the founder's stated requirement was never actually met, and
+  degrades to unusable for anyone who zooms)
+- Where: `src/themes/design-system.css` `.col-cards { max-height: min(62vh, 510px) }`
+  — the cap in viewport units against a fixed-px card. Measured against the card
+  that shipped: 2.54 whole cards at 100% zoom, 2.03 at 125%, 1.26 at 200%, 0.83
+  at 300% — at 300% a column cannot display ONE whole card.
+- Repro: put more than five leads in one stage, set browser zoom to 200%: the
+  column shows one card and a sliver.
+- Status: fixed (ADR-056 part C — `clamp(2 TALL cards + gap + padding, 62vh,
+  5 REFERENCE cards + 4 gaps + padding)`, derived from `--bcard-h-max` /
+  `--bcard-h` / `--bcard-gap` / `--col-cards-pad-b`; floor **429px**, ceiling
+  928px. e2e/zoom.spec.ts A6 asserts ≥2 whole cards AND that the cap still caps,
+  deriving the card height from a live rect — and now seeds names that WRAP to
+  the 2-line clamp, because the first cut of the fix used ONE 176px constant for
+  both ends while the real B-Systems card measures 186.3px unwrapped and 202.4px
+  at its worst, so the floor delivered 1.94 cards and the short seeded names hid
+  it. The cap SIZE at ordinary zoom is flagged for founder confirmation in
+  PROGRESS Entry 050.)
+
+## BUG-010 — 2026-08-19 — the header pushes the page sideways between ~400px and ~555px
+- Severity: minor (a band no test sampled; reachable by 300% zoom on a 1440
+  monitor, or a narrow window)
+- Where: `src/themes/design-system.css` — `.app-header .user > .switcher` only
+  hid at `max-width: 400px`, but the module switcher is a rigid ~307px strip
+  inside `.user { flex: none }`. At a 480px viewport the `.user` cluster
+  measured 429.7px wide with its right edge at 522.8px against a 475px page:
+  +48px of horizontal page overflow on the B-Systems shells, +64px on ByteForce
+  (which also carries the notifications bell).
+- Repro: any signed-in shell at a viewport width between roughly 400px and
+  555px — `document.scrollingElement.scrollWidth - clientWidth` is positive.
+  qa-sweep samples 1440 / 1024 / 768 / 560 / 390 and steps over the band.
+- Status: fixed (the switcher now leaves the header at ≤600px, riding down with
+  Log out — both already live in the burger sheet at every width below 820px;
+  ADR-056 consequences, Entry 050. e2e/zoom.spec.ts A1 covers 480px as the 300%
+  zoom model.)
+
+## BUG-011 — 2026-08-19 — the nav slider's chevron disappears at fractional browser zoom
+- Severity: minor (the founder's original "Registrations → Regi" screenshot,
+  returning quietly at in-between zoom steps)
+- Where: `src/components/shared/ShellNav.tsx` `measure()` — the overflow test
+  was `el.scrollWidth - el.clientWidth`, both integer-rounded DOM metrics, with
+  a `> 1` guard. At a fractional zoom a label clipped by up to 1 CSS px measured
+  as 0 or 1, so no chevron and no fade appeared and the section was silently
+  truncated.
+- Repro: sign in as B-Systems admin at a width just above the point where the
+  eleven sections stop fitting, then step the browser zoom by 5%: at some steps
+  a section is visibly cut with no arrow to reach it.
+- Status: fixed (measured off the items' fractional `getBoundingClientRect()`
+  against the strip's box, with a 0.5px threshold and logical start/end derived
+  from `direction` instead of the sign of `scrollLeft`; ADR-056 consequences,
+  Entry 050. Pinned by the A9 test appended to e2e/nav-slider.spec.ts, which
+  walks 85% → 125% layout zoom and a fractional CSS-zoom pass.)

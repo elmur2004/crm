@@ -125,9 +125,13 @@
 }
 @media (max-width: 600px) {
   .app-header .user > form { display: none; } /* Log out lives in the sheet */
-}
-@media (max-width: 400px) {
-  .app-header .user > .switcher { display: none; } /* switcher lives in the sheet */
+  /* The switcher used to hold on down to 400px — but it is a rigid 307px strip
+     inside a `flex: none` cluster, so between ~400 and ~555px the header pushed
+     the whole PAGE sideways (measured +48px at a 480px viewport = 300% zoom on
+     a 1440 monitor; qa-sweep samples 560 and 390 and stepped straight over the
+     band). It rides down with Log out now — both live in the sheet, which is
+     already open at every width below 820px. */
+  .app-header .user > .switcher { display: none; }
 }
 .nav-item {
   border: none; background: transparent; border-radius: 7px; padding: 8px 12px;
@@ -296,22 +300,38 @@
 [data-stage-key="lost"] { --stage-well: var(--color-stage-lost); --stage-bar: var(--color-stage-lost-accent); --stage-chip: var(--color-stage-lost-chip); --stage-chip-ink: var(--color-stage-lost-chip-ink); }
 
 /* ---------- 2.7 board ---------- */
+/* The full-width query container the breakout below measures itself against
+   (rendered by the four app shells around <main class="page">). ADR-056. */
+.shell-body { container-type: inline-size; }
 /* Full-bleed breakout (founder: the board fills the whole page, not the centered
-   column). 50%−50vw escapes the max-width container; the +8px inset keeps the
-   element narrower than the viewport even when a classic scrollbar makes 100vw
-   over-wide, so the page never gains horizontal overflow. Content gutters still
-   line up with the page padding. */
+   column) — and it must survive browser zoom (founder: "when I zoom in and out
+   the UI gets so scattered").
+   THE TRAP: `100vw` INCLUDES the classic scrollbar; the space the page can
+   actually use does not. Chromium keeps that scrollbar at a fixed PHYSICAL
+   thickness, so in CSS px it is 15/zoom — 30px at 50%, 7.5px at 200%. The old
+   ±8px fudge cancelled it at exactly 100% and nowhere else: the page overflowed
+   sideways at every step below ~94% (+7px at 50%, measured), and the whole board
+   slid 15px sideways the moment the page grew long enough to scroll.
+   `cqw` resolves against the container's CONTENT box, which EXCLUDES the
+   scrollbar — the quantity vw cannot express. Measured pixel-exact at 25% →
+   300%: board.left 0, board.width == documentElement.clientWidth, first column
+   level with the page title, zero page overflow, and no jump.
+   The vw pair above stays as a legacy fallback for engines without container
+   query units; the cqw pair below overrides it everywhere it is supported.
+   DO NOT re-introduce the ±8px — that is the bug, not the fix. */
 .board {
   display: flex; gap: 12px; align-items: flex-start; overflow-x: auto; padding-bottom: 12px;
   /* panning the columns on a phone must not trigger the OS edge-swipe back.
      Deliberately NOT set on .col-cards: the founder wants the page to keep
      scrolling once a column bottoms out. */
   overscroll-behavior-x: contain;
-  margin-inline: calc(50% - 50vw + 8px);
+  margin-inline: calc(50% - 50vw + 8px);            /* legacy fallback */
+  padding-inline: calc(max(var(--page-pad, 26px), 50vw - 640px + var(--page-pad, 26px)) - 8px);
   /* columns START aligned with the centered content edge (max-w-7xl = 1280px),
      while the scroll area still uses the whole viewport — on wide monitors the
      board no longer hugs the left edge while the title floats centered */
-  padding-inline: calc(max(var(--page-pad, 26px), 50vw - 640px + var(--page-pad, 26px)) - 8px);
+  margin-inline: calc(50% - 50cqw);
+  padding-inline: max(var(--page-pad, 26px), calc(50cqw - 640px + var(--page-pad, 26px)));
 }
 .col {
   flex: none; width: 250px; display: flex; flex-direction: column; border-radius: 12px; overflow: hidden;
@@ -322,16 +342,72 @@
 .col-bar { height: 3px; background: var(--stage-bar, var(--color-border)); flex: none; border-radius: 11px 11px 0 0; }
 .col-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 13px 9px; }
 .col-title { font: 700 10.5px var(--font-mono); letter-spacing: .16em; text-transform: uppercase; color: var(--stage-bar, var(--color-muted)); }
-.col-cards { display: flex; flex-direction: column; gap: 9px; padding: 0 9px 12px; min-height: 40px; }
+.col-cards {
+  /* The cap's two ends are sized from MEASURED card heights, and each end takes
+     the card that makes THAT end safe — which is not the same card. Measured in
+     Chromium on the shipped CSS at a 218px column (the 6-column board), on the
+     richest card in the app — B-Systems: name + company + owner chip + Call +
+     WhatsApp + the meta row's two buttons:
+       186.3px  as it renders today, name on one line
+       190.4px  with the name at its 2-line clamp
+       202.4px  ...and a long key datum on top — the tallest a real card gets
+     --bcard-h sizes the CEILING and is deliberately SHORTER than the richest
+     card: a ceiling written against the tallest card would let the box grow to
+     nearly six ordinary cards, which is the endless column the founder asked us
+     to kill. 928px is 4.7 of the richest cards and 6.3 of the lighter ByteForce
+     ones — "about five".
+     --bcard-h-max sizes the FLOOR, for the mirror reason: a floor written
+     against a short card shows a sliver LESS than two whole cards the moment a
+     name wraps to its second line, which is the common case and not the exotic
+     one. It is not a mathematical guarantee — `.bcard-meta` carries no line
+     clamp, so a freakishly long key datum can still beat 204px. */
+  --bcard-h: 176px;
+  --bcard-h-max: 204px;
+  --bcard-gap: 9px;
+  --col-cards-pad-b: 12px;
+  display: flex; flex-direction: column; gap: var(--bcard-gap);
+  padding: 0 9px var(--col-cards-pad-b); min-height: 40px;
+}
 /* Founder: "the CRM is becoming very long because one column is long — make
    the column stop and add a slider in the column itself when it passes five
-   leads or something." The card list caps at roughly five cards and scrolls
-   INSIDE the column — with a scrollbar he can SEE (thin, stage-tinted), not
-   the invisible kind. The dragged card's visual rides the DragOverlay now, so
-   this inner clip can never swallow it (the old .col[data-drag-origin]
-   overflow lift is retired with the transform-drag it served). */
+   leads or something." The card list caps and scrolls INSIDE the column — with
+   a scrollbar he can SEE (thin, stage-tinted), not the invisible kind. The
+   dragged card's visual rides the DragOverlay now, so this inner clip can never
+   swallow it (the old .col[data-drag-origin] overflow lift is retired with the
+   transform-drag it served).
+
+   The cap USED to be `min(62vh, 510px)`: the founder's "about five cards"
+   written in viewport units against a fixed-px card. Measured, it showed 2.54
+   cards at 100% zoom, 1.26 at 200% and 0.83 at 300% — at high zoom the column
+   could not display ONE whole card. It is now derived from the card itself:
+     FLOOR   2 of the TALLEST cards + 1 gap + the bottom padding = 429px
+     MIDDLE  62vh
+     CEILING 5 reference cards + 4 gaps + the bottom padding     = 928px
+
+   READ THE BAND BEFORE QUOTING "62vh is unchanged". The middle only rules
+   while 62vh sits between the two ends, i.e. a viewport 692px to 1497px tall.
+   The founder's 1440x760 monitor at 100% is inside it (62vh = 471px), which is
+   the whole of the "nothing moves at your usual zoom" claim — it is about HIS
+   zoom, not about every screen. Outside the band an end takes over: the floor
+   from roughly 1.1x zoom in, and the ceiling only on a screen taller than
+   ~1500 CSS px. On such a screen the column IS taller than the old flat 510px
+   ceiling (558px at 1440x900, 893px at 2560x1440) — that is the fix, not a
+   regression: 510px was 2.9 cards, and the founder asked for about five. It is
+   still a hard cap, so the endless column he asked us to kill cannot come back.
+
+   The floor is a floor on the column BOX, not on what fits the SCREEN. Past
+   about 2x zoom the viewport itself is shorter than two cards, so the second
+   card is reached by scrolling the page. Do not "fix" that by capping the
+   floor to the viewport (`min(429px, 100vh - something)`): at 300% that
+   resolves to well under one card and hands back exactly the 0.83-of-a-card
+   column this rule exists to delete. */
 .col-cards {
-  max-height: min(62vh, 510px); overflow-y: auto;
+  max-height: clamp(
+    calc(2 * var(--bcard-h-max) + var(--bcard-gap) + var(--col-cards-pad-b)),
+    62vh,
+    calc(5 * var(--bcard-h) + 4 * var(--bcard-gap) + var(--col-cards-pad-b))
+  );
+  overflow-y: auto;
   scrollbar-width: thin;
   scrollbar-color: color-mix(in srgb, var(--stage-bar, var(--color-muted)) 55%, transparent) transparent;
 }
@@ -847,7 +923,10 @@ label:has(input[required]) .dropzone-title::after {
    undoable action is pending, so it is never permanent furniture. */
 .undo-fab {
   position: fixed; inset-block-end: 18px; inset-inline-start: 18px; z-index: 45;
-  max-width: min(420px, calc(100vw - 36px));
+  /* NOT 100vw — that includes the scrollbar, so a long undo label slid its last
+     half-scrollbar (12px at 50% zoom) underneath it. A fixed element's
+     percentage resolves against the viewport WITHOUT the scrollbar. */
+  max-width: min(420px, calc(100% - 36px));
 }
 .undo-btn {
   display: inline-flex; align-items: center; gap: 8px; max-width: 100%; cursor: pointer;
@@ -867,7 +946,7 @@ label:has(input[required]) .dropzone-title::after {
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 @media (max-width: 560px) {
-  .undo-fab { inset-block-end: 12px; inset-inline-start: 12px; max-width: calc(100vw - 24px); }
+  .undo-fab { inset-block-end: 12px; inset-inline-start: 12px; max-width: calc(100% - 24px); }
   .undo-what { display: none; } /* the accessible name still carries it */
 }
 
@@ -1043,6 +1122,10 @@ label:has(input[required]) .dropzone-title::after {
    gradient. Logical properties throughout: the accent edge flips under RTL. */
 
 .acct-hero {
+  /* the figure below sizes against THIS card, not the viewport: a vw term next
+     to px-sized neighbours made the hero:caption ratio swing 5.45 → 3.27 across
+     the zoom range (the number visibly shrank against its own label) */
+  container-type: inline-size;
   position: relative; overflow: hidden; border-radius: var(--radius-card);
   background-color: var(--color-primary); /* paints while the gradient parses */
   background-image: var(--gradient-hero);
@@ -1058,7 +1141,7 @@ label:has(input[required]) .dropzone-title::after {
 }
 .acct-hero-value {
   margin: 8px 0 4px; font-family: var(--font-display); font-weight: 700;
-  font-size: clamp(36px, 6vw, 60px); line-height: 1.02; letter-spacing: -.01em;
+  font-size: clamp(36px, 6cqi, 60px); line-height: 1.02; letter-spacing: -.01em;
 }
 .acct-hero-sub { font-size: 13px; opacity: .9; }
 .acct-hero-sub b { font-weight: 700; }
