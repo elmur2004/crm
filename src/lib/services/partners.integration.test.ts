@@ -435,10 +435,12 @@ const AGENT_GATE = {
   phone: "01099887766",
 };
 
-async function agentToWon(prospectId: string, gate = AGENT_GATE) {
+/* ADR-057: on an AGENT card the terminal-success stage is `qualified` — that
+   is the column the account gate hangs on now. */
+async function agentToQualified(prospectId: string, gate = AGENT_GATE) {
   return applyProspectEvent({
     prospectId,
-    event: { type: "next_action", action: "won" },
+    event: { type: "next_action", action: "qualified" },
     group: { group: "won_agent", data: gate },
     actor,
     role,
@@ -534,7 +536,7 @@ describe("Partners & Agents: kind-conditional validation", () => {
   });
 });
 
-describe("PP-4a: the agent Won gate creates the account", () => {
+describe("PA-4 (§10.2a): the agent Qualified gate creates the account", () => {
   it("runs the full pipeline and mints User + role + PortalRep with a working password", async () => {
     const p = await makeAgent();
     expect(p.kind).toBe("agent");
@@ -549,10 +551,14 @@ describe("PP-4a: the agent Won gate creates the account", () => {
       role,
     });
     const returned = await addAlternativeNumbers(p.id, ["01055554444"], actor, role);
-    expect(returned.stage).toBe("lead"); // PP-2 works on agent cards too
+    expect(returned.stage).toBe("lead"); // PA-2 works on agent cards too
+    const autoReturn = await db.activityLog.findFirstOrThrow({
+      where: { entityType: "partner_prospect", entityId: p.id, action: "auto_transfer" },
+    });
+    expect(autoReturn.trigger).toBe("PA-2"); // §10.2a, not the partner row
     await applyProspectEvent({
       prospectId: p.id,
-      event: { type: "next_action", action: "following_up" },
+      event: { type: "next_action", action: "contacted" },
       group: { group: "follow_up", data: { date: "2026-09-12", time: "10:00", method: "call" } },
       actor,
       role,
@@ -563,20 +569,30 @@ describe("PP-4a: the agent Won gate creates the account", () => {
     await expect(
       applyProspectEvent({
         prospectId: p.id,
-        event: { type: "next_action", action: "won" },
+        event: { type: "next_action", action: "qualified" },
         group: { group: "won_partner", data: COMPLETE_GATE },
         actor,
         role,
       }),
     ).rejects.toThrow(/won_agent/);
-    await expect(agentToWon(p.id, { ...AGENT_GATE, password: "short" })).rejects.toThrow();
-    expect((await getProspectDetail(p.id)).prospect.stage).toBe("following_up");
+    /* and the partner vocabulary is simply not on this board any more */
+    await expect(
+      applyProspectEvent({
+        prospectId: p.id,
+        event: { type: "next_action", action: "won" },
+        group: { group: "won_agent", data: AGENT_GATE },
+        actor,
+        role,
+      }),
+    ).rejects.toThrow(/not available/);
+    await expect(agentToQualified(p.id, { ...AGENT_GATE, password: "short" })).rejects.toThrow();
+    expect((await getProspectDetail(p.id)).prospect.stage).toBe("contacted");
     expect(await db.user.count({ where: { email: AGENT_GATE.email } })).toBe(0);
 
-    await agentToWon(p.id);
+    await agentToQualified(p.id);
 
     const { prospect } = await getProspectDetail(p.id);
-    expect(prospect.stage).toBe("won");
+    expect(prospect.stage).toBe("qualified");
     expect(prospect.converted).toBe(true);
 
     const user = await db.user.findUniqueOrThrow({
@@ -597,7 +613,12 @@ describe("PP-4a: the agent Won gate creates the account", () => {
     expect(user.portalRep!.speciality).toBe("ERP consulting");
     expect(prospect.agentUserId).toBe(user.id);
 
-    /* PP-4a is on the record, and NO directory partner was created */
+    /* the move itself is PA-4, PP-4a is still the portal_rep row id, and NO
+       directory partner was created */
+    const move = await db.activityLog.findFirstOrThrow({
+      where: { entityType: "partner_prospect", entityId: p.id, toStage: "qualified" },
+    });
+    expect(move.trigger).toBe("PA-4");
     const log = await db.activityLog.findFirst({
       where: { entityType: "portal_rep", entityId: user.portalRep!.id, trigger: "PP-4a" },
     });
@@ -615,12 +636,12 @@ describe("PP-4a: the agent Won gate creates the account", () => {
     );
     const bare = { firstName: "Nour", lastName: "Adel", phone: "01099887766" };
 
-    await expect(agentToWon(p.id, bare as never)).rejects.toThrow(/Address is required/);
+    await expect(agentToQualified(p.id, bare as never)).rejects.toThrow(/Address is required/);
     await expect(
-      agentToWon(p.id, { ...bare, address: "12 Tahrir St, Giza" } as never),
+      agentToQualified(p.id, { ...bare, address: "12 Tahrir St, Giza" } as never),
     ).rejects.toThrow(/Speciality is required/);
     await expect(
-      agentToWon(p.id, {
+      agentToQualified(p.id, {
         ...bare,
         address: "12 Tahrir St, Giza",
         speciality: "ERP consulting",
@@ -632,8 +653,8 @@ describe("PP-4a: the agent Won gate creates the account", () => {
       speciality: "ERP consulting",
       email: "nour.adel@example.com",
     };
-    await expect(agentToWon(p.id, named as never)).rejects.toThrow(/sign-in password/);
-    await expect(agentToWon(p.id, { ...named, password: "short" } as never)).rejects.toThrow(
+    await expect(agentToQualified(p.id, named as never)).rejects.toThrow(/sign-in password/);
+    await expect(agentToQualified(p.id, { ...named, password: "short" } as never)).rejects.toThrow(
       /8 characters/,
     );
 
@@ -642,7 +663,7 @@ describe("PP-4a: the agent Won gate creates the account", () => {
     expect(await db.portalRep.count()).toBe(0);
 
     /* complete → the account exists, built entirely from gate input */
-    await agentToWon(p.id);
+    await agentToQualified(p.id);
     const rep = await db.portalRep.findFirstOrThrow();
     expect(rep.address).toBe("12 Tahrir St, Giza");
     expect(rep.speciality).toBe("ERP consulting");
@@ -650,7 +671,7 @@ describe("PP-4a: the agent Won gate creates the account", () => {
 
   it("a converted agent appears in Agents and NEVER in the partners directory", async () => {
     const p = await makeAgent();
-    await agentToWon(p.id);
+    await agentToQualified(p.id);
 
     const agents = await listAgentsDetailed();
     expect(agents.map((a) => `${a.firstName} ${a.lastName}`)).toContain("Nour Adel");
@@ -672,14 +693,14 @@ describe("PP-4a: the agent Won gate creates the account", () => {
 
   it("refuses a duplicate email or phone with a clear message, and nothing is written", async () => {
     const first = await makeAgent();
-    await agentToWon(first.id);
+    await agentToQualified(first.id);
 
     const dupEmail = await makeAgent({ number: "01077776666", email: "other@example.com" });
-    await expect(agentToWon(dupEmail.id)).rejects.toThrow(/email already exists/);
+    await expect(agentToQualified(dupEmail.id)).rejects.toThrow(/email already exists/);
 
     const dupPhone = await makeAgent({ number: "01066665555", email: "third@example.com" });
     await expect(
-      agentToWon(dupPhone.id, { ...AGENT_GATE, email: "third@example.com" }),
+      agentToQualified(dupPhone.id, { ...AGENT_GATE, email: "third@example.com" }),
     ).rejects.toThrow(/phone number already exists/);
 
     /* both cards stayed put; only the first account exists */
@@ -709,7 +730,7 @@ describe("PP-4a: the agent Won gate creates the account", () => {
     expect(prospect.recordings).toHaveLength(0);
     const key = prospect.cv!.storageKey;
 
-    await agentToWon(p.id);
+    await agentToQualified(p.id);
 
     const rep = await db.portalRep.findFirstOrThrow({ include: { cv: true } });
     expect(rep.cv?.filename).toBe("cv.pdf");

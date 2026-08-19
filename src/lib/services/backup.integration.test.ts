@@ -5,6 +5,7 @@ import { exportBackup, importBackup } from "./backup";
 import { applyLeadEvent, createLead } from "./leads";
 import { storage } from "@/lib/storage";
 import type { Actor } from "./activity";
+import { pendingUndoFor } from "./undo";
 
 /* Founder directive: export → WIPE EVERYTHING → import restores the system
    exactly — rows, relations (ids preserved), and uploaded files. */
@@ -125,5 +126,212 @@ describe("Full backup round-trip", () => {
     await db.user.create({ data: { name: "x", email: "x@x.example", passwordHash: "h" } });
     await expect(importBackup(null, admin)).rejects.toThrow();
     expect(await db.user.count()).toBe(1);
+  });
+});
+
+/* ADR-057 — the second stranding vector. importBackup does deleteMany +
+   createMany with ids preserved and NO transformation, so restoring a backup
+   exported BEFORE the agent rename would re-insert agent cards at
+   `following_up` / `won` onto a migrated database: invisible cards, exactly
+   what the migration exists to prevent — and the admin doing the restore is
+   usually recovering from something else already. */
+describe("Restoring a pre-rename backup cannot strand an agent card", () => {
+  it("normalises agent stages, their History and their pending undos on import", async () => {
+    const now = new Date().toISOString();
+    const payload = {
+      app: "byteforce-bsystems-sales-platform",
+      version: 1,
+      exportedAt: now,
+      tables: {
+        partnerProspect: [
+          {
+            id: "old-agent-following",
+            kind: "agent",
+            name: "Legacy Agent",
+            number: "01011112222",
+            stage: "following_up",
+            address: "1 Old St",
+            speciality: "ERP",
+            createdAt: now,
+            updatedAt: now,
+          },
+          {
+            id: "old-agent-won",
+            kind: "agent",
+            name: "Legacy Converted Agent",
+            number: "01011113333",
+            stage: "won",
+            converted: true,
+            address: "2 Old St",
+            speciality: "Networking",
+            createdAt: now,
+            updatedAt: now,
+          },
+          {
+            id: "old-agent-lead",
+            kind: "agent",
+            name: "Legacy New Agent",
+            number: "01011114444",
+            stage: "lead",
+            createdAt: now,
+            updatedAt: now,
+          },
+          {
+            id: "old-partner-following",
+            kind: "partner",
+            name: "Hany",
+            companyName: "Legacy Trading",
+            businessActivity: "Import/export",
+            number: "0223456789",
+            stage: "following_up",
+            createdAt: now,
+            updatedAt: now,
+          },
+          {
+            id: "old-partner-won",
+            kind: "partner",
+            name: "Samir",
+            companyName: "Legacy Won Co",
+            businessActivity: "Import/export",
+            number: "0223456788",
+            stage: "won",
+            converted: true,
+            createdAt: now,
+            updatedAt: now,
+          },
+        ],
+        /* the History those cards carry — pre-rename, so it speaks the PARTNER
+           vocabulary on cards whose board has no such column */
+        activityLog: [
+          {
+            id: "log-agent-1",
+            entityType: "partner_prospect",
+            entityId: "old-agent-following",
+            actorLabel: "Admin",
+            action: "stage_change",
+            fromStage: "lead",
+            toStage: "following_up",
+            trigger: "PP-3",
+            createdAt: now,
+          },
+          {
+            id: "log-agent-2",
+            entityType: "partner_prospect",
+            entityId: "old-agent-won",
+            actorLabel: "Admin",
+            action: "stage_change",
+            fromStage: "following_up",
+            toStage: "won",
+            trigger: "PP-4",
+            createdAt: now,
+          },
+          {
+            id: "log-partner-1",
+            entityType: "partner_prospect",
+            entityId: "old-partner-won",
+            actorLabel: "Admin",
+            action: "stage_change",
+            fromStage: "following_up",
+            toStage: "won",
+            trigger: "PP-4",
+            createdAt: now,
+          },
+        ],
+        /* and a pending undo the admin never got round to using: its snapshot
+           holds a stage the agent board no longer has, and the entry UNDER it
+           is an older action that must not be promoted to the head */
+        undoEntry: [
+          {
+            id: "undo-older",
+            userId: "admin-1",
+            kind: "prospect_event",
+            entityType: "partner_prospect",
+            entityId: "old-partner-following",
+            label: "Moved Legacy Trading",
+            labelAr: "نُقلت",
+            fingerprint: now,
+            payload: { stage: "lead", noAnswer: false, created: [], updated: [] },
+            createdAt: now,
+          },
+          {
+            id: "undo-dead-stage",
+            userId: "admin-1",
+            kind: "prospect_event",
+            entityType: "partner_prospect",
+            entityId: "old-agent-won",
+            label: "Moved Legacy Converted Agent",
+            labelAr: "نُقلت",
+            fingerprint: now,
+            payload: { stage: "following_up", noAnswer: false, created: [], updated: [] },
+            createdAt: now,
+          },
+          {
+            id: "undo-bystander",
+            userId: "admin-2",
+            kind: "prospect_event",
+            entityType: "partner_prospect",
+            entityId: "old-partner-following",
+            label: "Someone else's move",
+            labelAr: "نقل آخر",
+            fingerprint: now,
+            payload: { stage: "lead", noAnswer: false, created: [], updated: [] },
+            createdAt: now,
+          },
+        ],
+      },
+    };
+
+    await importBackup(payload, admin);
+
+    const rows = Object.fromEntries(
+      (await db.partnerProspect.findMany({ select: { id: true, stage: true } })).map((p) => [
+        p.id,
+        p.stage,
+      ]),
+    );
+    expect(rows).toEqual({
+      "old-agent-following": "contacted",
+      "old-agent-won": "qualified",
+      "old-agent-lead": "lead",
+      "old-partner-following": "following_up",
+      "old-partner-won": "won",
+    });
+    /* the converted flag rides through untouched — only the stage moved */
+    expect(
+      (await db.partnerProspect.findUniqueOrThrow({ where: { id: "old-agent-won" } })).converted,
+    ).toBe(true);
+
+    /* the History panel speaks the AGENT vocabulary on agent cards, and the
+       partner card's is byte-identical (ADR-057 Decision 7) */
+    const logs = Object.fromEntries(
+      (
+        await db.activityLog.findMany({
+          where: { id: { in: ["log-agent-1", "log-agent-2", "log-partner-1"] } },
+          select: { id: true, fromStage: true, toStage: true },
+        })
+      ).map((l) => [l.id, [l.fromStage, l.toStage]]),
+    );
+    expect(logs).toEqual({
+      "log-agent-1": ["lead", "contacted"],
+      "log-agent-2": ["contacted", "qualified"],
+      "log-partner-1": ["following_up", "won"],
+    });
+
+    /* the restored undo offer that could only ever fail is retired, and so is
+       the older entry beneath it — ADR-045's honesty invariant survives a
+       restore. Another admin's pending entry is not collateral damage. */
+    const undos = Object.fromEntries(
+      (await db.undoEntry.findMany({ select: { id: true, consumedAt: true } })).map((u) => [
+        u.id,
+        u.consumedAt !== null,
+      ]),
+    );
+    expect(undos).toEqual({
+      "undo-older": true,
+      "undo-dead-stage": true,
+      "undo-bystander": false,
+    });
+    expect(await pendingUndoFor("admin-1")).toBeNull();
+    expect((await pendingUndoFor("admin-2"))?.id).toBe("undo-bystander");
   });
 });

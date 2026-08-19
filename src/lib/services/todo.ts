@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import type { Brand } from "@/lib/pipeline-engine/constants";
 import { cairoToUtc, utcToCairo } from "@/lib/datetime";
 import { prospectTitle } from "./partners";
+import { partnersConfigFor } from "@/lib/pipeline-engine/configs/partners";
 
 /* Founder (ADR-041) — the To-Do page: "the actual date of today with the
    entire tasks of today... just a way of representing what I have to do today,
@@ -190,7 +191,12 @@ export async function todoFor(opts: {
   if (adminExtras) {
     const [stagedProspects, statements, milestones] = await Promise.all([
       db.partnerProspect.findMany({
-        where: { stage: { in: ["following_up", "meeting_setting"] } },
+        /* ADR-057 — this projection spans BOTH kinds in one query, so the
+           list is the UNION of the two configs' follow-up slots plus the
+           shared meeting slot: partner cards follow up in `following_up`,
+           agent cards in `contacted`. Drop `contacted` and every agent
+           follow-up silently disappears from the admin's To-Do. */
+        where: { stage: { in: ["following_up", "contacted", "meeting_setting"] } },
         select: {
           id: true,
           kind: true, // partner card ⇒ the company, agent card ⇒ the person
@@ -223,7 +229,8 @@ export async function todoFor(opts: {
       const f = prospect.followUps[0] ?? null;
       const m = prospect.meetings[0] ?? null;
       const newest = Math.max(f?.createdAt.getTime() ?? 0, m?.createdAt.getTime() ?? 0);
-      if (prospect.stage === "following_up" && f && f.createdAt.getTime() === newest) {
+      const followUpStage = partnersConfigFor(prospect.kind).followUpStage;
+      if (prospect.stage === followUpStage && f && f.createdAt.getTime() === newest) {
         items.push({
           kind: "prospect_follow_up",
           at: f.dueAt,

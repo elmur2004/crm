@@ -368,3 +368,83 @@ describe("cairoDayWindow DST boundaries (hardening)", () => {
     expect(utcToCairo(b.start).date).toBe("2026-10-30");
   });
 });
+
+/* ADR-057 — the silent-loss guard. An agent's dated follow-up lives in
+   `contacted`, not `following_up`; if the To-Do query is ever narrowed back to
+   the partner literal, every agent follow-up drops off the admin's most-used
+   screen with no error, no log and no empty state. */
+describe("To-Do carries BOTH kinds of prospect follow-up (ADR-057)", () => {
+  async function prospect(kind: string, stage: string, name: string) {
+    return db.partnerProspect.create({
+      data: {
+        kind,
+        name,
+        number: "0100000055",
+        stage,
+        ...(kind === "partner"
+          ? { companyName: `${name} Co`, businessActivity: "Consulting" }
+          : { address: "3 Dokki St", speciality: "ERP consulting" }),
+      },
+    });
+  }
+
+  function prospectFollowUp(partnerProspectId: string, at: Date, createdAt?: Date) {
+    return db.followUp.create({
+      data: {
+        partnerProspectId,
+        context: "initial",
+        dueAt: at,
+        method: "call",
+        ...(createdAt ? { createdAt } : {}),
+      },
+    });
+  }
+
+  it("an AGENT in Contacted and a PARTNER in Following Up both surface, titled their own way", async () => {
+    const agent = await prospect("agent", "contacted", "Mounir Fahmy");
+    await prospectFollowUp(agent.id, cairoToUtc("2026-08-20", "10:00"));
+    const partner = await prospect("partner", "following_up", "Nile");
+    await prospectFollowUp(partner.id, cairoToUtc("2026-08-20", "11:00"));
+
+    const lists = await todoFor({ brand: "bsystems", scope: { kind: "all" }, now: NOW });
+    const rows = lists.today.filter((i) => i.kind === "prospect_follow_up");
+    /* the agent IS the card, so his own name titles the row; a partner card
+       still reads as its company */
+    expect(rows.map((r) => r.title).sort()).toEqual(["Mounir Fahmy", "Nile Co"]);
+    for (const r of rows) {
+      expect(r.leadId).toBeUndefined();
+      expect(r.ownerUserId).toBeUndefined();
+    }
+  });
+
+  it("the latest-record rule survives the rename, and terminal agent cards produce nothing", async () => {
+    /* a newer meeting supersedes the follow-up — no row, exactly as for partners */
+    const superseded = await prospect("agent", "contacted", "Superseded Agent");
+    await prospectFollowUp(
+      superseded.id,
+      cairoToUtc("2026-08-20", "10:00"),
+      cairoToUtc("2026-08-18", "09:00"),
+    );
+    await db.meeting.create({
+      data: {
+        partnerProspectId: superseded.id,
+        arranged: true,
+        datetime: cairoToUtc("2026-08-20", "15:00"),
+        createdAt: cairoToUtc("2026-08-19", "09:00"),
+      },
+    });
+
+    for (const [stage, name] of [
+      ["qualified", "Qualified Agent"],
+      ["lost", "Lost Agent"],
+      ["lead", "Lead Agent"],
+    ] as const) {
+      const p = await prospect("agent", stage, name);
+      await prospectFollowUp(p.id, cairoToUtc("2026-08-20", "10:00"));
+    }
+
+    const lists = await todoFor({ brand: "bsystems", scope: { kind: "all" }, now: NOW });
+    expect(lists.today.filter((i) => i.kind === "prospect_follow_up")).toEqual([]);
+    expect(lists.overdue.filter((i) => i.kind === "prospect_follow_up")).toEqual([]);
+  });
+});

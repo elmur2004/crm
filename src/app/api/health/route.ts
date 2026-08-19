@@ -73,14 +73,47 @@ export async function GET(req: Request) {
     hints.push("Database unreachable — check DATABASE_URL, network, and that Postgres is running.");
   }
 
-  /* ---- schema (the newest column must exist) ---- */
+  /* ---- schema (every COMMITTED migration must be applied) ----
+     ADR-057: probing one column can only notice a migration that ADDS a column.
+     A data-only migration (the agent stage rename) adds none, so the old probe
+     returned true while agent cards sat on stages their board has no column
+     for — stranded behind a green health check, with `scripts/start.mjs` happy
+     to boot after three failed `migrate deploy` attempts. The probe now
+     compares the committed migration folders against `_prisma_migrations`, so
+     it is current for every migration, forever, with nothing to keep in sync. */
+  let pendingMigrations: string[] = [];
+
+  /** null = cannot tell (no migrations dir, or the table does not exist yet) —
+      fall back to the column probe rather than crying wolf. */
+  async function unappliedMigrations(): Promise<string[] | null> {
+    try {
+      const { readdir } = await import("node:fs/promises");
+      const pathMod = await import("node:path");
+      const entries = await readdir(pathMod.join(process.cwd(), "prisma", "migrations"), {
+        withFileTypes: true,
+      });
+      const committed = entries.filter((e) => e.isDirectory()).map((e) => e.name);
+      if (committed.length === 0) return null;
+      const rows = await db.$queryRaw<Array<{ migration_name: string }>>`
+        SELECT migration_name FROM "_prisma_migrations"
+         WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL`;
+      const applied = new Set(rows.map((r) => r.migration_name));
+      return committed.filter((name) => !applied.has(name)).sort();
+    } catch {
+      return null;
+    }
+  }
+
   async function schemaProbe(): Promise<boolean> {
     try {
       await db.user.findFirst({ select: { registrationStatus: true } });
-      return true;
     } catch {
+      pendingMigrations = [];
       return false;
     }
+    const unapplied = await unappliedMigrations();
+    pendingMigrations = unapplied ?? [];
+    return pendingMigrations.length === 0;
   }
   let schemaCurrent = false;
   let migrateRan: { ok: boolean; output: string } | null = null;
@@ -96,7 +129,7 @@ export async function GET(req: Request) {
         hints.push("Schema was missing — migrations were applied JUST NOW. Retry your sign-in.");
       } else {
         hints.push(
-          `Schema is NOT migrated and applying it here failed: ${migrateRan.output.slice(0, 300)} — check DATABASE_URL and the database user's CREATE permission, then restart the app.`,
+          `Schema is NOT migrated${pendingMigrations.length > 0 ? ` (pending: ${pendingMigrations.join(", ")})` : ""} and applying it here failed: ${migrateRan.output.slice(0, 300)} — check DATABASE_URL and the database user's CREATE permission, then restart the app.`,
         );
       }
     }
@@ -194,6 +227,7 @@ export async function GET(req: Request) {
       proxy,
       db: { reachable: dbReachable, error: dbError },
       schemaCurrent,
+      pendingMigrations,
       admin,
       uploads,
       hints,

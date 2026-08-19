@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/lib/db";
 import { resetDb } from "@/tests/db-reset";
 import { assignLeadOwner, createLead, setArchived } from "./leads";
+import { applyProspectEvent, createProspect } from "./partners";
 import { listBsLeads, listOwnLeads } from "./bsystems-admin";
 import { listAssignableOwners } from "./users";
 import { todoFor } from "./todo";
@@ -345,5 +346,93 @@ describe("Assigning a lead to an agent or a partner", () => {
 
     const owners = await listAssignableOwners();
     expect(owners.map((o) => o.name)).toEqual(["Listed Agent", "Listed Partner", "Listed Sales"]);
+  });
+});
+
+/* ---------------------------------------------------------------------------
+   Founder, second sentence: "...and I can assing leads for agents also". The
+   assign machinery already existed — what nothing proved was that an account
+   minted by the QUALIFIED gate (ADR-057 / PA-4) walks straight into it, with no
+   manual User or UserRole insert anywhere in the setup.
+   --------------------------------------------------------------------------- */
+describe("An agent minted by the Qualified gate is assignable the moment he exists", () => {
+  it("appears in the roster, takes a lead, and sees it on his board and his To-Do", async () => {
+    const admin = await makeAdmin();
+
+    /* nobody is assignable yet */
+    expect(await listAssignableOwners()).toEqual([]);
+
+    /* the founder's flow, through the real service: a card, then Qualified */
+    const card = await createProspect(
+      {
+        kind: "agent" as const,
+        name: "Mounir Fahmy",
+        number: "01033322211",
+        email: "mounir.fahmy@example.com",
+      },
+      admin,
+    );
+    await applyProspectEvent({
+      prospectId: card.id,
+      event: { type: "next_action", action: "qualified" },
+      group: {
+        group: "won_agent",
+        data: {
+          firstName: "Mounir",
+          lastName: "Fahmy",
+          address: "44 Gameat El Dowal, Giza",
+          speciality: "Cloud migration",
+          email: "mounir.fahmy@example.com",
+          password: "mounirpass123",
+          phone: "01033322211",
+        },
+      },
+      actor: admin,
+      role: "bsystems_admin",
+    });
+
+    const minted = await db.user.findUniqueOrThrow({
+      where: { email: "mounir.fahmy@example.com" },
+      include: { roles: true },
+    });
+    expect(minted.roles.map((r) => r.role)).toEqual(["bsystems_agent"]);
+    expect(
+      (await db.partnerProspect.findUniqueOrThrow({ where: { id: card.id } })).agentUserId,
+    ).toBe(minted.id);
+
+    /* (a) the roster — no extra approval step, no seeding */
+    const owners = await listAssignableOwners();
+    expect(owners.map((o) => o.name)).toEqual(["Mounir Fahmy"]);
+    expect(owners[0]!.roles).toEqual(["bsystems_agent"]);
+
+    /* (b) he can be handed a lead */
+    const lead = await createLead(
+      "bsystems",
+      { name: "Qualified Gate Corp", number: "0102223334", type: "cold_call", companyName: "QG Co" },
+      admin,
+    );
+    await db.lead.update({ where: { id: lead.id }, data: { stage: "following_up" } });
+    const now = new Date("2026-08-20T09:00:00.000Z");
+    await db.followUp.create({
+      data: { leadId: lead.id, context: "initial", dueAt: now, method: "call" },
+    });
+
+    await assignLeadOwner(lead.id, minted.id, admin);
+    const assigned = await db.lead.findUniqueOrThrow({ where: { id: lead.id } });
+    expect(assigned.ownerUserId).toBe(minted.id);
+    expect(assigned.ownerType).toBe("agent");
+    expect(assigned.partnerId).toBeNull(); // ADR-047: attribution never moves with ownership
+
+    /* (c) his own board, and (d) his own To-Do */
+    expect((await listOwnLeads(minted.id)).map((l) => l.name)).toEqual(["Qualified Gate Corp"]);
+    const mine = await todoFor({
+      brand: "bsystems",
+      scope: { kind: "own", userId: minted.id },
+      now,
+    });
+    expect(mine.today.map((i) => i.title)).toEqual(["Qualified Gate Corp"]);
+
+    /* (e) he was told */
+    expect(await db.notification.count({ where: { userId: minted.id } })).toBe(1);
   });
 });

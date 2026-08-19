@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import type { Prisma } from "../../../generated/prisma/client";
 import { ApiError } from "@/lib/api-error";
 import { writeLog, type Actor } from "./activity";
+import { partnersConfigFor } from "@/lib/pipeline-engine/configs/partners";
 
 /* ============================================================================
    UNDO (ADR-045) — founder: "an undo button that undoes the last action I did".
@@ -354,6 +355,17 @@ async function undoProspectEvent(
     throw new ApiError(400, "This action cannot be undone");
   }
   const snap = entry.payload as unknown as StageEventSnapshot;
+  /* ADR-057 — the runtime belt to the migration's braces. A snapshot written
+     before the agent rename (or restored from an older backup) can name a
+     stage this card's board no longer has; writing it back would strand the
+     card in no column at all. Refuse instead. */
+  const prospect = await tx.partnerProspect.findUnique({
+    where: { id: entry.entityId },
+    select: { kind: true },
+  });
+  if (!prospect || !partnersConfigFor(prospect.kind).stages.includes(snap.stage)) {
+    throw new ApiError(400, CHANGED_SINCE);
+  }
   await deleteCreated(tx, snap.created);
   await restoreUpdated(tx, snap.updated);
   await tx.partnerProspect.update({

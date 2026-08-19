@@ -320,9 +320,13 @@ export async function addAlternativeNumbers(
       data: { alternativeNumbers: JSON.stringify(merged) },
     });
 
-    if (prospect.stage === "didnt_answer") {
+    /* ADR-057: the card's OWN config — an agent card runs the agent stage
+       vocabulary, so the didn't-answer slot and the PA-2 trigger come from it
+       rather than from the partner config this used to assume. */
+    const config = partnersConfigFor(prospect.kind);
+    if (prospect.stage === config.didntAnswerStage) {
       const result = transition(
-        partnersConfig,
+        config,
         { stage: prospect.stage },
         { type: "number_added", slot: 2 },
         { role },
@@ -339,7 +343,8 @@ export async function addAlternativeNumbers(
         action: "auto_transfer",
         fromStage: result.fromStage,
         toStage: result.toStage,
-        trigger: "PP-2", // History: "Returned to Lead — new number added"
+        // History: "Returned to Lead — new number added" (PP-2 / PA-2)
+        trigger: result.logTrigger,
       });
     } else {
       await writeLog(tx, {
