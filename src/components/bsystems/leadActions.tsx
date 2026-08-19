@@ -8,6 +8,7 @@ import { tFor } from "@/lib/i18n/core";
 import { useLocale } from "@/components/shared/LocaleProvider";
 import { leadTypeLabel } from "@/lib/i18n/dict/labels";
 import { assignLead, common, leadDetail, leadForm } from "@/lib/i18n/dict/crm";
+import { todoPage } from "@/lib/i18n/dict/todo";
 
 /* V2 §2.2 — admin lead actions: edit any field, copy the lead's data, delete. */
 
@@ -118,10 +119,13 @@ export function AssignLeadButton({
   leadId,
   owners,
   currentOwnerUserId,
+  small,
 }: {
   leadId: string;
   owners: AssignableOwner[];
   currentOwnerUserId: string | null;
+  /** To-Do rows wear the compact button (design-system btn--sm) */
+  small?: boolean;
 }) {
   const t = tFor(useLocale());
   const router = useRouter();
@@ -132,7 +136,11 @@ export function AssignLeadButton({
 
   if (!open) {
     return (
-      <button type="button" onClick={() => setOpen(true)} className={btnGhost}>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className={small ? `${btnGhost} btn--sm` : btnGhost}
+      >
         {t(assignLead.assign)}
       </button>
     );
@@ -213,6 +221,45 @@ export function AssignLeadButton({
         </form>
       </div>
     </div>
+  );
+}
+
+/* Founder (To-Do) — "I can assign these to do as an admin or just take it
+   myself": the one-click self-assign. Same admin-only endpoint as the Assign
+   modal; the server derives the admin bucket from the target's role. Rendered
+   only when the row is NOT already the admin's own. */
+export function TakeLeadButton({ leadId, selfUserId }: { leadId: string; selfUserId: string }) {
+  const t = tFor(useLocale());
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  return (
+    <span className="inline-flex items-center gap-2">
+      {error ? <span className="text-sm text-brand-danger">{error}</span> : null}
+      <button
+        type="button"
+        disabled={busy}
+        onClick={async () => {
+          setBusy(true);
+          setError(null);
+          const res = await fetch(`/api/b-systems/leads/${leadId}/assign`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ userId: selfUserId }),
+          });
+          setBusy(false);
+          if (!res.ok) {
+            const data = (await res.json().catch(() => null)) as { error?: string } | null;
+            setError(data?.error ?? t(common.somethingWentWrong));
+            return;
+          }
+          router.refresh();
+        }}
+        className={`${btnGhost} btn--sm disabled:opacity-50`}
+      >
+        {t(todoPage.takeIt)}
+      </button>
+    </span>
   );
 }
 

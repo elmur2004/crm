@@ -530,3 +530,23 @@
 - Dragging works from and into scrolled columns: the dragged card's visual
   now rides an overlay above the board, so a clipping column can never
   swallow it mid-drag; the card left behind ghosts until the drop lands.
+
+## To-Do: hand a task over, or take it yourself (2026-08-19)
+
+- On /b-systems/todo, every row that comes from a lead now says who owns
+  it, and (as admin) carries two controls: "Assign owner" — the same
+  chooser the lead page has — and "Take it", one click to put the lead in
+  your own hands. Assigning a to-do simply moves the LEAD, so the person
+  you hand it to sees the task on their own To-Do, the lead lands on their
+  board, and it counts as theirs everywhere. One press of Undo puts it
+  back.
+- "Take it" only appears when the task is not already yours, and taking
+  something does not ring your own bell — the other person still gets
+  notified when you hand them work.
+- Rows that are not a lead — a partner/agent follow-up, an expected
+  statement, a due milestone — stay plain lines: those are yours already,
+  so there is nobody to hand them to. Agents and internal sales see their
+  To-Do exactly as before, with no controls at all.
+- The ByteForce To-Do is unchanged for now: ByteForce leads carry a sales
+  rep NAME, not an account, so there is no colleague's system to move the
+  work into. Tell us how you want it to behave there.

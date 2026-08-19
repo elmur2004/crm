@@ -1300,3 +1300,40 @@ every dashboard formula, journeys 1-5 (SPEC §13).
   no-answer, undo all green), ADR-043 archive as test cleanup, ADR-051
   data-entry walls re-proven.
 - Verdict: PASS — final gate green at the tip carrying all four commits.
+
+## Run 052 — 2026-08-19 — To-Do assign/take: review round + full gate
+
+- Suites/commands: `npx tsc --noEmit` · `npx vitest run` (embedded per-run
+  Postgres) · `npx playwright test` (FULL suite: prod build + embedded e2e
+  Postgres), all three on the final tree of the To-Do assign/take commit
+  (ADR-055) after the review round's four fixes.
+- Cases: tsc clean (0 errors). vitest **284 passed / 0 failed**, 23 files
+  (Run 051 baseline 279 + 3 for the feature + 2 for the review round: the
+  To-Do owner name falls back owner → sales rep → partner company while a
+  bare internal lead keeps a null name; a multi-hat admin+sales account
+  taking a lead lands in the ADMIN bucket and stays off the internal-sales
+  To-Do). Playwright **49 passed / 0 failed / 2 skipped** (`test-results/
+  .last-run.json` → `"status": "passed"`, `failedTests: []`) — Run 051's 46
+  plus the three e2e/todo-assign.spec.ts journeys, the two standing skips
+  being the audit opt-ins. Duration: vitest 82s, Playwright 8.0m.
+- Failures: none. No re-runs were needed — the suites were green first try
+  on the fixed tree (the earlier vitest attempt that reported "23 failed /
+  no tests" was the known lowercase-cwd trap: launched from `d:/CRM` the
+  runner cannot find its own runner module; relaunching from `D:/CRM` is
+  the fix, not a code change).
+- Review round covered by this gate (all four fixes are in the run above):
+  the To-Do owner label is now the app's owner chip (bucket · owner / rep /
+  partner company, "Unassigned" reserved for ADR-051's internal-no-rep-no-
+  account state); components/shared/TodoBody is brand-neutral again (render
+  prop; the B-Systems controls live in components/bsystems/TodoRowActions,
+  so the ByteForce To-Do route carries no B-Systems client module); the
+  dead `selfName` prop is gone; assignLeadOwner resolves the admin bucket
+  FIRST so an admin who also holds a sales role does not park their own
+  "Take it" in the shared internal bucket.
+- SPEC coverage touched: ADR-041 To-Do projection (owner plumbing +
+  Cairo-day/live-record cases re-proven), ADR-047 assign machinery and its
+  ADR-045 undo entry, ADR-051 unassigned definition (label wording + the
+  data-entry walls), ADR-043 archive guard on reassignment, §15 journeys
+  1-5 / qa-sweep / security-rbac all re-run green under the changed shared
+  component.
+- Verdict: PASS — final gate green on the tree that was pushed.

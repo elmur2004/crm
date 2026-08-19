@@ -199,6 +199,151 @@ describe("To-Do aggregation (ADR-041)", () => {
     const sales = await todoFor({ brand: "bsystems", scope: { kind: "internal" }, now: NOW });
     expect(sales.today.map((i) => i.kind)).toEqual(["meeting"]); // extras are admin-only
   });
+
+  /* Founder — "I can assign these to do as an admin or just take it myself".
+     A to-do is a projection over a LEAD's dated records, so a lead-backed row
+     carries that lead's ownership and the page can hand it over with the
+     existing assign machinery. Partner-prospect / statement / milestone rows
+     are admin-owned subsystems: there is nobody to hand them to, so they stay
+     bare — which is exactly what hides the controls on those rows. */
+  it("lead-backed rows carry the lead's id and owner; prospect rows carry none", async () => {
+    const agent = await db.user.create({
+      data: { name: "Owning Agent", phone: "+201099911133", passwordHash: "x" },
+    });
+    const owned = await makeLead({
+      name: "Owned Lead",
+      stage: "following_up",
+      ownerType: "agent",
+      ownerUserId: agent.id,
+    });
+    await fu(owned.id, cairoToUtc("2026-08-20", "09:00"));
+    const unowned = await makeLead({ name: "Unowned Lead", stage: "following_up" });
+    await fu(unowned.id, cairoToUtc("2026-08-20", "10:00"));
+    const meetingLead = await makeLead({
+      name: "Owned Meeting Lead",
+      stage: "meeting_setting",
+      ownerType: "agent",
+      ownerUserId: agent.id,
+    });
+    await db.meeting.create({
+      data: {
+        leadId: meetingLead.id,
+        arranged: true,
+        datetime: cairoToUtc("2026-08-20", "11:00"),
+      },
+    });
+    const prospect = await db.partnerProspect.create({
+      data: {
+        name: "Prospect Person",
+        companyName: "Prospect Co",
+        number: "0100000001",
+        businessActivity: "Consulting",
+        stage: "following_up",
+      },
+    });
+    await db.followUp.create({
+      data: {
+        partnerProspectId: prospect.id,
+        context: "initial",
+        dueAt: cairoToUtc("2026-08-20", "12:00"),
+        method: "call",
+      },
+    });
+
+    const lists = await todoFor({ brand: "bsystems", scope: { kind: "all" }, now: NOW });
+    const byTitle = new Map(lists.today.map((i) => [i.title, i]));
+
+    expect(byTitle.get("Owned Lead")).toMatchObject({
+      kind: "follow_up",
+      leadId: owned.id,
+      ownerUserId: agent.id,
+      ownerName: "Owning Agent",
+      ownerType: "agent",
+    });
+    /* the admin bucket's unassigned state: a lead id to hand over, no owner */
+    expect(byTitle.get("Unowned Lead")).toMatchObject({
+      leadId: unowned.id,
+      ownerUserId: null,
+      ownerName: null,
+      ownerType: "internal",
+    });
+    expect(byTitle.get("Owned Meeting Lead")).toMatchObject({
+      kind: "meeting",
+      leadId: meetingLead.id,
+      ownerUserId: agent.id,
+      ownerName: "Owning Agent",
+    });
+
+    const prospectRow = byTitle.get("Prospect Co");
+    expect(prospectRow?.kind).toBe("prospect_follow_up");
+    expect(prospectRow?.leadId).toBeUndefined();
+    expect(prospectRow?.ownerUserId).toBeUndefined();
+    expect(prospectRow?.ownerName).toBeUndefined();
+    expect(prospectRow?.ownerType).toBeUndefined();
+  });
+
+  /* Review — the To-Do is the screen the admin uses to decide whom to hand a
+     task to, so its owner name must be the SAME three-way name the board, the
+     Leads table and the lead detail show: owner account, else internal rep,
+     else the referring partner company. A lead that IS assigned must never
+     read as unassigned there just because it has no owner ACCOUNT (an internal
+     rep is a card, not a login; a partner converts without one when it has no
+     email). Only ADR-051's real unassigned state — internal bucket, no rep, no
+     account — keeps a null name. */
+  it("the owner name falls back rep → partner company, exactly like every other owner surface", async () => {
+    const rep = await db.salesRep.create({ data: { brand: "bsystems", name: "Omar Rep" } });
+    const prospect = await db.partnerProspect.create({
+      data: {
+        name: "Nile Key Person",
+        companyName: "Nile Co",
+        number: "0100000077",
+        businessActivity: "Consulting",
+        stage: "won",
+        converted: true,
+      },
+    });
+    const partner = await db.partner.create({
+      data: {
+        prospectId: prospect.id,
+        companyName: "Nile Co",
+        keyPersonName: "Nile Key Person",
+        keyPersonRole: "CEO",
+        address: "1 Nile St",
+        number: "0100000077",
+        businessActivity: "Consulting",
+        importance: "high",
+      },
+    });
+
+    const repLead = await makeLead({ name: "Rep Lead", stage: "following_up" });
+    await db.lead.update({ where: { id: repLead.id }, data: { salesRepId: rep.id } });
+    await fu(repLead.id, cairoToUtc("2026-08-20", "09:00"));
+
+    // partner-sourced lead whose partner company has no login (Partner.userId null)
+    const partnerLead = await makeLead({
+      name: "Partner Lead",
+      stage: "following_up",
+      ownerType: "partner",
+    });
+    await db.lead.update({
+      where: { id: partnerLead.id },
+      data: { partnerId: partner.id, source: "partner" },
+    });
+    await fu(partnerLead.id, cairoToUtc("2026-08-20", "10:00"));
+
+    const bare = await makeLead({ name: "Bare Lead", stage: "following_up" });
+    await fu(bare.id, cairoToUtc("2026-08-20", "11:00"));
+
+    const lists = await todoFor({ brand: "bsystems", scope: { kind: "all" }, now: NOW });
+    const byTitle = new Map(lists.today.map((i) => [i.title, i]));
+    expect(byTitle.get("Rep Lead")).toMatchObject({ ownerName: "Omar Rep", ownerType: "internal" });
+    expect(byTitle.get("Partner Lead")).toMatchObject({
+      ownerName: "Nile Co",
+      ownerUserId: null,
+      ownerType: "partner",
+    });
+    expect(byTitle.get("Bare Lead")).toMatchObject({ ownerName: null, ownerType: "internal" });
+  });
 });
 
 describe("cairoDayWindow DST boundaries (hardening)", () => {

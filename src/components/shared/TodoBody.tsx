@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { formatCairo, formatCairoDate } from "@/lib/datetime";
 import { tFor, type Msg } from "@/lib/i18n/core";
@@ -18,7 +19,19 @@ const KIND_LABEL: Record<TodoKind, Msg> = {
   milestone: m.kindMilestone,
 };
 
-export async function TodoBody({ lists }: { lists: TodoLists }) {
+/* Founder — "I can assign these to do as an admin or just take it myself":
+   the B-Systems admin page passes `rowActions` and its rows grow a muted owner
+   label, the existing Assign modal, and a one-click "Take it" (see
+   components/bsystems/TodoRowActions). This list stays brand-neutral — every
+   other role, and the ByteForce page, pass nothing and render exactly as
+   before, without any B-Systems module in their graph. */
+export async function TodoBody({
+  lists,
+  rowActions,
+}: {
+  lists: TodoLists;
+  rowActions?: (item: TodoItem) => ReactNode;
+}) {
   const locale = await getLocale();
   const t = tFor(locale);
 
@@ -33,6 +46,7 @@ export async function TodoBody({ lists }: { lists: TodoLists }) {
           <Link href={item.href} className="font-medium underline underline-offset-2">
             {item.title}
           </Link>
+          {rowActions ? rowActions(item) : null}
         </li>
       ))}
     </ul>

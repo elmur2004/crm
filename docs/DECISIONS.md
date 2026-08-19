@@ -1899,3 +1899,98 @@ R23 copy sign-off — carried in PROGRESS (Entry 011).
   amendment; amends ADR-052 §Phase-2 placement, ADR-053 Phase 5
   placement, and §7.8 for the one dashboard screen.
 - Status: Accepted
+
+## ADR-055 — 2026-08-19 — Assigning a To-Do = reassigning its LEAD; "take it myself" = the admin bucket
+- Context: founder, looking at /b-systems/todo — "I can assign these to do
+  as an admin or just take it myself." The To-Do page (ADR-041) is a
+  read-only projection over records that already carry dates: lead
+  follow-ups and meetings, partner/agent follow-ups and meetings, expected
+  statements, due milestones.
+- Decision: a to-do row is not a thing that can be owned — it is a VIEW of
+  a lead's latest dated record. So "assigning the to-do" is defined as
+  reassigning THAT LEAD's ownership, through the machinery ADR-047 already
+  built. No task entity, no assignee column, no new endpoint.
+  · todoFor() now carries leadId / ownerUserId / ownerName / ownerType on
+    the two LEAD-backed kinds (follow_up, meeting) only. Partner-prospect,
+    statement and milestone rows are admin-owned subsystems — there is
+    nobody to hand them to — so their fields stay unset, and that absence
+    is exactly what hides the controls on those rows.
+  · TodoBody grows ONE optional prop (`assign`). It is passed only by the
+    B-Systems page and only for role bsystems_admin; every other role and
+    the ByteForce page render byte-identically to before. The wall is the
+    server (the page decides) plus requireBsAdmin on the endpoint — the
+    hidden button is cosmetics, not security.
+  · The row reuses the lead detail's AssignLeadButton (same modal, same
+    assignLead.* strings, same POST /api/b-systems/leads/{id}/assign) and
+    adds one small ghost button, "Take it".
+  · "TAKE IT MYSELF" = assignLeadOwner with the admin as target, which now
+    resolves ownerType "admin". That is not a new state: bucketFor() gives
+    an admin-CREATED lead exactly ownerType "admin" + ownerUserId = the
+    admin, and OWNER_TYPES has carried "admin" since V2 §1. The fallback
+    lives INSIDE assignLeadOwner, not in ownerTypeForRole(), so the
+    derivation used elsewhere is untouched.
+  · The assignable ROSTER still excludes admins (ADR-047: the admin bucket
+    is where an unassigned lead sits, not a person's workload).
+    Consequence: "Take it" is the only path into an admin's hands, which
+    is precisely the founder's two options — hand it to someone, or take
+    it yourself.
+  · SELF-ASSIGN SENDS NO NOTIFICATION. Notification is "visible in his
+    system" for someone ELSE; pinging your own bell about your own click
+    is noise. The ActivityLog row ("assigned") and the ADR-045 undo entry
+    ("lead_assign") are still written — history and reversal must not
+    depend on who the target was.
+  · B-SYSTEMS ONLY. The ByteForce To-Do gets no controls: ByteForce leads
+    have no account ownership at all (salesRepId points at a SalesRep
+    nameplate, not a login), so there is no "his system" to move work to.
+    Flagged for founder confirmation in PROGRESS.
+- Alternatives considered: a Task/Assignment table with its own assignee —
+  rejected, it would invent a second, divergent answer to "whose work is
+  this" beside Lead.ownerUserId, and the founder's sentence is about the
+  lead's work, not about a note. Adding "admin" to ownerTypeForRole()
+  itself — rejected: that function also expresses "who may be OFFERED a
+  lead", and widening it would quietly put admins in the roster. Letting
+  the roster include admins instead of a Take-it button — rejected: it
+  reads as workload distribution and buries the founder's one-click
+  intent. Notifying on self-assign for a uniform code path — rejected as
+  self-noise. Assign controls on prospect/statement/milestone rows —
+  rejected: those subsystems are admin-only by ADR-050/§4, so there is no
+  one to assign them to.
+- Resolves: — (founder directive, 2026-08-19; no SPEC §11 A-#)
+- Consequences: assignLeadOwner accepts a bsystems_admin target, so the
+  guard test that used to prove "admins are refused" now proves
+  "data-entry and ByteForce logins are refused" — the roster test remains
+  the proof that admins are never OFFERED. A lead taken by an admin leaves
+  its previous owner's board and lists immediately (ownerUserId moves),
+  and one undo puts it straight back.
+- Review round (2026-08-19, same commit — three corrections to the above):
+  · THE ROW WEARS THE APP'S OWNER CHIP, not a bare account name. The first
+    cut rendered `ownerName ?? "Unassigned"` off Lead.owner alone, so a
+    lead that IS assigned read as unassigned on the one screen whose job
+    is deciding whom to hand work to: an internal lead with a salesRep
+    (a card, not a login), a partner-sourced lead whose partner company
+    converted without an email (Partner.userId null), or a lead whose
+    owner account was deleted (user-delete parks it as ownerType "admin",
+    ownerUserId null). todoFor now selects salesRep.name and
+    partner.companyName and resolves ownerName in the app's established
+    order (owner ?? salesRep ?? partner company); the label is
+    `ownerTypeLabel(ownerType) · name`, exactly like the board, the Leads
+    table and the lead detail. ADR-051's "Unassigned" wording is reserved
+    for the state ADR-051 defines — internal bucket, no rep, no account.
+  · TODOBODY STAYS BRAND-NEUTRAL. The `assign` prop made components/shared
+    import the B-Systems `"use client"` lead-actions module, pulling that
+    chunk (and the CRM dictionary) into the ByteForce To-Do route's client
+    graph for a branch that can never render there. The controls moved to
+    components/bsystems/TodoRowActions.tsx and TodoBody now takes a
+    `rowActions?: (item) => ReactNode` render prop, supplied only by the
+    B-Systems page. Same server-side wall, same rendering; the shared list
+    no longer depends on a brand. The dead `selfName` field went with it.
+  · "TAKE IT" RESOLVES THE ADMIN BUCKET FIRST. ownerTypeForRole() answers
+    agent/partner/internal before it ever returns null, so an account
+    holding bsystems_admin AND a second B-Systems role (the Users editor
+    is a checkbox per role) was landing in the INTERNAL bucket — pushing
+    the admin's own task onto every internal-sales board and To-Do.
+    assignLeadOwner now checks bsystems_admin first, mirroring the
+    precedence bsRoleOf/bucketFor already use everywhere else.
+    ownerTypeForRole itself is still untouched, so the roster still
+    excludes admins.
+- Status: Accepted

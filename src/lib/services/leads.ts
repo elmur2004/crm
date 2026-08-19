@@ -293,7 +293,20 @@ export async function assignLeadOwner(leadId: string, targetUserId: string, acto
   if (target.registrationStatus !== "approved") {
     throw new ApiError(400, "That registration is still awaiting approval");
   }
-  const ownerType = ownerTypeForRole(target.roles.map((r) => r.role));
+  /* Founder (To-Do) — "I can assign these to do as an admin or just take it
+     myself": an ADMIN is a legal target too. The lead lands in the admin
+     bucket with that admin as owner — exactly the state an admin-CREATED lead
+     already has (bucketFor). The rule lives here, not in ownerTypeForRole, so
+     the assignable ROSTER keeps excluding admins everywhere else.
+     Review: admin wins FIRST, mirroring the app's one role precedence
+     (bsRoleOf → bucketFor). An account that holds bsystems_admin AND a second
+     B-Systems role is still an admin everywhere else, so taking a lead must
+     not park it in the shared internal bucket — where it would surface on
+     every internal-sales board and To-Do. */
+  const targetRoles = target.roles.map((r) => r.role);
+  const ownerType = targetRoles.includes("bsystems_admin")
+    ? ("admin" as const)
+    : ownerTypeForRole(targetRoles);
   if (!ownerType) {
     throw new ApiError(400, "Assign a lead to an agent, a partner or an internal sales account");
   }
@@ -311,16 +324,20 @@ export async function assignLeadOwner(leadId: string, targetUserId: string, acto
       action: "update",
       trigger: "assigned",
     });
-    /* founder: "visible in his system" — their own bell, deep-linked. */
-    await notifyUser(tx, {
-      userId: target.id,
-      type: "assigned",
-      title: `Assigned to you: ${lead.name}`,
-      body: `${actor.label} made you the owner of "${lead.name}"${
-        lead.companyName ? ` (${lead.companyName})` : ""
-      }.`,
-      leadId: lead.id,
-    });
+    /* founder: "visible in his system" — their own bell, deep-linked. Taking
+       a lead YOURSELF (the To-Do's "take it" self-assign) must not ping
+       yourself — the activity log and the undo entry still record the move. */
+    if (target.id !== actor.id) {
+      await notifyUser(tx, {
+        userId: target.id,
+        type: "assigned",
+        title: `Assigned to you: ${lead.name}`,
+        body: `${actor.label} made you the owner of "${lead.name}"${
+          lead.companyName ? ` (${lead.companyName})` : ""
+        }.`,
+        leadId: lead.id,
+      });
+    }
     const undoLabel = formatMsg(undoLabels.assigned, { name: lead.name, owner: target.name });
     await recordUndo({
       tx,

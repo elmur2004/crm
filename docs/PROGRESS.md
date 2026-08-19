@@ -2065,3 +2065,113 @@ comment, and the ADR-013 mechanism note all fixed; .env.example confirmed tracke
   header arrows appear and slide; stack 6+ leads in one column and watch it
   scroll inside itself — then drag one of the deep cards out.
 - Blockers: none.
+
+## Entry 049 — 2026-08-19 — To-Do: assign a task's lead, or take it yourself
+
+- Done: founder request (verbatim, on /b-systems/todo) — "I can assign
+  these to do as an admin or just take it myself." Implemented as ADR-055:
+  a to-do row is a projection over a LEAD's latest dated record, so
+  assigning the task IS reassigning that lead, through the admin-only
+  endpoint ADR-047 already built. No task entity, no assignee column, no
+  new route.
+  · src/lib/services/todo.ts — the two LEAD-backed kinds (follow_up,
+    meeting) now carry leadId / ownerUserId / ownerName / ownerType; the
+    stagedLeads select gained ownerUserId, ownerType, owner.name,
+    salesRep.name and partner.companyName (ownerName resolves in that
+    order, as every other owner surface does).
+    Partner-prospect / statement / milestone rows stay bare on purpose —
+    admin-owned subsystems with nobody to hand over to.
+  · src/lib/services/leads.ts — assignLeadOwner accepts a bsystems_admin
+    target and resolves ownerType "admin" (the exact state bucketFor()
+    already gives an admin-CREATED lead; OWNER_TYPES has carried it since
+    V2 §1) — admin FIRST, the precedence bsRoleOf/bucketFor already use.
+    The rule sits inside assignLeadOwner, NOT in ownerTypeForRole(), so
+    the assignable roster keeps excluding admins.
+    Self-assign (target === actor) skips notifyUser — no bell for your own
+    click — while the ActivityLog row and the ADR-045 undo entry are still
+    written.
+  · src/components/shared/TodoBody.tsx — one optional `rowActions` render
+    prop, so the shared list stays brand-neutral. Its rows call it and the
+    B-Systems side renders the muted owner CHIP (bucket · owner / rep /
+    partner company, the same label the board and the lead detail show),
+    the lead detail's own AssignLeadButton (compact variant), and a new
+    "Take it" button — hidden when the row is already the admin's.
+  · src/components/bsystems/TodoRowActions.tsx — those row controls and
+    the owner-chip composition, B-Systems-scoped: components/shared never
+    imports the B-Systems lead-action client module, so the ByteForce
+    To-Do route carries none of it.
+  · src/components/bsystems/leadActions.tsx — TakeLeadButton (POSTs the
+    same assign endpoint with the admin's own id, inline error, refresh)
+    beside AssignLeadButton, which gained a `small` flag for the row.
+  · src/app/(bsystems)/b-systems/(app)/todo/page.tsx — builds the
+    rowActions render prop ONLY for bsystems_admin, with the lead-detail
+    page's pre-translated role labels. Every other role and the ByteForce
+    To-Do page render exactly as before; the real wall is requireBsAdmin
+    on the endpoint.
+  · src/lib/i18n/dict/todo.ts — one new key, takeIt (EN + AR). The modal
+    reuses the existing assignLead.* keys; the owner chip reuses
+    ownerTypeLabel + ownerFilters.unassigned. No existing English string
+    touched.
+- Review round (same commit — eight reviewer findings adjudicated against
+  the code: four distinct defects, all real and all fixed; the other four
+  were duplicate reports of the same two. ADR-055 carries the reasoning):
+  · The owner label was a bare account name with "Unassigned" as its
+    fallback, so a lead assigned to an internal REP, or owned by a partner
+    company with no login, or left ownerless by a deleted account, read as
+    unassigned on the screen used to hand work out. todoFor now selects
+    salesRep.name + partner.companyName and falls back owner → rep →
+    partner company; the row shows the app's owner chip (bucket · name)
+    and keeps "Unassigned" for ADR-051's real state.
+  · TodoBody's `assign` prop made components/shared import the B-Systems
+    "use client" lead-actions module — dead code in the ByteForce route's
+    client graph. Replaced by a `rowActions` render prop plus the new
+    components/bsystems/TodoRowActions.tsx. The unread `selfName` field
+    disappeared with it.
+  · assignLeadOwner resolved the bucket through ownerTypeForRole FIRST, so
+    an account holding bsystems_admin AND bsystems_sales landed in the
+    INTERNAL bucket on "Take it" — the admin's own task would have
+    surfaced on every internal-sales board and To-Do. Admin now wins
+    first, matching bsRoleOf/bucketFor precedence everywhere else.
+  · TodoAssign.selfName was declared and populated but never read — a
+    required field on a public interface with zero read sites. Gone with
+    the prop rewrite above.
+  · Nothing was refuted: every finding reproduced against the code.
+- Verification: tsc clean; vitest 284/284 — baseline 279, +3 for the
+  feature (to-do rows carry lead ownership while prospect rows do not; an
+  admin takes a lead: admin bucket, NO self-notification, undo restores
+  the previous owner; a second admin target IS notified) and +2 for the
+  review round (the owner name falls back rep → partner company while a
+  bare internal lead keeps a null name; a multi-hat admin+sales account
+  taking a lead lands in the ADMIN bucket and stays off the internal
+  sales To-Do). New e2e/todo-assign.spec.ts, 3 passed
+  (admin row shows owner + Assign + Take it while a partner-prospect row
+  shows neither, assign-through-the-modal then take-it-back with the lead
+  detail agreeing, the agent finds the task on THEIR To-Do with no
+  controls, internal sales sees no controls). e2e/todo.spec.ts re-run
+  green alongside; its assertions now pin the composed chip ("Admins ·
+  Elmur", "Agents · Karim Adel", "Internal · Omar Farouk"). The existing
+  assign guard test now proves data-entry and ByteForce logins are refused
+  (admins are legal targets by design); the roster test still proves
+  admins are never OFFERED. Full gate on the final tree: Playwright 49
+  passed / 2 skipped (TESTING Run 052).
+- Needs founder confirmation:
+  (i) THE BYTEFORCE TO-DO GOT NO ASSIGN CONTROLS. ByteForce leads have no
+  account ownership to move — salesRepId points at a SalesRep NAMEPLATE
+  (a card on the reps board), not at a login, so there is no "his system"
+  to hand the work to. If you want the equivalent there, say which: give
+  ByteForce staff real logins that own leads, or make the To-Do row
+  re-point the lead's sales-rep nameplate instead.
+  (ii) Admins are still absent from the Assign dropdown (ADR-047: the
+  admin bucket is where an UNASSIGNED lead sits). "Take it" is therefore
+  the only way a lead lands with an admin — which matches your two
+  options, but say the word if you want to hand a lead to a NAMED admin
+  colleague from the list.
+  (iii) Taking a lead yourself does not notify you (no bell for your own
+  click); it is still in the activity log and still undoable.
+  Carried items from Entries 047 and 048 remain open.
+- Next steps: founder test on /b-systems/todo — an overdue row now shows
+  who owns it plus "Assign owner" and (when it is not already yours)
+  "Take it"; assign one to an agent and confirm it appears on his To-Do;
+  take one back and check the lead page reads "Admins · <your name>";
+  press Undo on the header afterwards.
+- Blockers: none.

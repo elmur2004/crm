@@ -30,6 +30,19 @@ export interface TodoItem {
   withTime: boolean; // date-only records (statements/milestones) hide the clock
   title: string;
   href: string;
+  /* Founder — "I can assign these to do as an admin or just take it myself":
+     lead-backed rows (follow_up / meeting) carry the LEAD's ownership, so the
+     To-Do can hand the lead over with the existing assign machinery. Prospect,
+     statement and milestone rows are admin-owned subsystems — nothing to hand
+     over, so the fields stay unset there.
+     Review: `ownerName` is the same three-way name every other owner surface
+     shows (owner account ?? internal rep ?? referring partner company), so a
+     lead that IS assigned — to a rep, or to a partner company with no login —
+     never reads as unassigned on the one screen that hands work out. */
+  leadId?: string;
+  ownerUserId?: string | null;
+  ownerName?: string | null;
+  ownerType?: string;
 }
 
 export interface TodoLists {
@@ -58,6 +71,18 @@ export function cairoDayWindow(now: Date): { start: Date; end: Date } {
     next.getUTCDate(),
   )}`;
   return { start: startOfCairoDay(date), end: startOfCairoDay(nextDate) };
+}
+
+/* The name every other owner surface shows, in the same order (CRM board,
+   Leads table, lead detail): the owner ACCOUNT, else the internal rep, else
+   the referring partner company. Null only for the genuinely unassigned
+   internal lead — no rep, no account (ADR-051). */
+function ownerNameOf(lead: {
+  owner: { name: string } | null;
+  salesRep: { name: string } | null;
+  partner: { companyName: string } | null;
+}): string | null {
+  return lead.owner?.name ?? lead.salesRep?.name ?? lead.partner?.companyName ?? null;
 }
 
 function leadWhere(brand: Brand, scope: TodoScope) {
@@ -99,6 +124,11 @@ export async function todoFor(opts: {
       id: true,
       name: true,
       stage: true,
+      ownerUserId: true,
+      ownerType: true,
+      owner: { select: { name: true } },
+      salesRep: { select: { name: true } },
+      partner: { select: { companyName: true } },
       followUps: { orderBy: { createdAt: "desc" }, take: 1 },
       meetings: { orderBy: { createdAt: "desc" }, take: 1 },
       proposals: { orderBy: { createdAt: "desc" }, take: 1, select: { createdAt: true } },
@@ -129,6 +159,10 @@ export async function todoFor(opts: {
         withTime: true,
         title: lead.name,
         href: `${leadBase}/${lead.id}`,
+        leadId: lead.id,
+        ownerUserId: lead.ownerUserId,
+        ownerName: ownerNameOf(lead),
+        ownerType: lead.ownerType,
       });
     }
     if (
@@ -145,6 +179,10 @@ export async function todoFor(opts: {
         withTime: true,
         title: lead.name,
         href: `${leadBase}/${lead.id}`,
+        leadId: lead.id,
+        ownerUserId: lead.ownerUserId,
+        ownerName: ownerNameOf(lead),
+        ownerType: lead.ownerType,
       });
     }
   }

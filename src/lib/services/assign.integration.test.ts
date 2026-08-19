@@ -200,9 +200,109 @@ describe("Assigning a lead to an agent or a partner", () => {
     expect(await listOwnLeads(agent.id)).toEqual([]);
   });
 
-  it("refuses accounts that cannot own a lead, dead accounts, and archived leads", async () => {
+  /* Founder (To-Do) — "I can assign these to do as an admin or just take it
+     myself." The admin is a legal target: the lead lands in the ADMIN bucket
+     with them as its owner, which is exactly the state an admin-CREATED lead
+     already has. The roster still excludes admins (see the last test) — taking
+     it yourself is the only admin path, and it must not ping your own bell. */
+  it("an admin can take the lead themselves: admin bucket, no self-notification, still undoable", async () => {
+    const admin = await makeAdmin();
+    const agent = await makeUser("Handing Agent", "bsystems_agent");
+    const lead = await createLead(
+      "bsystems",
+      { name: "Taken Corp", number: "0109990001", type: "cold_call", companyName: "Taken Co" },
+      admin,
+      { ownerType: "agent", ownerUserId: agent.id },
+    );
+
+    await assignLeadOwner(lead.id, admin.id!, admin);
+
+    const fresh = await db.lead.findUniqueOrThrow({ where: { id: lead.id } });
+    expect(fresh.ownerUserId).toBe(admin.id);
+    expect(fresh.ownerType).toBe("admin");
+    expect(await listOwnLeads(agent.id)).toEqual([]);
+    expect((await listBsLeads("admin")).map((l) => l.id)).toEqual([lead.id]);
+
+    /* no bell for yourself — the log and the undo entry still record the move */
+    expect(
+      await db.notification.findMany({ where: { userId: admin.id!, type: "assigned" } }),
+    ).toHaveLength(0);
+    const log = await db.activityLog.findFirst({
+      where: { entityId: lead.id, trigger: "assigned" },
+    });
+    expect(log).not.toBeNull();
+    expect(log!.actorLabel).toBe("Assigning Admin");
+
+    /* undo hands it straight back to the previous owner and bucket */
+    expect((await pendingUndoFor(admin.id!))?.label).toBe("Assigned Taken Corp to Assigning Admin");
+    await performUndo(admin);
+    const back = await db.lead.findUniqueOrThrow({ where: { id: lead.id } });
+    expect(back.ownerUserId).toBe(agent.id);
+    expect(back.ownerType).toBe("agent");
+    expect((await listOwnLeads(agent.id)).map((l) => l.id)).toEqual([lead.id]);
+  });
+
+  it("handing a lead to ANOTHER admin lands in the admin bucket and does ring their bell", async () => {
     const admin = await makeAdmin();
     const otherAdmin = await makeUser("Second Admin", "bsystems_admin");
+    const lead = await createLead(
+      "bsystems",
+      { name: "Colleague Corp", number: "0109990002", type: "cold_call" },
+      admin,
+    );
+
+    await assignLeadOwner(lead.id, otherAdmin.id, admin);
+
+    const fresh = await db.lead.findUniqueOrThrow({ where: { id: lead.id } });
+    expect(fresh.ownerUserId).toBe(otherAdmin.id);
+    expect(fresh.ownerType).toBe("admin");
+    const notes = await db.notification.findMany({ where: { userId: otherAdmin.id } });
+    expect(notes).toHaveLength(1);
+    expect(notes[0]!.leadId).toBe(lead.id);
+  });
+
+  /* Review — role precedence: an account can hold bsystems_admin AND a second
+     B-Systems role (the Users editor is a checkbox per role), and bsRoleOf /
+     bucketFor already treat such an account as an ADMIN everywhere. Taking a
+     lead must follow the same precedence: parking it in the shared internal
+     bucket would push the admin's own task onto every internal-sales board and
+     To-Do. */
+  it("an admin who also holds a sales role still lands in the ADMIN bucket, not the shared internal one", async () => {
+    const admin = await makeAdmin();
+    const founder = await db.user.create({
+      data: {
+        name: "Founder Both Hats",
+        phone: "+201066600900",
+        passwordHash: "x",
+        roles: { create: [{ role: "bsystems_admin" }, { role: "bsystems_sales" }] },
+      },
+    });
+    const agent = await makeUser("Hybrid Handing Agent", "bsystems_agent");
+    const lead = await createLead(
+      "bsystems",
+      { name: "Hybrid Corp", number: "0109990003", type: "cold_call" },
+      admin,
+      { ownerType: "agent", ownerUserId: agent.id },
+    );
+
+    await assignLeadOwner(lead.id, founder.id, admin);
+
+    const fresh = await db.lead.findUniqueOrThrow({ where: { id: lead.id } });
+    expect(fresh.ownerType).toBe("admin");
+    expect(fresh.ownerUserId).toBe(founder.id);
+    expect((await listBsLeads("internal")).map((l) => l.id)).toEqual([]);
+    /* and it does NOT show up on the internal sales team's To-Do */
+    const salesTodo = await todoFor({ brand: "bsystems", scope: { kind: "internal" } });
+    expect([...salesTodo.today, ...salesTodo.overdue].map((i) => i.title)).not.toContain(
+      "Hybrid Corp",
+    );
+  });
+
+  it("refuses accounts that cannot own a lead, dead accounts, and archived leads", async () => {
+    const admin = await makeAdmin();
+    /* data entry "will not be the owner of what they add" (ADR-051), and a
+       ByteForce login has no B-Systems bucket at all */
+    const dataEntry = await makeUser("Entry Only", "bsystems_data_entry");
     const byteforce = await makeUser("BF Staff", "byteforce_staff");
     const inactive = await makeUser("Retired Agent", "bsystems_agent", { active: false });
     const pending = await makeUser("Pending Agent", "bsystems_agent", {
@@ -215,7 +315,7 @@ describe("Assigning a lead to an agent or a partner", () => {
       admin,
     );
 
-    await expect(assignLeadOwner(lead.id, otherAdmin.id, admin)).rejects.toThrow(/agent, a partner/);
+    await expect(assignLeadOwner(lead.id, dataEntry.id, admin)).rejects.toThrow(/agent, a partner/);
     await expect(assignLeadOwner(lead.id, byteforce.id, admin)).rejects.toThrow(/agent, a partner/);
     await expect(assignLeadOwner(lead.id, inactive.id, admin)).rejects.toThrow(/deactivated/);
     await expect(assignLeadOwner(lead.id, pending.id, admin)).rejects.toThrow(/awaiting approval/);

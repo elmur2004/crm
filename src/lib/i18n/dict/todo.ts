@@ -17,4 +17,9 @@ export const todoPage = {
   kindProspectMeeting: { en: "Partner or agent meeting", ar: "اجتماع شريك أو وكيل" },
   kindStatement: { en: "Statement expected", ar: "كشف حساب متوقع" },
   kindMilestone: { en: "Milestone due", ar: "مرحلة دفع مستحقة" },
+  /* Founder — "I can assign these to do as an admin or just take it myself":
+     the one-click self-assign on a lead row (admin only). The Assign modal
+     reuses the crm dict's assignLead.* keys; the owner label reuses
+     ownerFilters.unassigned. */
+  takeIt: { en: "Take it", ar: "أتولاه بنفسي" },
 } satisfies Record<string, Msg>;
