@@ -119,6 +119,18 @@ export const pPipeline = {
     en: "Won and Lost cards can no longer be moved.",
     ar: "لا يمكن نقل بطاقات «مكسب» و«خسارة» بعد الآن.",
   },
+  /* ADR-057 — an agent board's terminal pair is Qualified and Lost, so the
+     partner sentence above would name a column that board does not have.
+     A SIBLING key: the existing English is live output and never edited. */
+  terminalToastAgent: {
+    en: "Qualified and Lost cards can no longer be moved.",
+    ar: "لا يمكن نقل بطاقات «مؤهَّل» و«خسارة» بعد الآن.",
+  },
+  /* the two stacked sections of the All view, and their empty states */
+  sectionPartners: { en: "Partners", ar: "الشركاء" },
+  sectionAgents: { en: "Agents", ar: "الوكلاء" },
+  noPartnerCards: { en: "No partner cards yet.", ar: "لا توجد بطاقات شركاء بعد." },
+  noAgentCards: { en: "No agent cards yet.", ar: "لا توجد بطاقات وكلاء بعد." },
   modalNote: {
     en: "Complete this stage's details to confirm the move — cancel reverts it.",
     ar: "أكمل تفاصيل هذه المرحلة لتأكيد النقل — الإلغاء يتراجع عنه.",
@@ -206,18 +218,29 @@ export const pForms = {
   /* founder: "whenever I'm adding someone into the CRM, it could be a partner
      or an agent" — so the FIRST control on the form asks which. */
   whichKind: { en: "What are you adding?", ar: "ما الذي تضيفه؟" },
+  /* @deprecated ADR-057 — superseded by kindLockedPipelines: it is no longer
+     only the Won step that differs, it is the whole set of columns. */
   kindLocked: {
     en: "Chosen once: a card stays a partner or an agent — the Won step differs for each.",
     ar: "يُختار مرة واحدة: تبقى البطاقة شريكًا أو وكيلًا — لأن خطوة «مكسب» تختلف بينهما.",
+  },
+  kindLockedPipelines: {
+    en: "Chosen once: a card stays a partner or an agent — each kind runs its own columns.",
+    ar: "يُختار مرة واحدة: تبقى البطاقة شريكًا أو وكيلًا — ولكل نوع أعمدته الخاصة.",
   },
   /* founder: only the name and the number are required on an agent card */
   agentOptionalHint: {
     en: "Only the name and the number are required — add the rest whenever you have it.",
     ar: "الاسم والرقم فقط مطلوبان — أضف الباقي متى توفّر لديك.",
   },
+  /* @deprecated ADR-057 — the CV now rides to the profile at Qualified. */
   cvOptionalHint: {
     en: "Optional — it moves to the agent's profile when you set them Won.",
     ar: "اختيارية — تنتقل إلى ملف الوكيل عند تحويله إلى «مكسب».",
+  },
+  cvOptionalHintQualified: {
+    en: "Optional — it moves to the agent's profile when you set them Qualified.",
+    ar: "اختيارية — تنتقل إلى ملف الوكيل عند تحويله إلى «مؤهَّل».",
   },
   saveCv: { en: "Save CV", ar: "حفظ السيرة الذاتية" },
   altNumbersTitle: { en: "Alternative numbers", ar: "أرقام بديلة" },
@@ -252,9 +275,15 @@ export const pPanel = {
   /* founder: "once I put them Won, I have to create for them a user and a
      password — they will not apply, I will create for them a user and a
      password." Both credentials are REQUIRED on the agent gate. */
+  /* @deprecated ADR-057 moved the agent gate onto Qualified — superseded by
+     qualifiedAgentHint. Kept verbatim: existing English is never edited. */
   wonAgentHint: {
     en: "Won creates the agent's account: they sign in with this email and password straight away — no registration to approve.",
     ar: "«مكسب» ينشئ حساب الوكيل: يسجّل الدخول بهذا البريد وكلمة المرور فورًا — دون طلب تسجيل ينتظر الموافقة.",
+  },
+  qualifiedAgentHint: {
+    en: "Qualified creates the agent's account: they sign in with this email and password straight away — no registration to approve.",
+    ar: "«مؤهَّل» ينشئ حساب الوكيل: يسجّل الدخول بهذا البريد وكلمة المرور فورًا — دون طلب تسجيل ينتظر الموافقة.",
   },
   passwordPh: { en: "Partner's sign-in password", ar: "كلمة مرور دخول الشريك" },
   agentPasswordPh: { en: "Agent's sign-in password", ar: "كلمة مرور دخول الوكيل" },

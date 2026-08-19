@@ -1467,3 +1467,202 @@ every dashboard formula, journeys 1-5 (SPEC §13).
   `src/app/api/files/[id]/route.ts`, is the standalone missing-file HTML page
   served outside the app shell and outside the theming layer: pre-existing,
   documented, untouched here.
+
+## Run 055 — 2026-08-20 — The agents pipeline (ADR-057): engine, migration, board — full gate
+- Suites/commands: `npx tsc --noEmit` (after each of the three commits) ·
+  `npx vitest run` (embedded per-run Postgres, launched from `D:\CRM` — the
+  lowercase-cwd trap in Run 052 still applies) · `npx playwright test`, the
+  WHOLE suite, on a COPIED config at port **3177** (`playwright.tmp3177.config.ts`,
+  deleted after the run): 3100 was held by another workstream and 3000 by the
+  founder's dev server, and no other workstream's process was touched.
+- Cases:
+  · tsc clean (0 errors) on commit 1, commit 2 and the final tree.
+  · vitest **307 passed / 0 failed**, 24 files. Baseline before this work was
+    304 in 23 files (Run 054's 284 plus the To-Do/undo work since). The delta:
+    +13 engine cases (§10.2a's PA-1…PA-5, the config-shape test, illegal moves
+    both directions, terminal refusals, the same-stage slot test, and the
+    partner-unchanged regression block), +2 migration cases (NEW FILE
+    `src/lib/services/agent-stages-migration.integration.test.ts`), +2 To-Do,
+    +1 backup, +1 assign, +3 brand-tokens, minus the renames inside the existing
+    partners suite. `src/lib/services/partners.integration.test.ts` 22/22 with
+    the agent flow rewritten onto `contacted` / `qualified` and two NEW
+    assertions that the agent card's move logs `PA-2` and `PA-4` while the
+    portal_rep row keeps `PP-4a`.
+  · Playwright, FULL SUITE: **62 passed / 0 failed / 2 skipped**, 9.3m. The 2
+    skips are the standing audit opt-ins (`e2e/audit.spec.ts`).
+    `test-results/.last-run.json` → `{"status": "passed", "failedTests": []}`,
+    read from the file, not inferred from piped output.
+    Against Run 054's 59 + 2 skips: +3 from the new `e2e/agent-pipeline.spec.ts`.
+- THE MIGRATION, PROVED TWICE, TWO WAYS. This was the highest-risk part of the
+  change and was not taken on trust:
+  (1) An integration test that reads
+      `prisma/migrations/20260819180000_agent_stages/migration.sql` off disk,
+      strips comments, and executes the SHIPPED statements — so the test can
+      never drift from the file that ships. Fixtures: an agent card at every one
+      of the seven stages that could exist (lead, following_up, didnt_answer,
+      meeting_setting, lost, won, and an already-migrated qualified), the `won`
+      one carrying a REAL minted account (User + `bsystems_agent` role +
+      PortalRep) plus a FollowUp and a Meeting; a partner at following_up; a
+      converted partner with its directory Partner row; ActivityLog rows for
+      both kinds; and an unconsumed UndoEntry for each kind.
+      BEFORE: `{agent:lead 1, agent:following_up 1, agent:didnt_answer 1,
+      agent:meeting_setting 1, agent:qualified 1, agent:won 1, agent:lost 1,
+      partner:following_up 1, partner:won 1}` — 9 rows.
+      AFTER:  `{agent:lead 1, agent:contacted 1, agent:didnt_answer 1,
+      agent:meeting_setting 1, agent:qualified 2, agent:lost 1,
+      partner:following_up 1, partner:won 1}` — 9 rows. Exactly two moved.
+      The converted agent: `converted` still true, `agentUserId` unchanged, User
+      still active + approved with its role, PortalRep the same row, FollowUp
+      and Meeting both intact. Agent history reads `lead → contacted` and
+      `contacted → qualified`; partner history still reads `lead → following_up`
+      and `following_up → won`. The agent's pending UndoEntry is consumed; the
+      partner's is untouched. Then RUN AGAIN: a full snapshot (prospects + logs)
+      compares equal, and a second test runs it against an ALREADY-migrated
+      database and asserts nothing moves.
+  (2) A throwaway Postgres and the REAL `prisma migrate deploy`, not raw SQL:
+      apply all migrations, delete the ADR-057 row from `_prisma_migrations` to
+      rewind the ledger, insert live-shaped fixtures, then deploy. Prisma
+      reported `Applying migration 20260819180000_agent_stages` and
+      `All migrations have been successfully applied.`
+      BEFORE `{agent:won 1, agent:following_up 1, agent:lead 1,
+      agent:didnt_answer 1, agent:meeting_setting 1, agent:lost 1,
+      partner:following_up 1, partner:won 1}`; converted card stage=won,
+      converted=true, agentUserId intact, 1 followUp, 1 User, 1 PortalRep;
+      agent log `following_up -> won`; partner log `following_up -> won`; agent
+      undo consumed=false.
+      AFTER `{agent:lead 1, agent:didnt_answer 1, agent:meeting_setting 1,
+      agent:lost 1, partner:following_up 1, partner:won 1, agent:contacted 1,
+      agent:qualified 1}`; converted card stage=qualified, converted=true,
+      agentUserId intact, 1 followUp, 1 User, 1 PortalRep; agent log
+      `contacted -> qualified`; PARTNER log still `following_up -> won`; agent
+      undo consumedAt set.
+      Ledger rewound and DEPLOYED A SECOND TIME: counts, the converted card, its
+      relations and both logs identical — idempotent under the real deploy path,
+      which is what `scripts/start.mjs` retries and what `/api/health`
+      self-heals with. Probe script and its `.pgdata` directory deleted.
+- What the e2e proves that nothing else can:
+  · Kind = All renders exactly two `.board` elements; `[data-pipeline="partner"]`
+    reads Lead / Didn't Answer / Following Up / Meeting Setting / Won / Lost and
+    `[data-pipeline="agent"]` reads Lead / Contacted / Didn't Answer / Meeting
+    Setting / Qualified / Lost, IN ORDER; neither carries the other's exclusive
+    columns.
+  · A drag in each board on the SAME page opens the right form and commits to
+    the right column; dragging an agent card onto the partner board opens no
+    modal and moves nothing (separate DndContexts — the drop never registers).
+  · `?kind=partner` and `?kind=agent` each render exactly one board.
+  · Arabic: both section headings translated, the agent columns read
+    عميل محتمل / تم التواصل / لم يرد / تحديد اجتماع / مؤهَّل / خسارة, the first
+    column sits to the RIGHT of the last (reading order preserved), and Partners
+    still sits ABOVE Agents (stacking is block-axis).
+  · The founder's second sentence, through the UI: create an agent card, drive
+    it to Qualified through the gate, find the minted agent in the lead's
+    "Responsible for this lead" roster, assign, then sign in as him in a second
+    browser context and see the lead on his CRM board and his To-Do.
+  · `e2e/partners-agents.spec.ts` rewritten onto the new vocabulary and now also
+    asserts the partner "Won" option is NOT offered on an agent card, that the
+    Qualified card is terminal (the sentence renders, no Next action select),
+    and that the card lives in the Agents board and not the Partners one.
+    Everything from the Converted badge through "Agent account created" to the
+    agent signing in and landing on `/b-systems/crm` is unchanged — that is the
+    proof the gate MOVED without changing what it collects.
+- Failures found and fixed during the round (both in the new e2e, before any
+  commit): the assign modal's `<option>` label is `"{name} — {role}"`, so
+  selecting by a guessed label timed out — the test now reads the option's
+  VALUE, which cannot drift with the formatting. And journey 3's column
+  locators had to be scoped to `[data-pipeline="partner"]` or Playwright's
+  strict mode fails on the DEFAULT view, where four stage ids appear twice.
+- Not run: `/brand-audit` as a skill. The two new token families were instead
+  pinned by three NEW assertions in `src/lib/brand-tokens.test.ts` (three-scope
+  parity including `src/themes/neutral.css`, which that file never read before;
+  the Tailwind `@theme inline` bridge; and a coverage walk over every stage of
+  every pipeline that fails if `stageKey()` falls through to `lost` or returns a
+  key with no `[data-stage-key]` rule). A grep over the changed `.ts`/`.tsx`
+  files found zero hardcoded hexes or `rgb()`.
+
+## Run 056 — 2026-08-20 — Agents pipeline: reviewer findings adjudicated, then the FULL gate again
+- Suites/commands: `npx tsc --noEmit` · `npx vitest run` (embedded per-run
+  Postgres, launched from `D:\CRM` — the lowercase-cwd trap of Run 052 still
+  applies) · `npx playwright test`, the WHOLE suite, on a COPIED config at port
+  **3111** (`playwright.alt.config.ts`, deleted after the run): 3100 was taken
+  by another project's `next start` (`D:\Healthcare App`) and 3000 by the
+  founder's dev server. Neither process was touched. · a standalone migration
+  re-proof against a throwaway embedded Postgres on port 5449.
+- Cases:
+  · tsc **clean (0 errors)** on the final tree.
+  · vitest **311 passed / 0 failed**, 25 files. Run 055 was 307 in 24 files;
+    the +4 is the NEW `src/components/internal/historyPhrases.test.ts` (3 cases:
+    PP-2 and PA-2 both carry §10.2/§10.2a's wording, every pipeline that can
+    emit `number_added` is covered, and the row id the ENGINE stamps resolves to
+    the phrase) plus a third case in the migration suite (SQL ↔ `importBackup`
+    parity).
+  · Playwright, FULL SUITE: **64 passed / 0 failed / 2 skipped**, 9.5m. The 2
+    skips are the standing audit opt-ins (`e2e/audit.spec.ts`). Run 055 was
+    62 + 2; the +2 are the toast-slot test and the filtered-empty-section test
+    in `e2e/agent-pipeline.spec.ts`.
+    `test-results/.last-run.json` → `{"status": "passed", "failedTests": []}`,
+    read from the file, not inferred from the piped summary.
+- THE MIGRATION, RE-PROVED FROM SCRATCH (it changed in this round, so it was
+  re-run rather than re-read). A throwaway embedded Postgres, and the REAL
+  `prisma migrate deploy` — no raw SQL, no rewinding of `_prisma_migrations`.
+  The ADR-057 migration folder was moved OUT of `prisma/migrations` first, so
+  the ledger was built the way production's was:
+  · `migrate deploy` #1 applied **11** migrations (everything before the
+    rename). `_prisma_migrations` has no `20260819180000_agent_stages` row.
+  · Live-shaped fixtures inserted at the OLD stages: an agent card at each of
+    following_up / lead / didnt_answer / meeting_setting / lost / won, the `won`
+    one carrying a REAL minted account (User + `bsystems_agent` UserRole +
+    PortalRep) plus a FollowUp and a Meeting; a partner at following_up; a
+    converted partner with its directory Partner row; 4 ActivityLog rows; and
+    3 UndoEntry rows — an OLDER partner-card entry and a NEWER agent-card entry
+    belonging to the SAME admin, plus a second admin's entry.
+    BEFORE `{agent:following_up 1, agent:lead 1, agent:didnt_answer 1,
+    agent:meeting_setting 1, agent:lost 1, agent:won 1, partner:following_up 1,
+    partner:won 1}` — 8 rows.
+  · The folder restored; `migrate deploy` #2 reported exactly **1** migration
+    applied — ``Applying migration `20260819180000_agent_stages` `` — and the
+    row is recorded `finished_at NOT NULL`.
+    AFTER `{agent:lead 1, agent:contacted 1, agent:didnt_answer 1,
+    agent:meeting_setting 1, agent:qualified 1, agent:lost 1,
+    partner:following_up 1, partner:won 1}` — 8 rows. Exactly two moved.
+  · **21 of 21 assertions PASS, 0 FAIL**: both renames; the four untouched agent
+    stages; BOTH partner rows untouched; `converted` still true; `agentUserId`
+    unchanged; 1 FollowUp + 1 Meeting still attached; the User still
+    active + approved with `bsystems_agent` and the SAME PortalRep row; the
+    partner's directory row intact; agent History reading `lead → contacted` and
+    `contacted → qualified` while partner History still reads
+    `lead → following_up` and `following_up → won`; the dead-stage undo retired;
+    **the older entry underneath it retired too** (ADR-045 honesty); the other
+    admin's entry untouched.
+  · IDEMPOTENCE, both ways: `migrate deploy` #3 applied **0** migrations, and
+    the migration FILE re-executed by hand (the manual-psql / `migrate resolve`
+    path the header advertises) left a full snapshot — prospects, logs and undo
+    rows — byte-identical. A pending undo written AFTER the deploy SURVIVES the
+    re-run, which is the case a back-to-back re-run structurally cannot catch.
+  · FINAL row counts: `partnerProspect 8, activityLog 4, undoEntry 4, user 1,
+    portalRep 1, partner 1, followUp 1, meeting 1`.
+- NEGATIVE CONTROL (the guards were proved to bite, not just to be green): the
+  OLD statement 3 was pasted back into the shipped file and the migration suite
+  re-run — **all 3 cases went RED** (honesty promotion, the already-migrated
+  case, and the SQL ↔ import parity diff). The fixed statement was then restored
+  and the suite re-run green. Without this the new assertions would have been
+  unfalsifiable.
+- BRAND AUDIT (by hand — no Agent tool in this environment): **PASS**. No hex,
+  `rgb()`, `hsl()`, arbitrary Tailwind value or `font-family` in any changed
+  component (`PartnersBoard.tsx`, `pages.tsx`, `ProspectEventPanel.tsx`,
+  `HistoryPanel.tsx`, the new `historyPhrases.ts`). Both new stage families
+  exist in ALL THREE scopes — `branding/byteforce/tokens.css` (8 vars),
+  `branding/b-systems/tokens.css` (8), `src/themes/neutral.css` (8) — are
+  bridged in `globals.css`'s `@theme inline` and bound in `design-system.css`'s
+  `[data-stage-key]` block. ByteForce: `contacted` sits on the Royal Violet ramp
+  beside `following`/`meeting`, `qualified` on the Bold Orange ramp one step
+  short of `won`; no value outside the palette + the ADR-014 danger red.
+  B-Systems: `contacted` is Process Lavender, `qualified` Signal Pink — used as
+  a well tint / accent bar / chip, never as a page surface or body text; no
+  green, teal or orange. RTL: no physical left/right in any changed file;
+  `.toast-wrap` is `inset-inline: 0`. No emoji in App A strings.
+- Failures: none. The only red during the round was self-inflicted and fixed
+  before the final run: the new toast e2e asserted `toHaveText` on the toast
+  `<p>`, which also contains the `aria-hidden` "!" icon — it is `toContainText`
+  now. Root-caused with an instrumented throwaway spec (dragged card, live
+  `.col--over-valid`, actual toast text) rather than by retrying, and the
+  throwaway spec was deleted. Nothing was filed in BUGS.md.

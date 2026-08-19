@@ -114,6 +114,17 @@
   --color-stage-didnt-answer-accent: #3B2F8C;
   --color-stage-didnt-answer-chip: #E0DCF3;
   --color-stage-didnt-answer-chip-ink: #33288A;
+  /* agent pipeline (ADR-057): Contacted sits beside Following Up on the
+     indigo→pink ramp; Qualified is the agent's win, one step short of Signal
+     Pink so Won stays the single loudest cue on the page. */
+  --color-stage-contacted: #F3EDFA;
+  --color-stage-contacted-accent: #6B44A0;
+  --color-stage-contacted-chip: #E9DEF7;
+  --color-stage-contacted-chip-ink: #4B2F86;
+  --color-stage-qualified: #FEEFF7;
+  --color-stage-qualified-accent: #E0468E;
+  --color-stage-qualified-chip: #FBD9EB;
+  --color-stage-qualified-chip-ink: #A22766;
   --color-stage-won: #FFF0F5;
   --color-stage-won-accent: #FF4F87;
   --color-stage-won-chip: #FFDCE7;

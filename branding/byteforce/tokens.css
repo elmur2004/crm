@@ -97,6 +97,17 @@
   --color-stage-didnt-answer-accent: #96928F;
   --color-stage-didnt-answer-chip: #D2CFC9;
   --color-stage-didnt-answer-chip-ink: #45403F;
+  /* agent pipeline (ADR-057): Contacted is a working stage in the Following
+     Up family, Qualified is the agent's win — a lighter Signal Orange than
+     Won so the two terminals read as kin, not as the same thing. */
+  --color-stage-contacted: #EDEAF4;
+  --color-stage-contacted-accent: #6E60AC;
+  --color-stage-contacted-chip: #DCD6EE;
+  --color-stage-contacted-chip-ink: #3B3175;
+  --color-stage-qualified: #FCF0E7;
+  --color-stage-qualified-accent: #E0761F;
+  --color-stage-qualified-chip: #F8DEC7;
+  --color-stage-qualified-chip-ink: #8A4410;
   --color-stage-won: #FBEBE3;
   --color-stage-won-accent: #F15C24;
   --color-stage-won-chip: #F8D5C4;

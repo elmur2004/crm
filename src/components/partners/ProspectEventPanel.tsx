@@ -6,10 +6,10 @@ import {
   FOLLOW_UP_METHODS,
   IMPORTANCE_LEVELS,
   MEETING_MODES,
-  SAME_STAGE_FORM_TARGET,
+  SAME_STAGE_FORM_SLOT,
   isSameStageAction,
 } from "@/lib/pipeline-engine/constants";
-import { partnersConfig } from "@/lib/pipeline-engine/configs/partners";
+import { partnersConfigFor } from "@/lib/pipeline-engine/configs/partners";
 import { BusinessActivityField, businessActivityFrom } from "./forms";
 import { tFor } from "@/lib/i18n/core";
 import { useLocale } from "@/components/shared/LocaleProvider";
@@ -25,7 +25,10 @@ import { fields as authFields, signup } from "@/lib/i18n/dict/auth";
 
 /* §7.2 — the Partners pipeline's action panel. Same one-mutation commit model as
    the internal CRM (ADR-023); Won opens the completeness gate (PP-4); Didn't
-   Answer reveals the number slots (PP-1). All sets derive from partnersConfig. */
+   Answer reveals the number slots (PP-1). Every set derives from the CARD'S OWN
+   config — ADR-057: an agent card runs `contacted`/`qualified` where a partner
+   card runs `following_up`/`won`, so a literal stage key here would offer the
+   wrong next actions and render an empty stage form. */
 
 type Rep = { id: string; name: string };
 
@@ -148,7 +151,7 @@ function WonAgentGateFields({ defaults }: { defaults: ProspectGateDefaults }) {
   const [first = "", ...rest] = defaults.name.trim().split(/\s+/);
   return (
     <>
-      <p className="field-hint">{t(pPanel.wonAgentHint)}</p>
+      <p className="field-hint">{t(pPanel.qualifiedAgentHint)}</p>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <label className="block">
           <span className={labelCls}>{t(authFields.firstName)}</span>
@@ -215,7 +218,8 @@ export type ProspectGateDefaults = {
 
 /** target stage → the group payload harvested from the form (V2 §6 shapes). */
 export function prospectGroupPayload(target: string, fd: FormData, kind = "partner") {
-  if (target === "following_up")
+  const config = partnersConfigFor(kind);
+  if (target === config.followUpStage)
     return {
       group: "follow_up" as const,
       data: {
@@ -226,7 +230,7 @@ export function prospectGroupPayload(target: string, fd: FormData, kind = "partn
         followingUpWith: String(fd.get("followingUpWith") || "") || undefined,
       },
     };
-  if (target === "meeting_setting")
+  if (target === config.meetingStage)
     /* V2 §6 — partners meeting is simplified: date + time + mode only. */
     return {
       group: "meeting" as const,
@@ -237,9 +241,9 @@ export function prospectGroupPayload(target: string, fd: FormData, kind = "partn
         mode: String(fd.get("mode")) as "online" | "offline",
       },
     };
-  if (target === "lost")
+  if (target === config.lostStage)
     return { group: "lost" as const, data: { reason: String(fd.get("reason")) } };
-  if (target === "won" && kind === "agent")
+  if (target === config.wonStage && kind === "agent")
     return {
       group: "won_agent" as const,
       data: {
@@ -252,7 +256,7 @@ export function prospectGroupPayload(target: string, fd: FormData, kind = "partn
         phone: String(fd.get("phone")),
       },
     };
-  if (target === "won")
+  if (target === config.wonStage)
     return {
       group: "won_partner" as const,
       data: {
@@ -267,7 +271,7 @@ export function prospectGroupPayload(target: string, fd: FormData, kind = "partn
         importance: String(fd.get("importance")) as "high" | "medium" | "low",
       },
     };
-  if (target === "didnt_answer") {
+  if (target === config.didntAnswerStage) {
     // V2 §6: record WHICH number(s) went unanswered
     const dialed = fd.getAll("dialedNumbers").map(String).filter(Boolean);
     return { group: "numbers" as const, data: { dialedNumbers: dialed } };
@@ -289,8 +293,9 @@ export function ProspectGroupFields({
 }) {
   const locale = useLocale();
   const t = tFor(locale);
-  if (target === "following_up") return <FollowUpFields reps={reps} />;
-  if (target === "meeting_setting")
+  const config = partnersConfigFor(defaults.kind);
+  if (target === config.followUpStage) return <FollowUpFields reps={reps} />;
+  if (target === config.meetingStage)
     /* V2 §6 — simplified: date + time + online/offline. */
     return (
       <>
@@ -316,20 +321,20 @@ export function ProspectGroupFields({
         </label>
       </>
     );
-  if (target === "lost")
+  if (target === config.lostStage)
     return (
       <label className="block">
         <span className={labelCls}>{t(pPanel.reasonRequired)}</span>
         <textarea name="reason" required rows={3} className={inputCls} />
       </label>
     );
-  if (target === "won")
+  if (target === config.wonStage)
     return defaults.kind === "agent" ? (
       <WonAgentGateFields defaults={defaults} />
     ) : (
       <WonGateFields defaults={defaults} />
     );
-  if (target === "didnt_answer")
+  if (target === config.didntAnswerStage)
     return (
       <div className="space-y-2">
         <p className="u-label">{t(pPanel.dialedQuestion)}</p>
@@ -344,7 +349,7 @@ export function ProspectGroupFields({
         </p>
       </div>
     );
-  if (target === "lead")
+  if (target === config.intakeStage)
     return <p className="u-muted">{t(pPanel.returnsToLead)}</p>;
   return null;
 }
@@ -374,14 +379,18 @@ export function ProspectEventPanel({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const terminal = partnersConfig.terminalStages.includes(stage);
-  const nextActions = partnersConfig.nextActions(stage, "bsystems_admin");
+  const config = partnersConfigFor(defaults.kind);
+  const terminal = config.terminalStages.includes(stage);
+  const nextActions = config.nextActions(stage, "bsystems_admin");
   /* founder: same-stage records are buttons — the card does not move. */
   const sameStageActions = nextActions.filter(isSameStageAction);
   const stageActions = nextActions.filter((a) => !isSameStageAction(a));
-  const formTarget = (a: string) => (isSameStageAction(a) ? SAME_STAGE_FORM_TARGET[a] : a);
-  const attendedDestinations = partnersConfig.attendedDestinations("bsystems_admin");
-  const cancelledDestinations = [partnersConfig.followUpStage, partnersConfig.lostStage];
+  /* the SLOT, not a literal: `follow_up_again` opens the follow-up form of
+     whichever stage this card's pipeline follows up in */
+  const formTarget = (a: string) =>
+    isSameStageAction(a) ? config[SAME_STAGE_FORM_SLOT[a]] : a;
+  const attendedDestinations = config.attendedDestinations("bsystems_admin");
+  const cancelledDestinations = [config.followUpStage, config.lostStage];
 
   async function submit(body: unknown) {
     setBusy(true);
@@ -425,7 +434,7 @@ export function ProspectEventPanel({
         </p>
       ) : null}
 
-      {stage === "meeting_setting" && pendingMeeting ? (
+      {stage === config.meetingStage && pendingMeeting ? (
         <div className="bg-brand-surface-tint rounded-brand-card shadow-brand-card p-4">
           <p className="u-h3 mb-2">{t(pPanel.meetingOutcome)}</p>
           <select
@@ -491,12 +500,12 @@ export function ProspectEventPanel({
                     e.preventDefault();
                     void submit({
                       event: { type: "meeting_outcome", outcome, destination },
-                      group: groupForTarget(destination === "won" ? "won" : destination, new FormData(e.currentTarget)),
+                      group: groupForTarget(destination, new FormData(e.currentTarget)),
                     });
                   }}
                   className="space-y-3"
                 >
-                  {fieldsForTarget(destination === "won" ? "won" : destination)}
+                  {fieldsForTarget(destination)}
                   <button type="submit" disabled={busy} className={btnPrimary}>
                     {t(pPanel.confirmMoveTo).replace("{stage}", stageLabel(locale, destination))}
                   </button>

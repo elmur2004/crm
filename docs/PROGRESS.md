@@ -2308,3 +2308,107 @@ comment, and the ADR-013 mechanism note all fixed; .env.example confirmed tracke
   a board page and check nothing runs off the side and the board does not move
   when you filter it. Answer (i) and (ii) above and the rest is one line each.
 - Blockers: none.
+
+## Entry 051 — 2026-08-20 — The agents pipeline: its own six columns, and Qualified is the account gate
+- Done: the founder's answer to the open question on the Partners & Agents
+  board — *"agents stages : lead , contacted , didn't answer , meeting settting ,
+  qualified , lost , when he is in qualified he becomes an agent and we create a
+  user for hiim and fill in the data of him and I can assing leads for agents
+  also"* — shipped in three commits (ADR-057).
+  COMMIT 1, the engine:
+  · `AGENT_STAGES` (the founder's column order, pinned by a test) + `contacted` /
+    `qualified` in `STAGE_LABELS`.
+  · `configs/partners.ts` rewritten so the shared body reads ROLE SLOTS
+    (`activeActions`, `sameStageExtras`, the terminal guard,
+    `attendedDestinations`) instead of literal stage keys; `agentsConfig` is the
+    same builder with `followUpStage: "contacted"`, `wonStage: "qualified"`,
+    `terminalStages: [qualified, lost]` and the `won_agent` / `create_agent`
+    pair. `transition.ts` needed no stage edits — the core was already
+    slot-driven — only `PipelineConfig.triggers` so §10.2a can carry PA-*.
+  · `SAME_STAGE_FORM_TARGET` (a literal map) superseded by
+    `SAME_STAGE_FORM_SLOT`, which names the slot.
+  · SPEC §7.2a (the agent card + its Qualified gate table), §10.2a (PA-1…PA-5),
+    §7.2's "six columns" line scoped to partner cards, A-5 amended, §13/§14
+    updated. 43 engine tests: one per PA row, illegal moves both ways, and a
+    describe block proving the PARTNER config's arrays are byte-identical.
+  COMMIT 2, the data and the server:
+  · `prisma/migrations/20260819180000_agent_stages` — agent rows only,
+    `following_up -> contacted`, `won -> qualified`, plus the ActivityLog
+    rewrite and the pending-undo retirement. Idempotent by construction.
+  · `todo.ts` — the prospect query widened to the union of both configs'
+    follow-up slots; the per-row branch reads the card's own config. Without it
+    every agent follow-up would have vanished from the admin To-Do silently.
+  · `undo.ts` — refuses to write back a stage the card's board does not have.
+  · `backup.ts` — a pre-change export is normalised on import.
+  · `partners.ts` — `addAlternativeNumbers` uses the card's config (it was
+    calling `transition` with the PARTNER config on agent cards; it worked only
+    because both kinds share `didnt_answer`), and PP-2/PA-2's trigger now comes
+    from the engine result instead of a literal.
+  · A dedicated migration integration test that executes the SHIPPED SQL, twice.
+  COMMIT 3, the board and the words:
+  · `PartnersBoard` split into `<ProspectPipeline>` (one kind, its own columns,
+    its own drag state, its own DndContext, `${kind}:${stage}` droppables,
+    `data-pipeline` on `.board`) and a dispatcher; Kind = All stacks a Partners
+    section then an Agents section.
+  · `ProspectEventPanel` and `pages.tsx` `keyDatum` now resolve through
+    `partnersConfigFor(kind)` — the panel was consulting the PARTNER config on
+    every card, which would have offered an agent the partner columns and had
+    every one rejected by the server.
+  · Two new stage token families in ALL THREE scopes + the Tailwind bridge + the
+    `[data-stage-key]` bindings; `stageColors.ts` gained both keys (its default
+    is `lost`, so Qualified would have painted as a loss).
+  · `brand-tokens.test.ts` gained the three-way parity guard neutral.css never
+    had, plus a stage-key coverage test over every pipeline.
+  · i18n: `contacted` / `qualified` in `stageMsgs` with real Arabic, and eight
+    NEW sibling keys. No existing English string edited.
+  · Seed ships one agent card per agent stage; e2e gained `agent-pipeline.spec`
+    (stacked view, both column sets in order, a drag in each board, the
+    cross-board no-op, an Arabic pass, and the gate→assign→his-board→his-To-Do
+    loop) and journey 3's column locators are scoped to `[data-pipeline]`.
+  REVIEW ROUND (same day, folded into these three commits before pushing).
+  Every reviewer finding was checked against the code and the schema; all were
+  real and all are fixed:
+  · THE MIGRATION'S UNDO GUARD retired only the agent-card entry, which promoted
+    the OLDER entry beneath it to the head of `pendingUndoFor` — the button then
+    offered to revert something that was not the admin's last action, with a
+    fingerprint that still matched (ADR-045's `honesty` guard). It now retires
+    the affected user's WHOLE pending set, scoped by the OLD stage in the undo
+    SNAPSHOT — which also makes statement 3 genuinely idempotent, so the file's
+    header claim is now true of every statement.
+  · `HistoryPanel` mapped the literal `"PP-2"` to §10.2's prescribed wording, so
+    PA-2 lost the "Returned to Lead — new number added" pill the day agent cards
+    got their own row ids — inconsistently, since pre-deploy rows kept it. The
+    map moved to `historyPhrases.ts` and is BUILT from the configs'
+    `triggers.numberAdded` slots.
+  · `importBackup` normalised only the cards, so a restored agent's History kept
+    speaking the partner vocabulary. One `normaliseAgentStages(tx)` helper now
+    mirrors the SQL statement for statement, with a test that runs BOTH against
+    identical fixtures and diffs the whole world.
+  · `/api/health` probed one column from migration 2 of 12, so a DATA-ONLY
+    migration that never applied hid behind `ok: true`. It now diffs the
+    committed migration folders against `_prisma_migrations`.
+  · The seed shipped five of the six agent columns — `qualified`, the gate
+    itself, was empty. It now ships the agent analogue of `wonProspect`.
+  · Two literal stage comparisons survived the slot sweep (`pages.tsx`,
+    `ProspectEventPanel.tsx`); both read their config's slot now.
+  · Two stacked boards each owned a `message`, so a stale partner toast sat
+    under the agent one at the same fixed coordinate; and a filtered-out section
+    claimed "No partner cards yet." while partner cards existed. One toast slot
+    on the dispatcher, and `filtered` picks `noMatches`.
+- Verification: `npx tsc --noEmit` clean on all three commits and on the final
+  tree. vitest **311 passed / 0 failed**, 25 files (307/24 before the review
+  round). Playwright, FULL SUITE on a copied config at port 3111 (3100 was held
+  by another project's `next start`, 3000 by the founder's dev server — nothing
+  was killed): **64 passed / 0 failed / 2 skipped**,
+  `test-results/.last-run.json` → `{"status":"passed","failedTests":[]}`, read
+  directly. Migration RE-PROVED after it changed, on a throwaway Postgres with a
+  REAL `prisma migrate deploy` (folder parked so the ledger built like
+  production's): 11 migrations, then exactly 1, then 0 — 21/21 assertions pass,
+  and the old statement 3 was pasted back to confirm the new guards go RED.
+  Numbers in TESTING Run 056. Brand audit by hand: PASS.
+- Founder-facing: CHANGELOG entry "Agents get their own columns".
+- Next: nothing blocking. The ADR carries three alternative arrangements for the
+  Kind = All view (drop it, tabs, or one superset board) for the founder to pick
+  if the stacked page reads too tall on his monitor — **needs founder
+  confirmation**, but the shipped arrangement is the one the lead engineer
+  specified and is fully tested.

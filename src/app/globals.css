@@ -73,6 +73,14 @@
   --color-stage-didnt-answer-accent: var(--color-stage-didnt-answer-accent);
   --color-stage-didnt-answer-chip: var(--color-stage-didnt-answer-chip);
   --color-stage-didnt-answer-chip-ink: var(--color-stage-didnt-answer-chip-ink);
+  --color-stage-contacted: var(--color-stage-contacted);
+  --color-stage-contacted-accent: var(--color-stage-contacted-accent);
+  --color-stage-contacted-chip: var(--color-stage-contacted-chip);
+  --color-stage-contacted-chip-ink: var(--color-stage-contacted-chip-ink);
+  --color-stage-qualified: var(--color-stage-qualified);
+  --color-stage-qualified-accent: var(--color-stage-qualified-accent);
+  --color-stage-qualified-chip: var(--color-stage-qualified-chip);
+  --color-stage-qualified-chip-ink: var(--color-stage-qualified-chip-ink);
   --color-stage-won: var(--color-stage-won);
   --color-stage-won-accent: var(--color-stage-won-accent);
   --color-stage-won-chip: var(--color-stage-won-chip);

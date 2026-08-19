@@ -129,7 +129,7 @@ export function EditProspectButton({ prospect }: { prospect: ProspectEditable })
             <p>
               <span className="badge badge--entity">{prospectKindLabel(locale, prospect.kind)}</span>
             </p>
-            <p className="field-hint">{t(pForms.kindLocked)}</p>
+            <p className="field-hint">{t(pForms.kindLockedPipelines)}</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {agent ? (
                 <AgentProspectFields

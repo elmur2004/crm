@@ -296,6 +296,8 @@
 [data-stage-key="proposal"] { --stage-well: var(--color-stage-proposal); --stage-bar: var(--color-stage-proposal-accent); --stage-chip: var(--color-stage-proposal-chip); --stage-chip-ink: var(--color-stage-proposal-chip-ink); }
 [data-stage-key="negotiation"] { --stage-well: var(--color-stage-negotiation); --stage-bar: var(--color-stage-negotiation-accent); --stage-chip: var(--color-stage-negotiation-chip); --stage-chip-ink: var(--color-stage-negotiation-chip-ink); }
 [data-stage-key="didnt-answer"] { --stage-well: var(--color-stage-didnt-answer); --stage-bar: var(--color-stage-didnt-answer-accent); --stage-chip: var(--color-stage-didnt-answer-chip); --stage-chip-ink: var(--color-stage-didnt-answer-chip-ink); }
+[data-stage-key="contacted"] { --stage-well: var(--color-stage-contacted); --stage-bar: var(--color-stage-contacted-accent); --stage-chip: var(--color-stage-contacted-chip); --stage-chip-ink: var(--color-stage-contacted-chip-ink); }
+[data-stage-key="qualified"] { --stage-well: var(--color-stage-qualified); --stage-bar: var(--color-stage-qualified-accent); --stage-chip: var(--color-stage-qualified-chip); --stage-chip-ink: var(--color-stage-qualified-chip-ink); }
 [data-stage-key="won"] { --stage-well: var(--color-stage-won); --stage-bar: var(--color-stage-won-accent); --stage-chip: var(--color-stage-won-chip); --stage-chip-ink: var(--color-stage-won-chip-ink); }
 [data-stage-key="lost"] { --stage-well: var(--color-stage-lost); --stage-bar: var(--color-stage-lost-accent); --stage-chip: var(--color-stage-lost-chip); --stage-chip-ink: var(--color-stage-lost-chip-ink); }
 

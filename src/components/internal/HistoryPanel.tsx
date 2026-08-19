@@ -1,16 +1,14 @@
 import { formatCairo } from "@/lib/datetime";
 import { tFor } from "@/lib/i18n/core";
-import type { Msg } from "@/lib/i18n/core";
 import { getLocale } from "@/lib/i18n/server";
 import { stageLabel } from "@/lib/i18n/dict/labels";
 import { history } from "@/lib/i18n/dict/internal";
+import { TRIGGER_PHRASES } from "./historyPhrases";
 
 /* §5.6 — the card's History panel: actor, timestamp, from → to, trigger.
-   Where SPEC prescribes exact History wording, the trigger maps to that phrase. */
-
-const TRIGGER_PHRASES: Record<string, Msg> = {
-  "PP-2": history.returnedToLead, // §7.2 / §10.2 normative wording
-};
+   Where SPEC prescribes exact History wording, the trigger maps to that phrase
+   — see ./historyPhrases, which derives the map from the pipelines' own row
+   ids so PP-2 and PA-2 can never drift apart. */
 
 export async function HistoryPanel({
   entries,

@@ -136,6 +136,7 @@ async function dragTo(page: Page, card: Locator, column: Locator) {
      pointer reaches the card's drag listeners. Edge geometry is no longer
      safe ground: the chips row (kind + Call + WhatsApp) swallows pointerdown
      on purpose, and where it sits depends on the card's height. */
+  await column.scrollIntoViewIfNeeded();
   const from = (await card.locator(".bcard-rep").boundingBox())!;
   const to = (await column.boundingBox())!;
   await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
@@ -171,18 +172,20 @@ test("founder V4: partners board drag opens the stage form; edit + delete from d
 
   /* Drag Lead → Didn't Answer: the numbers form opens; the card's single
      number is pre-checked; confirming commits the move. */
-  await dragTo(page, card, page.locator('[data-stage="didnt_answer"]'));
+  /* ADR-057 — the default view stacks two boards, and four stage ids appear in
+     both; every column locator is scoped to the PARTNER board. */
+  await dragTo(page, card, page.locator('[data-pipeline="partner"] [data-stage="didnt_answer"]'));
   await expect(page.getByText("Number dialed — which number(s) went unanswered?")).toBeVisible();
   await expect(page.getByRole("checkbox", { name: "0100000123" })).toBeChecked();
   await page.getByRole("button", { name: "Confirm move" }).click();
   await expect(
-    page.locator('[data-stage="didnt_answer"] [data-deal-card="Draggy Freight"]'),
+    page.locator('[data-pipeline="partner"] [data-stage="didnt_answer"] [data-deal-card="Draggy Freight"]'),
   ).toBeVisible();
 
   /* Drag back to Lead: intake return commits directly — no form. */
-  await dragTo(page, card, page.locator('[data-stage="lead"]'));
+  await dragTo(page, card, page.locator('[data-pipeline="partner"] [data-stage="lead"]'));
   await expect(
-    page.locator('[data-stage="lead"] [data-deal-card="Draggy Freight"]'),
+    page.locator('[data-pipeline="partner"] [data-stage="lead"] [data-deal-card="Draggy Freight"]'),
   ).toBeVisible();
 
   /* Detail page: the admin edits the card in place... */

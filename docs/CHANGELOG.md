@@ -1,5 +1,39 @@
 # Changelog — user-visible changes per phase/release
 
+## Agents get their own columns (2026-08-20)
+- You asked for it, so agents now walk their own board: **Lead · Contacted ·
+  Didn't Answer · Meeting Setting · Qualified · Lost**, in that order.
+- **Qualified is where an agent becomes an agent.** Drop a card there (or pick
+  it from Next action) and the same form you already know asks for his details
+  and the email and password YOU choose — and the account is made on the spot.
+  He signs in straight away; there is no request waiting for approval. The card
+  stays in Qualified with the **Converted** badge, exactly like a won partner
+  stays in Won.
+- **Partners have not changed at all.** Lead, Didn't Answer, Following Up,
+  Meeting Setting, Won, Lost — same columns, same Won step, same everything.
+- **The board shows you the columns that belong to the card.** Filter to
+  Partners and you get the partner columns; filter to Agents and you get the
+  agent ones. With no filter — how the page opens — you get **both boards, one
+  under the other**: Partners on top, Agents below, each with its own columns.
+  A card can only be dropped on its own board; dragging one across does
+  nothing at all.
+- **Nothing you already had was left behind.** Agent cards that were sitting in
+  Following Up have moved to Contacted, and agent cards in Won have moved to
+  Qualified — with their account, their profile, their CV and their history all
+  exactly as they were. Their history now reads in the new words too.
+- **Your To-Do still knows about them.** An agent's next call lives in Contacted
+  now, and the To-Do follows it there.
+- Assigning a lead to an agent works the moment you qualify him — he is in the
+  "Responsible for this lead" list right away, and the lead shows up on his own
+  board and his own To-Do.
+- The board comes seeded with an agent card in each column — Qualified
+  included, with a real agent account behind it — so the new section is not a
+  blank slab the first time you open it.
+- When a new number brings an agent back to Lead, his history says so in words —
+  "Returned to Lead — new number added" — exactly as a partner's always has.
+- If a search leaves one of the two sections with nothing in it, it now says
+  "No cards match these filters." instead of claiming you have no cards there.
+
 ## A "Data entry" user who only adds (2026-08-17)
 - New account type: **Data entry**. Tick it in Users like any other role.
 - They can do exactly two things: **add a lead** and **add a partner or

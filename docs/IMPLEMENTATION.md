@@ -936,3 +936,150 @@ Traps to know before touching any of it again:
   `.login-shell { min-height: 100vh }`, `.modal { max-height: 90vh }` (measured:
   clips nothing at any zoom, do not "fix" it). The ones that were wrong are the
   ones whose result had to LINE UP with something else.
+
+* RENAMING A STAGE KEY HAS FOUR BLAST RADII, AND THREE OF THEM ARE SILENT
+  (ADR-057, the agent pipeline). The loud one — the board renders no column for
+  the old key — is the one you will find in five seconds. The other three:
+  (a) THE TO-DO PROJECTION. `src/lib/services/todo.ts` queries prospects with a
+      literal `stage: { in: [...] }` and re-checks the stage per row. It lives
+      nowhere near the partners code and it is the founder's most-used screen.
+      Miss it and every renamed card's follow-up disappears with NO error, NO
+      log and NO empty state. It now reads
+      `partnersConfigFor(prospect.kind).followUpStage`, and the query list is
+      documented as the UNION of both configs' slots.
+  (b) PENDING UNDO ENTRIES. `UndoEntry.payload` holds the PREVIOUS stage
+      verbatim, and the safety check is a fingerprint against the row's
+      `updatedAt`. Prisma's `@updatedAt` is applied CLIENT-side, so a raw-SQL
+      migration does NOT bump it — the fingerprint still matches and undo will
+      cheerfully write the dead stage back. Two things now stop that: the
+      migration consumes those entries, and `undoProspectEvent` refuses any
+      snapshot stage that is not in the card's own `config.stages`. Ship both;
+      either alone leaves a hole (a snapshot can also arrive from a restore).
+      AND RETIRE THE WHOLE PENDING SET, NOT THE OFFENDING ROW. `pendingUndoFor`
+      takes the user's NEWEST unconsumed entry and nothing retires the one
+      underneath it, so a user routinely holds several. Consuming only the
+      renamed card's entry promotes the entry below it — a different record,
+      minutes older — to the head of the queue, and its fingerprint still
+      matches, so "Undo" silently reverts something that was not the last thing
+      the user did. Scope the statement to the OLD value in the SNAPSHOT
+      (`payload->>'stage'`, not the card's current stage) and retire by
+      `userId`: that keeps the honesty invariant AND is the only version that is
+      genuinely idempotent, because no entry written after the migration can
+      carry a dead stage. A back-to-back "run it twice" test cannot catch this —
+      create a pending entry BETWEEN the two runs.
+  (c) BACKUP RESTORE. `importBackup` is `deleteMany` + `createMany` with ids
+      preserved and zero transformation, so an export taken before the rename
+      re-inserts the old keys onto a migrated database — and the admin doing
+      the restore is usually already recovering from something else. The import
+      now runs the WHOLE normalisation inside its own transaction. There
+      is no schema constraint that would have caught it: `stage` is plain TEXT
+      with no enum and no CHECK. Doing only the CARD rewrites is a half fix that
+      looks complete: the restored ActivityLog rows keep printing the old column
+      names on a board that has none, and restored pending undos keep being
+      offered though they can only ever fail. Put the normalisation in ONE named
+      helper and diff it against the shipped SQL in a test — two hand-written
+      copies of the same migration WILL drift, and the SQL is the one that can
+      never be called from TypeScript.
+  (d) THE HEALTH PROBE CANNOT SEE A DATA-ONLY MIGRATION. `/api/health`'s
+      `schemaProbe` selected ONE column — and one added by migration 2 of 12, so
+      it had been stale for the accounting and vault migrations too. A rename
+      migration adds no column, so the probe returns true, `ok: true` is
+      reported, the self-heal never fires, and `scripts/start.mjs` boots anyway
+      after three failed `migrate deploy` attempts: cards stranded on stages the
+      board cannot render, behind a green check. Probe the LEDGER instead — diff
+      the `prisma/migrations` folder names against `_prisma_migrations` rows with
+      `finished_at NOT NULL AND rolled_back_at IS NULL` — which is correct for
+      every future migration with nothing to keep in sync. Degrade to the old
+      column probe when the directory or the table cannot be read, so a
+      differently-packaged deploy does not cry wolf.
+* A "PARAMETERIZED" CONFIG IS ONLY PARAMETERIZED AS FAR AS ITS LITERALS.
+  `partnersConfigFor(kind)` existed and looked like the extension point, but the
+  config's BODY still held literal stage keys — `ACTIVE_ACTIONS`, the
+  `stage === "following_up"` in `sameStageExtras`, the `stage === "won" ||
+  stage === "lost"` terminal guard, and `attendedDestinations`'s literal array.
+  Spreading a new `wonStage` over that would have produced a config that
+  reported the right slots and behaved like the old pipeline. The rule: if a
+  config declares a slot, nothing in that config may compare against the slot's
+  VALUE. The engine core (`transition.ts`) was already clean — it was the config
+  that was not. THE RULE EXTENDS TO EVERY CONSUMER, AND THE SWEEP MISSED TWO:
+  `prospect.stage === "didnt_answer"` sat ~330 lines below the `keyDatum` switch
+  that had just been converted, and `stage === "meeting_setting"` sat inside the
+  very component that now reads `config.meetingStage` twice. Both were harmless
+  ONLY because the two kinds happen to share those keys — the same accident that
+  made the wrong-config bug below invisible for weeks. Grep for every quoted
+  stage id in the files you touch, not just the ones the failing test pointed
+  at; a passing suite proves nothing here, because no fixture has a third kind
+  that moves those slots.
+* THE VOCABULARY IS NOT JUST `stageLabel`. Renaming a stage updates the column
+  titles, the chips and the history from→to for free, because they all
+  interpolate the label helper. What it does NOT update is anything keyed on the
+  §10 ROW ID: `HistoryPanel`'s `TRIGGER_PHRASES` mapped the literal `"PP-2"` to
+  SPEC's prescribed sentence, so giving the new pipeline its own `PA-2` silently
+  deleted a NORMATIVE phrase from every agent card — and deleted it
+  inconsistently, since the migration rewrote `fromStage`/`toStage` but not
+  `trigger`, so old rows on the same card kept showing it. Build such maps FROM
+  the configs' trigger slots, never from literals, and assert on the id the
+  ENGINE emits rather than on the config, so the map and the engine cannot
+  disagree.
+* THE UI READ THE WRONG CONFIG AND HAD BEEN GETTING AWAY WITH IT.
+  `ProspectEventPanel` consulted the bare `partnersConfig` for `terminalStages`,
+  `nextActions`, `attendedDestinations` and the cancelled destinations, even
+  though `defaults.kind` was already on its props and the SERVICE layer resolved
+  the config per kind correctly. It worked only because both kinds ran the same
+  stages. The failure it would have produced is asymmetric and easy to miss in
+  manual QA: the DRAG path reads its columns from the board's config and would
+  have looked fine, while the detail page silently offered stages the server
+  then rejected. Same shape in `pages.tsx`'s `keyDatum` and in
+  `addAlternativeNumbers`, which passed the partner config into `transition` for
+  a card that might be an agent.
+* TWO KANBANS ON ONE PAGE: THREE THINGS THAT BITE.
+  (a) dnd-kit registers droppables PER CONTEXT, and four of the six stage ids
+      are common to both stage sets. Two sibling `<DndContext>`s keep the
+      registries apart, but the moment anyone "simplifies" them into one, a drop
+      on Agents/Didn't-Answer resolves to whichever droppable registered last
+      and cards teleport between pipelines. The ids are namespaced
+      `${kind}:${stage}` so that refactor is survivable rather than silent.
+  (b) `<DndContext id>` was a hardcoded literal. Mounted twice it emits two
+      elements with the same `DndLiveRegion-*` / `DndDescribedBy-*` DOM ids, and
+      every draggable's `aria-describedby` resolves to the first — the Agents
+      board narrated by the Partners board's live region. Invisible to sighted
+      QA and to every assertion in the suite. The id is per-pipeline now.
+  (c) ALL the drag state must live inside the per-pipeline component, not in the
+      dispatcher. Hoisting `pending` / `draggingId` / `busy` / `error` is the
+      obvious shortcut and it gives you one modal shared by two boards and a
+      DragOverlay clone painted in the wrong section.
+* PLAYWRIGHT STRICT MODE IS THE CANARY FOR A DUPLICATED BOARD. The default view
+  is Kind = All, so `[data-stage="lead"]` and three siblings match twice from
+  the day the stacked view ships, and journey 3 fails on strict mode rather than
+  on a real regression. `.board` carries `data-pipeline` for exactly this; scope
+  every column locator through it. Also give the drag helper a
+  `scrollIntoViewIfNeeded()` — the second board's columns start below the fold.
+* THE THREE-SCOPE TOKEN LAW WAS NOT ACTUALLY TESTED. `brand-tokens.test.ts`'s
+  ADR-019 parity case compared `branding/byteforce/tokens.css` against
+  `branding/b-systems/tokens.css` and never read `src/themes/neutral.css` at
+  all — which is precisely the file whose omission reached production before.
+  Note that neutral.css packs a whole token family onto ONE line, so an
+  anchored `^\s*--token:` regex silently sees only the first declaration per
+  line; the new parity test uses an unanchored match. It also asserts the
+  `@theme inline` bridge in `globals.css`, and walks every stage of every
+  pipeline through `stageKey()` — whose `default` is `"lost"`, so a stage added
+  without a colour case does not fail a build, a type check or a screenshot
+  review; it just paints the new column, including a WIN column, in the Lost
+  palette.
+* A DATA-ONLY PRISMA MIGRATION IS HAND-WRITTEN AND UNVERIFIABLE BY `migrate dev`.
+  `schema.prisma` does not change, so nothing generates the folder and nothing
+  will re-derive it. Prisma checksums `migration.sql`, so editing it after the
+  first apply makes `migrate deploy` fail — and `scripts/start.mjs` then boots
+  the app ANYWAY, against an unmigrated database, which is the stranded-card
+  state the migration exists to prevent. Write it once, prove it before the
+  first deploy, never touch it. `/api/health`'s `schemaProbe()` only selects
+  `User.registrationStatus`, so it reports `schemaCurrent: true` on a database
+  that is schema-current but never got the DATA migration — the health endpoint
+  cannot detect this class of drift, and that is fine only because
+  `migrate deploy` is idempotent and runs at boot.
+  To prove one against the REAL deploy path rather than raw SQL: apply all
+  migrations to a throwaway database, `DELETE FROM "_prisma_migrations" WHERE
+  "migration_name" = '<folder>'` to rewind the ledger, insert live-shaped
+  fixtures, then run `npx prisma migrate deploy`. Rewind and deploy again for
+  idempotence. Pair it with an integration test that reads the shipped .sql off
+  disk and executes it, so the test can never drift from the file.

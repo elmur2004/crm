@@ -12,6 +12,7 @@ import {
 } from "@/lib/services/partners";
 import { telHref, waHref } from "@/lib/phone-dial";
 import { listBsOwnerReps } from "@/lib/services/sales-reps";
+import { partnersConfigFor } from "@/lib/pipeline-engine/configs/partners";
 import { formatCairo, formatCairoDate } from "@/lib/datetime";
 import { StageBadge } from "@/components/shared/StageBadge";
 import { GroupHistory } from "@/components/internal/GroupHistory";
@@ -71,18 +72,22 @@ export async function PartnersPipelineBody({
   const activeCount = [search !== "", kind !== "any"].filter(Boolean).length;
 
   function keyDatum(p: (typeof prospects)[number]): string {
+    /* ADR-057 — the card's OWN config: an agent's dated follow-up lives in
+       `contacted`, so a literal `following_up` case would drop his next date
+       off the card and show his speciality instead. */
+    const config = partnersConfigFor(p.kind);
     switch (p.stage) {
-      case "didnt_answer":
+      case config.didntAnswerStage:
         return t(pPipeline.awaitingNewNumber);
-      case "following_up":
+      case config.followUpStage:
         return p.followUps[0]
           ? t(pPipeline.nextAt).replace("{dt}", formatCairo(p.followUps[0].dueAt))
           : t(pPipeline.noFollowUpSet);
-      case "meeting_setting":
+      case config.meetingStage:
         return p.meetings[0]?.datetime
           ? t(pPipeline.meetingAt).replace("{dt}", formatCairo(p.meetings[0].datetime))
           : t(pPipeline.notArranged);
-      case "lost":
+      case config.lostStage:
         return p.lostInfo[0]?.reason ?? "";
       default:
         /* the card's own headline datum: a partner trades in an activity, an
@@ -176,7 +181,7 @@ export async function PartnersPipelineBody({
       {cards.length === 0 && activeCount > 0 ? (
         <p className="empty">{t(pPipeline.noMatches)}</p>
       ) : (
-        <PartnersBoard cards={cards} reps={reps} />
+        <PartnersBoard cards={cards} reps={reps} kind={kind} filtered={activeCount > 0} />
       )}
     </div>
   );
@@ -196,6 +201,9 @@ export async function ProspectDetailBody({ prospectId }: { prospectId: string })
   const reps = await listBsOwnerReps();
   const latestMeeting = prospect.meetings.at(-1);
   const agent = prospect.kind === "agent";
+  /* ADR-057 — this card's OWN pipeline: never compare a stage against a
+     literal that only one of the two kinds happens to use. */
+  const config = partnersConfigFor(prospect.kind);
   const gateDefaults = {
     kind: prospect.kind,
     companyName: prospect.companyName,
@@ -404,7 +412,7 @@ export async function ProspectDetailBody({ prospectId }: { prospectId: string })
           <div className="card card-pad">
             <AlternativeNumbersForm
               prospectId={prospect.id}
-              inDidntAnswer={prospect.stage === "didnt_answer"}
+              inDidntAnswer={prospect.stage === config.didntAnswerStage}
             />
           </div>
 

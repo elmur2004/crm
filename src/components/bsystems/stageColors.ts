@@ -18,6 +18,12 @@ export function stageKey(stage: string): string {
       return "negotiation";
     case "didnt_answer":
       return "didnt-answer";
+    /* agent pipeline (ADR-057) — its own two keys. Without these the fallback
+       below would paint Contacted AND Qualified, the agent's win, in Lost. */
+    case "contacted":
+      return "contacted";
+    case "qualified":
+      return "qualified";
     case "won":
       return "won";
     default:
@@ -40,6 +46,10 @@ export function stageTint(stage: string): string {
       return "bg-stage-negotiation";
     case "didnt_answer":
       return "bg-stage-didnt-answer";
+    case "contacted":
+      return "bg-stage-contacted";
+    case "qualified":
+      return "bg-stage-qualified";
     case "won":
       return "bg-stage-won";
     case "lost":
@@ -64,6 +74,10 @@ export function stageAccent(stage: string): string {
       return "bg-stage-negotiation-accent";
     case "didnt_answer":
       return "bg-stage-didnt-answer-accent";
+    case "contacted":
+      return "bg-stage-contacted-accent";
+    case "qualified":
+      return "bg-stage-qualified-accent";
     case "won":
       return "bg-stage-won-accent";
     case "lost":

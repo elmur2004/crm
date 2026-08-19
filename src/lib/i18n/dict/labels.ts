@@ -19,6 +19,9 @@ export const stageMsgs: Record<string, Msg> = {
   meeting_setting: { en: "Meeting Setting", ar: "تحديد اجتماع" },
   sending_proposal: { en: "Sending Proposals", ar: "إرسال العروض" },
   negotiation: { en: "Negotiation", ar: "تفاوض" },
+  /* agent pipeline (ADR-057) — the founder's own two words */
+  contacted: { en: "Contacted", ar: "تم التواصل" },
+  qualified: { en: "Qualified", ar: "مؤهَّل" },
   won: { en: "Won", ar: "مكسب" },
   lost: { en: "Lost", ar: "خسارة" },
 };

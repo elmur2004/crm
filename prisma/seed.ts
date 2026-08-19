@@ -270,6 +270,93 @@ export async function seed() {
       }
     }
 
+    /* ADR-057 — AGENT cards run their own columns (lead / contacted /
+       didnt_answer / meeting_setting / qualified / lost), so the Agents board
+       needs its own seed or it renders six empty columns on first login. */
+    const agentStages: Array<[string, string, string]> = [
+      ["Mahmoud Sabry", "01201000001", "lead"],
+      ["Yasmin Farouk", "01201000002", "contacted"],
+      ["Tarek Nabil", "01201000003", "didnt_answer"],
+      ["Rania Hosny", "01201000004", "meeting_setting"],
+      ["Amr Shaker", "01201000005", "lost"],
+    ];
+    for (const [name, number, stage] of agentStages) {
+      const a = await db.partnerProspect.create({
+        data: {
+          kind: "agent",
+          name,
+          number,
+          address: "Nasr City, Cairo",
+          speciality: "ERP consulting",
+          stage,
+          ...(stage === "didnt_answer" ? { nonAnsweringNumbers: `["${number}"]` } : {}),
+        },
+      });
+      if (stage === "contacted") {
+        await db.followUp.create({
+          data: {
+            partnerProspectId: a.id,
+            context: "initial",
+            dueAt: new Date("2026-08-23T09:00:00Z"),
+            method: "call",
+          },
+        });
+      }
+      if (stage === "meeting_setting") {
+        await db.meeting.create({
+          data: {
+            partnerProspectId: a.id,
+            arranged: true,
+            datetime: new Date("2026-08-29T11:00:00Z"),
+            mode: "online",
+          },
+        });
+      }
+      if (stage === "lost") {
+        await db.lostInfo.create({
+          data: { partnerProspectId: a.id, reason: "Took a role elsewhere" },
+        });
+      }
+    }
+
+    /* ...and the sixth column, Qualified — the agent analogue of `wonProspect`
+       below. It is the founder's headline column ("when he is in qualified he
+       becomes an agent and we create a user for hiim"), so the seed ships the
+       state PA-4 actually produces: converted, with a real minted account
+       behind it, which is also what puts the Converted badge, the "Agent
+       account created" link and the terminal panel on a fresh install. */
+    const qualifiedAgentUser = await upsertUser({
+      name: "Nourhan Adel",
+      email: "nourhan.agent@b-systems.example",
+      phone: "01201000006",
+      password: "agent123",
+      roles: ["bsystems_agent"],
+    });
+    await db.portalRep.upsert({
+      where: { userId: qualifiedAgentUser.id },
+      update: {},
+      create: {
+        userId: qualifiedAgentUser.id,
+        firstName: "Nourhan",
+        lastName: "Adel",
+        address: "Nasr City, Cairo",
+        speciality: "ERP consulting",
+      },
+    });
+    const qualifiedAgent = await db.partnerProspect.create({
+      data: {
+        kind: "agent",
+        name: "Nourhan Adel",
+        number: "01201000006",
+        address: "Nasr City, Cairo",
+        speciality: "ERP consulting",
+        stage: "qualified",
+        converted: true,
+        agentUserId: qualifiedAgentUser.id,
+      },
+    });
+    await log("partner_prospect", qualifiedAgent.id, "stage_change", "PA-4", "meeting_setting", "qualified");
+
     const wonProspect = await db.partnerProspect.create({
       data: {
         name: "Hassan Ali",

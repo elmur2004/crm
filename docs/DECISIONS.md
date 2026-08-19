@@ -2190,3 +2190,228 @@ R23 copy sign-off — carried in PROGRESS (Entry 011).
     instead of integer `scrollWidth - clientWidth`, so a label clipped by under
     1px at a fractional zoom no longer hides the chevron.
 - Status: Accepted
+
+## ADR-057 — 2026-08-20 — The agent pipeline: its own stage vocabulary on the one shared engine
+- Context: the founder, answering a question we had been holding open about the
+  Partners & Agents board: *"agents stages : lead , contacted , didn't answer ,
+  meeting settting , qualified , lost , when he is in qualified he becomes an
+  agent and we create a user for hiim and fill in the data of him and I can
+  assing leads for agents also"*.
+  Until now BOTH kinds of card on `/b-systems/partners-pipeline` ran the partner
+  stage set (ADR-050), whose point 4 promised the two kinds were "literally the
+  same code" apart from the Won gate. That clause is superseded here.
+- Decision 1 — THE AGENT STAGE SET, IN THE FOUNDER'S ORDER.
+  `AGENT_STAGES = ["lead", "contacted", "didnt_answer", "meeting_setting",
+  "qualified", "lost"]` (snake_case, the existing convention). The ARRAY IS THE
+  BOARD'S COLUMN ORDER — Lead, Contacted, Didn't Answer, Meeting Setting,
+  Qualified, Lost — exactly as dictated, and a unit test pins the order because
+  it is a normative fact, not an implementation detail.
+- Decision 2 — ROLE SLOTS, NOT A SECOND PIPELINE (CLAUDE.md rule 5).
+  `contacted` plays the `followUpStage` role (it is the stage that carries a
+  dated follow-up, and inherits T-1's context-per-origin rule verbatim);
+  `qualified` plays the `wonStage` role; `terminalStages = [qualified, lost]`.
+  Intake, meeting, didn't-answer and lost slots are unchanged and shared.
+  `transition.ts` needed NO stage edits at all — the core was already fully
+  slot-driven. What DID change is `configs/partners.ts`: `ACTIVE_ACTIONS`,
+  `sameStageExtras`, the terminal guard and `attendedDestinations` were literal
+  stage keys and are now derived from the config's own slots, so
+  `partnersConfigFor(kind)` is a genuine parameterization rather than a fork.
+  `SAME_STAGE_FORM_TARGET` (a flat literal map) is superseded by
+  `SAME_STAGE_FORM_SLOT`, which names the SLOT — otherwise "log another
+  follow-up" on an agent card would open the form of a stage he does not have.
+  REVIEW ROUND: two literal comparisons survived the sweep in the very files it
+  converted — `prospect.stage === "didnt_answer"` in `pages.tsx` and
+  `stage === "meeting_setting"` in `ProspectEventPanel.tsx`. Harmless only
+  because both kinds happen to share those two keys, which is exactly the
+  accident this decision exists to stop relying on. Both now read
+  `config.didntAnswerStage` / `config.meetingStage`.
+- Decision 3 — QUALIFIED IS THE ACCOUNT GATE. The `won_agent` required group and
+  the `create_agent` side effect move to `qualified` UNCHANGED. Nothing about
+  what the gate collects, validates or creates is different: first/last name,
+  phone, email, the admin-set password, speciality, address → User (active,
+  `registrationStatus: approved`) + `bsystems_agent` role + PortalRep + the
+  card's CV re-parented, all in one transaction. Only the column it hangs on
+  moved. §7.2a in SPEC records the gate's field table.
+- Decision 4 — THE PARTNER PIPELINE IS UNTOUCHED. Lead / Didn't Answer /
+  Following Up / Meeting Setting / Won / Lost, the `won_partner` gate and
+  `create_partner`. A dedicated describe block asserts its stage array, terminal
+  set, `nextActions` for every stage and `attendedDestinations` are the EXACT
+  arrays they were before the slot refactor, and that the agent vocabulary is
+  rejected on a partner card (and vice versa).
+- Decision 5 — §10.2a AND ITS OWN ROW IDS. SPEC gains §10.2a with PA-1…PA-5,
+  each with a test named for it. The ids are parameterized onto the config
+  (`PipelineConfig.triggers`, defaulted to the historic PP-* so nothing else
+  moves), because a normative table whose rows are numbered identically to
+  another table's rows cannot be asserted against. `portal_rep`'s create log
+  keeps its `PP-4a` trigger — it names the ACCOUNT-CREATION row, is asserted in
+  the integration suite and is quoted throughout ADR-050.
+  ALTERNATIVE NOT TAKEN: reuse PP-1…PP-4 on agent cards. Zero new ids and one
+  vocabulary in the ActivityLog, but the §10.2a rows would then have no distinct
+  trigger to test, which weakens "every row implemented and tested".
+- Decision 6 — THE BOARD RENDERS THE PIPELINE THAT MATCHES THE FILTER.
+  Kind = Partners → the partner columns. Kind = Agents → the agent columns.
+  Kind = All (the default) → BOTH boards STACKED on one page, a Partners section
+  then an Agents section, each with its own columns, its own config and its own
+  drag rules. A single kanban cannot honestly show two different stage sets, and
+  dropping the All view would remove an affordance the founder uses.
+  Mechanically: `PartnersBoard` became a dispatcher over `<ProspectPipeline>`;
+  every piece of drag state (pending move, overlay, busy, error, click
+  suppression) lives INSIDE each pipeline, each gets its own `DndContext` id,
+  and droppables are namespaced `${kind}:${stage}` — four of the six stage ids
+  are common to both sets, so a shared registry would drop cards onto the wrong
+  board. A cross-board drop reports no `over` at all and is therefore a no-op
+  (e2e asserts it). `.board` carries `data-pipeline`, which is also what keeps
+  Playwright's strict mode honest now that `[data-stage="lead"]` appears twice.
+  ALTERNATIVES FOR THE FOUNDER TO PICK INSTEAD, if he prefers:
+  (a) DROP THE ALL VIEW — make Kind a required choice defaulting to Partners.
+      One board, one scroll, no stacking; costs him the single glance at both.
+  (b) TABS instead of stacking — Partners | Agents tabs above one board area.
+      Same one-board-at-a-time honesty with a cheaper switch than the filter,
+      but only one pipeline is ever visible, and tab state is another thing to
+      remember per visit.
+  (c) ONE SUPERSET BOARD of seven columns (Following Up AND Contacted, Won AND
+      Qualified) with the irrelevant ones greyed per card. Rejected outright: it
+      invents columns neither kind has and makes every drag rule conditional.
+- Decision 7 — THE DATA MIGRATION (`20260819180000_agent_stages`). Production
+  holds agent cards in partner columns, so a rename without a migration strands
+  them: the board filters by stage, the engine rejects an unknown stage, and the
+  card exists only in the database. The migration rewrites rows with
+  `kind = 'agent'` ONLY — `following_up -> contacted`, `won -> qualified` — and
+  is idempotent: every WHERE names the OLD value, which cannot exist after a
+  successful run. REVIEW ROUND: that claim was true of statements 1 and 2 and
+  FALSE of statement 3, whose only predicates (`consumedAt IS NULL`,
+  `kind = 'agent'`) keep matching forever — a manual re-run days later would
+  have eaten undo entries written since. Statement 3 now names the OLD stage in
+  the undo SNAPSHOT (`payload->>'stage' IN ('following_up','won')`), which no
+  post-migration entry can carry, so the header's claim holds for the whole
+  file. The proof was strengthened to match: the suite now creates a pending
+  entry BETWEEN the two runs and asserts it survives — a back-to-back re-run
+  with nothing in between could never have caught this. `stage` is plain TEXT with no enum and no CHECK, and the only
+  stage index is a self-maintaining btree, so this is a pure data statement; a
+  converted agent keeps `converted`, `agentUserId`, its User, its UserRole, its
+  PortalRep, its re-parented CV and every child record.
+  It also rewrites `ActivityLog.fromStage`/`toStage` for those cards, so an
+  agent's own History stops speaking the partner vocabulary. ActivityLog is
+  append-only by policy and this is a deliberate exception, recorded here; the
+  alternative was to leave it and accept that pre-change moves read "Following
+  Up" / "Won" on a board that has neither.
+- Decision 8 — THE TWO STRANDING VECTORS, CLOSED IN BOTH DIRECTIONS.
+  (a) UNDO. Prisma's `@updatedAt` is CLIENT-side, so a raw-SQL migration does
+      not bump it and undo's fingerprint check would still MATCH a snapshot
+      written minutes earlier holding `stage: "following_up"`. The migration
+      therefore retires (consumes, never deletes) those pending entries, AND
+      `undoProspectEvent` now refuses outright to write back a stage that is not
+      in the card's own `config.stages`. Belt and braces, because either alone
+      leaves a hole.
+      REVIEW ROUND — IT MUST RETIRE THE OWNER'S WHOLE PENDING SET, not just the
+      offending row. `pendingUndoFor` / `performUndo` take the user's NEWEST
+      unconsumed entry, and `recordUndo` does not retire the one beneath it, so
+      a user can hold several. Consuming only the agent entry PROMOTED the entry
+      under it — a lead move made a minute earlier — to the head of the queue,
+      and the button then offered to revert something that was not the last
+      thing the admin did, with a fingerprint that still matched. That is
+      precisely ADR-045's `honesty` guard, which `invalidateUndo` enforces
+      everywhere else. The statement now selects the affected users and retires
+      their whole pending set; a second admin's entries are untouched.
+  (b) BACKUP RESTORE. `importBackup` is `deleteMany` + `createMany` with ids
+      preserved and no transformation, so restoring a pre-change export would
+      re-insert `following_up` / `won` agent rows onto a migrated database. The
+      import now runs the same normalisation inside its transaction.
+      REVIEW ROUND — it ran only the two CARD rewrites, so a restored agent's
+      History kept printing "Following Up" and "Won" (columns his board does not
+      have) and his restored pending undos kept being offered though they could
+      only ever fail. `importBackup` now calls one named
+      `normaliseAgentStages(tx)` (exported from `services/backup.ts`) that
+      mirrors the SQL statement for statement — cards, ActivityLog
+      `fromStage`/`toStage`, and the undo retirement — and a test runs the
+      SHIPPED SQL and the helper against identical fixtures and diffs the entire
+      resulting world, so the twin cannot drift from the file.
+- Decision 9 — THE TO-DO PROJECTION. `todo.ts` filtered prospects to
+  `stage in (following_up, meeting_setting)`. An agent's follow-up now lives in
+  `contacted`, so without widening that list every agent follow-up would vanish
+  from the admin's To-Do with no error, no log and no empty state. The query is
+  the UNION of both configs' follow-up slots plus the shared meeting slot, and
+  the per-row branch reads `partnersConfigFor(prospect.kind).followUpStage`.
+- Decision 10 — TWO NEW STAGE TOKEN FAMILIES, IN ALL THREE SCOPES.
+  `--color-stage-contacted-*` and `--color-stage-qualified-*` are declared in
+  `branding/byteforce/tokens.css`, `branding/b-systems/tokens.css` AND
+  `src/themes/neutral.css`, bridged in `globals.css`'s `@theme inline` and bound
+  in `design-system.css`'s `[data-stage-key="…"]` block. Contacted sits beside
+  Following Up on each brand's ramp; Qualified is the agent's win, deliberately
+  one step short of the loudest Won cue so Won stays the single strongest signal
+  on the page.
+  The ALTERNATIVE was to alias the two new stages onto the existing `following`
+  and `won` design keys — zero new tokens and structurally impossible to break.
+  It was rejected because the founder asked for the tokens and because the real
+  hazard is now TESTED rather than avoided: `brand-tokens.test.ts` gained a
+  three-way parity assertion (the previous test compared only the two BRAND
+  files — neutral.css was never read, which is exactly the shape of the incident
+  that reached production), a Tailwind-bridge assertion, and a coverage test
+  that walks every stage of every pipeline and fails if `stageKey()` falls
+  through to its `lost` default or if the returned key has no
+  `[data-stage-key]` rule. Qualified painting as Lost is now a red test, not a
+  screenshot someone has to notice.
+- Decision 11 — COPY. `stageMsgs` gains `contacted` / `qualified` with real
+  Arabic, which alone corrects the column titles, the next-action dropdown, the
+  stage chips, the drag modal's eyebrow, the history from→to, the undo label and
+  the terminal-card sentence (all of them interpolate `stageLabel`). No existing
+  English string was edited: `terminalToastAgent`, `qualifiedAgentHint`,
+  `cvOptionalHintQualified`, `kindLockedPipelines`, `sectionPartners`,
+  `sectionAgents`, `noPartnerCards` and `noAgentCards` are NEW sibling keys, and
+  the superseded ones stay in the file marked `@deprecated`.
+  REVIEW ROUND — `stageLabel` was not the whole vocabulary. `HistoryPanel`'s
+  `TRIGGER_PHRASES` mapped the LITERAL `"PP-2"` to §10.2's prescribed sentence
+  "Returned to Lead — new number added", so the moment Decision 5 gave agent
+  cards `PA-2` the pill vanished from every agent auto-return — and vanished
+  INCONSISTENTLY, because the migration rewrote `fromStage`/`toStage` but not
+  `trigger`, leaving pre-deploy rows still showing it on the same card. §10.2a
+  row PA-2 makes the wording normative, so this was a miss, not a choice. The
+  map moved to `src/components/internal/historyPhrases.ts` and is now BUILT from
+  the pipelines' own `triggers.numberAdded` slots, so a future config cannot
+  declare a row id and silently drop the prescribed wording; a test asserts the
+  row id the ENGINE actually stamps resolves to the phrase.
+- Decision 12 — "I CAN ASSIGN LEADS FOR AGENTS ALSO" was already true and was
+  NOT rebuilt. `listAssignableOwners` filters on active + approved + one of the
+  three roles, and the gate mints exactly that, so the new agent is in the
+  roster on the next query. What was missing was PROOF for a gate-minted
+  account: both an integration test (gate → roster → assign → his board → his
+  To-Do → his notification, with no manual User insert anywhere) and an e2e that
+  does the same through the UI and signs in as him.
+- Consequences: agent and partner cards can never be dropped onto each other's
+  board (by construction, not by validation). The Kind = All page is roughly
+  twice as tall — the Agents section starts below the fold on a 760px monitor —
+  so the seed now ships one agent card per agent stage and each section has its
+  own empty state.
+  REVIEW ROUND, three consequences of the stacked page that the first pass got
+  wrong and are now fixed:
+  (i)   THE SEED SHIPPED FIVE OF SIX. `qualified` — the founder's headline
+        column and the gate itself — had no card, so a fresh install opened on
+        an empty slab and never showed the Converted badge, the "Agent account
+        created" link or the terminal panel. The seed now creates the agent
+        analogue of `wonProspect`: a card at `qualified`, `converted: true`,
+        wired to a real seeded User + `bsystems_agent` role + PortalRep, with a
+        `PA-4` ActivityLog row — the state PA-4 actually produces.
+  (ii)  TWO BOARDS, ONE TOAST SLOT. `.toast-wrap` is `position: fixed` at one
+        coordinate and each pipeline owned its own `message`, so the partner
+        board's "Won and Lost cards can no longer be moved." stayed on screen
+        UNDER the agent board's "Qualified and Lost…" — two alerts in the same
+        place, the older one lying. `message` moved up to the dispatcher; the
+        newer message replaces the older. An e2e drags both seeded Lost cards
+        and asserts one toast, carrying the agent sentence and NOT the partner
+        one.
+  (iii) AN EMPTY SECTION MUST SAY WHY. A search matching only agents left the
+        Partners section reading "No partner cards yet." while partner cards
+        existed — the page's own `activeCount` already knew a filter was on.
+        `PartnersBoard` takes `filtered` and shows `noMatches` for a section
+        emptied by the filter, keeping the "yet" copy for the genuinely empty
+        case (the pattern `/b-systems/leads` already uses).
+  And one consequence OUTSIDE the board: `/api/health` could not see this
+  migration at all. `schemaProbe` selected one column added by migration 2 of
+  12, so a DATA-ONLY migration that never applied left agent cards stranded
+  behind `ok: true` — with `scripts/start.mjs` booting anyway after three failed
+  `migrate deploy` attempts. The probe now diffs the committed migration folders
+  against `_prisma_migrations` and drives the existing self-heal off that, so it
+  is correct for every future migration with nothing to keep in sync; the
+  response carries `pendingMigrations` and `e2e/health.spec.ts` asserts it is
+  empty. `PP-4a` remains the portal_rep row id while the CARD's move
+  is logged `PA-4`; that asymmetry is intentional and documented here.

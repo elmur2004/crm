@@ -6,13 +6,14 @@ import { expect, test } from "@playwright/test";
 
    Journey 3 covers the PARTNER card. This is its sibling for the AGENT card on
    the same board: created with the public signup form's fields (CV included),
-   run through the SAME pipeline, and Won through the gate that mints the
-   account — after which the agent signs in with the admin-set credentials and
-   lands on their own CRM, never having touched Registrations. */
+   run through the agent pipeline (ADR-057 — Lead / Contacted / Didn't Answer /
+   Meeting Setting / Qualified / Lost), and QUALIFIED through the gate that
+   mints the account — after which the agent signs in with the admin-set
+   credentials and lands on their own CRM, never having touched Registrations. */
 
 const PDF = Buffer.concat([Buffer.from("%PDF-1.7"), Buffer.alloc(4096, 7)]);
 
-test("an agent card runs the shared pipeline and its Won gate creates a working login", async ({
+test("an agent card runs the agent pipeline and its Qualified gate creates a working login", async ({
   page,
   browser,
 }) => {
@@ -37,27 +38,33 @@ test("an agent card runs the shared pipeline and its Won gate creates a working 
     .setInputFiles({ name: "mostafa-cv.pdf", mimeType: "application/pdf", buffer: PDF });
   await page.getByRole("button", { name: "Save card" }).click();
 
-  /* It is a card on the SAME board, told apart by its kind chip. */
-  const card = page.locator('[data-deal-card="Mostafa Kamel"]');
+  /* It is a card on the same PAGE, in the Agents board, told apart by its kind
+     chip — the Partners board next to it never carries it. */
+  const card = page.locator('[data-pipeline="agent"] [data-deal-card="Mostafa Kamel"]');
   await expect(card).toBeVisible();
   await expect(card).toHaveAttribute("data-kind", "agent");
   await expect(card.getByText("Agent")).toBeVisible();
+  await expect(
+    page.locator('[data-pipeline="partner"] [data-deal-card="Mostafa Kamel"]'),
+  ).toHaveCount(0);
 
-  /* The shared pipeline: the agent card follows up exactly like a partner. */
+  /* The agent pipeline: Contacted is where an agent's follow-up lives. */
   await page.getByRole("link", { name: "Mostafa Kamel" }).click();
   await expect(page.getByText("mostafa-cv.pdf")).toBeVisible(); // the CV rode along
-  await page.getByLabel("Next action").selectOption("following_up");
+  /* the partner vocabulary is simply not offered on this card */
+  await expect(page.getByLabel("Next action").getByRole("option", { name: "Won" })).toHaveCount(0);
+  await page.getByLabel("Next action").selectOption("contacted");
   await page.getByLabel("Follow-up date").fill("2026-09-18");
   await page.getByLabel("Follow-up time").fill("11:00");
   await page.getByLabel("Method").selectOption("call");
   await page.getByRole("button", { name: "Save & move" }).click();
-  await expect(page.getByRole("heading", { level: 1 }).getByText("Following Up")).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1 }).getByText("Contacted")).toBeVisible();
 
-  /* The Won gate is where the strictness lives: what the card has is prefilled,
-     what it lacks must be typed, and the credentials are the ADMIN's to set. */
-  await page.getByLabel("Next action").selectOption("won");
-  await expect(page.getByText("Won creates the agent's account")).toBeVisible();
-  const gate = page.locator("form").filter({ hasText: "Won creates the agent's account" });
+  /* The Qualified gate is where the strictness lives: what the card has is
+     prefilled, what it lacks must be typed, credentials are the ADMIN's to set. */
+  await page.getByLabel("Next action").selectOption("qualified");
+  await expect(page.getByText("Qualified creates the agent's account")).toBeVisible();
+  const gate = page.locator("form").filter({ hasText: "Qualified creates the agent's account" });
   await expect(gate.getByLabel("First name")).toHaveValue("Mostafa");
   await expect(gate.getByLabel("Phone number")).toHaveValue("01044556677");
   await expect(gate.getByLabel("Speciality")).toHaveValue(""); // never asked on the card
@@ -66,8 +73,11 @@ test("an agent card runs the shared pipeline and its Won gate creates a working 
   await gate.getByLabel("Email").fill("mostafa.kamel@example.com");
   await gate.getByLabel("Password").fill("agentpass123");
   await page.getByRole("button", { name: "Save & move" }).click();
-  await expect(page.getByRole("heading", { level: 1 }).getByText("Won")).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1 }).getByText("Qualified")).toBeVisible();
   await expect(page.getByRole("heading", { level: 1 }).getByText("Converted")).toBeVisible();
+  /* terminal: the panel offers nothing more on a converted agent */
+  await expect(page.getByText("This card is Qualified — no further actions.")).toBeVisible();
+  await expect(page.getByLabel("Next action")).toHaveCount(0);
   await expect(page.getByText(/Agent account created/)).toBeVisible();
 
   /* They are an AGENT: in the Agents section, never in the Partners directory. */
@@ -126,10 +136,13 @@ test("the Kind filter separates the two kinds, and cards expose Call + WhatsApp"
   expect(agentRes.status()).toBe(201);
   const agentId = ((await agentRes.json()) as { id: string }).id;
 
-  /* unfiltered: both kinds share the board */
+  /* unfiltered: both boards on one page, each card in its own */
   await page.goto("/b-systems/partners-pipeline");
-  await expect(page.locator('[data-deal-card="Kindfilter Partners Co"]')).toBeVisible();
-  const agentCard = page.locator('[data-deal-card="Kindfilter Agent"]');
+  await expect(page.locator(".board")).toHaveCount(2);
+  await expect(
+    page.locator('[data-pipeline="partner"] [data-deal-card="Kindfilter Partners Co"]'),
+  ).toBeVisible();
+  const agentCard = page.locator('[data-pipeline="agent"] [data-deal-card="Kindfilter Agent"]');
   await expect(agentCard).toBeVisible();
 
   /* the card's chip pair: tel: dials the number as typed; wa.me gets Egypt's
@@ -150,6 +163,9 @@ test("the Kind filter separates the two kinds, and cards expose Call + WhatsApp"
   await page.waitForURL(/kind=agent/);
   await expect(page.locator('[data-deal-card="Kindfilter Agent"]')).toBeVisible();
   await expect(page.locator('[data-deal-card][data-kind="partner"]')).toHaveCount(0);
+  /* one board now, and it is the AGENT one */
+  await expect(page.locator(".board")).toHaveCount(1);
+  await expect(page.locator('[data-pipeline="agent"]')).toHaveCount(1);
 
   /* and the prospect detail header carries the same pair (scoped to the
      header actions — the number cells repeat the chips inline) */
