@@ -1184,3 +1184,137 @@ Traps to know before touching any of it again:
   the salary is in force: the NEXT month's derived row, and the row that comes
   back after the override is deleted. A roster edit would have moved both.
 - Last updated: 2026-08-21 (ADR-058, Entry 053, BUG-012)
+
+## ADR-059 — collapsing two stage sets into one, live (2026-08-21)
+- Why it was more than a rename: the moment a stage key leaves `config.stages`,
+  every row still holding it is un-actionable (`transition` rejects with
+  `event_invalid_for_stage`), invisible on the board (columns come from the
+  config), absent from the To-Do (`stage: { in: [...] }`) and painted as a LOSS
+  (`stageColors`' default is `lost`). So the config change, the data migration
+  and the stage TOKENS had to ship together or a partner card would have spent
+  the gap stranded in no column at all. They did: commit 1 carries the engine
+  AND the token family, commit 2 the migration.
+- Traps hit, in the order they bit:
+  - **A retired trigger id is still stored for ever.** `historyPhrases` derives
+    its map from the configs' `numberAdded` slots, which is exactly right — but
+    collapsing two configs into one made that map yield ONE id, silently
+    dropping `PA-2`. ActivityLog is append-only: every agent card moved during
+    ADR-057's two days carries it, and each would have lost its "Returned to
+    Lead — new number added" pill with no error anywhere. Legacy ids now have a
+    named list and their own test. The same reasoning is why the agent's
+    terminal row got a NEW id (PP-6) instead of reusing PA-4, whose meaning
+    changed completely, and why PP-1…PP-5 kept theirs.
+  - **A null role slot breaks the things that COMPOSE from it, not the things
+    that read it.** `groupForStage` handles `followUpStage: null` by falling
+    through, which is the whole point. But two places built values out of the
+    slot: `SAME_STAGE_FORM_SLOT.follow_up_again` (the follow-up form would have
+    rendered EMPTY — the feature dies silently, tests green) and the core's
+    hardcoded cancelled-meeting pair `[followUpStage, lostStage]` (which would
+    have collapsed to Lost alone). Fix for both: ask the engine. The UI now
+    switches on the required GROUP via the exported `requiredGroupFor`, and
+    cancelled destinations are a config slot the three lead pipelines answer
+    identically (asserted, byte for byte).
+    *Follow-up (review round):* leaving the disarmed composer in the tree is not
+    neutral. `SAME_STAGE_FORM_SLOT` survived with zero callers and a doc comment
+    still telling the next reader to use it — a one-line reintroduction of the
+    same empty form. Delete a helper the moment its last caller goes; a
+    `@deprecated` note on the OTHER map is not a substitute.
+  - **One board, two configs: `config.stages` is shared, behaviour is not.**
+    When both kinds collapsed onto one column set it became natural to resolve
+    the config once per BOARD. That is right for rendering (`stages` is literally
+    the same array object for either kind) and wrong for every decision: only
+    three slots differ, and one of them — `wonRequiredGroup` — is exactly what
+    the drag handler consults to decide modal-or-commit. `partnersConfigFor("partner")`
+    used board-wide answered `{group:"won_partner"}` on an AGENT's drop into
+    Qualified, so PP-6's pure move opened a confirmation modal that rendered no
+    fields (the modal itself re-asked with the card's own kind and got `null`).
+    It cost a click, not data, and no test saw it: the e2e drags stopped at
+    Waiting and Contacted, and the panel path was already correct. Rule: the
+    shared config may render columns; anything that ASKS the engine must pass
+    the card's own `partnersConfigFor(card.kind)`.
+  - **A "statement for statement" twin must match the statements' SIDE EFFECTS
+    too.** `normaliseProspectStages` is the TypeScript twin of the two shipped
+    migrations for the one path SQL cannot reach (`importBackup` re-inserting a
+    PRE-rename export). It used `tx.partnerProspect.updateMany`, and Prisma
+    applies `@updatedAt` CLIENT-side — so the twin bumped a column the raw SQL
+    leaves alone. Two things ride on that column: undo's integrity FINGERPRINT
+    (a restored pending entry whose snapshot names a still-live stage is
+    deliberately left pending — and would then 409 for ever on the restore path
+    while succeeding on the SQL path) and the board's `orderBy: { updatedAt:
+    "desc" }` (a restore would silently re-sort every renamed card to the top of
+    its column). The rewrite is now `tx.$executeRaw`. The parity test grew a
+    `fingerprintValid` flag and a live-payload undo fixture, and asserts
+    `updatedAt` is unmoved on BOTH paths — reverting the raw UPDATE fails it.
+  - **Ignoring an unexpected payload is worse than refusing it.** With Qualified
+    requiring no group for an agent, a stale client posting `won_agent` was
+    silently accepted and the payload dropped — the card qualified and the
+    client believed it had minted an account. `applyProspectEvent` now refuses a
+    group on a move that requires none, and the route's Zod union no longer
+    knows the retired group at all.
+  - **The To-Do can lose rows in BOTH directions.** Keying the projection off
+    the follow-up RECORD instead of the stage fixes founder item 2.1, but the
+    stage `in` list is now the only guard left: too narrow and every prospect
+    follow-up vanishes from the admin's most-used screen; too wide and a stale
+    follow-up on a terminal card nags for ever. The list must be exactly the
+    ACTIVE stages — `lead, contacted, didnt_answer, meeting_setting, waiting` —
+    because the ACTION is offered from every one of them, and SPEC §7.2c makes
+    the record, not the column, the thing that puts a card on the screen. The
+    first draft kept `didnt_answer` out ("its key datum is already awaiting a new
+    number"), which meant the admin could press a button, have a FollowUp row and
+    an ActivityLog entry written, and see nothing anywhere. A rule that filters
+    by COLUMN inside a projection whose whole point is "not the column" is a
+    contradiction that reads as reasonable in a comment; check the ACTION SET,
+    not the intuition.
+  - **Two record kinds must not compete once BOTH are deliberate.** The same
+    reversal that offered `follow_up_again` from every active stage turned the
+    To-Do's "newest child wins" tiebreak into a data-loss bug in one direction:
+    recording a call on a card with a meeting booked made the MEETING vanish from
+    the screen whose stated purpose is "so I don't miss anything". Supersession is
+    only real one way (a meeting arranged after a follow-up absorbs that call);
+    two commitments on two dates are two rows. The card, which has one line,
+    resolves it differently: the meeting column keeps its own datum when a meeting
+    is arranged, and a recorded follow-up fills the line everywhere else.
+  - **Playwright drags: aim the CARD, not the pointer.** Seven 218px columns is
+    ~1598px of board, so both ends need `scrollIntoViewIfNeeded` before
+    measuring (page.mouse works in viewport coordinates). More subtly, dnd-kit
+    scores collisions on the dragged card's rect and the grip sits at the card's
+    inline-START edge — pointing at a column's centre leaves the card straddling
+    its neighbour, and a drop meant for Contacted landed in **Lead**. The helper
+    now offsets the pointer so the CARD lands centred on the target. Adjacent
+    columns stay unreliable by nature (the source can out-overlap the target),
+    so the drag tests cross several columns and the panel covers the short hops.
+  - **`getByText` on a page with an Undo bar.** The undo button's own label
+    ("Moved Quiet Contact to Contacted") matches the card's name, so a To-Do
+    assertion that the card is ABSENT failed on the corner of the screen. Scope
+    prospect-row assertions to `getByRole("listitem")`.
+  - **A guard that scans the FILE is not a guard on the SCOPE.** The three-scope
+    stage-token test read `--color-stage-*` out of the whole CSS file, so a token
+    declared OUTSIDE its `[data-brand]` block would have passed while painting
+    nothing under the neutral shell — the identical blind spot that let
+    `--color-acct-positive` ship inside `.bs-mesh` (Run 058). The accounting guard
+    directly below it had already been rewritten to route through `scopeBody`;
+    the stage guard now does too. Placement is correct today (44 tokens, all
+    in-scope, in all three files), so this is a trap closed rather than a bug
+    fixed — which is exactly when it is cheapest to close.
+  - **Retiring a name in code does not retire it in the schema comments.**
+    `won_agent` was deleted from `RequiredGroup`, from `groupPayloadSchema` and
+    from the Zod union, but `prisma/schema.prisma` still told the next reader
+    that `agentUserId` is "set by the won_agent gate", and two more comments
+    still described auto-provisioning that ADR-059 removed. The data layer is the
+    first thing anyone consults when re-deriving a migration; grep the retired
+    identifier across `prisma/` and comments, not just `src/**/*.ts`.
+- Limitations / gotchas:
+  - `converted` remains the honest "has a login" flag for an agent and is now
+    routinely false on a Qualified card. Anything that assumes
+    `stage === "qualified" ⇒ account exists` is wrong; the two places that read
+    it (board chip, detail badge) were given the mirrored empty state, and the
+    seed ships one agent in each shape so the state is visible on a fresh
+    install rather than only after someone reproduces it.
+  - A directory Partner with `userId: null` was always legal; it is now the
+    DEFAULT after conversion, because the gate no longer carries a password.
+    `createPartnerLogin` is the only path that mints a `bsystems_partner`
+    account, and it is admin-only.
+  - `nextActions` is now `stages.filter(s => s !== stage)`, so `lead` appears in
+    the panel's dropdown for the first time. Harmless (a move to intake opens no
+    group, exactly like the drag), but it is a visible change flagged for the
+    founder rather than buried.

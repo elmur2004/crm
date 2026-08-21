@@ -1,5 +1,60 @@
 # Changelog — user-visible changes per phase/release
 
+## Partners and agents on one set of columns, with a Waiting stage (2026-08-21)
+- You said: *"Add a new stage called Waiting. Order: Meeting Setting then
+  Waiting then Qualified. Leads in Waiting must remain fully editable at any
+  time."* — and, when we asked whether the two kinds of card should keep
+  separate columns: *"Same stages for both."*
+- **One board, seven columns, both kinds of card.** Lead · Contacted · Didn't
+  Answer · Meeting Setting · Waiting · Qualified · Lost. Partners and agents sit
+  on the same board again, each card still showing whether it is a partner or an
+  agent. The two stacked boards are gone — on a phone that is half the scrolling
+  it was yesterday. The Kind filter still works; it just hides the cards you did
+  not ask for instead of taking a whole board away.
+- **Waiting is a real column, not a dead end.** Nothing is asked of you to put a
+  card there. A card in Waiting is fully editable — you can change anything on
+  it, add numbers to it, record a follow-up on it — and it moves out again in
+  both directions: forward to Qualified, or back to the meeting, to Contacted,
+  or all the way to Lead.
+- **Contacted asks you for nothing.** You said: *"The system should not require
+  any additional details or mandatory fields when moving a lead to Contacted."*
+  Drag it or choose it, partner or agent — it just moves. No date, no method,
+  no form.
+- **Qualified never asks for an email or a password again.** A partner still has
+  to be complete before he joins the directory — company, key person, role,
+  address, number, activity, importance — but the password box is gone from that
+  step entirely, and the email is optional as it always was. An agent is simply
+  qualified: nothing is created, nothing is demanded.
+- **Creating his login is now a button you press when you are ready.** On a card
+  that has reached Qualified you will see **Create the agent's account** (or
+  **Create the partner's login**) next to Edit. It asks for exactly what it
+  needs — his name, phone, email, the password you choose for him, his speciality
+  and address — and creates his account there and then: he signs in immediately,
+  his CV moves onto his profile, and you can assign him leads. It refuses to run
+  twice, and it refuses if that email or phone already belongs to somebody.
+- **A qualified agent without a login is a normal thing now, so the screen says
+  so.** His card reads **No login yet**, his page reads *"Qualified, no account
+  yet — create their login when you are ready."* No guessing whether the account
+  exists. A qualified PARTNER whose login you have not created yet says the same
+  thing on his card: "Converted" only ever meant he is in the directory, and
+  since the password box left the Qualified step it no longer means he can sign
+  in. The button that creates the login stays on the card's own page.
+- **Contacted is no longer a task on your To-Do.** You said: *"Contacted should
+  only indicate that contact has been made unless an actual Follow Up task is
+  required."* It does exactly that now. A card only appears on the To-Do as a
+  follow-up when somebody actually recorded one — and you can record one from
+  any active column with **Record a follow-up**, which leaves the card exactly
+  where it is. If you record one, it shows up: from Lead, from Contacted, from
+  Waiting, from the meeting column, and from Didn't Answer too — the record is
+  what puts it there, never the column it happens to be sitting in. And
+  recording a call on a card that already has a meeting booked no longer takes
+  the meeting off the list: both dates are things you owe somebody, so you now
+  see both.
+- **Your existing cards moved themselves.** Every partner card that was in
+  Following Up is now in Contacted, and every one that was Won is now Qualified,
+  with its history, its directory record, its leads and everything hanging off it
+  untouched. Nothing was lost and nothing was created.
+
 ## Two ways to change someone's pay — and they finally do different things (2026-08-21)
 - You said: *"when I edit an expense of the type of payroll and it is being
   edited it doesn't automatically edit in the actual payroll roster because it

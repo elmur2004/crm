@@ -2704,3 +2704,216 @@ ADR" below.
     pre-scoped to the viewed month (`asOf={month}`); our port links away to
     `/accounting/roster`. Closer to the original, but a separate change around
     the same code — logged, not bundled.
+
+## ADR-059 — 2026-08-21 — ONE stage set for both prospect kinds, Waiting, and the login as its own action
+- Context: the founder's written requirements list, section 1, plus his answers
+  to three clarifying questions. Four sentences drive everything below:
+  1.1 *"Add a new stage called Waiting. Order: Meeting Setting then Waiting then
+  Qualified. Leads in Waiting must remain fully editable at any time."*
+  1.2 *"Allow leads to be moved directly from Lead to Contacted. The system
+  should not require any additional details or mandatory fields when moving a
+  lead to Contacted. This applies to both Agents and Partners."*
+  1.3 *"Allow leads to be moved directly to Qualified. Moving a lead to
+  Qualified should not require creating or entering an email or password. This
+  applies to both Agents and Partners."*
+  2.1 *"Agents/Partners moved to Contacted should not automatically be treated
+  as Follow Up tasks. Currently, Contacted leads are appearing in the To-Do List
+  as Follow Up, which is incorrect. Contacted should only indicate that contact
+  has been made unless an actual Follow Up task is required."*
+  Asked whether partner cards and agent cards should keep the separate stage
+  vocabularies ADR-057 gave them a day earlier, he chose **"Same stages for
+  both."** This ADR therefore **REVERSES ADR-057's vocabulary split** while
+  keeping the two card KINDS distinct. ADR-057's data migration is NOT reverted:
+  agent rows already speak the shared keys, and partner rows now join them.
+- Decision 1 — ONE STAGE ARRAY, IN THE FOUNDER'S BOARD ORDER.
+  `PROSPECT_STAGES = ["lead", "contacted", "didnt_answer", "meeting_setting",
+  "waiting", "qualified", "lost"]` replaces both `PARTNER_STAGES` and
+  `AGENT_STAGES`, which are deleted rather than aliased (an alias is how the
+  "one engine" rule rots). `contacted` stays BEFORE `didnt_answer` because that
+  is the order he dictated for the agent columns and he chose that order for
+  both kinds; `waiting` sits between `meeting_setting` and `qualified` exactly
+  as 1.1 asks. A unit test pins the array and asserts
+  `partnersConfig.stages === agentsConfig.stages` — the SAME array object, which
+  is the cheapest possible proof that no fork exists.
+- Decision 2 — THE TWO KINDS NOW DIFFER IN EXACTLY ONE THING: what Qualified
+  does. `KindSlots` shrinks from seven slots to three
+  (`wonRequiredGroup`, `wonSideEffect`, `wonTrigger`), and `stages`,
+  `terminalStages: [qualified, lost]`, `wonStage: "qualified"` and
+  `followUpStage: null` are hoisted into the shared body. A test walks every key
+  of the two configs and asserts they are equal apart from those three.
+  `nextActions` is now `stages.filter(s => s !== stage)` — the action set IS the
+  column set, which is what makes "Waiting moves out in both directions" true by
+  construction rather than by a hand-maintained list. One consequence, recorded
+  because it is a real behaviour change: `lead` is now offered as a next action
+  from the panel, not only reachable by drag or by PP-2's auto-return.
+- Decision 3 — CONTACTED PLAYS NO ROLE AT ALL (founder 1.2 + 2.1).
+  `followUpStage: null` on the prospect config, and `PipelineConfig.followUpStage`
+  widens to `string | null`. `requiredGroupForTarget` guards the follow-up branch
+  on the slot being non-null, so Contacted (and Waiting, and a drag back to Lead)
+  fall through to `return null`: the move commits immediately, by action or by
+  drag, for both kinds, with no Zod change anywhere. Two knock-ons had to be
+  handled or the feature would have died silently:
+  · `SAME_STAGE_FORM_SLOT.follow_up_again` resolves through `followUpStage`, so
+    the "record a follow-up" form would have rendered EMPTY. The UI now asks the
+    engine — `requiredGroupFor(config, fromStage, action)`, exported alongside
+    `requiredGroupForTarget` — and both the board and the panel switch on the
+    GROUP NAME rather than on a target stage. (Review round, Run 062:
+    `SAME_STAGE_FORM_SLOT` is DELETED rather than left standing. It had no
+    callers left, and a composer that resolves a now-nullable slot is a loaded
+    gun for the next reader — its own doc comment still instructed them to use
+    it. The two lead panels keep the literal `SAME_STAGE_FORM_TARGET`, which is
+    correct for pipelines whose slots really do hold those keys, and its comment
+    now points at `requiredGroupFor` as the general answer.) That is also what makes 1.2
+    provable in the UI: `requiredGroupForTarget(config, "lead", "contacted")` is
+    `null`, so the drag handler commits with no modal, and the rule is stated in
+    ONE place instead of three.
+  · the cancelled-meeting destinations were hardcoded in the core as
+    `[followUpStage, lostStage]`, which with a null slot collapses to Lost alone
+    — a cliff nobody asked for. `cancelledDestinations(role)` is now a config
+    SLOT; the three lead pipelines return the identical pair they always did
+    (asserted), and the prospect pipeline returns Contacted / Waiting / Lost.
+- Decision 4 — HOW A FOLLOW-UP IS BORN NOW (founder 2.1). No stage implies one.
+  The existing same-stage action `follow_up_again` is promoted: `sameStageExtras`
+  offers it from EVERY active stage instead of only the follow-up slot. It
+  already ran the whole persist/log/undo/To-Do pipeline, already had a form, an
+  undo label and a group of `{follow_up, context: "initial"}`, so this is zero
+  new engine concepts. The To-Do projection changes from "the card is in the
+  follow-up stage" to "the card's newest child record is a FollowUp", over the
+  active stages where a call is still meaningful — `lead, contacted,
+  meeting_setting, waiting`. `didnt_answer` is excluded (its key datum is
+  already "awaiting a new number") and so are both terminals, because otherwise
+  a stale follow-up on a dead card would nag for ever. The card's "Next: {date}"
+  datum moves to the same rule. The panel labels the action "Record a
+  follow-up"; the SHARED `sameStageActionMsgs.follow_up_again` ("Log another
+  follow-up") is left byte-identical for the two lead CRMs, where "another" is
+  still correct.
+- Decision 4a — WHERE THE FOLLOW-UP RULE ACTUALLY LANDED (amended in the review
+  round, Run 062). Decision 4's first draft kept a COLUMN filter in the To-Do
+  projection — `lead, contacted, meeting_setting, waiting` — while Decision 4
+  itself offers `follow_up_again` from every ACTIVE stage. That left Didn't
+  Answer offering the action and then swallowing the record, which contradicts
+  SPEC §7.2c's normative sentence ("driven by the existence of the record, never
+  by the column the card sits in") and PP-8's "puts the card on the To-Do".
+  SPEC wins (CLAUDE.md): the projection is now every active stage, `didnt_answer`
+  included, and only the two TERMINALS are excluded — a qualified or lost card
+  owes nobody a call, and a stale follow-up there would nag for ever.
+  The second half of the same reversal: because a follow-up can now be recorded
+  from the meeting column, the two record kinds must stop competing. An arranged,
+  unresolved meeting on a `meeting_setting` card emits its To-Do row on its own
+  merits; the follow-up row stands BESIDE it instead of replacing it. (A meeting
+  arranged AFTER a follow-up still supersedes that follow-up — the call became a
+  meeting — but the reverse is not a supersession, it is two commitments.) The
+  card carries one line, so there the meeting column keeps its own datum when a
+  meeting is arranged and a recorded follow-up fills the line everywhere else.
+- Decision 5 — QUALIFIED NEVER ASKS FOR CREDENTIALS (founder 1.3), so minting an
+  account becomes its own explicit admin action (§7.2b, row PP-4a).
+  · AGENT: `wonRequiredGroup` and `wonSideEffect` are both null, so the move is
+    a pure stage change — no group, no side effect, nothing written. The
+    `create_agent` side-effect kind is retired from the engine entirely.
+  · PARTNER: `wonPartnerSchema` loses its `password` field and the
+    `.refine(email ⇒ password)` that demanded one the moment an email was typed.
+    Every OTHER completeness requirement is preserved verbatim. The directory
+    Partner is still created by the move, now with `userId: null`.
+  · The mint moves out of `applyProspectEvent`'s side-effect loop into
+    `createAgentAccount(prospectId, input, actor)` and its partner mirror
+    `createPartnerLogin`, behind `POST /api/b-systems/partners-pipeline/[id]/account`
+    guarded by `requireBsAdmin()` — deliberately NOT `requireProspectCreator()`,
+    which admits `bsystems_data_entry`, whose whole ADR-051 charter is two
+    create actions and no ownership. Minting a login from a data-entry session
+    would be a real privilege escalation, so it has its own e2e 403 row.
+  · The writes are byte-for-byte what the transition used to perform, including
+    the `PP-4a` trigger on the portal_rep log row, so historic account rows keep
+    their meaning. Preconditions, all server-side: right kind, card already in
+    Qualified, no account yet, email and phone free.
+  · A QUALIFIED AGENT WITH NO LOGIN IS A LEGITIMATE STATE. `converted` stays
+    false and `agentUserId` stays null, which is precisely what `converted` has
+    always meant, so the UI shows the honest thing — "No login yet" on the card,
+    "Qualified, no account yet" on the detail, and the Create-account button in
+    the page actions. It cannot live in the action panel: that panel is replaced
+    by the terminal sentence the moment a card is Qualified. The seed ships one
+    agent in each shape so both are on screen at first login.
+  · AMENDED IN THE REVIEW ROUND (Run 062): the same honesty is owed on the
+    PARTNER half, and `converted` cannot carry it. PP-4 sets `converted` at
+    qualification, long before an admin mints `Partner.userId`, so the board
+    showed a converted partner with no way to tell whether a login was still
+    owed. The "No login yet" chip is now computed for BOTH kinds from the same
+    two conditions the detail's button uses (agent: no `agentUser`; partner: a
+    directory row whose `userId` is null). SPEC §7.2b's "(card and detail)" is
+    narrowed accordingly: the CARD carries the STATE, the DETAIL carries the
+    ACTION. A form-opening button inside a card that is simultaneously a drag
+    handle and a whole-card link would fight both.
+  · ALSO AMENDED: the ONE board must judge each drop with the DRAGGED CARD's
+    config. `PartnersBoard.onDragEnd` resolved `partnersConfigFor("partner")`
+    once for the whole board — correct for `config.stages` (the same array
+    object for either kind) but wrong for `requiredGroupForTarget`, which
+    answers `{group:"won_partner"}` for a partner and `null` for an agent. An
+    agent dragged into Qualified therefore opened a confirmation modal with no
+    fields in it — the exact opposite of PP-6's pure move. The handler now asks
+    `partnersConfigFor(card.kind)`, and the shared `config` is kept only for
+    rendering the columns. An e2e row and a unit row pin both answers.
+  · An agent's move to Qualified is now UNDOABLE — nothing irreversible happens
+    any more — while the ACCOUNT action retires the actor's pending undo set
+    itself (ADR-045). Without that, an agent could gain a live login while the
+    Undo button still offered to walk his card back to Meeting Setting.
+- Decision 6 — ONE BOARD AGAIN. With both kinds sharing one stage set, ADR-057's
+  stacked two-board arrangement is redundant: it doubled the page height on a
+  phone and duplicated the whole dnd-kit apparatus. `PartnersBoard` is one
+  component again — one `DndContext`, one overlay, one modal, one toast slot —
+  and the droppable ids are bare stage keys, because the namespacing existed
+  only to keep two overlapping stage sets apart on one page. The Kind filter
+  stays server-side and simply decides which CARDS arrive. Everything ADR-056
+  fixed survives verbatim: the `PointerSensor` distance-6 constraint, the
+  click-swallow ref, `useMouseOnlyListeners`, and `CardGrip` INSIDE `CardBody`
+  so the drag overlay stays pixel-identical.
+- Decision 7 — THE DATA MIGRATION, mirroring ADR-057's statement for statement
+  with the predicate inverted (`prisma/migrations/20260821180000_unified_prospect_stages`).
+  PARTNER rows walk the same two renames agent rows walked:
+  `following_up → contacted`, `won → qualified`; their ActivityLog `fromStage`/
+  `toStage` are rewritten (the deliberate exception to append-only that ADR-057
+  established); pending UndoEntries whose SNAPSHOT names a dead stage retire the
+  whole affected user's pending set. The predicate is `kind <> 'agent'`, the
+  exact complement of `partnersConfigFor`, so a row carrying an unexpected kind
+  is migrated rather than stranded in no column at all. `entityType =
+  'partner_prospect'` on the log joins is load-bearing: internal LEADS still use
+  `following_up` and `won` as LIVE stage names and must never be rewritten.
+  The restore helper is generalised, not duplicated: `normaliseAgentStages` →
+  `normaliseProspectStages`, kind-agnostic, because both keys are now dead for
+  both kinds. The anti-drift test was EXTENDED, never bypassed — it executes
+  BOTH shipped folders in committed order and diffs the SQL world against the
+  TypeScript world on identical fixtures.
+- Decision 8 — SPEC. §7.2 is rewritten as one seven-column section with the
+  kind-conditional Lead field table, the Qualified gate table for PARTNER cards
+  (Email "no", and no password row at all), plus new §7.2b (the account action
+  and its own required-field table) and §7.2c (how a follow-up is created).
+  §7.2a and §10.2a are superseded pointers. §10.2 becomes PP-1…PP-9 for the one
+  pipeline; PA-1…PA-5 are retired and stored ActivityLog rows carrying them
+  remain valid history. Trigger ids: PP-1/PP-2/PP-3 are shared by both kinds,
+  PP-4 keeps its meaning (partner gate → directory Partner), and the agent's
+  terminal row gets the NEW id PP-6 because PA-4's meaning changed completely —
+  reusing it would have made old rows lie.
+- Consequences:
+  · `historyPhrases.ts` keys off the configs' `numberAdded` slot, which now
+    yields ONE id, so `PA-2` is named explicitly as a LEGACY entry. Every agent
+    card moved during ADR-057's two days carries it, and dropping the key would
+    have silently removed their "Returned to Lead — new number added" pill.
+  · `applyProspectEvent` now REFUSES a group payload on a move that requires
+    none, instead of ignoring it. Silently accepting `won_agent` on a Qualified
+    move would let a stale client believe it had minted an account.
+  · Deprecated-but-kept dict entries (English values are never edited):
+    `pPipeline.terminalToast`, `sectionPartners`, `sectionAgents`,
+    `noPartnerCards`, `noAgentCards`, `pPanel.wonGateHint`, `qualifiedAgentHint`,
+    `passwordHint`, `pDirectory.empty`, `pForms.kindLockedPipelines`,
+    `cvOptionalHintQualified`. `terminalToastAgent` keeps its historical key name
+    and is now the board's ONE terminal sentence.
+  · The Waiting stage token family lands in all THREE scopes plus the Tailwind
+    bridge and the `[data-stage-key]` binding, valued by
+    DESIGN-APPLICATION-SPEC §1.3's stated DERIVED rule (the arithmetic RGB
+    midpoint of meeting ↔ qualified, the Negotiation precedent). A guard test
+    asserts `stageKey("waiting") === "waiting"` by name, because aliasing it
+    onto an existing key satisfies every other assertion while painting the
+    column with a borrowed ramp for ever.
+  · NEEDS FOUNDER CONFIRMATION (SPEC §11 A-14): Qualified stays TERMINAL, as it
+    always was. A card qualified by mistake can only be walked back inside
+    Undo's 10-minute window, or deleted. That mattered less when qualifying
+    minted an account; now that it is free, mis-qualifying is cheaper to do and
+    just as hard to reverse.

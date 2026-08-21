@@ -2636,3 +2636,88 @@ comment, and the ADR-013 mechanism note all fixed; .env.example confirmed tracke
       adding a second one."* Refusing is the safe answer (two rows pay him
       twice), but he may prefer the modal to warn him BEFORE he types, or to
       offer "open the existing row" instead of an error after Save.
+
+## Entry 054 — 2026-08-21 — One pipeline for partners and agents, a Waiting column, and the login as its own step
+- Done: the founder's requirements list, section 1 (plus his answer to the scope
+  question — *"Same stages for both"*), shipped in four commits, each
+  type-checking clean with its own tests.
+  (1) THE ENGINE (ADR-059): `PARTNER_STAGES` and `AGENT_STAGES` collapse into one
+      `PROSPECT_STAGES = lead · contacted · didnt_answer · meeting_setting ·
+      waiting · qualified · lost`, in his dictated order. The two kinds now
+      differ in exactly three slots — what Qualified requires, what it creates,
+      and its row id — asserted key by key. Contacted and Waiting open no field
+      group at all (items 1.2 / 1.1), Qualified never asks for credentials
+      (1.3), and `followUpStage` is null so no stage implies a follow-up (2.1).
+      `requiredGroupFor` / `requiredGroupForTarget` are exported so the board
+      and the panel ASK the engine whether a move opens a form instead of
+      restating the rule; `cancelledDestinations` becomes a config slot. SPEC
+      §7.2 and §10.2 rewritten normatively (PP-1…PP-9), §7.2a/§10.2a superseded.
+      The Waiting token family lands in all three brand scopes at once, because
+      the guard test fails the moment a new stage exists without one.
+  (2) THE DATA + THE SERVER: the migration walks partner rows
+      `following_up → contacted` and `won → qualified` with the ActivityLog
+      rewrite and the pending-undo retirement, mirroring ADR-057 statement for
+      statement with the predicate inverted; the restore helper is generalised
+      to `normaliseProspectStages` and the anti-drift test EXTENDED to execute
+      both shipped folders and diff SQL against TypeScript. Account creation is
+      lifted out of the stage move into `createAgentAccount` /
+      `createPartnerLogin` behind an admin-only route. The To-Do is driven by
+      the follow-up RECORD, never by the column.
+  (3) THE BOARD + THE WORDS: one board again (one DndContext, one overlay, one
+      toast), the Kind filter filtering cards rather than boards, every
+      partner-facing "Won" now "Qualified", the account button, and the honest
+      "Qualified, no account yet" state. New EN+AR keys throughout; every
+      existing English value left byte-identical and marked `@deprecated`.
+  (4) DOCS: ADR-059, this entry, the changelog in his voice, IMPLEMENTATION
+      notes on the four traps, TESTING Run 061.
+  (5) THE REVIEW ROUND (folded back into the four commits above, not a fifth):
+      fourteen reviewer findings adjudicated against the code and the schema.
+      Six real ones fixed: the ONE board judged every drop with the PARTNER
+      config, so an agent dragged into Qualified opened a modal with no fields
+      in it (PP-6 says a pure move); the To-Do filtered Didn't Answer out by
+      COLUMN while the engine offers "Record a follow-up" there, so the record
+      went nowhere (SPEC §7.2c wins); a follow-up recorded on a meeting card
+      took the MEETING off the To-Do and off the card; `importBackup`'s
+      TypeScript twin bumped `@updatedAt` where the SQL does not, which would
+      strand a restored card's pending undo on a 409 for ever and re-sort the
+      board; a qualified PARTNER with no login was indistinguishable from one
+      with an account; and the stage-token guard scanned the FILE rather than
+      the `[data-brand]` scope — the exact blind spot the accounting-green guard
+      beside it was rewritten to close. Two dead/stale artefacts removed
+      (`SAME_STAGE_FORM_SLOT`, four schema and service comments naming the
+      deleted `won_agent` gate). One refuted: widening the migration's stranding
+      guard to every card the statements moved would destroy its documented
+      idempotence. Five new regression tests, and two of the fixes were
+      mutation-proved (narrow the migration predicate → the new fixture fails;
+      restore the Prisma `updateMany` → the parity test fails on
+      `fingerprintValid`).
+- Verification: tsc clean; vitest 361/361; Playwright 71 passed / 2 skipped /
+  0 failed with `.last-run.json` green; brand audit PASS (no hardcoded colours
+  or fonts, no new class or string, 44 stage tokens IN SCOPE in all three of
+  byteforce + b-systems + neutral, Waiting among them, plus the Tailwind bridge
+  and the `[data-stage-key]` binding). The migration was PROVED TWICE on a
+  throwaway database — once for Run 061 and again for the review round: schema
+  deployed WITHOUT the new folder, production-shaped rows written in the retired
+  vocabulary, then the real `prisma migrate deploy`, then a second deploy and a
+  raw re-execution for idempotence (Run 062 has the before/after counts).
+- In progress: nothing mid-flight; tree clean, four commits LOCAL and unpushed.
+- Next steps: `/phase-gate` on a known-green baseline, then push.
+- Blockers: none.
+- Needs founder confirmation:
+  (1) QUALIFIED IS STILL TERMINAL (SPEC §11 A-14). A card qualified by mistake
+      can only be walked back inside Undo's 10-minute window, or deleted. That
+      mattered less when qualifying minted an account; now that it costs
+      nothing, mis-qualifying is cheaper to do and just as hard to undo.
+  (2) THE WAITING COLOUR is DERIVED, not chosen: the arithmetic RGB midpoint of
+      Meeting Setting and Qualified in each brand, per the rule
+      DESIGN-APPLICATION-SPEC §1.3 already applies to Negotiation. On the
+      B-Systems ramp that lands it close to the Sending Proposals hue — a
+      different board, never the same page, but his eye should confirm it.
+  (3) `lead` IS NOW OFFERED AS A NEXT ACTION in the panel, not only reachable by
+      dragging a card back. It falls out of "the action set is the column set",
+      which is what makes Waiting leave in both directions by construction.
+  (4) A PARTNER'S LOGIN moved to the same explicit button as the agent's, because
+      the Qualified gate no longer carries a password. A partner who converts
+      today therefore has no account until someone presses it — deliberate, and
+      the state is labelled on the card, but it is a change in what "converted"
+      hands him.

@@ -2011,3 +2011,182 @@ every dashboard formula, journeys 1-5 (SPEC §13).
   button carries `aria-label="Cancel"` too. Scoped to `button.btn-ghost`.
 - Verdict: **PASS** — full vitest, full Playwright, tsc and the brand audit all
   green on the final tree, with the money proof measured rather than asserted.
+
+## Run 061 — 2026-08-21 — ADR-059: one prospect pipeline, Waiting, and the login as its own action
+- Suites/commands: `npx tsc --noEmit` (clean at every one of the four commits) ·
+  `npx vitest run` (full, from `D:/CRM`) · `npx playwright test` (full, build +
+  `next start -p 3100`) · a throwaway-database migration proof run twice ·
+  `/brand-audit` checklist.
+- Cases: **vitest 359 passed / 0 failed** (26 files) · **Playwright 70 passed /
+  0 failed / 2 skipped** (10.2 min); `test-results/.last-run.json` reports
+  `"status": "passed"` with an empty `failedTests`, read alongside the summary
+  line rather than a tail-piped result.
+- MIGRATION PROOF (the highest risk in this change), on a fresh embedded
+  Postgres, schema deployed WITHOUT the new folder, then seeded and migrated
+  with the real `prisma migrate deploy`:
+  · BEFORE — partner cards at every OLD stage: `lead 1 · didnt_answer 1 ·
+    following_up 1 · meeting_setting 1 · won 1 · lost 1`, plus one already
+    migrated agent at `contacted`. Totals: 7 prospects, 1 directory Partner,
+    1 attributed lead, 7 ActivityLog rows, 6 follow-ups, 6 meetings,
+    3 pending undo entries.
+  · AFTER — `lead 1 · contacted 1 · didnt_answer 1 · meeting_setting 1 ·
+    qualified 1 · lost 1`, agent `contacted 1` untouched. Same totals for every
+    table (7 / 1 / 1 / 7 / 6 / 6) — nothing created, nothing deleted — and
+    pending undo 3 → 1 (the affected admin's whole set retired, the bystander
+    admin's entry survived).
+  · Relations: the converted partner kept `converted`, its directory Partner,
+    that Partner's attributed lead, and both child records. Its History was
+    rewritten to the new vocabulary while the INTERNAL lead's `following_up`
+    history was untouched. Zero rows left on a retired stage.
+  · IDEMPOTENCE: `migrate deploy` again (no pending migrations) AND a raw
+    re-execution of every shipped statement — the full snapshot compared equal.
+- SPEC coverage touched: §10.2 PP-1…PP-9 in full (unit, per row, for BOTH
+  kinds), §7.2/§7.2b/§7.2c, §10.1 and the V2 B-rows as a regression net (the
+  new `cancelledDestinations` slot must answer identically for the three lead
+  pipelines), §13 journeys 3 and the partners/agents pair.
+- Failures found and fixed inside the round: (1) `historyPhrases` dropped the
+  legacy `PA-2` key when the two configs collapsed into one — every agent card
+  moved during ADR-057's two days would have lost its "Returned to Lead" pill;
+  fixed by naming the retired id explicitly, with its own test. (2) Three e2e
+  drag failures, all the same root cause: dnd-kit scores the collision on the
+  dragged CARD's rect and the grip sits at the card's inline-start edge, so
+  aiming the POINTER at a column centre leaves the card straddling its
+  neighbour — a drop meant for Contacted landed in Lead. The helper now aims so
+  the CARD lands centred, and scrolls both ends into view first (seven columns
+  are wider and taller than six). (3) A To-Do assertion matched the Undo
+  button's own label ("Moved Quiet Contact to Contacted"); scoped to the list.
+- Verdict: **PASS** — tsc, full vitest, full Playwright and the brand audit
+  green, with the data migration proved on a throwaway database rather than
+  asserted.
+## Run 062 — 2026-08-21 — ADR-059 review round: fourteen findings adjudicated, then the FULL gate
+- Scope: the same four commits (ADR-059), re-gated after a review round whose
+  findings were fixed and folded BACK into them — no fifth commit. Full gate:
+  tsc, whole vitest suite, whole Playwright suite, brand audit, and a second
+  migration re-proof on a throwaway database.
+- Suites/commands, all launched from `D:\CRM` with a CAPITAL D (the Run 052
+  trap: a lowercase cwd kills vitest here):
+  `npx tsc --noEmit` · `npx vitest run` (whole suite) · `npx playwright test`
+  (whole suite) on the stock config, port **3100** (`netstat` showed nothing
+  listening on 3000 or 3100 before the round, so no config was copied and no
+  other workstream's process was touched) · `npx tsx .audit/migration-reproof.ts`
+  (throwaway embedded Postgres on port 5477, deleted afterwards).
+- Cases:
+  · `npx tsc --noEmit` — **clean, 0 errors**, on the final tree.
+  · `npx vitest run` — **361 passed / 0 failed**, 26 files (was 359/26 at Run
+    061: +2 net, +5 new assertions folded into existing tests). New:
+    `todo.integration.test.ts` "PP-8: a follow-up recorded on a Didn't Answer
+    card reaches the To-Do" and "PP-8: a follow-up recorded on a meeting card
+    stands BESIDE the meeting" (the old case that pinned the opposite was
+    rewritten, not deleted — it still asserts the terminals stay out and that a
+    NEWER meeting supersedes a follow-up); `prospect-stages-migration.integration.test.ts`
+    grew an unexpected-kind fixture (`reseller` at `following_up` and at `won`),
+    a `fingerprintValid` column in the parity snapshot, an `updatedAt`
+    before/after comparison on BOTH paths, and a surviving-undo fixture (a
+    pending entry whose payload names a LIVE stage on a card the rename MOVES);
+    `transition.test.ts` PP-6 now pins `requiredGroupForTarget` per kind for
+    every active origin.
+  · `npx playwright test` — **FULL SUITE, 71 passed / 0 failed / 2 skipped**
+    (`audit.spec.ts`, skipped by its own guard as before), 11.0m, exit code 0.
+    `test-results/.last-run.json` → `{"status":"passed","failedTests":[]}`,
+    READ FROM THE FILE, not inferred from a piped tail. New row, `ok 38`:
+    *"PP-6: an agent drags into Qualified with no modal; PP-4 still gates the
+    partner"* — the agent's drop leaves `.modal` at count 0 and the card wears
+    "No login yet"; the seeded Alexandria Trading House partner wears it too;
+    the partner's own drop opens the completeness gate (Key person name,
+    Importance) with NO password field, and Cancel reverts to Lead.
+  · BRAND AUDIT over the changed UI (`PartnersBoard.tsx`, `pages.tsx`) — **PASS**.
+    (1) Hex / rgb / hsl / font-family scan over every ADDED line in the diff:
+    nothing. (2) No new class and no new i18n key: the partner card reuses
+    `.bcard-tag` and the existing `pPipeline.noLoginYet` (EN + AR already
+    shipped), so every existing English string is byte-identical. (3) Scope
+    integrity re-measured with the same `scopeBody` parser the guard now uses:
+    44 `--color-stage-*` tokens declared, 44 of them INSIDE the brand block, in
+    all three of `branding/byteforce/tokens.css`, `branding/b-systems/tokens.css`
+    and `src/themes/neutral.css` — none outside, and the Waiting family
+    (`""`, `-accent`, `-chip`, `-chip-ink`) present in every scope. (4) B-Systems:
+    no pink surface, no gradient, no mesh added. (5) ByteForce: palette
+    untouched, no emoji. (6) RTL: no physical left/right added.
+- MIGRATION RE-PROOF (`.audit/migration-reproof.ts`, throwaway embedded Postgres,
+  port 5477, fresh data dir, deleted after the run). The production shape, not a
+  simulation of it: the new folder is parked OUTSIDE `prisma/migrations`, the
+  schema is deployed from scratch without it, production-shaped rows are written
+  in the RETIRED vocabulary, and then the real `npx prisma migrate deploy` runs —
+  exactly what `scripts/start.mjs` runs at boot.
+  · STEP 1 — `migrate deploy` from scratch: **12 migrations found, 12 applied**,
+    "All migrations have been successfully applied."
+  · BEFORE — **6 prospect rows**: `agent:contacted=1 · agent:qualified=1 ·
+    partner:following_up=1 · partner:waiting=1 · partner:won=1 ·
+    reseller:won=1`. Prospect history `following_up->won=2 · lead->following_up=1`.
+    Internal lead: stage `following_up=1`, history `new->following_up=1`.
+    Pending undo `admin-x=2 · admin-y=1 · admin-z=1`.
+  · STEP 2 — `migrate deploy` again: **13 migrations found**, the new one
+    applied. AFTER — **6 prospect rows** (nothing created, nothing deleted):
+    `agent:contacted=1 · agent:qualified=1 · partner:contacted=1 ·
+    partner:qualified=1 · partner:waiting=1 · reseller:qualified=1`. The
+    unexpected kind travelled WITH the partners, which is what `kind <> 'agent'`
+    promises. Prospect history `contacted->qualified=2 · lead->contacted=1`.
+    Internal lead UNTOUCHED: stage `following_up=1`, history `new->following_up=1`.
+    Pending undo `admin-x=0` (the whole pending set of the admin holding a
+    DEAD-stage snapshot retired, older row included) · `admin-y=1` · `admin-z=1`.
+  · STEP 3 — IDEMPOTENCE, twice over: `migrate deploy` a third time reports
+    **"No pending migrations to apply."**, and a raw re-execution of every
+    shipped statement leaves the whole count structure byte-identical
+    (`idempotent (run1 === run2): true`).
+  · `updatedAt` untouched by the SQL across the whole run (`true`) — the property
+    undo's fingerprint and the board's ordering both depend on, and the reason
+    the restore twin was moved to `$executeRaw`.
+  · `_prisma_migrations` tail: `20260818100000_vault_module finished=true ·
+    20260819180000_agent_stages finished=true ·
+    20260821180000_unified_prospect_stages finished=true`.
+- MUTATION PROOFS (a green test proves nothing until it can fail):
+  · Narrow the migration's seven `kind <> 'agent'` predicates to
+    `kind = 'partner'` → the new fixture fails, naming the stranded rows
+    (`reseller:following_up=1 · reseller:won=1` where `contacted`/`qualified`
+    were expected). Restored byte-for-byte (`git diff` on `prisma/migrations/`
+    empty) and re-run green.
+  · Restore `tx.partnerProspect.updateMany` in `normaliseProspectStages` → the
+    parity test fails on `fingerprintValid: true` vs `false`. Restored and
+    re-run green (3/3).
+- Findings adjudicated (14 raised, several duplicates of the same defect):
+  · FIXED — the ONE board judged every drop with `partnersConfigFor("partner")`,
+    so an AGENT dragged into Qualified opened a confirmation modal with no fields
+    in it, against PP-6 and the file's own comment. `onDragEnd` now resolves
+    `partnersConfigFor(card.kind)`; the shared config is kept only for rendering
+    columns. Covered by a new e2e row and a new unit row.
+  · FIXED — the To-Do filtered `didnt_answer` out by COLUMN while the engine
+    offers "Record a follow-up" from there, so the record went nowhere. SPEC
+    §7.2c is normative and wins; the projection is now every ACTIVE stage. The
+    test that pinned the old behaviour was rewritten.
+  · FIXED — a follow-up recorded on a `meeting_setting` card removed the MEETING
+    from the To-Do (and from the card's datum). The meeting row no longer
+    competes; the card keeps the meeting datum in its own column.
+  · FIXED — `normaliseProspectStages` bumped `@updatedAt` where the SQL does
+    not, which would strand a restored pending undo on a permanent 409 and
+    re-sort the board. Now `$executeRaw`, with the parity test widened to diff
+    `updatedAt` and fingerprint validity.
+  · FIXED — a qualified PARTNER with no login was indistinguishable from one
+    with an account (PP-4 sets `converted` at qualification). "No login yet" is
+    now computed for both kinds from the detail's own two conditions; SPEC §7.2b
+    narrowed to card-carries-state / detail-carries-action, recorded in ADR-059.
+  · FIXED — the stage-token guard scanned the FILE, not the `[data-brand]`
+    SCOPE, so a misplaced token would pass (the Run 058 blind spot). Routed
+    through `scopeBody`, like the accounting-green guard beside it.
+  · FIXED (housekeeping) — `SAME_STAGE_FORM_SLOT` deleted (zero callers, and it
+    composed through the now-nullable `followUpStage`); the migration test grew
+    the unexpected-kind fixture that turns its header's claim into an assertion;
+    four stale comments in `prisma/schema.prisma` and `services/partners.ts`
+    naming the deleted `won_agent` gate rewritten to cite `createAgentAccount` /
+    `createPartnerLogin` and PP-4a.
+  · REFUTED — "widen the migration's stranding guard to every card the
+    statements moved". The suggested predicate (`p.stage IN
+    ('contacted','qualified')`) matches ALL partner cards after a successful
+    run, so a retry — which `scripts/start.mjs` and the `/api/health` self-heal
+    both perform — would retire undo entries created AFTER the first run. That
+    destroys the documented idempotence to fix a frozen LABEL that names a
+    retired column while the undo itself still applies correctly (proved above:
+    `admin-y` keeps his entry and its fingerprint stays valid). The guard's own
+    comment scopes it to the dead-stage WRITE-BACK, which is what it does.
+- Verdict: **PASS** — tsc clean, full vitest 361/361, full Playwright 71 passed /
+  2 skipped / 0 failed with `.last-run.json` green, brand audit PASS, and the
+  data migration re-proved on a throwaway database with before/after row counts
+  and two mutation proofs rather than a re-read.
