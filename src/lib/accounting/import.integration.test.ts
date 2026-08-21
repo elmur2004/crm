@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { resetDb } from "@/tests/db-reset";
 import { importAccounting } from "./import";
 import { loadBooks } from "./books";
-import { addMonths, dashboard } from "./engine";
+import { addMonths, dashboard, paidExpenseIn } from "./engine";
 import { cairoMonth } from "./now";
 import type { Actor } from "@/lib/services/activity";
 
@@ -253,6 +253,41 @@ describe("accounting import — the old app's export reproduces its dashboard ex
     expect(v.onHold).toBe(1_000_00);
     const seg = await db.acctRosterSegment.findFirstOrThrow();
     expect(seg.from).toBe(M0);
+  });
+
+  /* ADR-058 — the import is the ONLY path that has ever populated deduction /
+     bonus, so it is the only path a NEGATIVE NET could ever arrive by.
+     `expenseAmount()` has no floor: base − deduction + bonus below zero is an
+     expense that ADDS money — paid spend down, net profit up, treasury up. The
+     typed write path refuses it; a file may not smuggle one past. */
+  it("refuses a payroll line whose deduction is bigger than its salary plus bonus", async () => {
+    const doc = {
+      openingBalance: 0,
+      expenses: [
+        { id: "e1", month: M0, type: "payroll", name: "Typo", amount: 5000, deduction: 9000, paid: true },
+      ],
+    };
+    await expect(importAccounting(doc, "byteforce", actor)).rejects.toMatchObject({ status: 400 });
+    /* refused while PARSING — the REPLACE never ran, so nothing was destroyed */
+    expect(await db.acctExpense.count({ where: { company: "byteforce" } })).toBe(0);
+  });
+
+  it("imports a line the old app could still add up — fidelity, not clamping", async () => {
+    /* individually negative components that still net ≥ 0 are exactly what the
+       SPA displayed: 5000 − (−1000) + (−2000) = 4000 EGP. The verify numbers
+       have to reconcile against his old app, so they import untouched. */
+    const summary = await importAccounting(
+      {
+        openingBalance: 0,
+        expenses: [
+          { id: "e2", month: M0, type: "payroll", name: "Odd", amount: 5000, deduction: -1000, bonus: -2000, paid: true },
+        ],
+      },
+      "byteforce",
+      actor,
+    );
+    expect(summary.companies[0]!.verify.treasuryNow).toBe(-400_000);
+    expect(paidExpenseIn(await loadBooks("byteforce"), M0)).toBe(400_000);
   });
 
   it("refuses files that are not an accounting export", async () => {

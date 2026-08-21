@@ -96,13 +96,33 @@ const zExpenseRaw = z.object({
   paidDate: zStrOrNull.default(null),
   rosterId: zStrOrNull.default(null),
 });
+/* ADR-058 — the negative-net floor, on the ONLY path that has ever been able to
+   populate deduction/bonus. `expenseAmount()` nets a payroll row (base −
+   deduction + bonus) with no floor, so a legacy line whose deduction exceeds
+   base + bonus is an expense that ADDS money: paid spend goes down, net profit
+   up and the treasury gains cash. The write path refuses it (expenseSchema);
+   a file may not smuggle one past. Refused LOUDLY and by name, the way an
+   out-of-range amount already is — clamping would silently rewrite the
+   founder's own historical totals, and the import's whole job is that its
+   `verify` numbers reconcile against the old app. Individually negative
+   components that still net ≥ 0 pass through untouched: that is exactly what
+   the old app displayed for them. */
+const zExpenseChecked = zExpenseRaw.superRefine((e) => {
+  if (e.type !== "payroll") return;
+  if (e.amount - (e.deduction ?? 0) + (e.bonus ?? 0) >= 0) return;
+  throw new ApiError(
+    400,
+    `A payroll line in the import file has a deduction bigger than its salary plus bonus (${e.name || "unnamed"}, ${e.month || "no month"}). That line would ADD money to the books instead of spending it — fix it in the file and import again.`,
+  );
+});
+
 /** migrate(): expenses that predate the approval feature count as already Paid */
 const zExpense = z.preprocess(
   (v) =>
     v && typeof v === "object" && !("paid" in (v as Record<string, unknown>))
       ? { ...(v as Record<string, unknown>), paid: true }
       : v,
-  zExpenseRaw,
+  zExpenseChecked,
 );
 
 const zSegment = z.object({

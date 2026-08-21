@@ -164,6 +164,14 @@ function egp(fd: FormData, key: string): number {
   return toPiasters(String(fd.get(key) || "0"));
 }
 
+/* ADR-058 — the optional-money reader. egp() folds a blank field to 0, which
+   would start writing `deduction: 0` into every payroll row and change the
+   export document the old app reads. Blank means NULL here; a typed "0" is 0. */
+function egpOrNull(fd: FormData, key: string): number | null {
+  const raw = String(fd.get(key) ?? "").trim();
+  return raw === "" ? null : toPiasters(raw);
+}
+
 /* The row ✓ that carries the row's own state (founder, by screenshot: "when I
    click on the right sign it becomes green" — so the buttons column shows at a
    glance which rows are approved; clicking a green one un-settles the row).
@@ -397,7 +405,10 @@ export interface ExpenseRowDto {
   type: string;
   name: string;
   serviceLine: string;
-  amount: number; // piasters (net, for display the page precomputes)
+  amount: number; // piasters — the BASE; the page renders the net (expenseAmount)
+  /* ADR-058 — payroll only, piasters, null = no adjustment this month */
+  deduction: number | null;
+  bonus: number | null;
   note: string;
   paid: boolean;
   rosterId: string | null;
@@ -434,6 +445,8 @@ function ExpenseModal({
       name: String(fd.get("name") || ""),
       serviceLine: String(fd.get("serviceLine") || ""),
       amount: egp(fd, "amount"),
+      deduction: type === "payroll" ? egpOrNull(fd, "deduction") : null,
+      bonus: type === "payroll" ? egpOrNull(fd, "bonus") : null,
       note: String(fd.get("note") || ""),
       paid,
       rosterId: type === "payroll" ? String(fd.get("rosterId") || "") || null : null,
@@ -497,6 +510,35 @@ function ExpenseModal({
           defaultValue={initial ? toPounds(initial.amount) : ""}
         />
       </Field>
+      {/* ADR-058 — the one-month adjustment, read straight after the base so a
+          payroll row's arithmetic reads top to bottom: base, then what moves
+          it. Blank is NULL, never 0 (egpOrNull). */}
+      {type === "payroll" ? (
+        <>
+          <Field label={t(acct.deductionEgpOptional)} hint={t(acct.deductionHint)}>
+            <input
+              name="deduction"
+              type="number"
+              step="0.01"
+              min="0"
+              dir="ltr"
+              className={amountInput}
+              defaultValue={initial?.deduction != null ? toPounds(initial.deduction) : ""}
+            />
+          </Field>
+          <Field label={t(acct.bonusEgpOptional)} hint={t(acct.bonusHint)}>
+            <input
+              name="bonus"
+              type="number"
+              step="0.01"
+              min="0"
+              dir="ltr"
+              className={amountInput}
+              defaultValue={initial?.bonus != null ? toPounds(initial.bonus) : ""}
+            />
+          </Field>
+        </>
+      ) : null}
       <Field label={t(acct.belongsToMonth)}>
         <input name="month" type="month" dir="ltr" className="field-input" defaultValue={initial?.month ?? month} />
       </Field>

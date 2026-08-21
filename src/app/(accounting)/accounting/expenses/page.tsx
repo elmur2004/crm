@@ -90,6 +90,18 @@ export default async function AcctExpensesPage({
                   <td className="td-mono">{e.note || "—"}</td>
                   <td className={`td-title ${e.paid ? "text-brand-danger" : ""}`}>
                     −{formatEGP(expenseAmount(e))}
+                    {/* ADR-058 — a payroll row carrying a one-month adjustment
+                        must not silently show a number that disagrees with the
+                        roster salary. The NET stays the headline (the SPA's own
+                        amount cell); the arithmetic is a muted annotation on the
+                        row, the SPA's one per-row idiom. */}
+                    {e.type === "payroll" && (e.deduction || e.bonus) ? (
+                      <span className="u-muted block">
+                        {t(acct.payrollBaseWord)} {formatEGP(e.amount)}
+                        {e.deduction ? ` − ${t(acct.deductionWord)} ${formatEGP(e.deduction)}` : ""}
+                        {e.bonus ? ` + ${t(acct.bonusWord)} ${formatEGP(e.bonus)}` : ""}
+                      </span>
+                    ) : null}
                   </td>
                   <td>
                     {e.paid ? (
@@ -107,6 +119,8 @@ export default async function AcctExpensesPage({
                         name: e.name,
                         serviceLine: e.serviceLine,
                         amount: e.amount,
+                        deduction: e.deduction,
+                        bonus: e.bonus,
                         note: e.note,
                         paid: e.paid,
                         rosterId: e.rosterId,

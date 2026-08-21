@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 
 /* ADR-052 Phase 2 — the accounting module end-to-end:
    (1) admin books a month: income + expense, approves it, watches the
@@ -96,6 +96,20 @@ const FUTURE = "2099-01";
    a colour choice, so not a brand-token violation. */
 const NO_PAINT = "rgba(0, 0, 0, 0)";
 
+/* .row-toggle fades background-color over .15s (design-system.css §"transition"),
+   so a single sample taken the instant the settled class lands catches the fade
+   half way and serialises as rgba(230, 244, 236, 0.93) — a different value every
+   run. The settled tint is OPAQUE, so poll until the paint has stopped moving.
+   A scope that never declares the pair stays "rgba(0, 0, 0, 0)", which is not an
+   rgb() either, so the missing-token failure this sampling exists to catch still
+   fails — it just fails as a timeout instead of a mismatch. */
+async function settledPaint(toggle: Locator): Promise<string> {
+  await expect
+    .poll(() => toggle.evaluate((el) => getComputedStyle(el).backgroundColor))
+    .toMatch(/^rgb\(/);
+  return toggle.evaluate((el) => getComputedStyle(el).backgroundColor);
+}
+
 test("the row ✓ turns green while the row is settled — and back again", async ({ page }) => {
   await login(page, "admin@byteforce.com", "password123", /\/b-systems$/);
   const modal = page.locator(".modal");
@@ -128,7 +142,7 @@ test("the row ✓ turns green while the row is settled — and back again", asyn
   /* the settled green actually PAINTS: the rule spends --color-acct-positive-tint
      through a bare var(), so a scope that fails to declare the pair leaves the
      background transparent. Kept for the cross-brand comparison at the end. */
-  const settledBg = await collect.evaluate((el) => getComputedStyle(el).backgroundColor);
+  const settledBg = await settledPaint(collect);
   expect(settledBg).not.toBe(NO_PAINT);
 
   /* click again → both cues clear (the round trip, not just the way in) */
@@ -232,11 +246,78 @@ test("the row ✓ turns green while the row is settled — and back again", asyn
   await bsToggle.click();
   await expect(bsRow.getByText("Collected", { exact: true })).toBeVisible();
   await expect(bsToggle).toHaveClass(SETTLED);
-  const bsBg = await bsToggle.evaluate((el) => getComputedStyle(el).backgroundColor);
+  const bsBg = await settledPaint(bsToggle);
   expect(bsBg).not.toBe(NO_PAINT);
   expect(bsBg).toBe(settledBg);
   await bsToggle.click();
   await expect(bsToggle).not.toHaveClass(SETTLED);
+});
+
+/* ADR-058 — the founder: "when I edit an expense of the type of payroll and it
+   is being edited it doesn't automatically edit in the actual payroll roster
+   because it can be because of a deduction or something". A deduction or a
+   bonus could only ever arrive through an IMPORT of the old app's file — the
+   expense form had no field for either, in this app OR the original. Booked in
+   its own far-future month so no absolute total elsewhere moves. */
+const ADJ = "2098-06";
+
+test("a payroll expense carries a deduction and a bonus, and the row shows its maths", async ({
+  page,
+}) => {
+  await login(page, "admin@byteforce.com", "password123", /\/b-systems$/);
+  const modal = page.locator(".modal");
+  await page.goto(`/accounting/expenses?company=byteforce&month=${ADJ}`);
+
+  /* the two fields belong to PAYROLL only — a rent row must never carry them */
+  await page.getByRole("button", { name: "+ Add expense" }).click();
+  await expect(modal.getByLabel("Deduction (EGP, optional)")).toHaveCount(0);
+  await expect(modal.getByLabel("Bonus (EGP, optional)")).toHaveCount(0);
+
+  await modal.getByLabel("Type").selectOption("payroll");
+  await expect(modal.getByLabel("Deduction (EGP, optional)")).toBeVisible();
+  await modal.getByLabel("Name / payee").fill("Adjusted Salary");
+  await modal.getByLabel("Amount (EGP)").fill("5000");
+  await modal.getByLabel("Deduction (EGP, optional)").fill("200");
+  await modal.getByLabel("Bonus (EGP, optional)").fill("50");
+  await modal.getByRole("button", { name: "Save" }).click();
+  await expect(modal).toBeHidden();
+
+  /* the NET is the headline number, and the row EXPLAINS it rather than
+     silently showing a figure that disagrees with the salary */
+  const row = page.locator("tr", { hasText: "Adjusted Salary" });
+  await expect(row).toContainText("EGP 4,850"); // 5,000 − 200 + 50
+  await expect(row).toContainText("Base EGP 5,000");
+  await expect(row).toContainText("deduction EGP 200");
+  await expect(row).toContainText("bonus EGP 50");
+  /* and the section total is the NET, not the base */
+  await expect(page.getByText("−EGP 4,850").first()).toBeVisible();
+
+  /* REOPENING must PREFILL both — resolveExpenseData writes them on every
+     PATCH now, so a modal that forgot to prefill would silently zero them */
+  await row.getByRole("button", { name: "Edit", exact: true }).click();
+  await expect(modal.getByLabel("Deduction (EGP, optional)")).toHaveValue("200");
+  await expect(modal.getByLabel("Bonus (EGP, optional)")).toHaveValue("50");
+
+  /* a deduction bigger than salary + bonus is refused BY THE SERVER: a negative
+     net would turn an expense into income */
+  await modal.getByLabel("Deduction (EGP, optional)").fill("99999");
+  await modal.getByRole("button", { name: "Save" }).click();
+  await expect(
+    modal.getByText("A deduction cannot be larger than the salary plus the bonus."),
+  ).toBeVisible();
+  await expect(modal).toBeVisible(); // nothing saved, the modal held the input
+
+  /* CLEARING the field stores null, not 0 — the row drops the deduction line */
+  await modal.getByLabel("Deduction (EGP, optional)").fill("");
+  await modal.getByRole("button", { name: "Save" }).click();
+  await expect(modal).toBeHidden();
+  await expect(row).toContainText("EGP 5,050");
+  await expect(row).toContainText("bonus EGP 50");
+  await expect(row).not.toContainText("deduction");
+
+  page.once("dialog", (d) => void d.accept());
+  await row.getByRole("button", { name: "Delete", exact: true }).click();
+  await expect(row).toHaveCount(0);
 });
 
 test("B-Systems company filter hides Media Buying entirely", async ({ page }) => {

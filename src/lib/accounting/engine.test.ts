@@ -248,6 +248,105 @@ describe("auto-payroll — derived from roster segments, never stored", () => {
     expect(autoPayroll(b, "2026-03")).toHaveLength(1);
   });
 
+  /* ADR-058 — the founder's one-month payroll adjustment. The row-level
+     arithmetic was already proven above; these prove the adjustment reaches
+     EVERY total (requirement 7), so a deduction genuinely reduces cost and a
+     bonus genuinely raises it, on every surface that spends the books. */
+  describe("a one-month adjustment moves every total, not just the row", () => {
+    const M = "2026-03";
+    const adjusted = (over: Partial<AcctExpenseRow>) =>
+      books({
+        roster: [member({})], // Nour, branding, 5,000 EGP from 2026-01
+        income: [
+          income({
+            id: "in",
+            month: M,
+            amount: 1_000_000,
+            collected: true,
+            collectedDate: `${M}-05`,
+            paidMonth: M,
+          }),
+        ],
+        expenses: [
+          expense({
+            id: "adj",
+            month: M,
+            type: "payroll",
+            name: "Nour",
+            serviceLine: "branding",
+            rosterId: "r1",
+            amount: 500_000,
+            paid: true,
+            paidDate: `${M}-28`,
+            ...over,
+          }),
+        ],
+      });
+
+    it("a deduction lowers the paid spend, the P&L, the department cost and the treasury", () => {
+      const b = adjusted({ deduction: 20_000, bonus: 5_000 });
+      const net = 500_000 - 20_000 + 5_000; // 485,000
+      /* the person is counted ONCE: the derived row is replaced, not added to */
+      const payroll = monthExpenses(b, M).filter((e) => e.type === "payroll");
+      expect(payroll).toHaveLength(1);
+      expect(expenseAmount(payroll[0]!)).toBe(net);
+
+      expect(expenseIn(b, M)).toBe(net);
+      expect(pnl(b, M).expenseByType["payroll"]).toBe(net);
+      expect(pnl(b, M).totalExpenses).toBe(net);
+      expect(netIn(b, M)).toBe(1_000_000 - net);
+      expect(treasuryThrough(b, M)).toBe(1_000_000 - net);
+
+      const dept = departments(b, M, "month", NOW, ACCT_DEPTS).rows.find((r) => r.id === "branding");
+      expect(dept!.cost).toBe(net); // NOT parked in overhead
+      expect(departments(b, M, "month", NOW, ACCT_DEPTS).overhead).toBe(0);
+      expect(dashboard(b, M, NOW).expensesPaid).toBe(net);
+    });
+
+    it("a bonus RAISES the cost — the sign is right in the payable direction too", () => {
+      const b = adjusted({ bonus: 30_000, paid: false, paidDate: null });
+      expect(expenseAmount(monthExpenses(b, M).find((e) => e.id === "adj")!)).toBe(530_000);
+      expect(pendingExpenseIn(b, M)).toBe(530_000);
+      expect(expenseIn(b, M)).toBe(0); // still on hold: nothing touched cash
+      /* accounts payable spans every month, so compare against the same books
+         with no bonus: the payable owed must rise by exactly the bonus */
+      const plain = adjusted({ paid: false, paidDate: null });
+      expect(apTotal(b, NOW) - apTotal(plain, NOW)).toBe(30_000);
+    });
+
+    it("the adjustment NEVER touches the roster, and never any other month", () => {
+      const b = adjusted({ deduction: 20_000 });
+      const r = b.roster[0]!;
+      /* the founder's complaint answered in the opposite direction: editing one
+         month of pay must NOT rewrite the salary from that month forward */
+      expect(memberAt(r, M).salary).toBe(500_000);
+      expect(memberAt(r, "2026-04").salary).toBe(500_000);
+      expect(dashboard(b, M, NOW).committedSalary).toBe(500_000);
+      expect(autoPayroll(b, "2026-04")).toHaveLength(1);
+      expect(autoPayroll(b, "2026-04")[0]!.amount).toBe(500_000);
+      expect(autoPayroll(b, "2026-02")[0]!.amount).toBe(500_000);
+    });
+
+    it("deleting the adjustment brings the derived roster row back for that month", () => {
+      const b = adjusted({ deduction: 20_000 });
+      expect(autoPayroll(b, M)).toEqual([]); // covered while it exists
+      const after = books({ ...b, expenses: [] }); // the row deleted
+      const rows = monthExpenses(after, M);
+      expect(rows).toHaveLength(1);
+      expect(rows[0]!.id).toBe("pay:2026-03:r1");
+      expect(rows[0]!).toMatchObject({ auto: true, amount: 500_000, deduction: null, bonus: null });
+      expect(expenseAmount(rows[0]!)).toBe(500_000); // the deduction went with it
+    });
+
+    it("an unguarded deduction over the base would make the row NEGATIVE — the schema refuses it", () => {
+      /* documents the engine's raw behaviour, which is why the guard lives in
+         expenseSchema: a negative net turns an expense into income */
+      expect(
+        expenseAmount(expense({ type: "payroll", amount: 100_000, deduction: 150_000 })),
+      ).toBe(-50_000);
+    });
+  });
+
   it("memberUpsert changes one month forward, replaces a same-month segment, keeps partial fields", () => {
     const r = member({});
     const segs = memberUpsert(r, "2026-04", { salary: 600_000 });

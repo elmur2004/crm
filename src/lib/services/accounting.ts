@@ -143,17 +143,31 @@ export async function deleteIncome(id: string, company: AcctCompany, actor: Acto
 
 /* --------------------------------------------------------------- expenses */
 
-export const expenseSchema = z.object({
-  company: zCompany,
-  month: zMonth,
-  type: z.enum(ACCT_EXPENSE_TYPES),
-  name: z.string().trim().max(200).default(""),
-  serviceLine: zDept.refine((d) => d !== "media_fee", "Not an expense department").default(""),
-  amount: zPiasters,
-  note: z.string().trim().max(500).default(""),
-  paid: z.boolean().default(false),
-  rosterId: z.string().nullish(),
-});
+export const expenseSchema = z
+  .object({
+    company: zCompany,
+    month: zMonth,
+    type: z.enum(ACCT_EXPENSE_TYPES),
+    name: z.string().trim().max(200).default(""),
+    serviceLine: zDept.refine((d) => d !== "media_fee", "Not an expense department").default(""),
+    amount: zPiasters,
+    /* ADR-058 — a ONE-MONTH payroll adjustment. The engine's expenseAmount()
+       nets them (base − deduction + bonus); both stay NULL when blank so the
+       export keeps omitting the keys the old app never wrote. */
+    deduction: zPiasters.nullish(),
+    bonus: zPiasters.nullish(),
+    note: z.string().trim().max(500).default(""),
+    paid: z.boolean().default(false),
+    rosterId: z.string().nullish(),
+  })
+  /* the SPA had no floor here: a fat-fingered deduction made the row's NET
+     negative, which turns an expense into income — paid spend goes DOWN, net
+     profit UP and the treasury GAINS cash. Refused server-side. */
+  .refine(
+    (v) =>
+      v.type !== "payroll" || v.amount - (v.deduction ?? 0) + (v.bonus ?? 0) >= 0,
+    { message: "A deduction cannot be larger than the salary plus the bonus.", path: ["deduction"] },
+  );
 export type ExpenseInput = z.infer<typeof expenseSchema>;
 
 async function resolveExpenseData(
@@ -177,6 +191,12 @@ async function resolveExpenseData(
     name,
     serviceLine: input.serviceLine,
     amount: input.amount,
+    /* ADR-058 — written on EVERY create AND update, so an edit is authoritative
+       (the founder must be able to clear a deduction). `?? null` keeps a real 0
+       as 0; a blank field arrives as null and the export keeps omitting it.
+       Only payroll carries them — a stray value can never ride a rent row. */
+    deduction: input.type === "payroll" ? (input.deduction ?? null) : null,
+    bonus: input.type === "payroll" ? (input.bonus ?? null) : null,
     note: input.note,
     paid: input.paid,
     paidDate: input.paid ? cairoToday() : null,

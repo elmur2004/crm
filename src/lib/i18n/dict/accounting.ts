@@ -118,6 +118,21 @@ export const acct = {
   extraPayrollOption: { en: "— Extra payroll (adds on top) —", ar: "— راتب إضافي (يُضاف فوق) —" },
   statusHint: { en: "New expenses stay on hold until an admin approves them.", ar: "المصروفات الجديدة تبقى قيد الانتظار حتى يعتمدها المدير." },
 
+  /* payroll adjustments — a deduction or a bonus on ONE month's pay (ADR-058) */
+  deductionEgpOptional: { en: "Deduction (EGP, optional)", ar: "الخصم (ج.م، اختياري)" },
+  bonusEgpOptional: { en: "Bonus (EGP, optional)", ar: "المكافأة (ج.م، اختياري)" },
+  deductionHint: {
+    en: "Taken off this month's pay only. Leave blank for no deduction.",
+    ar: "يُخصم من راتب هذا الشهر فقط. اتركه فارغًا إن لم يوجد خصم.",
+  },
+  bonusHint: {
+    en: "Added to this month's pay only. Leave blank for no bonus.",
+    ar: "يُضاف إلى راتب هذا الشهر فقط. اتركه فارغًا إن لم توجد مكافأة.",
+  },
+  payrollBaseWord: { en: "Base", ar: "الأساس" },
+  deductionWord: { en: "deduction", ar: "خصم" },
+  bonusWord: { en: "bonus", ar: "مكافأة" },
+
   /* clients */
   clientsEyebrow: { en: "ACCOUNTING · ACCOUNTS RECEIVABLE", ar: "الحسابات · الذمم المدينة" },
   clientsTitle: { en: "Clients", ar: "العملاء" },

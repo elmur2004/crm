@@ -183,3 +183,22 @@ the moment a failure is found; close them with a reference to the fixing commit/
   from `direction` instead of the sign of `scrollLeft`; ADR-056 consequences,
   Entry 050. Pinned by the A9 test appended to e2e/nav-slider.spec.ts, which
   walks 85% → 125% layout zoom and a fractional CSS-zoom pass.)
+
+## BUG-012 — 2026-08-21 — the accounting e2e sampled a settled ✓'s green MID-FADE
+- Severity: minor (test-only; the product paints correctly)
+- Where: `e2e/accounting.spec.ts` — the cross-brand paint comparison. The
+  ByteForce sample was taken after three intervening assertions and had settled
+  to `rgb(230, 244, 236)`; the B-Systems sample was taken the instant
+  `toHaveClass(SETTLED)` resolved, and `.row-toggle` carries
+  `transition: background-color .15s ease` (design-system.css), so it caught the
+  fade and serialised as `rgba(230, 244, 236, 0.97)` — a DIFFERENT alpha every
+  run (0.925 and 0.97 observed), making `expect(bsBg).toBe(settledBg)` fail.
+- Repro: `npx playwright test e2e/accounting.spec.ts -g "the row"` on a clean
+  tree at 43b6098 (verified by stashing the ADR-058 work and re-running: the
+  spec was already red before it).
+- Status: fixed (a `settledPaint()` helper polls
+  `getComputedStyle().backgroundColor` until it matches `/^rgb\(/`, i.e. until
+  the transition has stopped moving. The assertion the sampling exists for is
+  preserved: an undeclared token leaves `rgba(0, 0, 0, 0)`, which is not an
+  `rgb()`, so the missing-token case still fails — as a timeout rather than a
+  mismatch. ADR-058, Entry 052.)
