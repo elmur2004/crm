@@ -79,7 +79,9 @@ test("admin: a lead row carries its owner, Assign and Take it — a prospect row
     `/api/b-systems/partners-pipeline/${prospectId}/event`,
     {
       data: {
-        event: { type: "drag", to: "following_up" },
+        /* ADR-059 — no stage writes a follow-up any more; the record comes
+           from the deliberate action, which is what puts the card on the To-Do */
+        event: { type: "next_action", action: "follow_up_again" },
         group: { group: "follow_up", data: { date: yesterday, time: "10:00", method: "call" } },
       },
     },

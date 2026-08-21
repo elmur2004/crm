@@ -1,19 +1,19 @@
 import { expect, test } from "@playwright/test";
 
 /* Founder: "I want the CRM of the partners to be the CRM of the partners and
-   agents... and once I put them Won, I have to create for them a user and a
-   password — they will not apply, I will create for them a user and a password."
+   agents... I will create for them a user and a password."
 
    Journey 3 covers the PARTNER card. This is its sibling for the AGENT card on
    the same board: created with the public signup form's fields (CV included),
-   run through the agent pipeline (ADR-057 — Lead / Contacted / Didn't Answer /
-   Meeting Setting / Qualified / Lost), and QUALIFIED through the gate that
-   mints the account — after which the agent signs in with the admin-set
-   credentials and lands on their own CRM, never having touched Registrations. */
+   run through the SHARED pipeline (ADR-059 — Lead / Contacted / Didn't Answer /
+   Meeting Setting / Waiting / Qualified / Lost), qualified with no credentials
+   asked for at all, and only THEN given a login — after which the agent signs in
+   with the admin-set credentials and lands on their own CRM, never having
+   touched Registrations. */
 
 const PDF = Buffer.concat([Buffer.from("%PDF-1.7"), Buffer.alloc(4096, 7)]);
 
-test("an agent card runs the agent pipeline and its Qualified gate creates a working login", async ({
+test("an agent card runs the shared pipeline, qualifies free, then gets a working login", async ({
   page,
   browser,
 }) => {
@@ -38,46 +38,48 @@ test("an agent card runs the agent pipeline and its Qualified gate creates a wor
     .setInputFiles({ name: "mostafa-cv.pdf", mimeType: "application/pdf", buffer: PDF });
   await page.getByRole("button", { name: "Save card" }).click();
 
-  /* It is a card on the same PAGE, in the Agents board, told apart by its kind
-     chip — the Partners board next to it never carries it. */
-  const card = page.locator('[data-pipeline="agent"] [data-deal-card="Mostafa Kamel"]');
+  /* It is a card on the ONE board, told apart by its kind chip. */
+  const card = page.locator('[data-deal-card="Mostafa Kamel"]');
   await expect(card).toBeVisible();
   await expect(card).toHaveAttribute("data-kind", "agent");
   await expect(card.getByText("Agent")).toBeVisible();
-  await expect(
-    page.locator('[data-pipeline="partner"] [data-deal-card="Mostafa Kamel"]'),
-  ).toHaveCount(0);
 
-  /* The agent pipeline: Contacted is where an agent's follow-up lives. */
+  /* founder 1.2 — Contacted commits immediately: no form, no follow-up. */
   await page.getByRole("link", { name: "Mostafa Kamel" }).click();
   await expect(page.getByText("mostafa-cv.pdf")).toBeVisible(); // the CV rode along
-  /* the partner vocabulary is simply not offered on this card */
+  /* the retired vocabulary is simply not offered any more */
   await expect(page.getByLabel("Next action").getByRole("option", { name: "Won" })).toHaveCount(0);
   await page.getByLabel("Next action").selectOption("contacted");
-  await page.getByLabel("Follow-up date").fill("2026-09-18");
-  await page.getByLabel("Follow-up time").fill("11:00");
-  await page.getByLabel("Method").selectOption("call");
+  await expect(page.getByLabel("Follow-up date")).toHaveCount(0);
   await page.getByRole("button", { name: "Save & move" }).click();
   await expect(page.getByRole("heading", { level: 1 }).getByText("Contacted")).toBeVisible();
 
-  /* The Qualified gate is where the strictness lives: what the card has is
-     prefilled, what it lacks must be typed, credentials are the ADMIN's to set. */
+  /* founder 1.3 — Qualified asks for nothing: no email, no password, no form. */
   await page.getByLabel("Next action").selectOption("qualified");
-  await expect(page.getByText("Qualified creates the agent's account")).toBeVisible();
-  const gate = page.locator("form").filter({ hasText: "Qualified creates the agent's account" });
-  await expect(gate.getByLabel("First name")).toHaveValue("Mostafa");
-  await expect(gate.getByLabel("Phone number")).toHaveValue("01044556677");
-  await expect(gate.getByLabel("Speciality")).toHaveValue(""); // never asked on the card
-  await gate.getByLabel("Address").fill("31 El Merghany, Heliopolis");
-  await gate.getByLabel("Speciality").fill("Manufacturing ERP");
-  await gate.getByLabel("Email").fill("mostafa.kamel@example.com");
-  await gate.getByLabel("Password").fill("agentpass123");
+  await expect(page.getByText("Qualified creates the agent's account")).toHaveCount(0);
+  await expect(page.getByLabel("Email")).toHaveCount(0);
+  await expect(page.getByLabel("Password")).toHaveCount(0);
   await page.getByRole("button", { name: "Save & move" }).click();
   await expect(page.getByRole("heading", { level: 1 }).getByText("Qualified")).toBeVisible();
-  await expect(page.getByRole("heading", { level: 1 }).getByText("Converted")).toBeVisible();
-  /* terminal: the panel offers nothing more on a converted agent */
+  /* terminal, and honest about what it is: qualified, no login yet */
   await expect(page.getByText("This card is Qualified — no further actions.")).toBeVisible();
   await expect(page.getByLabel("Next action")).toHaveCount(0);
+  await expect(page.getByRole("heading", { level: 1 }).getByText("No login yet")).toBeVisible();
+
+  /* §7.2b — the account is its own step. What the card has is prefilled, what
+     it lacks must be typed, and the credentials are the ADMIN's to set. */
+  await page.getByRole("button", { name: "Create the agent's account" }).click();
+  const accountModal = page.locator(".modal");
+  await expect(accountModal.getByLabel("First name")).toHaveValue("Mostafa");
+  await expect(accountModal.getByLabel("Phone number")).toHaveValue("01044556677");
+  await expect(accountModal.getByLabel("Speciality")).toHaveValue(""); // never asked on the card
+  await accountModal.getByLabel("Address").fill("31 El Merghany, Heliopolis");
+  await accountModal.getByLabel("Speciality").fill("Manufacturing ERP");
+  await accountModal.getByLabel("Email").fill("mostafa.kamel@example.com");
+  await accountModal.getByLabel("Password").fill("agentpass123");
+  await accountModal.getByRole("button", { name: "Create account" }).click();
+  await expect(page.getByRole("heading", { level: 1 }).getByText("Converted")).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1 }).getByText("No login yet")).toHaveCount(0);
   await expect(page.getByText(/Agent account created/)).toBeVisible();
 
   /* They are an AGENT: in the Agents section, never in the Partners directory. */
@@ -136,13 +138,11 @@ test("the Kind filter separates the two kinds, and cards expose Call + WhatsApp"
   expect(agentRes.status()).toBe(201);
   const agentId = ((await agentRes.json()) as { id: string }).id;
 
-  /* unfiltered: both boards on one page, each card in its own */
+  /* unfiltered: ONE board carrying both kinds (ADR-059) */
   await page.goto("/b-systems/partners-pipeline");
-  await expect(page.locator(".board")).toHaveCount(2);
-  await expect(
-    page.locator('[data-pipeline="partner"] [data-deal-card="Kindfilter Partners Co"]'),
-  ).toBeVisible();
-  const agentCard = page.locator('[data-pipeline="agent"] [data-deal-card="Kindfilter Agent"]');
+  await expect(page.locator(".board")).toHaveCount(1);
+  await expect(page.locator('[data-deal-card="Kindfilter Partners Co"]')).toBeVisible();
+  const agentCard = page.locator('[data-deal-card="Kindfilter Agent"]');
   await expect(agentCard).toBeVisible();
 
   /* the card's chip pair: tel: dials the number as typed; wa.me gets Egypt's
@@ -163,9 +163,9 @@ test("the Kind filter separates the two kinds, and cards expose Call + WhatsApp"
   await page.waitForURL(/kind=agent/);
   await expect(page.locator('[data-deal-card="Kindfilter Agent"]')).toBeVisible();
   await expect(page.locator('[data-deal-card][data-kind="partner"]')).toHaveCount(0);
-  /* one board now, and it is the AGENT one */
+  /* still ONE board — the filter narrows the CARDS, never the columns */
   await expect(page.locator(".board")).toHaveCount(1);
-  await expect(page.locator('[data-pipeline="agent"]')).toHaveCount(1);
+  await expect(page.locator('[data-stage="waiting"]')).toHaveCount(1);
 
   /* and the prospect detail header carries the same pair (scoped to the
      header actions — the number cells repeat the chips inline) */

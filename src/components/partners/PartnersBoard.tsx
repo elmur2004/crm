@@ -40,14 +40,14 @@ import {
    shared except its headline (a partner's company vs. an agent's own name) and
    a small kind chip, so the two are told apart at a glance.
 
-   ADR-057 — the two kinds now run DIFFERENT columns, so one kanban cannot
-   honestly show both. This file renders ONE pipeline per <ProspectPipeline>,
-   with its columns, its config and its own drag rules read from the engine;
-   the exported <PartnersBoard> is a dispatcher that shows the partner board,
-   the agent board, or (the default, Kind = All) both, stacked. Each pipeline
-   gets its OWN DndContext — four of the six droppable ids are common to both
-   stage sets, so a shared registry would drop cards onto the wrong board — and
-   its droppables are namespaced with the pipeline kind on top of that. */
+   ADR-059 — ONE board again. The founder put both kinds back on one set of
+   columns, so the stacked two-board arrangement ADR-057 needed is redundant:
+   it doubled the page height on a phone and duplicated the whole dnd-kit
+   apparatus for nothing. There is now a single DndContext, a single overlay, a
+   single modal and a single toast slot; the Kind filter (server-side, in
+   pages.tsx) simply decides which CARDS arrive, and each card still wears its
+   kind chip. The droppable ids are bare stage keys again — the namespacing
+   existed only because two overlapping stage sets shared a page. */
 
 export interface ProspectCard {
   id: string;
@@ -60,6 +60,8 @@ export interface ProspectCard {
   subtitleNumeric: boolean;
   stage: string;
   converted: boolean;
+  /** §7.2b — Qualified, and the login has not been minted yet (either kind) */
+  awaitingAccount: boolean;
   keyDatum: string;
   defaults: ProspectGateDefaults;
   cardNumbers: string[];
@@ -99,6 +101,15 @@ function CardBody({ card, drag }: { card: ProspectCard; drag?: CardDrag }) {
         <span className="bcard-tag">{prospectKindLabel(locale, card.kind)}</span>
         {card.converted ? (
           <span className="badge badge--converted">{t(pPipeline.converted)}</span>
+        ) : null}
+        {/* ADR-059 — qualified with no login is a legitimate state for BOTH
+            kinds, so the card says so instead of leaving the row empty (agent)
+            or showing nothing but "Converted" (partner: PP-4 converts the card
+            at qualification, long before an admin mints the directory login).
+            The action itself lives on the detail — §7.2b as amended. `.bcard-tag`
+            (body font, not the mono/uppercase badge) so Arabic reads properly. */}
+        {card.awaitingAccount ? (
+          <span className="bcard-tag">{t(pPipeline.noLoginYet)}</span>
         ) : null}
         {/* founder: "add call and whatsapp in agents and partners" — the lead
             boards' chip pair, same guards so neither drags nor opens the card */}
@@ -169,24 +180,18 @@ function Card({
 }
 
 function Column({
-  pipelineKind,
   stage,
   cards,
-  draggingId,
   suppressClickRef,
 }: {
-  pipelineKind: string;
   stage: string;
   cards: ProspectCard[];
-  draggingId: string | null;
   suppressClickRef: { current: boolean };
 }) {
   const locale = useLocale();
   const t = tFor(locale);
-  /* namespaced: `lead`, `didnt_answer`, `meeting_setting` and `lost` exist in
-     BOTH stage sets, so a bare stage id would be ambiguous the day anyone
-     merges the two contexts */
-  const { setNodeRef, isOver } = useDroppable({ id: `${pipelineKind}:${stage}` });
+  /* one board, one context: the droppable id IS the stage key (ADR-059) */
+  const { setNodeRef, isOver } = useDroppable({ id: stage });
   return (
     <div
       ref={setNodeRef}
@@ -209,22 +214,13 @@ function Column({
   );
 }
 
-/** ONE pipeline: the columns its kind runs, and nothing of the other kind's.
-    Every piece of drag state lives in here, so two of these on one page can
-    never share a modal, an overlay or an error. */
-function ProspectPipeline({
-  pipelineKind,
-  cards,
-  reps,
-  onMessage,
-}: {
-  pipelineKind: string;
-  cards: ProspectCard[];
-  reps: Rep[];
-  /** the PAGE's single toast slot — see <PartnersBoard> */
-  onMessage: (message: string | null) => void;
-}) {
-  const config = partnersConfigFor(pipelineKind);
+/** THE board: the seven shared columns, both kinds of card, one drag context. */
+export function PartnersBoard({ cards, reps }: { cards: ProspectCard[]; reps: Rep[] }) {
+  /* both kinds run the SAME stages since ADR-059, so the COLUMNS come from the
+     config once — `stages` is the same array object for either kind. Anything
+     that depends on a card's BEHAVIOUR must ask that card's own config
+     (`partnersConfigFor(card.kind)` in onDragEnd), never this one. */
+  const config = partnersConfigFor("partner");
   const router = useRouter();
   const locale = useLocale();
   const t = tFor(locale);
@@ -233,6 +229,9 @@ function ProspectPipeline({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
+  /* ONE toast slot for the whole page: `.toast-wrap` is position:fixed at a
+     single coordinate, so a second one would sit on top of the first. */
+  const [message, setMessage] = useState<string | null>(null);
   /* set on every drag end, cleared a beat later: the click the browser fires
      on drop must not navigate (whole-card onClick checks this ref) */
   const suppressClickRef = useRef(false);
@@ -265,26 +264,28 @@ function ProspectPipeline({
       suppressClickRef.current = false;
     }, 150);
     setDraggingId(null);
-    onMessage(null);
+    setMessage(null);
     const id = String(event.active.id);
-    /* `${pipelineKind}:${stage}` — a drop that lands outside THIS board's
-       context reports no `over` at all, so a cross-board drag is simply a
-       no-op rather than a wrong move */
-    const to = event.over ? String(event.over.id).split(":")[1]! : null;
+    const to = event.over ? String(event.over.id) : null;
     if (!to) return;
     const card = cards.find((c) => c.id === id);
     if (!card || card.stage === to) return;
-    if (config.terminalStages.includes(card.stage)) {
-      onMessage(
-        t(pipelineKind === "agent" ? pPipeline.terminalToastAgent : pPipeline.terminalToast),
-      );
+    /* the columns are shared, but "does this move ask anything?" is answered by
+       THIS CARD's config: only the Qualified slot differs between the kinds, and
+       asking the partner config on an agent's behalf is exactly how PP-6's pure
+       move (founder 1.3) turns into an empty confirmation modal. */
+    const cardConfig = partnersConfigFor(card.kind);
+    if (cardConfig.terminalStages.includes(card.stage)) {
+      /* one sentence now: Qualified and Lost are the terminal pair for BOTH
+         kinds, so there is nothing to choose between (ADR-059) */
+      setMessage(t(pPipeline.terminalToastAgent));
       return;
     }
     /* ADR-059 — ONE source of truth for "does this move ask anything?": the
        engine. A target with no required group commits on the drop, with no
        modal at all: Lead → Contacted (founder 1.2), anything → Waiting (1.1),
        an agent → Qualified (1.3), and the drag back to Lead as before. */
-    if (!requiredGroupForTarget(config, card.stage, to)) {
+    if (!requiredGroupForTarget(cardConfig, card.stage, to)) {
       void commit({ event: { type: "drag", to } }, id);
       return;
     }
@@ -295,20 +296,28 @@ function ProspectPipeline({
 
   return (
     <div className="space-y-4">
+      {message ? (
+        <div className="toast-wrap">
+          <p role="alert" className="toast">
+            <span className="toast-icon" aria-hidden>
+              !
+            </span>
+            {message}
+          </p>
+        </div>
+      ) : null}
       <DndContext
-        id={`partners-board-${pipelineKind}`}
+        id="partners-board"
         sensors={sensors}
         onDragStart={onDragStart}
         onDragEnd={onDragEnd}
       >
-        <div className="board" data-pipeline={pipelineKind} data-cols="6plus">
+        <div className="board" data-pipeline="prospects" data-cols="6plus">
           {config.stages.map((stage) => (
             <Column
               key={stage}
-              pipelineKind={pipelineKind}
               stage={stage}
               cards={cards.filter((c) => c.stage === stage)}
-              draggingId={draggingId}
               suppressClickRef={suppressClickRef}
             />
           ))}
@@ -425,98 +434,5 @@ function ProspectPipeline({
         </div>
       ) : null}
     </div>
-  );
-}
-
-/* The board the Kind filter asked for. All (the default) stacks the two — a
-   Partners section, then an Agents section — because a single kanban cannot
-   honestly show two different stage sets, and collapsing them into one
-   superset would invent columns neither kind has. */
-export function PartnersBoard({
-  cards,
-  reps,
-  kind = "any",
-  filtered = false,
-}: {
-  cards: ProspectCard[];
-  reps: Rep[];
-  /** "any" | "partner" | "agent" — straight from the filter */
-  kind?: string;
-  /** any filter control is off its default — a section may be empty because of
-      it, and "No partner cards yet." would then be a lie (the word is "yet") */
-  filtered?: boolean;
-}) {
-  const locale = useLocale();
-  const t = tFor(locale);
-  /* ONE toast slot for the whole page. `.toast-wrap` is position:fixed at a
-     single coordinate, so a per-pipeline message left the partner board's
-     "Won and Lost cards can no longer be moved." sitting UNDER the agent
-     board's "Qualified and Lost…" — two alerts, one of them stale, in the same
-     spot. Lifting it here makes the newer message replace the older. */
-  const [message, setMessage] = useState<string | null>(null);
-
-  /** a section with nothing in it: say WHY, the way the leads board does */
-  const emptySection = (own: typeof pPipeline.noPartnerCards) => (
-    <p className="empty">{filtered ? t(pPipeline.noMatches) : t(own)}</p>
-  );
-
-  const board =
-    kind === "partner" || kind === "agent" ? (
-      <ProspectPipeline pipelineKind={kind} cards={cards} reps={reps} onMessage={setMessage} />
-    ) : (
-      (() => {
-        const partners = cards.filter((c) => c.kind !== "agent");
-        const agents = cards.filter((c) => c.kind === "agent");
-        return (
-          <div className="space-y-8">
-            <section aria-labelledby="pipeline-partners">
-              <h2 id="pipeline-partners" className="u-h2 mb-3">
-                {t(pPipeline.sectionPartners)}
-              </h2>
-              {partners.length === 0 ? (
-                emptySection(pPipeline.noPartnerCards)
-              ) : (
-                <ProspectPipeline
-                  pipelineKind="partner"
-                  cards={partners}
-                  reps={reps}
-                  onMessage={setMessage}
-                />
-              )}
-            </section>
-            <section aria-labelledby="pipeline-agents">
-              <h2 id="pipeline-agents" className="u-h2 mb-3">
-                {t(pPipeline.sectionAgents)}
-              </h2>
-              {agents.length === 0 ? (
-                emptySection(pPipeline.noAgentCards)
-              ) : (
-                <ProspectPipeline
-                  pipelineKind="agent"
-                  cards={agents}
-                  reps={reps}
-                  onMessage={setMessage}
-                />
-              )}
-            </section>
-          </div>
-        );
-      })()
-    );
-
-  return (
-    <>
-      {message ? (
-        <div className="toast-wrap">
-          <p role="alert" className="toast">
-            <span className="toast-icon" aria-hidden>
-              !
-            </span>
-            {message}
-          </p>
-        </div>
-      ) : null}
-      {board}
-    </>
   );
 }

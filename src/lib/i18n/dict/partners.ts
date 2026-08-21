@@ -115,18 +115,28 @@ export const pPipeline = {
   notArranged: { en: "Not arranged", ar: "لم يُرتَّب بعد" },
   emptyColumn: { en: "Nothing here yet", ar: "لا شيء هنا بعد" },
   converted: { en: "Converted", ar: "تم التحويل" },
+  /* ADR-059 — a qualified agent with no login is a legitimate state (founder
+     1.3), so the card says so rather than leaving a gap where the Converted
+     badge used to be. */
+  noLoginYet: { en: "No login yet", ar: "لا يوجد حساب بعد" },
+  /* @deprecated ADR-059 — there is no Won column on this board any more, for
+     either kind. Superseded by terminalToastAgent, whose sentence is now the
+     only one. Kept verbatim: existing English is never edited. */
   terminalToast: {
     en: "Won and Lost cards can no longer be moved.",
     ar: "لا يمكن نقل بطاقات «مكسب» و«خسارة» بعد الآن.",
   },
-  /* ADR-057 — an agent board's terminal pair is Qualified and Lost, so the
-     partner sentence above would name a column that board does not have.
-     A SIBLING key: the existing English is live output and never edited. */
+  /* ADR-057 named this "agent" because only that board's terminal pair was
+     Qualified and Lost. ADR-059 gave BOTH kinds those two columns, so this is
+     now the board's ONE terminal sentence; the key name is historical. */
   terminalToastAgent: {
     en: "Qualified and Lost cards can no longer be moved.",
     ar: "لا يمكن نقل بطاقات «مؤهَّل» و«خسارة» بعد الآن.",
   },
-  /* the two stacked sections of the All view, and their empty states */
+  /* @deprecated ADR-059 — the stacked two-board arrangement is gone: one board
+     carries both kinds and the Kind filter simply filters the CARDS, so there
+     are no sections to name and no per-section empty state. The page-level
+     `noMatches` covers a filtered-empty board. Kept verbatim. */
   sectionPartners: { en: "Partners", ar: "الشركاء" },
   sectionAgents: { en: "Agents", ar: "الوكلاء" },
   noPartnerCards: { en: "No partner cards yet.", ar: "لا توجد بطاقات شركاء بعد." },
@@ -168,6 +178,17 @@ export const pProspect = {
     en: "Agent account created — they sign in with",
     ar: "تم إنشاء حساب الوكيل — يسجّل الدخول باستخدام",
   },
+  /* ADR-059 — §7.2b: creating the login is its own explicit step now. */
+  createAgentAccount: { en: "Create the agent's account", ar: "إنشاء حساب الوكيل" },
+  createPartnerLogin: { en: "Create the partner's login", ar: "إنشاء حساب الشريك" },
+  noAgentAccount: {
+    en: "Qualified, no account yet — create their login when you are ready.",
+    ar: "مؤهَّل بلا حساب بعد — أنشئ بيانات دخوله عندما تكون جاهزًا.",
+  },
+  noPartnerAccount: {
+    en: "In the directory, no login yet — create it when you are ready.",
+    ar: "مدرج في الدليل بلا حساب بعد — أنشئه عندما تكون جاهزًا.",
+  },
   recordingsTitle: { en: "Cold-call recordings", ar: "تسجيلات الاتصال المباشر" },
   noRecordings: { en: "No recordings yet.", ar: "لا توجد تسجيلات بعد." },
   recordingMissing: {
@@ -184,9 +205,14 @@ export const pProspect = {
 export const pDirectory = {
   eyebrow: { en: "B-SYSTEMS · PARTNERS", ar: "B-SYSTEMS · الشركاء" },
   title: { en: "Partners", ar: "الشركاء" },
+  /* @deprecated ADR-059 — the column is called Qualified now. Kept verbatim. */
   empty: {
     en: "No partners yet — they appear automatically when a pipeline card is Won.",
     ar: "لا يوجد شركاء بعد — يظهرون تلقائيًا عندما تصل بطاقة في المسار إلى «مكسب».",
+  },
+  emptyQualified: {
+    en: "No partners yet — they appear automatically when a pipeline card is Qualified.",
+    ar: "لا يوجد شركاء بعد — يظهرون تلقائيًا عندما تصل بطاقة في المسار إلى «مؤهَّل».",
   },
   backToAll: { en: "Back to all partners", ar: "العودة إلى جميع الشركاء" },
   dateJoined: { en: "Date joined:", ar: "تاريخ الانضمام:" },
@@ -224,9 +250,15 @@ export const pForms = {
     en: "Chosen once: a card stays a partner or an agent — the Won step differs for each.",
     ar: "يُختار مرة واحدة: تبقى البطاقة شريكًا أو وكيلًا — لأن خطوة «مكسب» تختلف بينهما.",
   },
+  /* @deprecated ADR-059 — the founder reversed the split: both kinds run the
+     SAME columns again. Superseded by kindLockedQualified. Kept verbatim. */
   kindLockedPipelines: {
     en: "Chosen once: a card stays a partner or an agent — each kind runs its own columns.",
     ar: "يُختار مرة واحدة: تبقى البطاقة شريكًا أو وكيلًا — ولكل نوع أعمدته الخاصة.",
+  },
+  kindLockedQualified: {
+    en: "Chosen once: a card stays a partner or an agent — a qualified partner joins the directory, a qualified agent gets a login.",
+    ar: "يُختار مرة واحدة: تبقى البطاقة شريكًا أو وكيلًا — الشريك المؤهَّل ينضم إلى الدليل، والوكيل المؤهَّل يحصل على حساب دخول.",
   },
   /* founder: only the name and the number are required on an agent card */
   agentOptionalHint: {
@@ -238,9 +270,15 @@ export const pForms = {
     en: "Optional — it moves to the agent's profile when you set them Won.",
     ar: "اختيارية — تنتقل إلى ملف الوكيل عند تحويله إلى «مكسب».",
   },
+  /* @deprecated ADR-059 — the CV rides to the profile when the ACCOUNT is
+     created, which is no longer the same moment as Qualified. Kept verbatim. */
   cvOptionalHintQualified: {
     en: "Optional — it moves to the agent's profile when you set them Qualified.",
     ar: "اختيارية — تنتقل إلى ملف الوكيل عند تحويله إلى «مؤهَّل».",
+  },
+  cvOptionalHintAccount: {
+    en: "Optional — it moves to the agent's profile when you create their account.",
+    ar: "اختيارية — تنتقل إلى ملف الوكيل عند إنشاء حسابه.",
   },
   saveCv: { en: "Save CV", ar: "حفظ السيرة الذاتية" },
   altNumbersTitle: { en: "Alternative numbers", ar: "أرقام بديلة" },
@@ -268,9 +306,27 @@ export const pPanel = {
   owner: { en: "Owner", ar: "المسؤول" },
   followingUpWith: { en: "Following up with", ar: "المتابعة مع" },
   contactPersonPh: { en: "Contact person", ar: "جهة الاتصال" },
+  /* @deprecated ADR-059 — the column is called Qualified now. Kept verbatim. */
   wonGateHint: {
     en: "Won saves only when the partner record is complete.",
     ar: "لا يُحفظ «مكسب» إلا عند اكتمال بيانات الشريك.",
+  },
+  qualifiedGateHint: {
+    en: "Qualified saves only when the partner record is complete — no email or password is ever needed.",
+    ar: "لا يُحفظ «مؤهَّل» إلا عند اكتمال بيانات الشريك — ولا يُطلب بريد إلكتروني أو كلمة مرور أبدًا.",
+  },
+  /* ADR-059 — the prospect panel's own label for the same-stage follow-up
+     button. The SHARED sameStageActionMsgs.follow_up_again ("Log another
+     follow-up") stays byte-identical for the two lead CRMs; here the action is
+     offered from every active stage, so "another" would be wrong. */
+  recordFollowUp: { en: "Record a follow-up", ar: "تسجيل متابعة" },
+  createAccountHint: {
+    en: "Set the email and password this agent signs in with — the card is already Qualified.",
+    ar: "حدّد البريد الإلكتروني وكلمة المرور التي يسجّل بها الوكيل الدخول — البطاقة مؤهَّلة بالفعل.",
+  },
+  partnerLoginHint: {
+    en: "Set the email and password this partner signs in with — they are already in the directory.",
+    ar: "حدّد البريد الإلكتروني وكلمة المرور التي يسجّل بها الشريك الدخول — وهو مدرج بالفعل في الدليل.",
   },
   /* founder: "once I put them Won, I have to create for them a user and a
      password — they will not apply, I will create for them a user and a
@@ -281,12 +337,19 @@ export const pPanel = {
     en: "Won creates the agent's account: they sign in with this email and password straight away — no registration to approve.",
     ar: "«مكسب» ينشئ حساب الوكيل: يسجّل الدخول بهذا البريد وكلمة المرور فورًا — دون طلب تسجيل ينتظر الموافقة.",
   },
+  /* @deprecated ADR-059 — Qualified creates NOTHING for an agent now (founder
+     1.3); the account is the separate action. Superseded by createAccountHint.
+     Kept verbatim. */
   qualifiedAgentHint: {
     en: "Qualified creates the agent's account: they sign in with this email and password straight away — no registration to approve.",
     ar: "«مؤهَّل» ينشئ حساب الوكيل: يسجّل الدخول بهذا البريد وكلمة المرور فورًا — دون طلب تسجيل ينتظر الموافقة.",
   },
+  /* still live — the partner-login form uses it; ADR-059 only moved WHERE it
+     is asked for (§7.2b, never the Qualified gate) */
   passwordPh: { en: "Partner's sign-in password", ar: "كلمة مرور دخول الشريك" },
   agentPasswordPh: { en: "Agent's sign-in password", ar: "كلمة مرور دخول الوكيل" },
+  /* @deprecated ADR-059 — the gate no longer creates anything from an email.
+     Kept verbatim. */
   passwordHint: {
     en: "Email + password create the partner's account automatically.",
     ar: "البريد الإلكتروني وكلمة المرور ينشئان حساب الشريك تلقائيًا.",
@@ -332,6 +395,9 @@ export const pPanel = {
 export const pManage = {
   prospectEyebrow: { en: "Partners & Agents · Edit", ar: "الشركاء والوكلاء · تعديل" },
   partnerEyebrow: { en: "Partners · Edit", ar: "الشركاء · تعديل" },
+  /* §7.2b — the account modal's eyebrow */
+  accountEyebrow: { en: "Partners & Agents · Account", ar: "الشركاء والوكلاء · الحساب" },
+  createAccount: { en: "Create account", ar: "إنشاء الحساب" },
   yesDelete: { en: "Yes, delete", ar: "نعم، احذف" },
   keepIt: { en: "Keep it", ar: "الإبقاء عليه" },
 } satisfies Record<string, Msg>;

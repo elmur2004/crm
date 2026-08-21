@@ -202,7 +202,7 @@ export function AgentProspectFields({
           <span className="dropzone-icon" aria-hidden="true">↑</span>
           <span className="min-w-0 flex-1">
             <span className="dropzone-title block">{t(signup.cvTitle)}</span>
-            <span className="dropzone-hint">{t(pForms.cvOptionalHintQualified)}</span>
+            <span className="dropzone-hint">{t(pForms.cvOptionalHintAccount)}</span>
             <input type="file" name="cv" accept=".pdf,.doc,.docx" className="mt-1.5 block w-full text-sm" />
           </span>
         </label>
@@ -297,7 +297,7 @@ export function AddProspectForm() {
           ))}
         </select>
         <span className="field-hint">
-          {t(pForms.kindLockedPipelines)}
+          {t(pForms.kindLockedQualified)}
           {agent ? ` ${t(pForms.agentOptionalHint)}` : ""}
         </span>
       </label>
@@ -357,7 +357,7 @@ export function ProspectCvUpload({ prospectId }: { prospectId: string }) {
         <span className="dropzone-icon" aria-hidden="true">↑</span>
         <span className="min-w-0 flex-1">
           <span className="dropzone-title block">{t(profile.replaceCvTitle)}</span>
-          <span className="dropzone-hint">{t(pForms.cvOptionalHintQualified)}</span>
+          <span className="dropzone-hint">{t(pForms.cvOptionalHintAccount)}</span>
           <input ref={fileRef} type="file" name="file" accept=".pdf,.doc,.docx" className="mt-1.5 block w-full text-sm" />
         </span>
       </label>

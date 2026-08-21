@@ -91,7 +91,7 @@ function WonGateFields({ defaults }: { defaults: ProspectGateDefaults }) {
   return (
     <>
       <p className="field-hint">
-        {t(pPanel.wonGateHint)}
+        {t(pPanel.qualifiedGateHint)}
       </p>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <label className="block">
@@ -110,22 +110,12 @@ function WonGateFields({ defaults }: { defaults: ProspectGateDefaults }) {
           <span className={labelCls}>{t(pCommon.number)}</span>
           <input type="tel" name="number" required defaultValue={defaults.number} className={inputCls} />
         </label>
+        {/* ADR-059 / founder 1.3 — the email stays OPTIONAL and there is no
+            password field at all: qualifying never asks for credentials. The
+            partner's login is its own action afterwards (§7.2b). */}
         <label className="block">
           <span className={labelCls}>{t(signup.email)}</span>
           <input type="email" name="email" defaultValue={defaults.email ?? ""} className={inputCls} />
-        </label>
-        <label className="block">
-          <span className={labelCls}>{t(authFields.password)}</span>
-          <input
-            type="text"
-            name="password"
-            autoComplete="off"
-            placeholder={t(pPanel.passwordPh)}
-            className={inputCls}
-          />
-          <span className="field-hint">
-            {t(pPanel.passwordHint)}
-          </span>
         </label>
         <label className="block">
           <span className={labelCls}>{t(pCommon.importance)}</span>
@@ -147,15 +137,18 @@ function WonGateFields({ defaults }: { defaults: ProspectGateDefaults }) {
   );
 }
 
-/* Founder (PP-4a): the AGENT card's Won gate. The profile half is prefilled
-   from the card — the admin only confirms it — and the credential half is the
-   admin's to set, because an agent added here never applies for anything. */
-export function WonAgentGateFields({ defaults }: { defaults: ProspectGateDefaults }) {
+/* §7.2b (PP-4a): the AGENT ACCOUNT form. ADR-059 took it off the move to
+   Qualified — the founder asked that qualifying never demand an email or a
+   password — so this is the separate step afterwards. The profile half is
+   prefilled from the card (the admin only confirms it) and the credential half
+   is the admin's to set, because an agent added here never applies for
+   anything. Exported: manage.tsx renders it inside the account modal. */
+export function AgentAccountFields({ defaults }: { defaults: ProspectGateDefaults }) {
   const t = tFor(useLocale());
   const [first = "", ...rest] = defaults.name.trim().split(/\s+/);
   return (
     <>
-      <p className="field-hint">{t(pPanel.qualifiedAgentHint)}</p>
+      <p className="field-hint">{t(pPanel.createAccountHint)}</p>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <label className="block">
           <span className={labelCls}>{t(authFields.firstName)}</span>
@@ -525,7 +518,10 @@ export function ProspectEventPanel({
         <div className="flex gap-2 flex-wrap">
           {sameStageActions.map((a) => (
             <button key={a} type="button" onClick={() => setAction(a)} className={btnGhost}>
-              {sameStageActionLabel(locale, a)}
+              {/* ADR-059 — this action is offered from EVERY active stage now, so
+                  "Log another follow-up" (the shared lead-CRM wording, left
+                  byte-identical) would be wrong here. */}
+              {a === "follow_up_again" ? t(pPanel.recordFollowUp) : sameStageActionLabel(locale, a)}
             </button>
           ))}
         </div>
@@ -560,9 +556,11 @@ export function ProspectEventPanel({
             className="card card-pad mt-3 space-y-3"
           >
             <p className="u-h3">
-              {isSameStageAction(action)
-                ? sameStageActionLabel(locale, action)
-                : stageLabel(locale, action)}
+              {action === "follow_up_again"
+                ? t(pPanel.recordFollowUp)
+                : isSameStageAction(action)
+                  ? sameStageActionLabel(locale, action)
+                  : stageLabel(locale, action)}
             </p>
             {fieldsFor(groupForAction(action), action)}
             <div className="flex gap-2">

@@ -9,6 +9,7 @@ import {
   agentNameFrom,
   businessActivityFrom,
 } from "./forms";
+import { AgentAccountFields, type ProspectGateDefaults } from "./ProspectEventPanel";
 import { tFor } from "@/lib/i18n/core";
 import { useLocale } from "@/components/shared/LocaleProvider";
 import {
@@ -16,6 +17,8 @@ import {
   pCommon,
   pForms,
   pManage,
+  pPanel,
+  pProspect,
   prospectKindLabel,
 } from "@/lib/i18n/dict/partners";
 import { fields as authFields, signup } from "@/lib/i18n/dict/auth";
@@ -49,6 +52,126 @@ function useAction() {
     router.refresh();
   }
   return { busy, error, run, router };
+}
+
+/* §7.2b / PP-4a — "Create the agent's account" (or the partner's login).
+
+   ADR-059 split this off the move to Qualified: the founder asked that
+   qualifying never require an email or a password, so the credentials are
+   collected HERE, on a card that has already reached Qualified. It cannot live
+   in the action panel — that panel is replaced by the terminal sentence the
+   moment a card is Qualified — so it sits in the page actions beside Edit. */
+export function CreateAccountButton({
+  prospectId,
+  kind,
+  defaults,
+}: {
+  prospectId: string;
+  kind: string;
+  defaults: ProspectGateDefaults;
+}) {
+  const { busy, error, run } = useAction();
+  const locale = useLocale();
+  const t = tFor(locale);
+  const [open, setOpen] = useState(false);
+  const agent = kind === "agent";
+  if (!open) {
+    return (
+      <button type="button" onClick={() => setOpen(true)} className="btn-primary btn--sm">
+        {t(agent ? pProspect.createAgentAccount : pProspect.createPartnerLogin)}
+      </button>
+    );
+  }
+  return (
+    <div className="modal-overlay">
+      <div className="modal">
+        <div className="modal-head">
+          <div>
+            <p className="modal-eyebrow">{t(pManage.accountEyebrow)}</p>
+            <p className="modal-title">{defaults.companyName ?? defaults.name}</p>
+          </div>
+          <button
+            type="button"
+            className="modal-close"
+            aria-label={t(pCommon.close)}
+            onClick={() => setOpen(false)}
+          >
+            ✕
+          </button>
+        </div>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            const fd = new FormData(e.currentTarget);
+            void run(
+              `/api/b-systems/partners-pipeline/${prospectId}/account`,
+              "POST",
+              agent
+                ? {
+                    firstName: String(fd.get("firstName")),
+                    lastName: String(fd.get("lastName")),
+                    address: String(fd.get("address")),
+                    speciality: String(fd.get("speciality")),
+                    email: String(fd.get("email")),
+                    password: String(fd.get("password")),
+                    phone: String(fd.get("phone")),
+                  }
+                : { email: String(fd.get("email")), password: String(fd.get("password")) },
+              () => setOpen(false),
+            );
+          }}
+          className="contents"
+        >
+          <div className="modal-body space-y-3">
+            {error ? (
+              <p role="alert" className="alert-error">
+                {error}
+              </p>
+            ) : null}
+            {agent ? (
+              <AgentAccountFields defaults={defaults} />
+            ) : (
+              <>
+                <p className="field-hint">{t(pPanel.partnerLoginHint)}</p>
+                <label className="block">
+                  <span className={labelCls}>{t(signup.email)}</span>
+                  <input
+                    type="email"
+                    name="email"
+                    required
+                    defaultValue={defaults.email ?? ""}
+                    className={inputCls}
+                  />
+                </label>
+                <label className="block">
+                  <span className={labelCls}>{t(authFields.password)}</span>
+                  <input
+                    type="text"
+                    name="password"
+                    required
+                    minLength={8}
+                    autoComplete="off"
+                    placeholder={t(pPanel.passwordPh)}
+                    className={inputCls}
+                  />
+                </label>
+              </>
+            )}
+          </div>
+          <div className="modal-foot">
+            <span className="flex gap-2">
+              <button type="button" className="btn-ghost" onClick={() => setOpen(false)}>
+                {t(pCommon.cancel)}
+              </button>
+              <button type="submit" disabled={busy} className="btn-primary">
+                {t(pManage.createAccount)}
+              </button>
+            </span>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
 }
 
 export interface ProspectEditable {
@@ -129,7 +252,7 @@ export function EditProspectButton({ prospect }: { prospect: ProspectEditable })
             <p>
               <span className="badge badge--entity">{prospectKindLabel(locale, prospect.kind)}</span>
             </p>
-            <p className="field-hint">{t(pForms.kindLockedPipelines)}</p>
+            <p className="field-hint">{t(pForms.kindLockedQualified)}</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {agent ? (
                 <AgentProspectFields

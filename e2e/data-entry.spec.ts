@@ -98,7 +98,10 @@ test("data entry: adds a lead and a card, owns neither, and is walled out of eve
   const forbidden = [
     /* not even on the card they entered themselves: moving a stage is not
        adding, and neither is deleting */
-    ["post", `/api/b-systems/partners-pipeline/${myCard.id}/event`, { event: { type: "drag", to: "won" } }],
+    ["post", `/api/b-systems/partners-pipeline/${myCard.id}/event`, { event: { type: "drag", to: "qualified" } }],
+    /* §7.2b — minting a LOGIN from a data-entry session would be a real
+       privilege escalation: the route is admin-only by construction */
+    ["post", `/api/b-systems/partners-pipeline/${myCard.id}/account`, { email: "x@example.com", password: "sneaky123" }],
     /* someone else's lead — every mutation, and the read behind it */
     ["post", `/api/b-systems/leads/${adminLead.id}/event`, { event: { type: "next_action", action: "won" } }],
     ["post", `/api/b-systems/leads/${adminLead.id}/assign`, { userId: "any" }],

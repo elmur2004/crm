@@ -69,17 +69,22 @@ test("journey 3: partnership acquisition to attributed CRM lead (V2 numbers flow
   await page.getByRole("button", { name: "Save & move" }).click();
   await expect(page.getByRole("heading", { level: 1 }).getByText("Meeting Setting")).toBeVisible();
 
-  /* Attended → Won: the completeness gate blocks until every §7.2 field is present. */
+  /* Attended → Qualified: the completeness gate blocks until every §7.2 field is
+     present — and (ADR-059) it never asks for an email or a password. */
   await page.getByLabel("Meeting outcome").selectOption("attended");
-  await page.getByLabel("Destination").selectOption("won");
-  await expect(page.getByText("Won saves only when the partner record is complete")).toBeVisible();
-  await page.getByRole("button", { name: /Confirm — move to Won/ }).click();
+  await page.getByLabel("Destination").selectOption("qualified");
+  await expect(
+    page.getByText("Qualified saves only when the partner record is complete"),
+  ).toBeVisible();
+  const gate = page.locator("form").filter({ hasText: "Qualified saves only when" });
+  await expect(gate.getByLabel("Password")).toHaveCount(0);
+  await page.getByRole("button", { name: /Confirm — move to Qualified/ }).click();
   await expect(page.getByRole("heading", { level: 1 }).getByText("Meeting Setting")).toBeVisible(); // gate held
 
   await page.getByLabel("Key person role").fill("Managing Director");
   await page.getByLabel("Address").fill("7 Port Said St, Alexandria");
-  await page.getByRole("button", { name: /Confirm — move to Won/ }).click();
-  await expect(page.getByRole("heading", { level: 1 }).getByText("Won")).toBeVisible();
+  await page.getByRole("button", { name: /Confirm — move to Qualified/ }).click();
+  await expect(page.getByRole("heading", { level: 1 }).getByText("Qualified")).toBeVisible();
   await expect(page.getByRole("heading", { level: 1 }).getByText("Converted")).toBeVisible(); // A-5 badge
 
   /* Partner in the directory with Date joined. */
@@ -172,20 +177,19 @@ test("founder V4: partners board drag opens the stage form; edit + delete from d
 
   /* Drag Lead → Didn't Answer: the numbers form opens; the card's single
      number is pre-checked; confirming commits the move. */
-  /* ADR-057 — the default view stacks two boards, and four stage ids appear in
-     both; every column locator is scoped to the PARTNER board. */
-  await dragTo(page, card, page.locator('[data-pipeline="partner"] [data-stage="didnt_answer"]'));
+  /* ADR-059 — ONE board again, so the column locators are bare stage ids. */
+  await dragTo(page, card, page.locator('[data-stage="didnt_answer"]'));
   await expect(page.getByText("Number dialed — which number(s) went unanswered?")).toBeVisible();
   await expect(page.getByRole("checkbox", { name: "0100000123" })).toBeChecked();
   await page.getByRole("button", { name: "Confirm move" }).click();
   await expect(
-    page.locator('[data-pipeline="partner"] [data-stage="didnt_answer"] [data-deal-card="Draggy Freight"]'),
+    page.locator('[data-stage="didnt_answer"] [data-deal-card="Draggy Freight"]'),
   ).toBeVisible();
 
   /* Drag back to Lead: intake return commits directly — no form. */
-  await dragTo(page, card, page.locator('[data-pipeline="partner"] [data-stage="lead"]'));
+  await dragTo(page, card, page.locator('[data-stage="lead"]'));
   await expect(
-    page.locator('[data-pipeline="partner"] [data-stage="lead"] [data-deal-card="Draggy Freight"]'),
+    page.locator('[data-stage="lead"] [data-deal-card="Draggy Freight"]'),
   ).toBeVisible();
 
   /* Detail page: the admin edits the card in place... */

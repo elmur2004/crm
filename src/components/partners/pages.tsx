@@ -26,7 +26,12 @@ import {
 import { PartnerAddLeadClient } from "./PartnerAddLead";
 import { ProspectEventPanel } from "./ProspectEventPanel";
 import { PartnersBoard, type ProspectCard } from "./PartnersBoard";
-import { DeleteEntityButton, EditPartnerButton, EditProspectButton } from "./manage";
+import {
+  CreateAccountButton,
+  DeleteEntityButton,
+  EditPartnerButton,
+  EditProspectButton,
+} from "./manage";
 import { FilterPanel } from "@/components/shared/FilterPanel";
 import { NumberActions } from "@/components/shared/NumberActions";
 import { ApiError } from "@/lib/api-error";
@@ -66,26 +71,38 @@ export async function PartnersPipelineBody({
       followUps: { orderBy: { createdAt: "desc" }, take: 1 },
       meetings: { orderBy: { createdAt: "desc" }, take: 1 },
       lostInfo: { orderBy: { createdAt: "desc" }, take: 1 },
+      /* §7.2b — whether the PARTNER half of a qualified card still owes a login.
+         `converted` cannot answer it: PP-4 sets it at qualification, long before
+         an admin mints `Partner.userId`. */
+      partner: { select: { userId: true } },
     },
   });
   /* the disclosure chip counts every control that is off its default */
   const activeCount = [search !== "", kind !== "any"].filter(Boolean).length;
 
   function keyDatum(p: (typeof prospects)[number]): string {
-    /* ADR-057 — the card's OWN config: an agent's dated follow-up lives in
-       `contacted`, so a literal `following_up` case would drop his next date
-       off the card and show his speciality instead. */
+    /* ADR-059 — no stage plays the follow-up role any more, so the "Next: {dt}"
+       datum hangs off the RECORD: a card carrying a real follow-up shows its
+       date from any active column, Waiting included, and a Contacted card with
+       no follow-up shows its own headline datum instead of a lie. */
     const config = partnersConfigFor(p.kind);
+    const nextFollowUp = p.followUps[0];
+    /* the card carries ONE line, so the Meeting Setting column keeps its own
+       headline datum when a meeting is actually arranged — that date is the
+       column's whole point, and losing it to a recorded follow-up is what the
+       To-Do's side-by-side rows exist to avoid. Everywhere else an active
+       card's recorded follow-up wins, Didn't Answer included: the column
+       already says "didn't answer", the recorded call-back is the news. */
+    const meetingAt = p.stage === config.meetingStage ? (p.meetings[0]?.datetime ?? null) : null;
+    if (nextFollowUp && !meetingAt && !config.terminalStages.includes(p.stage)) {
+      return t(pPipeline.nextAt).replace("{dt}", formatCairo(nextFollowUp.dueAt));
+    }
     switch (p.stage) {
       case config.didntAnswerStage:
         return t(pPipeline.awaitingNewNumber);
-      case config.followUpStage:
-        return p.followUps[0]
-          ? t(pPipeline.nextAt).replace("{dt}", formatCairo(p.followUps[0].dueAt))
-          : t(pPipeline.noFollowUpSet);
       case config.meetingStage:
-        return p.meetings[0]?.datetime
-          ? t(pPipeline.meetingAt).replace("{dt}", formatCairo(p.meetings[0].datetime))
+        return meetingAt
+          ? t(pPipeline.meetingAt).replace("{dt}", formatCairo(meetingAt))
           : t(pPipeline.notArranged);
       case config.lostStage:
         return p.lostInfo[0]?.reason ?? "";
@@ -109,6 +126,11 @@ export async function PartnersPipelineBody({
     subtitleNumeric: p.kind === "agent",
     stage: p.stage,
     converted: p.converted,
+    /* the same two conditions the detail's Create-account button uses, so the
+       board and the card agree about what is still owed (§7.2b) */
+    awaitingAccount:
+      p.stage === partnersConfigFor(p.kind).wonStage &&
+      (p.kind === "agent" ? !p.agentUserId : Boolean(p.partner) && !p.partner?.userId),
     keyDatum: keyDatum(p),
     defaults: {
       kind: p.kind,
@@ -181,7 +203,7 @@ export async function PartnersPipelineBody({
       {cards.length === 0 && activeCount > 0 ? (
         <p className="empty">{t(pPipeline.noMatches)}</p>
       ) : (
-        <PartnersBoard cards={cards} reps={reps} kind={kind} filtered={activeCount > 0} />
+        <PartnersBoard cards={cards} reps={reps} />
       )}
     </div>
   );
@@ -204,6 +226,12 @@ export async function ProspectDetailBody({ prospectId }: { prospectId: string })
   /* ADR-057 — this card's OWN pipeline: never compare a stage against a
      literal that only one of the two kinds happens to use. */
   const config = partnersConfigFor(prospect.kind);
+  const qualified = prospect.stage === config.wonStage;
+  /* §7.2b — the login is a SEPARATE action now, offered on a card that has
+     reached Qualified and has no account yet. For a partner that means a
+     directory row without a `userId`; for an agent, no `agentUser` at all. */
+  const needsAgentAccount = agent && qualified && !prospect.agentUser;
+  const needsPartnerLogin = !agent && qualified && Boolean(prospect.partner) && !prospect.partner?.userId;
   const gateDefaults = {
     kind: prospect.kind,
     companyName: prospect.companyName,
@@ -233,6 +261,10 @@ export async function ProspectDetailBody({ prospectId }: { prospectId: string })
             <StageBadge stage={prospect.stage} header />
             {prospect.converted ? (
               <span className="badge badge--converted">{t(pPipeline.converted)}</span>
+            ) : qualified && agent ? (
+              /* ADR-059 — qualified with no login is a real, everyday state
+                 (founder 1.3); say so rather than showing nothing at all */
+              <span className="badge badge--archived">{t(pPipeline.noLoginYet)}</span>
             ) : null}
           </h1>
         </div>
@@ -255,6 +287,16 @@ export async function ProspectDetailBody({ prospectId }: { prospectId: string })
             >
               {t(callSheet.whatsapp)}
             </a>
+          ) : null}
+          {/* §7.2b — the one place a Qualified card can still carry an action:
+              the panel is replaced by the terminal sentence, so this lives in
+              the page actions beside Edit. */}
+          {needsAgentAccount || needsPartnerLogin ? (
+            <CreateAccountButton
+              prospectId={prospect.id}
+              kind={prospect.kind}
+              defaults={gateDefaults}
+            />
           ) : null}
           {/* founder V4: the admin edits and deletes pipeline cards */}
           <EditProspectButton
@@ -390,6 +432,16 @@ export async function ProspectDetailBody({ prospectId }: { prospectId: string })
                   </p>
                 </div>
               ) : null}
+              {/* ADR-059 — the honest empty state, opposite the "account created"
+                  line below: qualified, no login, and the button is right there
+                  in the page actions. */}
+              {needsAgentAccount || needsPartnerLogin ? (
+                <div className="fields-cell">
+                  <p className="fields-value">
+                    {t(needsAgentAccount ? pProspect.noAgentAccount : pProspect.noPartnerAccount)}
+                  </p>
+                </div>
+              ) : null}
               {/* PP-4a: the account this card minted — the admin's proof that the
                   agent can sign in, and the way into the Agents section */}
               {prospect.agentUser ? (
@@ -416,8 +468,8 @@ export async function ProspectDetailBody({ prospectId }: { prospectId: string })
             />
           </div>
 
-          {/* the agent card's CV: attach it whenever it arrives — the Won gate
-              moves it onto the agent's profile, CV and all */}
+          {/* the agent card's CV: attach it whenever it arrives — creating the
+              account (§7.2b) moves it onto the agent's profile, CV and all */}
           {agent ? (
             <div className="card card-pad">
               <ProspectCvUpload prospectId={prospect.id} />
@@ -499,7 +551,7 @@ export async function PartnersDirectoryBody() {
       </div>
       {partners.length === 0 ? (
         <p className="empty">
-          {t(pDirectory.empty)}
+          {t(pDirectory.emptyQualified)}
         </p>
       ) : (
         <div className="ecard-grid">
