@@ -536,6 +536,10 @@
   padding: 10px 12px; font: 400 13px var(--font-body); color: var(--color-ink); width: 100%; outline: none;
 }
 .field-input::placeholder { color: var(--color-muted); }
+/* a field the form holds FIXED (ADR-058: the person and the month a month-only
+   payroll override is for). Reads as stated-not-editable in every scope instead
+   of borrowing the browser's grey — both tokens exist in all three. */
+.field-input:disabled { background: var(--color-surface-tint); color: var(--color-muted); cursor: default; }
 textarea.field-input { min-height: 74px; resize: vertical; font-family: var(--font-body); }
 .field-hint { font: 400 11px var(--font-body); color: var(--color-muted); }
 /* password show/hide — eye icon (founder) */

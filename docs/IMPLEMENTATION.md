@@ -1083,3 +1083,104 @@ Traps to know before touching any of it again:
   fixtures, then run `npx prisma migrate deploy`. Rewind and deploy again for
   idempotence. Pair it with an integration test that reads the shipped .sql off
   disk and executes it, so the test can never drift from the file.
+
+## Payroll (ADR-058): three traps met while making one month adjustable (2026-08-21)
+- Location: `src/lib/services/accounting.ts` (`expenseSchema`,
+  `resolveExpenseData`, `shadowPayrollMark` and its four call sites),
+  `src/components/accounting/forms.tsx` (`ExpenseModal` `prefill`, `egpOrNull`,
+  `ExpenseActions`), `src/app/(accounting)/accounting/expenses/page.tsx`.
+- What exists / how it works: a one-month payroll adjustment is a LINKED MANUAL
+  payroll expense that `autoPayroll`'s `covered` set makes replace that person's
+  derived salary row for that month only. The roster is never written. See
+  ADR-058 for the decision and the approval invariant.
+- Traps:
+  - **AN EDIT SILENTLY BECAME AUTHORITATIVE.** `resolveExpenseData` builds an
+    EXPLICIT data object that is passed to BOTH `create` and `update`. While it
+    omitted `deduction`/`bonus`, a PATCH left the stored values untouched — so
+    an imported deduction survived an edit *by accident*. The moment those keys
+    were added, every PATCH began writing them, and any path that failed to
+    prefill the form would zero an imported deduction on the first save and the
+    month's cost would jump. The DTO fields and the modal prefill are therefore
+    not polish, they are the correctness requirement, and they had to land in
+    the SAME commit as the schema change. Regression guard: import the legacy
+    row (deduction 100 / bonus 50), PATCH it with the exact body the modal sends
+    when nothing was changed, assert 100/50 still stored.
+  - **`egp()` FOLDS BLANK TO ZERO.** `egp(fd, key)` is
+    `toPiasters(String(fd.get(key) || "0"))`, which is right for a required
+    amount and wrong for an optional one: clearing the field would store 0, and
+    `export.ts` only omits the key when the value is NULL. Storing zeros would
+    start emitting `deduction: 0` on every payroll row and change the document
+    the old app reads. `egpOrNull()` sits beside it — blank is null, a typed "0"
+    is 0 — and optional money must use it.
+  - **TWO STORES, ONE FACT.** A derived salary's approval is an
+    `AcctPayrollPayment` row; a manual row's is its own `paid` flag. Nothing in
+    the schema links them: `AcctPayrollPayment` cascades on the MEMBER, not on
+    the expense, so deleting an override does not touch the mark. The fix is the
+    single-owner invariant (ADR-058 decision 4) — the mark is written as a
+    SHADOW of the covering expense on create, update, ✓ toggle AND delete. The
+    delete write is redundant while the shadow holds and is kept deliberately:
+    a row IMPORTED from the old app never had a shadow written, so without it
+    deleting an imported linked payroll row would lose its approval.
+  - Ordering inside `updateExpense` matters: when the row stops covering the
+    person-month it used to cover (month moved, person moved, type left
+    payroll), the OLD key is written from the OLD row's state FIRST, then the
+    new coverage is shadowed. `resolveExpenseData` nulls `rosterId` for any
+    non-payroll type, so `existing` — not the updated row — is the only place
+    the old link can still be read.
+  - **ACQUIRE MUST NOT DESTROY WHAT RELEASE CANNOT REBUILD** (found in review,
+    fixed in this same commit). The shadow's first cut was symmetric: paid →
+    upsert the mark, not paid → `deleteMany`. Symmetric is wrong, because the
+    two directions are not the same act. Writing an approval is idempotent;
+    deleting one throws away the only copy. With the delete branch firing on
+    every create, "+ Add expense → Payroll → pick a person" — which ships
+    Status = On hold — destroyed that person-month's approval on save, and the
+    delete then rebuilt the derived row from nothing: a full salary out of paid
+    spend, permanently (500,000 → 0 → 0 piasters, measured). `shadowPayrollMark`
+    now takes `{ unapprove }` and only two call sites pass it true:
+    `toggleExpensePaid`, and `updateExpense` when `stillCovers && existing.paid
+    && !row.paid`. Everything else parks. The rule to keep: a write that
+    ACQUIRES ownership of a fact may overwrite it only with something it can
+    give back.
+  - **AN UPSERT THAT RE-DATES IS NOT A RE-ASSERTION.** `update: { paidDate }`
+    on the mark rewrote the approval date with the day the OVERRIDE was typed,
+    so the derived row came back ticked but claiming an approval date it never
+    had (seeded 2026-03-05 → read back 2026-08-21). The branch is `update: {}`:
+    an approval already on record keeps its own date; a new one takes the
+    covering row's. The test that guarded this could not fail — it compared
+    against the override's own `paidDate`, which is today's — so the fixture now
+    seeds a distinct earlier date and asserts `APPROVED_ON` explicitly.
+  - **`covered` IS A SET, `monthExpenses` IS NOT.** `autoPayroll` suppresses the
+    derived row ONCE per rosterId; every stored row for the month is emitted
+    unfiltered. Two linked payroll rows for one person-month therefore both
+    count a full salary (2 rows, 1,000,000 piasters for one 5,000 EGP salary,
+    measured) — in the section total, the P&L, the department margins and the
+    treasury alike, with no unique index on `(rosterId, month)` to stop it. The
+    engine cannot tell them apart after the fact, so `refuseSecondCoveringRow`
+    guards both the create and the update path inside their transactions and
+    returns a 400 naming the existing row. The service layer is the right place:
+    every app write goes through it, while the IMPORT deliberately does not (a
+    legacy file is history, and refusing it would block the founder's own data).
+  - **A MARK NEEDS A DERIVED ROW TO BELONG TO.** The shadow wrote the mark from
+    the covering row's state without checking that the roster posts a salary for
+    that person-month at all. For an inactive member, deleting a paid override
+    left the mark behind; making him active over that month later materialised
+    the salary ALREADY APPROVED (0 → 500,000 piasters, nobody having ticked
+    anything), and the orphan also pinned the month into `activeMonths()`
+    permanently. `rosterPostsSalary()` reads the member with segments and gates
+    the upsert on `memberAt(member, month).active && salary > 0`.
+  - **THE IMPORT IS THE OTHER WRITE PATH.** `expenseSchema`'s negative-net
+    refusal covered the form and nothing else, and the import is the only path
+    that has ever populated `deduction`/`bonus`. `zMoneyOrNull` had no `min` and
+    no cross-field check, so `{amount: 5000, deduction: 9000}` imported to a net
+    of −400,000 piasters — a paid expense that ADDS EGP 4,000 to the treasury.
+    The check lives in `zExpense` and throws `ApiError` from inside the refine
+    (the `egpToPiasters` precedent — Zod does not swallow it), which lands
+    BEFORE the REPLACE transaction, so a refused file destroys nothing.
+- Limitations / gotchas: the Roster PAGE evaluates every member at the current
+  Cairo month (it answers "who is on the payroll now"), so a member whose first
+  segment starts in the future reads there as Inactive with no salary. That is
+  existing, intentional behaviour — but it means a far-future e2e fixture cannot
+  prove "the roster is untouched" by reading that page. Prove it instead where
+  the salary is in force: the NEXT month's derived row, and the row that comes
+  back after the override is deleted. A roster edit would have moved both.
+- Last updated: 2026-08-21 (ADR-058, Entry 053, BUG-012)

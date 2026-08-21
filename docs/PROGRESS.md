@@ -2507,3 +2507,132 @@ comment, and the ADR-013 mechanism note all fixed; .env.example confirmed tracke
   pill in the Status column — if he'd rather the pill went away now that the
   button carries it, that is a one-line change, but nothing was removed without
   him asking.
+
+## Entry 053 — 2026-08-21 — One month of someone's pay, without touching their salary
+- Done: the founder, on the expenses screen: *"when I edit an expense of the
+  type of payroll and it is being edited it doesn't automatically edit in the
+  actual payroll roster because it can be because of a deduction or something"*.
+  Answered in the opposite direction to the words — it must NOT edit the roster,
+  because `memberAt()` effective dating would apply that change from the month
+  FORWARD, permanently — and shipped in two commits (ADR-058).
+  · COMMIT 1, deduction and bonus become writable. `AcctExpense.deduction` /
+    `.bonus` have existed since the accounting migration and `expenseAmount()`
+    has always netted them, but nothing in either app could WRITE one: the form
+    body carried ten keys and neither of these, and the ORIGINAL SPA had no
+    field either (a full grep of `Accounting/` for /deduction|bonus/i returns
+    four hits, two of them the word "bonus" in prose). A deduction could only
+    ever arrive by importing the old file — the gap he hit. Now: two optional
+    EGP fields on the expense modal, shown only for type payroll; both on
+    `ExpenseRowDto`, both in `expenseSchema` (so POST and PATCH validate them
+    server-side for free), both written by `resolveExpenseData`. NO MIGRATION —
+    the columns predate this work (`migration.sql:35-36`).
+  · COMMIT 2, the month-only override. A derived salary row now offers BOTH
+    payroll paths side by side, worded as opposites: **"Edit in roster"**
+    (*"…from this month FORWARD"*) and the new **"Adjust this month only"**
+    (*"…THIS MONTH ONLY. The roster salary, and every other month, stay exactly
+    as they are."*), which opens the modal prefilled to CREATE the linked
+    override — person, month, department, the derived salary as the base,
+    adjustments empty — and the modal names the person and the month so it says
+    which path he is in. The engine already made a linked manual payroll row
+    replace the derived one for its month; only the UI could not reach it. The
+    mechanism was already named by the original on this very form ("Pick a
+    person only if this should REPLACE their automatic salary for this month",
+    already in our dictionary with real Arabic), so this is a shortcut to a
+    concept he has been shown, not a new one.
+  · THE PAID-STATE TRAP, settled as the SINGLE-OWNER APPROVAL INVARIANT: for any
+    (person, month) the approval has exactly one owner — the `AcctPayrollPayment`
+    mark while the salary is derived, the covering expense's own `paid` while an
+    override exists — and the mark is kept as a SHADOW of the covering row so
+    the approval, and its ORIGINAL date, transfer at every boundary instead of
+    being dropped or duplicated. Approve an auto row, override it: it stays
+    Paid, and the tile moves by the deduction, never by a whole salary. Delete
+    the override: the derived row returns with the approval it was carrying.
+    The SPA had no transfer at all (it orphaned the mark and resurrected the row
+    from a possibly months-stale value) — a deliberate correction, not a port.
+  · Two money guards the original also lacked: a deduction larger than
+    base + bonus is REFUSED server-side (a negative net turns an expense into
+    income and hands the treasury cash), and clearing a field stores NULL rather
+    than 0 so the exported document keeps the shape the old app reads.
+  · REVIEW ROUND, folded into these same two commits — five real defects, each
+    reproduced against the real database before and after the fix:
+    (1) HIGH, money. The shadow deleted the approval mark on ACQUIRE, so
+        "+ Add expense → Payroll → pick a person" (which ships Status = On hold)
+        destroyed that person-month's approval, and deleting the row could not
+        rebuild it: 500,000 piasters of approved spend left March and never came
+        back. Acquire now PARKS; only the ✓ and Status → On hold un-approve.
+    (2) HIGH, money. Two linked payroll rows for one person-month both counted a
+        full salary (1,000,000 piasters for one 5,000 EGP salary) — `covered` is
+        a Set, `monthExpenses` is not. Refused now on create and on update, with
+        the existing row named in the 400.
+    (3) MEDIUM, money. The negative-net floor existed only on the form; the
+        IMPORT is the only path that has ever populated these columns and let
+        `{amount: 5000, deduction: 9000}` through as a −400,000 expense that
+        ADDS cash. Refused by name, before the REPLACE transaction.
+    (4) LOW, audit. The mark's `paidDate` was rewritten with the day the
+        override was typed. The upsert re-asserts (`update: {}`); the test that
+        should have caught it now seeds a distinct earlier date.
+    (5) LOW, money. A paid override for a month the roster does not pay left an
+        orphan mark; reactivating that person later materialised an
+        ALREADY-APPROVED salary. The shadow now writes only where the roster
+        actually posts one.
+    Plus two presentation fixes: the Arabic labels of the two payroll paths
+    opened with the same word (they now differ at word one, as English does),
+    and the override modal's month/person are LOCKED so its banner can never
+    describe a save that lands elsewhere.
+    Seven distinct findings, all reproduced, all fixed — none refuted. Each has
+    a permanent regression test; ADR-058 decisions 1, 4 and 5 were amended in
+    place so the record and the code say the same thing.
+  · REQUIREMENT 7 AUDITED, NOTHING TO FIX: every surface — dashboard, P&L,
+    treasury, departments, accounts payable, the expenses page and its section
+    totals — already sums through `expenseAmount()`. The only raw `.amount`
+    reads for a payroll row are the two that must be the BASE (the modal's edit
+    field and the new sub-line). Proven by test rather than changed.
+- Tests: 74 accounting unit + integration (engine 39, new
+  `accounting.integration.test.ts` 22, import/export integration unchanged and
+  green), `e2e/accounting.spec.ts` 7/7. Two new e2e journeys: the fields with
+  the row maths and the server refusal, and the founder's full override journey
+  including both paid directions and the revert. TESTING Run 059.
+  After the review round, the FULL gate on the final tree (TESTING Run 060):
+  `npx tsc --noEmit` clean · `npx vitest run` **347 passed / 26 files** (+8, all
+  regression guards for this round) · `npx playwright test` **67 passed / 2
+  skipped**, `test-results/.last-run.json` `{"status":"passed","failedTests":[]}`
+  read from the file · brand audit **PASS** (one finding fixed: the newly
+  reachable `.field-input:disabled` had no token-driven look) · and a MONEY
+  PROOF measured end to end — a 200 EGP deduction and a 300 EGP bonus over two
+  roster salaries move the month total, the P&L, accounts payable and the
+  treasury by exactly themselves and nothing else, with two people counted
+  twice in neither the rows nor the money and `committedSalary` fixed at
+  1,200,000 piasters throughout.
+- Found and fixed on the way: BUG-012 — `e2e/accounting.spec.ts` was ALREADY RED
+  on a clean tree. Its cross-brand paint comparison sampled a settled ✓'s green
+  the instant the class landed, and `.row-toggle` transitions `background-color`
+  over .15s, so it read a different alpha every run. Verified pre-existing by
+  stashing this work and re-running. Now polls until the paint stops moving.
+- In progress: nothing mid-flight; tree clean, both commits amended with the
+  review round and PUSHED to `origin/main` (production redeploys from it).
+- Next steps: the four founder-confirmation items below. `/phase-gate` still
+  owns the phase's Definition of Done, but the FULL vitest and Playwright
+  suites are green on this tree as of Run 060, so it starts from a known-green
+  baseline rather than an unknown one.
+- Blockers: none.
+- Needs founder confirmation:
+  (1) THE ROW'S MATH LINE. `Base EGP 5,000 − deduction EGP 200 + bonus EGP 50`,
+      muted, under the net. The original app showed the NET ONLY on every screen
+      and had no breakdown anywhere, so there was nothing to mirror — this
+      presentation is ours, deliberately kept to the original's density. Anything
+      richer (a column per part, a tooltip) is a design decision he should make.
+  (2) THE WORDING OF THE TWO PATHS — "Edit in roster" (from this month forward)
+      vs "Adjust this month only". Both hints are new EN + AR strings; the AR is
+      hand-written to read as a genuine contrast
+      («من هذا الشهر فصاعدًا» vs «هذا الشهر فقط»).
+  (3) DELETING A PAID OVERRIDE returns the derived salary APPROVED, dated the
+      day that person-month was actually approved (the parked mark's own date;
+      the override's own date only when the approval originated there). The
+      alternative — returning it On hold so he re-approves consciously — is
+      defensible; we chose not to lose an approval silently, because that
+      direction costs a full salary in the month's cash.
+  (4) A SECOND payroll row for the same person and month is now REFUSED with
+      *"{name} already has a payroll row for {month} — edit that row instead of
+      adding a second one."* Refusing is the safe answer (two rows pay him
+      twice), but he may prefer the modal to warn him BEFORE he types, or to
+      offer "open the existing row" instead of an error after Save.

@@ -1845,3 +1845,169 @@ every dashboard formula, journeys 1-5 (SPEC §13).
   and `.row-error` rules set opacity/cursor/font/color only — no physical
   left/right anywhere; the actions row gained `items-center`, a logical
   alignment. Contrast unchanged: #1B7A44 on #E6F4EC = 4.73:1 (AA, normal text).
+
+## Run 059 — 2026-08-21 — One-month payroll adjustment (ADR-058): deduction/bonus writable, then the override
+- Scope: the two commits of ADR-058, gated per commit. NOT the full suite —
+  this session's gate was, by instruction, `npx tsc --noEmit` plus the
+  accounting unit + integration tests plus `e2e/accounting.spec.ts`. The FULL
+  suite belongs to `/phase-gate`.
+- Suites/commands, all launched from `D:\CRM` with a CAPITAL D (the Run 052
+  trap: a lowercase cwd kills vitest here, single-file runs included):
+  `npx tsc --noEmit` · `npx vitest run src/lib/accounting
+  src/lib/services/accounting.integration.test.ts` · `npx vitest run
+  src/lib/brand-tokens.test.ts` · `npx playwright test e2e/accounting.spec.ts`
+  on the stock config, port **3100** (checked free with `netstat` before every
+  round — nothing listening on 3000 or 3100, so no config was copied and no
+  other workstream's process was touched).
+- Cases:
+  · tsc **clean (0 errors)** before each of the two commits.
+  · COMMIT 1 — vitest accounting **62 passed / 0 failed**, 4 files (engine 39,
+    the new `src/lib/services/accounting.integration.test.ts` 10, import and
+    export integration unchanged). New coverage: the negative-net refusal, the
+    Int/negative/cap refusals, a net of exactly zero ACCEPTED (the boundary is
+    not off by one), non-payroll rows stripped on write, clearing stores NULL
+    and the export omits the key, a typed 0 stays 0, and editing an IMPORTED row
+    preserves deduction 100 / bonus 50. Engine side: the adjustment reaching
+    `expenseIn`, `pnl`, `netIn`, `treasuryThrough`, `departments` and
+    `dashboard`, a bonus raising `apTotal` by exactly the bonus, and the roster
+    standing untouched through it.
+  · COMMIT 1 — Playwright `e2e/accounting.spec.ts` **6 passed / 0 failed**.
+  · COMMIT 2 — vitest accounting **74 passed / 0 failed**, 4 files (+12 in the
+    service integration file: every paid-state transition named in the brief —
+    unpaid auto → override, paid auto → override, a deliberate un-approval,
+    delete unpaid, delete paid with its ORIGINAL date, toggle-then-delete in
+    both directions, move to another month, move to another person, move off
+    payroll — plus the dormant-mark equivalence check that compares every total
+    with and without the mark to the piaster, the roster-untouched check and the
+    department-bucket check).
+  · COMMIT 2 — Playwright `e2e/accounting.spec.ts` **7 passed / 0 failed**,
+    2.0m. `test-results/.last-run.json` → `{"status": "passed",
+    "failedTests": []}`, READ FROM THE FILE, not inferred from a piped tail.
+  · `src/lib/brand-tokens.test.ts` **9 passed** — no new token was introduced
+    (the row maths uses `.u-muted`, the modal banner `.info-banner`, the new
+    action `.row-toggle--restore`, all existing and token-driven), and a hex /
+    rgb / font-family scan over both touched UI files returns nothing.
+  · Migration check: `prisma/migrations/.../migration.sql:35-36` already
+    declares `"deduction" INTEGER` and `"bonus" INTEGER`. NO migration written.
+- Failures found and fixed: **BUG-012** — `e2e/accounting.spec.ts` was ALREADY
+  RED on a clean tree, before any of this work. Its cross-brand paint comparison
+  sampled a settled ✓'s background the instant `toHaveClass(SETTLED)` resolved,
+  and `.row-toggle` transitions `background-color` over .15s, so it read
+  `rgba(230, 244, 236, 0.97)` against the ByteForce sample's solid
+  `rgb(230, 244, 236)` — a different alpha every run (0.925 and 0.97 observed).
+  Confirmed pre-existing by stashing the ADR-058 work and re-running the single
+  test on clean `main`. Fixed with a `settledPaint()` helper that polls until
+  the paint stops moving; the missing-token case the sampling exists to catch
+  still fails, as a timeout rather than a mismatch.
+- Two e2e failures of my own, both fixed before the commit: a strict-mode
+  violation where the person's name matched both the modal banner and the Person
+  option (scoped to `.info-banner`), and an assertion that tried to read a
+  far-future member's salary off the Roster page, which evaluates everyone at
+  TODAY by design (replaced with the two assertions that actually prove the
+  roster stands — next month's derived row, and the row that returns after the
+  override is deleted).
+- Verdict: **PASS** for the stated scope. The full suite is `/phase-gate`'s job.
+
+## Run 060 — 2026-08-21 — ADR-058 review round: the FULL gate on the final tree, plus a money proof
+- Scope: the same two commits (ADR-058), re-gated after a review round whose
+  seven findings were fixed and folded back into them. Unlike Run 059 this is
+  the FULL gate: whole vitest suite, whole Playwright suite, brand audit, and a
+  numbered money proof of the deduction and the bonus.
+- Suites/commands, all launched from `D:\CRM` with a CAPITAL D (the Run 052
+  trap: a lowercase cwd kills vitest here):
+  `npx tsc --noEmit` · `npx vitest run` (whole suite) · `npx playwright test`
+  (whole suite) on the stock config, port **3100** (`netstat` showed nothing
+  listening on 3000 or 3100 before each round, so no config was copied and no
+  other workstream's process was touched; the one orphaned `next start -p 3100`
+  left by a cancelled round was verified by command line as this run's own child
+  before being stopped).
+- Cases:
+  · `npx tsc --noEmit` — **clean, 0 errors**, on the final tree.
+  · `npx vitest run` — **347 passed / 0 failed**, 26 files (was 339/26 on the
+    pre-review tree: +8 new tests, all of them regression guards for this
+    round's findings). New in `accounting.integration.test.ts`: 2b rewritten
+    (the parked mark and the restore), 2c (a DELIBERATE un-approval, and that it
+    stays gone), 4 rewritten against a distinct seeded approval date, 4b (an
+    approval that ORIGINATES on the override), 6d (moving an on-hold override
+    onto an approved person-month), 7 (the second covering row refused on both
+    create and update, with the unlinked extra still allowed), 8 (no orphan mark
+    where the roster posts no salary) and THE MONEY PROOF. New in
+    `import.integration.test.ts`: the negative-net line refused before the
+    REPLACE runs, and a negative-component line that still nets ≥ 0 imported
+    untouched for fidelity.
+  · `npx playwright test` — **FULL SUITE, 67 passed / 0 failed / 2 skipped**
+    (`audit.spec.ts`, skipped by its own guard as before), 10.1m, exit code 0.
+    `test-results/.last-run.json` → `{"status":"passed","failedTests":[]}`,
+    READ FROM THE FILE, not inferred from a piped tail. Two assertions added to
+    the override journey: the month and person fields are `disabled` in override
+    mode, and a second payroll row for the same person-month is refused with
+    *"already has a payroll row"* while the row count and the tile stay put.
+  · BRAND AUDIT over the changed UI (`forms.tsx`, `expenses/page.tsx`,
+    `dict/accounting.ts`, `design-system.css`) — **PASS**. (1) Hex / rgb /
+    font-family scan over every added line: nothing. (2) Scope: the accounting
+    shell re-stamps `[data-brand]` per company and the changed markup is
+    brand-agnostic (`.info-banner`, `.field-input`, `.row-toggle--restore`,
+    `.u-muted`, `text-brand-danger` → `--color-brand-danger`). (3) B-Systems: no
+    pink surface, no gradient, no mesh; the one new rule uses
+    `--color-surface-tint`, which is Lavender Mist there. (4) ByteForce: palette
+    untouched, no emoji in any new App A string. (5) RTL: no physical
+    left/right added. ONE FINDING, FIXED: the newly reachable
+    `.field-input:disabled` state had no defined appearance and would have
+    borrowed the browser's grey — given `--color-surface-tint` / `--color-muted`,
+    both of which exist in ALL THREE scopes (`branding/byteforce/tokens.css:36`,
+    `branding/b-systems/tokens.css:44`, `src/themes/neutral.css:31` and :27/:40).
+- MONEY PROOF (`accounting.integration.test.ts` → "ADR-058 — the money proof",
+  all figures Int piasters, EGP ×100). One month (2026-03), two people on the
+  roster — Nour 500,000 in Branding, Sara 700,000 in Video — one collected
+  invoice of 2,000,000, Nour's salary approved and Sara's not:
+  | after | month payroll | paid | on hold | P&L expenses | P&L net | A/P | treasury | roster |
+  |---|---|---|---|---|---|---|---|---|
+  | 0 · two DERIVED salaries | 1,200,000 | 500,000 | 700,000 | 500,000 | 1,500,000 | 700,000 | 1,500,000 | 1,200,000 |
+  | 1 · Nour −20,000 deduction, Paid | 1,180,000 | 480,000 | 700,000 | 480,000 | 1,520,000 | 700,000 | 1,520,000 | 1,200,000 |
+  | 2 · Sara +30,000 bonus, On hold | 1,210,000 | 480,000 | 730,000 | 480,000 | 1,520,000 | 730,000 | 1,520,000 | 1,200,000 |
+  | 3 · the ✓ on Sara's row | 1,210,000 | 1,210,000 | 0 | 1,210,000 | 790,000 | 0 | 790,000 | 1,200,000 |
+  Every movement is exactly the adjustment and nothing else: −20,000 on the
+  deduction (month total, paid spend, P&L expenses; +20,000 to net profit and to
+  the treasury — the cash he did not pay out), +30,000 on the bonus (month
+  total, on-hold, A/P) with paid spend, the P&L and the treasury UNMOVED,
+  because an unapproved bonus is not cash. The ✓ then moves 730,000 from on-hold
+  to paid in one step. `committedSalary` reads the ROSTER and never moves:
+  1,200,000 in all four states — the proof no roster segment was written.
+  NO PERSON COUNTED TWICE, at every step: 2 payroll rows for 2 distinct
+  rosterIds, with the derived count falling 2 → 1 → 0 → 0 as the overrides take
+  over. Departments: Branding 480,000, Video 730,000, shared Overhead 0, and
+  480,000 + 730,000 = 1,200,000 − 20,000 + 30,000 exactly.
+- Failures found and fixed in this round (each reproduced against the real
+  database BEFORE the fix and re-measured after — see PROGRESS Entry 053):
+  · HIGH — the shadow deleted the approval mark on ACQUIRE. Measured before:
+    approved March salary paidExpenseIn 500,000 → create an On hold linked row →
+    0, mark gone → delete the row → still 0, derived row back UNAPPROVED. After:
+    500,000 → 0 (covered, on hold) → 500,000 with paidDate 2026-03-05 intact.
+    Same via a move: two approved people 1,000,000 → 0 before, → 500,000 (only
+    the covered one) and both marks standing after.
+  · HIGH — two linked payroll rows for one person-month: 2 rows and
+    paidExpenseIn 1,000,000 for one 5,000 EGP salary before; a 400 naming the
+    existing row after, on create AND on update, with one row and 480,000.
+  · MEDIUM — the import had no negative-net floor: `{amount: 5000,
+    deduction: 9000}` imported to a net of −400,000 (an expense that ADDS EGP
+    4,000). Refused by name now, before the REPLACE transaction, with
+    `acctExpense.count` still 0. A line that nets ≥ 0 through negative
+    components (5000 − (−1000) + (−2000) = 4000) still imports untouched:
+    treasuryNow −400,000, paidExpenseIn 400,000.
+  · LOW — the mark's approval date was rewritten with today: seeded 2026-03-05,
+    read back 2026-08-21 before; 2026-03-05 through the create and the delete
+    after. The old test could not catch it (it compared against the override's
+    own date, which is today's); the fixture now seeds a distinct earlier date.
+  · LOW — an orphan mark for a person-month the roster does not pay: after
+    delete the mark persisted, and reactivating the member made autoPayroll
+    return the salary `paid: true` with paidExpenseIn 500,000, nobody having
+    ticked it. After: no mark, `paid: false`, 0.
+  · LOW ×2, presentation — the two Arabic payroll labels both opened with
+    «تعديل» (they now differ at word one, as the English pair does), and the
+    override banner named a month frozen at open time while the month field
+    stayed editable (both that field and the person are now locked).
+  One e2e failure of my own, fixed before the gate: `getByRole("button",
+  {name: "Cancel"})` inside `.modal` is a strict-mode violation — the × close
+  button carries `aria-label="Cancel"` too. Scoped to `button.btn-ghost`.
+- Verdict: **PASS** — full vitest, full Playwright, tsc and the brand audit all
+  green on the final tree, with the money proof measured rather than asserted.

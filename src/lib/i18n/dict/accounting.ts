@@ -133,6 +133,36 @@ export const acct = {
   deductionWord: { en: "deduction", ar: "خصم" },
   bonusWord: { en: "bonus", ar: "مكافأة" },
 
+  /* the TWO payroll paths, worded as opposites — one changes the salary from
+     this month FORWARD, the other changes ONLY this month (ADR-058) */
+  /* the Arabic label leads with the DISTINGUISHING NOUN, not the shared verb:
+     "تعديل في كشف الرواتب" and "تعديل هذا الشهر فقط" open with the same word,
+     and in RTL that word is the first thing the reader hits on both of two
+     adjacent buttons. English separates them at word one ("Edit …" / "Adjust
+     …"); Arabic now separates them at word one too. */
+  adjustThisMonth: { en: "Adjust this month only", ar: "خصم أو مكافأة — هذا الشهر فقط" },
+  adjustThisMonthHint: {
+    en: "Add a deduction or a bonus for THIS MONTH ONLY. The roster salary, and every other month, stay exactly as they are.",
+    ar: "أضف خصمًا أو مكافأة لهذا الشهر فقط. راتب كشف الرواتب وكل الشهور الأخرى تبقى كما هي تمامًا.",
+  },
+  editInRosterHint: {
+    en: "Changes the salary in the roster from this month FORWARD — this month and every month after it.",
+    ar: "يغيّر الراتب في كشف الرواتب من هذا الشهر فصاعدًا — هذا الشهر وكل شهر بعده.",
+  },
+  adjustBanner: {
+    en: "This month only. Saving replaces {name}'s roster salary for {month} — the roster itself does not change, and no other month is touched.",
+    ar: "هذا الشهر فقط. الحفظ يحل محل راتب {name} من كشف الرواتب لشهر {month} — كشف الرواتب نفسه لا يتغير، ولا يتأثر أي شهر آخر.",
+  },
+  /* the two facts the banner states are the two the form locks (ADR-058) */
+  lockedToMonthHint: {
+    en: "Fixed: this adjustment belongs to the month it replaces. To adjust another month, open that month's salary row.",
+    ar: "ثابت: هذا التعديل يخص الشهر الذي يحل محله. لتعديل شهر آخر، افتح صف الراتب في ذلك الشهر.",
+  },
+  lockedToPersonHint: {
+    en: "Fixed: this adjustment replaces this person's roster salary for this month. To adjust someone else, open their salary row.",
+    ar: "ثابت: هذا التعديل يحل محل راتب هذا الموظف من الكشف لهذا الشهر. لتعديل موظف آخر، افتح صف راتبه.",
+  },
+
   /* clients */
   clientsEyebrow: { en: "ACCOUNTING · ACCOUNTS RECEIVABLE", ar: "الحسابات · الذمم المدينة" },
   clientsTitle: { en: "Clients", ar: "العملاء" },

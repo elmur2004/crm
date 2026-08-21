@@ -165,7 +165,10 @@ const sortSegs = (segs: AcctSegment[]): AcctSegment[] =>
 
 /** the salary/active values in force for member r during month m — the latest
     segment whose `from` ≤ m; before any segment the member does not exist. */
-export function memberAt(r: AcctMember, m: string): { salary: number; active: boolean } {
+export function memberAt(
+  r: Pick<AcctMember, "segments">,
+  m: string,
+): { salary: number; active: boolean } {
   let cur: AcctSegment | null = null;
   for (const s of sortSegs(r.segments)) if (s.from <= m) cur = s;
   return cur ? { salary: cur.salary, active: cur.active } : { salary: 0, active: false };

@@ -320,6 +320,157 @@ test("a payroll expense carries a deduction and a bonus, and the row shows its m
   await expect(row).toHaveCount(0);
 });
 
+/* ADR-058 — THE TWO PAYROLL PATHS, from the founder's chair. "Edit in roster"
+   changes the salary from this month FORWARD; "Adjust this month only" changes
+   this month and nothing else. Its own far-future month + its own person, so no
+   absolute figure asserted anywhere else can move. */
+const ONE = "2097-05";
+const NEXT_ONE = "2097-06";
+
+test("a month-only payroll adjustment leaves the roster, and every other month, alone", async ({
+  page,
+}) => {
+  await login(page, "admin@byteforce.com", "password123", /\/b-systems$/);
+  const modal = page.locator(".modal");
+
+  /* a person on the roster at 5,000 EGP in Branding, from that month */
+  await page.goto(`/accounting/roster?company=byteforce&month=${ONE}`);
+  await page.getByRole("button", { name: "+ Add person" }).click();
+  await modal.getByLabel("Name", { exact: true }).fill("One Month Only");
+  await modal.getByLabel("Department").selectOption("branding");
+  await modal.getByLabel("Monthly salary (EGP)").fill("5000");
+  await modal.getByRole("button", { name: "Save" }).click();
+  await expect(modal).toBeHidden();
+
+  /* ---- the derived row now offers BOTH paths, and says which is which */
+  await page.goto(`/accounting/expenses?company=byteforce&month=${ONE}`);
+  const row = page.locator("tr", { hasText: "One Month Only" });
+  await expect(row.getByText("from roster", { exact: true })).toBeVisible();
+  const toRoster = row.getByRole("link", { name: "Edit in roster" });
+  const adjust = row.getByRole("button", { name: "Adjust this month only" });
+  await expect(toRoster).toBeVisible();
+  await expect(adjust).toBeVisible();
+  /* worded as opposites — the consequence is in the hint, not just the label */
+  await expect(toRoster).toHaveAttribute("title", /from this month FORWARD/);
+  await expect(adjust).toHaveAttribute("title", /THIS MONTH ONLY/);
+
+  /* approve the derived salary FIRST: the paid state is the thing that must
+     not flip silently when the row becomes an override */
+  await row.getByRole("button", { name: "Paid", exact: true }).click();
+  await expect(row.getByText("Paid", { exact: true })).toBeVisible();
+  await expect(page.getByText("EGP 5,000").first()).toBeVisible(); // Paid this month
+
+  /* ---- the prefilled modal */
+  await adjust.click();
+  await expect(modal.locator(".modal-title")).toHaveText("Adjust this month only");
+  /* the modal SAYS which path you are in, and names the person and the month */
+  const banner = modal.locator(".info-banner");
+  await expect(banner).toContainText("This month only.");
+  await expect(banner).toContainText("One Month Only");
+  await expect(banner).toContainText("May 2097");
+  await expect(banner).toContainText("roster itself does not change");
+
+  await expect(modal.getByLabel("Amount (EGP)")).toHaveValue("5000");
+  await expect(modal.getByLabel("Person (optional)")).toHaveValue(/.+/); // the person
+  await expect(modal.getByLabel("Department (optional)")).toHaveValue("branding");
+  await expect(modal.getByLabel("Belongs to month")).toHaveValue(ONE);
+  /* the two facts the banner STATES are the two the form LOCKS, so the banner
+     can never describe a save that lands on another month or another person
+     (an approval carried across would ride into a month nobody approved) */
+  await expect(modal.getByLabel("Belongs to month")).toBeDisabled();
+  await expect(modal.getByLabel("Person (optional)")).toBeDisabled();
+  await expect(modal.getByLabel("Deduction (EGP, optional)")).toHaveValue("");
+  await expect(modal.getByLabel("Bonus (EGP, optional)")).toHaveValue("");
+  /* THE PAID-STATE TRAP: an approved salary must not quietly become On hold */
+  await expect(modal.getByLabel("Status")).toHaveValue("true");
+
+  /* a deduction bigger than the salary is refused BY THE SERVER, and nothing
+     is created — the derived row is still the only row */
+  await modal.getByLabel("Deduction (EGP, optional)").fill("6000");
+  await modal.getByRole("button", { name: "Save" }).click();
+  await expect(
+    modal.getByText("A deduction cannot be larger than the salary plus the bonus."),
+  ).toBeVisible();
+
+  await modal.getByLabel("Deduction (EGP, optional)").fill("200");
+  await modal.getByRole("button", { name: "Save" }).click();
+  await expect(modal).toBeHidden();
+
+  /* ---- the row is now the override: net, shown with its working */
+  await expect(row).toContainText("EGP 4,800");
+  await expect(row).toContainText("Base EGP 5,000");
+  await expect(row).toContainText("deduction EGP 200");
+  await expect(row.getByText("from roster", { exact: true })).toHaveCount(0);
+  await expect(row.getByRole("button", { name: "Edit", exact: true })).toBeVisible();
+  await expect(row.getByRole("button", { name: "Delete", exact: true })).toBeVisible();
+  /* still approved, and the tile moved by exactly the deduction — never by a
+     whole salary, which is what a silently dropped approval would cost */
+  await expect(row.getByText("Paid", { exact: true })).toBeVisible();
+  await expect(page.getByText("EGP 4,800").first()).toBeVisible();
+
+  /* ---- and a SECOND covering row for the same person-month is refused by the
+     server: the derived row is only suppressed ONCE, so two stored rows would
+     each count a full salary and pay him twice out of one month */
+  await page.getByRole("button", { name: "+ Add expense" }).click();
+  await modal.getByLabel("Type").selectOption("payroll");
+  await modal.getByLabel("Person (optional)").selectOption({ label: "One Month Only" });
+  await modal.getByLabel("Amount (EGP)").fill("5000");
+  await modal.getByRole("button", { name: "Save" }).click();
+  await expect(modal.getByText(/already has a payroll row/)).toBeVisible();
+  await modal.locator("button.btn-ghost").click(); // the foot Cancel, not the ×
+  await expect(modal).toBeHidden();
+  await expect(page.locator("tr", { hasText: "One Month Only" })).toHaveCount(1);
+  await expect(page.getByText("EGP 4,800").first()).toBeVisible(); // still one salary
+
+  /* ---- the roster is untouched. The Roster page reads every person at TODAY
+     (it answers "who is on the payroll now"), so this far-future person shows
+     there as one row, still starting in its original month — no second
+     effective-dated segment was written. The salary itself is proven where it
+     is actually in force: the NEXT month below, and the row that comes back
+     after the delete. A roster edit would have moved BOTH, because memberAt()
+     applies a change from its month FORWARD — which is the whole reason this
+     second path exists. */
+  await page.goto(`/accounting/roster?company=byteforce&month=${ONE}`);
+  const rosterRow = page.locator("tr", { hasText: "One Month Only" });
+  await expect(rosterRow).toHaveCount(1);
+  await expect(rosterRow).toContainText("May 2097");
+  await page.goto(`/accounting/expenses?company=byteforce&month=${NEXT_ONE}`);
+  const nextRow = page.locator("tr", { hasText: "One Month Only" });
+  await expect(nextRow).toContainText("EGP 5,000");
+  await expect(nextRow.getByText("from roster", { exact: true })).toBeVisible();
+  await expect(nextRow).not.toContainText("deduction");
+
+  /* ---- REVERTING: delete the override and the roster row comes back for that
+     month, carrying its approval with it */
+  await page.goto(`/accounting/expenses?company=byteforce&month=${ONE}`);
+  page.once("dialog", (d) => void d.accept());
+  await row.getByRole("button", { name: "Delete", exact: true }).click();
+  await expect(row.getByText("from roster", { exact: true })).toBeVisible();
+  await expect(row).toContainText("EGP 5,000");
+  await expect(row).not.toContainText("deduction");
+  await expect(row.getByText("Paid", { exact: true })).toBeVisible(); // approval carried
+  await expect(page.getByText("EGP 5,000").first()).toBeVisible();
+
+  /* ---- and the other direction: an ON HOLD salary overrides on hold, and
+     comes back on hold */
+  await row.getByRole("button", { name: "Paid", exact: true }).click();
+  await expect(row.getByText("On hold", { exact: true })).toBeVisible();
+  await row.getByRole("button", { name: "Adjust this month only" }).click();
+  await expect(modal.getByLabel("Status")).toHaveValue("false");
+  await modal.getByLabel("Bonus (EGP, optional)").fill("300");
+  await modal.getByRole("button", { name: "Save" }).click();
+  await expect(modal).toBeHidden();
+  await expect(row).toContainText("EGP 5,300");
+  await expect(row).toContainText("bonus EGP 300");
+  await expect(row.getByText("On hold", { exact: true })).toBeVisible();
+
+  page.once("dialog", (d) => void d.accept());
+  await row.getByRole("button", { name: "Delete", exact: true }).click();
+  await expect(row.getByText("from roster", { exact: true })).toBeVisible();
+  await expect(row.getByText("On hold", { exact: true })).toBeVisible();
+  await expect(row).toContainText("EGP 5,000");
+});
+
 test("B-Systems company filter hides Media Buying entirely", async ({ page }) => {
   await login(page, "admin@byteforce.com", "password123", /\/b-systems$/);
 

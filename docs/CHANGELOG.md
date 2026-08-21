@@ -1,5 +1,64 @@
 # Changelog — user-visible changes per phase/release
 
+## Two ways to change someone's pay — and they finally do different things (2026-08-21)
+- You said: *"when I edit an expense of the type of payroll and it is being
+  edited it doesn't automatically edit in the actual payroll roster because it
+  can be because of a deduction or something."*
+- **It should not edit the roster — and now there is a proper way to do what you
+  actually want.** A salary line on Expenses now gives you two buttons, and they
+  mean two different things:
+  - **Edit in roster** — changes his salary **from this month forward**. This
+    month, next month, every month after. That is a raise or a pay cut.
+  - **Adjust this month only** — changes **only this month**. A deduction for
+    days missed, a bonus for a good month. His salary on the roster does not
+    move, and no other month moves. Next month he is back to normal on his own.
+- **Deductions and bonuses can finally be typed in.** Choose Payroll on an
+  expense and two optional boxes appear under the amount: Deduction (EGP) and
+  Bonus (EGP). Until now the only way a deduction could get into the books was
+  by importing your old file — the form never had a place for one, not here and
+  not in the old app either.
+- **"Adjust this month only" fills the form in for you.** The person, his
+  department, the month, and his salary as the starting amount. You type the
+  deduction or the bonus and save. The form tells you, by his name and the
+  month, that you are changing that one month and nothing else.
+- **The row shows its working.** The big number stays what actually leaves the
+  account, and underneath it, quietly: *Base EGP 5,000 − deduction EGP 200*. No
+  more a salary line that disagrees with his salary and will not say why.
+- **Approved stays approved.** If you had already ticked his salary as paid and
+  then adjust the month, it stays ticked — the "Paid this month" figure moves by
+  the 200 you deducted, not by his whole salary. And if you delete the
+  adjustment, his normal salary line comes back **still ticked**, with the date
+  you approved it on. Nothing quietly un-approves itself, in either direction.
+- **Changed your mind? Delete it.** The adjustment is an ordinary row with Edit
+  and Delete. Delete it and his salary line comes straight back from the roster,
+  full amount, that month only.
+- **A typo cannot invent money.** If you type a deduction bigger than the salary
+  plus the bonus, the system refuses it and tells you why. A salary line that
+  goes below zero is not a cheaper month — it would quietly ADD cash to the
+  treasury. The same check now guards your IMPORTED file: if an old line has a
+  deduction bigger than the salary, the import stops and names the line instead
+  of quietly adding money to your books. Nothing is replaced until you fix it.
+- **Nobody can be paid twice for the same month.** If a person already has a
+  payroll line for a month, adding a second one is refused and the message tells
+  you which row to edit. (The "Extra payroll (adds on top)" option is different
+  and still there — that one is a bonus payment on top of a salary, not a
+  replacement for it.)
+- **Only you can un-tick an approval.** Ticking is yours to give and to take
+  back: the ✓ on the row, or setting Status to On hold. Adding an adjustment,
+  moving one to a different month, or moving it to a different person never
+  takes an approval away by itself — and when the adjustment goes, the salary
+  line comes back exactly as approved as you left it, on the date you approved
+  it, not the date you typed the adjustment.
+- **The adjustment form fixes the person and the month.** They are shown but not
+  editable, because they are what the message at the top of the form promises.
+  To adjust a different month or a different person, open that row.
+- **Everything downstream already counts the real number.** The dashboard, the
+  monthly P&L, the department margins, the treasury and accounts payable all use
+  the amount after the deduction or bonus — so a deduction genuinely lowers the
+  month, and a bonus genuinely raises it.
+- **Leave a box empty and it means empty**, not zero — so the file you export
+  for the old app keeps exactly the shape it expects.
+
 ## The ✓ on an accounting row goes green when the row is settled (2026-08-21)
 - You clicked the right sign and said it should turn green. It does now, and it
   **stays** green for as long as the row is settled — so the buttons column on

@@ -14,7 +14,7 @@ import {
   mediaHidden,
   type AcctCompany,
 } from "@/lib/accounting/constants";
-import { memberUpsert, ym } from "@/lib/accounting/engine";
+import { memberAt, memberUpsert, ym } from "@/lib/accounting/engine";
 import { cairoMonth, cairoToday } from "@/lib/accounting/now";
 
 /* ============================================================================
@@ -204,12 +204,135 @@ async function resolveExpenseData(
   };
 }
 
+/* ---------------------------------------------------------------------------
+   ADR-058 — THE SINGLE-OWNER APPROVAL INVARIANT.
+
+   One person-month's payroll approval has exactly ONE owner:
+     · while the salary is DERIVED from the roster — the AcctPayrollPayment mark
+       (engine payrollKey "{month}:{memberId}", toggled from the auto row's ✓);
+     · while a LINKED MANUAL payroll expense covers that person-month — that
+       expense's own paid / paidDate (the auto row is suppressed entirely by
+       autoPayroll's `covered` set, so it contributes no row and no money).
+
+   So the mark is kept as a SHADOW of the covering expense for as long as one
+   covers. The instant coverage ends — deleted, or moved to another month,
+   another person, another type — the derived row that comes back already
+   carries the right approval and its ORIGINAL date. Ownership is transferred on
+   every boundary crossing, never dropped and never duplicated: an approval
+   cannot silently vanish (a month would gain a salary's worth of cash) and
+   cannot silently appear (a month would lose one).
+
+   ACQUIRING coverage therefore never DESTROYS an approval it is not replacing.
+   Only the founder un-approves: the ✓ on the covering row, or its Status set
+   back to On hold in the Edit modal. Everything else — creating a row over a
+   person-month, moving one onto or off one — leaves any mark already on record
+   exactly where it is: PARKED. A parked mark is provably inert while coverage
+   lasts (`autoPayroll`'s `covered` set drops the derived row entirely, so the
+   map is never read for that person-month — the dormant-mark equivalence test
+   compares every total, to the piaster), and it is what the derived row is
+   restored from when coverage ends. Before this rule an unpaid create wiped the
+   mark and the delete could not rebuild it: a whole approved salary left the
+   month's paid spend and re-appeared as treasury cash, unrecoverably.
+
+   The SPA had no transfer at all: creating a linked row orphaned the mark, and
+   deleting it resurrected the derived row from whatever the orphan last said,
+   possibly months stale. This is a deliberate correction, not a port.
+   ------------------------------------------------------------------------- */
+type PayrollShadow = {
+  company: string;
+  type: string;
+  month: string;
+  rosterId: string | null;
+  paid: boolean;
+  paidDate: string | null;
+};
+
+/** Does the ROSTER actually post a salary for this person-month? A covering row
+    for a month the roster does not pay (inactive, or before the person's first
+    segment) has no derived row to hand an approval back to, so a mark written
+    there is an orphan — and making that person active over that month later
+    would materialise an already-approved salary nobody ticked. */
+async function rosterPostsSalary(
+  tx: Parameters<typeof writeLog>[0],
+  memberId: string,
+  month: string,
+): Promise<boolean> {
+  const member = await tx.acctRosterMember.findUnique({
+    where: { id: memberId },
+    include: { segments: true },
+  });
+  if (!member) return false;
+  const at = memberAt(member, month);
+  return at.active && at.salary > 0;
+}
+
+async function shadowPayrollMark(
+  tx: Parameters<typeof writeLog>[0],
+  row: PayrollShadow,
+  /** the founder DELIBERATELY un-approved this covering row (its ✓, or Status →
+      On hold). The ONLY way a mark is ever deleted. */
+  opts: { unapprove?: boolean } = {},
+): Promise<void> {
+  if (row.type !== "payroll" || !row.rosterId) return; // unlinked = extra on top
+  const memberId = row.rosterId;
+  if (row.paid) {
+    if (!(await rosterPostsSalary(tx, memberId, row.month))) return; // no orphans
+    await tx.acctPayrollPayment.upsert({
+      where: { memberId_month: { memberId, month: row.month } },
+      create: {
+        company: row.company,
+        memberId,
+        month: row.month,
+        paidDate: row.paidDate ?? cairoToday(),
+      },
+      /* an approval already on record keeps ITS OWN date — the day that
+         person-month was approved, never the day an override was typed */
+      update: {},
+    });
+  } else if (opts.unapprove) {
+    await tx.acctPayrollPayment.deleteMany({ where: { memberId, month: row.month } });
+  }
+}
+
+/* ADR-058 — ONE covering row per person-month. `autoPayroll`'s `covered` set
+   drops the DERIVED row once, but `monthExpenses` emits every stored row, so a
+   second linked payroll row for the same (person, month) would pay that person
+   twice out of one month — in the totals, the P&L, the department margins and
+   the treasury alike. The engine cannot tell the two apart after the fact; the
+   write path refuses the second one, naming the row that already exists. */
+async function refuseSecondCoveringRow(
+  tx: Parameters<typeof writeLog>[0],
+  input: ExpenseInput,
+  rosterId: string | null,
+  selfId: string | null,
+): Promise<void> {
+  if (input.type !== "payroll" || !rosterId) return;
+  const clash = await tx.acctExpense.findFirst({
+    where: {
+      company: input.company,
+      type: "payroll",
+      rosterId,
+      month: input.month,
+      ...(selfId ? { id: { not: selfId } } : {}),
+    },
+  });
+  if (clash) {
+    throw new ApiError(
+      400,
+      `${clash.name || "That person"} already has a payroll row for ${input.month} — edit that row instead of adding a second one.`,
+    );
+  }
+}
+
 export async function createExpense(input: ExpenseInput, actor: Actor) {
   refuseMediaFor(input.company, input.type === "media");
   return db.$transaction(async (tx) => {
-    const row = await tx.acctExpense.create({
-      data: (await resolveExpenseData(tx, input)) as never,
-    });
+    const data = await resolveExpenseData(tx, input);
+    await refuseSecondCoveringRow(tx, input, data.rosterId as string | null, null);
+    const row = await tx.acctExpense.create({ data: data as never });
+    /* a create ACQUIRES coverage — it may write the approval it is carrying,
+       never destroy one it found (that is the founder's ✓ to give up) */
+    await shadowPayrollMark(tx, row);
     await logAndSeal(tx, actor, "acct_expense", row.id, "create", "acct_expense_create");
     return row;
   });
@@ -220,10 +343,32 @@ export async function updateExpense(id: string, input: ExpenseInput, actor: Acto
   return db.$transaction(async (tx) => {
     const existing = await tx.acctExpense.findUnique({ where: { id } });
     if (!existing || existing.company !== input.company) throw new ApiError(404, "Expense not found");
-    const data = (await resolveExpenseData(tx, input)) as { paid: boolean; paidDate: string | null };
+    const data = (await resolveExpenseData(tx, input)) as {
+      paid: boolean;
+      paidDate: string | null;
+      rosterId: string | null;
+    };
     /* keep the original approval date when the row was and stays paid */
     if (existing.paid && input.paid) data.paidDate = existing.paidDate;
+    await refuseSecondCoveringRow(tx, input, data.rosterId, id);
     const row = await tx.acctExpense.update({ where: { id }, data: data as never });
+    /* ADR-058 — if this row stops covering the person-month it used to cover
+       (moved month, moved person, or no longer payroll), hand that approval
+       back to the derived row with the state THIS row was carrying; then
+       shadow whatever it covers now. */
+    const stillCovers =
+      existing.type === "payroll" &&
+      existing.rosterId !== null &&
+      row.type === "payroll" &&
+      row.rosterId === existing.rosterId &&
+      row.month === existing.month;
+    if (!stillCovers) await shadowPayrollMark(tx, existing);
+    /* the ONE un-approval an edit can express: this row still covers the same
+       person-month and its Status went Paid → On hold. Any other shape of edit
+       acquires coverage and leaves a mark already on record parked. */
+    await shadowPayrollMark(tx, row, {
+      unapprove: stillCovers && existing.paid && !row.paid,
+    });
     await logAndSeal(tx, actor, "acct_expense", id, "update", "acct_expense_update");
     return row;
   });
@@ -238,6 +383,9 @@ export async function toggleExpensePaid(id: string, company: AcctCompany, actor:
       where: { id },
       data: existing.paid ? { paid: false, paidDate: null } : { paid: true, paidDate: cairoToday() },
     });
+    /* ADR-058 — the shadow tracks the toggle too, and THIS is the deliberate
+       un-approval: the founder clicked the ✓ off himself */
+    await shadowPayrollMark(tx, row, { unapprove: true });
     await logAndSeal(
       tx,
       actor,
@@ -255,6 +403,14 @@ export async function deleteExpense(id: string, company: AcctCompany, actor: Act
     const existing = await tx.acctExpense.findUnique({ where: { id } });
     if (!existing || existing.company !== company) throw new ApiError(404, "Expense not found");
     await tx.acctExpense.delete({ where: { id } });
+    /* ADR-058 — the derived roster row comes back for this month; it must come
+       back with the approval this row was carrying. Redundant while the shadow
+       holds, and deliberately explicit anyway: a row IMPORTED from the old app
+       never had a shadow written, and deleting it must not lose its approval
+       (nothing cascades here — AcctPayrollPayment cascades on the MEMBER).
+       A release never un-approves: an unpaid row leaves whatever was parked
+       before it took over, which is precisely the state it interrupted. */
+    await shadowPayrollMark(tx, existing);
     await logAndSeal(tx, actor, "acct_expense", id, "delete", "acct_expense_delete");
   });
 }

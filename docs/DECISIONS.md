@@ -2518,3 +2518,189 @@ ADR" below.
   response carries `pendingMigrations` and `e2e/health.spec.ts` asserts it is
   empty. `PP-4a` remains the portal_rep row id while the CARD's move
   is logged `PA-4`; that asymmetry is intentional and documented here.
+
+## ADR-058 — 2026-08-21 — One month of a person's pay: a LINKED MANUAL EXPENSE that replaces the derived row, never a roster edit
+- Context: the founder, on the accounting expenses screen: *"when I edit an
+  expense of the type of payroll and it is being edited it doesn't automatically
+  edit in the actual payroll roster because it can be because of a deduction or
+  something"*. He wants to move ONE MONTH of one person's pay — a deduction for
+  days missed, a bonus — and he had noticed the two do not connect.
+  They must not connect. Editing the roster is the WRONG tool for this and the
+  engine says so: `memberUpsert` writes an effective-dated segment and
+  `memberAt` reads the latest segment whose `from ≤ month`, so a roster change
+  made in March applies to March *and every month after it, permanently*. That
+  is the right behaviour for a raise and the wrong behaviour for one month's
+  deduction. The SPA's own Roster page already words it: *"A raise or removal
+  applies from the month you set it — earlier months stay as they were."*
+- Decision 1 — TWO PAYROLL PATHS, NAMED AS OPPOSITES, BOTH ON THE ROW.
+  A derived salary row now carries both, side by side:
+  · **"Edit in roster"** (unchanged text; the e2e asserts it byte-identically)
+    — *"Changes the salary in the roster from this month FORWARD — this month
+    and every month after it."* Only its `title` is new; a link takes its
+    accessible name from its text, so nothing the suite reads moved.
+  · **"Adjust this month only"** (new) — *"Add a deduction or a bonus for THIS
+    MONTH ONLY. The roster salary, and every other month, stay exactly as they
+    are."* It opens the expense modal PREFILLED to create the linked override:
+    type payroll, that person, that month, the derived salary as the base,
+    deduction and bonus empty, and the modal itself states, by name and month,
+    which path he is in.
+  **AND IN ARABIC TOO** (amended after review): the first cut opened both
+  labels with the same word — «تعديل في كشف الرواتب» and «تعديل هذا الشهر
+  فقط» — so in RTL the reader hit the identical verb first on each of two
+  adjacent controls, while English separates them at word one. The override now
+  leads with its distinguishing NOUN: «خصم أو مكافأة — هذا الشهر فقط». The
+  English label is byte-identical to what shipped (an e2e reads it).
+  The modal's two prefilled facts — the PERSON and the MONTH — are also the two
+  the banner states by name, so they render LOCKED (`disabled`, with a hint
+  saying why, and `.field-input:disabled` given a token-driven look in all three
+  scopes). Leaving the month editable while the banner froze its value at open
+  time let the banner describe the opposite of what the save did, and a Paid
+  state carried over from the derived row would ride into a month nobody
+  approved. Change the Type away from payroll and it stops being an override:
+  the banner goes and both fields open up.
+  This is not new vocabulary: the mechanism was already named by the original
+  SPA, on the Person dropdown of this very form — *"Pick a person only if this
+  should REPLACE their automatic salary for this month."* (index.html:1506,
+  already in our dictionary as `acct.personHint` with real Arabic). The new
+  button is a SHORTCUT to a concept the founder has already been shown, not a
+  second concept. The original put both payroll paths on this row too
+  (index.html:1443-1447), so the placement is the SPA's own.
+- Decision 2 — DEDUCTION AND BONUS BECOME WRITABLE, FOR THE FIRST TIME IN
+  EITHER APP. `AcctExpense.deduction` / `.bonus` have existed since the
+  accounting migration and `expenseAmount()` has always netted them
+  (`payroll net = base − deduction + bonus`), but NOTHING could write one: the
+  form body carried ten keys and neither of these, so a deduction could only
+  ever arrive by IMPORTING the old file. And the original had no field either —
+  a full grep of `Accounting/` for /deduction|bonus/i returns four hits, two in
+  the engine and two using the WORD "bonus" in prose. So this is NEW work, not
+  parity work: there is no original layout to copy, and no migration to write
+  (the columns predate this change; `migration.sql:35-36`).
+- Decision 3 — THE ROW SHOWS ITS WORKING, IN THE ORIGINAL'S DENSITY.
+  The SPA's amount cell printed the NET only, on every screen, with no
+  breakdown anywhere; its one per-row annotation idiom is a small muted note
+  beside the row. So the net stays the headline number and gains a muted
+  second line — `Base EGP 5,000 − deduction EGP 200 + bonus EGP 50` — instead
+  of a new multi-column layout. A salary line that disagrees with the salary
+  must be able to say why. Flagged in PROGRESS as **needs founder
+  confirmation**: the presentation is ours, because the original had none.
+- Decision 4 — THE SINGLE-OWNER APPROVAL INVARIANT (the paid-state trap).
+  A derived salary's approval lives in `AcctPayrollPayment` (the SPA's
+  `payrollPaid` map, keyed `{month}:{memberId}`); a manual row's lives on the
+  row. For any (person, month) the approval has **exactly one owner**: the mark
+  while the salary is DERIVED, the covering linked expense's own `paid` while an
+  override exists. The mark is therefore kept as a **shadow** of the covering
+  expense for as long as one covers — written on create, on update, on the ✓
+  toggle, and explicitly again on delete — so that the moment coverage ends the
+  derived row that returns already carries the right approval **and its original
+  approval date**, never today's. Ownership is transferred at every boundary,
+  never dropped and never duplicated.
+  **ONLY THE FOUNDER UN-APPROVES** (amended after review, same session): the
+  shadow's delete branch fires on exactly two acts — the ✓ on the covering row,
+  and its Status set back to On hold on a row that still covers the same
+  person-month. Every other write ACQUIRES coverage (a create; a move onto a
+  person-month) and must **park** whatever mark it finds, never delete it. The
+  first cut deleted on acquire, and that was a money-losing regression: with
+  "+ Add expense → Payroll → pick a person" shipping Status = On hold, one save
+  destroyed that person-month's approval, and the delete could not rebuild it —
+  a full salary left the month's paid spend and re-appeared as treasury cash
+  (measured: paidExpenseIn 500,000 → 0, and 0 again after the delete). A parked
+  mark is provably inert while covered (consequence v), so parking costs
+  nothing and is the only state the release step can restore from.
+  Consequences, each one tested:
+  (i)   PAID auto → override: the modal prefills Status = Paid, so an approved
+        salary cannot silently become On hold. The tile moves by the DEDUCTION,
+        never by a whole salary.
+  (ii)  Overriding a paid row *deliberately* as On hold un-approves the MONTH —
+        the covering row owns the state and the month's paid spend drops on
+        screen — but the mark is PARKED, not deleted: creating a row over a
+        person-month is not an act of un-approval. Say it in as many words (the
+        ✓, or Status → On hold on an existing covering row) and the mark goes,
+        and stays gone through the delete.
+  (iii) Deleting a PAID override returns the derived row PAID **with the date
+        that person-month was approved on** — the parked mark's own date when
+        one was already on record (the upsert re-asserts, it never re-dates),
+        and the override's own `paidDate` only when the approval originated on
+        the override. Deleting an UNPAID one returns whatever was parked, which
+        is precisely the state the override interrupted.
+  (iv)  Moving an override to another month, another person, or off payroll
+        releases the old person-month carrying the state the override had, then
+        shadows the new one — parking, never destroying, at the new end.
+  (v)   NO DOUBLE COUNT is possible, and it is now ENFORCED rather than
+        asserted. `autoPayroll`'s `covered` set drops the derived row entirely
+        while an override exists, so a dormant mark contributes no row and no
+        money (proven by comparing every total with and without the mark, to the
+        piaster) — but `covered` is a Set of rosterIds and `monthExpenses`
+        emits every STORED row, so TWO linked payroll rows for one person-month
+        would each count a full salary (measured before the fix: 2 rows,
+        paidExpenseIn 1,000,000 for one 5,000 EGP salary). `createExpense` and
+        `updateExpense` now refuse the second one and name the row that already
+        exists. The unlinked "extra payroll" row is untouched — it adds on top
+        by design and claims nobody's salary.
+  (vi)  NO ORPHAN MARK. The shadow writes only when the roster actually posts a
+        salary for that person-month (`memberAt().active && salary > 0`). A paid
+        override for a month the roster does not pay has no derived row to hand
+        an approval to; a mark written there survives the delete and would make
+        the salary materialise ALREADY APPROVED the day that person is made
+        active over that month (measured: paidExpenseIn 0 → 500,000 with nobody
+        having ticked anything).
+  The SPA had **no transfer at all**: creating a linked row orphaned the mark,
+  and deleting it resurrected the derived row from whatever the orphan last
+  said, possibly months stale. This is a deliberate CORRECTION of the reference
+  app, not a port of it.
+- Decision 5 — A NEGATIVE NET IS REFUSED SERVER-SIDE, **ON BOTH PATHS**.
+  `expenseAmount` has no floor, so a deduction larger than base + bonus makes
+  the row's net negative: the month's paid spend goes DOWN, net profit UP, and
+  the treasury GAINS cash from an expense — a typo would fabricate money.
+  `expenseSchema` refuses it (*"A deduction cannot be larger than the salary
+  plus the bonus."*), with a net of exactly zero allowed. The original had no
+  guard here either.
+  The IMPORT needed the same floor and did not have it (added after review):
+  the import is the only path that has EVER populated these two columns, so it
+  is the only path a negative net could ever have entered by — a file with
+  `{amount: 5000, deduction: 9000}` imported cleanly and produced a paid
+  expense of −400,000 piasters, i.e. one that ADDS EGP 4,000 to paid spend, net
+  profit and the treasury. `zExpense` now refuses that line by name and month,
+  **loudly and before the REPLACE transaction runs**, exactly as an
+  out-of-range amount already is (`egpToPiasters`) — clamping would silently
+  rewrite the founder's own historical totals, and the import's whole job is
+  that its `verify` numbers reconcile against the old app. Individually
+  negative components that still net ≥ 0 (`5000 − (−1000) + (−2000) = 4000`)
+  import UNTOUCHED for the same reason: that is what the old app displayed.
+- Decision 6 — CLEARING A FIELD STORES NULL, NOT 0. The exporter omits the key
+  entirely when the value is null, and `export.integration.test.ts` asserts the
+  key is never present-but-null. Writing 0 would start emitting
+  `deduction: 0` on every payroll row and change the document shape the old app
+  reads. The form reads optional money through `egpOrNull`, never `egp`, whose
+  `|| "0"` fallback folds blank to zero. A typed 0 is still a real 0.
+- Consequences:
+  · `resolveExpenseData` now writes both keys on every create AND update, so an
+    edit is AUTHORITATIVE. Until now a PATCH omitted them and Prisma left an
+    imported deduction alone by accident. That makes the DTO and the modal
+    prefill load-bearing: without them the first edit of an imported payroll row
+    would silently zero its deduction and the month's cost would jump. Guarded
+    by an integration test that imports the legacy row (deduction 100 /
+    bonus 50) and PATCHes it with the exact body the modal sends unchanged.
+  · The override prefill carries the derived row's `serviceLine`. It must:
+    `departments()` buckets cost by that field, so an override created with a
+    blank department would silently move a whole salary out of its department
+    into shared Overhead and change every margin on the page. Tested by bucket,
+    not just by total.
+  · `dashboard().committedSalary` reads `memberAt()` off the ROSTER and
+    deliberately does NOT move when an override exists. That is the proof the
+    roster was not touched, not a bug to fix.
+  · The prefill blanks the derived row's note ("Salary (from roster)") — that
+    is exactly what the row stops being, and the blank is where the reason for
+    the adjustment goes.
+  · Non-payroll rows have both fields forced to null on write, so a stray value
+    can never ride a rent row into the export.
+  · The mark write is silent inside the expense's own transaction: the
+    ActivityLog entry for the expense records the cause, and a second entry for
+    a derived consequence would read as a second user action.
+  · KNOWN, UNCHANGED: deleting a roster member cascades their marks
+    (`AcctPayrollPayment.member onDelete: Cascade`) while `AcctExpense.rosterId`
+    is `SetNull`, so an override survives as an unlinked extra payroll row and
+    keeps counting. Existing behaviour, recorded here so it is a known answer.
+  · DEFERRED: the SPA opened the roster form INLINE on the expenses page,
+    pre-scoped to the viewed month (`asOf={month}`); our port links away to
+    `/accounting/roster`. Closer to the original, but a separate change around
+    the same code — logged, not bundled.

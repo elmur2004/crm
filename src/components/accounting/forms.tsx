@@ -3,7 +3,7 @@
 import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { tFor, type Msg } from "@/lib/i18n/core";
+import { formatMsg, tFor, type Msg } from "@/lib/i18n/core";
 import { useLocale } from "@/components/shared/LocaleProvider";
 import { formatEGP, toPiasters, toPounds } from "@/lib/money";
 import { acct } from "@/lib/i18n/dict/accounting";
@@ -18,6 +18,7 @@ import {
   type AcctCompany,
 } from "@/lib/accounting/constants";
 import { acctQuery } from "@/lib/accounting/params";
+import { monthLabel } from "@/lib/accounting/format";
 
 /* ADR-052 Phase 2 — every accounting modal + row action, composed from the
    design system's modal/field/button classes. Amounts are typed in EGP and
@@ -425,22 +426,37 @@ function ExpenseModal({
   month,
   roster,
   initial,
+  prefill,
   onClose,
 }: {
   company: AcctCompany;
   month: string;
   roster: RosterOption[];
+  /** a STORED row being edited — its presence is what makes this a PATCH */
   initial: ExpenseRowDto | null;
+  /** ADR-058 — seed the form but still CREATE: the month-only payroll override,
+      prefilled from the derived roster row it is about to replace. */
+  prefill?: ExpenseRowDto | null;
   onClose: () => void;
 }) {
-  const t = tFor(useLocale());
+  const locale = useLocale();
+  const t = tFor(locale);
   const { busy, error, run } = useAction();
-  const [type, setType] = useState(initial?.type ?? "subscription");
-  const [paid, setPaid] = useState(initial?.paid ?? false);
+  const seed = initial ?? prefill ?? null;
+  const override = !initial && !!prefill;
+  const [type, setType] = useState(seed?.type ?? "subscription");
+  const [paid, setPaid] = useState(seed?.paid ?? false);
+  /* ADR-058 — while this really is the month-only override, the PERSON and the
+     MONTH are the two facts the banner states and the two the derived row being
+     replaced is made of. They are locked, so the banner can never describe a
+     save that lands somewhere else (a carried-over Paid riding into a month
+     nobody approved). Change the type away from payroll and it stops being an
+     override — the banner goes and both fields open up. */
+  const locked = override && !!seed && type === "payroll";
   const submit = (fd: FormData) => {
     const body = {
       company,
-      month: String(fd.get("month") || month),
+      month: locked ? seed.month : String(fd.get("month") || month),
       type,
       name: String(fd.get("name") || ""),
       serviceLine: String(fd.get("serviceLine") || ""),
@@ -449,7 +465,12 @@ function ExpenseModal({
       bonus: type === "payroll" ? egpOrNull(fd, "bonus") : null,
       note: String(fd.get("note") || ""),
       paid,
-      rosterId: type === "payroll" ? String(fd.get("rosterId") || "") || null : null,
+      rosterId:
+        type !== "payroll"
+          ? null
+          : locked
+            ? seed.rosterId
+            : String(fd.get("rosterId") || "") || null,
     };
     void run(
       initial
@@ -462,13 +483,26 @@ function ExpenseModal({
   };
   return (
     <AcctModal
-      title={t(initial ? acct.editExpense : acct.addExpense)}
+      title={t(override ? acct.adjustThisMonth : initial ? acct.editExpense : acct.addExpense)}
       onClose={onClose}
       onSubmit={submit}
       busy={busy}
       error={error}
       submitLabel={t(acct.save)}
     >
+      {/* ADR-058 — the modal SAYS which of the two payroll paths you are in.
+          The other one, "Edit in roster", moves the salary from this month
+          forward; this one touches one month and nothing else. */}
+      {locked ? (
+        <p className="info-banner field--wide">
+          {t(
+            formatMsg(acct.adjustBanner, {
+              name: seed.name,
+              month: { en: monthLabel(seed.month, "en"), ar: monthLabel(seed.month, "ar") },
+            }),
+          )}
+        </p>
+      ) : null}
       <Field label={t(acct.type)}>
         <select className="field-input" value={type} onChange={(e) => setType(e.target.value)}>
           {ACCT_EXPENSE_TYPES.filter((x) => x !== "media" || !mediaHidden(company)).map((x) => (
@@ -479,13 +513,18 @@ function ExpenseModal({
         </select>
       </Field>
       <Field label={t(acct.deptOptional)} hint={t(acct.overheadHint)}>
-        <select name="serviceLine" className="field-input" defaultValue={initial?.serviceLine ?? ""}>
+        <select name="serviceLine" className="field-input" defaultValue={seed?.serviceLine ?? ""}>
           <DeptOptions blankLabel={acct.overheadOption} company={company} />
         </select>
       </Field>
       {type === "payroll" ? (
-        <Field label={t(acct.personOptional)} hint={t(acct.personHint)} wide>
-          <select name="rosterId" className="field-input" defaultValue={initial?.rosterId ?? ""}>
+        <Field label={t(acct.personOptional)} hint={t(locked ? acct.lockedToPersonHint : acct.personHint)} wide>
+          <select
+            name="rosterId"
+            className="field-input"
+            defaultValue={seed?.rosterId ?? ""}
+            disabled={locked}
+          >
             <option value="">{t(acct.extraPayrollOption)}</option>
             {roster.map((r) => (
               <option key={r.id} value={r.id}>
@@ -496,7 +535,7 @@ function ExpenseModal({
         </Field>
       ) : null}
       <Field label={t(acct.namePayee)} wide>
-        <input name="name" className="field-input" defaultValue={initial?.name ?? ""} placeholder={t(acct.payeePlaceholder)} />
+        <input name="name" className="field-input" defaultValue={seed?.name ?? ""} placeholder={t(acct.payeePlaceholder)} />
       </Field>
       <Field label={t(acct.amountEgp)}>
         <input
@@ -507,7 +546,7 @@ function ExpenseModal({
           required
           dir="ltr"
           className={amountInput}
-          defaultValue={initial ? toPounds(initial.amount) : ""}
+          defaultValue={seed ? toPounds(seed.amount) : ""}
         />
       </Field>
       {/* ADR-058 — the one-month adjustment, read straight after the base so a
@@ -523,7 +562,7 @@ function ExpenseModal({
               min="0"
               dir="ltr"
               className={amountInput}
-              defaultValue={initial?.deduction != null ? toPounds(initial.deduction) : ""}
+              defaultValue={seed?.deduction != null ? toPounds(seed.deduction) : ""}
             />
           </Field>
           <Field label={t(acct.bonusEgpOptional)} hint={t(acct.bonusHint)}>
@@ -534,16 +573,23 @@ function ExpenseModal({
               min="0"
               dir="ltr"
               className={amountInput}
-              defaultValue={initial?.bonus != null ? toPounds(initial.bonus) : ""}
+              defaultValue={seed?.bonus != null ? toPounds(seed.bonus) : ""}
             />
           </Field>
         </>
       ) : null}
-      <Field label={t(acct.belongsToMonth)}>
-        <input name="month" type="month" dir="ltr" className="field-input" defaultValue={initial?.month ?? month} />
+      <Field label={t(acct.belongsToMonth)} hint={locked ? t(acct.lockedToMonthHint) : undefined}>
+        <input
+          name="month"
+          type="month"
+          dir="ltr"
+          className="field-input"
+          defaultValue={seed?.month ?? month}
+          disabled={locked}
+        />
       </Field>
       <Field label={t(acct.note)} wide>
-        <input name="note" className="field-input" defaultValue={initial?.note ?? ""} />
+        <input name="note" className="field-input" defaultValue={seed?.note ?? ""} />
       </Field>
       <Field label={t(acct.status)} hint={t(acct.statusHint)}>
         <select className="field-input" value={String(paid)} onChange={(e) => setPaid(e.target.value === "true")}>
@@ -592,6 +638,7 @@ export function ExpenseActions({
   const t = tFor(useLocale());
   const { busy, error, run } = useAction();
   const [editing, setEditing] = useState(false);
+  const [adjusting, setAdjusting] = useState(false);
   const togglePaid = () =>
     row.auto
       ? void run("/api/accounting/payroll-paid", "POST", {
@@ -614,13 +661,28 @@ export function ExpenseActions({
         onClick={togglePaid}
       />
       {row.auto ? (
-        <Link
-          className="row-toggle row-toggle--restore inline-flex items-center"
-          href={`/accounting/roster${acctQuery({ company, month })}`}
-          title={t(acct.editInRoster)}
-        >
-          {t(acct.editInRoster)}
-        </Link>
+        /* ADR-058 — a derived salary row offers BOTH payroll paths, and the two
+           are worded as opposites. The link's TEXT is untouched (an e2e asserts
+           it, and a link takes its accessible name from its text, not its
+           title), so only the hover hint gains the "from this month FORWARD"
+           consequence it never stated. */
+        <>
+          <Link
+            className="row-toggle row-toggle--restore inline-flex items-center"
+            href={`/accounting/roster${acctQuery({ company, month })}`}
+            title={t(acct.editInRosterHint)}
+          >
+            {t(acct.editInRoster)}
+          </Link>
+          <button
+            type="button"
+            className="row-toggle row-toggle--restore"
+            title={t(acct.adjustThisMonthHint)}
+            onClick={() => setAdjusting(true)}
+          >
+            {t(acct.adjustThisMonth)}
+          </button>
+        </>
       ) : (
         <>
           <button type="button" className="row-toggle row-toggle--restore" onClick={() => setEditing(true)}>
@@ -640,6 +702,22 @@ export function ExpenseActions({
       )}
       {editing ? (
         <ExpenseModal company={company} month={row.month} roster={roster} initial={row} onClose={() => setEditing(false)} />
+      ) : null}
+      {/* the derived row IS the prefill: its person, department, month and
+          salary, with the adjustments left empty for him to fill. The note is
+          cleared — "Salary (from roster)" is exactly what this row stops being,
+          and the blank is where the REASON for the adjustment goes. Its derived
+          id ("pay:{month}:{memberId}") is never sent: initial stays null, so
+          submit() POSTs a new row. */}
+      {adjusting ? (
+        <ExpenseModal
+          company={company}
+          month={row.month}
+          roster={roster}
+          initial={null}
+          prefill={{ ...row, note: "" }}
+          onClose={() => setAdjusting(false)}
+        />
       ) : null}
     </span>
   );
