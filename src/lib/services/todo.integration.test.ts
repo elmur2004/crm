@@ -238,7 +238,7 @@ describe("To-Do aggregation (ADR-041)", () => {
         companyName: "Prospect Co",
         number: "0100000001",
         businessActivity: "Consulting",
-        stage: "following_up",
+        stage: "contacted",
       },
     });
     await db.followUp.create({
@@ -369,11 +369,18 @@ describe("cairoDayWindow DST boundaries (hardening)", () => {
   });
 });
 
-/* ADR-057 — the silent-loss guard. An agent's dated follow-up lives in
-   `contacted`, not `following_up`; if the To-Do query is ever narrowed back to
-   the partner literal, every agent follow-up drops off the admin's most-used
-   screen with no error, no log and no empty state. */
-describe("To-Do carries BOTH kinds of prospect follow-up (ADR-057)", () => {
+/* ADR-059 — founder item 2.1: "Agents/Partners moved to Contacted should not
+   automatically be treated as Follow Up tasks. Currently, Contacted leads are
+   appearing in the To-Do List as Follow Up, which is incorrect. Contacted
+   should only indicate that contact has been made unless an actual Follow Up
+   task is required."
+
+   The projection is now driven by the RECORD, never by the stage. These are the
+   two guards that keeps it honest in BOTH directions: a Contacted card with no
+   follow-up must produce nothing, and a card that DOES carry a recorded
+   follow-up must still surface — from any active column — or prospect
+   follow-ups silently vanish from the admin's most-used screen. */
+describe("A follow-up is a RECORD, never a column (ADR-059)", () => {
   async function prospect(kind: string, stage: string, name: string) {
     return db.partnerProspect.create({
       data: {
@@ -400,14 +407,24 @@ describe("To-Do carries BOTH kinds of prospect follow-up (ADR-057)", () => {
     });
   }
 
-  it("an AGENT in Contacted and a PARTNER in Following Up both surface, titled their own way", async () => {
+  const prospectRows = async () => {
+    const lists = await todoFor({ brand: "bsystems", scope: { kind: "all" }, now: NOW });
+    return [...lists.today, ...lists.overdue].filter((i) => i.kind === "prospect_follow_up");
+  };
+
+  it("a Contacted card with NO recorded follow-up produces NOTHING — either kind", async () => {
+    await prospect("agent", "contacted", "Silent Agent");
+    await prospect("partner", "contacted", "Silent");
+    expect(await prospectRows()).toEqual([]);
+  });
+
+  it("once a follow-up is actually recorded, the row appears — titled its own way", async () => {
     const agent = await prospect("agent", "contacted", "Mounir Fahmy");
     await prospectFollowUp(agent.id, cairoToUtc("2026-08-20", "10:00"));
-    const partner = await prospect("partner", "following_up", "Nile");
+    const partner = await prospect("partner", "contacted", "Nile");
     await prospectFollowUp(partner.id, cairoToUtc("2026-08-20", "11:00"));
 
-    const lists = await todoFor({ brand: "bsystems", scope: { kind: "all" }, now: NOW });
-    const rows = lists.today.filter((i) => i.kind === "prospect_follow_up");
+    const rows = await prospectRows();
     /* the agent IS the card, so his own name titles the row; a partner card
        still reads as its company */
     expect(rows.map((r) => r.title).sort()).toEqual(["Mounir Fahmy", "Nile Co"]);
@@ -417,8 +434,22 @@ describe("To-Do carries BOTH kinds of prospect follow-up (ADR-057)", () => {
     }
   });
 
-  it("the latest-record rule survives the rename, and terminal agent cards produce nothing", async () => {
-    /* a newer meeting supersedes the follow-up — no row, exactly as for partners */
+  it("a recorded follow-up surfaces from Lead and from Waiting too, not only Contacted", async () => {
+    for (const [stage, name] of [
+      ["lead", "Early Bird"],
+      ["waiting", "Holding Pattern"],
+    ] as const) {
+      const p = await prospect("agent", stage, name);
+      await prospectFollowUp(p.id, cairoToUtc("2026-08-20", "10:00"));
+    }
+    expect((await prospectRows()).map((r) => r.title).sort()).toEqual([
+      "Early Bird",
+      "Holding Pattern",
+    ]);
+  });
+
+  it("the terminals stay out, and a newer meeting still supersedes the follow-up", async () => {
+    /* a newer meeting supersedes the follow-up — no row */
     const superseded = await prospect("agent", "contacted", "Superseded Agent");
     await prospectFollowUp(
       superseded.id,
@@ -434,17 +465,52 @@ describe("To-Do carries BOTH kinds of prospect follow-up (ADR-057)", () => {
       },
     });
 
+    /* the two terminal columns: a stale follow-up on a qualified or lost card
+       owes nobody a call and must not nag for ever */
     for (const [stage, name] of [
       ["qualified", "Qualified Agent"],
       ["lost", "Lost Agent"],
-      ["lead", "Lead Agent"],
     ] as const) {
       const p = await prospect("agent", stage, name);
       await prospectFollowUp(p.id, cairoToUtc("2026-08-20", "10:00"));
     }
 
+    expect(await prospectRows()).toEqual([]);
+  });
+
+  /* SPEC 7.2c / PP-8 - "Record a follow-up" is offered from EVERY active stage
+     and the To-Do is driven by "the existence of the record, never by the column
+     the card sits in". Didn't Answer is an ACTIVE stage, so a call-back
+     deliberately recorded there is exactly as real as one recorded from Lead.
+     (Reviewer, Run 061: the projection filtered it out by COLUMN, so the action
+     was offered and the record it wrote then went nowhere.) */
+  it("PP-8: a follow-up recorded on a Didn't Answer card reaches the To-Do", async () => {
+    const p = await prospect("agent", "didnt_answer", "Unreachable");
+    await prospectFollowUp(p.id, cairoToUtc("2026-08-20", "10:00"));
+    expect((await prospectRows()).map((r) => r.title)).toEqual(["Unreachable"]);
+  });
+
+  /* the other half of the same reversal: `follow_up_again` is offered from
+     Meeting Setting too now, so the two records must not compete. An arranged,
+     unresolved meeting is a commitment on a date of its own - recording a call
+     for Tuesday must never take Thursday's meeting off the founder's screen. */
+  it("PP-8: a follow-up recorded on a meeting card stands BESIDE the meeting", async () => {
+    const p = await prospect("partner", "meeting_setting", "Both");
+    await db.meeting.create({
+      data: {
+        partnerProspectId: p.id,
+        arranged: true,
+        datetime: cairoToUtc("2026-08-20", "16:00"),
+        createdAt: cairoToUtc("2026-08-18", "09:00"),
+      },
+    });
+    await prospectFollowUp(
+      p.id,
+      cairoToUtc("2026-08-20", "10:00"),
+      cairoToUtc("2026-08-19", "09:00"),
+    );
     const lists = await todoFor({ brand: "bsystems", scope: { kind: "all" }, now: NOW });
-    expect(lists.today.filter((i) => i.kind === "prospect_follow_up")).toEqual([]);
-    expect(lists.overdue.filter((i) => i.kind === "prospect_follow_up")).toEqual([]);
+    const rows = [...lists.today, ...lists.overdue].filter((i) => i.kind.startsWith("prospect_"));
+    expect(rows.map((r) => r.kind).sort()).toEqual(["prospect_follow_up", "prospect_meeting"]);
   });
 });

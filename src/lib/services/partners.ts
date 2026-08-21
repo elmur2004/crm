@@ -1,18 +1,17 @@
 import { z } from "zod";
 import { db } from "@/lib/db";
-import {
-  PROSPECT_KINDS,
-  partnersConfig,
-  partnersConfigFor,
-} from "@/lib/pipeline-engine/configs/partners";
+import { PROSPECT_KINDS, partnersConfigFor } from "@/lib/pipeline-engine/configs/partners";
 import { transition } from "@/lib/pipeline-engine/transition";
 import type { EngineEvent } from "@/lib/pipeline-engine/types";
 import { isSameStageAction, type Role, type SameStageAction } from "@/lib/pipeline-engine/constants";
 import { ApiError } from "@/lib/api-error";
 import {
+  agentAccountSchema,
   groupPayloadSchema,
+  partnerLoginSchema,
+  type AgentAccountInput,
   type GroupPayload,
-  type WonAgentInput,
+  type PartnerLoginInput,
   type WonPartnerInput,
 } from "./groups";
 import { persistGroup } from "./leads";
@@ -33,16 +32,20 @@ import { stageLabel } from "@/lib/i18n/dict/labels";
 import { undoLabels } from "@/lib/i18n/dict/undo";
 
 /* App B Partners & Agents pipeline (§7.2–§7.3, §10.2). applyProspectEvent mirrors
-   applyLeadEvent on the partners config; updateProspect fires PP-2's auto-return
-   when a new number lands on a Didn't-Answer card; the PP-4 completeness gate is
+   applyLeadEvent on the prospect config; updateProspect fires PP-2's auto-return
+   when a new number lands on a Didn't-Answer card; PP-4's completeness gate is
    the won_partner Zod schema and conversion creates the directory Partner.
 
-   Founder: one board, TWO kinds of card. A `partner` card is exactly what it has
-   always been. An `agent` card collects the PUBLIC SIGNUP form's fields (first +
-   last name, phone, email, address, speciality, CV) minus the password, and its
-   Won gate mints the account the admin promises ("I will create for them a user
-   and a password"). Requiredness is therefore CONDITIONAL on the kind — enforced
-   here in Zod, not in the database, so both kinds live in one table. */
+   Founder: one board, ONE set of columns (ADR-059), TWO kinds of card. A
+   `partner` card is exactly what it has always been. An `agent` card collects
+   the PUBLIC SIGNUP form's fields (first + last name, phone, email, address,
+   speciality, CV) minus the password. Requiredness is CONDITIONAL on the kind —
+   enforced here in Zod, not in the database, so both kinds live in one table.
+
+   ADR-059 took ACCOUNT CREATION off the stage move entirely: qualifying never
+   asks for an email or a password. `createAgentAccount` / `createPartnerLogin`
+   below are the separate, explicit, admin-only step (§7.2b / PP-4a) — the same
+   writes as before, just no longer a side effect of a transition. */
 
 const prospectFields = z.object({
   name: z.string().min(1).max(200),
@@ -66,8 +69,8 @@ const required = (value: string | undefined | null) => Boolean(value && value.tr
     name and the number... just to not confuse this one." An agent card is
     typically opened mid-phone-call with nothing else in hand, so it asks the
     SIGNUP FORM'S FIELDS but demands only name + number — and the requirements
-    move to the Won gate (wonAgentSchema), which is exactly what this pipeline's
-    gates are for. A PARTNER card is deliberately NOT relaxed: "and the partners
+    move to the account action (agentAccountSchema, §7.2b / PP-4a), since
+    ADR-059 leaves the Qualified move itself asking for nothing. A PARTNER card is deliberately NOT relaxed: "and the partners
     as it is" — companyName + businessActivity stay required. The asymmetry is
     intentional; do not "fix" it. */
 function kindIssues(kind: string, data: ProspectFields): Array<{ path: string; message: string }> {
@@ -403,6 +406,12 @@ export async function applyProspectEvent(opts: {
       throw new ApiError(400, `This move requires the "${result.requiredGroup.group}" fields`);
     }
     opts.group = groupPayloadSchema.parse(opts.group);
+  } else if (opts.group) {
+    /* ADR-059 — several moves now take NO fields (Contacted, Waiting, an
+       agent's Qualified). A caller that still sends a group is running on a
+       stale idea of what this move does, and silently ignoring it would let a
+       client believe it had minted an account. Say so instead. */
+    throw new ApiError(400, `This move takes no fields — "${opts.group.group}" was not expected`);
   }
 
   await db.$transaction(async (tx) => {
@@ -479,43 +488,18 @@ export async function applyProspectEvent(opts: {
     for (const effect of result.sideEffects) {
       if (effect === "create_partner") {
         // PP-4: gate satisfied (won_partner schema) → Partner in the directory,
-        // date_joined = now; card stays in Won with the Converted badge (A-5).
+        // date_joined = now; the card stays in Qualified with the Converted
+        // badge (A-5). ADR-059 renamed the column; the row id is unchanged.
         const gate = (opts.group as { group: "won_partner"; data: WonPartnerInput }).data;
 
-        /* Partner ACCOUNT auto-created from the gate's credentials (founder
-           directive — the admin fills email + password; supersedes the V2 §8
-           auto password). No email → partner converts without a login (admin
-           adds one in Users later). */
-        let partnerUserId: string | null = null;
-        if (gate.email) {
-          const existingUser = await tx.user.findUnique({ where: { email: gate.email } });
-          if (!existingUser) {
-            const user = await tx.user.create({
-              data: {
-                name: gate.companyName,
-                email: gate.email,
-                passwordHash: await hashPassword(gate.password!), // schema: email ⇒ password
-                passwordPlain: gate.password!,
-              },
-            });
-            await tx.userRole.create({ data: { userId: user.id, role: "bsystems_partner" } });
-            partnerUserId = user.id;
-            await writeLog(tx, {
-              entityType: "user",
-              entityId: user.id,
-              actor: opts.actor,
-              action: "create",
-              trigger: "partner_account",
-            });
-          } else {
-            partnerUserId = existingUser.id;
-          }
-        }
-
+        /* ADR-059 — NO login is minted here any more: the gate carries no
+           password, because the founder asked that qualifying never demand one.
+           A directory Partner with `userId: null` is already a supported row;
+           the admin gives them a login afterwards with `createPartnerLogin`. */
         const partner = await tx.partner.create({
           data: {
             prospectId: prospect.id,
-            userId: partnerUserId,
+            userId: null,
             companyName: gate.companyName,
             keyPersonName: gate.keyPersonName,
             keyPersonRole: gate.keyPersonRole,
@@ -538,77 +522,6 @@ export async function applyProspectEvent(opts: {
           trigger: "PP-4",
         });
       }
-
-      if (effect === "create_agent") {
-        /* PP-4a (founder): "once I put them Won, I have to create for them a user
-           and a password — they will not apply, I will create for them a user and
-           a password." So this mints the whole account the signup flow would have
-           produced, minus the waiting: approved from birth, never a Registration.
-           Same three writes as signupRep + the CV, in ONE transaction. */
-        const gate = (opts.group as { group: "won_agent"; data: WonAgentInput }).data;
-        const email = gate.email.trim().toLowerCase();
-        const phone = normalizePhone(gate.phone);
-        if (!isValidPhone(phone)) throw new ApiError(400, "Enter a valid phone number");
-        if (await tx.user.findUnique({ where: { email } })) {
-          throw new ApiError(409, "An account with this email already exists");
-        }
-        if (await tx.user.findUnique({ where: { phone } })) {
-          throw new ApiError(409, "An account with this phone number already exists");
-        }
-
-        const name = `${gate.firstName} ${gate.lastName}`;
-        const user = await tx.user.create({
-          data: {
-            name,
-            email,
-            phone,
-            passwordHash: await hashPassword(gate.password),
-            passwordPlain: gate.password, // admin-visibility copy (schema comment)
-            active: true,
-            /* the ADMIN created this account — it never sits in Registrations */
-            registrationStatus: "approved",
-          },
-        });
-        await tx.userRole.create({ data: { userId: user.id, role: "bsystems_agent" } });
-        const rep = await tx.portalRep.create({
-          data: {
-            userId: user.id,
-            firstName: gate.firstName,
-            lastName: gate.lastName,
-            address: gate.address,
-            speciality: gate.speciality,
-          },
-        });
-        /* the CV collected on the card becomes the agent's profile CV — moved,
-           never copied, so the stored file is neither duplicated nor orphaned */
-        const cv = await tx.attachment.findFirst({
-          where: { partnerProspectId: prospect.id, kind: "cv" },
-        });
-        if (cv) {
-          await tx.attachment.update({
-            where: { id: cv.id },
-            data: { portalRepId: rep.id, partnerProspectId: null },
-          });
-        }
-        await tx.partnerProspect.update({
-          where: { id: prospect.id },
-          data: { converted: true, agentUserId: user.id },
-        });
-        await writeLog(tx, {
-          entityType: "user",
-          entityId: user.id,
-          actor: opts.actor,
-          action: "create",
-          trigger: "agent_account",
-        });
-        await writeLog(tx, {
-          entityType: "portal_rep",
-          entityId: rep.id,
-          actor: opts.actor,
-          action: "create",
-          trigger: "PP-4a",
-        });
-      }
     }
 
     await writeLog(tx, {
@@ -621,10 +534,12 @@ export async function applyProspectEvent(opts: {
       trigger: result.logTrigger,
     });
 
-    /* ADR-045 — PP-4/PP-4a conversion mints a Partner or a whole agent account:
-       never undoable, and it retires this user's pending entries so the button
-       does not offer an older action instead. */
-    if (result.sideEffects.includes("create_partner") || result.sideEffects.includes("create_agent")) {
+    /* ADR-045 — PP-4 mints a directory Partner: never undoable, and it retires
+       this user's pending entries so the button does not offer an older action
+       instead. ADR-059: an AGENT's move to Qualified creates nothing at all any
+       more, so it is an ordinary, undoable stage move — a real improvement, and
+       the reason the account action must invalidate undo on its own. */
+    if (result.sideEffects.includes("create_partner")) {
       await invalidateUndo(tx, opts.actor);
     } else {
       const after = await tx.partnerProspect.findUniqueOrThrow({
@@ -670,6 +585,169 @@ export async function applyProspectEvent(opts: {
   return { toStage: result.toStage };
 }
 
+/* ---------- §7.2b / PP-4a: creating the login, as its own explicit action ----------
+
+   Founder (ADR-059): "Moving a lead to Qualified should not require creating or
+   entering an email or password." So the account is no longer minted as part of
+   the move. It is this step: admin-only, available on a card that is already in
+   Qualified, and repeatable never — a second run is refused rather than
+   silently minting a second user.
+
+   The writes are exactly what the transition used to perform, moved verbatim.
+   ------------------------------------------------------------------------- */
+
+/** Guards shared by both kinds: the card exists, is the right kind, has reached
+    Qualified, and has no account yet. Server-side, so no client can skip them. */
+async function accountTarget(prospectId: string, kind: "partner" | "agent") {
+  const prospect = await getProspect(prospectId);
+  if (prospect.kind !== kind) {
+    throw new ApiError(400, `This card is not ${kind === "agent" ? "an agent" : "a partner"}`);
+  }
+  if (prospect.stage !== partnersConfigFor(prospect.kind).wonStage) {
+    throw new ApiError(400, "Set the card to Qualified first");
+  }
+  return prospect;
+}
+
+/**
+ * PP-4a — mint the agent's account. One transaction: User (active, approved —
+ * never a pending Registration), the `bsystems_agent` role, the PortalRep
+ * profile, and the card's CV re-parented onto it. The same three writes as
+ * self-signup (portal-reps.signupRep) minus the waiting.
+ */
+export async function createAgentAccount(
+  prospectId: string,
+  input: AgentAccountInput,
+  actor: Actor,
+) {
+  const prospect = await accountTarget(prospectId, "agent");
+  if (prospect.agentUserId) throw new ApiError(409, "This agent already has an account");
+  const gate = agentAccountSchema.parse(input);
+
+  return db.$transaction(async (tx) => {
+    const email = gate.email.trim().toLowerCase();
+    const phone = normalizePhone(gate.phone);
+    if (!isValidPhone(phone)) throw new ApiError(400, "Enter a valid phone number");
+    if (await tx.user.findUnique({ where: { email } })) {
+      throw new ApiError(409, "An account with this email already exists");
+    }
+    if (await tx.user.findUnique({ where: { phone } })) {
+      throw new ApiError(409, "An account with this phone number already exists");
+    }
+
+    const name = `${gate.firstName} ${gate.lastName}`;
+    const user = await tx.user.create({
+      data: {
+        name,
+        email,
+        phone,
+        passwordHash: await hashPassword(gate.password),
+        passwordPlain: gate.password, // admin-visibility copy (schema comment)
+        active: true,
+        /* the ADMIN created this account — it never sits in Registrations */
+        registrationStatus: "approved",
+      },
+    });
+    await tx.userRole.create({ data: { userId: user.id, role: "bsystems_agent" } });
+    const rep = await tx.portalRep.create({
+      data: {
+        userId: user.id,
+        firstName: gate.firstName,
+        lastName: gate.lastName,
+        address: gate.address,
+        speciality: gate.speciality,
+      },
+    });
+    /* the CV collected on the card becomes the agent's profile CV — moved,
+       never copied, so the stored file is neither duplicated nor orphaned */
+    const cv = await tx.attachment.findFirst({
+      where: { partnerProspectId: prospect.id, kind: "cv" },
+    });
+    if (cv) {
+      await tx.attachment.update({
+        where: { id: cv.id },
+        data: { portalRepId: rep.id, partnerProspectId: null },
+      });
+    }
+    await tx.partnerProspect.update({
+      where: { id: prospect.id },
+      data: { converted: true, agentUserId: user.id },
+    });
+    await writeLog(tx, {
+      entityType: "user",
+      entityId: user.id,
+      actor,
+      action: "create",
+      trigger: "agent_account",
+    });
+    /* the row id stays PP-4a so every historic account row keeps its meaning */
+    await writeLog(tx, {
+      entityType: "portal_rep",
+      entityId: rep.id,
+      actor,
+      action: "create",
+      trigger: "PP-4a",
+    });
+    /* ADR-045: minting an account is never undoable, and it IS the last thing
+       this admin did — so retire his whole pending set rather than let the
+       button offer to revert something older. */
+    await invalidateUndo(tx, actor);
+    return { userId: user.id, portalRepId: rep.id };
+  });
+}
+
+/**
+ * PP-4a, the partner half — the directory partner's login. The Qualified gate
+ * carries no password since ADR-059, so this is the ONLY path that mints a
+ * `bsystems_partner` account.
+ */
+export async function createPartnerLogin(
+  prospectId: string,
+  input: PartnerLoginInput,
+  actor: Actor,
+) {
+  const prospect = await accountTarget(prospectId, "partner");
+  const partner = await db.partner.findUnique({ where: { prospectId: prospect.id } });
+  if (!partner) throw new ApiError(400, "This card has no directory partner yet");
+  if (partner.userId) throw new ApiError(409, "This partner already has an account");
+  const gate = partnerLoginSchema.parse(input);
+
+  return db.$transaction(async (tx) => {
+    const email = gate.email.trim().toLowerCase();
+    if (await tx.user.findUnique({ where: { email } })) {
+      throw new ApiError(409, "An account with this email already exists");
+    }
+    const user = await tx.user.create({
+      data: {
+        name: partner.companyName,
+        email,
+        passwordHash: await hashPassword(gate.password),
+        passwordPlain: gate.password, // admin-visibility copy (schema comment)
+        active: true,
+        registrationStatus: "approved",
+      },
+    });
+    await tx.userRole.create({ data: { userId: user.id, role: "bsystems_partner" } });
+    await tx.partner.update({ where: { id: partner.id }, data: { userId: user.id } });
+    await writeLog(tx, {
+      entityType: "user",
+      entityId: user.id,
+      actor,
+      action: "create",
+      trigger: "partner_account",
+    });
+    await writeLog(tx, {
+      entityType: "partner",
+      entityId: partner.id,
+      actor,
+      action: "update",
+      trigger: "PP-4a",
+    });
+    await invalidateUndo(tx, actor); // never undoable — see createAgentAccount
+    return { userId: user.id, partnerId: partner.id };
+  });
+}
+
 /* ---------- recordings (§7.2 cold-call recordings) ---------- */
 
 export async function addRecording(prospectId: string, file: File, actor: Actor) {
@@ -698,8 +776,9 @@ export async function addRecording(prospectId: string, file: File, actor: Actor)
 }
 
 /** The agent card's CV — attached at creation or added later, replaced in place.
-    At the Won gate it is re-parented onto the PortalRep, so the agent's profile
-    carries exactly the document a self-applied agent's would. */
+    When the admin creates the account (§7.2b) it is re-parented onto the
+    PortalRep, so the agent's profile carries exactly the document a
+    self-applied agent's would. */
 export async function setProspectCv(prospectId: string, file: File, actor: Actor) {
   const prospect = await getProspect(prospectId);
   if (prospect.kind !== "agent") throw new ApiError(400, "Only agent cards carry a CV");

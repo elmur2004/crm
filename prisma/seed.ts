@@ -235,13 +235,17 @@ export async function seed() {
       await log("lead", lost.id, "stage_change", "T-4", "new", "lost");
     }
 
-    /* Partners pipeline (App B): one prospect per stage + a CONVERTED partner
-       with attributed leads (§13). */
+    /* Partners & Agents pipeline (App B): one prospect per stage + a CONVERTED
+       partner with attributed leads (§13). ADR-059 — BOTH kinds walk the SAME
+       seven columns, so both loops below use the shared vocabulary and both
+       seed a `waiting` card; without one the founder's new column is empty on
+       a fresh install. */
     const prospectStages: Array<[string, string]> = [
       ["Nile Imports", "lead"],
+      ["Suez Shipping", "contacted"],
       ["Giza Steel", "didnt_answer"],
-      ["Suez Shipping", "following_up"],
       ["Aswan Agritech", "meeting_setting"],
+      ["Damietta Furniture", "waiting"],
       ["Luxor Analytics", "lost"],
     ];
     for (const [company, stage] of prospectStages) {
@@ -255,7 +259,11 @@ export async function seed() {
           ...(stage === "didnt_answer" ? { nonAnsweringNumbers: '["0231000001"]' } : {}),
         },
       });
-      if (stage === "following_up") {
+      /* ADR-059 — only ONE Contacted card carries a follow-up, and it is there
+         because someone RECORDED one. A Contacted card with no follow-up (the
+         agent loop's) is the normal case now and must be visible in the seed:
+         it is the founder's item 2.1, shipped as data. */
+      if (company === "Suez Shipping") {
         await db.followUp.create({
           data: { partnerProspectId: p.id, context: "initial", dueAt: new Date("2026-08-22T08:00:00Z"), method: "visit" },
         });
@@ -270,14 +278,16 @@ export async function seed() {
       }
     }
 
-    /* ADR-057 — AGENT cards run their own columns (lead / contacted /
-       didnt_answer / meeting_setting / qualified / lost), so the Agents board
-       needs its own seed or it renders six empty columns on first login. */
+    /* ADR-059 — agent cards share the partner columns, so the one board carries
+       both kinds in every column. Yasmin sits in Contacted with NO follow-up:
+       the founder's item 2.1 made visible — contacted means contacted, and she
+       must NOT appear on the To-Do. */
     const agentStages: Array<[string, string, string]> = [
       ["Mahmoud Sabry", "01201000001", "lead"],
       ["Yasmin Farouk", "01201000002", "contacted"],
       ["Tarek Nabil", "01201000003", "didnt_answer"],
       ["Rania Hosny", "01201000004", "meeting_setting"],
+      ["Hoda Kamal", "01201000007", "waiting"],
       ["Amr Shaker", "01201000005", "lost"],
     ];
     for (const [name, number, stage] of agentStages) {
@@ -292,16 +302,6 @@ export async function seed() {
           ...(stage === "didnt_answer" ? { nonAnsweringNumbers: `["${number}"]` } : {}),
         },
       });
-      if (stage === "contacted") {
-        await db.followUp.create({
-          data: {
-            partnerProspectId: a.id,
-            context: "initial",
-            dueAt: new Date("2026-08-23T09:00:00Z"),
-            method: "call",
-          },
-        });
-      }
       if (stage === "meeting_setting") {
         await db.meeting.create({
           data: {
@@ -319,12 +319,11 @@ export async function seed() {
       }
     }
 
-    /* ...and the sixth column, Qualified — the agent analogue of `wonProspect`
-       below. It is the founder's headline column ("when he is in qualified he
-       becomes an agent and we create a user for hiim"), so the seed ships the
-       state PA-4 actually produces: converted, with a real minted account
-       behind it, which is also what puts the Converted badge, the "Agent
-       account created" link and the terminal panel on a fresh install. */
+    /* ...and Qualified, which since ADR-059 has TWO honest shapes for an agent.
+       This one is the finished article: qualified AND given a login with the
+       separate account action (PP-4a), which is what puts the Converted badge,
+       the "Agent account created" link and the terminal panel on a fresh
+       install. The second one, below, is the state qualifying ALONE produces. */
     const qualifiedAgentUser = await upsertUser({
       name: "Nourhan Adel",
       email: "nourhan.agent@b-systems.example",
@@ -332,7 +331,7 @@ export async function seed() {
       password: "agent123",
       roles: ["bsystems_agent"],
     });
-    await db.portalRep.upsert({
+    const qualifiedAgentRep = await db.portalRep.upsert({
       where: { userId: qualifiedAgentUser.id },
       update: {},
       create: {
@@ -355,7 +354,32 @@ export async function seed() {
         agentUserId: qualifiedAgentUser.id,
       },
     });
-    await log("partner_prospect", qualifiedAgent.id, "stage_change", "PA-4", "meeting_setting", "qualified");
+    await log("partner_prospect", qualifiedAgent.id, "stage_change", "PP-6", "meeting_setting", "qualified");
+    await log("portal_rep", qualifiedAgentRep.id, "create", "PP-4a");
+
+    /* ADR-059 — a qualified agent with NO account. Founder 1.3: qualifying must
+       never ask for an email or a password, so this is a legitimate, everyday
+       state, not a broken one. It ships in the seed so the honest empty state
+       ("Qualified, no account yet" + the Create-account button) is on screen
+       from the first login rather than only after someone reproduces it. */
+    const qualifiedNoAccount = await db.partnerProspect.create({
+      data: {
+        kind: "agent",
+        name: "Kareem Fathy",
+        number: "01201000008",
+        address: "Maadi, Cairo",
+        speciality: "Field sales",
+        stage: "qualified",
+      },
+    });
+    await log(
+      "partner_prospect",
+      qualifiedNoAccount.id,
+      "stage_change",
+      "PP-6",
+      "waiting",
+      "qualified",
+    );
 
     const wonProspect = await db.partnerProspect.create({
       data: {
@@ -363,7 +387,7 @@ export async function seed() {
         companyName: "Alexandria Trading House",
         number: "0231000009",
         businessActivity: "Wholesale distribution",
-        stage: "won",
+        stage: "qualified", // ADR-059 — the terminal-success column for both kinds
         converted: true,
       },
     });
@@ -380,6 +404,7 @@ export async function seed() {
       },
     });
     await log("partner", partner.id, "create", "PP-4");
+    await log("partner_prospect", wonProspect.id, "stage_change", "PP-4", "meeting_setting", "qualified");
     const partnerLead = await db.lead.create({
       data: {
         brand: "bsystems",

@@ -36,9 +36,11 @@ model User {
   roles         UserRole[]
   portalRep     PortalRep? // agent profile (model name kept from v1)
   partner       Partner? // partner-company account link (V2 §8)
-  /* founder: an AGENT card on the Partners & Agents board mints this account at
-     its Won gate — the link back to the card that created it (SetNull on a hard
-     account delete: the card stays converted, exactly like Partner.userId). */
+  /* founder: an AGENT card on the Partners & Agents board mints this account
+     through the separate admin-only "Create the agent's account" action (§7.2b,
+     row PP-4a) — NEVER at the stage move, which since ADR-059 asks for no
+     credentials at all. The link back to the card that created it (SetNull on a
+     hard account delete: the card stays converted, like Partner.userId). */
   agentProspect PartnerProspect? @relation("ProspectAgent")
   /* who typed the record in (ADR-051). Declared as RELATIONS on purpose: a
      userId column with no relation is invisible to cascade planning
@@ -228,8 +230,9 @@ model Client {
 model PartnerProspect {
   // App B Partners & Agents pipeline (§7.2) + V2 §6 numbers rework.
   // founder: ONE board, TWO kinds of card — a partner company or an agent.
-  // The stages, forms and records are identical; only the kind-specific fields
-  // and the Won gate differ, so requiredness is CONDITIONAL (Zod superRefine)
+  // ADR-059: the stages, forms and records are identical for both kinds; only
+  // the kind-specific fields and what QUALIFIED does differ (PP-4 creates the
+  // directory Partner, PP-6 is a pure move), so requiredness is CONDITIONAL
   // and the columns are nullable here: partner ⇒ companyName + businessActivity,
   // agent ⇒ address + speciality (mirroring the public agent signup form).
   id                  String       @id @default(cuid())
@@ -247,7 +250,7 @@ model PartnerProspect {
   description         String?
   stage               String       @default("lead")
   converted           Boolean      @default(false)
-  agentUserId         String?      @unique // set by the won_agent gate
+  agentUserId         String?      @unique // set by createAgentAccount (§7.2b / PP-4a), never by a stage move
   agentUser           User?        @relation("ProspectAgent", fields: [agentUserId], references: [id])
   createdByUserId     String? // ADR-051 — who typed the card in
   createdBy           User?        @relation("ProspectCreator", fields: [createdByUserId], references: [id])
@@ -270,7 +273,7 @@ model Partner {
   // §7.3 directory + V2 §8 partner ACCOUNT link
   id               String          @id @default(cuid())
   prospectId       String          @unique
-  userId           String?         @unique // auto-provisioned account (V2 §8)
+  userId           String?         @unique // set by createPartnerLogin (§7.2b / PP-4a); null until an admin mints it
   companyName      String
   keyPersonName    String
   keyPersonRole    String

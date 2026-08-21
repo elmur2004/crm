@@ -135,8 +135,8 @@ describe("Full backup round-trip", () => {
    `following_up` / `won` onto a migrated database: invisible cards, exactly
    what the migration exists to prevent — and the admin doing the restore is
    usually recovering from something else already. */
-describe("Restoring a pre-rename backup cannot strand an agent card", () => {
-  it("normalises agent stages, their History and their pending undos on import", async () => {
+describe("Restoring a pre-rename backup cannot strand a prospect card", () => {
+  it("normalises prospect stages, their History and their pending undos on import", async () => {
     const now = new Date().toISOString();
     const payload = {
       app: "byteforce-bsystems-sales-platform",
@@ -200,8 +200,8 @@ describe("Restoring a pre-rename backup cannot strand an agent card", () => {
             updatedAt: now,
           },
         ],
-        /* the History those cards carry — pre-rename, so it speaks the PARTNER
-           vocabulary on cards whose board has no such column */
+        /* the History those cards carry — pre-rename, so it speaks a vocabulary
+           the one board no longer has, on BOTH kinds of card */
         activityLog: [
           {
             id: "log-agent-1",
@@ -238,8 +238,8 @@ describe("Restoring a pre-rename backup cannot strand an agent card", () => {
           },
         ],
         /* and a pending undo the admin never got round to using: its snapshot
-           holds a stage the agent board no longer has, and the entry UNDER it
-           is an older action that must not be promoted to the head */
+           holds a stage the board no longer has, and the entry UNDER it is an
+           older action that must not be promoted to the head */
         undoEntry: [
           {
             id: "undo-older",
@@ -289,20 +289,21 @@ describe("Restoring a pre-rename backup cannot strand an agent card", () => {
         p.stage,
       ]),
     );
+    /* ADR-059 — BOTH kinds walk the two renames now: a restored partner card at
+       `following_up` or `won` would render in no column of the one board. */
     expect(rows).toEqual({
       "old-agent-following": "contacted",
       "old-agent-won": "qualified",
       "old-agent-lead": "lead",
-      "old-partner-following": "following_up",
-      "old-partner-won": "won",
+      "old-partner-following": "contacted",
+      "old-partner-won": "qualified",
     });
-    /* the converted flag rides through untouched — only the stage moved */
-    expect(
-      (await db.partnerProspect.findUniqueOrThrow({ where: { id: "old-agent-won" } })).converted,
-    ).toBe(true);
+    /* the converted flag rides through untouched on both — only the stage moved */
+    for (const id of ["old-agent-won", "old-partner-won"]) {
+      expect((await db.partnerProspect.findUniqueOrThrow({ where: { id } })).converted).toBe(true);
+    }
 
-    /* the History panel speaks the AGENT vocabulary on agent cards, and the
-       partner card's is byte-identical (ADR-057 Decision 7) */
+    /* the History panel speaks the shared vocabulary on every card (ADR-059) */
     const logs = Object.fromEntries(
       (
         await db.activityLog.findMany({
@@ -314,7 +315,7 @@ describe("Restoring a pre-rename backup cannot strand an agent card", () => {
     expect(logs).toEqual({
       "log-agent-1": ["lead", "contacted"],
       "log-agent-2": ["contacted", "qualified"],
-      "log-partner-1": ["following_up", "won"],
+      "log-partner-1": ["contacted", "qualified"],
     });
 
     /* the restored undo offer that could only ever fail is retired, and so is

@@ -14,7 +14,7 @@ import { listBsLeads, listOwnLeads } from "./bsystems-admin";
 import { internalDashboard } from "./metrics";
 import { todoFor } from "./todo";
 import { cairoToUtc } from "@/lib/datetime";
-import { applyProspectEvent, createProspect } from "./partners";
+import { applyProspectEvent, createPartnerLogin, createProspect } from "./partners";
 import { checkMilestone, uncheckMilestone } from "./milestones";
 import {
   createStatement,
@@ -592,7 +592,7 @@ describe("Statements end-to-end (V2 §7)", () => {
   });
 });
 
-describe("PP-4 partner account provisioning (founder: admin sets the credentials)", () => {
+describe("PP-4a partner account provisioning (founder: admin sets the credentials)", () => {
   const GATE = {
     companyName: "Mansour Trading",
     keyPersonName: "Hany Mansour",
@@ -616,18 +616,24 @@ describe("PP-4 partner account provisioning (founder: admin sets the credentials
     );
   }
 
-  it("conversion with email + password creates the login with EXACTLY those credentials", async () => {
+  it("the login is created by the SEPARATE action, with EXACTLY those credentials", async () => {
     const p = await makeProspect();
+    /* ADR-059 — founder 1.3: the Qualified gate asks for no credentials at all,
+       so the card converts first and the login is its own explicit step. */
     await applyProspectEvent({
       prospectId: p.id,
-      event: { type: "next_action", action: "won" },
-      group: {
-        group: "won_partner",
-        data: { ...GATE, email: "hany@mansour.example", password: "Mansour#2026" },
-      },
+      event: { type: "next_action", action: "qualified" },
+      group: { group: "won_partner", data: { ...GATE, email: "hany@mansour.example" } },
       actor: admin,
       role: "bsystems_admin",
     });
+    expect((await db.partner.findUniqueOrThrow({ where: { prospectId: p.id } })).userId).toBeNull();
+
+    await createPartnerLogin(
+      p.id,
+      { email: "hany@mansour.example", password: "Mansour#2026" },
+      admin,
+    );
     const partner = await db.partner.findUniqueOrThrow({ where: { prospectId: p.id } });
     expect(partner.userId).toBeTruthy();
     const user = await db.user.findUniqueOrThrow({
@@ -641,21 +647,20 @@ describe("PP-4 partner account provisioning (founder: admin sets the credentials
     expect(user.passwordPlain).toBe("Mansour#2026");
   });
 
-  it("an email WITHOUT a password is refused — nothing converts", async () => {
+  it("an email WITHOUT a password now converts happily — the old refine is gone", async () => {
+    /* founder 1.3, stated as a regression: the gate used to demand a password
+       the moment an email was typed. It must never do that again. */
     const p = await makeProspect();
-    await expect(
-      applyProspectEvent({
-        prospectId: p.id,
-        event: { type: "next_action", action: "won" },
-        group: {
-          group: "won_partner",
-          data: { ...GATE, email: "hany@mansour.example" },
-        },
-        actor: admin,
-        role: "bsystems_admin",
-      }),
-    ).rejects.toThrow();
-    expect(await db.partner.count()).toBe(0);
+    await applyProspectEvent({
+      prospectId: p.id,
+      event: { type: "next_action", action: "qualified" },
+      group: { group: "won_partner", data: { ...GATE, email: "hany@mansour.example" } },
+      actor: admin,
+      role: "bsystems_admin",
+    });
+    const partner = await db.partner.findUniqueOrThrow({ where: { prospectId: p.id } });
+    expect(partner.email).toBe("hany@mansour.example");
+    expect(partner.userId).toBeNull();
     expect(await db.user.count({ where: { email: "hany@mansour.example" } })).toBe(0);
   });
 
@@ -663,7 +668,7 @@ describe("PP-4 partner account provisioning (founder: admin sets the credentials
     const p = await makeProspect();
     await applyProspectEvent({
       prospectId: p.id,
-      event: { type: "next_action", action: "won" },
+      event: { type: "next_action", action: "qualified" },
       group: { group: "won_partner", data: GATE },
       actor: admin,
       role: "bsystems_admin",

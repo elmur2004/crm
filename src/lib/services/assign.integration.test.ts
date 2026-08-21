@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/lib/db";
 import { resetDb } from "@/tests/db-reset";
 import { assignLeadOwner, createLead, setArchived } from "./leads";
-import { applyProspectEvent, createProspect } from "./partners";
+import { applyProspectEvent, createAgentAccount, createProspect } from "./partners";
 import { listBsLeads, listOwnLeads } from "./bsystems-admin";
 import { listAssignableOwners } from "./users";
 import { todoFor } from "./todo";
@@ -355,14 +355,15 @@ describe("Assigning a lead to an agent or a partner", () => {
    minted by the QUALIFIED gate (ADR-057 / PA-4) walks straight into it, with no
    manual User or UserRole insert anywhere in the setup.
    --------------------------------------------------------------------------- */
-describe("An agent minted by the Qualified gate is assignable the moment he exists", () => {
+describe("An agent minted by the account action is assignable the moment he exists", () => {
   it("appears in the roster, takes a lead, and sees it on his board and his To-Do", async () => {
     const admin = await makeAdmin();
 
     /* nobody is assignable yet */
     expect(await listAssignableOwners()).toEqual([]);
 
-    /* the founder's flow, through the real service: a card, then Qualified */
+    /* the founder's flow, through the real services: a card, Qualified (which
+       ADR-059 made a free move), then the SEPARATE account action */
     const card = await createProspect(
       {
         kind: "agent" as const,
@@ -375,21 +376,24 @@ describe("An agent minted by the Qualified gate is assignable the moment he exis
     await applyProspectEvent({
       prospectId: card.id,
       event: { type: "next_action", action: "qualified" },
-      group: {
-        group: "won_agent",
-        data: {
-          firstName: "Mounir",
-          lastName: "Fahmy",
-          address: "44 Gameat El Dowal, Giza",
-          speciality: "Cloud migration",
-          email: "mounir.fahmy@example.com",
-          password: "mounirpass123",
-          phone: "01033322211",
-        },
-      },
       actor: admin,
       role: "bsystems_admin",
     });
+    /* qualifying alone mints nothing — he is not assignable yet */
+    expect(await listAssignableOwners()).toEqual([]);
+    await createAgentAccount(
+      card.id,
+      {
+        firstName: "Mounir",
+        lastName: "Fahmy",
+        address: "44 Gameat El Dowal, Giza",
+        speciality: "Cloud migration",
+        email: "mounir.fahmy@example.com",
+        password: "mounirpass123",
+        phone: "01033322211",
+      },
+      admin,
+    );
 
     const minted = await db.user.findUniqueOrThrow({
       where: { email: "mounir.fahmy@example.com" },

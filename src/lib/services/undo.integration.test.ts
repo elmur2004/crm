@@ -154,16 +154,33 @@ describe("Undo — the allowlisted kinds restore the prior state", () => {
       },
       actor,
     );
+    /* ADR-059 — a follow-up is no longer a by-product of a stage move, so the
+       two halves are undone separately. First the RECORD, written by the
+       deliberate "record a follow-up" action while the card stays put. */
     await applyProspectEvent({
       prospectId: prospect.id,
-      event: { type: "next_action", action: "following_up" },
+      event: { type: "next_action", action: "follow_up_again" },
       group: followUp,
+      actor,
+      role: "bsystems_admin",
+    });
+    expect(await db.followUp.count({ where: { partnerProspectId: prospect.id } })).toBe(1);
+    await performUndo(actor);
+    expect(await db.followUp.count({ where: { partnerProspectId: prospect.id } })).toBe(0);
+    expect(
+      (await db.partnerProspect.findUniqueOrThrow({ where: { id: prospect.id } })).stage,
+    ).toBe(prospect.stage); // it never moved in the first place
+
+    /* ...and then a MOVE, which now carries no group at all (founder 1.1). */
+    await applyProspectEvent({
+      prospectId: prospect.id,
+      event: { type: "next_action", action: "waiting" },
       actor,
       role: "bsystems_admin",
     });
     expect(
       (await db.partnerProspect.findUniqueOrThrow({ where: { id: prospect.id } })).stage,
-    ).toBe("following_up");
+    ).toBe("waiting");
     await performUndo(actor);
     const after = await db.partnerProspect.findUniqueOrThrow({ where: { id: prospect.id } });
     expect(after.stage).toBe(prospect.stage);

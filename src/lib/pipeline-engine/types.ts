@@ -24,10 +24,10 @@ export type RequiredGroup =
 export type SideEffectKind =
   | "create_client" // T-9 (A-1)
   | "create_partner" // PP-4
-  /* ADR-059: NO config emits "create_agent" any more — qualifying an agent is a
-     pure stage move (founder 1.3). The member survives only until the block
-     that consumes it moves into its own explicit admin action (PP-4a). */
-  | "create_agent"
+  /* ADR-059 retired "create_agent": qualifying an agent no longer mints
+     anything (founder 1.3). The account is a SEPARATE, explicit admin action
+     — services/partners.createAgentAccount, PP-4a — which runs outside the
+     transition path entirely and is therefore not a side effect at all. */
   | "create_won_deal"; // P-6
 
 export type EngineEvent =

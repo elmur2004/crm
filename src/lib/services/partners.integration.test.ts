@@ -5,6 +5,8 @@ import {
   addAlternativeNumbers,
   addRecording,
   applyProspectEvent,
+  createAgentAccount,
+  createPartnerLogin,
   createProspect,
   createProspectSchema,
   deletePartner,
@@ -19,6 +21,7 @@ import {
   updateProspect,
 } from "./partners";
 import { applyLeadEvent, createLead } from "./leads";
+import { pendingUndoFor, performUndo } from "./undo";
 import { listAgentsDetailed } from "./bsystems-admin";
 import { signupRep } from "./portal-reps";
 import { verifyPassword } from "@/lib/auth/hash";
@@ -147,14 +150,14 @@ describe("Partners pipeline (§10.2)", () => {
     ).rejects.toThrow();
   });
 
-  it("PP-4: the Won gate blocks until every required field is present, then converts", async () => {
+  it("PP-4: the Qualified gate blocks until every required field is present, then converts", async () => {
     const p = await makeProspect();
 
     /* Incomplete gate → schema rejects, nothing moves, no partner. */
     await expect(
       applyProspectEvent({
         prospectId: p.id,
-        event: { type: "next_action", action: "won" },
+        event: { type: "next_action", action: "qualified" },
         group: {
           group: "won_partner",
           data: { companyName: "Mansour Trading" } as never,
@@ -166,17 +169,18 @@ describe("Partners pipeline (§10.2)", () => {
     expect((await getProspectDetail(p.id)).prospect.stage).toBe("lead");
     expect(await db.partner.count()).toBe(0);
 
-    /* Complete gate → Won + Partner in directory with date_joined, Converted badge. */
+    /* Complete gate → Qualified + Partner in the directory with date_joined and
+       the Converted badge — and NO credentials asked for anywhere (ADR-059). */
     const before = new Date();
     await applyProspectEvent({
       prospectId: p.id,
-      event: { type: "next_action", action: "won" },
+      event: { type: "next_action", action: "qualified" },
       group: { group: "won_partner", data: COMPLETE_GATE },
       actor,
       role,
     });
     const { prospect } = await getProspectDetail(p.id);
-    expect(prospect.stage).toBe("won"); // stays in Won as history (A-5)
+    expect(prospect.stage).toBe("qualified"); // stays in Qualified as history (A-5)
     expect(prospect.converted).toBe(true);
     const partner = await db.partner.findUnique({ where: { prospectId: p.id } });
     expect(partner).toBeTruthy();
@@ -189,11 +193,150 @@ describe("Partners pipeline (§10.2)", () => {
     expect(log).toBeTruthy();
   });
 
+  /* founder 1.2 — "The system should not require any additional details or
+     mandatory fields when moving a lead to Contacted." */
+  it("PP-3: Lead → Contacted commits with NO group at all, and writes NO follow-up", async () => {
+    for (const card of [await makeProspect(), await makeAgent()]) {
+      const moved = await applyProspectEvent({
+        prospectId: card.id,
+        event: { type: "next_action", action: "contacted" },
+        actor,
+        role,
+      });
+      expect(moved.toStage).toBe("contacted");
+      const { prospect } = await getProspectDetail(card.id);
+      expect(prospect.stage).toBe("contacted");
+      /* item 2.1: contacted means contacted — nothing was scheduled */
+      expect(prospect.followUps).toHaveLength(0);
+      /* the drag is the same move, and equally silent */
+      await applyProspectEvent({
+        prospectId: card.id,
+        event: { type: "drag", to: "lead" },
+        actor,
+        role,
+      });
+      await applyProspectEvent({
+        prospectId: card.id,
+        event: { type: "drag", to: "contacted" },
+        actor,
+        role,
+      });
+      expect((await getProspectDetail(card.id)).prospect.followUps).toHaveLength(0);
+    }
+  });
+
+  /* founder 1.1 — "Add a new stage called Waiting... Leads in Waiting must
+     remain fully editable at any time." */
+  it("PP-7: Waiting takes no group, stays fully editable, and moves out both ways", async () => {
+    for (const card of [await makeProspect(), await makeAgent()]) {
+      await applyProspectEvent({
+        prospectId: card.id,
+        event: { type: "next_action", action: "meeting_setting" },
+        group: {
+          group: "meeting",
+          data: { arranged: true, date: "2026-09-10", time: "11:00", mode: "online" as const },
+        },
+        actor,
+        role,
+      });
+      const intoWaiting = await applyProspectEvent({
+        prospectId: card.id,
+        event: { type: "next_action", action: "waiting" },
+        actor,
+        role,
+      });
+      expect(intoWaiting.toStage).toBe("waiting");
+
+      /* FULLY EDITABLE: every field the kind owns still saves, from Waiting */
+      const edited = await updateProspect(
+        card.id,
+        card.kind === "agent"
+          ? { name: "Edited In Waiting", number: "01055551111", description: "still editable" }
+          : { name: "Edited In Waiting", companyName: "Edited Co", description: "still editable" },
+        actor,
+      );
+      expect(edited.name).toBe("Edited In Waiting");
+      expect(edited.description).toBe("still editable");
+      expect(edited.stage).toBe("waiting"); // the edit never moved it
+      expect(
+        await db.activityLog.count({
+          where: { entityType: "partner_prospect", entityId: card.id, trigger: "edit" },
+        }),
+      ).toBe(1);
+      /* alternative numbers are live here too — nothing is locked */
+      await addAlternativeNumbers(card.id, ["01044443333"], actor, role);
+      expect((await getProspectDetail(card.id)).prospect.stage).toBe("waiting");
+
+      /* OUT again, BACKWARDS — and then back in, forwards from Contacted */
+      await applyProspectEvent({
+        prospectId: card.id,
+        event: { type: "next_action", action: "contacted" },
+        actor,
+        role,
+      });
+      expect((await getProspectDetail(card.id)).prospect.stage).toBe("contacted");
+      await applyProspectEvent({
+        prospectId: card.id,
+        event: { type: "drag", to: "waiting" },
+        actor,
+        role,
+      });
+      expect((await getProspectDetail(card.id)).prospect.stage).toBe("waiting");
+    }
+  });
+
+  /* founder 1.3 — the partner gate never asks for credentials */
+  it("PP-4: the Qualified gate takes no password, and converts with no email at all", async () => {
+    const p = await makeProspect();
+    await applyProspectEvent({
+      prospectId: p.id,
+      event: { type: "next_action", action: "qualified" },
+      group: { group: "won_partner", data: COMPLETE_GATE }, // no email, no password
+      actor,
+      role,
+    });
+    const partner = await db.partner.findUniqueOrThrow({ where: { prospectId: p.id } });
+    expect(partner.email).toBeNull();
+    expect(partner.userId).toBeNull();
+    expect(await db.user.count()).toBe(0);
+
+    /* an email alone is fine now — the old "email ⇒ password" refine is gone */
+    const withEmail = await makeProspect();
+    await applyProspectEvent({
+      prospectId: withEmail.id,
+      event: { type: "next_action", action: "qualified" },
+      group: { group: "won_partner", data: { ...COMPLETE_GATE, email: "hany@example.com" } },
+      actor,
+      role,
+    });
+    expect(
+      (await db.partner.findUniqueOrThrow({ where: { prospectId: withEmail.id } })).email,
+    ).toBe("hany@example.com");
+    expect(await db.user.count()).toBe(0); // still no login minted by the move
+
+    /* every OTHER completeness requirement is preserved */
+    for (const field of ["businessActivity", "importance", "keyPersonRole", "address"] as const) {
+      const bad = await makeProspect();
+      const gate: Record<string, unknown> = { ...COMPLETE_GATE };
+      delete gate[field];
+      await expect(
+        applyProspectEvent({
+          prospectId: bad.id,
+          event: { type: "next_action", action: "qualified" },
+          group: { group: "won_partner", data: gate as never },
+          actor,
+          role,
+        }),
+      ).rejects.toThrow();
+      expect((await getProspectDetail(bad.id)).prospect.stage).toBe("lead");
+    }
+  });
+
   it("PP-5: a partner lead lands in the B-Systems CRM with permanent attribution and live stage", async () => {
     const p = await makeProspect();
     await applyProspectEvent({
       prospectId: p.id,
-      event: { type: "next_action", action: "won" },
+      event: { type: "next_action", action: "qualified" },
       group: { group: "won_partner", data: COMPLETE_GATE },
       actor,
       role,
@@ -267,12 +410,12 @@ describe("Founder V4: draggable board + admin edit/delete", () => {
     expect(back.toStage).toBe("lead");
   });
 
-  it("dragging into Won runs the PP-4 completeness gate and converts", async () => {
+  it("dragging into Qualified runs the PP-4 completeness gate and converts", async () => {
     const p = await makeProspect();
     await expect(
       applyProspectEvent({
         prospectId: p.id,
-        event: { type: "drag", to: "won" },
+        event: { type: "drag", to: "qualified" },
         actor,
         role,
       }),
@@ -280,13 +423,13 @@ describe("Founder V4: draggable board + admin edit/delete", () => {
 
     await applyProspectEvent({
       prospectId: p.id,
-      event: { type: "drag", to: "won" },
+      event: { type: "drag", to: "qualified" },
       group: { group: "won_partner", data: COMPLETE_GATE },
       actor,
       role,
     });
     const { prospect } = await getProspectDetail(p.id);
-    expect(prospect.stage).toBe("won");
+    expect(prospect.stage).toBe("qualified");
     expect(prospect.converted).toBe(true);
     expect(await db.partner.count({ where: { prospectId: p.id } })).toBe(1);
   });
@@ -297,7 +440,7 @@ describe("Founder V4: draggable board + admin edit/delete", () => {
     const attachment = await addRecording(p.id, new File([mp3], "call.mp3", { type: "audio/mpeg" }), actor);
     await applyProspectEvent({
       prospectId: p.id,
-      event: { type: "next_action", action: "won" },
+      event: { type: "next_action", action: "qualified" },
       group: { group: "won_partner", data: COMPLETE_GATE },
       actor,
       role,
@@ -324,7 +467,7 @@ describe("Founder V4: draggable board + admin edit/delete", () => {
     const p = await makeProspect();
     await applyProspectEvent({
       prospectId: p.id,
-      event: { type: "next_action", action: "won" },
+      event: { type: "next_action", action: "qualified" },
       group: { group: "won_partner", data: COMPLETE_GATE },
       actor,
       role,
@@ -351,8 +494,8 @@ describe("Founder V4: draggable board + admin edit/delete", () => {
     expect(await db.partner.count({ where: { id: partner.id } })).toBe(0);
     const survivor = await db.lead.findUniqueOrThrow({ where: { id: lead.id } });
     expect(survivor.partnerId).toBeNull();
-    /* The pipeline card stays in Won as history. */
-    expect((await getProspectDetail(p.id)).prospect.stage).toBe("won");
+    /* The pipeline card stays in Qualified as history. */
+    expect((await getProspectDetail(p.id)).prospect.stage).toBe("qualified");
   });
 });
 
@@ -435,14 +578,25 @@ const AGENT_GATE = {
   phone: "01099887766",
 };
 
-/* ADR-057: on an AGENT card the terminal-success stage is `qualified` — that
-   is the column the account gate hangs on now. */
-async function agentToQualified(prospectId: string, gate = AGENT_GATE) {
+/* ADR-059 — founder item 1.3: "Moving a lead to Qualified should not require
+   creating or entering an email or password." Qualifying an agent is a PURE
+   move now: no group at all. The credentials live in the separate account
+   action below, which is what `AGENT_GATE` feeds. */
+async function agentToQualified(prospectId: string) {
   return applyProspectEvent({
     prospectId,
     event: { type: "next_action", action: "qualified" },
-    group: { group: "won_agent", data: gate },
     actor,
+    role,
+  });
+}
+
+/** the same move, attributed to a specific admin — undo entries are per user */
+async function agentToQualifiedAs(prospectId: string, who: Actor) {
+  return applyProspectEvent({
+    prospectId,
+    event: { type: "next_action", action: "qualified" },
+    actor: who,
     role,
   });
 }
@@ -536,13 +690,13 @@ describe("Partners & Agents: kind-conditional validation", () => {
   });
 });
 
-describe("PA-4 (§10.2a): the agent Qualified gate creates the account", () => {
-  it("runs the full pipeline and mints User + role + PortalRep with a working password", async () => {
+describe("PP-6 (§10.2): qualifying an AGENT creates nothing at all", () => {
+  it("runs the shared pipeline and lands in Qualified with no group, no user, no profile", async () => {
     const p = await makeAgent();
     expect(p.kind).toBe("agent");
     expect(p.companyName).toBeNull();
 
-    /* the SHARED pipeline: didn't answer -> new number -> follow-up */
+    /* the SHARED pipeline — one stage set for both kinds (ADR-059) */
     await applyProspectEvent({
       prospectId: p.id,
       event: { type: "next_action", action: "didnt_answer" },
@@ -551,166 +705,69 @@ describe("PA-4 (§10.2a): the agent Qualified gate creates the account", () => {
       role,
     });
     const returned = await addAlternativeNumbers(p.id, ["01055554444"], actor, role);
-    expect(returned.stage).toBe("lead"); // PA-2 works on agent cards too
+    expect(returned.stage).toBe("lead"); // PP-2 works on agent cards too
     const autoReturn = await db.activityLog.findFirstOrThrow({
       where: { entityType: "partner_prospect", entityId: p.id, action: "auto_transfer" },
     });
-    expect(autoReturn.trigger).toBe("PA-2"); // §10.2a, not the partner row
-    await applyProspectEvent({
-      prospectId: p.id,
-      event: { type: "next_action", action: "contacted" },
-      group: { group: "follow_up", data: { date: "2026-09-12", time: "10:00", method: "call" } },
-      actor,
-      role,
-    });
+    expect(autoReturn.trigger).toBe("PP-2"); // one row family for both kinds now
 
-    /* the gate holds until it is complete — an agent card cannot use the
-       partner gate, and an incomplete agent gate is refused */
-    await expect(
-      applyProspectEvent({
-        prospectId: p.id,
-        event: { type: "next_action", action: "qualified" },
-        group: { group: "won_partner", data: COMPLETE_GATE },
-        actor,
-        role,
-      }),
-    ).rejects.toThrow(/won_agent/);
-    /* and the partner vocabulary is simply not on this board any more */
-    await expect(
-      applyProspectEvent({
-        prospectId: p.id,
-        event: { type: "next_action", action: "won" },
-        group: { group: "won_agent", data: AGENT_GATE },
-        actor,
-        role,
-      }),
-    ).rejects.toThrow(/not available/);
-    await expect(agentToQualified(p.id, { ...AGENT_GATE, password: "short" })).rejects.toThrow();
-    expect((await getProspectDetail(p.id)).prospect.stage).toBe("contacted");
-    expect(await db.user.count({ where: { email: AGENT_GATE.email } })).toBe(0);
-
+    const users = await db.user.count();
     await agentToQualified(p.id);
 
     const { prospect } = await getProspectDetail(p.id);
     expect(prospect.stage).toBe("qualified");
-    expect(prospect.converted).toBe(true);
+    /* the whole point: NOTHING was minted, and the card says so honestly */
+    expect(prospect.converted).toBe(false);
+    expect(prospect.agentUserId).toBeNull();
+    expect(await db.user.count()).toBe(users);
+    expect(await db.portalRep.count()).toBe(0);
+    expect(await db.partner.count()).toBe(0);
 
-    const user = await db.user.findUniqueOrThrow({
-      where: { email: "nour.adel@example.com" },
-      include: { roles: true, portalRep: true },
-    });
-    expect(user.name).toBe("Nour Adel");
-    expect(user.phone).toBe("01099887766");
-    expect(user.active).toBe(true);
-    /* founder: the admin created them, so they never sit in Registrations */
-    expect(user.registrationStatus).toBe("approved");
-    expect(user.roles.map((r) => r.role)).toEqual(["bsystems_agent"]);
-    expect(await verifyPassword("agentpass123", user.passwordHash)).toBe(true);
-    expect(user.passwordPlain).toBe("agentpass123"); // admin-visibility rule
-    expect(user.portalRep!.firstName).toBe("Nour");
-    expect(user.portalRep!.lastName).toBe("Adel");
-    expect(user.portalRep!.address).toBe("12 Tahrir St, Giza");
-    expect(user.portalRep!.speciality).toBe("ERP consulting");
-    expect(prospect.agentUserId).toBe(user.id);
-
-    /* the move itself is PA-4, PP-4a is still the portal_rep row id, and NO
-       directory partner was created */
     const move = await db.activityLog.findFirstOrThrow({
       where: { entityType: "partner_prospect", entityId: p.id, toStage: "qualified" },
     });
-    expect(move.trigger).toBe("PA-4");
-    const log = await db.activityLog.findFirst({
-      where: { entityType: "portal_rep", entityId: user.portalRep!.id, trigger: "PP-4a" },
-    });
-    expect(log).toBeTruthy();
-    expect(await db.partner.count()).toBe(0);
+    expect(move.trigger).toBe("PP-6");
   });
 
-  /* The founder's trade: adding is frictionless, the GATE is strict. A card
-     created with nothing but a name and a number cannot become an account
-     until the admin supplies everything PortalRep and the login need. */
-  it("refuses a bare card until address, speciality, email and password are given", async () => {
-    const p = await createProspect(
-      { kind: "agent" as const, name: "Nour Adel", number: "01099887766" },
-      actor,
-    );
-    const bare = { firstName: "Nour", lastName: "Adel", phone: "01099887766" };
-
-    await expect(agentToQualified(p.id, bare as never)).rejects.toThrow(/Address is required/);
-    await expect(
-      agentToQualified(p.id, { ...bare, address: "12 Tahrir St, Giza" } as never),
-    ).rejects.toThrow(/Speciality is required/);
-    await expect(
-      agentToQualified(p.id, {
-        ...bare,
-        address: "12 Tahrir St, Giza",
-        speciality: "ERP consulting",
-      } as never),
-    ).rejects.toThrow(/sign-in/); // the email IS the login
-    const named = {
-      ...bare,
-      address: "12 Tahrir St, Giza",
-      speciality: "ERP consulting",
-      email: "nour.adel@example.com",
-    };
-    await expect(agentToQualified(p.id, named as never)).rejects.toThrow(/sign-in password/);
-    await expect(agentToQualified(p.id, { ...named, password: "short" } as never)).rejects.toThrow(
-      /8 characters/,
-    );
-
-    /* nothing was created by any of those attempts */
-    expect((await getProspectDetail(p.id)).prospect.stage).toBe("lead");
-    expect(await db.portalRep.count()).toBe(0);
-
-    /* complete → the account exists, built entirely from gate input */
-    await agentToQualified(p.id);
-    const rep = await db.portalRep.findFirstOrThrow();
-    expect(rep.address).toBe("12 Tahrir St, Giza");
-    expect(rep.speciality).toBe("ERP consulting");
-  });
-
-  it("a converted agent appears in Agents and NEVER in the partners directory", async () => {
+  it("an agent's Qualified move is now UNDOABLE — nothing irreversible happened", async () => {
     const p = await makeAgent();
-    await agentToQualified(p.id);
-
-    const agents = await listAgentsDetailed();
-    expect(agents.map((a) => `${a.firstName} ${a.lastName}`)).toContain("Nour Adel");
-    expect(await listPartners()).toHaveLength(0);
-
-    /* and the partner side is untouched: a partner card still converts to a
-       directory Partner and creates no agent profile */
-    const partnerCard = await makeProspect();
     await applyProspectEvent({
-      prospectId: partnerCard.id,
-      event: { type: "next_action", action: "won" },
-      group: { group: "won_partner", data: COMPLETE_GATE },
-      actor,
+      prospectId: p.id,
+      event: { type: "next_action", action: "waiting" },
+      actor: { id: "admin-undo", label: "Admin" },
       role,
     });
-    expect((await listPartners()).map((x) => x.companyName)).toEqual(["Mansour Trading"]);
-    expect(await listAgentsDetailed()).toHaveLength(1); // still just the agent
+    await agentToQualifiedAs(p.id, { id: "admin-undo", label: "Admin" });
+    const pending = await pendingUndoFor("admin-undo");
+    expect(pending).toBeTruthy();
+    await performUndo({ id: "admin-undo", label: "Admin" });
+    expect((await getProspectDetail(p.id)).prospect.stage).toBe("waiting");
   });
 
-  it("refuses a duplicate email or phone with a clear message, and nothing is written", async () => {
-    const first = await makeAgent();
-    await agentToQualified(first.id);
-
-    const dupEmail = await makeAgent({ number: "01077776666", email: "other@example.com" });
-    await expect(agentToQualified(dupEmail.id)).rejects.toThrow(/email already exists/);
-
-    const dupPhone = await makeAgent({ number: "01066665555", email: "third@example.com" });
+  it("the retired vocabulary is gone: `won` is not an action and `won_agent` is not a group", async () => {
+    const p = await makeAgent();
     await expect(
-      agentToQualified(dupPhone.id, { ...AGENT_GATE, email: "third@example.com" }),
-    ).rejects.toThrow(/phone number already exists/);
-
-    /* both cards stayed put; only the first account exists */
-    expect((await getProspectDetail(dupEmail.id)).prospect.stage).toBe("lead");
-    expect((await getProspectDetail(dupPhone.id)).prospect.stage).toBe("lead");
-    expect(await db.portalRep.count()).toBe(1);
-    expect(await db.user.count({ where: { email: "third@example.com" } })).toBe(0);
+      applyProspectEvent({
+        prospectId: p.id,
+        event: { type: "next_action", action: "won" },
+        actor,
+        role,
+      }),
+    ).rejects.toThrow(/not available/);
+    await expect(
+      applyProspectEvent({
+        prospectId: p.id,
+        event: { type: "next_action", action: "qualified" },
+        group: { group: "won_agent", data: AGENT_GATE } as never,
+        actor,
+        role,
+      }),
+    ).rejects.toThrow();
   });
+});
 
-  it("the CV collected on the card becomes the agent's profile CV — one file, never orphaned", async () => {
+describe("PP-4a (§7.2b): the login is a SEPARATE, explicit admin action", () => {
+  it("mints User + role + PortalRep with a working password, and re-parents the CV", async () => {
     const p = await createProspect(
       {
         kind: "agent" as const,
@@ -723,20 +780,205 @@ describe("PA-4 (§10.2a): the agent Qualified gate creates the account", () => {
       actor,
       { cv: cvFile() },
     );
-
     /* it hangs off the card and is NOT in the recordings player list */
-    const { prospect } = await getProspectDetail(p.id);
-    expect(prospect.cv?.filename).toBe("cv.pdf");
-    expect(prospect.recordings).toHaveLength(0);
-    const key = prospect.cv!.storageKey;
+    const beforeCv = (await getProspectDetail(p.id)).prospect.cv!;
+    expect(beforeCv.filename).toBe("cv.pdf");
+    const key = beforeCv.storageKey;
 
     await agentToQualified(p.id);
+    await createAgentAccount(p.id, AGENT_GATE, actor);
 
-    const rep = await db.portalRep.findFirstOrThrow({ include: { cv: true } });
-    expect(rep.cv?.filename).toBe("cv.pdf");
-    expect(rep.cv?.storageKey).toBe(key); // moved, not copied
+    const user = await db.user.findUniqueOrThrow({
+      where: { email: "nour.adel@example.com" },
+      include: { roles: true, portalRep: { include: { cv: true } } },
+    });
+    expect(user.name).toBe("Nour Adel");
+    expect(user.phone).toBe("01099887766");
+    expect(user.active).toBe(true);
+    /* founder: the admin created them, so they never sit in Registrations */
+    expect(user.registrationStatus).toBe("approved");
+    expect(user.roles.map((r) => r.role)).toEqual(["bsystems_agent"]);
+    expect(await verifyPassword("agentpass123", user.passwordHash)).toBe(true);
+    expect(user.passwordPlain).toBe("agentpass123"); // admin-visibility rule
+    expect(user.portalRep!.firstName).toBe("Nour");
+    expect(user.portalRep!.address).toBe("12 Tahrir St, Giza");
+    expect(user.portalRep!.speciality).toBe("ERP consulting");
+    /* the CV moved, never copied — same stored file, no orphan */
+    expect(user.portalRep!.cv?.storageKey).toBe(key);
     expect(await db.attachment.count({ where: { partnerProspectId: p.id } })).toBe(0);
-    await expect(storage.read(key)).resolves.toBeTruthy(); // the file survived
+    await expect(storage.read(key)).resolves.toBeTruthy();
+
+    const { prospect } = await getProspectDetail(p.id);
+    expect(prospect.converted).toBe(true);
+    expect(prospect.agentUserId).toBe(user.id);
+    expect(prospect.stage).toBe("qualified"); // the action never moves the card
+
+    /* PP-4a keeps its historic row id on the portal_rep entry */
+    expect(
+      await db.activityLog.count({
+        where: { entityType: "portal_rep", entityId: user.portalRep!.id, trigger: "PP-4a" },
+      }),
+    ).toBe(1);
+    expect(
+      await db.activityLog.count({ where: { entityType: "user", trigger: "agent_account" } }),
+    ).toBe(1);
+    expect(await db.partner.count()).toBe(0);
+  });
+
+  it("refuses everything it should: wrong stage, wrong kind, twice, duplicate email or phone", async () => {
+    const p = await makeAgent();
+    /* the card must be Qualified first — the founder's semantic */
+    await expect(createAgentAccount(p.id, AGENT_GATE, actor)).rejects.toThrow(/Qualified first/);
+    await agentToQualified(p.id);
+
+    await createAgentAccount(p.id, AGENT_GATE, actor);
+    /* a double-click cannot mint a second account */
+    await expect(createAgentAccount(p.id, AGENT_GATE, actor)).rejects.toThrow(/already has an account/);
+
+    const dupEmail = await makeAgent({ number: "01077776666", email: "other@example.com" });
+    await agentToQualified(dupEmail.id);
+    await expect(createAgentAccount(dupEmail.id, AGENT_GATE, actor)).rejects.toThrow(
+      /email already exists/,
+    );
+    await expect(
+      createAgentAccount(dupEmail.id, { ...AGENT_GATE, email: "third@example.com" }, actor),
+    ).rejects.toThrow(/phone number already exists/);
+    /* nothing partial was written by either refusal */
+    expect(await db.portalRep.count()).toBe(1);
+    expect(await db.user.count({ where: { email: "third@example.com" } })).toBe(0);
+
+    /* and a partner card is not an agent */
+    const partnerCard = await makeProspect();
+    await applyProspectEvent({
+      prospectId: partnerCard.id,
+      event: { type: "next_action", action: "qualified" },
+      group: { group: "won_partner", data: COMPLETE_GATE },
+      actor,
+      role,
+    });
+    await expect(createAgentAccount(partnerCard.id, AGENT_GATE, actor)).rejects.toThrow(
+      /not an agent/,
+    );
+  });
+
+  /* The founder's trade: adding is frictionless and QUALIFYING is free — the
+     strictness moved to this form, which is the last honest place to insist on
+     the columns PortalRep and the login need. */
+  it("demands address, speciality, email and password — here, and only here", async () => {
+    const p = await createProspect(
+      { kind: "agent" as const, name: "Nour Adel", number: "01099887766" },
+      actor,
+    );
+    await agentToQualified(p.id); // a bare card qualifies with no trouble at all
+    const bare = { firstName: "Nour", lastName: "Adel", phone: "01099887766" };
+
+    await expect(createAgentAccount(p.id, bare as never, actor)).rejects.toThrow(
+      /Address is required/,
+    );
+    await expect(
+      createAgentAccount(p.id, { ...bare, address: "12 Tahrir St, Giza" } as never, actor),
+    ).rejects.toThrow(/Speciality is required/);
+    await expect(
+      createAgentAccount(
+        p.id,
+        { ...bare, address: "12 Tahrir St, Giza", speciality: "ERP consulting" } as never,
+        actor,
+      ),
+    ).rejects.toThrow(/sign-in/); // the email IS the login
+    const named = {
+      ...bare,
+      address: "12 Tahrir St, Giza",
+      speciality: "ERP consulting",
+      email: "nour.adel@example.com",
+    };
+    await expect(createAgentAccount(p.id, named as never, actor)).rejects.toThrow(
+      /sign-in password/,
+    );
+    await expect(
+      createAgentAccount(p.id, { ...named, password: "short" } as never, actor),
+    ).rejects.toThrow(/8 characters/);
+
+    /* nothing was created by any of those attempts, and the card is still a
+       perfectly good qualified agent with no login */
+    expect(await db.portalRep.count()).toBe(0);
+    const { prospect } = await getProspectDetail(p.id);
+    expect(prospect.stage).toBe("qualified");
+    expect(prospect.converted).toBe(false);
+
+    await createAgentAccount(p.id, AGENT_GATE, actor);
+    const rep = await db.portalRep.findFirstOrThrow();
+    expect(rep.address).toBe("12 Tahrir St, Giza");
+    expect(rep.speciality).toBe("ERP consulting");
+  });
+
+  it("an account-minted agent appears in Agents and NEVER in the partners directory", async () => {
+    const p = await makeAgent();
+    await agentToQualified(p.id);
+    await createAgentAccount(p.id, AGENT_GATE, actor);
+
+    const agents = await listAgentsDetailed();
+    expect(agents.map((a) => `${a.firstName} ${a.lastName}`)).toContain("Nour Adel");
+    expect(await listPartners()).toHaveLength(0);
+
+    /* and the partner side is untouched: a partner card still converts to a
+       directory Partner and creates no agent profile */
+    const partnerCard = await makeProspect();
+    await applyProspectEvent({
+      prospectId: partnerCard.id,
+      event: { type: "next_action", action: "qualified" },
+      group: { group: "won_partner", data: COMPLETE_GATE },
+      actor,
+      role,
+    });
+    expect((await listPartners()).map((x) => x.companyName)).toEqual(["Mansour Trading"]);
+    expect(await listAgentsDetailed()).toHaveLength(1); // still just the agent
+  });
+
+  it("minting is never undoable — it retires the admin's pending entries", async () => {
+    const who = { id: "admin-mint", label: "Admin" };
+    const p = await makeAgent();
+    await applyProspectEvent({
+      prospectId: p.id,
+      event: { type: "next_action", action: "waiting" },
+      actor: who,
+      role,
+    });
+    await agentToQualifiedAs(p.id, who);
+    expect(await pendingUndoFor("admin-mint")).toBeTruthy();
+    await createAgentAccount(p.id, AGENT_GATE, who);
+    expect(await pendingUndoFor("admin-mint")).toBeNull();
+  });
+
+  it("the PARTNER half: a qualified partner joins the directory with NO login, then gets one", async () => {
+    const p = await makeProspect();
+    /* founder 1.3 — the gate accepts no email at all, and refuses a password */
+    await applyProspectEvent({
+      prospectId: p.id,
+      event: { type: "next_action", action: "qualified" },
+      group: { group: "won_partner", data: COMPLETE_GATE },
+      actor,
+      role,
+    });
+    const partner = await db.partner.findUniqueOrThrow({ where: { prospectId: p.id } });
+    expect(partner.userId).toBeNull(); // a directory partner with no login is normal
+    expect(await db.user.count({ where: { roles: { some: { role: "bsystems_partner" } } } })).toBe(0);
+
+    await createPartnerLogin(
+      p.id,
+      { email: "Mansour.Trading@example.com", password: "partnerpass1" },
+      actor,
+    );
+    const linked = await db.partner.findUniqueOrThrow({
+      where: { id: partner.id },
+      include: { user: { include: { roles: true } } },
+    });
+    expect(linked.user!.email).toBe("mansour.trading@example.com"); // lower-cased
+    expect(linked.user!.roles.map((r) => r.role)).toEqual(["bsystems_partner"]);
+    expect(await verifyPassword("partnerpass1", linked.user!.passwordHash)).toBe(true);
+    /* twice is refused, and so is a duplicate email */
+    await expect(
+      createPartnerLogin(p.id, { email: "x@example.com", password: "partnerpass1" }, actor),
+    ).rejects.toThrow(/already has an account/);
   });
 });
 

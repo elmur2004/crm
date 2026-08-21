@@ -890,8 +890,6 @@ export async function persistGroup(
     // PP-1 (V2 §6): the dialed-number selection is consumed by the partners service
   } else if (group === "won_partner" && payload.group === "won_partner") {
     // PP-4: the gate data is consumed by the create_partner side effect, not a child record
-  } else if (group === "won_agent" && payload.group === "won_agent") {
-    // PP-4a: likewise — the agent gate is consumed by the create_agent side effect
   } else if (group === "won_deal" && payload.group === "won_deal") {
     // V2 §4: the milestone tab is consumed by the create_won_deal side effect
   } else if (group === "negotiation" && payload.group === "negotiation") {

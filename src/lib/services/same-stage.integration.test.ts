@@ -156,7 +156,7 @@ describe("(a) another follow-up while still Following Up", () => {
     expect((await db.lead.findUniqueOrThrow({ where: { id: lead.id } })).stage).toBe("following_up");
   });
 
-  it("is offered on the partnership pipeline too", async () => {
+  it("is offered from every active stage of the prospect pipeline (ADR-059)", async () => {
     const actor = await makeActor();
     const prospect = await createProspect(
       {
@@ -168,9 +168,20 @@ describe("(a) another follow-up while still Following Up", () => {
       },
       actor,
     );
+    /* ADR-059 — this action is now the ONLY way a prospect follow-up is ever
+       created, and it is offered from every active stage. Contacted itself
+       writes nothing (founder item 2.1), so the card is moved there first with
+       no group at all and BOTH follow-ups come from the button. */
     await applyProspectEvent({
       prospectId: prospect.id,
-      event: { type: "next_action", action: "following_up" },
+      event: { type: "next_action", action: "contacted" },
+      actor,
+      role: "bsystems_admin",
+    });
+    expect(await db.followUp.count({ where: { partnerProspectId: prospect.id } })).toBe(0);
+    await applyProspectEvent({
+      prospectId: prospect.id,
+      event: { type: "next_action", action: "follow_up_again" },
       group: followUp("2026-08-18") as never,
       actor,
       role: "bsystems_admin",
@@ -185,7 +196,7 @@ describe("(a) another follow-up while still Following Up", () => {
 
     expect(
       (await db.partnerProspect.findUniqueOrThrow({ where: { id: prospect.id } })).stage,
-    ).toBe("following_up");
+    ).toBe("contacted");
     expect(await db.followUp.count({ where: { partnerProspectId: prospect.id } })).toBe(2);
     const lists = await todoFor({ brand: "bsystems", scope: { kind: "all" }, now: NOW });
     expect(lists.today.map((i) => i.kind)).toEqual(["prospect_follow_up"]);

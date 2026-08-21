@@ -2,7 +2,6 @@ import { db } from "@/lib/db";
 import type { Brand } from "@/lib/pipeline-engine/constants";
 import { cairoToUtc, utcToCairo } from "@/lib/datetime";
 import { prospectTitle } from "./partners";
-import { partnersConfigFor } from "@/lib/pipeline-engine/configs/partners";
 
 /* Founder (ADR-041) — the To-Do page: "the actual date of today with the
    entire tasks of today... just a way of representing what I have to do today,
@@ -191,12 +190,22 @@ export async function todoFor(opts: {
   if (adminExtras) {
     const [stagedProspects, statements, milestones] = await Promise.all([
       db.partnerProspect.findMany({
-        /* ADR-057 — this projection spans BOTH kinds in one query, so the
-           list is the UNION of the two configs' follow-up slots plus the
-           shared meeting slot: partner cards follow up in `following_up`,
-           agent cards in `contacted`. Drop `contacted` and every agent
-           follow-up silently disappears from the admin's To-Do. */
-        where: { stage: { in: ["following_up", "contacted", "meeting_setting"] } },
+        /* ADR-059 — founder item 2.1: "Agents/Partners moved to Contacted
+           should not automatically be treated as Follow Up tasks... Contacted
+           should only indicate that contact has been made unless an actual
+           Follow Up task is required."
+
+           So this projection is driven by the RECORD, never by the column —
+           SPEC §7.2c / PP-8, which offer "Record a follow-up" from EVERY active
+           stage and put the card on the To-Do on the strength of the record
+           alone. The `in` list is therefore exactly the ACTIVE stages: only the
+           two terminals are excluded, because a qualified or lost card owes
+           nobody a call and a stale follow-up there would nag for ever. Get
+           this list wrong in the other direction and prospect follow-ups
+           silently vanish from the admin's most-used screen. */
+        where: {
+          stage: { in: ["lead", "contacted", "didnt_answer", "meeting_setting", "waiting"] },
+        },
         select: {
           id: true,
           kind: true, // partner card ⇒ the company, agent card ⇒ the person
@@ -229,8 +238,10 @@ export async function todoFor(opts: {
       const f = prospect.followUps[0] ?? null;
       const m = prospect.meetings[0] ?? null;
       const newest = Math.max(f?.createdAt.getTime() ?? 0, m?.createdAt.getTime() ?? 0);
-      const followUpStage = partnersConfigFor(prospect.kind).followUpStage;
-      if (prospect.stage === followUpStage && f && f.createdAt.getTime() === newest) {
+      /* the row exists because a follow-up was RECORDED — not because of where
+         the card is sitting (ADR-059). A meeting arranged AFTER it supersedes
+         it (the call became a meeting); the reverse is not true, see below. */
+      if (f && f.createdAt.getTime() === newest) {
         items.push({
           kind: "prospect_follow_up",
           at: f.dueAt,
@@ -239,14 +250,13 @@ export async function todoFor(opts: {
           href: `/b-systems/partners-pipeline/${prospect.id}`,
         });
       }
-      if (
-        prospect.stage === "meeting_setting" &&
-        m &&
-        m.createdAt.getTime() === newest &&
-        m.arranged &&
-        m.outcome === null &&
-        m.datetime
-      ) {
+      /* the meeting row does NOT compete with the follow-up row. `follow_up_again`
+         is offered from every active stage now (ADR-059), so a follow-up recorded
+         on a card that already has a meeting arranged would otherwise make the
+         MEETING disappear from the screen whose whole purpose is "so I don't miss
+         anything". An arranged, unresolved meeting on a meeting-setting card
+         stands on its own; the two rows sit side by side, each on its own date. */
+      if (prospect.stage === "meeting_setting" && m && m.arranged && m.outcome === null && m.datetime) {
         items.push({
           kind: "prospect_meeting",
           at: m.datetime,

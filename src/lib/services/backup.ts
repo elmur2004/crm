@@ -143,12 +143,12 @@ export async function importBackup(
         await delegate(tx, model).createMany({ data: rows });
       }
     }
-    /* ADR-057 — a backup exported BEFORE the agent rename holds agent rows at
-       `following_up` / `won`; createMany restores them verbatim and they would
-       render in no column of the agent board. The restore runs the SAME
-       normalisation the migration runs, so it can never re-strand a card nor
-       leave a restored card's History speaking the partner vocabulary. */
-    await normaliseAgentStages(tx);
+    /* ADR-057, widened by ADR-059 — a backup exported BEFORE the renames holds
+       prospect rows at `following_up` / `won`; createMany restores them verbatim
+       and they would render in no column of the board. The restore runs the SAME
+       normalisation the two migrations run, so it can never re-strand a card nor
+       leave a restored card's History speaking a retired vocabulary. */
+    await normaliseProspectStages(tx);
     await tx.activityLog.create({
       data: {
         entityType: "user",
@@ -173,41 +173,54 @@ export async function importBackup(
   return counts;
 }
 
-/* ---------------------------------------------------- ADR-057 normalisation */
+/* ------------------------------------------ ADR-057 / ADR-059 normalisation */
 
-/** The old agent stage keys, and the slot each one became. Named once so the
-    SQL migration and this restore path cannot drift into different answers. */
-const AGENT_STAGE_RENAMES = [
-  ["following_up", "contacted"], // the follow-up role slot
-  ["won", "qualified"], // the terminal-success slot / account gate
+/** The retired prospect stage keys, and the slot each one became. Named once so
+    the SQL migrations and this restore path cannot drift into different answers.
+
+    ADR-059 made the pair KIND-AGNOSTIC: `following_up` and `won` are dead keys
+    for partner cards as well as agent cards now, so applying both renames to
+    every PartnerProspect row is the exact TypeScript twin of the two shipped
+    migrations run in sequence. */
+const PROSPECT_STAGE_RENAMES = [
+  ["following_up", "contacted"], // the stage a card used to follow up in
+  ["won", "qualified"], // the terminal-success slot / directory gate
 ] as const;
 
-/** Walk agent rows off the partner stage vocabulary — the TypeScript twin of
-    `prisma/migrations/20260819180000_agent_stages/migration.sql`, statement for
-    statement, for the one path the migration cannot reach: `importBackup`
+/** Walk prospect rows off the retired stage vocabulary — the TypeScript twin of
+    `prisma/migrations/20260819180000_agent_stages/migration.sql` and
+    `.../20260821180000_unified_prospect_stages/migration.sql`, statement for
+    statement, for the one path the migrations cannot reach: `importBackup`
     re-inserts a PRE-rename export verbatim onto an already-migrated database.
     A parity test runs both against identical fixtures and diffs the result. */
-export async function normaliseAgentStages(tx: Prisma.TransactionClient): Promise<void> {
-  const agentIds = (
-    await tx.partnerProspect.findMany({ where: { kind: "agent" }, select: { id: true } })
-  ).map((p) => p.id);
-  if (agentIds.length === 0) return;
+export async function normaliseProspectStages(tx: Prisma.TransactionClient): Promise<void> {
+  const prospectIds = (await tx.partnerProspect.findMany({ select: { id: true } })).map(
+    (p) => p.id,
+  );
+  if (prospectIds.length === 0) return;
 
-  for (const [from, to] of AGENT_STAGE_RENAMES) {
-    // 1. the cards themselves
-    await tx.partnerProspect.updateMany({
-      where: { kind: "agent", stage: from },
-      data: { stage: to },
-    });
-    /* 2. their History, so an agent's own panel stops printing "Following Up"
-       and "Won" — columns his board does not have. ActivityLog is append-only
-       by policy; this rewrite is the deliberate exception ADR-057 records. */
+  for (const [from, to] of PROSPECT_STAGE_RENAMES) {
+    /* 1. the cards themselves — RAW, and that is the whole point. Prisma applies
+       `@updatedAt` CLIENT-side, so `updateMany` would stamp `updatedAt = now()`
+       on every renamed card while the SQL migrations leave it untouched. Two
+       things ride on that column and both would break the "statement for
+       statement" promise: undo's integrity FINGERPRINT (a surviving pending
+       entry would 409 for ever on the restore path and succeed on the SQL path)
+       and the board's `orderBy: { updatedAt: "desc" }` (a restore would silently
+       re-sort every renamed card to the top of its column). The values are the
+       literals of PROSPECT_STAGE_RENAMES, and are bound as parameters anyway. */
+    await tx.$executeRaw`UPDATE "PartnerProspect" SET "stage" = ${to} WHERE "stage" = ${from}`;
+    /* 2. their History, so a card's own panel stops printing "Following Up" and
+       "Won" — columns the board does not have. ActivityLog is append-only by
+       policy; this rewrite is the deliberate exception ADR-057/ADR-059 record.
+       The entityType filter is load-bearing: internal LEAD history still uses
+       `following_up` and `won` as LIVE stage names and must never be rewritten. */
     await tx.activityLog.updateMany({
-      where: { entityType: "partner_prospect", entityId: { in: agentIds }, fromStage: from },
+      where: { entityType: "partner_prospect", entityId: { in: prospectIds }, fromStage: from },
       data: { fromStage: to },
     });
     await tx.activityLog.updateMany({
-      where: { entityType: "partner_prospect", entityId: { in: agentIds }, toStage: from },
+      where: { entityType: "partner_prospect", entityId: { in: prospectIds }, toStage: from },
       data: { toStage: to },
     });
   }
@@ -216,13 +229,13 @@ export async function normaliseAgentStages(tx: Prisma.TransactionClient): Promis
      still carry a dead stage in its snapshot. `undoProspectEvent` refuses to
      write a stage the card's board lacks, so it cannot strand anything — but
      the button would keep OFFERING a revert that always fails. Retire the
-     owner's whole pending set, exactly as the migration does, so ADR-045's
+     owner's whole pending set, exactly as the migrations do, so ADR-045's
      honesty invariant survives a restore too. */
   const stale = await tx.undoEntry.findMany({
-    where: { consumedAt: null, entityType: "partner_prospect", entityId: { in: agentIds } },
+    where: { consumedAt: null, entityType: "partner_prospect", entityId: { in: prospectIds } },
     select: { userId: true, payload: true },
   });
-  const oldStages = new Set<string>(AGENT_STAGE_RENAMES.map(([from]) => from));
+  const oldStages = new Set<string>(PROSPECT_STAGE_RENAMES.map(([from]) => from));
   const owners = [
     ...new Set(
       stale

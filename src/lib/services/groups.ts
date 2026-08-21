@@ -74,47 +74,47 @@ export const wonSchema = z.object({
 });
 export type WonInput = z.infer<typeof wonSchema>;
 
-/* §7.2 Won completeness gate (PP-4) — all required except email. */
-export const wonPartnerSchema = z
-  .object({
-    companyName: z.string().min(1).max(200),
-    keyPersonName: z.string().min(1).max(200),
-    keyPersonRole: z.string().min(1).max(200),
-    address: z.string().min(1).max(400),
-    number: z.string().min(1).max(50),
-    email: z.string().email().optional().or(z.literal("").transform(() => undefined)),
-    /* founder directive (supersedes the V2 §8 auto password): the admin SETS the
-       partner's sign-in password in the gate — required whenever email is given */
-    password: z
-      .string()
-      .min(8, "At least 8 characters")
-      .optional()
-      .or(z.literal("").transform(() => undefined)),
-    businessActivity: z.string().min(1).max(300),
-    importance: z.enum(IMPORTANCE_LEVELS),
-  })
-  .refine((g) => !g.email || Boolean(g.password), {
-    message: "Set the partner's sign-in password (with the email, an account is created)",
-    path: ["password"],
-  });
+/* §7.2 Qualified completeness gate for a PARTNER card (PP-4) — everything
+   required except the email.
+
+   Founder (ADR-059, item 1.3): "Moving a lead to Qualified should not require
+   creating or entering an email or password. This applies to both Agents and
+   Partners." So the password field and the email⇒password refine are GONE: this
+   gate is about the partner record being complete, never about credentials.
+   The login is minted afterwards by `createPartnerLogin` (§7.2b), which is where
+   the email and the password are asked for. Every OTHER completeness
+   requirement is preserved exactly as it was. */
+export const wonPartnerSchema = z.object({
+  companyName: z.string().min(1).max(200),
+  keyPersonName: z.string().min(1).max(200),
+  keyPersonRole: z.string().min(1).max(200),
+  address: z.string().min(1).max(400),
+  number: z.string().min(1).max(50),
+  email: z.string().email().optional().or(z.literal("").transform(() => undefined)),
+  businessActivity: z.string().min(1).max(300),
+  importance: z.enum(IMPORTANCE_LEVELS),
+});
 export type WonPartnerInput = z.infer<typeof wonPartnerSchema>;
 
-/* Founder: the AGENT card's Won gate — the completeness gate PP-4 already is,
-   for the other kind of card. "Once I put them Won, I have to create for them a
-   user and a password — they will not apply, I will create for them a user and
-   a password." So email AND password are both required: they are the
-   credentials the admin hands over. Address and speciality are required HERE
-   rather than at card creation (which asks only for a name and a number) —
-   partly because the founder wants adding to be frictionless, and partly
-   because PortalRep.address / .speciality are NOT NULL columns: this gate is
-   the last honest place to insist. Each message names its own field so the
-   admin sees exactly what is missing, PP-4 style. */
+/* §7.2b — the body of the SEPARATE "Create the agent's account" action (PP-4a).
+
+   This is no longer a stage gate: ADR-059 took it off the move to Qualified
+   because the founder asked that qualifying never demand an email or a
+   password. It is the explicit, admin-only step afterwards, so this is exactly
+   where those two credentials ARE required: "I will create for them a user and
+   a password — they will not apply."
+
+   Address and speciality are required here rather than at card creation (which
+   asks only for a name and a number) — partly because adding must stay
+   frictionless, and partly because PortalRep.address / .speciality are NOT NULL
+   columns: this form is the last honest place to insist. Each message names its
+   own field so the admin sees exactly what is missing. */
 /* `error` (not just `min`) so a MISSING field reads the same as an empty one —
    otherwise Zod answers "expected string, received undefined", which tells the
    admin nothing about which box to fill. */
 const gateField = (message: string) => z.string({ error: message }).min(1, message);
 
-export const wonAgentSchema = z.object({
+export const agentAccountSchema = z.object({
   firstName: gateField("First name is required").max(100),
   lastName: gateField("Last name is required").max(100),
   address: gateField("Address is required — it goes on the agent's profile").max(400),
@@ -127,7 +127,18 @@ export const wonAgentSchema = z.object({
   /* prefilled from the card's number; the agent's second identifier (ADR-016) */
   phone: gateField("Phone number is required").max(50),
 });
-export type WonAgentInput = z.infer<typeof wonAgentSchema>;
+export type AgentAccountInput = z.infer<typeof agentAccountSchema>;
+
+/* §7.2b — the PARTNER half of the same action: a directory partner's login. The
+   gate no longer carries a password (see wonPartnerSchema), so this is the only
+   path that mints a `bsystems_partner` account. */
+export const partnerLoginSchema = z.object({
+  email: gateField("Enter a valid email — it is the partner's sign-in").email(
+    "Enter a valid email — it is the partner's sign-in",
+  ),
+  password: gateField("Set the partner's sign-in password").min(8, "At least 8 characters"),
+});
+export type PartnerLoginInput = z.infer<typeof partnerLoginSchema>;
 
 /* V2 §1: the negotiation stage's group — a note entry (accumulates). */
 export const negotiationSchema = z.object({
@@ -223,7 +234,6 @@ export const groupPayloadSchema = z.discriminatedUnion("group", [
   z.object({ group: z.literal("lost"), data: lostSchema }),
   z.object({ group: z.literal("won"), data: wonSchema }),
   z.object({ group: z.literal("won_partner"), data: wonPartnerSchema }),
-  z.object({ group: z.literal("won_agent"), data: wonAgentSchema }),
   z.object({ group: z.literal("won_deal"), data: wonDealSchema }),
   z.object({ group: z.literal("negotiation"), data: negotiationSchema }),
   z.object({ group: z.literal("numbers"), data: numbersSchema }),

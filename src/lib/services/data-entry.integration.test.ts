@@ -185,7 +185,7 @@ describe("Correcting an entry: only their own, only while untouched", () => {
 
     await applyProspectEvent({
       prospectId: card.id,
-      event: { type: "next_action", action: "won" },
+      event: { type: "next_action", action: "qualified" },
       group: {
         group: "won_partner",
         data: {
