@@ -69,6 +69,176 @@ test("admin books income + expense, approves it, and the dashboard moves", async
   await expect(page.getByText("EGP 3,210").first()).toBeVisible(); // 4,321 − 1,111
 });
 
+/* Founder, by screenshot of the row action buttons: "when I click on the right
+   sign it becomes green" — the ✓ now CARRIES the row's state, so the buttons
+   column shows at a glance which rows are approved, and clicking a green one
+   puts the row back on hold / pending. Proven on all three row kinds (manual
+   expense, income, and the AUTO payroll row from the roster — the kind in the
+   screenshot) and in BOTH directions.
+
+   Asserted through aria-pressed + the state class, never a sampled colour —
+   except once, under the OTHER brand, where the resolved paint IS the point
+   (see there). The accessible NAME is fixed ("Collected" / "Paid") because
+   aria-pressed carries the state; the flipping action wording lives in the
+   title, and both are asserted.
+
+   Money isolation: every row here is booked into a far-future month (2099-01)
+   so no other test's absolute figures move. One honest caveat — the ✓ stamps
+   the collection with TODAY's date, so between a click and its un-click an
+   income row's cash sits in the CURRENT month by design (that is the cash
+   basis, and the "moves back" case below leans on it deliberately). Every row
+   ends un-settled, and the suite is serial (workers: 1) with this test after
+   the absolute-total one. */
+const SETTLED = /row-toggle--acct-settled/;
+const FUTURE = "2099-01";
+/* how the CSS-wide keyword `transparent` serializes out of getComputedStyle —
+   the value a background falls back to when its var() resolves to nothing. Not
+   a colour choice, so not a brand-token violation. */
+const NO_PAINT = "rgba(0, 0, 0, 0)";
+
+test("the row ✓ turns green while the row is settled — and back again", async ({ page }) => {
+  await login(page, "admin@byteforce.com", "password123", /\/b-systems$/);
+  const modal = page.locator(".modal");
+
+  /* ---- income: book a PENDING row; its ✓ must start un-settled */
+  await page.goto(`/accounting/income?company=byteforce&month=${FUTURE}`);
+  await page.getByRole("button", { name: "+ Add income" }).click();
+  await modal.getByLabel("Client name").fill("Green Check Client");
+  await modal.getByLabel("Amount (EGP)").fill("250");
+  await modal.getByRole("button", { name: "Save" }).click();
+  await expect(modal).toBeHidden();
+
+  const incomeRow = page.locator("tr", { hasText: "Green Check Client" });
+  await expect(incomeRow.getByText("Pending", { exact: true })).toBeVisible();
+  /* ONE locator across the round trip: the accessible name is the STATE and
+     never flips (WAI-ARIA APG for toggle buttons) — the action wording moves
+     with the state in the title instead. */
+  const collect = incomeRow.getByRole("button", { name: "Collected", exact: true });
+  await expect(collect).toHaveAttribute("aria-pressed", "false");
+  await expect(collect).toHaveAttribute("title", "Mark collected");
+  await expect(collect).not.toHaveClass(SETTLED);
+
+  /* click → the chip says Collected AND the button reports it */
+  await collect.click();
+  await expect(incomeRow.getByText("Collected", { exact: true })).toBeVisible();
+  await expect(collect).toHaveAttribute("aria-pressed", "true");
+  await expect(collect).toHaveAttribute("title", "Mark pending");
+  await expect(collect).toHaveClass(SETTLED);
+
+  /* the settled green actually PAINTS: the rule spends --color-acct-positive-tint
+     through a bare var(), so a scope that fails to declare the pair leaves the
+     background transparent. Kept for the cross-brand comparison at the end. */
+  const settledBg = await collect.evaluate((el) => getComputedStyle(el).backgroundColor);
+  expect(settledBg).not.toBe(NO_PAINT);
+
+  /* click again → both cues clear (the round trip, not just the way in) */
+  await collect.click();
+  await expect(incomeRow.getByText("Pending", { exact: true })).toBeVisible();
+  await expect(collect).toHaveAttribute("aria-pressed", "false");
+  await expect(collect).not.toHaveClass(SETTLED);
+
+  /* ---- the round trip from the OTHER month the row shows in. Income is
+     cash-basis: a collected row ALSO lists under the month its cash landed in.
+     Un-settling it there clears that cash, so the row correctly LEAVES that
+     month and is pending again under its own — that is the deliberate answer to
+     "click a green ✓ and it goes back". Holding the row in the view instead
+     would leave an uncollected amount, and its Pending receivable, in a month
+     it does not belong to. */
+  await collect.click();
+  await expect(incomeRow.getByText("Collected", { exact: true })).toBeVisible();
+
+  await page.goto(`/accounting/income?company=byteforce&month=${cairoMonth()}`);
+  const cashRow = page.locator("tr", { hasText: "Green Check Client" });
+  const cashToggle = cashRow.getByRole("button", { name: "Collected", exact: true });
+  await expect(cashToggle).toHaveClass(SETTLED); // green on the cash month too
+  await cashToggle.click();
+  await expect(cashRow).toHaveCount(0); // the cash left the month, so did the row
+
+  await page.goto(`/accounting/income?company=byteforce&month=${FUTURE}`);
+  await expect(incomeRow.getByText("Pending", { exact: true })).toBeVisible();
+  await expect(incomeRow.getByRole("button", { name: "Collected", exact: true })).not.toHaveClass(
+    SETTLED,
+  );
+
+  /* ---- expenses: the same round trip on a manual row */
+  await page.goto(`/accounting/expenses?company=byteforce&month=${FUTURE}`);
+  await page.getByRole("button", { name: "+ Add expense" }).click();
+  await modal.getByLabel("Name / payee").fill("Green Check Hosting");
+  await modal.getByLabel("Amount (EGP)").fill("120");
+  await modal.getByRole("button", { name: "Save" }).click();
+  await expect(modal).toBeHidden();
+
+  const expenseRow = page.locator("tr", { hasText: "Green Check Hosting" });
+  await expect(expenseRow.getByText("On hold", { exact: true })).toBeVisible();
+  const approve = expenseRow.getByRole("button", { name: "Paid", exact: true });
+  await expect(approve).toHaveAttribute("aria-pressed", "false");
+  await expect(approve).toHaveAttribute("title", "Approve / mark paid");
+  await expect(approve).not.toHaveClass(SETTLED);
+
+  await approve.click();
+  await expect(expenseRow.getByText("Paid", { exact: true })).toBeVisible();
+  await expect(approve).toHaveAttribute("aria-pressed", "true");
+  await expect(approve).toHaveAttribute("title", "Mark on hold");
+  await expect(approve).toHaveClass(SETTLED);
+
+  await approve.click();
+  await expect(expenseRow.getByText("On hold", { exact: true })).toBeVisible();
+  await expect(approve).toHaveAttribute("aria-pressed", "false");
+  await expect(approve).not.toHaveClass(SETTLED);
+
+  /* ---- the AUTO payroll row (founder's screenshot): derived from the roster,
+     its only other control is "Edit in roster" — same treatment, same toggle */
+  await page.goto(`/accounting/roster?company=byteforce&month=${FUTURE}`);
+  await page.getByRole("button", { name: "+ Add person" }).click();
+  await modal.getByLabel("Name", { exact: true }).fill("Green Check Payroll");
+  await modal.getByLabel("Monthly salary (EGP)").fill("300");
+  await modal.getByRole("button", { name: "Save" }).click();
+  await expect(modal).toBeHidden();
+
+  await page.goto(`/accounting/expenses?company=byteforce&month=${FUTURE}`);
+  const autoRow = page.locator("tr", { hasText: "Green Check Payroll" });
+  await expect(autoRow.getByText("from roster", { exact: true })).toBeVisible(); // the derived badge
+  const autoApprove = autoRow.getByRole("button", { name: "Paid", exact: true });
+  await expect(autoApprove).toHaveAttribute("aria-pressed", "false");
+  await expect(autoApprove).not.toHaveClass(SETTLED);
+
+  await autoApprove.click();
+  await expect(autoRow.getByText("Paid", { exact: true })).toBeVisible();
+  await expect(autoApprove).toHaveAttribute("aria-pressed", "true");
+  await expect(autoApprove).toHaveClass(SETTLED);
+
+  await autoApprove.click();
+  await expect(autoRow.getByText("On hold", { exact: true })).toBeVisible();
+  await expect(autoApprove).toHaveAttribute("aria-pressed", "false");
+  await expect(autoApprove).not.toHaveClass(SETTLED);
+
+  /* ---- and the green reads the same under the OTHER brand: the module
+     re-stamps [data-brand] per company. The state CLASS proves nothing about
+     brands (one React branch sets it either way), so this leg samples the PAINT
+     and compares it with the ByteForce one above. The token-parity guard proper
+     is src/lib/brand-tokens.test.ts, which reads the accounting pair out of
+     each of the three brand SCOPES — the B-Systems file declared it inside
+     `.bs-mesh`, not in its brand scope, until Run 058. */
+  await page.goto(`/accounting/income?company=bsystems&month=${FUTURE}`);
+  await page.getByRole("button", { name: "+ Add income" }).click();
+  await modal.getByLabel("Client name").fill("Green Check B-Systems");
+  await modal.getByLabel("Amount (EGP)").fill("90");
+  await modal.getByRole("button", { name: "Save" }).click();
+  await expect(modal).toBeHidden();
+  await expect(page.locator('div[data-brand="bsystems"]')).toBeVisible();
+
+  const bsRow = page.locator("tr", { hasText: "Green Check B-Systems" });
+  const bsToggle = bsRow.getByRole("button", { name: "Collected", exact: true });
+  await bsToggle.click();
+  await expect(bsRow.getByText("Collected", { exact: true })).toBeVisible();
+  await expect(bsToggle).toHaveClass(SETTLED);
+  const bsBg = await bsToggle.evaluate((el) => getComputedStyle(el).backgroundColor);
+  expect(bsBg).not.toBe(NO_PAINT);
+  expect(bsBg).toBe(settledBg);
+  await bsToggle.click();
+  await expect(bsToggle).not.toHaveClass(SETTLED);
+});
+
 test("B-Systems company filter hides Media Buying entirely", async ({ page }) => {
   await login(page, "admin@byteforce.com", "password123", /\/b-systems$/);
 

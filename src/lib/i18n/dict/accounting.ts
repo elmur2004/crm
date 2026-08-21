@@ -73,7 +73,13 @@ export const acct = {
   collected: { en: "Collected", ar: "محصّل" },
   pendingStatus: { en: "Pending", ar: "معلّق" },
   collectedOn: { en: "Collected on", ar: "محصّل في" },
+  /* toggleCollected was the income ✓'s single static title; the button's label
+     is state-aware now (the markCollected/markPending pair, matching expenses'
+     approveMarkPaid/markOnHold). The old key STAYS — shipped EN strings are
+     never edited or removed. */
   toggleCollected: { en: "Toggle collected", ar: "تبديل التحصيل" },
+  markCollected: { en: "Mark collected", ar: "تعليم كمحصّل" },
+  markPending: { en: "Mark pending", ar: "إعادة إلى المعلّق" },
   belongsToMonth: { en: "Belongs to month", ar: "يخص شهر" },
   clientName: { en: "Client name", ar: "اسم العميل" },
   amountEgp: { en: "Amount (EGP)", ar: "المبلغ (ج.م)" },

@@ -272,6 +272,10 @@
   font: 500 11.5px var(--font-body); color: var(--color-danger); white-space: nowrap;
 }
 .row-toggle--restore { color: var(--color-primary); }
+.row-toggle:disabled { opacity: .55; cursor: default; }
+/* a row action's failure, spoken where it happened (the modal has its own
+   foot-note slot; a row had nowhere at all until the ✓ started carrying state) */
+.row-error { font: 500 11.5px var(--font-body); color: var(--color-danger); }
 .info-banner {
   background: var(--color-surface-tint); border: 1px solid var(--color-border); border-radius: var(--radius-control);
   padding: 12px 15px; margin-bottom: 14px; font: 400 12.5px/1.5 var(--font-body); color: var(--color-ink);
@@ -753,6 +757,22 @@ label:has(input[required]) .dropzone-title::after {
 .acct-chip--good { background: var(--color-acct-positive-tint); color: var(--color-acct-positive); }
 .acct-chip--wait { background: var(--color-primary-tint); color: var(--color-primary); }
 .acct-chip--off { background: color-mix(in srgb, var(--color-warning) 14%, transparent); color: var(--color-warning); }
+
+/* the row ✓ toggle wearing the SAME accounting green while the row is settled
+   (founder: "when I click on the right sign it becomes green" — the buttons
+   column then shows at a glance which rows are approved). Inside the accounting
+   fence exactly like .acct-chip above: same two tokens, no new hue, and only
+   colors change so the button never resizes when it flips. Colour is never the
+   only cue — the button also carries aria-pressed under a fixed state-naming
+   accessible name, plus the action wording as its title.
+   NOTE both tokens are consumed through a bare var() with no fallback: any
+   scope that fails to declare the pair paints NO green at all, which is why
+   brand-tokens.test.ts checks them per SCOPE, not per file. */
+.row-toggle--acct-settled {
+  background: var(--color-acct-positive-tint);
+  border-color: color-mix(in srgb, var(--color-acct-positive) 38%, transparent);
+  color: var(--color-acct-positive);
+}
 
 /* ---------- lead team chat (founder: mini chat inside every lead) ---------- */
 .chat-thread { display: flex; flex-direction: column; gap: 10px; max-height: 360px; overflow-y: auto; padding-inline-end: 4px; }

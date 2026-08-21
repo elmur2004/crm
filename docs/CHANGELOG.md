@@ -1,5 +1,39 @@
 # Changelog — user-visible changes per phase/release
 
+## The ✓ on an accounting row goes green when the row is settled (2026-08-21)
+- You clicked the right sign and said it should turn green. It does now, and it
+  **stays** green for as long as the row is settled — so the buttons column on
+  its own tells you which rows are approved, without reading across to the
+  status pill.
+- **Green means settled.** On Income a green ✓ is *Collected*; on Expenses it is
+  *Paid*. A normal-coloured ✓ means the row is still Pending / On hold.
+- **Click a green ✓ and it goes back to normal — and the row goes back with it**,
+  to On hold on Expenses and to Pending on Income. Same button, both directions,
+  nothing else to click.
+- It works on **the salary lines that come from the Payroll Roster** too — the
+  rows whose only other button is "Edit in roster", the ones in your screenshot.
+- It is **the same green as the Collected / Paid pill** already sitting on the
+  row, in both companies' books: ByteForce accounting and B-Systems accounting
+  look identical here on purpose.
+- The button does not change size when it flips, so the row of buttons never
+  shifts under your finger.
+- **Colour is not the only thing that changed.** Hover the ✓ on Income and it
+  now says what your click will do — "Mark collected" on a pending row, "Mark
+  pending" on a collected one — where before it always said the same thing.
+  Expenses already did that ("Approve / mark paid" / "Mark on hold") and still
+  does. Both are written in Arabic too, and a screen reader now announces the
+  button as "Collected" (or "Paid") **pressed** or **not pressed**.
+- **A ✓ that cannot go through now says so.** If a click fails — your session
+  expired, or someone deleted the row in another tab — the reason appears beside
+  the buttons instead of the row simply not moving. And the ✓ ignores a second
+  click until the first one has landed, so an impatient double click can no
+  longer undo itself.
+- **One thing to expect on Income:** a collected invoice is listed both under
+  the month it belongs to and under the month its money arrived. If you un-tick
+  a green ✓ while looking at the month the money arrived in, the money is gone
+  from that month — so the row leaves it and goes back to its own month as
+  Pending. That is the books being right; nothing is lost.
+
 ## Agents get their own columns (2026-08-20)
 - You asked for it, so agents now walk their own board: **Lead · Contacted ·
   Didn't Answer · Meeting Setting · Qualified · Lost**, in that order.

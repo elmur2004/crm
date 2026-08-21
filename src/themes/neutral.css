@@ -10,7 +10,8 @@
 
 [data-brand="neutral"] {
   /* accounting-module ONLY (founder, by screenshot): green status pills —
-     exception to the R4 no-green ruling, scoped to .acct-chip. */
+     exception to the R4 no-green ruling, scoped to .acct-chip--good and
+     .row-toggle--acct-settled (accounting module only, ADR-054 addendum). */
   --color-acct-positive: #1B7A44;
   --color-acct-positive-tint: #E6F4EC;
   --color-primary: #1A191C;

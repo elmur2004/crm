@@ -1666,3 +1666,182 @@ every dashboard formula, journeys 1-5 (SPEC §13).
   now. Root-caused with an instrumented throwaway spec (dragged card, live
   `.col--over-valid`, actual toast text) rather than by retrying, and the
   throwaway spec was deleted. Nothing was filed in BUGS.md.
+
+## Run 057 — 2026-08-21 — The accounting row ✓ carries its settled state (founder)
+- Suites/commands: `npx tsc --noEmit` · `npx vitest run` (embedded per-run
+  Postgres, launched from `D:\CRM` — the lowercase-cwd trap of Run 052 still
+  applies) · `npx playwright test e2e/accounting.spec.ts` on the STOCK config at
+  port **3100** (checked free first: nothing was listening on 3000 or 3100, so
+  no copied config was needed and no other workstream's process was touched).
+  The FULL Playwright suite is the phase gate's job, not this change's.
+- Cases:
+  · tsc **clean (0 errors)** on the final tree.
+  · vitest **311 passed / 0 failed**, 25 files — the Run 056 baseline held
+    UNCHANGED (this change adds no unit test; its contract is a rendered
+    attribute + class, which is e2e's ground).
+  · Playwright `e2e/accounting.spec.ts`: **5 passed / 0 failed**, 1.9m.
+    Run 047 had 4 tests in this file; the +1 is the new
+    *"the row ✓ turns green while the row is settled — and back again"*.
+    `test-results/.last-run.json` → `{"status": "passed", "failedTests": []}`,
+    read from the file rather than inferred from the piped summary.
+    The four pre-existing tests are unchanged, assertions included — the first
+    one still clicks `row.locator("button").first()` (the ✓) and still reads
+    EGP 4,321 / 1,111 / 3,210 off the dashboard.
+- What the new e2e actually proves (state, never paint): on a manual expense,
+  an income row and the AUTO payroll row derived from the roster — the ✓ starts
+  `aria-pressed="false"` and WITHOUT `row-toggle--acct-settled`; one click makes
+  the existing green chip appear (Collected / Paid) AND the button report
+  `aria-pressed="true"` + the class; a second click clears BOTH. Repeated under
+  `company=bsystems` so the other brand's surface is exercised too. Rows are
+  booked into a far-future month (`2099-01`); the bsystems rows are wiped anyway
+  by the import test's replace-all a few tests later.
+  **Two corrections after review (see Run 058), both applied to this spec.**
+  (a) "no colour is ever sampled" was true and was the wrong call for the
+  cross-brand leg: the state class is set by ONE React branch regardless of
+  brand, so asserting it under `company=bsystems` added no brand signal at all.
+  That leg now samples the resolved background once and compares it with the
+  ByteForce one. (b) "an isolated far-future month" was not exact: the ✓ stamps
+  the collection with TODAY's date, so between a click and its un-click an
+  income row's cash sits in the CURRENT month by design. Every row still ends
+  un-settled and the suite is serial with the absolute-total test first, so the
+  isolation held — but the spec now says so in its own words, and a new leg
+  deliberately walks the current-month view to prove the un-settle round trip
+  from there too.
+- Failures: none in the final run. Two reds on the way, both self-inflicted and
+  fixed: (1) the first attempt at the AUTO-row assertion used
+  `getByText("from roster")`, which is a strict-mode violation — the row carries
+  the badge AND the type cell "Salary (from roster)"; it is `{ exact: true }`
+  now. (2) one earlier full-vitest run showed a single failure in
+  `src/lib/services/agent-stages-migration.integration.test.ts` (snapshot
+  equality). It reproduced neither on the clean HEAD tree (3/3) nor on the final
+  tree (311/311, twice), touches nothing this change edits, and is a flake of
+  the shared embedded-Postgres round — recorded here rather than filed in
+  BUGS.md, and worth a second look if it returns during the gate round.
+- Brand audit (checklist, by hand): PASS on everything it checked — but it
+  checked the wrong thing in one place, and Run 058 caught it. "…which already
+  exist in ALL THREE scopes" was verified the way every automated guard here
+  verifies it: by searching the FILES. In `branding/b-systems/tokens.css` the
+  pair was declared inside the `.bs-mesh` rule, not inside
+  `[data-brand="bsystems"]` — present in the file, absent from the scope, and
+  with a bare `var()` and no fallback that means no green under a real B-Systems
+  root. Fixed in Run 058 (moved into the scope) along with the guard itself:
+  `src/lib/brand-tokens.test.ts` reads tokens per SCOPE now. The rest of this
+  audit stands: no hex, no `rgb()/hsl()`, no `font-family` in any changed file;
+  no physical left/right (the rule sets background/border-color/color only, so
+  RTL is unaffected); no new token; no emoji added to any App A string. Contrast
+  #1B7A44 on #E6F4EC = 4.73:1 (AA, normal text), identical in both brands.
+
+## Run 058 — 2026-08-21 — Green settled ✓: reviewer findings adjudicated, then the FULL gate
+- Scope: the ten reviewer findings on commit af52ab9 (the row ✓ carrying its
+  settled state), verified one by one against the code, then the whole gate on
+  the resulting tree. Everything below is the FINAL tree, folded into that same
+  commit — nothing here shipped as a follow-up.
+- Suites/commands: `npx tsc --noEmit` · `npx vitest run` (embedded per-run
+  Postgres) · `npx playwright test` — the FULL suite, stock config, port
+  **3100**. Both 3000 and 3100 were checked free before starting (nothing
+  listening), so no config was copied and no other workstream's process was
+  touched. All three launched from `D:\CRM` with a CAPITAL D: the first vitest
+  attempt of this session ran from a lowercase `d:\CRM` and every one of the 25
+  files died with "Vitest failed to find the runner" / "Cannot read properties
+  of undefined (reading 'config')" — the Run 052 trap, still live. Worth knowing
+  precisely, because it is easy to misread as a broken test: the SAME lowercase
+  cwd also kills a single-file run on a clean HEAD, which looks like "this file
+  cannot be run alone". It can. From `D:\CRM` a single-file run is fine and was
+  used for the red/green probe below.
+- Cases:
+  · tsc **clean (0 errors)**.
+  · vitest **312 passed / 0 failed**, 25 files. Run 057 was 311; the +1 is the
+    new *"the accounting green pair is declared in ALL THREE brand SCOPES"* in
+    `src/lib/brand-tokens.test.ts`. One existing test was also tightened (the
+    ADR-019 parity check now reads the scope, not the file) — it stays green on
+    the fixed tree and goes red on the broken one, see below.
+  · Playwright FULL suite: **65 passed / 0 failed / 2 skipped**, 10.0m. Run 056
+    (the last full round) was 64 + 2; the +1 is the accounting green test from
+    this commit. The 2 skips are the standing audit opt-ins
+    (`e2e/audit.spec.ts`). `test-results/.last-run.json` →
+    `{"status": "passed", "failedTests": []}`, read from the file, not inferred
+    from the piped tail.
+- Findings adjudicated (10 — 2 medium fixed, 1 medium answered and covered,
+  6 low fixed/absorbed, 1 low recorded as a boundary):
+  · **The accounting green was NOT in the B-Systems brand scope** (medium,
+    real, and the most valuable finding of the round). In
+    `branding/b-systems/tokens.css` the pair sat inside the `.bs-mesh` rule —
+    in the file, outside `[data-brand="bsystems"]`, since the day it landed in
+    8fe9e05. Both consumers spend it through a bare `var()` with no fallback,
+    so under a real B-Systems root the ✓ and the `.acct-chip--good` pill would
+    paint no green at all; it only ever looked right because the accounting
+    layout stamps `data-brand="byteforce"` on `<html>` and the scope div merely
+    inherits. Moved into the brand scope. **The guards were blind because they
+    all read the FILE:** `brand-tokens.test.ts` now extracts tokens from the
+    SCOPE with a brace-matching `scopeBody()` — applied to the ADR-019 two-brand
+    parity check AND to a new ADR-057-style three-scope check over
+    `--color-acct-*`. Verified the new test actually bites: reverting the token
+    move turns it RED (`expected [] to deeply equal [ '--color-acct-positive',
+    '--color-acct-positive-tint' ]`), and the old file-scanning form stayed
+    green through it: that is not a hypothesis, it is Run 057 — the whole suite
+    was green on the misplaced tree.
+  · **`aria-pressed` contradicted the accessible name** (medium, real; raised
+    twice, as findings 2 and 7). `aria-label` carried the ACTION and flipped
+    with the state, so a collected row announced "Mark pending, pressed". Fixed
+    the way the APG says: the name is now the state (`Collected` / `Paid`) and
+    never moves, `aria-pressed` carries on/off, and the action wording lives in
+    `title` alone — which also dissolves the low finding that `aria-label` and
+    `title` were the identical string being announced twice.
+  · **Un-settling an income row can remove it from the month on screen**
+    (medium, real behaviour, deliberately kept). Cash basis: a collected row
+    lists under its issue month AND its cash month; clearing the collection
+    clears the cash, so a row that was in the view only on the cash basis
+    leaves it. The proposed fix (hold the row) would park an uncollected amount
+    and its Pending receivable in a month it does not belong to. Kept, recorded
+    in the ADR-054 addendum and the CHANGELOG in the founder's own terms, and
+    the e2e now walks that leg — collect in `2099-01`, switch to the CURRENT
+    month, un-settle the green ✓ THERE, assert the row leaves and is Pending
+    again under `2099-01`.
+  · **Token-file comments named a fence narrower than the shipped CSS** (low,
+    real): all three said "scoped to .acct-chip" while `.row-toggle--acct-settled`
+    had joined it. They are the surface `/brand-audit` reads, so all three now
+    name both consumers and cite the addendum.
+  · **A failed toggle was silent and a double click could undo itself** (low,
+    real): `useAction` returned `busy` and `error` and both row action groups
+    threw them away. The ✓ is `disabled` while its own request is in flight, and
+    a `.row-error` renders beside the buttons — it matters more now that the
+    button's colour is the row's primary state cue.
+  · **The cross-brand e2e leg asserted only a class name** (low, real): the
+    class comes from one React branch either way, so it carried no brand
+    signal. That leg now samples the resolved background and compares it with
+    the ByteForce one; the comment no longer claims to be the token guard and
+    points at `brand-tokens.test.ts`, which is.
+  · **The "isolated month" claim was not exact** (low, real): the ✓ stamps
+    TODAY, so an income row's cash sits in the current month between a click and
+    its un-click. No correctness change — serial workers, absolute-total test
+    first, every row ends un-settled — but the spec comment, TESTING Run 057 and
+    the PROGRESS entry now say it plainly instead of overclaiming.
+  · **The roster's ⇄ toggle carries no state** (low, explicitly a judgment
+    call): agreed and deliberately excluded — it moves an effective-dated
+    segment, it is not a money-row settlement, and the founder asked about the
+    ✓. Recorded as a boundary in the ADR-054 addendum so the next reader finds
+    the reason instead of the gap.
+- New/changed test files: `src/lib/brand-tokens.test.ts` (+1 test, and the
+  ADR-019 check made scope-aware), `e2e/accounting.spec.ts` (the green test
+  rewritten around the fixed accessible name, plus the cash-month leg and the
+  cross-brand paint sample; the four pre-existing tests untouched).
+- Failures: none. No flake this round — including
+  `src/lib/services/agent-stages-migration.integration.test.ts`, the one Run 057
+  saw fail once and could not reproduce; it passed in the full round here.
+  Still not filed in BUGS.md, still worth watching.
+- Brand audit (checklist, by hand): **PASS**, and this time on the scopes rather
+  than the files. (1) No hex, no `rgb()/hsl()`, no `font-family` added outside
+  `branding/` and `src/themes/` — the only `rgba(...)` in a changed non-token
+  file is the e2e constant `NO_PAINT = "rgba(0, 0, 0, 0)"`, which is how
+  `transparent` serializes out of `getComputedStyle`, named and commented as
+  such. (2) Scope integrity: `--color-acct-positive` / `-tint` now resolve
+  inside `[data-brand="byteforce"]`, `[data-brand="bsystems"]` and
+  `[data-brand="neutral"]`, identical values in all three, proven by test rather
+  than by eye. (3) B-Systems: no pink surface, no gradient, no mesh touched —
+  `.bs-mesh` only LOST two declarations that never belonged to it; the green is
+  the accounting exception, fenced and now correctly written down in the file.
+  (4) ByteForce: palette untouched; no emoji added to any App A string (the ✓
+  glyph is pre-existing button content). (5) RTL: the new `.row-toggle:disabled`
+  and `.row-error` rules set opacity/cursor/font/color only — no physical
+  left/right anywhere; the actions row gained `items-center`, a logical
+  alignment. Contrast unchanged: #1B7A44 on #E6F4EC = 4.73:1 (AA, normal text).

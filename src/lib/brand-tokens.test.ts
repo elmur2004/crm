@@ -16,6 +16,28 @@ import { stageAccent, stageKey, stageTint } from "@/components/bsystems/stageCol
  */
 const brandingDir = path.resolve(__dirname, "../../branding");
 
+/** the declarations DIRECTLY inside one top-level rule, comments stripped.
+    Block-aware on purpose: `css.includes("--token")` and a file-wide regex both
+    call a token "declared" when it sits in some unrelated component rule, which
+    is how `--color-acct-positive` shipped inside `.bs-mesh` instead of the
+    B-Systems brand scope (reviewer finding, Run 058). */
+function scopeBody(css: string, selector: string): string {
+  const withoutComments = css.replace(/\/\*[\s\S]*?\*\//g, "");
+  const at = withoutComments.indexOf(selector);
+  if (at < 0) return "";
+  const open = withoutComments.indexOf("{", at);
+  if (open < 0) return "";
+  let depth = 0;
+  for (let i = open; i < withoutComments.length; i++) {
+    if (withoutComments[i] === "{") depth++;
+    else if (withoutComments[i] === "}") {
+      depth--;
+      if (depth === 0) return withoutComments.slice(open + 1, i);
+    }
+  }
+  return "";
+}
+
 describe("brand token files (SPEC §4)", () => {
   const byteforce = readFileSync(
     path.join(brandingDir, "byteforce/tokens.css"),
@@ -59,19 +81,22 @@ describe("brand token files (SPEC §4)", () => {
 
   it("both brands define the identical semantic token set (ADR-019)", () => {
     // Semantic = the names components consume; raw palette vars (--bf-*, --bs-*)
-    // are brand-internal and excluded.
-    const semanticNames = (css: string) => {
-      const withoutComments = css.replace(/\/\*[\s\S]*?\*\//g, "");
+    // are brand-internal and excluded. Read from INSIDE the [data-brand] block
+    // only: a token declared in a component rule further down the file (this is
+    // exactly how --color-acct-positive* hid inside `.bs-mesh`) is invisible to
+    // the brand scope and must not count as declared.
+    const semanticNames = (css: string, selector: string) => {
       const names = new Set<string>();
-      for (const m of withoutComments.matchAll(
+      for (const m of scopeBody(css, selector).matchAll(
         /^\s*(--(?:color|font|gradient|radius|shadow)-[\w-]+)\s*:/gm,
       )) {
-        names.add(m[1]);
+        names.add(m[1]!);
       }
       return names;
     };
-    const bf = semanticNames(byteforce);
-    const bs = semanticNames(bsystems);
+    const bf = semanticNames(byteforce, '[data-brand="byteforce"]');
+    const bs = semanticNames(bsystems, '[data-brand="bsystems"]');
+    expect(bf.size).toBeGreaterThan(50);
     expect([...bf].sort()).toEqual([...bs].sort());
   });
 });
@@ -102,6 +127,34 @@ describe("stage tokens exist in ALL THREE brand scopes (ADR-057)", () => {
       for (const suffix of ["", "-accent", "-chip", "-chip-ink"]) {
         expect(bf).toContain(`--color-stage-${family}${suffix}`);
       }
+    }
+  });
+
+  /* ADR-054 addendum — the accounting green is the SAME three-scope law. It is
+     the exception to R4 ("no green"), fenced to `.acct-chip--good` and
+     `.row-toggle--acct-settled`, and `design-system.css` spends it through a
+     bare `var()` with no fallback: a scope that does not declare the pair paints
+     no green at all. The b-systems file declared it inside `.bs-mesh` from the
+     day it landed and every guard was blind to it, because they all scanned the
+     file rather than the SCOPE — hence scopeBody() here too. */
+  it("the accounting green pair is declared in ALL THREE brand SCOPES", () => {
+    const acctNames = (css: string, selector: string) => {
+      const names = new Set<string>();
+      for (const m of scopeBody(css, selector).matchAll(/(--color-acct-[\w-]+)\s*:/g)) {
+        names.add(m[1]!);
+      }
+      return [...names].sort();
+    };
+    const bf = acctNames(read("branding/byteforce/tokens.css"), '[data-brand="byteforce"]');
+    const bs = acctNames(read("branding/b-systems/tokens.css"), '[data-brand="bsystems"]');
+    const neutral = acctNames(read("src/themes/neutral.css"), '[data-brand="neutral"]');
+    expect(bf).toEqual(["--color-acct-positive", "--color-acct-positive-tint"]);
+    expect(bs).toEqual(bf);
+    expect(neutral).toEqual(bf);
+    /* and identically valued in both brands (the module swaps brand per company) */
+    for (const hex of ["#1B7A44", "#E6F4EC"]) {
+      expect(scopeBody(read("branding/byteforce/tokens.css"), '[data-brand="byteforce"]')).toContain(hex);
+      expect(scopeBody(read("branding/b-systems/tokens.css"), '[data-brand="bsystems"]')).toContain(hex);
     }
   });
 

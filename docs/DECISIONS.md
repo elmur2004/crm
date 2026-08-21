@@ -1900,6 +1900,109 @@ R23 copy sign-off — carried in PROGRESS (Entry 011).
   placement, and §7.8 for the one dashboard screen.
 - Status: Accepted
 
+### ADR-054 — Addendum (2026-08-21, founder) — the accounting green, written down, and extended to the row ✓
+Amends ADR-054's brand section; it stays Accepted. No new ADR: see "Why no new
+ADR" below.
+- The exception itself, recorded late. Commit 8fe9e05 ("accounting status chips
+  wear the original app's colors", founder by screenshot) introduced
+  `--color-acct-positive` #1B7A44 / `--color-acct-positive-tint` #E6F4EC across
+  the three brand files (byteforce, b-systems, neutral) and spent them on ONE
+  consumer, `.acct-chip--good` (Collected / Paid / Settled / Active / Deposit).
+  **Correction (2026-08-21, reviewer finding).** In `branding/b-systems/tokens.css`
+  that pair did not land in the `[data-brand="bsystems"]` block at all — it sat
+  in the `.bs-mesh` rule further down the file. So the B-Systems SCOPE never
+  declared it, and both consumers spend it through a bare `var()` with no
+  fallback: under a genuine B-Systems root the background, border and ink are
+  invalid-at-computed-value-time and NO green paints. It looked right only by
+  inheritance — the accounting root layout stamps `data-brand="byteforce"` on
+  `<html>` and `ModuleBrandScope` re-stamps only an inner `<div>`, so the
+  byteforce value flowed through the B-Systems subtree. Moved into the brand
+  scope here. Every guard was blind to it because every guard scanned the FILE:
+  `brand-tokens.test.ts` now reads tokens out of the SCOPE (a brace-matching
+  `scopeBody()`), for both the ADR-019 two-brand parity check and a new
+  ADR-057-style three-scope check over `--color-acct-*`. That is a
+  deliberate, accounting-only exception to the ADR-031-Resolution R4 ruling
+  ("no green anywhere" in the B-brand, `--color-success` is in-palette) — the
+  founder's own reference SPA coloured these pills green in BOTH tenants and he
+  asked for that coloring back by screenshot. It shipped with a code comment
+  (AcctHead.tsx) and a CHANGELOG line but no ADR; this addendum is its home.
+  The fence has always been: the accounting module only, status-of-a-money-row
+  only, those two tokens only, identical in both brands.
+- The extension (this session). Founder, screenshotting the row action buttons:
+  *"when I click on the right sign it becomes green"* — chosen behaviour: the
+  ✓ BUTTON itself turns green while the row is settled, and clicking a green ✓
+  returns it to the normal colour and puts the row back On hold. Decision: one
+  new class `.row-toggle--acct-settled` in the accounting section of
+  design-system.css, consuming the SAME two tokens (tint background, positive
+  ink, border a color-mix of the positive ink like `.acct-chip--off` already
+  does with warning). It replaces `.row-toggle--restore` on the settled state
+  only, changes nothing but colour — so the button keeps its size, shape and
+  place and the action column never reflows on a flip.
+  · One shared `SettleToggle` (accounting/forms.tsx) now renders BOTH check
+    toggles — income (`row.collected`) and expenses (`row.paid`, manual AND the
+    derived AUTO payroll row, which is the row kind in the screenshot). State
+    comes from the row truth the chip already reads, so button and chip can
+    never disagree.
+  · NOT BY COLOUR ALONE (this is the condition the exception is granted under):
+    the toggle carries `aria-pressed`, and the two channels are split so they
+    cannot contradict each other. The accessible NAME is the state the button
+    represents and never moves — `Collected` on income, `Paid` on expenses — so
+    `aria-pressed` is what says on/off; the flipping ACTION wording lives in
+    `title` only, a hint for the sighted mouse user (and the accessible
+    description, announced after the name). This is the WAI-ARIA APG rule for
+    toggle buttons: a name that flips with the state announces "Mark pending,
+    pressed" on a COLLECTED row, which reads as though pending is what is on.
+    (First cut of this change did exactly that; reviewer finding, corrected
+    before push.) The `markCollected` / `markPending` pair (EN + AR) still ships
+    and is still exercised — it is the income title now, matching the
+    `approveMarkPaid` ⇄ `markOnHold` pair expenses already had.
+    `toggleCollected` is retired from use but KEPT in the dictionary — shipped
+    English strings are never edited or removed (ADR-037).
+  · The ✓ is `disabled` while its own request is in flight (a double click used
+    to fire the reverse toggle behind the first one and land back where it
+    started), and a failed toggle now says so: a `.row-error` beside the row's
+    buttons, where before the failure was silent and the un-moved colour was the
+    only — and misleading — feedback.
+- Why no new ADR: the exception does not widen. Same two tokens, no new hue, no
+  new token, no new scope, no new brand surface — one more consumer inside the
+  same accounting fence, on the same money-row-status semantics the chip
+  already carries. A new ADR would imply a new rule; there isn't one. What WAS
+  missing is the written record of the original exception, which is why this
+  addendum states it in full rather than only the delta. If a future request
+  wants this green OUTSIDE accounting, that is the widening — and that needs its
+  own ADR against R4.
+- Contrast: #1B7A44 on #E6F4EC = 4.73:1, AA for normal text, and the pair is
+  byte-identical in both brand files, so ByteForce and B-Systems accounting read
+  the same (the module stamps `data-brand` per company, ADR-054 directive D).
+- Two boundaries recorded on purpose, both raised in review:
+  · **Un-settling an income row can move it out of the month you are looking
+    at, and that is correct.** Income is cash-basis: a collected row lists under
+    its issue month AND under the month its cash landed in. Clearing the
+    collection clears `collectedDate` / `paidMonth`, so a row that was in the
+    view ONLY on the cash basis leaves it and is pending again under its own
+    month. Rejected the alternative (hold the row in the view): it would park an
+    uncollected amount — and its Pending receivable — in a month it does not
+    belong to, which is the one thing the cash basis exists to prevent. Covered
+    now by an e2e leg that does the round trip from the cash month, not just
+    from the issue month.
+  · **The roster's ⇄ "Active from this month" is deliberately NOT a
+    `SettleToggle`.** It flips the green `Active` chip, so it is inside the same
+    green fence, but it is not a money-row settlement: it moves an effective-dated
+    segment rather than approving a payment, its glyph is different, and it is
+    the one accounting row action whose meaning is a date, not a state. It keeps
+    its static title and no `aria-pressed`. If the founder asks for the buttons
+    column to carry state everywhere, that is the row to revisit first.
+- Alternatives considered: a green ring/dot beside an unchanged button (rejected
+  — the founder was shown the choices and picked the button itself); tinting the
+  whole table row (rejected — it fights the status chip and the row-hover); a
+  new `--color-acct-settled` token pair (rejected — it would be the same two
+  values under a second name, and every token must be maintained in three files);
+  leaving the tooltip static (rejected — colour-only state); keeping the
+  action-phrased accessible name and dropping `aria-pressed` (rejected — the
+  pressed state is the non-colour cue the exception is granted under, so it is
+  the half that must stay).
+- Resolves: founder request 2026-08-21. Status: Accepted
+
 ## ADR-055 — 2026-08-19 — Assigning a To-Do = reassigning its LEAD; "take it myself" = the admin bucket
 - Context: founder, looking at /b-systems/todo — "I can assign these to do
   as an admin or just take it myself." The To-Do page (ADR-041) is a

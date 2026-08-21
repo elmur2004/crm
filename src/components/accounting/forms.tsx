@@ -164,6 +164,59 @@ function egp(fd: FormData, key: string): number {
   return toPiasters(String(fd.get(key) || "0"));
 }
 
+/* The row ✓ that carries the row's own state (founder, by screenshot: "when I
+   click on the right sign it becomes green" — so the buttons column shows at a
+   glance which rows are approved; clicking a green one un-settles the row).
+   Never colour alone, and the green is the accounting-fenced .acct-chip pair,
+   so nothing resizes.
+
+   `name` is the STATE the button represents ("Collected" / "Paid") and never
+   changes with it; `aria-pressed` carries the state. WAI-ARIA APG: a toggle
+   button whose accessible name flips with its state announces itself
+   contradictorily — a collected row named "Mark pending" + pressed reads as
+   though *pending* is what is on. The action wording lives in `title` only,
+   where it is a hint for the sighted mouse user (and, as the accessible
+   DESCRIPTION, is announced after the name rather than instead of it).
+   `busy` disables the button while its own toggle is in flight, so a double
+   click cannot silently fire the reverse toggle behind the first one. */
+function SettleToggle({
+  settled,
+  name,
+  hint,
+  busy,
+  onClick,
+}: {
+  settled: boolean;
+  name: string;
+  hint: string;
+  busy: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className={`row-toggle ${settled ? "row-toggle--acct-settled" : "row-toggle--restore"}`}
+      aria-pressed={settled}
+      aria-label={name}
+      title={hint}
+      disabled={busy}
+      onClick={onClick}
+    >
+      ✓
+    </button>
+  );
+}
+
+/* a failed row action used to be completely silent — and since the ✓'s colour
+   is now the row's primary state cue, a silent no-op reads as "it's broken". */
+function RowError({ error }: { error: string | null }) {
+  return error ? (
+    <span className="row-error" role="status">
+      {error}
+    </span>
+  ) : null;
+}
+
 const amountInput = "field-input";
 
 /* --------------------------------------------------------------- income */
@@ -299,23 +352,23 @@ export function AddIncomeButton({ company, month }: { company: AcctCompany; mont
 
 export function IncomeActions({ row, company }: { row: IncomeRowDto; company: AcctCompany }) {
   const t = tFor(useLocale());
-  const { run } = useAction();
+  const { busy, error, run } = useAction();
   const [editing, setEditing] = useState(false);
   return (
-    <span className="flex gap-1.5 justify-end">
-      <button
-        type="button"
-        className="row-toggle row-toggle--restore"
-        title={t(acct.toggleCollected)}
+    <span className="flex gap-1.5 justify-end items-center">
+      <RowError error={error} />
+      <SettleToggle
+        settled={row.collected}
+        name={t(acct.collected)}
+        hint={t(row.collected ? acct.markPending : acct.markCollected)}
+        busy={busy}
         onClick={() =>
           void run(`/api/accounting/income/${row.id}`, "PATCH", {
             toggleCollected: true,
             company,
           })
         }
-      >
-        ✓
-      </button>
+      />
       <button type="button" className="row-toggle row-toggle--restore" onClick={() => setEditing(true)}>
         {t(acct.edit)}
       </button>
@@ -495,7 +548,7 @@ export function ExpenseActions({
   roster: RosterOption[];
 }) {
   const t = tFor(useLocale());
-  const { run } = useAction();
+  const { busy, error, run } = useAction();
   const [editing, setEditing] = useState(false);
   const togglePaid = () =>
     row.auto
@@ -509,15 +562,15 @@ export function ExpenseActions({
           company,
         });
   return (
-    <span className="flex gap-1.5 justify-end">
-      <button
-        type="button"
-        className="row-toggle row-toggle--restore"
-        title={t(row.paid ? acct.markOnHold : acct.approveMarkPaid)}
+    <span className="flex gap-1.5 justify-end items-center">
+      <RowError error={error} />
+      <SettleToggle
+        settled={row.paid}
+        name={t(acct.paid)}
+        hint={t(row.paid ? acct.markOnHold : acct.approveMarkPaid)}
+        busy={busy}
         onClick={togglePaid}
-      >
-        ✓
-      </button>
+      />
       {row.auto ? (
         <Link
           className="row-toggle row-toggle--restore inline-flex items-center"

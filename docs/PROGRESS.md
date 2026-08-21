@@ -2412,3 +2412,98 @@ comment, and the ADR-013 mechanism note all fixed; .env.example confirmed tracke
   if the stacked page reads too tall on his monitor — **needs founder
   confirmation**, but the shipped arrangement is the one the lead engineer
   specified and is fully tested.
+
+## Entry 052 — 2026-08-21 — The accounting row ✓ goes green while the row is settled
+- Done: the founder screenshotted the accounting row action buttons and said
+  *"when I click on the right sign it becomes green"*. Offered the choices, he
+  picked the button itself: **the ✓ turns green on settled rows — "so the
+  buttons column shows at a glance which rows are approved. Clicking it again
+  returns it to the normal colour and puts the row back On hold."** Shipped in
+  one commit.
+  · One shared `SettleToggle` in `src/components/accounting/forms.tsx` now
+    renders BOTH check toggles, which until now were byte-identical in every
+    state: income (`row.collected`, PATCH `toggleCollected`) and expenses
+    (`row.paid` — the manual PATCH and the AUTO payroll row's POST
+    `/api/accounting/payroll-paid`, which is the row kind in the screenshot and
+    needed no separate work once the component was shared). State is read from
+    the same row truth the status chip reads, so button and chip cannot
+    disagree, and the round trip is the API's existing toggle in both
+    directions.
+  · `.row-toggle--acct-settled` (design-system.css, in the `.acct-chip` block —
+    the same accounting fence) swaps in for `.row-toggle--restore` on the
+    settled state: `--color-acct-positive-tint` background,
+    `--color-acct-positive` ink, border a `color-mix` of the same ink exactly as
+    `.acct-chip--off` does with warning. Colour only — no size, no padding, no
+    radius — so the action column never reflows on a flip. No new token, no hex
+    anywhere. **Correction after review:** the pair did NOT already exist in all
+    three brand scopes. In `branding/b-systems/tokens.css` it had been sitting
+    inside the `.bs-mesh` rule since the day it landed, below the
+    `[data-brand="bsystems"]` block — so the B-Systems scope declared nothing,
+    and a bare `var()` with no fallback means no green at all there. It painted
+    only because the accounting root layout stamps `data-brand="byteforce"` on
+    `<html>` and `ModuleBrandScope` re-stamps just an inner `<div>`, so the
+    byteforce value inherited through. Moved into the brand scope, and
+    `brand-tokens.test.ts` now reads tokens per SCOPE (brace-matched) instead of
+    per file — which is why every guard had been blind to it — with a new
+    three-scope check over `--color-acct-*` beside the ADR-057 stage one.
+  · NOT BY COLOUR ALONE: `aria-pressed` on both toggles, with the accessible
+    NAME fixed to the state it represents — `Collected` on income, `Paid` on
+    expenses — and the flipping action wording in `title` only. **Corrected
+    after review:** the first cut put the action wording in `aria-label` too, so
+    a collected row announced "Mark pending, pressed" — name describing the next
+    action while `pressed` described the current state, the WAI-ARIA APG
+    anti-pattern, and it made the title a duplicate of the name into the
+    bargain. Income still gains `markCollected` / `markPending` with real Arabic
+    (تعليم كمحصّل / إعادة إلى المعلّق) — they are its titles now, matching the
+    `approveMarkPaid` ⇄ `markOnHold` pair expenses already had.
+    `toggleCollected` is retired from use but KEPT in the dictionary with a
+    comment — shipped English strings are never edited or removed.
+  · Also after review: the ✓ is `disabled` while its own request is in flight
+    (two fast clicks used to fire the reverse toggle behind the first and land
+    back on the original state), and a failed toggle renders a `.row-error`
+    beside the row's buttons instead of failing silently — which mattered more
+    once the button's colour became the row's primary state cue.
+  · Boundary recorded, not changed: un-settling an income row that is in the
+    view only because its CASH landed there takes it out of that month — cash
+    cleared, so the row goes back to its own month, pending. Holding it would
+    park an uncollected amount in a month it does not belong to. The e2e now
+    walks that leg too, not just the issue-month one.
+  · Both brands: the module stamps `data-brand` per company (ADR-054 directive
+    D) and the accounting green pair is byte-identical in `byteforce`,
+    `b-systems` and `neutral`, so the ByteForce and B-Systems books read the
+    same. #1B7A44 on #E6F4EC = 4.73:1, AA for normal text.
+- Decision record: **no new ADR.** The accounting green is an existing,
+  deliberate exception to the R4 "no green anywhere" ruling (ADR-031
+  Resolution), created by commit 8fe9e05 for `.acct-chip--good` — and it turned
+  out that exception had a code comment and a CHANGELOG line but **no ADR at
+  all**. It is written down now as **ADR-054 — Addendum (2026-08-21)**, which
+  states the original exception in full and then records this extension. The
+  exception does not widen: same two tokens, no new hue, no new scope, one more
+  consumer inside the same accounting fence on the same money-row-status
+  semantics. The addendum says explicitly that taking this green OUTSIDE
+  accounting WOULD be a widening and would need its own ADR against R4.
+- Verification (final, after the review fixes): `npx tsc --noEmit` clean.
+  vitest **312 passed / 0 failed**, 25 files — the 311 baseline plus the new
+  accounting three-scope token test. Playwright **FULL SUITE**:
+  **65 passed / 0 failed / 2 skipped** (the two standing `e2e/audit.spec.ts`
+  opt-ins), `test-results/.last-run.json` → `{"status":"passed"}` with an empty
+  `failedTests`, read from the file rather than inferred from a piped summary.
+  `e2e/accounting.spec.ts` holds 5 tests: the four pre-existing ones untouched,
+  assertions included, plus the new one. It asserts `aria-pressed`, the state
+  CLASS and the flipping `title` on all three row kinds in BOTH directions, and
+  samples the resolved background exactly once — under the B-Systems brand,
+  against the ByteForce one — because a class flips from the same React branch
+  under either brand and proves nothing about tokens. Rows are booked into
+  `2099-01`; the one honest caveat, now written into the spec's own comment, is
+  that the ✓ stamps TODAY's date, so an income row's cash sits in the current
+  month between a click and its un-click (which is exactly what the cash-month
+  leg exercises). Numbers in TESTING Run 058. Brand audit by hand: PASS. Port
+  note: 3000 and 3100 were both free this session, so the stock config ran on
+  3100 and no process was touched.
+- Founder-facing: CHANGELOG entry "The ✓ on an accounting row goes green when
+  the row is settled".
+- Next: nothing blocking. One thing worth the founder's eye when he tests: the
+  green ✓ is now the SECOND cue for a settled row, beside the Collected/Paid
+  pill in the Status column — if he'd rather the pill went away now that the
+  button carries it, that is a one-line change, but nothing was removed without
+  him asking.
