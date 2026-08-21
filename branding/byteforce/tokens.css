@@ -108,6 +108,14 @@
   --color-stage-qualified-accent: #E0761F;
   --color-stage-qualified-chip: #F8DEC7;
   --color-stage-qualified-chip-ink: #8A4410;
+  /* ADR-059 — Waiting: the holding column between Meeting Setting and the win.
+     DERIVED by DESIGN-APPLICATION-SPEC §1.3's stated rule for a new column that
+     sits between two existing ones (the Negotiation precedent): each value is
+     the arithmetic RGB midpoint of meeting ↔ qualified. */
+  --color-stage-waiting: #F7F0F0;
+  --color-stage-waiting-accent: #AD726A;
+  --color-stage-waiting-chip: #EFE0DC;
+  --color-stage-waiting-chip-ink: #6A414B;
   --color-stage-won: #FBEBE3;
   --color-stage-won-accent: #F15C24;
   --color-stage-won-chip: #F8D5C4;

@@ -18,10 +18,14 @@ export function stageKey(stage: string): string {
       return "negotiation";
     case "didnt_answer":
       return "didnt-answer";
-    /* agent pipeline (ADR-057) — its own two keys. Without these the fallback
-       below would paint Contacted AND Qualified, the agent's win, in Lost. */
+    /* prospect pipeline (ADR-057, widened by ADR-059) — its own three keys.
+       Without these the fallback below would paint Contacted, Waiting and
+       Qualified — the prospect's win — in Lost. Never alias one of them onto
+       an existing key: it satisfies every guard and paints the wrong column. */
     case "contacted":
       return "contacted";
+    case "waiting":
+      return "waiting";
     case "qualified":
       return "qualified";
     case "won":
@@ -48,6 +52,8 @@ export function stageTint(stage: string): string {
       return "bg-stage-didnt-answer";
     case "contacted":
       return "bg-stage-contacted";
+    case "waiting":
+      return "bg-stage-waiting";
     case "qualified":
       return "bg-stage-qualified";
     case "won":
@@ -76,6 +82,8 @@ export function stageAccent(stage: string): string {
       return "bg-stage-didnt-answer-accent";
     case "contacted":
       return "bg-stage-contacted-accent";
+    case "waiting":
+      return "bg-stage-waiting-accent";
     case "qualified":
       return "bg-stage-qualified-accent";
     case "won":

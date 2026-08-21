@@ -2,10 +2,9 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import {
-  AGENT_STAGES,
   BSYSTEMS_STAGES,
   INTERNAL_STAGES,
-  PARTNER_STAGES,
+  PROSPECT_STAGES,
 } from "@/lib/pipeline-engine/constants";
 import { stageAccent, stageKey, stageTint } from "@/components/bsystems/stageColors";
 
@@ -107,23 +106,29 @@ describe("brand token files (SPEC §4)", () => {
    [data-brand="neutral"] (the `(home)` and `(vault)` shells). CI was green the
    last time that happened and production was not. */
 describe("stage tokens exist in ALL THREE brand scopes (ADR-057)", () => {
-  const stageNames = (css: string) => {
-    const withoutComments = css.replace(/\/\*[\s\S]*?\*\//g, "");
+  /* SCOPE, not file (reviewer, Run 061): a stage token declared OUTSIDE its
+     `[data-brand]` block resolves to nothing under that brand, and a file-wide
+     scan reads it as present — exactly how `--color-acct-positive` shipped
+     inside `.bs-mesh` and every guard stayed green (see the accounting-green
+     test below). Both guards route through scopeBody now. */
+  const stageNames = (css: string, selector: string) => {
     const names = new Set<string>();
-    for (const m of withoutComments.matchAll(/(--color-stage-[\w-]+)\s*:/g)) names.add(m[1]!);
+    for (const m of scopeBody(css, selector).matchAll(/(--color-stage-[\w-]+)\s*:/g)) {
+      names.add(m[1]!);
+    }
     return [...names].sort();
   };
   const read = (p: string) => readFileSync(path.resolve(__dirname, "../..", p), "utf8");
 
   it("byteforce, b-systems and neutral declare the identical stage token set", () => {
-    const bf = stageNames(read("branding/byteforce/tokens.css"));
-    const bs = stageNames(read("branding/b-systems/tokens.css"));
-    const neutral = stageNames(read("src/themes/neutral.css"));
+    const bf = stageNames(read("branding/byteforce/tokens.css"), '[data-brand="byteforce"]');
+    const bs = stageNames(read("branding/b-systems/tokens.css"), '[data-brand="bsystems"]');
+    const neutral = stageNames(read("src/themes/neutral.css"), '[data-brand="neutral"]');
     expect(bf.length).toBeGreaterThan(0);
     expect(bs).toEqual(bf);
     expect(neutral).toEqual(bf);
     /* and the new families are actually among them */
-    for (const family of ["contacted", "qualified"]) {
+    for (const family of ["contacted", "waiting", "qualified"]) {
       for (const suffix of ["", "-accent", "-chip", "-chip-ink"]) {
         expect(bf).toContain(`--color-stage-${family}${suffix}`);
       }
@@ -160,7 +165,7 @@ describe("stage tokens exist in ALL THREE brand scopes (ADR-057)", () => {
 
   it("every stage token is bridged into Tailwind's theme", () => {
     const globals = read("src/app/globals.css");
-    for (const name of stageNames(read("branding/b-systems/tokens.css"))) {
+    for (const name of stageNames(read("branding/b-systems/tokens.css"), '[data-brand="bsystems"]')) {
       expect(globals).toContain(`${name}: var(${name});`);
     }
   });
@@ -169,8 +174,7 @@ describe("stage tokens exist in ALL THREE brand scopes (ADR-057)", () => {
     const design = read("src/themes/design-system.css");
     const all = [
       ...INTERNAL_STAGES,
-      ...PARTNER_STAGES,
-      ...AGENT_STAGES,
+      ...PROSPECT_STAGES,
       ...BSYSTEMS_STAGES,
     ] as readonly string[];
     for (const stage of new Set(all)) {
@@ -181,6 +185,17 @@ describe("stage tokens exist in ALL THREE brand scopes (ADR-057)", () => {
       expect(design).toContain(`[data-stage-key="${key}"]`);
       expect(stageTint(stage)).toBe(`bg-stage-${key}`);
       expect(stageAccent(stage)).toBe(`bg-stage-${key}-accent`);
+    }
+  });
+
+  /* ADR-059 — the guard above is satisfied by ALIASING a new stage onto an
+     existing key (waiting → "proposal" resolves, is not "lost", and its tint
+     and accent match), which would paint the founder's holding column with the
+     Sending-Proposals ramp for ever. Close that shortcut by name. */
+  it("waiting has its OWN stage key — it is never aliased onto another column", () => {
+    expect(stageKey("waiting")).toBe("waiting");
+    for (const other of ["proposal", "following", "qualified", "won", "lost", "meeting"]) {
+      expect(stageKey("waiting")).not.toBe(other);
     }
   });
 });

@@ -294,27 +294,51 @@ Each dashboard number must be backed by a tested query — see §13.
 Identical to App A in structure and behavior (§6.1–§6.5), themed B-Systems, operating on B-Systems data only. Navigation: **Home | Leads | CRM | Clients | Partners Pipeline | Partners**.
 
 ### 7.2 Partners Pipeline (partner acquisition board)
-Six columns for a **partner** card: **Lead | Didn't Answer | Following Up | Meeting Setting | Won | Lost**. Agent cards run their own six columns — see §7.2a.
+**Seven columns, the SAME set for BOTH kinds of card** (partner and agent), in this order:
+**Lead | Contacted | Didn't Answer | Meeting Setting | Waiting | Qualified | Lost**.
 
-**Lead stage fields:**
+Founder (ADR-059), asked whether partners and agents should keep separate vocabularies: *"Same
+stages for both."* One engine, one config; the two kinds differ **only** in what Qualified does — a
+qualified partner joins the directory (§7.3), a qualified agent is simply qualified and the admin
+mints his login afterwards (§7.2b). Terminal stages are **Qualified** and **Lost**; every other
+column is an ordinary **active** stage, **Waiting included**.
 
-| Field | Type | Required |
-|---|---|---|
-| Name | text | yes |
-| Company name | text | yes |
-| Role | text | no |
-| Email | email | no |
-| Number | phone | yes |
-| Business activity | text | yes |
-| Description | long text | no |
-| Cold call record | file upload, `.mp3` / `.mp4` (multiple allowed), playable inline | no |
-| Next action | enum: `Didn't answer` / `Following up` / `Meeting setting` / `Won` / `Lost` | — |
+**Lead stage fields** — required-ness is conditional on the kind:
 
-**Didn't Answer stage:** reveals `Number 2` and `Number 3` fields. **The moment a non-empty value is saved into Number 2 or Number 3, the card automatically returns to the Lead stage** (logged in History as "Returned to Lead — new number added"). This can happen twice (two extra numbers max).
+| Field | Type | Required (partner) | Required (agent) |
+|---|---|---|---|
+| Name | text | yes | yes |
+| Number | phone | yes | yes |
+| Company name | text | yes | — (not collected) |
+| Business activity | text | yes | — (not collected) |
+| Role | text | no | — (not collected) |
+| Address | text | — (not collected) | no |
+| Speciality | text | — (not collected) | no |
+| Email | email | no | no |
+| Description | long text | no | no |
+| Cold call record | file upload, `.mp3` / `.mp4` (multiple allowed), playable inline | no | no |
+| CV | file upload | — (not collected) | no |
+| Next action | enum: every other column | — | — |
 
-**Following Up / Meeting Setting / Lost:** identical field groups and logic as §6.2.
+**Didn't Answer stage:** records which number(s) went unanswered and reveals the alternative-number
+fields. **The moment a non-empty alternative number is saved, the card automatically returns to the
+Lead stage** (logged in History as "Returned to Lead — new number added").
 
-**Won stage — completeness gate.** Won is only savable when all of these are filled:
+**Contacted:** records that contact has been made — **nothing more**. Founder: *"The system should
+not require any additional details or mandatory fields when moving a lead to Contacted. This applies
+to both Agents and Partners."* No field group opens, by action or by drag, for either kind, and the
+card does **not** become a Follow Up task (§7.2c).
+
+**Waiting:** the holding column between Meeting Setting and Qualified. No field group opens. It is
+**not** terminal: the card stays **fully editable at any time** (no locked fields, the edit form
+always available) and can be moved out again **in both directions** — forwards to Qualified, or back
+to Meeting Setting, Contacted, Didn't Answer or Lead.
+
+**Meeting Setting / Lost:** identical field groups and logic to §6.2.
+
+**Qualified — the completeness gate (PARTNER cards only).** A partner card saves Qualified only when
+all of these are filled. **Neither an email nor a password is ever required** (founder: *"Moving a
+lead to Qualified should not require creating or entering an email or password"*):
 
 | Field | Required |
 |---|---|
@@ -323,26 +347,34 @@ Six columns for a **partner** card: **Lead | Didn't Answer | Following Up | Meet
 | Key person role | yes |
 | Address | yes |
 | Number | yes |
-| Email | no |
 | Business activity | yes |
 | Importance | enum: `High` / `Medium` / `Low` — yes |
+| Email | no |
+| Password | **never asked for** |
 
-On completion, the partner is **automatically transferred to the Partners directory** (record created with `date_joined = now`); the pipeline card remains in Won as history with a "Converted" badge (assumption A-5).
+On completion the partner is **automatically transferred to the Partners directory** (record created
+with `date_joined = now`, `userId = null`); the pipeline card stays in Qualified as history with a
+"Converted" badge (A-5).
+
+**Qualified — AGENT cards.** A pure stage move: no field group, no credentials, no account. **A
+qualified agent with no login is a legitimate, non-broken state** and the UI says so honestly
+("Qualified, no account yet") rather than leaving a gap.
 
 ### 7.2a Agent cards (`PartnerProspect.kind = agent`)
-Founder: *"agents stages : lead , contacted , didn't answer , meeting settting , qualified , lost , when he is in qualified he becomes an agent and we create a user for hiim and fill in the data of him and I can assing leads for agents also"*.
+Superseded by §7.2 (ADR-059): agent cards run the **same seven columns** as partner cards. What
+remains specific to the kind is the Lead-stage field set (above) and the account action (§7.2b).
 
-Six columns for an **agent** card, in this order: **Lead | Contacted | Didn't Answer | Meeting Setting | Qualified | Lost**.
+### 7.2b Creating the login — a separate, explicit, admin-only action
+Founder: qualifying must never ask for credentials, so minting the account is its own step, offered
+on the card **after** it reaches Qualified and available at any time afterwards.
 
-Same board, same engine, same config family as §7.2 — only two role slots carry different stage keys: **Contacted** plays the follow-up role (it is the stage that carries a dated follow-up, with the context-per-origin rule of T-1) and **Qualified** plays the terminal-success role. Terminal stages are **Qualified** and **Lost**. Partner cards are unaffected by any of this.
-
-**Lead stage fields (agent):** Name and Number are required; Email, Address, Speciality, Description and a CV upload are optional (the public agent-signup field set, minus the password).
-
-**Didn't Answer / Meeting Setting / Lost:** identical field groups and logic to §7.2.
-
-**Contacted:** the follow-up group (date, time, method, owner, following-up-with) — identical to §6.2's Following Up.
-
-**Qualified stage — the account gate.** Qualified is only savable when all of these are filled:
+- **Who:** B-Systems **admin only** (never data entry — ADR-051).
+- **Where:** a clearly labelled button on the prospect **detail** whenever the card is in Qualified
+  and has no account yet. The board **card** carries the STATE, not the action — a "No login yet"
+  chip for either kind (a partner card wears the Converted badge from PP-4 the moment it qualifies,
+  so the badge alone cannot say whether a login is still owed). The card is a drag surface and a
+  whole-card link; a form-opening button inside it would fight both (ADR-059).
+- **Agent fields** (all required *here*, not at the stage move):
 
 | Field | Required |
 |---|---|
@@ -354,7 +386,25 @@ Same board, same engine, same config family as §7.2 — only two role slots car
 | Speciality | yes |
 | Address | yes |
 
-On completion the agent's **account is minted in the same transaction**: a User (active, `registrationStatus = approved` — never a pending Registration), the `bsystems_agent` role, a PortalRep profile carrying the name/address/speciality, and the card's CV re-parented onto that profile. The card stays in Qualified as history with a "Converted" badge (A-5), and the new account is **immediately assignable as a lead owner** (§7.4 / the To-Do assign) with no further step.
+  On submit, in one transaction: a User (active, `registrationStatus = approved` — never a pending
+  Registration), the `bsystems_agent` role, a PortalRep profile carrying name/address/speciality, and
+  the card's CV re-parented onto that profile. The card gains the "Converted" badge and the account is
+  **immediately assignable as a lead owner** (§7.4 / the To-Do assign) with no further step.
+- **Partner fields:** email + password. Creates a User with the `bsystems_partner` role and links it
+  to the directory `Partner.userId`.
+- Refused when an account already exists, when the email or phone is already taken, or when the card
+  is not in Qualified. Never undoable (it retires the actor's pending undo entries).
+
+### 7.2c Follow-ups on this pipeline
+**No stage implies a follow-up.** Founder: *"Agents/Partners moved to Contacted should not
+automatically be treated as Follow Up tasks... Contacted should only indicate that contact has been
+made unless an actual Follow Up task is required."*
+
+A follow-up exists only when someone deliberately records one, with the **"Record a follow-up"**
+action offered from **every active stage** (Lead, Contacted, Didn't Answer, Meeting Setting,
+Waiting). It writes the usual follow-up group (date, time, method, owner, following-up-with), the
+card never moves, and only then does the card appear on the admin's To-Do as a follow-up — driven by
+the **existence of the record**, never by the column the card sits in.
 
 ### 7.3 Partners directory
 - Cards, one per partner, showing the **Company name** (importance badge optional).
@@ -492,27 +542,30 @@ Every row below is a rule the code must implement and a test case §13 must cove
 | T-9 | Won saved | Any active | Won | Require Estimated value, Technical owner, Collected amount; auto-create/link Client card (A-1) |
 | T-10 | Any transition | — | — | ActivityLog entry; dashboard metrics reflect the change immediately |
 
-### 10.2 Partners Pipeline (App B)
+### 10.2 Partners & Agents Pipeline (App B) — one pipeline, two kinds of card
+
+**Seven columns for BOTH kinds: Lead | Contacted | Didn't Answer | Meeting Setting | Waiting |
+Qualified | Lost.** One engine, one config; the two kinds differ ONLY in what Qualified does.
+Terminal stages are Qualified and Lost. (ADR-059 — supersedes the §10.2/§10.2a split.)
 
 | # | Trigger | From | To | Side effects |
 |---|---|---|---|---|
-| PP-1 | Next action = Didn't answer | Lead / active | Didn't Answer | Reveal Number 2 / Number 3 fields |
-| PP-2 | Non-empty value saved in Number 2 or Number 3 | Didn't Answer | Lead | Automatic return; History: "Returned to Lead — new number added"; max two extra numbers |
-| PP-3 | Next action = Following up / Meeting setting / Lost | Lead / active | Matching stage | Same groups & logic as T-1/T-2/T-4 and T-6–T-8 |
-| PP-4 | Won gate satisfied (§7.2 required fields) and Won saved | Any active | Won | Auto-create Partner in directory (`date_joined = now`); pipeline card stays in Won with "Converted" badge (A-5) |
-| PP-5 | Lead added inside a Partner + Next action selected | — | B-Systems CRM at matching stage | Lead created with `source = partner`, permanent "Partner: {Company}" badge, auto `Date created`; partner's leads table shows live stage |
+| PP-1 | Next action = Didn't answer | Lead / any active | Didn't Answer | Record which number(s) went unanswered; reveal the alternative-number fields |
+| PP-2 | Non-empty value saved in an alternative number | Didn't Answer | Lead | Automatic return; History: "Returned to Lead — new number added" |
+| PP-3 | Next action = Contacted / Meeting setting / **Waiting** / Lead / Lost, and every meeting outcome | Any active | Matching stage | **Contacted and Waiting open NO field group and require NO fields — the move commits immediately, by action or by drag, for BOTH kinds.** Meeting setting opens the Meeting group; Lost opens the Reason (required); a move back to Lead opens nothing. Meeting outcomes follow T-6–T-8: Attended → Contacted / Waiting / Qualified / Lost (choice mandatory); Delayed → stays, new date & time required (A-3); Cancelled → Contacted / Waiting / Lost (never Qualified) |
+| PP-4 | Qualified saved — **partner** card | Any active | Qualified | §7.2 completeness gate (company, key person, role, address, number, business activity, importance). **Neither an email nor a password is ever required.** Auto-create the directory Partner (`date_joined = now`, `userId = null`); card stays in Qualified with the "Converted" badge (A-5) |
+| PP-5 | Lead added inside a Partner + Next action selected | — | B-Systems CRM at matching stage | Lead created with `source = partner`, permanent "Partner: {Company}" badge, auto `Date created`; the partner's leads table shows the live stage |
+| PP-6 | Qualified saved — **agent** card | Any active | Qualified | **No field group, no credentials, no account.** A pure stage move. A qualified agent with no login is a legitimate state and the UI shows it honestly |
+| PP-4a | Admin runs "Create the agent's account" (or the partner login) on a card already in Qualified | Qualified | Qualified — no stage change | Separate, explicit, **admin-only** (§7.2b). Agent: User (active, `approved`) + `bsystems_agent` role + PortalRep + CV re-parent, sets `converted` / `agentUserId`; the account is immediately assignable as a lead owner. Partner: User + `bsystems_partner` role linked to `Partner.userId`. Refused if an account already exists or the card is not Qualified; **not undoable** (it retires the actor's pending undo entries) |
+| PP-7 | Waiting, in and out | Any active ⟷ Waiting | Waiting ⟷ Lead / Contacted / Didn't Answer / Meeting Setting / Qualified / Lost | Waiting is an ORDINARY ACTIVE stage: never terminal, no field group on the way in, and it moves out **in both directions**, each target keeping its own group (if any) |
+| PP-8 | "Record a follow-up" on an active card | Any active | Same stage | Writes a FollowUp (date, time, method, owner, following-up-with) and puts the card on the To-Do. **No stage implies a follow-up; this action is the only way one is created** (founder item 2.1). History reads "group added"; the card never moves |
+| PP-9 | Any transition | — | — | ActivityLog entry (actor, from → to, trigger, timestamp); the card stays **fully editable in every active stage, Waiting included** — no locked fields, the edit form always available |
 
-### 10.2a Agents Pipeline (App B — `PartnerProspect.kind = agent`)
+### 10.2a Agents Pipeline (App B) — superseded
 
-Six columns: **Lead | Contacted | Didn't Answer | Meeting Setting | Qualified | Lost**. Same engine and the same config family as §10.2; only the follow-up and terminal-success SLOTS carry different stage keys (Contacted plays the follow-up role, Qualified plays the Won role). Partner cards are unaffected.
-
-| # | Trigger | From | To | Side effects |
-|---|---|---|---|---|
-| PA-1 | Next action = Didn't answer | Lead / active | Didn't Answer | Record which number(s) went unanswered; reveal Number 2 / Number 3 (as PP-1) |
-| PA-2 | Non-empty value saved in Number 2 or Number 3 | Didn't Answer | Lead | Automatic return; History: "Returned to Lead — new number added" (as PP-2) |
-| PA-3 | Next action = Contacted / Meeting setting / Lost | Lead / active | Matching stage | Same groups & logic as PP-3 — Contacted opens the Follow-up group (context per origin) |
-| PA-4 | Agent gate satisfied (§7.2a required fields) and Qualified saved | Any active | Qualified | Mint the agent's account (User + `bsystems_agent` role + PortalRep + CV re-parent) with the admin-set credentials; card stays in Qualified with the "Converted" badge (A-5); the account is immediately assignable as a lead owner |
-| PA-5 | Meeting outcome = Attended | Meeting Setting | Contacted / Qualified / Lost (user choice) | As PP-3 / ADR-010 — no proposals stage; Qualified routes through the PA-4 gate |
+**Superseded by §10.2 (ADR-059).** PA-1…PA-5 are retired: agent cards run the same rows as partner
+cards, and the only agent-specific row is PP-6 (plus PP-4a's account action). ActivityLog rows
+already carrying `PA-1`…`PA-5` remain valid history and keep their original meaning.
 
 ### 10.3 Portal CRM (App C)
 
@@ -537,7 +590,7 @@ Six columns: **Lead | Contacted | Didn't Answer | Meeting Setting | Qualified | 
 | A-2 | Can a card revisit a stage (e.g. second meeting)? | Yes — groups accumulate as history (§5.2) |
 | A-3 | Meeting Delayed / Cancelled behavior | Delayed → new date, stays; Cancelled → choose Following Up or Lost |
 | A-4 | Portal sign-up approval | Active immediately; admin can deactivate |
-| A-5 | After a partner or agent converts (PP-4 / PA-4) | Card stays in its terminal-success column — Won for partners, Qualified for agents — as history with a "Converted" badge |
+| A-5 | After a partner converts (PP-4) or an agent's account is created (PP-4a) | Card stays in **Qualified** — the terminal-success column for both kinds (ADR-059) — as history with a "Converted" badge |
 | A-6 | Owner of partner-sourced leads | Optional assign-to-rep at creation; else "Unassigned (Partner leads)" bucket |
 | A-7 | Drag & drop on internal CRMs | Not in v1 (action-driven only); possible later extension |
 | A-8 | Are `bsystems_staff` and `portal_admin` the same people? | One account may hold both roles |
@@ -546,6 +599,7 @@ Six columns: **Lead | Contacted | Didn't Answer | Meeting Setting | Qualified | 
 | A-11 | Must milestone values sum to Estimated value? | No — non-blocking warning only |
 | A-12 | UI language | English v1; architecture RTL-ready for Arabic (ByteForce brand is bilingual) |
 | A-13 | Brand asset files | Logos: founder drops into `/branding/*` (agent adapts to actual filenames). Fonts: Raleway/Inter/JetBrains Mono via Google Fonts; Lama Sans files pending → temporary system-sans fallback behind the same tokens |
+| A-14 | Should Qualified be reversible, now that an agent can be qualified without an account? | No — Qualified stays terminal, as it always was; a mis-qualified card is walked back with Undo inside its window, or deleted. **Needs founder confirmation** (ADR-059) |
 
 ---
 
@@ -577,12 +631,12 @@ Rules:
 
 **Unit tests** — the pipeline engine transition function (every row of §10 — §10.2a's PA rows included — as a case, including illegal moves), and every dashboard formula in §6.5 / §8.5 against fixture data with known expected numbers.
 
-**Integration tests** — automatic side effects: T-5 proposal-sent auto-move; T-6 attended-destination flow; T-9 client auto-creation; PP-2 / PA-2 auto-return on new number; PP-4 partner conversion; PA-4 agent conversion (account minted and immediately assignable); PP-5 partner-lead attribution into the CRM; P-2 server-side rejection of a rep setting Won (API level, not just UI); P-6 WonDeal auto-creation; P-7/P-8 milestone generation, locking, and unlock; upload validation (type/size) for CVs and recordings.
+**Integration tests** — automatic side effects: T-5 proposal-sent auto-move; T-6 attended-destination flow; T-9 client auto-creation; PP-2 auto-return on new number; PP-4 partner conversion; PP-6 agent qualification (a pure move — nothing minted) and PP-4a's separate account action (minted and immediately assignable); PP-3 Lead → Contacted committing with no field group at all, and Waiting in and out of every active stage; PP-8 the To-Do carrying a Contacted card ONLY when a follow-up was actually recorded; PP-5 partner-lead attribution into the CRM; P-2 server-side rejection of a rep setting Won (API level, not just UI); P-6 WonDeal auto-creation; P-7/P-8 milestone generation, locking, and unlock; upload validation (type/size) for CVs and recordings.
 
 **E2E journeys (Playwright)** — each must pass before its phase closes and every run is logged in `TESTING.md`:
 1. ByteForce full cycle: add rep → add lead → Following Up → Meeting (attended → proposal) → Sent ✓ → auto Following Up (after proposal) → Won → Client card exists → dashboard numbers correct.
 2. ByteForce lost path with reason; dashboard reflects it.
-3. B-Systems partner cycle: prospect with mp3 record → Didn't Answer → add Number 2 → auto-return to Lead → Meeting → Won gate blocks until fields complete → Partner in directory with date joined → add partner lead → Next Action → CRM card bears "Partner: {Company}".
+3. B-Systems partner cycle: prospect with mp3 record → Didn't Answer → add Number 2 → auto-return to Lead → Contacted (no form at all) → Meeting → Waiting (still fully editable, moves out both ways) → Qualified gate blocks until the completeness fields are filled, never asking for an email or a password → Partner in directory with date joined → add partner lead → Next Action → CRM card bears "Partner: {Company}".
 4. Portal rep cycle: sign up with CV → log in → create deal → drag through stages with field groups → attempt drag into Won is blocked → sees only own deals.
 5. Portal admin cycle: log in → combined and per-rep CRM views → move deal to Won → WonDeal auto-created → set Estimated value, commission, 3 milestones → rep sees Milestone 1 only, 2 & 3 locked → admin checks 1 → rep sees Milestone 2 → Sales Team table and admin dashboard numbers correct.
 

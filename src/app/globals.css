@@ -81,6 +81,10 @@
   --color-stage-qualified-accent: var(--color-stage-qualified-accent);
   --color-stage-qualified-chip: var(--color-stage-qualified-chip);
   --color-stage-qualified-chip-ink: var(--color-stage-qualified-chip-ink);
+  --color-stage-waiting: var(--color-stage-waiting);
+  --color-stage-waiting-accent: var(--color-stage-waiting-accent);
+  --color-stage-waiting-chip: var(--color-stage-waiting-chip);
+  --color-stage-waiting-chip-ink: var(--color-stage-waiting-chip-ink);
   --color-stage-won: var(--color-stage-won);
   --color-stage-won-accent: var(--color-stage-won-accent);
   --color-stage-won-chip: var(--color-stage-won-chip);

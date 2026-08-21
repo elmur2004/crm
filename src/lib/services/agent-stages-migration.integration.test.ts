@@ -3,7 +3,7 @@ import path from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/lib/db";
 import { resetDb } from "@/tests/db-reset";
-import { AGENT_STAGES } from "@/lib/pipeline-engine/constants";
+import { PROSPECT_STAGES } from "@/lib/pipeline-engine/constants";
 import { pendingUndoFor } from "@/lib/services/undo";
 import { normaliseAgentStages } from "@/lib/services/backup";
 
@@ -222,7 +222,7 @@ describe("ADR-057 data migration: agent cards move onto the agent stages", () =>
       select: { stage: true },
     });
     for (const { stage } of agentStages) {
-      expect(AGENT_STAGES as readonly string[]).toContain(stage);
+      expect(PROSPECT_STAGES as readonly string[]).toContain(stage);
     }
 
     /* ---- the converted agent kept its whole account ---- */

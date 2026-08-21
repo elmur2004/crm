@@ -31,7 +31,7 @@ copies; do not scatter stage strings through components.
 | Pipeline | Stages | Notes |
 |---|---|---|
 | A/B internal CRM | Following Up · Meeting Setting · Sending Proposals · Won · Lost (+ New in Leads) | Action-driven only (A-7) |
-| B Partners | Lead · Didn't Answer · Following Up · Meeting Setting · Won · Lost | PP-2 auto-return on new number; PP-4 Won completeness gate |
+| B Partners & Agents | Lead · Contacted · Didn't Answer · Meeting Setting · Waiting · Qualified · Lost | ONE stage set for both card kinds (ADR-059). PP-2 auto-return on new number; PP-4 the partner's Qualified completeness gate; PP-6 the agent's credential-free Qualified |
 | C Portal | Leads · Following Up · Meeting Setting · Proposal Sending · Won · Lost | Drag & drop; Won admin-only |
 
 ## Non-negotiable rows (memorize; full tables in SPEC §10)
@@ -42,8 +42,11 @@ copies; do not scatter stage strings through components.
   exclude Won); Following-up destination gets context `after_meeting`.
 - T-7/T-8: Delayed → new datetime, stays; Cancelled → Following Up or Lost (A-3).
 - PP-2: non-empty Number 2/3 saved while in Didn't Answer → auto-return to Lead, logged.
-- PP-4: Won savable only when the §7.2 gate fields are complete → Partner created,
-  `date_joined = now`.
+- PP-3: Contacted and Waiting open NO field group — the move commits immediately, both kinds.
+- PP-4: a PARTNER's Qualified is savable only when the §7.2 gate fields are complete → Partner
+  created, `date_joined = now`. Never an email, never a password.
+- PP-6: an AGENT's Qualified is a pure move; the login is PP-4a, a separate admin-only action.
+- PP-8: no stage implies a follow-up — only the explicit "Record a follow-up" writes one.
 - PP-5: partner lead's next action → CRM card with permanent "Partner: {Company}" badge.
 - P-6: admin → Won auto-creates the WonDeal with the six auto-filled fields.
 - P-7/P-8: milestone 1 visible; milestone *i+1* locked (value hidden) until admin checks

@@ -274,7 +274,9 @@ export function LeadEventPanel({
   const stageActions = nextActions.filter((a) => !isSameStageAction(a));
   const formTarget = (a: string) => (isSameStageAction(a) ? SAME_STAGE_FORM_TARGET[a] : a);
   const attendedDestinations = internalCrmConfig.attendedDestinations("byteforce_staff");
-  const cancelledDestinations = [internalCrmConfig.followUpStage, internalCrmConfig.lostStage];
+  /* ADR-059: the engine owns the cancelled-meeting destinations now — the UI
+     asks instead of composing the pair itself. Same answer as before here. */
+  const cancelledDestinations = internalCrmConfig.cancelledDestinations("byteforce_staff");
 
   async function submit(body: unknown) {
     setBusy(true);

@@ -42,31 +42,31 @@ export const INTERNAL_STAGES = [
 ] as const;
 export type InternalStage = (typeof INTERNAL_STAGES)[number];
 
-export const PARTNER_STAGES = [
-  "lead",
-  "didnt_answer",
-  "following_up",
-  "meeting_setting",
-  "won",
-  "lost",
-] as const;
-export type PartnerStage = (typeof PARTNER_STAGES)[number];
+/* ADR-059 — ONE stage set for BOTH kinds of prospect card (partner and agent).
 
-/* Founder: "agents stages : lead , contacted , didn't answer , meeting settting ,
-   qualified , lost , when he is in qualified he becomes an agent". The AGENT
-   cards on the Partners & Agents board run their OWN stage vocabulary on the
-   SAME engine (ADR-057): `contacted` plays the follow-up role and `qualified`
-   plays the Won role — the account gate. This array IS the board's column
-   order, exactly as the founder dictated it. */
-export const AGENT_STAGES = [
+   Founder, section 1.1: "Add a new stage called Waiting. Order: Meeting Setting
+   then Waiting then Qualified. Leads in Waiting must remain fully editable at
+   any time." Asked whether the two kinds should keep separate vocabularies he
+   answered "Same stages for both" — which deliberately reverses ADR-057's split
+   while keeping the two card KINDS distinct (a qualified partner still joins
+   the directory; the column is simply called Qualified now).
+
+   THIS ARRAY IS THE BOARD'S COLUMN ORDER. `contacted` sits BEFORE
+   `didnt_answer` because that is the order the founder dictated for the agent
+   columns and he chose that order for both kinds. `waiting` sits between
+   `meeting_setting` and `qualified`, exactly as 1.1 asks. Terminal stages are
+   `qualified` and `lost`; every other member is an ordinary ACTIVE stage —
+   Waiting included, which is what "fully editable at any time" costs. */
+export const PROSPECT_STAGES = [
   "lead",
   "contacted",
   "didnt_answer",
   "meeting_setting",
+  "waiting",
   "qualified",
   "lost",
 ] as const;
-export type AgentStage = (typeof AGENT_STAGES)[number];
+export type ProspectStage = (typeof PROSPECT_STAGES)[number];
 
 /* V2 (ADR-030): the unified B-Systems CRM pipeline — negotiation is NEW. */
 export const BSYSTEMS_STAGES = [
@@ -88,8 +88,9 @@ export const STAGE_LABELS: Record<string, string> = {
   meeting_setting: "Meeting Setting",
   sending_proposal: "Sending Proposals",
   negotiation: "Negotiation",
-  /* agent pipeline (ADR-057) — no collision: no other pipeline uses these keys */
+  /* prospect pipeline (ADR-059) — no collision: no other pipeline uses these */
   contacted: "Contacted",
+  waiting: "Waiting",
   qualified: "Qualified",
   won: "Won",
   lost: "Lost",
@@ -160,18 +161,17 @@ export function isSameStageAction(action: string): action is SameStageAction {
   return (SAME_STAGE_ACTIONS as readonly string[]).includes(action);
 }
 
-/** The config SLOT whose field group a same-stage action reuses (drives the
-    forms). A slot, not a stage key: the agent pipeline's follow-up stage is
-    `contacted`, so a literal map would render an empty form on agent cards
-    (ADR-057). Read it as `config[SAME_STAGE_FORM_SLOT[action]]`. */
-export const SAME_STAGE_FORM_SLOT: Record<SameStageAction, "followUpStage" | "meetingStage"> = {
-  follow_up_again: "followUpStage",
-  negotiation_follow_up: "followUpStage",
-  reschedule_meeting: "meetingStage",
-};
+/** The stage whose field group a same-stage action reuses, for the two LEAD
+    pipelines (BsEventPanel / LeadEventPanel), whose `followUpStage` and
+    `meetingStage` really do hold these keys.
 
-/** @deprecated Use SAME_STAGE_FORM_SLOT against the card's own config — this
-    literal map is only correct for pipelines whose slots hold these keys. */
+    ADR-059 retired the slot-indexed sibling this used to defer to
+    (`SAME_STAGE_FORM_SLOT`): with `followUpStage: null` on the prospect config
+    it composed to `config[null]` and rendered an EMPTY follow-up form — the
+    "a null role slot breaks whatever COMPOSES from it" trap in
+    docs/IMPLEMENTATION.md. The prospect UI asks the engine instead
+    (`requiredGroupFor(config, fromStage, action)`), which is the answer for any
+    pipeline; prefer it over this map in new code. */
 export const SAME_STAGE_FORM_TARGET: Record<SameStageAction, string> = {
   follow_up_again: "following_up",
   negotiation_follow_up: "following_up",

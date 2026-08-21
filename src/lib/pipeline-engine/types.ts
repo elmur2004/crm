@@ -17,7 +17,6 @@ export type RequiredGroup =
   | { group: "lost" }
   | { group: "won" } // internal Won fields (§6.2)
   | { group: "won_partner" } // §7.2 completeness gate fields
-  | { group: "won_agent" } // founder: the AGENT card's gate — profile + credentials
   | { group: "won_deal" } // V2 §4: milestone tab (percent + dated milestones)
   | { group: "negotiation" } // V2: note
   | { group: "numbers" }; // PP-1: reveal Number 2 / Number 3
@@ -25,7 +24,10 @@ export type RequiredGroup =
 export type SideEffectKind =
   | "create_client" // T-9 (A-1)
   | "create_partner" // PP-4
-  | "create_agent" // PP-4a — founder: the admin mints the agent's account
+  /* ADR-059: NO config emits "create_agent" any more — qualifying an agent is a
+     pure stage move (founder 1.3). The member survives only until the block
+     that consumes it moves into its own explicit admin action (PP-4a). */
+  | "create_agent"
   | "create_won_deal"; // P-6
 
 export type EngineEvent =
@@ -75,7 +77,10 @@ export interface PipelineConfig {
   stages: readonly string[];
   terminalStages: readonly string[];
   intakeStage: string; // new | lead | leads
-  followUpStage: string;
+  /* null when NO stage plays the follow-up role. ADR-059: on the prospect
+     pipeline a follow-up is a deliberate record ("Record a follow-up"), never
+     a by-product of landing in a column — founder item 2.1. */
+  followUpStage: string | null;
   meetingStage: string;
   proposalStage: string | null; // partners has none (§7.2, ADR-010)
   negotiationStage?: string | null; // bsystems only (V2)
@@ -86,19 +91,26 @@ export interface PipelineConfig {
   nextActions(stage: string, role: Role): readonly string[];
   /** T-6/P-5 destinations after outcome=attended, per role (ADR-010 for partners) */
   attendedDestinations(role: Role): readonly string[];
+  /** T-8/A-3 destinations after outcome=cancelled. A SLOT rather than the
+      hardcoded [followUpStage, lostStage] pair the core used to compose: with
+      no follow-up stage on the prospect pipeline (ADR-059) that pair would
+      collapse to Lost alone. The three lead pipelines return the same pair
+      they always did. */
+  cancelledDestinations(role: Role): readonly string[];
   dragEnabled: boolean; // portal only in v1 (A-7)
   /** roles allowed to move a card into Won (portal: admin only — P-2/P-6) */
   wonRoles: readonly Role[] | null; // null = any role with pipeline access
   wonRequiredGroup: RequiredGroup | null;
   wonSideEffect: SideEffectKind | null;
   /** SPEC §10 row ids this pipeline stamps on the ActivityLog (T-10). Optional:
-      omitted means the historic per-kind defaults. ADR-057 gives the agent
-      variant of the partners pipeline its own §10.2a ids (PA-*) so each
-      normative row has a trigger to assert on. */
+      omitted means the historic per-kind defaults. ADR-059: the prospect
+      pipeline shares PP-1/PP-2/PP-3 across BOTH kinds — only the terminal row
+      differs (PP-4 partner / PP-6 agent), so each normative row is still
+      individually assertable and stored history keeps its meaning. */
   triggers?: {
-    didntAnswer?: string; // PP-1 / PA-1
-    numberAdded?: string; // PP-2 / PA-2
-    generic?: string; // PP-3 / PA-3
-    won?: string; // PP-4 / PA-4
+    didntAnswer?: string; // PP-1
+    numberAdded?: string; // PP-2
+    generic?: string; // PP-3
+    won?: string; // PP-4 (partner) / PP-6 (agent)
   };
 }

@@ -47,6 +47,12 @@ export const bsystemsCrmConfig: PipelineConfig = {
     const base = ["sending_proposal", "negotiation", "lost", "following_up"];
     return WON_ROLES.includes(role as (typeof WON_ROLES)[number]) ? [...base, "won"] : base;
   },
+  cancelledDestinations() {
+    /* T-8 / A-3, unchanged: the pair the core used to hardcode as
+       [followUpStage, lostStage]. It is a config SLOT since ADR-059 because the
+       prospect pipeline has no follow-up stage to compose it from. */
+    return ["following_up", "lost"];
+  },
   dragEnabled: true, // V2 §3 — all roles drag; drop opens the stage form
   wonRoles: WON_ROLES,
   wonRequiredGroup: { group: "won_deal" }, // V2 §4 milestone tab

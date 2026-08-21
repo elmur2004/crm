@@ -4,14 +4,18 @@ import { history } from "@/lib/i18n/dict/internal";
 import { agentsConfig, partnersConfig } from "@/lib/pipeline-engine/configs/partners";
 import { transition } from "@/lib/pipeline-engine/transition";
 
-/* SPEC §10.2 (PP-2) and §10.2a (PA-2) both prescribe the SAME History wording.
-   ADR-057 gave the agent config its own row ids, and a map keyed on the literal
-   "PP-2" quietly dropped the pill from every agent card. These assertions make
-   the row id a derived fact, so the next PA-* row cannot repeat it. */
+/* SPEC §10.2's PP-2 prescribes the History wording. ADR-057 gave the agent
+   config its own row ids for two days (PA-2) and ADR-059 folded them back into
+   the shared PP-2 — so the map must cover the row the engine STAMPS today AND
+   the retired id that is still stored on every card moved in between.
+   ActivityLog is append-only: a dropped key is a silently missing pill. */
 
 describe("History trigger phrases (SPEC §5.6)", () => {
-  it("gives PP-2 and PA-2 the normative 'Returned to Lead' wording", () => {
+  it("gives PP-2 the normative 'Returned to Lead' wording", () => {
     expect(TRIGGER_PHRASES["PP-2"]).toBe(history.returnedToLead);
+  });
+
+  it("still resolves PA-2 — retired by ADR-059, but stored on real cards for ever", () => {
     expect(TRIGGER_PHRASES["PA-2"]).toBe(history.returnedToLead);
   });
 

@@ -65,7 +65,8 @@ export function BsEventPanel({
   const sameStageActions = nextActions.filter(isSameStageAction);
   const stageActions = nextActions.filter((a) => !isSameStageAction(a));
   const attendedDestinations = bsystemsCrmConfig.attendedDestinations(engineRole);
-  const cancelledDestinations = [bsystemsCrmConfig.followUpStage, bsystemsCrmConfig.lostStage];
+  /* ADR-059: read the slot, never compose the pair (see internal panel). */
+  const cancelledDestinations = bsystemsCrmConfig.cancelledDestinations(engineRole);
   /* a same-stage action reuses its stage's own field group (V2 §3 role-aware) */
   const formTarget = (a: string) => (isSameStageAction(a) ? SAME_STAGE_FORM_TARGET[a] : a);
 

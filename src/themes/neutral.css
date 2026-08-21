@@ -68,6 +68,7 @@
   --color-stage-didnt-answer: var(--color-surface-tint); --color-stage-didnt-answer-accent: var(--color-border); --color-stage-didnt-answer-chip: var(--color-surface-tint); --color-stage-didnt-answer-chip-ink: var(--color-muted);
   --color-stage-contacted: var(--color-surface-tint); --color-stage-contacted-accent: var(--color-border); --color-stage-contacted-chip: var(--color-surface-tint); --color-stage-contacted-chip-ink: var(--color-muted);
   --color-stage-qualified: var(--color-surface-tint); --color-stage-qualified-accent: var(--color-border); --color-stage-qualified-chip: var(--color-surface-tint); --color-stage-qualified-chip-ink: var(--color-muted);
+  --color-stage-waiting: var(--color-surface-tint); --color-stage-waiting-accent: var(--color-border); --color-stage-waiting-chip: var(--color-surface-tint); --color-stage-waiting-chip-ink: var(--color-muted);
   --color-stage-won: var(--color-surface-tint); --color-stage-won-accent: var(--color-border); --color-stage-won-chip: var(--color-surface-tint); --color-stage-won-chip-ink: var(--color-muted);
   --color-stage-lost: var(--color-surface-tint); --color-stage-lost-accent: var(--color-border); --color-stage-lost-chip: var(--color-surface-tint); --color-stage-lost-chip-ink: var(--color-muted);
 }

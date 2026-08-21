@@ -39,7 +39,7 @@ export function followUpContextFor(config: PipelineConfig, fromStage: string): F
    Their triggers sit deliberately OUTSIDE the SPEC §10 tables — they are new
    founder rows, named for what they are (the same convention the existing
    non-§10 rows use: B-RTC, no_answer, archived). */
-const SAME_STAGE_GROUPS: Record<SameStageAction, RequiredGroup> = {
+export const SAME_STAGE_GROUPS: Record<SameStageAction, RequiredGroup> = {
   follow_up_again: { group: "follow_up", context: "initial" },
   negotiation_follow_up: { group: "follow_up", context: "after_negotiation" },
   /* NOT the "meeting_reschedule" GROUP (T-7 edits the existing meeting in
@@ -54,13 +54,18 @@ const SAME_STAGE_TRIGGERS: Record<SameStageAction, string> = {
   reschedule_meeting: "MTG-RESCHEDULE",
 };
 
-/** The field group a given target stage opens (SPEC §6.2 / §7.2 / §8.2). */
-function groupForStage(
+/** The field group a given target stage opens (SPEC §6.2 / §7.2 / §8.2).
+    EXPORTED (ADR-059): the board and the action panel must ask the engine
+    whether a move opens a form instead of restating the rule themselves —
+    "Lead → Contacted requires nothing" (founder 1.2) has to be ONE answer. */
+export function requiredGroupForTarget(
   config: PipelineConfig,
   fromStage: string,
   toStage: string,
 ): RequiredGroup | null {
-  if (toStage === config.followUpStage) {
+  /* ADR-059: a null slot means NO stage opens a follow-up — the prospect
+     pipeline's Contacted is a record that contact happened, nothing more. */
+  if (config.followUpStage && toStage === config.followUpStage) {
     return { group: "follow_up", context: followUpContextFor(config, fromStage) };
   }
   if (toStage === config.meetingStage) return { group: "meeting" };
@@ -73,7 +78,20 @@ function groupForStage(
   if (config.didntAnswerStage && toStage === config.didntAnswerStage) {
     return { group: "numbers" }; // PP-1: reveal Number 2 / Number 3
   }
-  return null; // intake stage — no group
+  return null; // intake stage, or a stage that opens nothing (contacted / waiting)
+}
+
+/** The field group an ACTION opens from a stage — the same-stage actions
+    included. The one entry point the UI should use: `null` means the move
+    commits immediately with no form at all. */
+export function requiredGroupFor(
+  config: PipelineConfig,
+  fromStage: string,
+  action: string,
+): RequiredGroup | null {
+  return isSameStageAction(action)
+    ? SAME_STAGE_GROUPS[action]
+    : requiredGroupForTarget(config, fromStage, action);
 }
 
 /** Trigger ids per SPEC §10 rows / REQUIREMENTS-V2 (B-rows), per pipeline. */
@@ -89,8 +107,10 @@ function triggerForAction(config: PipelineConfig, toStage: string): string {
     return "T-0";
   }
   if (config.kind === "partners") {
-    /* ADR-057 — partner cards keep PP-*; agent cards carry §10.2a's PA-*. The
-       ids live on the config, so the core never names a pipeline's rows. */
+    /* ADR-059 — one stage set, one row family: PP-1 / PP-2 / PP-3 are shared by
+       both kinds and only the TERMINAL row differs (PP-4 the partner's
+       directory conversion, PP-6 the agent's credential-free qualification).
+       The ids live on the config, so the core never names a pipeline's rows. */
     if (toStage === config.didntAnswerStage) return config.triggers?.didntAnswer ?? "PP-1";
     if (toStage === config.wonStage) return config.triggers?.won ?? "PP-4";
     return config.triggers?.generic ?? "PP-3";
@@ -151,7 +171,7 @@ export function transition(
       return ok({
         fromStage: from,
         toStage,
-        requiredGroup: groupForStage(config, from, toStage),
+        requiredGroup: requiredGroupForTarget(config, from, toStage),
         sideEffects:
           toStage === config.wonStage && config.wonSideEffect ? [config.wonSideEffect] : [],
         logTrigger: triggerForAction(config, toStage),
@@ -172,7 +192,7 @@ export function transition(
       if (event.to === from) {
         return reject("event_invalid_for_stage", "Card is already in this column");
       }
-      const requiredGroup = groupForStage(config, from, event.to);
+      const requiredGroup = requiredGroupForTarget(config, from, event.to);
       return ok({
         fromStage: from,
         toStage: event.to,
@@ -186,7 +206,10 @@ export function transition(
 
     /* ------------- Proposal "Sent" checked (T-5 / B-6 — §5.3) ------------- */
     case "proposal_sent": {
-      if (!config.proposalStage || from !== config.proposalStage) {
+      /* followUpStage is checked too: a pipeline with no follow-up stage has
+         nowhere to auto-return TO (it also has no proposal stage, so this is
+         belt and braces that keeps the null out of `toStage`). */
+      if (!config.proposalStage || from !== config.proposalStage || !config.followUpStage) {
         return reject(
           "event_invalid_for_stage",
           `proposal_sent only fires from "${config.proposalStage ?? "—"}"`,
@@ -231,20 +254,25 @@ export function transition(
         });
       }
       if (event.outcome === "cancelled") {
-        // T-8 (A-3): user picks Following Up or Lost
+        /* T-8 (A-3): the user picks where the card lands. The destinations come
+           from the CONFIG (ADR-059) — the lead pipelines still answer
+           [followUpStage, lostStage]; the prospect pipeline answers
+           Contacted / Waiting / Lost, because it has no follow-up stage at all
+           and "Lost or nothing" would be a cliff the founder never asked for. */
+        const allowed = config.cancelledDestinations(ctx.role);
         if (!event.destination) {
-          return reject("destination_required", "Cancelled meeting: choose Following Up or Lost");
+          return reject("destination_required", "Cancelled meeting: choose a destination");
         }
-        if (event.destination !== config.followUpStage && event.destination !== config.lostStage) {
+        if (!allowed.includes(event.destination)) {
           return reject(
             "destination_invalid",
-            "Cancelled meeting can only go to Following Up or Lost",
+            `"${event.destination}" is not a valid destination for a cancelled meeting`,
           );
         }
         return ok({
           fromStage: from,
           toStage: event.destination,
-          requiredGroup: groupForStage(config, from, event.destination),
+          requiredGroup: requiredGroupForTarget(config, from, event.destination),
           logTrigger: outcomeTrigger("T-8"),
         });
       }
@@ -270,7 +298,7 @@ export function transition(
       return ok({
         fromStage: from,
         toStage: event.destination,
-        requiredGroup: groupForStage(config, from, event.destination),
+        requiredGroup: requiredGroupForTarget(config, from, event.destination),
         sideEffects:
           event.destination === config.wonStage && config.wonSideEffect
             ? [config.wonSideEffect]

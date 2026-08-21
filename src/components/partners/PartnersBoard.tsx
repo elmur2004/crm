@@ -15,6 +15,7 @@ import {
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { partnersConfigFor } from "@/lib/pipeline-engine/configs/partners";
+import { requiredGroupForTarget } from "@/lib/pipeline-engine/transition";
 import { stageKey } from "@/components/bsystems/stageColors";
 import { tFor } from "@/lib/i18n/core";
 import { useLocale } from "@/components/shared/LocaleProvider";
@@ -279,8 +280,12 @@ function ProspectPipeline({
       );
       return;
     }
-    if (to === config.intakeStage) {
-      void commit({ event: { type: "drag", to } }, id); // back to intake — no form
+    /* ADR-059 — ONE source of truth for "does this move ask anything?": the
+       engine. A target with no required group commits on the drop, with no
+       modal at all: Lead → Contacted (founder 1.2), anything → Waiting (1.1),
+       an agent → Qualified (1.3), and the drag back to Lead as before. */
+    if (!requiredGroupForTarget(config, card.stage, to)) {
+      void commit({ event: { type: "drag", to } }, id);
       return;
     }
     setPending({ id, to }); // the stage's form opens; cancel reverts
@@ -364,9 +369,12 @@ function ProspectPipeline({
                   {
                     event: { type: "drag", to: pending.to },
                     group: prospectGroupPayload(
-                      pending.to,
+                      requiredGroupForTarget(
+                        partnersConfigFor(pendingCard.kind),
+                        pendingCard.stage,
+                        pending.to,
+                      ),
                       new FormData(e.currentTarget),
-                      pendingCard.kind,
                     ),
                   },
                   pending.id,
@@ -381,6 +389,11 @@ function ProspectPipeline({
                   </p>
                 ) : null}
                 <ProspectGroupFields
+                  group={requiredGroupForTarget(
+                    partnersConfigFor(pendingCard.kind),
+                    pendingCard.stage,
+                    pending.to,
+                  )}
                   target={pending.to}
                   reps={reps}
                   defaults={pendingCard.defaults}

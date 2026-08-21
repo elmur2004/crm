@@ -1,36 +1,51 @@
-import { AGENT_STAGES, PARTNER_STAGES } from "../constants";
+import { PROSPECT_STAGES } from "../constants";
 import type { PipelineConfig, RequiredGroup, SideEffectKind } from "../types";
 
-/* App B Partners & Agents acquisition pipeline (SPEC §7.2/§10.2 for partner
-   cards, §7.2a/§10.2a for agent cards).
-   PP-1's From column is "Lead / active", so didnt_answer is offered from every
-   active stage. ADR-010: meeting-attended destinations exclude a proposals stage
-   (none exists here); Won routes through the PP-4 completeness gate.
+/* App B Partners & Agents acquisition pipeline (SPEC §7.2 / §10.2).
 
-   Founder: the board carries partner AND agent cards, and (ADR-057) the two
-   kinds now run DIFFERENT stage vocabularies:
+   ADR-059 — ONE stage set for BOTH kinds of card, in the founder's own column
+   order:
 
-     partner  lead · didnt_answer · following_up · meeting_setting · won · lost
-     agent    lead · contacted    · didnt_answer · meeting_setting · qualified · lost
+     lead · contacted · didnt_answer · meeting_setting · waiting · qualified · lost
 
-   That is NOT a second pipeline. Everything below is derived from the config's
-   ROLE SLOTS — `contacted` simply plays the followUpStage role and `qualified`
-   plays the wonStage role (and so carries the account gate) — so the two kinds
-   are one parameterized config family, per CLAUDE.md's one-engine rule. */
+   Founder, asked whether partners and agents should keep separate vocabularies:
+   "Same stages for both." That reverses ADR-057's split (partner cards used to
+   run following_up/won) while keeping the two card KINDS distinct — a qualified
+   PARTNER still becomes a partner in the directory, the column is simply called
+   Qualified now.
 
-/** The next actions offered from any active stage: one per role slot, in the
-    order the board has always shown them. */
-function activeActions(c: PipelineConfig): string[] {
-  return [c.didntAnswerStage!, c.followUpStage, c.meetingStage, c.wonStage, c.lostStage];
+   The two kinds therefore differ in exactly ONE thing: the terminal side
+   effect. Everything else — the stages, the terminal pair, the next actions,
+   the destinations, the same-stage buttons — is shared code, so there is one
+   config family and no fork (CLAUDE.md's one-engine rule).
+
+   Two founder rules are encoded as ABSENCES here, and both are load-bearing:
+     · `followUpStage: null` — NO stage plays the follow-up role (item 2.1:
+       "Contacted should only indicate that contact has been made"). A follow-up
+       is written only by the deliberate `follow_up_again` action, which is why
+       that action is offered from every active stage below.
+     · the agent kind's `wonRequiredGroup` / `wonSideEffect` are null (item 1.3:
+       "Moving a lead to Qualified should not require creating or entering an
+       email or password"). Minting the login is a separate, explicit admin
+       action afterwards (PP-4a, services/partners.createAgentAccount). */
+
+/** The next actions offered from any active stage: every OTHER column, in board
+    order. ADR-059 — the action set is the column set, which is what makes
+    "Waiting moves out in both directions" (founder 1.1) true by construction
+    rather than by a hand-maintained list. */
+function activeActions(c: PipelineConfig, stage: string): string[] {
+  return c.stages.filter((s) => s !== stage);
 }
 
-/* Founder: same-stage records — the partnership pipeline has a follow-up stage
-   and a Meeting Setting too, so it gets the same "another follow-up" /
-   "reschedule" buttons rather than a special-cased UI on the leads side only. */
+/* Founder: same-stage records. `follow_up_again` is offered from EVERY active
+   stage now (ADR-059): with no follow-up STAGE, this action is the only way a
+   FollowUp is ever created, so it must be reachable wherever a follow-up makes
+   sense — and never automatic. `reschedule_meeting` still belongs to the
+   meeting stage, which owns the record it replaces. */
 function sameStageExtras(c: PipelineConfig, stage: string): string[] {
-  if (stage === c.followUpStage) return ["follow_up_again"];
-  if (stage === c.meetingStage) return ["reschedule_meeting"];
-  return [];
+  const extras = ["follow_up_again"];
+  if (stage === c.meetingStage) extras.push("reschedule_meeting");
+  return extras;
 }
 
 /** The card kinds the board carries (founder: "it could be a partner or an agent"). */
@@ -41,77 +56,83 @@ export function isProspectKind(value: string): value is ProspectKind {
   return (PROSPECT_KINDS as readonly string[]).includes(value);
 }
 
-/** The only slots that differ between the two kinds. Everything else — intake,
-    meeting, didn't-answer, lost, drag rules, next actions, destinations — is
-    shared code reading these slots. */
+/** The ONLY slots that differ between the two kinds: what Qualified does.
+    Everything else in the config below is shared, literal or slot-derived. */
 type KindSlots = {
-  stages: readonly string[];
-  terminalStages: readonly string[];
-  followUpStage: string;
-  wonStage: string;
-  wonRequiredGroup: RequiredGroup;
-  wonSideEffect: SideEffectKind;
-  triggers: NonNullable<PipelineConfig["triggers"]>;
+  wonRequiredGroup: RequiredGroup | null;
+  wonSideEffect: SideEffectKind | null;
+  /** §10.2's terminal row for this kind — PP-4 (partner) / PP-6 (agent) */
+  wonTrigger: string;
 };
 
-function buildPartnersConfig(slots: KindSlots): PipelineConfig {
+/** Qualified and Lost — the SAME pair for both kinds (ADR-059). Waiting is
+    deliberately NOT here: founder 1.1 requires a Waiting card to stay fully
+    editable and to move out again in both directions. */
+const TERMINAL_STAGES = ["qualified", "lost"] as const;
+
+function buildProspectConfig(slots: KindSlots): PipelineConfig {
   const config: PipelineConfig = {
     kind: "partners",
-    stages: slots.stages,
-    terminalStages: slots.terminalStages,
+    stages: PROSPECT_STAGES,
+    terminalStages: TERMINAL_STAGES,
     intakeStage: "lead",
-    followUpStage: slots.followUpStage,
+    /* ADR-059 / founder 2.1 — no stage implies a follow-up. See the header. */
+    followUpStage: null,
     meetingStage: "meeting_setting",
     proposalStage: null,
     didntAnswerStage: "didnt_answer",
-    wonStage: slots.wonStage,
+    wonStage: "qualified",
     lostStage: "lost",
     nextActions(stage) {
       if (config.terminalStages.includes(stage)) return [];
-      return [...activeActions(config), ...sameStageExtras(config, stage)];
+      return [...activeActions(config, stage), ...sameStageExtras(config, stage)];
     },
     attendedDestinations() {
-      return [config.followUpStage, config.wonStage, config.lostStage]; // ADR-010
+      /* ADR-010: no proposals stage here. Waiting joins the list because it is
+         an ordinary active stage — "we met them, now we wait" is exactly the
+         holding state the founder asked for. */
+      return ["contacted", "waiting", "qualified", "lost"];
     },
-    dragEnabled: true, // founder V4: the Partnership CRM board is draggable too
+    cancelledDestinations() {
+      // A-3, minus Qualified: a cancelled meeting never qualifies anyone.
+      return ["contacted", "waiting", "lost"];
+    },
+    dragEnabled: true, // founder V4: the Partners & Agents board is draggable
     wonRoles: null,
     wonRequiredGroup: slots.wonRequiredGroup,
     wonSideEffect: slots.wonSideEffect,
-    triggers: slots.triggers,
+    triggers: {
+      didntAnswer: "PP-1",
+      numberAdded: "PP-2",
+      generic: "PP-3",
+      won: slots.wonTrigger,
+    },
   };
   return config;
 }
 
-export const partnersConfig: PipelineConfig = buildPartnersConfig({
-  stages: PARTNER_STAGES,
-  terminalStages: ["won", "lost"],
-  followUpStage: "following_up",
-  wonStage: "won",
-  wonRequiredGroup: { group: "won_partner" }, // §7.2 gate — completeness enforced by Zod
-  wonSideEffect: "create_partner", // PP-4 (A-5)
-  triggers: { didntAnswer: "PP-1", numberAdded: "PP-2", generic: "PP-3", won: "PP-4" },
+/* PP-4 — a partner qualifies: the §7.2 completeness gate (company, key person,
+   role, address, number, business activity, importance — never an email, never
+   a password) and the directory Partner it creates. */
+export const partnersConfig: PipelineConfig = buildProspectConfig({
+  wonRequiredGroup: { group: "won_partner" },
+  wonSideEffect: "create_partner",
+  wonTrigger: "PP-4",
 });
 
-/* ADR-057: the agent variant. `contacted` IS the follow-up stage and
-   `qualified` IS the Won stage, so the whole shared body — the next actions,
-   the attended destinations, the same-stage buttons, the follow-up context
-   rule, the account gate — lands on the founder's vocabulary with no forked
-   code. §10.2a rows get their own ids so every normative row is testable. */
-export const agentsConfig: PipelineConfig = buildPartnersConfig({
-  stages: AGENT_STAGES,
-  terminalStages: ["qualified", "lost"],
-  followUpStage: "contacted",
-  wonStage: "qualified",
-  /* PA-4: the agent gate collects the signup profile + the credentials the
-     admin sets, and mints the account instead of a directory Partner. */
-  wonRequiredGroup: { group: "won_agent" },
-  wonSideEffect: "create_agent",
-  triggers: { didntAnswer: "PA-1", numberAdded: "PA-2", generic: "PA-3", won: "PA-4" },
+/* PP-6 — an agent qualifies: founder 1.3, a PURE stage move. No field group, no
+   credentials, no account, no side effect. A qualified agent with no login is a
+   legitimate state; the admin mints the account afterwards with the explicit
+   "Create the agent's account" action (PP-4a). */
+export const agentsConfig: PipelineConfig = buildProspectConfig({
+  wonRequiredGroup: null,
+  wonSideEffect: null,
+  wonTrigger: "PP-6",
 });
 
-/** The partners pipeline as it applies to ONE card: the shared engine with the
-    stage vocabulary and Won gate this card's kind runs. `partner` returns the
-    config verbatim. */
+/** The prospect pipeline as it applies to ONE card: the shared engine, with the
+    Qualified behaviour this card's kind carries. Anything that is not an
+    `agent` is a partner card — the same complement the data migration uses. */
 export function partnersConfigFor(kind: string): PipelineConfig {
   return kind === "agent" ? agentsConfig : partnersConfig;
 }

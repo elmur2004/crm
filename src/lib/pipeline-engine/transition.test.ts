@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { transition } from "./transition";
+import { requiredGroupFor, requiredGroupForTarget, transition } from "./transition";
 import { internalCrmConfig as internal } from "./configs/internal-crm";
 import {
   agentsConfig as agents,
@@ -8,7 +8,7 @@ import {
 } from "./configs/partners";
 import { bsystemsCrmConfig as bsystems } from "./configs/bsystems-crm";
 import type { EngineEvent, TransitionOk, TransitionResult } from "./types";
-import { AGENT_STAGES, PARTNER_STAGES, SAME_STAGE_FORM_SLOT, type Role } from "./constants";
+import { PROSPECT_STAGES, type Role } from "./constants";
 
 /* Every SPEC §10 row (v1) and REQUIREMENTS-V2 B-row has at least one test named
    after it, plus illegal-move rejections. Milestone mutations and creation flows
@@ -245,379 +245,529 @@ describe("Internal CRM (§10.1)", () => {
   });
 });
 
-describe("Partners pipeline (§10.2)", () => {
+/* ---------------------------------------------------------------------------
+   SPEC §10.2 — the ONE prospect pipeline (ADR-059). Founder: "Same stages for
+   both." Partner cards and agent cards run the same seven columns on the same
+   config family; the ONLY difference is what Qualified does (PP-4 creates the
+   directory partner, PP-6 is a pure move). Every row below is normative.
+   --------------------------------------------------------------------------- */
+
+const bothKinds = [
+  ["partner", partners],
+  ["agent", agents],
+] as const;
+
+/** every stage a card can act FROM — the five non-terminal columns */
+const ACTIVE = ["lead", "contacted", "didnt_answer", "meeting_setting", "waiting"] as const;
+
+describe("Prospect pipeline (§10.2) — one stage set, both kinds", () => {
   const bstaff: { role: Role } = { role: "bsystems_admin" };
 
-  it("PP-1: Didn't answer from Lead or any active → reveals Number 2/3 fields", () => {
-    for (const stage of ["lead", "following_up", "meeting_setting"]) {
-      const r = expectOk(transition(partners, { stage }, act("didnt_answer"), bstaff));
-      expect(r.toStage).toBe("didnt_answer");
-      expect(r.requiredGroup).toEqual({ group: "numbers" });
-      expect(r.logTrigger).toBe("PP-1");
+  it("the config is the founder's column order, and the two kinds share ONE array", () => {
+    expect(PROSPECT_STAGES).toEqual([
+      "lead",
+      "contacted",
+      "didnt_answer",
+      "meeting_setting",
+      "waiting",
+      "qualified",
+      "lost",
+    ]);
+    /* the SAME array object, not a copy: proof there is no fork (CLAUDE.md) */
+    expect(partners.stages).toBe(agents.stages);
+    expect(partners.stages).toBe(PROSPECT_STAGES);
+    expect(partnersConfigFor("agent")).toBe(agents);
+    expect(partnersConfigFor("partner")).toBe(partners);
+    expect(partnersConfigFor("anything else")).toBe(partners);
+
+    for (const [, config] of bothKinds) {
+      expect(config.kind).toBe("partners"); // one engine, one pipeline kind
+      expect(config.terminalStages).toEqual(["qualified", "lost"]);
+      expect(config.intakeStage).toBe("lead");
+      expect(config.meetingStage).toBe("meeting_setting");
+      expect(config.didntAnswerStage).toBe("didnt_answer");
+      expect(config.wonStage).toBe("qualified");
+      expect(config.lostStage).toBe("lost");
+      expect(config.proposalStage).toBeNull();
+      expect(config.dragEnabled).toBe(true);
+      expect(config.wonRoles).toBeNull();
+      /* founder 2.1 — NO stage plays the follow-up role on this pipeline */
+      expect(config.followUpStage).toBeNull();
     }
   });
 
-  it("PP-2: new number saved in Didn't Answer → automatic return to Lead", () => {
-    const r = expectOk(
-      transition(partners, { stage: "didnt_answer" }, { type: "number_added", slot: 2 }, bstaff),
+  it("the two kinds differ in EXACTLY three slots — the terminal behaviour", () => {
+    const differing = ["wonRequiredGroup", "wonSideEffect", "triggers"];
+    for (const key of Object.keys(partners) as Array<keyof typeof partners>) {
+      if (differing.includes(key as string)) continue;
+      if (typeof partners[key] === "function") {
+        /* functions are distinct closures per config — compare their ANSWERS */
+        continue;
+      }
+      expect(agents[key]).toEqual(partners[key]);
+    }
+    expect(partners.wonRequiredGroup).toEqual({ group: "won_partner" });
+    expect(agents.wonRequiredGroup).toBeNull();
+    expect(partners.wonSideEffect).toBe("create_partner");
+    expect(agents.wonSideEffect).toBeNull();
+    expect(partners.triggers?.won).toBe("PP-4");
+    expect(agents.triggers?.won).toBe("PP-6");
+    /* the shared rows carry the SAME ids on both kinds */
+    for (const [, config] of bothKinds) {
+      expect(config.triggers?.didntAnswer).toBe("PP-1");
+      expect(config.triggers?.numberAdded).toBe("PP-2");
+      expect(config.triggers?.generic).toBe("PP-3");
+    }
+    /* and every derived set answers identically */
+    for (const stage of [...ACTIVE, "qualified", "lost"]) {
+      expect(agents.nextActions(stage, "bsystems_admin")).toEqual(
+        partners.nextActions(stage, "bsystems_admin"),
+      );
+    }
+    expect(agents.attendedDestinations("bsystems_admin")).toEqual(
+      partners.attendedDestinations("bsystems_admin"),
     );
-    expect(r.toStage).toBe("lead");
-    expect(r.auto).toBe(true);
-    expect(r.logTrigger).toBe("PP-2");
+    expect(agents.cancelledDestinations("bsystems_admin")).toEqual(
+      partners.cancelledDestinations("bsystems_admin"),
+    );
+  });
+
+  it("the old split vocabularies are gone — no card can sit in following_up or won", () => {
+    for (const [, config] of bothKinds) {
+      expect(config.stages).not.toContain("following_up");
+      expect(config.stages).not.toContain("won");
+      for (const dead of ["following_up", "won"]) {
+        /* a stranded card is un-actionable — which is why the data migration
+           ships in the same change (ADR-059) */
+        const r = transition(config, { stage: dead }, act("lost"), bstaff);
+        expect(r.ok).toBe(false);
+        expect(!r.ok && r.code).toBe("event_invalid_for_stage");
+        const a = transition(config, { stage: "lead" }, act(dead), bstaff);
+        expect(a.ok).toBe(false);
+        expect(!a.ok && a.code).toBe("unknown_action");
+      }
+    }
+  });
+
+  it("PP-1: Didn't answer from Lead or any active → records the unanswered number(s)", () => {
+    for (const [, config] of bothKinds) {
+      for (const stage of ACTIVE.filter((s) => s !== "didnt_answer")) {
+        const r = expectOk(transition(config, { stage }, act("didnt_answer"), bstaff));
+        expect(r.toStage).toBe("didnt_answer");
+        expect(r.requiredGroup).toEqual({ group: "numbers" });
+        expect(r.logTrigger).toBe("PP-1");
+      }
+    }
+  });
+
+  it("PP-2: a new number saved in Didn't Answer → automatic return to Lead", () => {
+    for (const [, config] of bothKinds) {
+      const r = expectOk(
+        transition(config, { stage: "didnt_answer" }, { type: "number_added", slot: 2 }, bstaff),
+      );
+      expect(r.toStage).toBe("lead");
+      expect(r.requiredGroup).toBeNull();
+      expect(r.auto).toBe(true);
+      expect(r.logTrigger).toBe("PP-2");
+    }
   });
 
   it("PP-2 illegal: number_added outside Didn't Answer does not move the card", () => {
-    const r = transition(partners, { stage: "lead" }, { type: "number_added", slot: 2 }, bstaff);
-    expect(r.ok).toBe(false);
+    for (const [, config] of bothKinds) {
+      for (const stage of ACTIVE.filter((s) => s !== "didnt_answer")) {
+        expect(transition(config, { stage }, { type: "number_added", slot: 3 }, bstaff).ok).toBe(
+          false,
+        );
+      }
+    }
   });
 
-  it("PP-3: Following up / Meeting setting / Lost behave like T-1/T-2/T-4", () => {
-    const fu = expectOk(transition(partners, { stage: "lead" }, act("following_up"), bstaff));
-    expect(fu.requiredGroup).toEqual({ group: "follow_up", context: "initial" });
+  /* ---- founder 1.2: "The system should not require any additional details or
+     mandatory fields when moving a lead to Contacted. This applies to both
+     Agents and Partners." ---- */
+  it("PP-3: Lead → Contacted asks for NOTHING, for BOTH kinds, by action or by drag", () => {
+    for (const [, config] of bothKinds) {
+      for (const stage of ACTIVE.filter((s) => s !== "contacted")) {
+        const chosen = expectOk(transition(config, { stage }, act("contacted"), bstaff));
+        expect(chosen.toStage).toBe("contacted");
+        expect(chosen.requiredGroup).toBeNull();
+        expect(chosen.sideEffects).toEqual([]);
+        expect(chosen.logTrigger).toBe("PP-3");
 
-    const meet = expectOk(transition(partners, { stage: "lead" }, act("meeting_setting"), bstaff));
-    expect(meet.requiredGroup).toEqual({ group: "meeting" });
-
-    const lost = expectOk(transition(partners, { stage: "following_up" }, act("lost"), bstaff));
-    expect(lost.requiredGroup).toEqual({ group: "lost" });
+        const dragged = expectOk(
+          transition(config, { stage }, { type: "drag", to: "contacted" }, bstaff),
+        );
+        expect(dragged.requiredGroup).toBeNull();
+        expect(dragged.logTrigger).toBe("PP-3");
+      }
+      /* the answer the UI asks for, so the drag opens no modal at all */
+      expect(requiredGroupFor(config, "lead", "contacted")).toBeNull();
+      expect(requiredGroupForTarget(config, "lead", "contacted")).toBeNull();
+    }
   });
 
-  it("PP-3 + ADR-010: attended destinations are Following Up / Won / Lost — no proposals stage", () => {
-    const toProposal = transition(
-      partners,
-      { stage: "meeting_setting" },
-      { type: "meeting_outcome", outcome: "attended", destination: "sending_proposal" },
-      bstaff,
-    );
-    expect(toProposal.ok).toBe(false);
-
-    const toWon = expectOk(
-      transition(
-        partners,
-        { stage: "meeting_setting" },
-        { type: "meeting_outcome", outcome: "attended", destination: "won" },
-        bstaff,
-      ),
-    );
-    expect(toWon.requiredGroup).toEqual({ group: "won_partner" });
-    expect(toWon.sideEffects).toContain("create_partner");
-    expect(toWon.logTrigger).toBe("PP-3"); // ADR-021: owning pipeline's row id
-
-    const delayed = expectOk(
-      transition(
-        partners,
-        { stage: "meeting_setting" },
-        { type: "meeting_outcome", outcome: "delayed" },
-        bstaff,
-      ),
-    );
-    expect(delayed.logTrigger).toBe("PP-3"); // not T-7 (ADR-021)
+  it("PP-3: Meeting setting opens the meeting group; Lost opens the reason", () => {
+    for (const [, config] of bothKinds) {
+      for (const stage of ACTIVE.filter((s) => s !== "meeting_setting")) {
+        const meet = expectOk(transition(config, { stage }, act("meeting_setting"), bstaff));
+        expect(meet.requiredGroup).toEqual({ group: "meeting" });
+        expect(meet.logTrigger).toBe("PP-3");
+      }
+      for (const stage of ACTIVE) {
+        const lost = expectOk(transition(config, { stage }, act("lost"), bstaff));
+        expect(lost.toStage).toBe("lost");
+        expect(lost.requiredGroup).toEqual({ group: "lost" });
+        expect(lost.logTrigger).toBe("PP-3");
+      }
+    }
   });
 
-  it("PP-4: Won requires the completeness-gate group and creates a Partner", () => {
-    for (const stage of ["lead", "didnt_answer", "following_up", "meeting_setting"]) {
-      const r = expectOk(transition(partners, { stage }, act("won"), bstaff));
-      expect(r.toStage).toBe("won");
+  it("PP-3: a drag back to Lead still needs no group", () => {
+    for (const [, config] of bothKinds) {
+      const r = expectOk(transition(config, { stage: "contacted" }, { type: "drag", to: "lead" }, bstaff));
+      expect(r.toStage).toBe("lead");
+      expect(r.requiredGroup).toBeNull();
+    }
+  });
+
+  /* ---- founder 1.1: "Add a new stage called Waiting. Order: Meeting Setting
+     then Waiting then Qualified." ---- */
+  it("PP-5w: Waiting sits between Meeting Setting and Qualified and opens no group", () => {
+    expect(PROSPECT_STAGES.indexOf("waiting")).toBe(PROSPECT_STAGES.indexOf("meeting_setting") + 1);
+    expect(PROSPECT_STAGES.indexOf("qualified")).toBe(PROSPECT_STAGES.indexOf("waiting") + 1);
+    for (const [, config] of bothKinds) {
+      for (const stage of ACTIVE.filter((s) => s !== "waiting")) {
+        const r = expectOk(transition(config, { stage }, act("waiting"), bstaff));
+        expect(r.toStage).toBe("waiting");
+        expect(r.requiredGroup).toBeNull();
+        expect(r.sideEffects).toEqual([]);
+        expect(r.logTrigger).toBe("PP-3");
+      }
+    }
+  });
+
+  it("PP-5w: Waiting is an ORDINARY ACTIVE stage — never terminal, always actionable", () => {
+    for (const [, config] of bothKinds) {
+      expect(config.terminalStages).not.toContain("waiting");
+      const actions = config.nextActions("waiting", "bsystems_admin");
+      expect(actions.length).toBeGreaterThan(0);
+      /* every OTHER column is reachable from Waiting — forwards AND backwards */
+      for (const stage of PROSPECT_STAGES) {
+        if (stage === "waiting") continue;
+        expect(actions).toContain(stage);
+      }
+      /* and the record buttons are there too, so a waiting card is not inert */
+      expect(actions).toContain("follow_up_again");
+    }
+  });
+
+  it("PP-5w: a Waiting card moves out in BOTH directions, each target keeping its own group", () => {
+    const expected: Record<string, unknown> = {
+      lead: null,
+      contacted: null,
+      didnt_answer: { group: "numbers" },
+      meeting_setting: { group: "meeting" },
+      lost: { group: "lost" },
+    };
+    for (const [kind, config] of bothKinds) {
+      for (const [target, group] of Object.entries(expected)) {
+        const r = expectOk(transition(config, { stage: "waiting" }, act(target), bstaff));
+        expect(r.fromStage).toBe("waiting");
+        expect(r.toStage).toBe(target);
+        expect(r.requiredGroup).toEqual(group);
+      }
+      /* forwards into the win, with this kind's own gate */
+      const qualified = expectOk(transition(config, { stage: "waiting" }, act("qualified"), bstaff));
+      expect(qualified.toStage).toBe("qualified");
+      expect(qualified.requiredGroup).toEqual(
+        kind === "partner" ? { group: "won_partner" } : null,
+      );
+      /* and a round trip back into a stage it came from */
+      const back = expectOk(
+        transition(config, { stage: "meeting_setting" }, act("waiting"), bstaff),
+      );
+      expect(back.toStage).toBe("waiting");
+    }
+  });
+
+  /* ---- founder 1.3: "Moving a lead to Qualified should not require creating or
+     entering an email or password. This applies to both Agents and Partners." -- */
+  it("PP-4: a PARTNER qualifies through the completeness gate and joins the directory", () => {
+    for (const stage of ACTIVE) {
+      const r = expectOk(transition(partners, { stage }, act("qualified"), bstaff));
+      expect(r.toStage).toBe("qualified");
       expect(r.requiredGroup).toEqual({ group: "won_partner" });
       expect(r.sideEffects).toEqual(["create_partner"]);
       expect(r.logTrigger).toBe("PP-4");
     }
   });
 
-  it("partners follow-up context after meeting is after_meeting (shared T-1 rule)", () => {
-    const r = expectOk(transition(partners, { stage: "meeting_setting" }, act("following_up"), bstaff));
-    expect(r.requiredGroup).toEqual({ group: "follow_up", context: "after_meeting" });
-  });
-});
-
-/* ---------------------------------------------------------------------------
-   ADR-057 — the AGENT variant of the partners pipeline. Founder: "agents stages
-   : lead , contacted , didn't answer , meeting settting , qualified , lost ,
-   when he is in qualified he becomes an agent". One engine, one config family:
-   `contacted` plays the followUpStage role and `qualified` plays the wonStage
-   role, so every §10.2a row below runs the SAME code as its §10.2 twin.
-   --------------------------------------------------------------------------- */
-describe("Agents pipeline (§10.2a)", () => {
-  const bstaff: { role: Role } = { role: "bsystems_admin" };
-
-  it("the config is the founder's vocabulary in the founder's column order", () => {
-    expect(agents.stages).toEqual([
-      "lead",
-      "contacted",
-      "didnt_answer",
-      "meeting_setting",
-      "qualified",
-      "lost",
-    ]);
-    expect(agents.stages).toEqual(AGENT_STAGES);
-    expect(agents.terminalStages).toEqual(["qualified", "lost"]);
-    expect(agents.followUpStage).toBe("contacted");
-    expect(agents.wonStage).toBe("qualified");
-    /* the shared slots are untouched — that is what makes this a parameterization */
-    expect(agents.intakeStage).toBe("lead");
-    expect(agents.meetingStage).toBe("meeting_setting");
-    expect(agents.didntAnswerStage).toBe("didnt_answer");
-    expect(agents.lostStage).toBe("lost");
-    expect(agents.proposalStage).toBeNull();
-    expect(agents.dragEnabled).toBe(true);
-    expect(agents.wonRoles).toBeNull();
-    expect(agents.kind).toBe("partners"); // one engine, one pipeline kind
-    expect(partnersConfigFor("agent")).toBe(agents);
-    expect(partnersConfigFor("partner")).toBe(partners);
-    expect(partnersConfigFor("anything else")).toBe(partners);
-  });
-
-  it("PA-1: Didn't answer from Lead or any active reveals the Number 2/3 fields", () => {
-    for (const stage of ["lead", "contacted", "meeting_setting"]) {
-      const r = expectOk(transition(agents, { stage }, act("didnt_answer"), bstaff));
-      expect(r.toStage).toBe("didnt_answer");
-      expect(r.requiredGroup).toEqual({ group: "numbers" });
-      expect(r.logTrigger).toBe("PA-1");
-    }
-  });
-
-  it("PA-2: new number saved in Didn't Answer → automatic return to Lead", () => {
-    const r = expectOk(
-      transition(agents, { stage: "didnt_answer" }, { type: "number_added", slot: 2 }, bstaff),
-    );
-    expect(r.toStage).toBe("lead");
-    expect(r.requiredGroup).toBeNull();
-    expect(r.auto).toBe(true);
-    expect(r.logTrigger).toBe("PA-2");
-  });
-
-  it("PA-2 illegal: number_added outside Didn't Answer does not move the card", () => {
-    for (const stage of ["lead", "contacted", "meeting_setting"]) {
-      expect(transition(agents, { stage }, { type: "number_added", slot: 3 }, bstaff).ok).toBe(
-        false,
-      );
-    }
-  });
-
-  it("PA-3: Contacted / Meeting setting / Lost behave like PP-3, context per origin", () => {
-    const fu = expectOk(transition(agents, { stage: "lead" }, act("contacted"), bstaff));
-    expect(fu.toStage).toBe("contacted");
-    expect(fu.requiredGroup).toEqual({ group: "follow_up", context: "initial" });
-    expect(fu.logTrigger).toBe("PA-3");
-
-    const afterMeeting = expectOk(
-      transition(agents, { stage: "meeting_setting" }, act("contacted"), bstaff),
-    );
-    expect(afterMeeting.requiredGroup).toEqual({ group: "follow_up", context: "after_meeting" });
-
-    const meet = expectOk(transition(agents, { stage: "lead" }, act("meeting_setting"), bstaff));
-    expect(meet.requiredGroup).toEqual({ group: "meeting" });
-    expect(meet.logTrigger).toBe("PA-3");
-
-    for (const stage of ["lead", "contacted", "didnt_answer", "meeting_setting"]) {
-      const lost = expectOk(transition(agents, { stage }, act("lost"), bstaff));
-      expect(lost.toStage).toBe("lost");
-      expect(lost.requiredGroup).toEqual({ group: "lost" });
-      expect(lost.logTrigger).toBe("PA-3");
-    }
-  });
-
-  it("PA-4: Qualified requires the agent gate and mints the account", () => {
-    for (const stage of ["lead", "contacted", "didnt_answer", "meeting_setting"]) {
+  it("PP-6: an AGENT qualifies as a PURE move — no group, no credentials, no account", () => {
+    for (const stage of ACTIVE) {
       const r = expectOk(transition(agents, { stage }, act("qualified"), bstaff));
       expect(r.toStage).toBe("qualified");
-      expect(r.requiredGroup).toEqual({ group: "won_agent" });
-      expect(r.sideEffects).toEqual(["create_agent"]);
-      expect(r.logTrigger).toBe("PA-4");
+      expect(r.requiredGroup).toBeNull();
+      expect(r.sideEffects).toEqual([]);
+      expect(r.logTrigger).toBe("PP-6");
     }
-  });
-
-  it("PA-4: a drag into Qualified is the same move as the action — same gate, same trigger", () => {
+    /* and the drag is the same move — it must not open a modal either */
     const dragged = expectOk(
       transition(agents, { stage: "lead" }, { type: "drag", to: "qualified" }, bstaff),
     );
-    const chosen = expectOk(transition(agents, { stage: "lead" }, act("qualified"), bstaff));
+    expect(dragged.requiredGroup).toBeNull();
+    expect(dragged.sideEffects).toEqual([]);
+    expect(dragged.logTrigger).toBe("PP-6");
+    /* no config asks for the retired agent gate anywhere */
+    expect(JSON.stringify(agents.wonRequiredGroup)).not.toContain("won_agent");
+    /* and the answer the BOARD asks before it decides modal-or-commit is
+       kind-specific: the shared columns must never tempt a caller into asking
+       one config on the other kind's behalf (reviewer, Run 061). */
+    for (const from of ACTIVE) {
+      expect(requiredGroupForTarget(agents, from, "qualified")).toBeNull();
+      expect(requiredGroupForTarget(partners, from, "qualified")).toEqual({
+        group: "won_partner",
+      });
+    }
+  });
+
+  it("PP-4: a partner's drag into Qualified is the same move as the action", () => {
+    const dragged = expectOk(
+      transition(partners, { stage: "lead" }, { type: "drag", to: "qualified" }, bstaff),
+    );
+    const chosen = expectOk(transition(partners, { stage: "lead" }, act("qualified"), bstaff));
     expect(dragged.toStage).toBe(chosen.toStage);
     expect(dragged.requiredGroup).toEqual(chosen.requiredGroup);
     expect(dragged.sideEffects).toEqual(chosen.sideEffects);
     expect(dragged.logTrigger).toBe(chosen.logTrigger);
   });
 
-  it("PA-5 + ADR-010: attended destinations are Contacted / Qualified / Lost", () => {
-    expect(agents.attendedDestinations("bsystems_admin")).toEqual([
-      "contacted",
-      "qualified",
-      "lost",
-    ]);
+  it("PP-3 + ADR-010: attended destinations are Contacted / Waiting / Qualified / Lost", () => {
+    for (const [kind, config] of bothKinds) {
+      expect(config.attendedDestinations("bsystems_admin")).toEqual([
+        "contacted",
+        "waiting",
+        "qualified",
+        "lost",
+      ]);
 
-    const toContacted = expectOk(
-      transition(
-        agents,
-        { stage: "meeting_setting" },
-        { type: "meeting_outcome", outcome: "attended", destination: "contacted" },
-        bstaff,
-      ),
-    );
-    expect(toContacted.requiredGroup).toEqual({ group: "follow_up", context: "after_meeting" });
-    expect(toContacted.logTrigger).toBe("PA-3"); // ADR-021: the owning pipeline's row id
-
-    const toQualified = expectOk(
-      transition(
-        agents,
-        { stage: "meeting_setting" },
-        { type: "meeting_outcome", outcome: "attended", destination: "qualified" },
-        bstaff,
-      ),
-    );
-    expect(toQualified.requiredGroup).toEqual({ group: "won_agent" });
-    expect(toQualified.sideEffects).toContain("create_agent");
-
-    /* no proposals stage, and the partner pipeline's own keys are not stages
-       here — both must be refused */
-    for (const bad of ["sending_proposal", "following_up", "won"]) {
-      const r = transition(
-        agents,
-        { stage: "meeting_setting" },
-        { type: "meeting_outcome", outcome: "attended", destination: bad },
-        bstaff,
-      );
-      expect(r.ok).toBe(false);
-    }
-
-    const delayed = expectOk(
-      transition(
-        agents,
-        { stage: "meeting_setting" },
-        { type: "meeting_outcome", outcome: "delayed" },
-        bstaff,
-      ),
-    );
-    expect(delayed.toStage).toBe("meeting_setting");
-    expect(delayed.requiredGroup).toEqual({ group: "meeting_reschedule" });
-    expect(delayed.logTrigger).toBe("PA-3");
-
-    for (const dest of ["contacted", "lost"]) {
-      const cancelled = expectOk(
+      const toWaiting = expectOk(
         transition(
-          agents,
+          config,
           { stage: "meeting_setting" },
-          { type: "meeting_outcome", outcome: "cancelled", destination: dest },
+          { type: "meeting_outcome", outcome: "attended", destination: "waiting" },
           bstaff,
         ),
       );
-      expect(cancelled.toStage).toBe(dest);
+      expect(toWaiting.toStage).toBe("waiting");
+      expect(toWaiting.requiredGroup).toBeNull();
+      expect(toWaiting.logTrigger).toBe("PP-3"); // ADR-021: the owning pipeline's row
+
+      const toQualified = expectOk(
+        transition(
+          config,
+          { stage: "meeting_setting" },
+          { type: "meeting_outcome", outcome: "attended", destination: "qualified" },
+          bstaff,
+        ),
+      );
+      expect(toQualified.requiredGroup).toEqual(
+        kind === "partner" ? { group: "won_partner" } : null,
+      );
+      expect(toQualified.sideEffects).toEqual(kind === "partner" ? ["create_partner"] : []);
+
+      /* no proposals stage, and the retired vocabulary is not a destination */
+      for (const bad of ["sending_proposal", "following_up", "won"]) {
+        expect(
+          transition(
+            config,
+            { stage: "meeting_setting" },
+            { type: "meeting_outcome", outcome: "attended", destination: bad },
+            bstaff,
+          ).ok,
+        ).toBe(false);
+      }
+      const noDestination = transition(
+        config,
+        { stage: "meeting_setting" },
+        { type: "meeting_outcome", outcome: "attended" },
+        bstaff,
+      );
+      expect(noDestination.ok).toBe(false);
+      expect(!noDestination.ok && noDestination.code).toBe("destination_required");
     }
-    expect(
-      transition(
-        agents,
+  });
+
+  it("PP-3: delayed stays put; cancelled goes to Contacted / Waiting / Lost — never Qualified", () => {
+    for (const [, config] of bothKinds) {
+      const delayed = expectOk(
+        transition(
+          config,
+          { stage: "meeting_setting" },
+          { type: "meeting_outcome", outcome: "delayed" },
+          bstaff,
+        ),
+      );
+      expect(delayed.toStage).toBe("meeting_setting");
+      expect(delayed.requiredGroup).toEqual({ group: "meeting_reschedule" });
+      expect(delayed.logTrigger).toBe("PP-3");
+
+      expect(config.cancelledDestinations("bsystems_admin")).toEqual([
+        "contacted",
+        "waiting",
+        "lost",
+      ]);
+      for (const dest of ["contacted", "waiting", "lost"]) {
+        const cancelled = expectOk(
+          transition(
+            config,
+            { stage: "meeting_setting" },
+            { type: "meeting_outcome", outcome: "cancelled", destination: dest },
+            bstaff,
+          ),
+        );
+        expect(cancelled.toStage).toBe(dest);
+      }
+      const toQualified = transition(
+        config,
         { stage: "meeting_setting" },
         { type: "meeting_outcome", outcome: "cancelled", destination: "qualified" },
         bstaff,
+      );
+      expect(toQualified.ok).toBe(false);
+      expect(!toQualified.ok && toQualified.code).toBe("destination_invalid");
+    }
+  });
+
+  it("PP-9: Qualified and Lost are terminal — no further transitions, no next actions", () => {
+    for (const [, config] of bothKinds) {
+      for (const stage of ["qualified", "lost"]) {
+        const r = transition(config, { stage }, act("contacted"), bstaff);
+        expect(r.ok).toBe(false);
+        expect(!r.ok && r.code).toBe("terminal_stage");
+        expect(config.nextActions(stage, "bsystems_admin")).toEqual([]);
+      }
+    }
+  });
+
+  /* ---- founder 2.1: "Contacted should only indicate that contact has been
+     made unless an actual Follow Up task is required." ---- */
+  it("PP-8: a follow-up is only ever written by the explicit action, from ANY active stage", () => {
+    for (const [, config] of bothKinds) {
+      for (const stage of ACTIVE) {
+        expect(config.nextActions(stage, "bsystems_admin")).toContain("follow_up_again");
+        const again = expectOk(transition(config, { stage }, act("follow_up_again"), bstaff));
+        expect(again.fromStage).toBe(stage);
+        expect(again.toStage).toBe(stage); // the card never moves
+        expect(again.requiredGroup).toEqual({ group: "follow_up", context: "initial" });
+        expect(again.logTrigger).toBe("FU-AGAIN");
+        expect(again.sideEffects).toEqual([]);
+        /* the form the UI renders comes from the ACTION, not from a stage — the
+           only thing that survives followUpStage being null */
+        expect(requiredGroupFor(config, stage, "follow_up_again")).toEqual({
+          group: "follow_up",
+          context: "initial",
+        });
+      }
+      /* NO stage move ever opens a follow-up group any more */
+      for (const from of ACTIVE) {
+        for (const to of PROSPECT_STAGES) {
+          const group = requiredGroupForTarget(config, from, to);
+          expect(group?.group).not.toBe("follow_up");
+        }
+      }
+      /* and the record buttons stay scoped: reschedule belongs to the meeting */
+      expect(config.nextActions("meeting_setting", "bsystems_admin")).toContain(
+        "reschedule_meeting",
+      );
+      expect(config.nextActions("lead", "bsystems_admin")).not.toContain("reschedule_meeting");
+      expect(config.nextActions("lead", "bsystems_admin")).not.toContain("negotiation_follow_up");
+    }
+  });
+
+  it("the next actions from every active stage are the other six columns, in board order", () => {
+    for (const [, config] of bothKinds) {
+      expect(config.nextActions("lead", "bsystems_admin")).toEqual([
+        "contacted",
+        "didnt_answer",
+        "meeting_setting",
+        "waiting",
+        "qualified",
+        "lost",
+        "follow_up_again",
+      ]);
+      expect(config.nextActions("waiting", "bsystems_admin")).toEqual([
+        "lead",
+        "contacted",
+        "didnt_answer",
+        "meeting_setting",
+        "qualified",
+        "lost",
+        "follow_up_again",
+      ]);
+      expect(config.nextActions("meeting_setting", "bsystems_admin")).toEqual([
+        "lead",
+        "contacted",
+        "didnt_answer",
+        "waiting",
+        "qualified",
+        "lost",
+        "follow_up_again",
+        "reschedule_meeting",
+      ]);
+    }
+  });
+});
+
+/* The prospect pipeline gained a `cancelledDestinations` SLOT. The three lead
+   pipelines must answer exactly what the core used to compose for them. */
+describe("The lead pipelines are unchanged (§10.1 / V2 regression net)", () => {
+  it("cancelled-meeting destinations are still Following Up or Lost", () => {
+    for (const config of [internal, bsystems]) {
+      expect(config.cancelledDestinations("bsystems_admin")).toEqual(["following_up", "lost"]);
+      expect(config.cancelledDestinations("bsystems_agent")).toEqual(["following_up", "lost"]);
+      expect(config.followUpStage).toBe("following_up");
+    }
+    const cancelled = expectOk(
+      transition(
+        internal,
+        { stage: "meeting_setting" },
+        { type: "meeting_outcome", outcome: "cancelled", destination: "following_up" },
+        staff,
+      ),
+    );
+    expect(cancelled.toStage).toBe("following_up");
+    expect(cancelled.requiredGroup).toEqual({ group: "follow_up", context: "after_meeting" });
+    expect(
+      transition(
+        internal,
+        { stage: "meeting_setting" },
+        { type: "meeting_outcome", outcome: "cancelled", destination: "won" },
+        staff,
       ).ok,
     ).toBe(false);
   });
 
-  it("illegal: the partner vocabulary is not available on an agent card", () => {
-    for (const action of ["following_up", "won"]) {
-      const r = transition(agents, { stage: "lead" }, act(action), bstaff);
-      expect(r.ok).toBe(false);
-      expect(!r.ok && r.code).toBe("unknown_action");
-    }
-    /* a card stranded on a stage this board no longer has cannot be operated */
-    for (const dead of ["following_up", "won"]) {
-      const r = transition(agents, { stage: dead }, act("lost"), bstaff);
-      expect(r.ok).toBe(false);
-      expect(!r.ok && r.code).toBe("event_invalid_for_stage");
-    }
-    expect(agents.stages).not.toContain("won");
-    expect(agents.stages).not.toContain("following_up");
-  });
-
-  it("qualified and lost are terminal — no further transitions, no next actions", () => {
-    for (const stage of ["qualified", "lost"]) {
-      const r = transition(agents, { stage }, act("contacted"), bstaff);
-      expect(r.ok).toBe(false);
-      expect(!r.ok && r.code).toBe("terminal_stage");
-      expect(agents.nextActions(stage, "bsystems_admin")).toEqual([]);
-    }
-  });
-
-  it("same-stage records hang on the AGENT's own slots", () => {
-    expect(agents.nextActions("contacted", "bsystems_admin")).toContain("follow_up_again");
-    const again = expectOk(
-      transition(agents, { stage: "contacted" }, act("follow_up_again"), bstaff),
-    );
-    expect(again.fromStage).toBe("contacted");
-    expect(again.toStage).toBe("contacted");
-    expect(again.requiredGroup).toEqual({ group: "follow_up", context: "initial" });
-    expect(again.logTrigger).toBe("FU-AGAIN");
-
-    const resched = expectOk(
-      transition(agents, { stage: "meeting_setting" }, act("reschedule_meeting"), bstaff),
-    );
-    expect(resched.requiredGroup).toEqual({ group: "meeting" });
-    expect(resched.logTrigger).toBe("MTG-RESCHEDULE");
-
-    /* the same-stage form must resolve through the SLOT, never a literal key */
-    expect(agents[SAME_STAGE_FORM_SLOT.follow_up_again]).toBe("contacted");
-    expect(partners[SAME_STAGE_FORM_SLOT.follow_up_again]).toBe("following_up");
-    expect(agents[SAME_STAGE_FORM_SLOT.reschedule_meeting]).toBe("meeting_setting");
-  });
-});
-
-/* The slot-derivation refactor rewrote nextActions / attendedDestinations /
-   terminalStages for BOTH kinds. This is the regression net: the partner board
-   the founder did not ask us to touch must return byte-identical sets. */
-describe("The partner pipeline is unchanged (§10.2 regression net)", () => {
-  const bstaff: { role: Role } = { role: "bsystems_admin" };
-
-  it("stages, terminal stages and slots are exactly what they were", () => {
-    expect(partners.stages).toEqual(PARTNER_STAGES);
-    expect(partners.stages).toEqual([
-      "lead",
-      "didnt_answer",
+  it("their next actions and attended destinations are the exact arrays they were", () => {
+    expect(internal.nextActions("new", staff.role)).toEqual([
       "following_up",
       "meeting_setting",
+      "sending_proposal",
       "won",
       "lost",
     ]);
-    expect(partners.terminalStages).toEqual(["won", "lost"]);
-    expect(partners.followUpStage).toBe("following_up");
-    expect(partners.wonStage).toBe("won");
-    expect(partners.wonRequiredGroup).toEqual({ group: "won_partner" });
-    expect(partners.wonSideEffect).toBe("create_partner");
-  });
-
-  it("next actions and attended destinations are the exact arrays they always were", () => {
-    expect(partners.nextActions("lead", bstaff.role)).toEqual([
-      "didnt_answer",
-      "following_up",
-      "meeting_setting",
+    expect(internal.attendedDestinations(staff.role)).toEqual([
+      "sending_proposal",
       "won",
       "lost",
-    ]);
-    expect(partners.nextActions("following_up", bstaff.role)).toEqual([
-      "didnt_answer",
       "following_up",
-      "meeting_setting",
-      "won",
-      "lost",
-      "follow_up_again",
     ]);
-    expect(partners.nextActions("meeting_setting", bstaff.role)).toEqual([
-      "didnt_answer",
+    expect(bsystems.attendedDestinations(admin.role)).toEqual([
+      "sending_proposal",
+      "negotiation",
+      "lost",
       "following_up",
-      "meeting_setting",
       "won",
-      "lost",
-      "reschedule_meeting",
     ]);
-    expect(partners.nextActions("won", bstaff.role)).toEqual([]);
-    expect(partners.nextActions("lost", bstaff.role)).toEqual([]);
-    expect(partners.attendedDestinations(bstaff.role)).toEqual(["following_up", "won", "lost"]);
-  });
-
-  it("the agent vocabulary is not available on a partner card", () => {
-    for (const action of ["contacted", "qualified"]) {
-      const r = transition(partners, { stage: "lead" }, act(action), bstaff);
-      expect(r.ok).toBe(false);
-      expect(!r.ok && r.code).toBe("unknown_action");
-    }
   });
 });
 
@@ -717,11 +867,12 @@ describe("B-Systems unified CRM (REQUIREMENTS-V2)", () => {
    they do; the engine resolves each to the stage the card is already in.
    --------------------------------------------------------------------------- */
 describe("Same-stage records (founder)", () => {
-  it("follow_up_again: offered from Following Up on all three pipelines, never moves the card", () => {
+  it("follow_up_again: offered from Following Up on both lead pipelines, never moves the card", () => {
+    /* the prospect pipeline has no Following Up stage since ADR-059 — its own
+       "record a follow-up from any active stage" row is PP-8 above. */
     for (const [config, ctx] of [
       [internal, staff],
       [bsystems, admin],
-      [partners, admin],
     ] as const) {
       expect(config.nextActions("following_up", ctx.role)).toContain("follow_up_again");
       const r = expectOk(transition(config, { stage: "following_up" }, act("follow_up_again"), ctx));
@@ -739,9 +890,9 @@ describe("Same-stage records (founder)", () => {
     expect(r.requiredGroup).toEqual({ group: "follow_up", context: "after_negotiation" });
     expect(r.logTrigger).toBe("NEG-DUE");
 
-    /* the internal and partners pipelines have no negotiation stage at all */
+    /* the internal and prospect pipelines have no negotiation stage at all */
     expect(internal.nextActions("following_up", staff.role)).not.toContain("negotiation_follow_up");
-    expect(partners.nextActions("following_up", admin.role)).not.toContain("negotiation_follow_up");
+    expect(partners.nextActions("waiting", admin.role)).not.toContain("negotiation_follow_up");
   });
 
   it("reschedule_meeting: records a NEW meeting (not T-7's in-place edit) and stays put", () => {
@@ -749,6 +900,7 @@ describe("Same-stage records (founder)", () => {
       [internal, staff],
       [bsystems, agent],
       [partners, admin],
+      [agents, admin],
     ] as const) {
       const r = expectOk(
         transition(config, { stage: "meeting_setting" }, act("reschedule_meeting"), ctx),
