@@ -290,6 +290,34 @@ describe("accounting import — the old app's export reproduces its dashboard ex
     expect(paidExpenseIn(await loadBooks("byteforce"), M0)).toBe(400_000);
   });
 
+  it("ADR-060 — no enum on type or department: new and unknown ids persist verbatim", async () => {
+    /* the importer mirrors the SPA's migrate(), which never validated these
+       columns — so an OLD file, a file carrying the NEW ids (media_campaign,
+       bsystems), and even a genuinely alien type all load byte-identically
+       and count as ordinary costs */
+    const summary = await importAccounting(
+      {
+        openingBalance: 0,
+        expenses: [
+          { id: "c1", month: M0, type: "media_campaign", name: "Campaign", serviceLine: "bsystems", amount: 1000, paid: true, paidDate: `${M0}-02` },
+          { id: "u1", month: M0, type: "totally_unknown", name: "Alien", serviceLine: "", amount: 500, paid: true, paidDate: `${M0}-03` },
+        ],
+        income: [
+          { id: "i1", month: M0, type: "invoice", client: "Delta", serviceLine: "bsystems", amount: 4000, collected: true, collectedDate: `${M0}-04`, paidMonth: M0 },
+        ],
+      },
+      "byteforce",
+      actor,
+    );
+    const rows = await db.acctExpense.findMany({ where: { company: "byteforce" } });
+    expect(rows.map((r) => r.type).sort()).toEqual(["media_campaign", "totally_unknown"]);
+    expect(rows.find((r) => r.type === "media_campaign")!.serviceLine).toBe("bsystems");
+    expect((await db.acctIncome.findFirstOrThrow({ where: { company: "byteforce" } })).serviceLine).toBe("bsystems");
+    /* all of it adds up as ordinary money: 4,000 in, 1,500 out */
+    expect(summary.companies[0]!.verify.treasuryNow).toBe(250_000);
+    expect(paidExpenseIn(await loadBooks("byteforce"), M0)).toBe(150_000);
+  });
+
   it("refuses files that are not an accounting export", async () => {
     await expect(importAccounting({ hello: "world" }, "byteforce", actor)).rejects.toMatchObject({ status: 400 });
     await expect(importAccounting([1, 2, 3], "byteforce", actor)).rejects.toMatchObject({ status: 400 });

@@ -504,6 +504,99 @@ test("B-Systems company filter hides Media Buying entirely", async ({ page }) =>
   await page.waitForURL(/\/accounting\?company=bsystems/);
 });
 
+/* ADR-060 — the founder's two vocabulary additions, from his chair: a normal
+   campaign cost that hits profit for BOTH companies, and B-Systems as its own
+   department line. Its own far-future month + unique names, so no absolute
+   figure asserted anywhere else can move. */
+const CAMP = "2096-03";
+
+test("Media Buying / Campaigns costs real money everywhere, and B-Systems is a department", async ({
+  page,
+}) => {
+  await login(page, "admin@byteforce.com", "password123", /\/b-systems$/);
+  const modal = page.locator(".modal");
+
+  /* ---- availability under ByteForce: BOTH media types, clearly distinct */
+  await page.goto(`/accounting/expenses?company=byteforce&month=${CAMP}`);
+  await page.getByRole("button", { name: "+ Add expense" }).click();
+  const bfType = modal.getByLabel("Type");
+  await expect(bfType.locator("option", { hasText: "Media Spend (pass-through)" })).toHaveCount(1);
+  await expect(bfType.locator("option", { hasText: "Media Buying / Campaigns" })).toHaveCount(1);
+  /* ---- 3.4: the Department select whose blank option reads Overhead now
+     offers B-Systems too */
+  const bfDept = modal.getByLabel("Department (optional)");
+  await expect(bfDept.locator("option", { hasText: "— Overhead —" })).toHaveCount(1);
+  await expect(bfDept.locator('option[value="bsystems"]')).toHaveText("B-Systems");
+  await modal.locator("button.btn-ghost").click();
+  await expect(modal).toBeHidden();
+
+  /* ---- 3.5: the roster's own Department select offers it as well */
+  await page.goto(`/accounting/roster?company=byteforce&month=${CAMP}`);
+  await page.getByRole("button", { name: "+ Add person" }).click();
+  const rosterDept = modal.getByLabel("Department");
+  await expect(rosterDept.locator("option", { hasText: "— None —" })).toHaveCount(1);
+  await expect(rosterDept.locator('option[value="bsystems"]')).toHaveText("B-Systems");
+  await modal.locator("button.btn-ghost").click();
+  await expect(modal).toBeHidden();
+
+  /* ---- availability under B-Systems: the campaign type is offered, the
+     pass-through stays hidden (founder decision 5 did not move) */
+  await page.goto(`/accounting/expenses?company=bsystems&month=${CAMP}`);
+  await page.getByRole("button", { name: "+ Add expense" }).click();
+  const bsType = modal.getByLabel("Type");
+  await expect(bsType.locator("option", { hasText: "Media Buying / Campaigns" })).toHaveCount(1);
+  await expect(bsType.locator("option", { hasText: "Media Spend (pass-through)" })).toHaveCount(0);
+
+  /* ---- it costs money: book 1,000 EGP, approved, under B-Systems */
+  await bsType.selectOption("media_campaign");
+  await modal.getByLabel("Name / payee").fill("Founder Campaign");
+  await modal.getByLabel("Amount (EGP)").fill("1000");
+  await modal.getByLabel("Status").selectOption("true");
+  await modal.getByRole("button", { name: "Save" }).click();
+  await expect(modal).toBeHidden();
+  const campRow = page.locator("tr", { hasText: "Founder Campaign" });
+  await expect(campRow).toContainText("Media Buying / Campaigns");
+  await expect(campRow.getByText("Paid", { exact: true })).toBeVisible();
+  await expect(page.getByText("EGP 1,000").first()).toBeVisible(); // Paid this month
+
+  /* ---- the P&L: a real expense line, real total, real loss */
+  await page.goto(`/accounting/report?company=bsystems&month=${CAMP}`);
+  await expect(page.getByText("Media Buying / Campaigns")).toBeVisible();
+  await expect(page.getByText("EGP -1,000").first()).toBeVisible(); // net loss
+
+  /* ---- the department line: a B-Systems-tagged cost leaves shared overhead */
+  await page.goto(`/accounting/expenses?company=byteforce&month=${CAMP}`);
+  await page.getByRole("button", { name: "+ Add expense" }).click();
+  await modal.getByLabel("Type").selectOption("media_campaign");
+  await modal.getByLabel("Department (optional)").selectOption("bsystems");
+  await modal.getByLabel("Name / payee").fill("Dept Line Campaign");
+  await modal.getByLabel("Amount (EGP)").fill("700");
+  await modal.getByLabel("Status").selectOption("true");
+  await modal.getByRole("button", { name: "Save" }).click();
+  await expect(modal).toBeHidden();
+
+  await page.goto(`/accounting/departments?company=byteforce&month=${CAMP}`);
+  const deptRow = page.locator("tr", { hasText: "B-Systems" });
+  await expect(deptRow).toHaveCount(1);
+  await expect(deptRow).toContainText("EGP 700"); // its direct cost
+  /* untagged? none this month — overhead reads zero */
+  await expect(page.getByText("Shared / overhead costs (untagged)")).toBeVisible();
+  await expect(page.locator("section", { hasText: "Shared / overhead" }).getByText("−EGP 0")).toBeVisible();
+
+  /* ---- the Arabic leg: the new labels are REAL Arabic (and the brand name
+     stays untranslated, the dictionary's own rule) */
+  await page.getByRole("button", { name: "عربي" }).click();
+  await expect(page.locator("html")).toHaveAttribute("dir", "rtl"); // the switch landed
+  await page.goto(`/accounting/expenses?company=byteforce&month=${CAMP}`);
+  await page.getByRole("button", { name: "+ إضافة مصروف" }).click();
+  await expect(modal.locator("select").first().locator("option", { hasText: "شراء الإعلانات / الحملات" })).toHaveCount(1);
+  await expect(modal.locator('option[value="bsystems"]').first()).toHaveText("B-Systems");
+  await modal.locator("button.btn-ghost").click();
+  await page.getByRole("button", { name: "EN", exact: true }).click();
+  await expect(page.locator("html")).toHaveAttribute("dir", "ltr"); // back for the next test
+  await expect(page.getByRole("button", { name: "+ Add expense" })).toBeVisible();
+});
+
 test("the import screen ingests the old app's export and reports the derived totals", async ({
   page,
 }) => {

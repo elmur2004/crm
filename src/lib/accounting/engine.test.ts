@@ -643,3 +643,91 @@ describe("dashboard — the reconciliation numbers", () => {
     expect(d.accountsPayable).toBe(8 * 500_000 + 6 * 400_000);
   });
 });
+
+/* ============================================================================
+   ADR-060 — the founder's two vocabulary additions, pinned at the engine.
+
+   "media_campaign" (Media Buying / Campaigns) is OUR OWN campaign spend: an
+   ORDINARY cost that counts against profit — deliberately unlike the media
+   LEDGER's pass-through client budget. "bsystems" is a real department line.
+   NO engine code changed for either; these tests exist so a later refactor
+   can never quietly add a type branch. */
+
+describe("ADR-060 — Media Buying / Campaigns is an ordinary cost", () => {
+  const m = "2026-05";
+  const base = books({
+    income: [income({ amount: 1_000_00, month: m, collected: true, collectedDate: "2026-05-01", paidMonth: m })],
+  });
+  const withCampaign = books({
+    ...base,
+    expenses: [expense({ id: "camp", month: m, type: "media_campaign", amount: 2_000_00, paid: true, paidDate: "2026-05-10" })],
+  });
+
+  it("counts against profit exactly like rent — full amount, no pass-through", () => {
+    expect(expenseAmount(expense({ type: "media_campaign", amount: 2_000_00 }))).toBe(2_000_00);
+    expect(pnl(withCampaign, m).expenseByType["media_campaign"]).toBe(2_000_00);
+    expect(pnl(withCampaign, m).totalExpenses).toBe(pnl(base, m).totalExpenses + 2_000_00);
+    expect(pnl(withCampaign, m).net).toBe(pnl(base, m).net - 2_000_00);
+    expect(expenseIn(withCampaign, m)).toBe(expenseIn(base, m) + 2_000_00);
+    expect(netIn(withCampaign, m)).toBe(netIn(base, m) - 2_000_00);
+    expect(treasuryThrough(withCampaign, m)).toBe(treasuryThrough(base, m) - 2_000_00);
+  });
+
+  it("deduction and bonus never ride a media_campaign row — the netting is payroll-only", () => {
+    expect(
+      expenseAmount(expense({ type: "media_campaign", amount: 2_000_00, deduction: 500_00, bonus: 100_00 })),
+    ).toBe(2_000_00);
+  });
+
+  it("an UNPAID campaign row is accounts payable, not spend — the approval gate applies", () => {
+    const onHold = books({
+      ...base,
+      expenses: [expense({ id: "campHold", month: m, type: "media_campaign", amount: 2_000_00 })],
+    });
+    expect(expenseIn(onHold, m)).toBe(expenseIn(base, m));
+    expect(pendingExpenseIn(onHold, m)).toBe(2_000_00);
+    expect(apTotal(onHold, NOW)).toBe(2_000_00);
+    expect(netIn(onHold, m)).toBe(netIn(base, m));
+  });
+});
+
+describe("ADR-060 — B-Systems is a real department line", () => {
+  const m = "2026-05";
+
+  it("tagged cost and income land on the bsystems row, never in overhead", () => {
+    const b = books({
+      income: [income({ id: "i1", month: m, serviceLine: "bsystems", amount: 4_000_00, collected: true, collectedDate: "2026-05-02", paidMonth: m })],
+      expenses: [expense({ id: "e1", month: m, serviceLine: "bsystems", amount: 700_00, paid: true, paidDate: "2026-05-05" })],
+    });
+    const rep = departments(b, m, "month", NOW, ACCT_DEPTS);
+    expect(rep.rows.find((r) => r.id === "bsystems")).toEqual({
+      id: "bsystems",
+      income: 4_000_00,
+      cost: 700_00,
+      profit: 4_000_00 - 700_00,
+      marginPct: ((4_000_00 - 700_00) / 4_000_00) * 100,
+    });
+    expect(rep.overhead).toBe(0);
+    expect(rep.totalCost).toBe(700_00);
+    expect(rep.totalIncome).toBe(4_000_00);
+  });
+
+  it("the same cost untagged stays overhead, and no empty bsystems row renders", () => {
+    const b = books({
+      expenses: [expense({ id: "e1", month: m, serviceLine: "", amount: 700_00, paid: true, paidDate: "2026-05-05" })],
+    });
+    const rep = departments(b, m, "month", NOW, ACCT_DEPTS);
+    expect(rep.rows.find((r) => r.id === "bsystems")).toBeUndefined();
+    expect(rep.overhead).toBe(700_00);
+  });
+
+  it("a roster member tagged to bsystems moves the whole salary out of overhead", () => {
+    const b = books({
+      roster: [member({ serviceLine: "bsystems", segments: [{ from: m, salary: 500_000, active: true }] })],
+      payrollPaid: { [`${m}:r1`]: "2026-05-28" },
+    });
+    const rep = departments(b, m, "month", NOW, ACCT_DEPTS);
+    expect(rep.rows.find((r) => r.id === "bsystems")!.cost).toBe(500_000);
+    expect(rep.overhead).toBe(0);
+  });
+});

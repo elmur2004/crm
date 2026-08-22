@@ -7,6 +7,8 @@ import {
   createMember,
   deleteExpense,
   expenseSchema,
+  incomeSchema,
+  memberSchema,
   toggleExpensePaid,
   togglePayrollMark,
   updateExpense,
@@ -763,5 +765,132 @@ describe("ADR-058 — the money proof", () => {
     expect(report.overhead).toBe(0);
     /* 1,200,000 − 20,000 + 30,000 = 1,210,000. One salary each, once. */
     expect(480_000 + 730_000).toBe(1_200_000 - 20_000 + 30_000);
+  });
+});
+
+/* ==========================================================================
+   ADR-060 — the founder's two vocabulary additions, against the REAL write
+   path: "media_campaign" (an ordinary cost, available to BOTH companies —
+   unlike the pass-through "media" type B-Systems hides) and the "bsystems"
+   department (valid on expense, income and roster member alike).
+   ========================================================================== */
+
+describe("ADR-060 — media_campaign and the bsystems department on the write path", () => {
+  beforeEach(async () => {
+    await resetDb();
+  });
+
+  const campaign = {
+    company: "bsystems" as const,
+    month: M,
+    type: "media_campaign" as const,
+    name: "Manufacturing campaign",
+    serviceLine: "" as const,
+    amount: 100_000, // 1,000 EGP
+    note: "",
+    paid: true,
+    rosterId: null,
+  };
+
+  it("media_campaign is accepted under BOTH companies; pass-through media stays refused for bsystems", async () => {
+    const bs = await createExpense(campaign, actor);
+    expect(bs).toMatchObject({ company: "bsystems", type: "media_campaign", amount: 100_000 });
+    const bf = await createExpense({ ...campaign, company: "byteforce" }, actor);
+    expect(bf).toMatchObject({ company: "byteforce", type: "media_campaign" });
+
+    /* the founder decision-5 wall did not move: literal "media" only */
+    await expect(
+      createExpense({ ...campaign, type: "media" }, actor),
+    ).rejects.toMatchObject({ status: 400 });
+    await expect(
+      createExpense({ ...campaign, company: "byteforce", type: "media" }, actor),
+    ).resolves.toMatchObject({ type: "media" });
+  });
+
+  it("a paid campaign row counts against profit like any cost", async () => {
+    await createExpense({ ...campaign, company: "byteforce" }, actor);
+    const books = await loadBooks("byteforce");
+    expect(paidExpenseIn(books, M)).toBe(100_000);
+    expect(pnl(books, M).expenseByType["media_campaign"]).toBe(100_000);
+    expect(pnl(books, M).net).toBe(-100_000);
+    expect(treasuryThrough(books, M)).toBe(-100_000);
+  });
+
+  it("the new type carries no payroll baggage — deduction and bonus store NULL", async () => {
+    /* the negative-net refine is payroll-only, so a big deduction passes the
+       schema here — and is STRIPPED before the row is written */
+    const parsed = expenseSchema.safeParse({ ...campaign, deduction: 900_000, bonus: 50 });
+    expect(parsed.success).toBe(true);
+    const row = await createExpense(parsed.data!, actor);
+    expect(row.deduction).toBeNull();
+    expect(row.bonus).toBeNull();
+    expect(expenseAmount((await loadBooks("bsystems")).expenses[0]!)).toBe(100_000);
+  });
+
+  it("bsystems is a valid department on all three write paths; media_fee and junk stay refused", async () => {
+    const exp = await createExpense(
+      { ...campaign, company: "byteforce", serviceLine: "bsystems" },
+      actor,
+    );
+    expect(exp.serviceLine).toBe("bsystems");
+    const inc = await createIncome(
+      {
+        company: "byteforce",
+        month: M,
+        type: "invoice",
+        client: "Acme",
+        serviceLine: "bsystems",
+        amount: 400_000,
+        note: "",
+        collected: true,
+        collectedDate: `${M}-10`,
+      },
+      actor,
+    );
+    expect(inc.serviceLine).toBe("bsystems");
+    const mem = await createMember(
+      {
+        company: "byteforce",
+        name: "Omar",
+        role: "Engineer",
+        serviceLine: "bsystems",
+        account: "",
+        salary: 300_000,
+        active: true,
+        from: M,
+      },
+      actor,
+    );
+    expect(mem.serviceLine).toBe("bsystems");
+
+    /* the income-only department and unknown ids are still walls */
+    expect(expenseSchema.safeParse({ ...campaign, serviceLine: "media_fee" }).success).toBe(false);
+    expect(memberSchema.safeParse({ company: "byteforce", name: "X", salary: 1, from: M, serviceLine: "media_fee" }).success).toBe(false);
+    expect(expenseSchema.safeParse({ ...campaign, serviceLine: "nonsense" }).success).toBe(false);
+    expect(incomeSchema.safeParse({ company: "byteforce", month: M, type: "invoice", amount: 1, serviceLine: "nonsense" }).success).toBe(false);
+    expect(incomeSchema.safeParse({ company: "byteforce", month: M, type: "invoice", amount: 1, serviceLine: "bsystems" }).success).toBe(true);
+  });
+
+  it("a bsystems-tagged salary leaves overhead and lands on the B-Systems department line", async () => {
+    const mem = await createMember(
+      {
+        company: "byteforce",
+        name: "Omar",
+        role: "Engineer",
+        serviceLine: "bsystems",
+        account: "",
+        salary: 300_000,
+        active: true,
+        from: M,
+      },
+      actor,
+    );
+    await togglePayrollMark({ company: "byteforce", memberId: mem.id, month: M }, actor);
+    const report = departments(await loadBooks("byteforce"), M, "month", addMonths(M, 1), ACCT_DEPTS);
+    expect(report.rows.find((x) => x.id === "bsystems")!.cost).toBe(300_000);
+    expect(report.overhead).toBe(0);
+    /* the P&L's net does NOT read serviceLine — tagging moves money BETWEEN
+       report lines on the departments screen, never the profit itself */
+    expect(pnl(await loadBooks("byteforce"), M).totalExpenses).toBe(300_000);
   });
 });

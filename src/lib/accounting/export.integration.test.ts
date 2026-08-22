@@ -61,12 +61,18 @@ const byteforceDoc = {
     { id: "link1", month: M1, type: "payroll", name: "Aya", serviceLine: "branding", amount: 7500, note: "adjusted", paid: true, paidDate: `${M1}-28`, rosterId: "aya1" },
     { id: "rent1", month: M0, type: "rent", name: "Office", serviceLine: "", amount: 2000, note: "", paid: true, paidDate: `${M0}-01` },
     { id: "hold1", month: M0, type: "subscription", name: "Figma", serviceLine: "web", amount: 300, note: "", paid: false, paidDate: null },
+    /* ADR-060 — the founder's additions: a normal-cost campaign expense tagged
+       to the new bsystems department (both ids are OURS; the old app renders
+       them raw but adds them up identically) */
+    { id: "camp1", month: M0, type: "media_campaign", name: "Health campaign", serviceLine: "bsystems", amount: 1000, note: "", paid: true, paidDate: `${M0}-05` },
   ],
   income: [
     { id: "inv1", month: M2, type: "invoice", client: "Acme", serviceLine: "social", amount: 10000, note: "", collected: true, collectedDate: `${M2}-10`, paidMonth: M2 },
     { id: "inv2", month: M2, type: "invoice", client: "Acme", serviceLine: "social", amount: 5000, note: "", collected: true, collectedDate: `${M0}-05`, paidMonth: M0 },
     { id: "inv3", month: M0, type: "invoice", client: "Beta", serviceLine: "web", amount: 3000, note: "", collected: false, collectedDate: null, paidMonth: null },
     { id: "fee1", month: M1, type: "media_fee", client: "Gamma", serviceLine: "media_fee", amount: 1500, note: "Media fee (budget)", collected: true, collectedDate: `${M1}-03`, paidMonth: M1, mediaRef: "md1" },
+    /* ADR-060 — income tagged to the new bsystems department */
+    { id: "bsy1", month: M0, type: "invoice", client: "Delta", serviceLine: "bsystems", amount: 2500, note: "", collected: true, collectedDate: `${M0}-06`, paidMonth: M0 },
   ],
   treasury: [
     { id: "t1", month: M1, kind: "deposit", label: "Client ad budget held — Gamma", amount: 8500, date: `${M1}-03`, tag: "media" },
@@ -98,6 +104,9 @@ const bsystemsDoc = {
   roster: [],
   expenses: [
     { id: "b1", month: M0, type: "admin", name: "Hosting", serviceLine: "", amount: 200, note: "", paid: false, paidDate: null },
+    /* ADR-060 — media_campaign is NOT hidden for bsystems (only the
+       pass-through "media" type is) */
+    { id: "b3", month: M0, type: "media_campaign", name: "Own campaign", serviceLine: "", amount: 300, note: "", paid: true, paidDate: `${M0}-02` },
   ],
   income: [
     { id: "b2", month: M0, type: "consulting", client: "Delta", serviceLine: "other", amount: 1000, note: "", collected: true, collectedDate: `${M0}-04`, paidMonth: M0 },
@@ -240,6 +249,21 @@ describe("accounting export — the SPA's own shape, round-tripping in both dire
       expect(totalsOf(second, company)).toEqual(totalsOf(first, company));
       expect(countsOf(second, company)).toEqual(countsOf(first, company));
     }
+  });
+
+  it("ADR-060 — the new ids survive the round trip verbatim, no mapping, no fallback", async () => {
+    await importAccounting(allCompaniesFile, null, actor);
+    const doc = (await exportCompanyDoc("byteforce")) as unknown as Record<string, unknown>;
+    const expenses = doc["expenses"] as Array<{ type: string; serviceLine: string; name: string }>;
+    const camp = expenses.find((e) => e.name === "Health campaign")!;
+    expect(camp.type).toBe("media_campaign");
+    expect(camp.serviceLine).toBe("bsystems");
+    const income = doc["income"] as Array<{ serviceLine: string; client: string }>;
+    expect(income.some((i) => i.serviceLine === "bsystems")).toBe(true);
+    /* the type the founder wants available EVERYWHERE really is in the
+       B-Systems books too */
+    const bs = (await exportCompanyDoc("bsystems")) as unknown as Record<string, unknown>;
+    expect((bs["expenses"] as Array<{ type: string }>).some((e) => e.type === "media_campaign")).toBe(true);
   });
 
   it("filenames match the SPA's own (tenant/all + Cairo date)", () => {

@@ -143,18 +143,21 @@ function Field({
 
 function DeptOptions({ blankLabel, company }: { blankLabel: Msg | null; company: AcctCompany }) {
   const t = tFor(useLocale());
+  /* media_fee is the income-only department: it renders solely in the income
+     modal (the one select with no blank option) and never under a company
+     that hides Media Buying. Rendering it HERE (ADR-060 cleanup) is what
+     stopped the income modal re-adding it by hand — and re-adding "Other"
+     twice with it. */
   return (
     <>
       {blankLabel ? <option value="">{t(blankLabel)}</option> : null}
       {ACCT_DEPTS.filter(
         (d) => d !== "media_fee" || (!mediaHidden(company) && blankLabel === null),
-      ).map((d) =>
-        d === "media_fee" ? null : (
-          <option key={d} value={d}>
-            {t(ACCT_DEPT_LABELS[d])}
-          </option>
-        ),
-      )}
+      ).map((d) => (
+        <option key={d} value={d}>
+          {t(ACCT_DEPT_LABELS[d])}
+        </option>
+      ))}
     </>
   );
 }
@@ -294,8 +297,6 @@ function IncomeModal({
       <Field label={t(acct.department)}>
         <select name="serviceLine" className="field-input" defaultValue={initial?.serviceLine || "social"}>
           <DeptOptions blankLabel={null} company={company} />
-          {!mediaHidden(company) ? <option value="media_fee">{t(ACCT_DEPT_LABELS.media_fee)}</option> : null}
-          <option value="other">{t(ACCT_DEPT_LABELS.other)}</option>
         </select>
       </Field>
       <Field label={t(acct.clientName)} wide>

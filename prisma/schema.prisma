@@ -494,7 +494,7 @@ model AcctExpense {
   id          String  @id @default(cuid())
   company     String
   month       String // "YYYY-MM"
-  type        String // payroll | subscription | media | rent | freelancer | tax | admin | loan_repay | other
+  type        String // payroll | subscription | media | media_campaign | rent | freelancer | tax | admin | loan_repay | other
   name        String  @default("") // payee
   serviceLine String  @default("") // dept id or "" = shared overhead
   amount      Int // piasters
