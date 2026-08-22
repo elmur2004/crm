@@ -1,28 +1,32 @@
 import { db } from "@/lib/db";
 import type { Brand } from "@/lib/pipeline-engine/constants";
 import { cairoToUtc, utcToCairo } from "@/lib/datetime";
-import { prospectTitle } from "./partners";
 
 /* Founder (ADR-041) — the To-Do page: "the actual date of today with the
    entire tasks of today... just a way of representing what I have to do today,
    no fancy stuff, so I don't miss anything." A read-only projection over the
    records that already carry dates — no new state. An item is LIVE when it is
-   its lead's/prospect's LATEST record AND the parent still sits in the
-   matching stage (exactly what the boards' key datum shows) — superseded
-   history never resurfaces. Overdue = live items dated before today. */
+   its lead's LATEST record AND the lead still sits in the matching stage
+   (exactly what the boards' key datum shows) — superseded history never
+   resurfaces.
+
+   Founder (ADR-061): "remove all the overdue section in the to do section and
+   also remove the partners tasks from the to do." The projection is TODAY,
+   full stop — no overdue list — and the partner/agent pipeline rows
+   (prospect follow-ups and meetings) are gone at the service, not hidden in
+   the view. An overdue follow-up or meeting is therefore INVISIBLE here (the
+   board cards still show its date). The MONEY kinds are not partner tasks and
+   stay: statements and milestones keep their due-before-end-of-today
+   semantics, so a payment expected yesterday still shows under Today. */
 
 export type TodoScope =
   | { kind: "all" } // bsystems admin · byteforce staff
   | { kind: "internal" } // bsystems internal sales (internal bucket)
   | { kind: "own"; userId: string }; // agent / partner — own leads only
 
-export type TodoKind =
-  | "follow_up"
-  | "meeting"
-  | "prospect_follow_up"
-  | "prospect_meeting"
-  | "statement"
-  | "milestone";
+/* ADR-061 dropped "prospect_follow_up" / "prospect_meeting": the partners
+   funnel no longer projects onto the To-Do at all. */
+export type TodoKind = "follow_up" | "meeting" | "statement" | "milestone";
 
 export interface TodoItem {
   kind: TodoKind;
@@ -48,8 +52,8 @@ export interface TodoItem {
 }
 
 export interface TodoLists {
+  /* ADR-061: today is the ONLY list — the founder removed the Overdue section */
   today: TodoItem[];
-  overdue: TodoItem[];
 }
 
 /* Hardening (review): Egypt's spring-forward jumps AT midnight, so 00:00 may
@@ -104,7 +108,8 @@ export async function todoFor(opts: {
   const now = opts.now ?? new Date();
   const { start, end } = cairoDayWindow(now);
   const leadBase = opts.brand === "bsystems" ? "/b-systems/crm/lead" : "/byteforce/leads/lead";
-  /* Partnership CRM, statements, and milestones are admin-owned subsystems. */
+  /* Statements and milestones are admin-owned subsystems. (The partnership
+     CRM used to join here too — ADR-061 took its rows off the To-Do.) */
   const adminExtras = opts.brand === "bsystems" && opts.scope.kind === "all";
 
   /* Hardening (review): pick the TRUE latest record per lead FIRST — across
@@ -191,34 +196,12 @@ export async function todoFor(opts: {
   }
 
   if (adminExtras) {
-    const [stagedProspects, statements, milestones] = await Promise.all([
-      db.partnerProspect.findMany({
-        /* ADR-059 — founder item 2.1: "Agents/Partners moved to Contacted
-           should not automatically be treated as Follow Up tasks... Contacted
-           should only indicate that contact has been made unless an actual
-           Follow Up task is required."
-
-           So this projection is driven by the RECORD, never by the column —
-           SPEC §7.2c / PP-8, which offer "Record a follow-up" from EVERY active
-           stage and put the card on the To-Do on the strength of the record
-           alone. The `in` list is therefore exactly the ACTIVE stages: only the
-           two terminals are excluded, because a qualified or lost card owes
-           nobody a call and a stale follow-up there would nag for ever. Get
-           this list wrong in the other direction and prospect follow-ups
-           silently vanish from the admin's most-used screen. */
-        where: {
-          stage: { in: ["lead", "contacted", "didnt_answer", "meeting_setting", "waiting"] },
-        },
-        select: {
-          id: true,
-          kind: true, // partner card ⇒ the company, agent card ⇒ the person
-          name: true,
-          companyName: true,
-          stage: true,
-          followUps: { orderBy: { createdAt: "desc" }, take: 1 },
-          meetings: { orderBy: { createdAt: "desc" }, take: 1 },
-        },
-      }),
+    /* ADR-061: the partner/agent pipeline (prospect follow-ups AND meetings)
+       no longer projects onto the To-Do — the founder: "remove the partners
+       tasks from the to do". Only the MONEY subsystems remain, and both are
+       fetched due-before-END-of-today (`lt: end`), so an expected-yesterday
+       payment still lands in the Today list below — money never vanishes. */
+    const [statements, milestones] = await Promise.all([
       db.statement.findMany({
         /* ADR-043 clarification: an archived lead's money TASKS leave the
            To-Do too (the Statements/Won Leads pages still show the records) */
@@ -237,39 +220,6 @@ export async function todoFor(opts: {
         include: { wonDeal: { select: { id: true, lead: { select: { name: true } } } } },
       }),
     ]);
-    for (const prospect of stagedProspects) {
-      const f = prospect.followUps[0] ?? null;
-      const m = prospect.meetings[0] ?? null;
-      const newest = Math.max(f?.createdAt.getTime() ?? 0, m?.createdAt.getTime() ?? 0);
-      /* the row exists because a follow-up was RECORDED — not because of where
-         the card is sitting (ADR-059). A meeting arranged AFTER it supersedes
-         it (the call became a meeting); the reverse is not true, see below. */
-      if (f && f.createdAt.getTime() === newest) {
-        items.push({
-          kind: "prospect_follow_up",
-          at: f.dueAt,
-          withTime: false, // ADR-061: follow-ups are date-only
-
-          title: prospectTitle(prospect),
-          href: `/b-systems/partners-pipeline/${prospect.id}`,
-        });
-      }
-      /* the meeting row does NOT compete with the follow-up row. `follow_up_again`
-         is offered from every active stage now (ADR-059), so a follow-up recorded
-         on a card that already has a meeting arranged would otherwise make the
-         MEETING disappear from the screen whose whole purpose is "so I don't miss
-         anything". An arranged, unresolved meeting on a meeting-setting card
-         stands on its own; the two rows sit side by side, each on its own date. */
-      if (prospect.stage === "meeting_setting" && m && m.arranged && m.outcome === null && m.datetime) {
-        items.push({
-          kind: "prospect_meeting",
-          at: m.datetime,
-          withTime: true,
-          title: prospectTitle(prospect),
-          href: `/b-systems/partners-pipeline/${prospect.id}`,
-        });
-      }
-    }
     for (const s of statements) {
       items.push({
         kind: "statement",
@@ -291,8 +241,17 @@ export async function todoFor(opts: {
   }
 
   const byTime = (a: TodoItem, b: TodoItem) => a.at.getTime() - b.at.getTime();
+  /* ADR-061: no overdue list. Lead rows (follow-ups / meetings) appear only
+     inside today's Cairo window; the MONEY rows keep due-before-end-of-today —
+     a statement or milestone expected yesterday still shows TODAY, because a
+     pending payment must stay in sight until it is settled. */
   return {
-    today: items.filter((i) => i.at >= start && i.at < end).sort(byTime),
-    overdue: items.filter((i) => i.at < start).sort(byTime),
+    today: items
+      .filter((i) =>
+        i.kind === "statement" || i.kind === "milestone"
+          ? i.at < end
+          : i.at >= start && i.at < end,
+      )
+      .sort(byTime),
   };
 }

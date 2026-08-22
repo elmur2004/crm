@@ -2317,3 +2317,59 @@ every dashboard formula, journeys 1-5 (SPEC §13).
   prospect-board exclusion.
 - Verdict: PASS — both commits green in isolation; full suite deferred to
   the phase gate as usual.
+
+## Run 066 — 2026-08-23 — ADR-061: the Today-only To-Do
+- Suites/commands:
+  - `npx tsc --noEmit` — clean.
+  - `npx vitest run src/lib/services/todo.integration.test.ts
+    src/lib/services/same-stage.integration.test.ts
+    src/lib/services/assign.integration.test.ts
+    src/lib/services/bsystems.integration.test.ts` — 4 files, 70 passed.
+    The ADR-059 record-driven prospect projection tests became the ADR-061
+    absence guards (no stage, record or meeting brings a prospect row
+    back; a control lead's follow-up still lists); new money-does-not-
+    vanish test pins statement/milestone expected YESTERDAY under Today
+    while an overdue follow-up stays invisible.
+  - `npx playwright test todo.spec todo-assign prospect-pipeline` —
+    12 passed (`.last-run.json` status passed): no Overdue heading, the
+    prospect row absent with a recorded follow-up due today, the assign/
+    take-it flow intact on a today-due row.
+- Cases: 12 e2e + 70 integration passed / 0 failed / 0 skipped.
+- Failures: none.
+- SPEC coverage touched: ADR-041 To-Do projection (superseded in part by
+  ADR-061), PP-8 To-Do half (removed by ADR-061 — pipeline side intact),
+  statements/milestones due semantics.
+- Verdict: PASS — commit green in isolation; full suite is the gate's job.
+
+## Run 067 — 2026-08-23 — ADR-061 ship gate (review-round fixes folded in)
+- Review round folded into the three ADR-061 commits before this gate:
+  `followUpDueAt` gains the spring-forward re-anchor (+ new groups.test.ts),
+  the Today chip's Cairo day is sampled post-mount / on press via the shared
+  `useTodayFilter` (no SSR hydration mismatch, no stale count across Cairo
+  midnight; one memoized pass + a cached Intl formatter), a PRESSED chip
+  with cards merely hidden says "No follow-ups due today" (new key, real
+  Arabic), and docs corrections (FIVE→FOUR removed time inputs; the
+  chip-hides-overdue reading added to the founder-confirmation flag).
+- Suites/commands:
+  - `npx tsc --noEmit` — clean on the final tree.
+  - `npx vitest run` (FULL) — 29 files, 382 passed / 0 failed / 0 skipped
+    (new groups.test.ts pins: 09:00-Cairo default, an explicit posted time
+    kept, and 2026-04-24 00:30 — a wall-clock that does not exist — staying
+    on its POSTED date instead of the eve).
+  - `npx playwright test` (FULL suite; build + `next start` on 3100) —
+    82 passed, 2 skipped, 0 failed in 12.7m. The two skips are
+    audit.spec's opt-in guard (`AUDIT=1`), pre-existing and unrelated.
+    `test-results/.last-run.json`: status "passed", failedTests [].
+- Brand audit (checklist, by hand, over the changed UI): **PASS**. The
+  review round adds NO CSS and NO tokens — the new empty-state string rides
+  the existing token-driven `.col-empty`, the chip CSS is unchanged
+  (stage vars with token fallbacks only). No raw colors or font-family in
+  the round's additions, no physical left/right properties, real Arabic on
+  the one new key, existing EN strings byte-identical.
+- Cases: 84 e2e (82 passed + 2 pre-existing opt-in skips) + 382
+  unit/integration passed / 0 failed.
+- Failures: none.
+- SPEC coverage touched: full regression — §6.2 field groups, both CRM
+  boards (§6.3 / V2 §2.3), all journeys, To-Do, accounting, portal — the
+  ship gate for the three ADR-061 commits.
+- Verdict: **PASS** — shipped to origin/main.

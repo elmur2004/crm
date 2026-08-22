@@ -7,12 +7,16 @@ export const todoPage = {
   navItem: { en: "To-Do", ar: "مهام اليوم" },
   eyebrow: { en: "TO-DO", ar: "المهام" },
   title: { en: "To-Do", ar: "مهام اليوم" },
+  /* UNREFERENCED since ADR-061 (founder: the Overdue section is gone) — kept
+     per house convention: existing keys are never deleted, EN stays
+     byte-identical. */
   overdue: { en: "Overdue", ar: "متأخر" },
   today: { en: "Today", ar: "اليوم" },
   empty: { en: "Nothing due today.", ar: "لا توجد مهام مستحقة اليوم." },
   kindFollowUp: { en: "Follow-up", ar: "متابعة" },
   kindMeeting: { en: "Meeting", ar: "اجتماع" },
-  /* the board carries partner AND agent cards — the row must fit both */
+  /* UNREFERENCED since ADR-061 (founder: partner tasks left the To-Do) — kept
+     per the same convention. (They labeled partner AND agent cards alike.) */
   kindProspectFollowUp: { en: "Partner or agent follow-up", ar: "متابعة شريك أو وكيل" },
   kindProspectMeeting: { en: "Partner or agent meeting", ar: "اجتماع شريك أو وكيل" },
   kindStatement: { en: "Statement expected", ar: "كشف حساب متوقع" },

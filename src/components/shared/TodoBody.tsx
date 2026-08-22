@@ -7,14 +7,13 @@ import { todoPage as m } from "@/lib/i18n/dict/todo";
 import type { TodoItem, TodoKind, TodoLists } from "@/lib/services/todo";
 
 /* Founder (ADR-041): "just a way of representing what I have to do today, no
-   fancy stuff, so I don't miss anything." Two plain lists — Overdue first
-   (danger accent, only when nonempty), then Today. */
+   fancy stuff, so I don't miss anything." One plain list — Today. The Overdue
+   section and the partner/agent pipeline rows are GONE (founder, ADR-061);
+   the service no longer emits either. */
 
 const KIND_LABEL: Record<TodoKind, Msg> = {
   follow_up: m.kindFollowUp,
   meeting: m.kindMeeting,
-  prospect_follow_up: m.kindProspectFollowUp,
-  prospect_meeting: m.kindProspectMeeting,
   statement: m.kindStatement,
   milestone: m.kindMilestone,
 };
@@ -62,15 +61,6 @@ export async function TodoBody({
           </h1>
         </div>
       </div>
-
-      {lists.overdue.length > 0 ? (
-        <section className="card card--flush0">
-          <div className="card-head">
-            <h2 className="u-h3 text-brand-danger">{t(m.overdue)}</h2>
-          </div>
-          <div className="card-pad">{rows(lists.overdue)}</div>
-        </section>
-      ) : null}
 
       <section className="card card--flush0">
         <div className="card-head">

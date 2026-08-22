@@ -330,9 +330,12 @@ test("a card in Waiting is fully editable and can leave in both directions", asy
   expect((await page.request.delete(`/api/b-systems/partners-pipeline/${id}`)).ok()).toBe(true);
 });
 
-/* founder 2.1 — "Contacted should only indicate that contact has been made
-   unless an actual Follow Up task is required." */
-test("Contacted is not a Follow Up task until someone records one", async ({ page }) => {
+/* founder 2.1 kept Contacted quiet ("Contacted should only indicate that
+   contact has been made"); ADR-061 then took the WHOLE partners funnel off the
+   To-Do — "remove the partners tasks from the to do". The record itself is
+   still written and still drives the card's own key datum; it just never
+   reaches the To-Do list any more. */
+test("the partners funnel never reaches the To-Do — not even a recorded follow-up (ADR-061)", async ({ page }) => {
   await login(page, "admin@byteforce.com", "password123", /\/b-systems$/);
   const created = await page.request.post("/api/b-systems/partners-pipeline", {
     data: { kind: "agent", name: "Quiet Contact", number: "01066600099" },
@@ -359,13 +362,13 @@ test("Contacted is not a Follow Up task until someone records one", async ({ pag
   await page.getByLabel("Follow-up date").fill(today);
   await page.getByLabel("Method").selectOption("call");
   await page.getByRole("button", { name: "Save record" }).click();
-  /* the card never moved */
+  /* the card never moved, and the record shows on the card's own surface */
   await expect(page.getByRole("heading", { level: 1 }).getByText("Contacted")).toBeVisible();
 
+  /* ADR-061: even with a recorded follow-up due today, the To-Do stays quiet —
+     partner tasks left that list by the founder's instruction */
   await page.goto("/b-systems/todo");
-  const row = todoRow(page, "Quiet Contact");
-  await expect(row).toHaveCount(1);
-  await expect(row.getByText("Partner or agent follow-up")).toBeVisible();
+  await expect(todoRow(page, "Quiet Contact")).toHaveCount(0);
 
   expect((await page.request.delete(`/api/b-systems/partners-pipeline/${id}`)).ok()).toBe(true);
 });

@@ -292,11 +292,10 @@ describe("Assigning a lead to an agent or a partner", () => {
     expect(fresh.ownerType).toBe("admin");
     expect(fresh.ownerUserId).toBe(founder.id);
     expect((await listBsLeads("internal")).map((l) => l.id)).toEqual([]);
-    /* and it does NOT show up on the internal sales team's To-Do */
+    /* and it does NOT show up on the internal sales team's To-Do
+       (today is the only list since ADR-061) */
     const salesTodo = await todoFor({ brand: "bsystems", scope: { kind: "internal" } });
-    expect([...salesTodo.today, ...salesTodo.overdue].map((i) => i.title)).not.toContain(
-      "Hybrid Corp",
-    );
+    expect(salesTodo.today.map((i) => i.title)).not.toContain("Hybrid Corp");
   });
 
   it("refuses accounts that cannot own a lead, dead accounts, and archived leads", async () => {

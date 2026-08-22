@@ -73,8 +73,10 @@ describe("(a) another follow-up while still Following Up", () => {
     const lead = await makeLead(actor);
     await move(lead.id, "following_up", followUp("2026-08-18"), actor); // overdue by NOW
 
+    /* ADR-061: an overdue follow-up is INVISIBLE on the To-Do (only the board
+       card still shows its date) — so before the new record, nothing lists */
     const before = await todoFor({ brand: "bsystems", scope: { kind: "all" }, now: NOW });
-    expect(before.overdue.map((i) => i.title)).toEqual(["Same Stage Corp"]);
+    expect(before.today).toEqual([]);
 
     const result = await move(lead.id, "follow_up_again", followUp("2026-08-20", "16:00"), actor);
 
@@ -100,9 +102,8 @@ describe("(a) another follow-up while still Following Up", () => {
     expect(log!.fromStage).toBeNull();
     expect(log!.toStage).toBeNull();
 
-    /* the To-Do swaps to the NEW date; the superseded one stops being overdue */
+    /* the To-Do picks up the NEW date — today, so the row appears */
     const after = await todoFor({ brand: "bsystems", scope: { kind: "all" }, now: NOW });
-    expect(after.overdue).toEqual([]);
     expect(after.today.map((i) => i.title)).toEqual(["Same Stage Corp"]);
     expect(after.today[0]!.at.getTime()).toBe(cairoToUtc("2026-08-20", "16:00").getTime());
   });
@@ -198,8 +199,10 @@ describe("(a) another follow-up while still Following Up", () => {
       (await db.partnerProspect.findUniqueOrThrow({ where: { id: prospect.id } })).stage,
     ).toBe("contacted");
     expect(await db.followUp.count({ where: { partnerProspectId: prospect.id } })).toBe(2);
+    /* ADR-061: the record is real (two rows above) but partner tasks no
+       longer reach the To-Do at all */
     const lists = await todoFor({ brand: "bsystems", scope: { kind: "all" }, now: NOW });
-    expect(lists.today.map((i) => i.kind)).toEqual(["prospect_follow_up"]);
+    expect(lists.today).toEqual([]);
   });
 });
 
@@ -212,7 +215,6 @@ describe("(b) the negotiation's own follow-up — the promised response date", (
 
     /* the stale follow-up from Following Up must not resurface in Negotiation */
     const before = await todoFor({ brand: "bsystems", scope: { kind: "all" }, now: NOW });
-    expect(before.overdue).toEqual([]);
     expect(before.today).toEqual([]);
 
     const result = await move(
@@ -273,13 +275,14 @@ describe("(b) the negotiation's own follow-up — the promised response date", (
 });
 
 describe("(c) rescheduling the meeting without leaving Meeting Setting", () => {
-  it("records a NEW meeting; the To-Do shows the new slot and the old one does not linger in Overdue", async () => {
+  it("records a NEW meeting; the To-Do shows the new slot (the overdue one is invisible, ADR-061)", async () => {
     const actor = await makeActor();
     const lead = await makeLead(actor, "Meeting Corp");
     await move(lead.id, "meeting_setting", meeting("2026-08-18", "09:00"), actor); // overdue by NOW
 
+    /* ADR-061: an overdue meeting no longer lists — today is the only list */
     const before = await todoFor({ brand: "bsystems", scope: { kind: "all" }, now: NOW });
-    expect(before.overdue.map((i) => i.kind)).toEqual(["meeting"]);
+    expect(before.today).toEqual([]);
 
     const result = await move(lead.id, "reschedule_meeting", meeting("2026-08-20", "17:00"), actor);
     expect(result.toStage).toBe("meeting_setting");
@@ -300,9 +303,8 @@ describe("(c) rescheduling the meeting without leaving Meeting Setting", () => {
     });
     expect(log?.action).toBe("group_added");
 
-    /* the superseded meeting leaves Overdue entirely — the founder's point */
+    /* the new slot is today's — the row appears, and only once */
     const after = await todoFor({ brand: "bsystems", scope: { kind: "all" }, now: NOW });
-    expect(after.overdue).toEqual([]);
     expect(after.today.map((i) => i.kind)).toEqual(["meeting"]);
     expect(after.today[0]!.at.getTime()).toBe(cairoToUtc("2026-08-20", "17:00").getTime());
 

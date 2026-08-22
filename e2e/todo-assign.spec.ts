@@ -8,8 +8,9 @@ import { expect, test, type Page } from "@playwright/test";
    new state. "Take it myself" parks the lead in the admin bucket with the
    admin as its owner (the same state an admin-created lead already has).
    Admin only: agents and internal sales keep the plain list they always had,
-   and the admin-owned subsystems (partner prospects, statements, milestones)
-   have nobody to hand over to, so those rows stay bare.
+   and the admin-owned money subsystems (statements, milestones) have nobody
+   to hand over to, so those rows stay bare. (Partner-prospect rows left the
+   To-Do entirely — ADR-061.)
    Review: the row wears the app's owner CHIP — bucket first, then the name
    (owner account, else internal rep, else the referring partner company) —
    so a lead that is assigned never reads as "Unassigned" here. */
@@ -55,15 +56,17 @@ async function assignFromRow(page: Page, title: string, optionLabel: string) {
   await page.getByRole("button", { name: "Assign", exact: true }).click();
 }
 
-test("admin: a lead row carries its owner, Assign and Take it — a prospect row carries none", async ({
+test("admin: a lead row carries its owner, Assign and Take it — a prospect card never lists (ADR-061)", async ({
   page,
 }) => {
   await login(page, "admin@byteforce.com", "password123", /\/b-systems$/);
-  const yesterday = cairoDate(-1);
-  const leadId = await leadDueOn(page, "Overdue Handover Lead", "0109990101", yesterday);
+  /* ADR-061: only TODAY lists — an overdue row would simply be invisible, so
+     the handover row under test is due today */
+  const today = cairoDate();
+  const leadId = await leadDueOn(page, "Today Handover Lead", "0109990101", today);
 
-  /* the same overdue day on the ADMIN-ONLY partnership board — nothing to hand
-     over there, so that row must stay a bare line */
+  /* the same day on the ADMIN-ONLY partnership board — since ADR-061 that
+     funnel does not reach the To-Do at all, recorded follow-up or not */
   const prospect = await page.request.post("/api/b-systems/partners-pipeline", {
     data: {
       kind: "partner",
@@ -79,32 +82,28 @@ test("admin: a lead row carries its owner, Assign and Take it — a prospect row
     `/api/b-systems/partners-pipeline/${prospectId}/event`,
     {
       data: {
-        /* ADR-059 — no stage writes a follow-up any more; the record comes
-           from the deliberate action, which is what puts the card on the To-Do */
         event: { type: "next_action", action: "follow_up_again" },
-        group: { group: "follow_up", data: { date: yesterday, time: "10:00", method: "call" } },
+        group: { group: "follow_up", data: { date: today, method: "call" } },
       },
     },
   );
   expect(prospectMoved.ok()).toBeTruthy();
 
   await page.goto("/b-systems/todo");
-  await expect(page.getByRole("heading", { name: "Overdue" })).toBeVisible();
+  /* founder (ADR-061): the Overdue section is gone for good… */
+  await expect(page.getByRole("heading", { name: "Overdue" })).toHaveCount(0);
+  /* …and so is the partner row, its follow-up due today notwithstanding */
+  await expect(todoRow(page, "Prospect Todo Co")).toHaveCount(0);
 
   /* An admin-created lead is already the admin's own, so there is nothing to
      take — the label names them and only Assign is offered. */
-  const row = todoRow(page, "Overdue Handover Lead");
+  const row = todoRow(page, "Today Handover Lead");
   await expect(row.getByText("Admins · Elmur")).toBeVisible();
   await expect(row.getByRole("button", { name: "Assign owner" })).toBeVisible();
   await expect(row.getByRole("button", { name: "Take it" })).toHaveCount(0);
 
-  const prospectRow = todoRow(page, "Prospect Todo Co");
-  await expect(prospectRow.getByText("Partner or agent follow-up")).toBeVisible();
-  await expect(prospectRow.getByRole("button", { name: "Assign owner" })).toHaveCount(0);
-  await expect(prospectRow.getByRole("button", { name: "Take it" })).toHaveCount(0);
-
   /* Hand it to the seeded agent: the row now names him and offers Take it. */
-  await assignFromRow(page, "Overdue Handover Lead", "Karim Adel — Agent");
+  await assignFromRow(page, "Today Handover Lead", "Karim Adel — Agent");
   await expect(row.getByText("Agents · Karim Adel")).toBeVisible();
   await expect(row.getByRole("button", { name: "Take it" })).toBeVisible();
 

@@ -11,10 +11,10 @@ import { roles as roleMsgs } from "@/lib/i18n/dict/crm";
 
 export const metadata = { title: "To-Do — B-Systems CRM" };
 
-/* Founder (ADR-041) — everything dated today (and overdue), one plain list.
+/* Founder (ADR-041, ADR-061) — everything dated today, one plain list (the
+   Overdue section and the partnership rows are gone by his instruction).
    Scope mirrors requireLeadAccess: admin all, sales internal bucket,
-   agents/partners their own leads; partnership/statement/milestone rows are
-   admin-only. */
+   agents/partners their own leads; statement/milestone rows are admin-only. */
 
 export default async function BsTodoPage() {
   const user = await requirePageRole(
