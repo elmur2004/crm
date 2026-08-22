@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { formatMsg, tFor, type Msg } from "@/lib/i18n/core";
 import { useLocale } from "@/components/shared/LocaleProvider";
@@ -17,7 +16,6 @@ import {
   mediaHidden,
   type AcctCompany,
 } from "@/lib/accounting/constants";
-import { acctQuery } from "@/lib/accounting/params";
 import { monthLabel } from "@/lib/accounting/format";
 
 /* ADR-052 Phase 2 — every accounting modal + row action, composed from the
@@ -490,9 +488,12 @@ function ExpenseModal({
       error={error}
       submitLabel={t(acct.save)}
     >
-      {/* ADR-058 — the modal SAYS which of the two payroll paths you are in.
-          The other one, "Edit in roster", moves the salary from this month
-          forward; this one touches one month and nothing else. */}
+      {/* ADR-058/ADR-060 — the modal SAYS which of the two payroll paths you
+          are in. The other one — editing the salary on the Payroll Roster page
+          — moves the salary from this month forward; this one touches one
+          month and nothing else. The roster pointer rides here as VISIBLE
+          text: on the row it is only the badge's title tooltip, and a title
+          never shows on touch — this banner is the phone's one stop. */}
       {locked ? (
         <p className="info-banner field--wide">
           {t(
@@ -500,7 +501,8 @@ function ExpenseModal({
               name: seed.name,
               month: { en: monthLabel(seed.month, "en"), ar: monthLabel(seed.month, "ar") },
             }),
-          )}
+          )}{" "}
+          {t(acct.fromRosterHint)}
         </p>
       ) : null}
       <Field label={t(acct.type)}>
@@ -627,12 +629,10 @@ export function AddExpenseButton({
 export function ExpenseActions({
   row,
   company,
-  month,
   roster,
 }: {
   row: ExpenseRowDto;
   company: AcctCompany;
-  month: string;
   roster: RosterOption[];
 }) {
   const t = tFor(useLocale());
@@ -661,28 +661,19 @@ export function ExpenseActions({
         onClick={togglePaid}
       />
       {row.auto ? (
-        /* ADR-058 — a derived salary row offers BOTH payroll paths, and the two
-           are worded as opposites. The link's TEXT is untouched (an e2e asserts
-           it, and a link takes its accessible name from its text, not its
-           title), so only the hover hint gains the "from this month FORWARD"
-           consequence it never stated. */
-        <>
-          <Link
-            className="row-toggle row-toggle--restore inline-flex items-center"
-            href={`/accounting/roster${acctQuery({ company, month })}`}
-            title={t(acct.editInRosterHint)}
-          >
-            {t(acct.editInRoster)}
-          </Link>
-          <button
-            type="button"
-            className="row-toggle row-toggle--restore"
-            title={t(acct.adjustThisMonthHint)}
-            onClick={() => setAdjusting(true)}
-          >
-            {t(acct.adjustThisMonth)}
-          </button>
-        </>
+        /* ADR-060 — the founder's rule: a salary is never edited FROM the
+           expenses screen. The old "Edit in roster" shortcut is gone; the only
+           in-row action besides approval is the ADR-058 month-only override.
+           A real salary change is made on the Payroll Roster page itself
+           (module nav), and the "from roster" badge's hint says so. */
+        <button
+          type="button"
+          className="row-toggle row-toggle--restore"
+          title={t(acct.adjustThisMonthHint)}
+          onClick={() => setAdjusting(true)}
+        >
+          {t(acct.adjustThisMonth)}
+        </button>
       ) : (
         <>
           <button type="button" className="row-toggle row-toggle--restore" onClick={() => setEditing(true)}>

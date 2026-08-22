@@ -78,7 +78,14 @@ export default async function AcctExpensesPage({
                   <td>{typeLabel(e.type)}</td>
                   <td className="td-title">
                     {e.name || "—"}{" "}
-                    {e.auto ? <span className="badge badge--rep">{t(acct.fromRoster)}</span> : null}
+                    {/* ADR-060 — the badge explains where the salary actually
+                        lives, without linking there: the roster is reached via
+                        the module nav, never from the expense row. */}
+                    {e.auto ? (
+                      <span className="badge badge--rep" title={t(acct.fromRosterHint)}>
+                        {t(acct.fromRoster)}
+                      </span>
+                    ) : null}
                   </td>
                   <td>
                     {e.serviceLine ? (
@@ -127,7 +134,6 @@ export default async function AcctExpensesPage({
                         auto: !!e.auto,
                       }}
                       company={view.company}
-                      month={view.month}
                       roster={roster}
                     />
                   </td>

@@ -201,7 +201,8 @@ test("the row ✓ turns green while the row is settled — and back again", asyn
   await expect(approve).not.toHaveClass(SETTLED);
 
   /* ---- the AUTO payroll row (founder's screenshot): derived from the roster,
-     its only other control is "Edit in roster" — same treatment, same toggle */
+     its only other control is "Adjust this month only" (ADR-060 removed the
+     old roster shortcut) — same treatment, same toggle */
   await page.goto(`/accounting/roster?company=byteforce&month=${FUTURE}`);
   await page.getByRole("button", { name: "+ Add person" }).click();
   await modal.getByLabel("Name", { exact: true }).fill("Green Check Payroll");
@@ -320,10 +321,11 @@ test("a payroll expense carries a deduction and a bonus, and the row shows its m
   await expect(row).toHaveCount(0);
 });
 
-/* ADR-058 — THE TWO PAYROLL PATHS, from the founder's chair. "Edit in roster"
-   changes the salary from this month FORWARD; "Adjust this month only" changes
-   this month and nothing else. Its own far-future month + its own person, so no
-   absolute figure asserted anywhere else can move. */
+/* ADR-058 + ADR-060 — THE TWO PAYROLL PATHS, from the founder's chair. A real
+   salary change is made ONLY on the Payroll Roster page (from this month
+   FORWARD) — the expense row no longer links there; "Adjust this month only"
+   changes this month and nothing else. Its own far-future month + its own
+   person, so no absolute figure asserted anywhere else can move. */
 const ONE = "2097-05";
 const NEXT_ONE = "2097-06";
 
@@ -342,17 +344,24 @@ test("a month-only payroll adjustment leaves the roster, and every other month, 
   await modal.getByRole("button", { name: "Save" }).click();
   await expect(modal).toBeHidden();
 
-  /* ---- the derived row now offers BOTH paths, and says which is which */
+  /* ---- ADR-060: the derived row offers ONLY the month-only path. The old
+     "Edit in roster" shortcut is gone — a salary can never be edited from the
+     expenses screen — and the badge's hint says where the salary lives. */
   await page.goto(`/accounting/expenses?company=byteforce&month=${ONE}`);
   const row = page.locator("tr", { hasText: "One Month Only" });
-  await expect(row.getByText("from roster", { exact: true })).toBeVisible();
-  const toRoster = row.getByRole("link", { name: "Edit in roster" });
+  const badge = row.getByText("from roster", { exact: true });
+  await expect(badge).toBeVisible();
+  await expect(badge).toHaveAttribute("title", /open Payroll Roster/);
+  await expect(row.getByRole("link", { name: "Edit in roster" })).toHaveCount(0);
   const adjust = row.getByRole("button", { name: "Adjust this month only" });
-  await expect(toRoster).toBeVisible();
   await expect(adjust).toBeVisible();
-  /* worded as opposites — the consequence is in the hint, not just the label */
-  await expect(toRoster).toHaveAttribute("title", /from this month FORWARD/);
+  /* the consequence is in the hint, not just the label */
   await expect(adjust).toHaveAttribute("title", /THIS MONTH ONLY/);
+  /* a derived row is never stored, so it still offers no Edit and no Delete */
+  await expect(row.getByRole("button", { name: "Edit", exact: true })).toHaveCount(0);
+  await expect(row.getByRole("button", { name: "Delete", exact: true })).toHaveCount(0);
+  /* the legitimate path is NOT lost: the module nav still reaches the roster */
+  await expect(page.getByRole("link", { name: "Payroll Roster" })).toBeVisible();
 
   /* approve the derived salary FIRST: the paid state is the thing that must
      not flip silently when the row becomes an override */
@@ -369,6 +378,9 @@ test("a month-only payroll adjustment leaves the roster, and every other month, 
   await expect(banner).toContainText("One Month Only");
   await expect(banner).toContainText("May 2097");
   await expect(banner).toContainText("roster itself does not change");
+  /* the roster pointer is VISIBLE text in the banner — on the row it is only
+     the badge's title tooltip, and a title never shows on touch (ADR-060) */
+  await expect(banner).toContainText("To change the salary itself, open Payroll Roster.");
 
   await expect(modal.getByLabel("Amount (EGP)")).toHaveValue("5000");
   await expect(modal.getByLabel("Person (optional)")).toHaveValue(/.+/); // the person
