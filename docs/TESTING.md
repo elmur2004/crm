@@ -2286,3 +2286,34 @@ every dashboard formula, journeys 1-5 (SPEC §13).
 - Failures: none outstanding.
 - Verdict: **PASS** — the four folded commits plus the board-touch aim fix
   shipped together on this green tree.
+
+## Run 065 — 2026-08-23 — ADR-061: date-only follow-ups + the Today chip
+- Suites/commands:
+  - `npx tsc --noEmit` — clean after each of the two commits.
+  - `npx vitest run src/lib/services/todo.integration.test.ts
+    src/lib/services/same-stage.integration.test.ts
+    src/lib/services/bsystems.integration.test.ts
+    src/lib/services/leads.integration.test.ts` — 4 files, 72 passed
+    (date-only round: withTime pins added; the two 09:00-Cairo-default
+    pins — bsystems "day-only follow-up", same-stage light form — now
+    guard every role).
+  - `npx vitest run src/lib/datetime.test.ts src/lib/brand-tokens.test.ts`
+    — 2 files, 13 passed (new sameCairoDay unit test; three-scope guards
+    untouched by the chip CSS, which adds no tokens).
+  - `npx playwright test byteforce-board board-touch journey1… journey3…
+    journey4… prospect-pipeline same-stage todo.spec todo-assign` —
+    23 passed (date-only round: forms without time inputs, board key
+    datum date-only, `Follow-up time` asserted absent, `.last-run.json`
+    status passed).
+  - `npx playwright test follow-up-today byteforce-board board-touch
+    leads-filters` — 11 passed (chip round: toggle on shows only today's,
+    off restores, chip count === rendered cards === pill, overdue card
+    disappears/reappears, Arabic اليوم RTL pass; `.last-run.json` passed).
+- Cases: 46 e2e + 85 unit/integration passed / 0 failed / 0 skipped
+  (34 e2e re-run in both rounds counted once per round above).
+- Failures: none.
+- SPEC coverage touched: §6.2 field groups (follow_up date-only), §6.3/V2
+  §2.3 boards, T-1/T-5 forms, journeys 1/3/4, ADR-042 parity, ADR-059
+  prospect-board exclusion.
+- Verdict: PASS — both commits green in isolation; full suite deferred to
+  the phase gate as usual.

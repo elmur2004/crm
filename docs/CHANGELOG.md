@@ -827,3 +827,29 @@
   but the old app shows the raw id instead of a label and its Departments
   report cannot place a B-Systems-tagged row. Files exported from the old
   app import here exactly as before.
+
+## Follow-ups are just a date, a Today filter on the board, and a shorter To-Do (2026-08-23)
+- **No more picking a time for a follow-up.** You said "remove the time of
+  the follow up just the date" — done, everywhere. Every follow-up form asks
+  for the day only, and everywhere a follow-up shows — the board cards, the
+  lead's records, the call sheet, the To-Do — it is just the date, no clock.
+  Meetings still have their time; a meeting is a real appointment.
+  Everything already recorded is untouched — it simply shows without the
+  time now.
+- **A "Today" filter on the Following Up column.** On both CRM boards the
+  Following Up column has a little chip at the top: "Today · 3" means three
+  cards are due today. Press it and the column shows only today's
+  follow-ups; press it again and everything comes back. The number is
+  today's count either way, and you can still drag cards in and out while
+  it is on. If nothing is due today, the filtered column says
+  "No follow-ups due today" instead of pretending to be empty. In Arabic
+  it reads "اليوم". (The partners board has no
+  Following Up column, so there is nothing to put it on there.)
+- **The To-Do shows today, full stop.** The Overdue section is gone, and
+  the partner/agent pipeline rows are gone from the To-Do — that list is
+  your day, not the partners funnel. One thing to know, exactly as you
+  asked: a follow-up you missed yesterday will NOT appear on the To-Do any
+  more — you will still see its date on the lead's card on the board.
+  Money is the exception on purpose: a statement or milestone expected
+  yesterday still sits under Today until it is settled, so a payment can
+  never quietly disappear.

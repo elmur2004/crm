@@ -2796,3 +2796,57 @@ comment, and the ADR-013 mechanism note all fixed; .env.example confirmed tracke
   B-Systems mark (4.2 as written; flag only if he objects). (4) old-app
   exports are one-way once the new ids are in use: identical totals there,
   but raw-id labels and no departments-report line for bsystems-tagged rows.
+
+## Entry 056 — 2026-08-23 — Three founder asks: date-only follow-ups, the Today chip, the Today-only To-Do
+- Done:
+  - (1) "remove the time of the follow up just the date" — every follow-up
+    form lost its time input (ByteForce LeadEventPanel + board modal,
+    B-Systems roleForms for all four roles, the prospect panel, the portal
+    group forms), and every surface that printed a follow-up due date with a
+    clock is date-only now: both boards' key datums (Next/Response), the
+    stage records (GroupHistory → lead details + call sheet), the prospect
+    card line, and the To-Do rows. NO schema change: dueAt stays a UTC
+    instant, absent time defaults to 09:00 Cairo server-side (the V2 §3
+    agent convention, now universal; `followUpSchema.time` stays optional so
+    the API keeps accepting it). Meetings untouched — every meeting/
+    reschedule time input and display keeps its time. Four `followUpTime`
+    dict keys are now unreferenced and KEPT with comments (house convention;
+    EN strings byte-identical).
+  - (2) The Today chip — "a little filter in top of the follow up column":
+    both lead boards' Following Up column heads carry a token-styled
+    aria-pressed toggle ("Today · N", real Arabic "اليوم"), counting the
+    cards whose latest follow-up falls on today's CAIRO day (new pure
+    `sameCairoDay` helper; never local-time parts). Client-side over loaded
+    cards, default OFF, plays with column scroll, drag-drop (the droppable
+    is still the whole column) and the FilterPanel. Prospect board: no chip
+    (no follow-up column since ADR-059). e2e: toggle on/off, count
+    agreement, overdue card disappears/reappears, Arabic RTL pass.
+  - (3) shipped in the following commit this same session: the To-Do goes
+    Today-only (no Overdue section) and drops the partner/agent pipeline
+    rows at the SERVICE (`prospect_follow_up` / `prospect_meeting` gone);
+    statements and milestones stay with due-before-end-of-today semantics —
+    a payment expected yesterday still shows TODAY.
+  - Docs: ADR-061, this entry, CHANGELOG, IMPLEMENTATION (the follow-up-vs-
+    meeting time-input distinction), TESTING Runs 065–066.
+- In progress: nothing — three commits, tree clean, not pushed (founder
+  pushes after his own look, as agreed).
+- Next steps: founder to review the confirmation items below.
+- Blockers: none.
+- Needs founder confirmation: (1) **Overdue items are now INVISIBLE on the
+  To-Do** — by his instruction ("remove all the overdue section"), an
+  overdue follow-up/meeting no longer appears there at all (it still shows
+  on the board cards); this supersedes the earlier remain-visible-until-
+  completed principle for overdue items. Statements/milestones expected
+  before today still show under Today so money never vanishes — confirm
+  both halves. Same reading on the board: while the Today chip is PRESSED,
+  the Following Up column hides overdue follow-ups too (the label means
+  literally today; default-off keeps them visible) — confirm this reading,
+  or the chip grows to include overdue. Carried from Entry 055: (2) the B-Systems DEPARTMENT sits
+  beside the B-Systems COMPANY filter — confirm he means a service line,
+  not the company scope. (3) whether to re-type his two existing campaign
+  expenses from "Media Spend (pass-through)" to "Media Buying / Campaigns"
+  (no number moves either way). (4) iOS saves made inside ByteForce also
+  carry the B-Systems mark (4.2 as written; flag only if he objects).
+  (5) old-app exports are one-way once the new ids are in use: identical
+  totals there, but raw-id labels and no departments-report line for
+  bsystems-tagged rows.

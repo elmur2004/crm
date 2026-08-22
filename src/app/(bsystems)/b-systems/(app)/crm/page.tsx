@@ -135,6 +135,10 @@ export default async function BsCrmPage({
     noAnswer: l.noAnswer,
     keyDatum: keyDatum(locale, l),
     waHref: waHref(l.number),
+    /* the Today chip's datum (ADR-061) — the same latest follow-up the key
+       datum shows, only on Following Up cards */
+    followUpDueAt:
+      l.stage === "following_up" && l.followUps[0] ? l.followUps[0].dueAt.toISOString() : null,
   }));
 
   const reps =

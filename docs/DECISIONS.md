@@ -3038,3 +3038,78 @@ ADR" below.
   "Media Buying / Campaigns" (no number moves either way). (3) the iOS save
   from inside ByteForce carrying the B-Systems mark (4.2 as written asks for
   exactly this; flag only if he objects).
+
+## ADR-061 — 2026-08-23 — Follow-ups are date-only; a Today chip on the Following Up columns; the To-Do goes Today-only and drops partner tasks
+- Context: three verbatim founder requests in one session. (1) "remove the
+  time of the follow up just the date" — the agent light form already
+  collected the day only (V2 §3), with `followUpDueAt` defaulting the slot to
+  09:00 Cairo; every other role still asked for a time and every surface
+  printed one. (2) "make a little filter in top of the follow up column
+  called today when you can just see today's follow ups". (3) "remove all the
+  overdue section in the to do section and also remove the partners tasks
+  from the to do".
+- Decision:
+  - **Date-only follow-ups, no schema change.** `FollowUp.dueAt` stays ONE
+    UTC instant; every follow-up form (ByteForce panel/board, B-Systems
+    role forms, prospect panel, portal group forms) loses its time input and
+    sends no `time`; the server-side `followUpSchema.time` stays OPTIONAL —
+    never required — so API callers and old clients keep working, and the
+    absent slot defaults to 09:00 Cairo in `followUpDueAt` (the V2 §3
+    convention, now universal). Existing rows keep their stored instants and
+    simply RENDER date-only: board key datums (Next/Response), stage records
+    (GroupHistory, hence lead detail + call sheet), the prospect card line,
+    and the To-Do rows (`withTime: false` on the two follow-up kinds).
+    MEETINGS ARE NOT TOUCHED — a meeting genuinely has a time; every meeting
+    and meeting-reschedule time input and display keeps it. Review
+    hardening: `followUpDueAt` re-anchors one hour forward when the combined
+    instant slips off the posted Cairo date (an API-posted 00:xx on Egypt's
+    spring-forward day — the wall-clock does not exist and the solver lands
+    on the eve), mirroring `startOfCairoDay`; a follow-up always stays on
+    the date the caller posted.
+  - **The Today chip.** A small toggle chip ("Today · N") in the Following Up
+    column head of BOTH lead boards — B-Systems and ByteForce alike, per the
+    ADR-042 parity rule. Client-side over the already-loaded cards (the board
+    payload gains `followUpDueAt` on Following Up cards): no query knob, no
+    URL state, default OFF, and it composes with the server-side FilterPanel
+    by construction (it narrows whatever the server sent). "Today" is the
+    CAIRO calendar day (utcToCairo day-strings — the `sameCairoDay`
+    definition, never a local-timezone Date comparison), sampled after
+    mount and re-sampled on every press rather than at render, so the
+    SSR'd boards cannot hydration-mismatch or go stale across Cairo
+    midnight (review; the shared `useTodayFilter` hook owns this). The
+    chip is a real
+    <button> with `aria-pressed`; colors ride the column's stage vars
+    (tokens only — no new tokens, so the ADR-057 three-scope law is
+    untouched). The droppable stays the whole column, so a filtered column
+    still accepts drops, and the count pill shows what is actually rendered.
+    A pressed chip with zero matches while cards are merely hidden says
+    "No follow-ups due today" (new key, real Arabic), not the empty-column
+    line (review).
+    The PROSPECT board gets NO chip: since ADR-059 it has no follow-up
+    column to put one on (follow-ups are records from any active stage).
+  - **Today-only To-Do.** `todoFor` no longer computes or returns an
+    `overdue` list, and no longer emits the `prospect_follow_up` /
+    `prospect_meeting` kinds at all — removed at the SERVICE so the
+    projection is honest, not hidden in the view. `cairoDayWindow` stays.
+    TodoBody renders a single Today section. The MONEY kinds are not partner
+    tasks and STAY: statements and milestones keep their due-before-end-of-
+    today semantics (`expected < end` of today), so a payment expected
+    YESTERDAY still shows under Today — money must not silently vanish.
+    Consequence, deliberate and by the founder's instruction: an overdue
+    follow-up or meeting no longer appears on the To-Do at all (the board
+    cards still show it). This supersedes the earlier remain-visible-until-
+    completed principle for overdue items (Entry 041/ADR-041 era) and is
+    flagged under "Needs founder confirmation" in PROGRESS Entry 056.
+- Alternatives considered: requiring a DB migration to a date column for
+  follow-ups (rejected: the instant keeps sorting/windowing trivial and old
+  data untouched); making `time` invalid server-side (rejected: breaks API
+  callers for zero gain); a server-side `?due=today` query for the chip
+  (rejected: the founder asked for a little toggle on loaded cards — a
+  round-trip filter is heavier and fights the drag board); keeping overdue
+  follow-ups in the Today list instead of dropping them (rejected: he said
+  "remove all the overdue section", and the boards still show the date; the
+  money exception is kept precisely because statements/milestones are not
+  what he pointed at); hiding prospect rows in TodoBody only (rejected: the
+  service must not emit rows no page may show).
+- Resolves: —
+- Status: Accepted

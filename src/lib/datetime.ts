@@ -23,8 +23,13 @@ export function cairoToUtc(date: string, time: string): Date {
   return new Date(utc);
 }
 
+/* ONE cached formatter — the boards' Today chip runs utcToCairo per card
+   (review), and constructing an Intl.DateTimeFormat is the expensive part.
+   The options never change, so the instance is safely shared. */
+let wallClockFmt: Intl.DateTimeFormat | undefined;
+
 function wallClockParts(instant: Date) {
-  const parts = new Intl.DateTimeFormat("en-GB", {
+  wallClockFmt ??= new Intl.DateTimeFormat("en-GB", {
     timeZone: TIME_ZONE,
     year: "numeric",
     month: "2-digit",
@@ -32,7 +37,8 @@ function wallClockParts(instant: Date) {
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
-  }).formatToParts(instant);
+  });
+  const parts = wallClockFmt.formatToParts(instant);
   const get = (t: string) => Number(parts.find((p) => p.type === t)?.value);
   return { y: get("year"), m: get("month"), d: get("day"), hh: get("hour") % 24, mm: get("minute") };
 }
@@ -42,6 +48,14 @@ export function utcToCairo(instant: Date): { date: string; time: string } {
   const { y, m, d, hh, mm } = wallClockParts(instant);
   const pad = (n: number) => String(n).padStart(2, "0");
   return { date: `${y}-${pad(m)}-${pad(d)}`, time: `${pad(hh)}:${pad(mm)}` };
+}
+
+/** Do two UTC instants fall on the same CAIRO calendar day? The comparison
+    goes through utcToCairo — never a local-timezone Date part — so it stays
+    right on the machine of a viewer anywhere in the world and across Egypt's
+    DST jumps. (Used by the boards' Today chip, ADR-061.) */
+export function sameCairoDay(a: Date, b: Date): boolean {
+  return utcToCairo(a).date === utcToCairo(b).date;
 }
 
 /** Human rendering in Cairo time, e.g. "8 Aug 2026, 14:30". */

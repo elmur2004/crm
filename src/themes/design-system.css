@@ -360,6 +360,20 @@
   font: 600 11px var(--font-body); border-radius: 20px; padding: 2px 8px; min-width: 22px; text-align: center;
   background: var(--stage-chip, var(--color-stage-lost-chip)); color: var(--stage-chip-ink, var(--color-stage-lost-chip-ink));
 }
+/* founder (ADR-061): the Following Up column's Today filter — a small toggle
+   chip beside the count pill. Off = outlined in the column's accent; pressed =
+   filled with the stage chip pair. Every color rides the stage vars (which
+   resolve per brand), so nothing here is hardcoded. */
+.today-chip {
+  font: 600 10.5px var(--font-body); border-radius: 20px; padding: 2px 8px; cursor: pointer;
+  border: 1px solid var(--stage-bar, var(--color-border));
+  background: transparent; color: var(--stage-bar, var(--color-muted));
+  white-space: nowrap;
+}
+.today-chip[aria-pressed="true"] {
+  background: var(--stage-chip, var(--color-surface-tint));
+  color: var(--stage-chip-ink, var(--color-ink));
+}
 /* stage key → the four vars, resolved per active brand */
 [data-stage-key="intake"] { --stage-well: var(--color-stage-intake); --stage-bar: var(--color-stage-intake-accent); --stage-chip: var(--color-stage-intake-chip); --stage-chip-ink: var(--color-stage-intake-chip-ink); }
 [data-stage-key="following"] { --stage-well: var(--color-stage-following); --stage-bar: var(--color-stage-following-accent); --stage-chip: var(--color-stage-following-chip); --stage-chip-ink: var(--color-stage-following-chip-ink); }

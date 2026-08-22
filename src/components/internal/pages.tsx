@@ -528,6 +528,12 @@ export async function CrmBoardBody({
     noAnswer: lead.noAnswer,
     latestProposalValue: lead.proposals[0]?.estimatedValue ?? null,
     waHref: waHref(lead.number),
+    /* the Today chip's datum (ADR-061) — the same latest follow-up the key
+       datum shows, only on Following Up cards */
+    followUpDueAt:
+      lead.stage === "following_up" && lead.followUps[0]
+        ? lead.followUps[0].dueAt.toISOString()
+        : null,
   }));
 
   return (

@@ -1439,3 +1439,53 @@ fails loudly in milliseconds instead of hanging. Lesson for every dnd e2e
 here: any coordinate computed before `touchStart`/`mousedown` is stale the
 moment auto-scroll can run; either re-acquire at release time or pin the
 landed target in the assertion (do both).
+
+## ADR-061 — telling a follow-up's time input from a meeting's (2026-08-23)
+- The repo had ELEVEN `type="time"` inputs named `time` when the founder
+  asked to remove "the time of the follow up". Only FOUR belonged to
+  follow-ups. The name attribute is identical either way, so the only safe
+  test is the submit path: which payload builder harvests the field, and
+  which Zod group receives it.
+  - REMOVED (submit path ends in `group: "follow_up"` → `followUpSchema`):
+    `internal/LeadEventPanel.tsx` FollowUpFields,
+    `bsystems/roleForms.tsx` FollowUpFieldsV2 (the `!light` branch),
+    `partners/ProspectEventPanel.tsx` FollowUpFields,
+    `portal/groupForms.tsx` FollowUpFields — plus the `time:` line in each
+    matching payload builder (followUpFromForm ×2, followUpPayload,
+    prospectGroupPayload's follow_up arm).
+  - KEPT (submit path ends in `group: "meeting"` or `"meeting_reschedule"`):
+    LeadEventPanel MeetingFields and its delayed-outcome reschedule form,
+    BsEventPanel's reschedule form, roleForms MeetingFieldsV2,
+    ProspectEventPanel's meeting fields and its reschedule form,
+    portal MeetingFields. `meetingSchema` still REQUIRES date+time+mode for
+    an arranged meeting and `meetingRescheduleSchema` requires both —
+    deliberately unchanged.
+- Trap: after deleting an input, `String(fd.get("time"))` is the string
+  `"null"`, which FAILS `timeStr` — removing only the input, not the
+  payload line, turns every follow-up submit into a 400. The builders send
+  no `time` key at all now.
+- The 09:00-Cairo default lives in ONE place (`followUpDueAt` in
+  groups.ts); it was already pinned by two integration tests
+  (bsystems "day-only follow-up", same-stage "light form") — those now pin
+  the behavior for every role, not just agents. Review round: the same
+  function now carries the spring-forward clamp `startOfCairoDay` already
+  had — an API-posted 00:xx on Egypt's transition day (a wall-clock that
+  does not exist; the solver lands on the EVE) re-anchors one hour forward
+  so a posted time can never move a follow-up off its posted date
+  (unit-pinned in groups.test.ts; the 09:00 default was always safe).
+- The Today chip compares Cairo days CLIENT-side in `useTodayFilter`
+  (TodayChip.tsx, shared by both boards): one `utcToCairo` day-string per
+  card against a today sampled AFTER mount and re-sampled on every press —
+  never at render, where the SSR clock and the hydration clock straddling
+  Cairo midnight would text-mismatch the count and a tab left open past
+  midnight would filter on yesterday (review; SSR paints "Today · 0" for
+  one beat instead). Same day-definition as `sameCairoDay`, proven by the
+  datetime unit test; the per-card pass is memoized and datetime.ts caches
+  its one Intl.DateTimeFormat, so drag-hover re-renders stay cheap.
+  `cairoDayWindow` was not reused there because it lives in the todo
+  service next to `db` imports; pulling it into a client bundle would drag
+  Prisma along.
+- Review round: a PRESSED chip with zero matches while the column still
+  holds cards renders "No follow-ups due today" (new key, real Arabic) —
+  the plain `emptyColumn` "Nothing here yet" would misread as an empty
+  column.

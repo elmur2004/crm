@@ -346,4 +346,10 @@ export const board = {
     ar: "الإلغاء يعيد البطاقة إلى {stage}.",
   },
   confirmMove: { en: "Confirm move", ar: "تأكيد النقل" },
+  /* founder (ADR-061): "make a little filter in top of the follow up column
+     called today" — the chip's label; the count rides beside it. */
+  todayFilter: { en: "Today", ar: "اليوم" },
+  /* review: a pressed chip with zero matches must not claim the column is
+     empty — cards may merely be hidden by the filter. */
+  noTodayFollowUps: { en: "No follow-ups due today", ar: "لا توجد متابعات مستحقة اليوم" },
 } satisfies Record<string, Msg>;

@@ -23,6 +23,7 @@ import { stageLabel } from "@/lib/i18n/dict/labels";
 import { board as msg, common } from "@/lib/i18n/dict/crm";
 import { callSheet } from "@/lib/i18n/dict/call";
 import { CardGrip, useMouseOnlyListeners, type CardDrag } from "@/components/shared/CardGrip";
+import { TodayChip, useTodayFilter } from "@/components/shared/TodayChip";
 import { stageKey } from "@/components/bsystems/stageColors";
 import {
   FollowUpFields,
@@ -53,6 +54,9 @@ export interface InternalBoardLead {
   latestProposalValue: number | null; // Won form prefill (ADR-011)
   /** wa.me link, precomputed server-side (null when no confident country code) */
   waHref: string | null;
+  /** ISO instant of the latest follow-up's dueAt — set only on Following Up
+      cards; feeds the column's Today chip (ADR-061) */
+  followUpDueAt: string | null;
 }
 
 type Rep = { id: string; name: string };
@@ -217,6 +221,13 @@ function Column({
   const t = tFor(locale);
   const { setNodeRef, isOver } = useDroppable({ id: stage });
   const overCls = isOver ? "col--over-valid" : "";
+  /* founder (ADR-061): the Following Up column's Today chip — client-side over
+     the already-loaded cards, default OFF. "Today" is the CAIRO calendar day,
+     never the viewer's local one; the day is sampled post-mount / on press,
+     never at render (see useTodayFilter). The droppable stays the whole
+     column, so a filtered column still accepts drops. */
+  const isFollowUpCol = stage === "following_up";
+  const { todayOnly, toggle, todayCount, visible } = useTodayFilter(leads, isFollowUpCol);
   return (
     <div
       ref={setNodeRef}
@@ -227,10 +238,15 @@ function Column({
       <div className="col-bar" aria-hidden />
       <div className="col-head">
         <span className="col-title">{stageLabel(locale, stage)}</span>
-        <span className="count-pill">{leads.length}</span>
+        <span className="flex items-center gap-1.5">
+          {isFollowUpCol ? (
+            <TodayChip count={todayCount} pressed={todayOnly} onToggle={toggle} />
+          ) : null}
+          <span className="count-pill">{visible.length}</span>
+        </span>
       </div>
       <div className="col-cards">
-        {leads.map((l) => (
+        {visible.map((l) => (
           <LeadCard
             key={l.id}
             lead={l}
@@ -240,7 +256,13 @@ function Column({
             suppressClickRef={suppressClickRef}
           />
         ))}
-        {leads.length === 0 ? <div className="col-empty">{t(msg.emptyColumn)}</div> : null}
+        {visible.length === 0 ? (
+          /* review: while the Today chip is pressed and cards are merely
+             HIDDEN, "Nothing here yet" would lie — say what the filter found */
+          <div className="col-empty">
+            {todayOnly && leads.length > 0 ? t(msg.noTodayFollowUps) : t(msg.emptyColumn)}
+          </div>
+        ) : null}
       </div>
     </div>
   );
