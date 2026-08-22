@@ -41,6 +41,46 @@ const center = (b: { x: number; y: number; width: number; height: number }) => (
   y: b.y + b.height / 2,
 });
 
+/* A grip drag aimed at a LIVE target. dnd-kit auto-scrolls the board while
+   the dragged card hovers near the viewport's right edge — and under load (a
+   heavy spec running just before this one) the board slid a WHOLE column
+   between aiming and releasing, so a drop computed from PRE-drag geometry
+   landed one stage too far (trace: "New → Meeting Setting"). The finger
+   therefore (1) drags toward the target's pre-drag sliver, (2) parks
+   mid-viewport — outside both auto-scroll zones — until the board stops
+   moving, then (3) re-reads the target's CURRENT box, settles on it, and
+   lifts. Exactly what a thumb does when the column slides under it. */
+async function touchDragToStage(page: Page, from: { x: number; y: number }, stage: string) {
+  const cdp = await page.context().newCDPSession(page);
+  const box = () => page.locator(`[data-stage="${stage}"]`).boundingBox();
+  await cdp.send("Input.dispatchTouchEvent", {
+    type: "touchStart",
+    touchPoints: [{ x: from.x, y: from.y }],
+  });
+  const moveTo = async (a: { x: number; y: number }, b: { x: number; y: number }, steps: number) => {
+    for (let i = 1; i <= steps; i++) {
+      await cdp.send("Input.dispatchTouchEvent", {
+        type: "touchMove",
+        touchPoints: [{ x: a.x + ((b.x - a.x) * i) / steps, y: a.y + ((b.y - a.y) * i) / steps }],
+      });
+    }
+  };
+  const before = (await box())!;
+  /* the second column is only partly on screen at 390px — aim at the part
+     that IS, exactly as a thumb would */
+  const aim = { x: Math.min(before.x + before.width / 2, 350), y: before.y + 70 };
+  await moveTo(from, aim, 12);
+  const park = { x: 140, y: aim.y };
+  await moveTo(aim, park, 4);
+  await page.waitForTimeout(350); // any edge auto-scroll has stopped by now
+  const live = (await box())!;
+  const drop = { x: Math.min(Math.max(live.x + live.width / 2, 24), 340), y: live.y + 70 };
+  await moveTo(park, drop, 4);
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+  await page.waitForTimeout(400); // let the drop settle before measuring
+  await cdp.detach();
+}
+
 async function loginByteForce(page: Page) {
   await page.goto("/login");
   await page.getByLabel("Email or phone").fill("sara@byteforce.example");
@@ -204,16 +244,14 @@ test("dragging BY THE GRIP still moves a card between stages, on touch", async (
   const card = page.locator('[data-deal-card="Grip Lead 1"]');
   await expect(card).toBeVisible();
   const grip = (await card.locator(".bcard-grip").boundingBox())!;
-  const target = (await page.locator('[data-stage="following_up"]').boundingBox())!;
-
-  /* the second column is only partly on screen at 390px — aim at the part
-     that IS, exactly as a thumb would */
-  const dropX = Math.min(target.x + target.width / 2, 350);
-  const start = center(grip);
-  await touchSwipe(page, start, dropX - start.x, target.y + 70 - start.y);
+  await touchDragToStage(page, center(grip), "following_up");
 
   /* the drop opened the stage's form — the move is real, not a scroll */
   await expect(page.getByText("Complete this stage's details to confirm the move")).toBeVisible();
+  /* …and it opened for the INTENDED stage: a mis-aimed drop (the board
+     auto-scrolled under the finger) fails here loudly, not as a 60s hang
+     waiting for another stage's fields */
+  await expect(page.locator(".modal-eyebrow")).toContainText("Following Up");
   await page.getByLabel("Follow-up date").fill("2026-10-03");
   await page.getByLabel("Follow-up time").fill("11:15");
   await page.getByLabel("Method").selectOption("call");

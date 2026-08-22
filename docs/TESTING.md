@@ -2232,3 +2232,57 @@ every dashboard formula, journeys 1-5 (SPEC §13).
   hover-only title. Final-tree full-suite gate: Run 064 below.
 - Verdict: PASS — all four commits carried their own green tests; the full
   suite remains the gate phase's job.
+
+## Run 064 — 2026-08-22 — ADR-060 review fold, then the FULL gate on the final tree
+- Suites/commands:
+  - `npx tsc --noEmit` — clean on the final tree (and after every fold edit).
+  - `npx vitest run` — **27 files, 378 passed / 0 failed** (93.6s), rerun on
+    the final tree after the review fold.
+  - `npx playwright test` — **FULL SUITE: 79 passed / 0 failed / 2 skipped
+    (the opt-in AUDIT=1 pair)** in 8.4m, port 3100 (free this session — no
+    config copy needed). `test-results/.last-run.json` →
+    `{"status":"passed","failedTests":[]}`.
+- Money proof (the REAL engine via tsx, piasters, vs an identical base):
+  - `media_campaign` 345,678 piasters (EGP 3,456.78), paid: P&L
+    totalExpenses **+345,678**, expenseByType.media_campaign = 345,678,
+    net **−345,678**; month total (expenseIn) **+345,678**, netIn
+    **−345,678**; treasuryThrough **−345,678**. Every delta EXACTLY the
+    row's piasters.
+  - Pass-through unchanged: client budget 1,000,000 in (fee 150,000),
+    850,000 forwarded → net delta **+150,000 (the fee only)**,
+    totalExpenses delta **0**, treasury delta **+150,000** — the held
+    850,000 washed through treasury and never touched profit.
+- Measured mobile numbers (review findings, verified by the new assertions):
+  - 320px viewport (305px client width, real scrollbars): each module-bar
+    1fr cell ≈67px; ACCOUNTING/BYTEFORCE/B-SYSTEMS genuinely overflow
+    (scrollWidth > clientWidth asserted on the label span) and the cut now
+    carries an ellipsis (computed text-overflow asserted on the SPAN — a
+    grid seg ignores it). Page overflow still ≤1px. At 390px (~85px cells)
+    nothing clips.
+  - Burger-sheet switcher segments: all six ≥44×44px asserted in BOTH axes
+    (qa-sweep + module-bar loops); the EN toggle segment was ~35px wide
+    before `min-inline-size: 44px`.
+  - The roster pointer is VISIBLE modal-banner text ("…open Payroll
+    Roster.") asserted in accounting.spec — no longer only a hover title.
+- Gate discovery (fixed test-side, see IMPLEMENTATION "board auto-scrolls
+  under a held drag"): the FULL suite failed twice at
+  board-touch's grip-drag — green in isolation, green in Run 063's subset,
+  green in Run 062's full gate. Repro pinned to accounting.spec (heavier
+  since this batch) running first; the trace showed the drop landing on
+  "New → Meeting Setting": dnd-kit's edge auto-scroll slid the board a full
+  column under the held finger, and the test's PRE-drag drop coordinate hit
+  the next stage, whose form has no "Follow-up date" field. Product correct;
+  test fixed to park outside the auto-scroll zones, re-aim at the LIVE
+  column box, and assert the modal eyebrow names the intended stage
+  (a mis-aim now fails in ms, not a 60s hang). Pair repro green (grip drag
+  2.4s), then the full suite above.
+- Brand audit (checklist, by hand, over the changed UI): **PASS**. Only raw
+  colors in the changed set are src/app/manifest.ts's documented asset
+  exemption (#1D267D mirrors --bs-indigo; PWA manifests cannot read CSS
+  tokens — ADR-060). New CSS is token-only (all tokens pre-existing in all
+  three scopes), logical-properties RTL-safe (min/max-inline-size), no new
+  fonts, no emoji in App A strings, brand scopes untouched (bar renders
+  inside each shell's own data-brand root).
+- Failures: none outstanding.
+- Verdict: **PASS** — the four folded commits plus the board-touch aim fix
+  shipped together on this green tree.

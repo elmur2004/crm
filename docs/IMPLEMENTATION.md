@@ -1413,3 +1413,29 @@ and pixel-identical at favicon sizes. iOS composites a transparent
 apple-touch icon onto BLACK and maskable icons are cropped to a circle, so
 the white plate is baked into the PNGs (mark at ~70% height; maskable mark
 inside the central safe zone), never left to the platform.
+
+## The board auto-scrolls under a held drag — e2e drops must aim at LIVE geometry (2026-08-22)
+
+Caught by the ADR-060 gate round (TESTING Run 064), in a spec this batch never
+edited: `board-touch.spec.ts`'s grip-drag test failed twice in the FULL suite
+(and in a 2-file repro with `accounting.spec.ts` before it) yet passed in
+isolation, in Run 063's subset, and in Run 062's full gate. The trace showed
+the modal opening for "New → Meeting Setting" — ONE COLUMN PAST the aimed
+Following Up. Mechanism: the test computed its drop point from PRE-drag
+bounding boxes, capped at x=350 on a 390px viewport — inside dnd-kit's
+edge auto-scroll zone. While the CDP-driven finger hovered there, dnd-kit
+kept scrolling the board; on a warm/loaded server (the batch made
+accounting.spec heavier, slowing each CDP round trip just enough) the board
+slid a whole column between aim and release, and the fixed coordinate landed
+on the next stage. Its form has no "Follow-up date" field, so the test hung
+60s on a field that existed only in the stage it MEANT to hit. The product is
+correct — edge auto-scroll is how a thumb reaches far columns.
+
+Fix (test-side only): `touchDragToStage` drags toward the pre-drag sliver,
+PARKS mid-viewport (outside both auto-scroll zones) until scrolling stops,
+re-reads the target column's live box, settles on it, then lifts — and the
+test now asserts the modal EYEBROW names the intended stage, so a mis-aim
+fails loudly in milliseconds instead of hanging. Lesson for every dnd e2e
+here: any coordinate computed before `touchStart`/`mousedown` is stale the
+moment auto-scroll can run; either re-acquire at release time or pin the
+landed target in the assertion (do both).

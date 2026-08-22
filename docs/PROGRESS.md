@@ -2773,8 +2773,14 @@ comment, and the ADR-013 mechanism note all fixed; .env.example confirmed tracke
     below ~340px instead of clipping silently, (2) sheet switcher segments
     are ≥44px in both axes and the tests pin width too, (3) the roster
     pointer is visible text in the adjust modal, not only a hover title.
-  - Docs: ADR-060, TESTING Runs 063–064, IMPLEMENTATION (seven traps),
-    CHANGELOG.
+  - Gate discovery (Run 064): the full suite exposed a latent AIM bug in
+    board-touch's grip-drag test — dnd-kit's edge auto-scroll slides the
+    board under a held finger, so a PRE-drag drop coordinate landed one
+    stage too far once accounting.spec (heavier this batch) warmed the run.
+    Product correct; test re-aims at the LIVE column and pins the modal
+    eyebrow's stage (IMPLEMENTATION has the full mechanism).
+  - Docs: ADR-060, TESTING Runs 063–064, IMPLEMENTATION (seven traps + the
+    auto-scroll aim note), CHANGELOG.
 - In progress: nothing — the tree is clean; the four commits (review fold
   included) pushed to origin/main after the Run 064 full-tree gate.
 - Next steps: founder to see the confirmation items below; consider
