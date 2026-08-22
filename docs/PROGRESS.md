@@ -2721,3 +2721,72 @@ comment, and the ADR-013 mechanism note all fixed; .env.example confirmed tracke
       today therefore has no account until someone presses it — deliberate, and
       the state is labelled on the card, but it is a change in what "converted"
       hands him.
+
+## Entry 055 — 2026-08-22 — Five founder asks: roster lock, campaigns cost line, B-Systems dept, the phone module bar, the real app icon
+- Done:
+  - ADR-060 (all five asks in one decision — they share one constants file
+    and one design). Four commits, each type-checked and tested on its own:
+  - (3.2) The expense row's "Edit in roster" shortcut is REMOVED — a salary
+    can never be edited from the expenses screen. The Payroll Roster page
+    (module nav) is the only place a salary changes; the row keeps the ✓
+    approval, the ADR-058 "Adjust this month only" override, and the
+    `from roster` badge now carries a hint (new key `fromRosterHint`, EN +
+    real Arabic) saying where the salary lives — delivered twice after
+    review: as the badge's title (hover, desktop) AND as visible text
+    appended to the adjust modal's banner, because a title tooltip never
+    shows on touch. Dead keys `editInRoster` / `editInRosterHint` deleted
+    WITH the affordance — not a reword; every surviving English string is
+    byte-identical (e2e-asserted; `adjustBanner` itself untouched — the
+    pointer is a separate appended sentence).
+  - (3.3) New expense type `media_campaign` — "Media Buying / Campaigns" /
+    "شراء الإعلانات / الحملات": an ordinary cost against profit, BOTH
+    companies (the strict-equality media gates were left untouched and are
+    now pinned by tests). Constants-only: engine, dropdowns, P&L, Zod and
+    reports all pick it up. Round trip over the founder's REAL books passes
+    unedited — no historical number moved.
+  - (3.4/3.5) `bsystems` department — "B-Systems" both languages (brand
+    names stay untranslated). ONE change serving both of his items: the
+    expense modal's "— Overhead —" select, the roster's Department select,
+    the income modal and the departments report all render from ACCT_DEPTS.
+    Bonus fix (called out in the ADR): the income modal no longer lists
+    "Other" twice.
+  - (4.1) The module bar: ≤820px the rigid header switcher leaves the header
+    and a full-width 1fr-cell bar renders under it in all four shells — one
+    tap, ≥44px targets, current module inverted, cannot overflow any width
+    (the strip was overflowing +44px at 601px — BUG-010's band moved when
+    ADR-054 added the fourth segment). Sheet switchers re-grounded (they
+    inherited the indigo header's white ink onto the white sheet) and
+    tap-sized — after review, ≥44px in BOTH axes (the EN toggle segment was
+    ~35px wide), and both e2e tap-size loops pin width as well as height.
+    Also after review: below ~340px the longest bar labels outgrow a 1fr
+    cell — the cut is now a visible ellipsis (the label rides in its own
+    span because text-overflow never applies to a grid container), asserted
+    by a new 320px module-bar test. qa-sweep permanently samples 601px.
+    Desktop untouched; single-entity users get no bar.
+  - (4.2) The install identity: (home)/icon.svg now embeds the OFFICIAL
+    B-Systems mark (placeholder gone), plus root apple-icon.png and
+    manifest.ts ("B-Systems", real-mark PNGs incl. maskable). Proven on the
+    built app (e2e/app-icon.spec.ts) that root metadata injects without a
+    root layout. All other group icons untouched.
+  - Review fold (same session, before push): three reviewer findings — all
+    low, all real — fixed inside these same commits: (1) bar labels ellipsize
+    below ~340px instead of clipping silently, (2) sheet switcher segments
+    are ≥44px in both axes and the tests pin width too, (3) the roster
+    pointer is visible text in the adjust modal, not only a hover title.
+  - Docs: ADR-060, TESTING Runs 063–064, IMPLEMENTATION (seven traps),
+    CHANGELOG.
+- In progress: nothing — the tree is clean; the four commits (review fold
+  included) pushed to origin/main after the Run 064 full-tree gate.
+- Next steps: founder to see the confirmation items below; consider
+  re-typing his two real campaign expenses (his call).
+- Blockers: none. (Port note: another workstream held 3100 mid-session; the
+  app-icon e2e ran on a deleted COPY of the config at 3200 — no process was
+  killed.)
+- Needs founder confirmation: (1) the B-Systems DEPARTMENT sits beside the
+  B-Systems COMPANY filter — confirm he means a service line, not the
+  company scope. (2) whether to re-type his two existing campaign expenses
+  from "Media Spend (pass-through)" to "Media Buying / Campaigns" (no number
+  moves either way). (3) iOS saves made inside ByteForce also carry the
+  B-Systems mark (4.2 as written; flag only if he objects). (4) old-app
+  exports are one-way once the new ids are in use: identical totals there,
+  but raw-id labels and no departments-report line for bsystems-tagged rows.

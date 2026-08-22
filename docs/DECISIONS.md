@@ -2917,3 +2917,124 @@ ADR" below.
     Undo's 10-minute window, or deleted. That mattered less when qualifying
     minted an account; now that it is free, mis-qualifying is cheaper to do and
     just as hard to reverse.
+
+## ADR-060 — 2026-08-22 — The roster locks from the expense row; campaigns become a real cost; B-Systems becomes a department; switching gets a phone bar; the saved app wears the real mark
+- Context: the founder's written list, sections 3 and 4, five confirmed asks.
+  (3.2) "Salary expenses should not be editable in the B-Roll Roster" — read
+  and confirmed as: remove the "Edit in roster" shortcut from the expense row.
+  (3.3) a "Media Buying / Campaigns" expense type that IS a real cost, in both
+  companies. (3.4/3.5) "B Systems" as an option under Overhead and under
+  Department. (4.1) switching between the modules must work properly on
+  mobile. (4.2) the mobile app icon must be the official B-Systems logo.
+- Decision, part A — THE ROSTER PATH IS LOCKED. The derived salary row on
+  /accounting/expenses no longer links to the roster; a real salary change is
+  made ONLY on the Payroll Roster page (module nav), from that month forward.
+  The row keeps the approval toggle and the ADR-058 month-only override
+  ("Adjust this month only"), and the `from roster` badge gains a hover hint
+  (new dict key `fromRosterHint`, EN + real Arabic) saying where the salary
+  lives — removing the link must not strand the user. The dict keys
+  `editInRoster` / `editInRosterHint` were DELETED with the affordance the
+  founder asked to remove; that is not a reword of a surviving string — every
+  English string still on screen is byte-identical. (The original SPA's only
+  non-approve control on that row was this same shortcut, and the SPA had no
+  month-only path at all; we keep its rule that the roster is where a salary
+  changes, drop its shortcut, and keep the override it never had.)
+- Decision, part B — `media_campaign`, "Media Buying / Campaigns" /
+  "شراء الإعلانات / الحملات": a NORMAL expense type, an ordinary cost that
+  counts against profit, available under BOTH companies. It sits directly
+  after "media" ("Media Spend (pass-through)") in the dropdown so the
+  distinction is visible at the point of choice. `mediaHidden()` and both of
+  its call-site gates stay STRICT EQUALITY on the literals "media" /
+  "media_fee" — nothing hides the new type from anyone; a test pins this.
+  DELIBERATE DIVERGENCE from the "unions mirror the SPA id sets exactly"
+  invariant (constants.ts header, amended in the same edit): the old app does
+  not know the id. Verified consequences: our export emits the id verbatim;
+  the old app's import never validates type, adds the row up identically
+  (its expenseAmount branches only on payroll), and renders the raw id as the
+  label; its ONE hazard is the Type Select in its edit form, which renders
+  unselected for an unknown id — an untouched Save keeps the value, but one
+  stray click re-types the row (cost unchanged either way). Importing an OLD
+  file is untouched — the importer has no enum on these columns. The
+  founder's real books already contain two campaign expenses booked under the
+  pass-through "media" LABEL (mediaLedger empty), which is exactly the gap
+  this type closes; both are ordinary costs today, so a later re-type of
+  those two rows would move no number.
+- Decision, part C — `bsystems`, labeled "B-Systems" in BOTH languages (brand
+  names stay untranslated — the dictionary's own precedent, acctCompanies):
+  one new ACCT_DEPTS entry. The founder's 3.4 and 3.5 are ONE change: the
+  "Overhead" he names is the expense modal's Department select, whose blank
+  option reads "— Overhead —", and the "Department" is the roster modal's
+  select — both (plus the income modal and the departments report) render
+  from the same ACCT_DEPTS array. There is no separate Overhead control
+  anywhere (verified: the only "Overhead" OPTION in src/ and in the SPA is
+  that blank option). Money consequence, stated so it is not read as a bug:
+  tagging a cost or a person to B-Systems moves it OUT of "Shared / overhead
+  costs (untagged)" and into the B-Systems direct-cost line on the
+  departments screen — net profit on the P&L does not move (pnl() never reads
+  serviceLine). Old-app divergence: its departments report iterates its OWN
+  dept list and counts overhead only for untagged rows, so a bsystems-tagged
+  row would appear in NO line there (understated totalCost); recorded in
+  IMPLEMENTATION as the one-way degradation.
+- Decision, part C cleanup (same select, called out, not silent): the income
+  modal used to render "Other" twice — DeptOptions skipped media_fee
+  unconditionally in its map while the modal re-added media_fee and "other"
+  by hand. DeptOptions now renders media_fee itself (income modal only, and
+  never under a company that hides Media Buying) and the hand-added options
+  are gone. Same values, same order rule ("Other" last), one fewer duplicate.
+- Decision, part D — THE MODULE BAR. At 820px and below the rigid header
+  switcher (~307px EN) leaves the header entirely (it measurably overflowed
+  the 601–645px band by +44px — the ADR-054 four-segment strip moved
+  BUG-010's band up, exactly between qa-sweep's sampled widths) and the four
+  shells render EntitySwitch in a new "bar" variant directly under the
+  header: a full-width strip of equal 1fr cells (mathematically unable to
+  overflow any width or zoom), 44px-tall targets, one tap, current module
+  inverted on the primary token. Single-entity users get no bar (the
+  component still returns null below two segments). The header copy gets its
+  own class (.switcher-entity) so the old 600px rule now governs only the
+  LanguageToggle — the two share the .switcher class, which is why the hiding
+  had to be untangled. The burger sheet keeps its own copy (every control
+  reachable in the sheet), re-grounded on the light card: the indigo-header
+  segment colors used to bleed into the sheet (it lives INSIDE the header
+  element) and painted the sheet's switchers near-white-on-white — the same
+  trap .nav-sheet-extras .nav-item had already fixed for Log out. The bar is
+  deliberately NEUTRAL (surface-card ground in every brand) rather than
+  indigo: the non-current segment ink token (--color-faint) is only
+  guaranteed legible on light surfaces, and one look across all four shells
+  beats a per-brand repaint. No new tokens; no new strings. qa-sweep now
+  samples 601px permanently.
+- Decision, part E — THE INSTALL IDENTITY. src/app/(home)/icon.svg (the login
+  screen's and Add-to-Home-Screen's favicon) now embeds the OFFICIAL
+  B-Systems mark (metadata-stripped, downscaled re-encode of
+  public/brand/b-systems/logo-mark.png — about 9KB instead of the 82KB
+  c2pa-laden original), replacing the generic gradient placeholder. New root
+  metadata files: src/app/apple-icon.png (180×180, mark on a SOLID WHITE
+  plate — iOS composites transparency onto black) and src/app/manifest.ts
+  (name "B-Systems", theme #1D267D mirroring --bs-indigo, three PNG icons
+  incl. a maskable 512 with the mark inside the safe zone). Root metadata
+  conventions inject without a root layout (ADR-007's per-group html
+  stamping untouched) — proven on the built app by e2e/app-icon.spec.ts.
+  Every other route group's icon is untouched; accepted side effect: an iOS
+  save made INSIDE the ByteForce CRM also carries the B-Systems mark (the
+  root apple-icon is platform-wide; a ByteForce square mark does not exist —
+  A-13).
+- Alternatives considered: (A) keeping the roster link with a warning —
+  rejected, the founder asked for the path to go. (B) reusing the existing
+  "media" type with a new label — rejected, it would re-label pass-through
+  client budget as own cost; a separate id keeps the two meanings apart.
+  (B2) mapping the new id to "other" on export so the old app never sees it —
+  rejected, it would silently re-bucket his P&L on every round trip.
+  (C) a company-named department under ByteForce only — rejected, both
+  companies may tag work to B-Systems. (D) un-hiding the rigid header strip
+  on phones — rejected, that is the exact regression the CSS comment
+  documents; also rejected: sheet-only switching (two taps plus a scroll on
+  short phones, poor discoverability). (E) per-group apple-icons — kept as
+  the fallback if root injection had failed on the built app; it did not.
+- Resolves: —
+- Status: Accepted
+- Needs founder confirmation: (1) the DEPARTMENT named B-Systems sits beside
+  the COMPANY filter named B-Systems — confirm he means a service line, not
+  the company scope. (2) whether his two existing campaign expenses booked
+  under "Media Spend (pass-through)" should be re-typed to the new
+  "Media Buying / Campaigns" (no number moves either way). (3) the iOS save
+  from inside ByteForce carrying the B-Systems mark (4.2 as written asks for
+  exactly this; flag only if he objects).

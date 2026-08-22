@@ -786,3 +786,44 @@
 - One thing we did NOT change on purpose: zooming in far enough still turns the
   desktop menu into the burger menu. That is the same behaviour as making the
   window narrow, and it is what keeps every section reachable at any size.
+
+## Salaries lock to the roster, campaigns get their own cost line, B-Systems gets a department (2026-08-22)
+
+- **A salary can no longer be edited from the Expenses screen.** The "Edit in
+  roster" shortcut on a salary row is gone. To change what someone earns, open
+  Payroll Roster — that is the only door, and it changes the salary from that
+  month forward. The row itself still does everything legitimate: approve /
+  hold, "Adjust this month only" for a one-month deduction or bonus, and the
+  "from roster" badge now explains where the salary actually lives — hover it
+  on a computer; on a phone the "Adjust this month only" window opens with
+  the same pointer written out, so the explanation is never hidden behind a
+  hover you cannot do on touch.
+- **New expense type: "Media Buying / Campaigns."** This is for OUR OWN
+  campaign spend — it is a real cost and it counts against profit, unlike
+  "Media Spend (pass-through)" which is client budget flowing through the
+  treasury. Both companies have it, in English and Arabic. The two sit next
+  to each other in the Type list so you always know which one you are picking.
+- **"B-Systems" is now a department.** Pick it on an expense (the select whose
+  blank choice is "— Overhead —"), on an income row, or on a person in the
+  roster. Anything tagged to it moves out of "Shared / overhead costs" and
+  onto its own line in the Departments report — note that is a move BETWEEN
+  report lines; the net profit number itself does not change.
+- **Switching apps works on the phone now.** On any small screen there is a
+  bar right under the header with BYTEFORCE · B-SYSTEMS · ACCOUNTING · VAULT:
+  one tap, big targets, and the app you are in is clearly marked. No more
+  hunting through the burger menu, and no more page being pushed sideways at
+  in-between widths (that was real: 44px of sideways overflow around 601px).
+  The burger menu still has everything too, now finger-sized and readable —
+  finger-sized in both directions, including the little EN / عربي toggle. And
+  on an unusually narrow screen the long names shorten with "…" instead of
+  being cut off invisibly.
+  On a computer nothing changed, and people with only one company see no bar.
+- **The saved app wears the real logo.** Add the system to your phone's home
+  screen and you get the official B-Systems mark — on iPhone and Android,
+  named "B-Systems" — instead of the old coloured square. The login tab's
+  favicon is the real mark too. Each app inside keeps its own icon.
+- One heads-up for old-app exports: a file carrying the new expense type or
+  the new department still adds up to the same totals in the ORIGINAL app,
+  but the old app shows the raw id instead of a label and its Departments
+  report cannot place a B-Systems-tagged row. Files exported from the old
+  app import here exactly as before.

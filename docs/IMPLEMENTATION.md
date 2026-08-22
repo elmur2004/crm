@@ -1318,3 +1318,98 @@ Traps to know before touching any of it again:
     the panel's dropdown for the first time. Harmless (a move to intake opens no
     group, exactly like the drag), but it is a visible change flagged for the
     founder rather than buried.
+
+## ADR-060 — traps met across the five founder asks (2026-08-22)
+
+### Removing a link orphans more than the link (item A)
+Deleting the "Edit in roster" `<Link>` from `ExpenseActions` orphaned the
+`Link` and `acctQuery` imports AND the component's `month` prop (its only
+consumer was the link's href — every other use reads `row.month`). tsconfig
+has no `noUnusedLocals`, so `tsc --noEmit` does NOT catch the dead imports —
+only the Next build lint would. When removing an affordance here, grep the
+component for what ONLY it consumed: the prop removal also needs the call
+site in expenses/page.tsx or it is a compile error in one direction and a
+lint failure in the other.
+
+### The exporter emits raw ids; the OLD app degrades one-way (items B/C)
+`export.ts` emits `type` and `serviceLine` verbatim — no whitelist, no
+mapping. The reference SPA imports anything (its migrate() never validates
+these columns) and its arithmetic is identical for any non-payroll type, but
+its RENDERING degrades for ids it does not know: an unknown expense type
+shows as the raw id (index.html EXP_MAP fallback), and — the serious one —
+its departments report iterates its OWN dept list while counting overhead
+only for UNTAGGED rows, so a `bsystems`-tagged cost appears in NO line there:
+totalCost understated, directProfit overstated. Same for tagged income. Our
+import of OLD files is provably unaffected (no enum anywhere on the import
+path — `zStr.default("other")`). Round trips are fully faithful only for ids
+the old app knows; the export is one-way-safe once the new vocabulary is in
+use. Also: the SPA's expense-edit Type `<Select>` renders UNSELECTED for an
+unknown id — an untouched Save keeps the value, one stray click re-types the
+row silently.
+
+### The two switchers share one class; the sheet lives inside the header (item D)
+`EntitySwitch` and `LanguageToggle` both render `.switcher`, so the old
+`≤600px .app-header .user > .switcher { display:none }` rule always hid BOTH.
+The entity copy now carries its own `.switcher-entity` hook and leaves the
+header at ≤820px, while that legacy rule keeps governing only the language
+toggle. Second trap: the burger sheet is `position:fixed` but a DOM
+DESCENDANT of `.app-header`, so every `[data-brand="bsystems"] .app-header
+.switcher-seg` override (translucent white ink for the indigo ground) bled
+into the light sheet — near-white text on a white card. The fix re-grounds
+`.nav-sheet-extras` switchers explicitly, the same way `.nav-sheet-extras
+.nav-item` had already been fixed for Log out. Anything styled "for the
+header ground" must be scoped to `.user >` or re-grounded in the sheet.
+
+### A title attribute is hover-only; touch needs visible text (item A, review fold)
+The `from roster` badge's `title={fromRosterHint}` shows on desktop hover and
+NEVER on touch — iOS/Android show nothing for a title on a non-interactive
+span. On the phones item D targets, the badge explained nothing. The pointer
+now ALSO rides as visible text appended to the adjust modal's locked banner
+(the phone's one stop on a derived row) — appended as a separate sentence,
+because `adjustBanner` is a frozen pre-ADR-060 English string that must stay
+byte-identical. Rule of thumb: a `title` is garnish for mouse users; any
+information a phone user needs must exist as rendered text somewhere on the
+same path.
+
+### text-overflow never applies to a grid container (item D, review fold)
+Below ~340px the module bar's longest labels (ACCOUNTING, BYTEFORCE,
+B-SYSTEMS — EN and the two Latin brand names in AR) outgrow a 1fr cell:
+measured at a 320px viewport (305px client width) each cell is ~67px and the
+labels hard-clipped with no affordance; at 390px (~85px cells) nothing clips.
+Adding `text-overflow: ellipsis` to `.switcher-seg` itself would be a silent
+NO-OP: the seg centers with `display:grid`, and text-overflow only applies to
+block containers. The label therefore rides in its own `.switcher-label` span
+— a block-level grid item whose `overflow:hidden` zeroes its automatic
+minimum size, so it shrinks to the cell and ellipsizes. A 320px module-bar
+test pins both halves (the label really overflows AND the ellipsis lives on
+the span). Same trap family as flex containers; check `display` before
+trusting text-overflow.
+
+### The overflow band MOVES when the strip grows (item D)
+BUG-010's fix hid the 3-segment strip ≤600px after measuring overflow at
+400–555px. ADR-054's fourth segment made the strip ~307px and moved the
+overflow band UP to ~601–645px (+44px measured at 601px EN) — above the old
+hide threshold and exactly between qa-sweep's sampled widths (560, 768), so
+the sweep stayed green over a live bug. Fixed structurally (the ≤820px bar
+uses 1fr grid cells that cannot overflow) and 601 is now a permanent
+qa-sweep viewport. Lesson: when a fixed-width element GROWS, every width
+threshold derived from its old size is stale, and width sweeps must sample
+the band a fix was measured in.
+
+### Root metadata files work without a root layout (item E)
+This repo deliberately has NO src/app/layout.tsx (ADR-007 — each route group
+owns <html> to stamp data-brand). Root-level metadata FILE conventions
+(src/app/apple-icon.png, src/app/manifest.ts) still inject into every
+group's head and serve at /apple-icon.png and /manifest.webmanifest —
+verified on the BUILT app (e2e/app-icon.spec.ts), not assumed. Group-level
+icon.svg files keep overriding the favicon per group; the root apple-icon
+and manifest apply platform-wide. The proxy matcher does not cover these
+paths, so they are public — which an installable icon must be.
+
+### Icon PNGs: strip the c2pa block, bake the plate
+public/brand/b-systems/logo-mark.png is 636×1101 RGBA whose bulk is a c2pa
+metadata block (61KB); a System.Drawing re-encode at display size is ~7KB
+and pixel-identical at favicon sizes. iOS composites a transparent
+apple-touch icon onto BLACK and maskable icons are cropped to a circle, so
+the white plate is baked into the PNGs (mark at ~70% height; maskable mark
+inside the central safe zone), never left to the platform.

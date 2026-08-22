@@ -2190,3 +2190,45 @@ every dashboard formula, journeys 1-5 (SPEC §13).
   2 skipped / 0 failed with `.last-run.json` green, brand audit PASS, and the
   data migration re-proved on a throwaway database with before/after row counts
   and two mutation proofs rather than a re-read.
+
+## Run 063 — 2026-08-22 — ADR-060: roster lock, media_campaign + bsystems dept, the module bar, the install identity
+- Suites/commands:
+  - `npx tsc --noEmit` — clean after every one of the four commits.
+  - `npx vitest run src/lib/accounting src/lib/services/accounting.integration.test.ts`
+    — 5 files, 99 passed / 0 failed (engine + NEW constants.test.ts vocabulary
+    guard + services integration + export/import round trips). Includes the
+    regression that PROVES no historical number moved: the founder's real
+    export (backups/all-companies-2026-08-17.json) still round-trips with
+    identical totals, UNEDITED — that file already holds two campaign
+    expenses booked under the pass-through label, and both still count
+    exactly as before.
+  - `npx playwright test e2e/accounting.spec.ts e2e/module-bar.spec.ts
+    e2e/qa-sweep.spec.ts e2e/zoom.spec.ts e2e/nav-slider.spec.ts
+    e2e/i18n.spec.ts e2e/board-touch.spec.ts e2e/leads-filters.spec.ts` —
+    36 passed / 0 failed (6.9m), `.last-run.json` status "passed". qa-sweep
+    now samples 601px (the band the four-segment strip overflowed by +44px)
+    on every role, and the NEW module-bar spec runs with real scrollbars.
+  - `npx playwright test --config=playwright.port3200.config.ts
+    e2e/app-icon.spec.ts` — 1 passed; run on a COPY of the config at port
+    3200 because another workstream (D:\Healthcare App) held 3100; the copy
+    was deleted afterwards, per the port rule. Proves on the BUILT app that
+    the root apple-icon + manifest inject without a root layout, the (home)
+    favicon is the real mark, and the group icons are untouched.
+- Cases: 137 passed / 0 failed / 0 skipped (99 unit+integration, 37 e2e, one
+  interim e2e failure fixed mid-round: the Arabic leg raced the locale switch
+  — clicking عربي then navigating cancels the setLocale action; the test now
+  waits for html[dir=rtl] before navigating).
+- Failures: none outstanding.
+- SPEC coverage touched: §15 sweep (overflow at the new 601px viewport);
+  accounting module (ADR-052/054/058 journeys re-run green, byte-identical
+  strings asserted); the four-shell switcher walk; RTL legs.
+- Review fold (same session, before push — the fixes live INSIDE these same
+  four commits): module-bar.spec.ts grew a 6th test (320px: the long labels
+  really overflow their ~67px cells and the cut is a visible ellipsis on the
+  label span — text-overflow never applies to the grid seg itself); both
+  sheet tap-size loops (qa-sweep + module-bar) now pin width ≥44 as well as
+  height (the EN toggle segment was ~35px wide); accounting.spec.ts asserts
+  the roster pointer as VISIBLE adjust-banner text, not only the badge's
+  hover-only title. Final-tree full-suite gate: Run 064 below.
+- Verdict: PASS — all four commits carried their own green tests; the full
+  suite remains the gate phase's job.
