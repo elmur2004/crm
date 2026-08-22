@@ -38,16 +38,20 @@ test("ByteForce board: drag opens the stage form; didn't-answer toggles; whole c
   const card = page.locator('[data-deal-card="Parity Deal"]');
   await expect(card).toBeVisible();
 
-  /* Drag New → Following Up: the FULL internal follow-up form opens. */
+  /* Drag New → Following Up: the FULL internal follow-up form opens — which,
+     since ADR-061, asks for a DAY and no time at all. */
   await dragTo(page, card, page.locator('[data-stage="following_up"]'));
   await expect(page.getByText("Complete this stage's details to confirm the move")).toBeVisible();
+  await expect(page.getByLabel("Follow-up date")).toBeVisible();
+  await expect(page.getByLabel("Follow-up time")).toHaveCount(0); // ADR-061: date-only
   await page.getByLabel("Follow-up date").fill("2026-10-01");
-  await page.getByLabel("Follow-up time").fill("10:00");
   await page.getByLabel("Method").selectOption("call");
   await page.getByRole("button", { name: "Confirm move" }).click();
-  await expect(
-    page.locator('[data-stage="following_up"]').getByText("Parity Deal"),
-  ).toBeVisible();
+  const movedCard = page.locator('[data-stage="following_up"] [data-deal-card="Parity Deal"]');
+  await expect(movedCard).toBeVisible();
+  /* …and the created follow-up renders DATE-ONLY on the card's key datum */
+  await expect(movedCard).toContainText("Next: 1 Oct 2026");
+  await expect(movedCard).not.toContainText("1 Oct 2026, ");
 
   /* Didn't answer: chip appears; clearing removes it. */
   await card.getByRole("button", { name: "Didn't answer" }).click();
@@ -123,7 +127,6 @@ test("a long column scrolls inside itself and a scrolled-to card still drags out
   await dragTo(page, deep, page.locator('[data-stage="following_up"]'));
   await expect(page.getByText("Complete this stage's details to confirm the move")).toBeVisible();
   await page.getByLabel("Follow-up date").fill("2026-10-02");
-  await page.getByLabel("Follow-up time").fill("09:30");
   await page.getByLabel("Method").selectOption("call");
   await page.getByRole("button", { name: "Confirm move" }).click();
   await expect(

@@ -493,8 +493,9 @@ export async function CrmBoardBody({
       case "new":
         return formatCairo(lead.createdAt); // intake cards show when they arrived
       case "following_up":
+        /* ADR-061: a follow-up is a DAY — no clock on the key datum */
         return lead.followUps[0]
-          ? `${t(board.nextPrefix)} ${formatCairo(lead.followUps[0].dueAt)}`
+          ? `${t(board.nextPrefix)} ${formatCairoDate(lead.followUps[0].dueAt)}`
           : t(board.noFollowUpSet);
       case "meeting_setting":
         return lead.meetings[0]?.datetime

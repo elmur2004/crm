@@ -1,4 +1,4 @@
-import { formatCairo } from "@/lib/datetime";
+import { formatCairo, formatCairoDate } from "@/lib/datetime";
 import { formatEGP } from "@/lib/money";
 import { tFor } from "@/lib/i18n/core";
 import { getLocale } from "@/lib/i18n/server";
@@ -78,7 +78,8 @@ export async function GroupHistory({
           title={contextMsg ? t(contextMsg) : t(records.followUpContexts.initial)}
           at={f.createdAt}
         >
-          <p>{t(records.due)} {formatCairo(f.dueAt)} · {f.method === "call" ? t(common.call) : f.method === "message" ? t(common.message) : t(common.visit)}</p>
+          {/* ADR-061: a follow-up is due on a DAY — no clock (meetings keep theirs) */}
+          <p>{t(records.due)} {formatCairoDate(f.dueAt)} · {f.method === "call" ? t(common.call) : f.method === "message" ? t(common.message) : t(common.visit)}</p>
           {owner ? <p>{t(records.ownerColon)} {owner}</p> : null}
           {f.followingUpWith ? <p>{t(records.withColon)} {f.followingUpWith}</p> : null}
         </Section>

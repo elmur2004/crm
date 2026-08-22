@@ -137,6 +137,8 @@ export const profile = {
 /* §8.2 portal stage group forms (follow-up / meeting / proposal / lost). */
 export const stageForms = {
   followUpDate: { en: "Follow-up date", ar: "تاريخ المتابعة" },
+  /* UNREFERENCED since ADR-061 (founder: follow-ups are date-only) — kept per
+     house convention: existing keys are never deleted, EN stays byte-identical. */
   followUpTime: { en: "Follow-up time", ar: "وقت المتابعة" },
   method: { en: "Method", ar: "الوسيلة" },
   methodCall: { en: "Call", ar: "اتصال" },

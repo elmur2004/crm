@@ -27,7 +27,9 @@ export type TodoKind =
 export interface TodoItem {
   kind: TodoKind;
   at: Date;
-  withTime: boolean; // date-only records (statements/milestones) hide the clock
+  /* date-only records hide the clock. Follow-ups joined the date-only club
+     (founder, ADR-061) — only MEETINGS still show a time. */
+  withTime: boolean;
   title: string;
   href: string;
   /* Founder — "I can assign these to do as an admin or just take it myself":
@@ -156,7 +158,8 @@ export async function todoFor(opts: {
       items.push({
         kind: "follow_up",
         at: f.dueAt,
-        withTime: true,
+        withTime: false, // ADR-061: follow-ups are date-only
+
         title: lead.name,
         href: `${leadBase}/${lead.id}`,
         leadId: lead.id,
@@ -245,7 +248,8 @@ export async function todoFor(opts: {
         items.push({
           kind: "prospect_follow_up",
           at: f.dueAt,
-          withTime: true,
+          withTime: false, // ADR-061: follow-ups are date-only
+
           title: prospectTitle(prospect),
           href: `/b-systems/partners-pipeline/${prospect.id}`,
         });

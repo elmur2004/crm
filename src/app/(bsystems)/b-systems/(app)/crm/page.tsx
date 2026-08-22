@@ -4,7 +4,7 @@ import { bsRoleOf } from "@/lib/api/bsystems";
 import { listBsLeads, listOwnLeads } from "@/lib/services/bsystems-admin";
 import { listBsOwnerReps } from "@/lib/services/sales-reps";
 import { LEAD_TYPES } from "@/lib/pipeline-engine/constants";
-import { formatCairo } from "@/lib/datetime";
+import { formatCairo, formatCairoDate } from "@/lib/datetime";
 import { formatEGP } from "@/lib/money";
 import { waHref } from "@/lib/phone-dial";
 import { tFor, type Locale, type Msg } from "@/lib/i18n/core";
@@ -51,8 +51,9 @@ function keyDatum(locale: Locale, lead: LeadRow): string {
   const t = tFor(locale);
   switch (lead.stage) {
     case "following_up":
+      /* ADR-061: a follow-up is a DAY — no clock on the key datum */
       return lead.followUps[0]
-        ? `${t(m.nextPrefix)}${formatCairo(lead.followUps[0].dueAt)}`
+        ? `${t(m.nextPrefix)}${formatCairoDate(lead.followUps[0].dueAt)}`
         : t(m.noFollowUp);
     case "meeting_setting":
       return lead.meetings[0]?.datetime
@@ -69,7 +70,8 @@ function keyDatum(locale: Locale, lead: LeadRow): string {
       const f = lead.followUps[0];
       const n = lead.negotiationNotes[0];
       if (!f || (n && n.createdAt > f.createdAt)) return t(m.noResponseDate);
-      return `${t(m.responsePrefix)}${formatCairo(f.dueAt)}`;
+      /* the response date is a follow-up record — date-only too (ADR-061) */
+      return `${t(m.responsePrefix)}${formatCairoDate(f.dueAt)}`;
     }
     case "lost":
       return lead.lostInfo[0]?.reason ?? "";

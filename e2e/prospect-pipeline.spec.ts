@@ -357,7 +357,6 @@ test("Contacted is not a Follow Up task until someone records one", async ({ pag
   await page.goto(`/b-systems/partners-pipeline/${id}`);
   await page.getByRole("button", { name: "Record a follow-up" }).click();
   await page.getByLabel("Follow-up date").fill(today);
-  await page.getByLabel("Follow-up time").fill("10:00");
   await page.getByLabel("Method").selectOption("call");
   await page.getByRole("button", { name: "Save record" }).click();
   /* the card never moved */

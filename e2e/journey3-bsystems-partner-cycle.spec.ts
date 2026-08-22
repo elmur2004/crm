@@ -115,7 +115,6 @@ test("journey 3: partnership acquisition to attributed CRM lead (V2 numbers flow
   await expect(page.locator(".chat-mention")).toHaveText("@Elmur");
   await page.getByLabel("Next action").selectOption("following_up");
   await page.getByLabel("Follow-up date").fill("2026-09-20");
-  await page.getByLabel("Follow-up time").fill("10:30");
   await page.getByLabel("Method").selectOption("call");
   await page.getByRole("button", { name: "Save & move" }).click();
   await expect(page.getByText("Following Up").first()).toBeVisible();

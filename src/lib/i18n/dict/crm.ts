@@ -267,6 +267,8 @@ export const eventPanel = {
 
 export const stageForm = {
   followUpDate: { en: "Follow-up date", ar: "تاريخ المتابعة" },
+  /* UNREFERENCED since ADR-061 (founder: follow-ups are date-only) — kept per
+     house convention: existing keys are never deleted, EN stays byte-identical. */
   followUpTime: { en: "Follow-up time", ar: "وقت المتابعة" },
   method: { en: "Method", ar: "الوسيلة" },
   methodCall: { en: "Call", ar: "مكالمة" },

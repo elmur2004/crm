@@ -31,16 +31,13 @@ export function FollowUpFields({ reps }: { reps: Rep[] }) {
   const t = tFor(useLocale());
   return (
     <>
-      <div className="grid grid-cols-2 gap-3">
-        <label className="block">
-          <span className={labelCls}>{t(events.followUpDate)}</span>
-          <input type="date" name="date" required className={inputCls} />
-        </label>
-        <label className="block">
-          <span className={labelCls}>{t(events.followUpTime)}</span>
-          <input type="time" name="time" required className={inputCls} />
-        </label>
-      </div>
+      {/* founder: "remove the time of the follow up just the date" — a follow-up
+          is a DAY. No time input anywhere; the stored instant defaults to 09:00
+          Cairo server-side (followUpDueAt, ADR-061). Meetings keep their time. */}
+      <label className="block">
+        <span className={labelCls}>{t(events.followUpDate)}</span>
+        <input type="date" name="date" required className={inputCls} />
+      </label>
       <label className="block">
         <span className={labelCls}>{t(events.method)}</span>
         <select name="method" required className={inputCls}>
@@ -74,8 +71,8 @@ export function followUpFromForm(fd: FormData) {
   return {
     group: "follow_up" as const,
     data: {
+      /* no `time` — the server defaults the slot to 09:00 Cairo (ADR-061) */
       date: String(fd.get("date")),
-      time: String(fd.get("time")),
       method: String(fd.get("method")) as "call" | "message" | "visit",
       ownerSalesRepId: String(fd.get("ownerSalesRepId") || "") || undefined,
       followingUpWith: String(fd.get("followingUpWith") || "") || undefined,

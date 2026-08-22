@@ -255,6 +255,7 @@ describe("To-Do aggregation (ADR-041)", () => {
 
     expect(byTitle.get("Owned Lead")).toMatchObject({
       kind: "follow_up",
+      withTime: false, // ADR-061: a follow-up is a DAY — the row hides the clock
       leadId: owned.id,
       ownerUserId: agent.id,
       ownerName: "Owning Agent",
@@ -269,6 +270,7 @@ describe("To-Do aggregation (ADR-041)", () => {
     });
     expect(byTitle.get("Owned Meeting Lead")).toMatchObject({
       kind: "meeting",
+      withTime: true, // a meeting genuinely has a time and keeps it (ADR-061)
       leadId: meetingLead.id,
       ownerUserId: agent.id,
       ownerName: "Owning Agent",

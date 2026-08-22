@@ -4,7 +4,7 @@ import {
   IMPORTANCE_LEVELS,
   MEETING_MODES,
 } from "@/lib/pipeline-engine/constants";
-import { cairoToUtc } from "@/lib/datetime";
+import { cairoToUtc, utcToCairo } from "@/lib/datetime";
 import { MAX_PIASTERS } from "@/lib/money";
 
 /* Zod schemas for every stage field group (SPEC §6.2, §7.2). These are the
@@ -19,7 +19,10 @@ const money = z.number().int().min(0).max(MAX_PIASTERS);
 
 export const followUpSchema = z.object({
   date: dateStr,
-  /* V2 §3: agent forms collect the DAY only — time defaults to 09:00 Cairo. */
+  /* Founder (ADR-061): EVERY follow-up form collects the DAY only now — what
+     V2 §3 gave agents is the rule for all roles. `time` stays OPTIONAL (never
+     required) so API callers and old clients keep working; absent ⇒ the slot
+     defaults to 09:00 Cairo in followUpDueAt. Meetings still require a time. */
   time: timeStr.optional(),
   method: z.enum(FOLLOW_UP_METHODS),
   ownerSalesRepId: z.string().optional(),
@@ -29,7 +32,13 @@ export const followUpSchema = z.object({
 export type FollowUpInput = z.infer<typeof followUpSchema>;
 
 export function followUpDueAt(input: FollowUpInput): Date {
-  return cairoToUtc(input.date, input.time ?? "09:00");
+  const at = cairoToUtc(input.date, input.time ?? "09:00");
+  /* Review hardening: Egypt's spring-forward jumps AT midnight, so a caller-
+     posted 00:xx wall-clock may not exist on the transition day — the solver
+     then lands on the EVE. Nudge one hour forward (DST jumps are one hour,
+     mirroring todo.ts startOfCairoDay) so a posted time can never move a
+     follow-up off its posted date. The 09:00 default is always safe. */
+  return utcToCairo(at).date === input.date ? at : new Date(at.getTime() + 60 * 60 * 1000);
 }
 
 export const meetingSchema = z

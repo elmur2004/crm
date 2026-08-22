@@ -69,7 +69,6 @@ test("journey 1: ByteForce full cycle to Won", async ({ page }) => {
   await leadLink.click();
   await page.getByLabel("Next action").selectOption("following_up");
   await page.getByLabel("Follow-up date").fill("2026-09-01");
-  await page.getByLabel("Follow-up time").fill("10:00");
   await page.getByLabel("Method").selectOption("call");
   await page.getByRole("button", { name: "Save & move" }).click();
   await expect(page.getByRole("heading", { level: 1 }).getByText("Following Up")).toBeVisible();
@@ -94,7 +93,6 @@ test("journey 1: ByteForce full cycle to Won", async ({ page }) => {
   /* Mark proposal as sent (T-5) — auto Following Up with after-proposal group. */
   await expect(page.getByText("Proposal ready — mark it as sent?")).toBeVisible();
   await page.getByLabel("Follow-up date").fill("2026-09-05");
-  await page.getByLabel("Follow-up time").fill("11:30");
   await page.getByLabel("Method").selectOption("message");
   await page.getByRole("button", { name: "Sent — move to Following Up" }).click();
   await expect(page.getByRole("heading", { level: 1 }).getByText("Following Up")).toBeVisible();

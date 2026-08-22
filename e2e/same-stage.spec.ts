@@ -34,15 +34,18 @@ test("the lead detail records another follow-up without leaving Following Up", a
 
   await page.goto(`/b-systems/crm/lead/${id}`);
   await page.getByRole("button", { name: "Log another follow-up" }).click();
+  /* founder (ADR-061): the follow-up form carries NO time input — just the day */
+  await expect(page.getByLabel("Follow-up time")).toHaveCount(0);
   await page.getByLabel("Follow-up date").fill("2026-09-08");
-  await page.getByLabel("Follow-up time").fill("15:30");
   await page.getByRole("button", { name: "Save record" }).click();
 
   /* two follow-up records now, and the stage badge has not moved */
   await expect(page.getByText("Following up", { exact: true })).toHaveCount(2);
-  /* month abbreviation is ICU-dependent in en-GB ("Sep" / "Sept") — the day,
-     year and time are the part that proves the NEW record landed */
-  await expect(page.getByText(/8 Sept? 2026, 15:30/)).toBeVisible();
+  /* month abbreviation is ICU-dependent in en-GB ("Sep" / "Sept") — the day and
+     year prove the NEW record landed, and it renders DATE-ONLY: no clock ever
+     follows a follow-up's due date (ADR-061) */
+  await expect(page.getByText(/Due 8 Sept? 2026/)).toBeVisible();
+  await expect(page.getByText(/8 Sept? 2026, \d{2}:\d{2}/)).toHaveCount(0);
 
   await page.goto("/b-systems/crm");
   await expect(

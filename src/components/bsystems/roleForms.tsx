@@ -9,8 +9,10 @@ import { useLocale } from "@/components/shared/LocaleProvider";
 import { common, stageForm as msg } from "@/lib/i18n/dict/crm";
 
 /* V2 §3/§4 — the role-aware stage forms for the unified B-Systems pipeline.
-   `light` = agent/partner variants (no time on follow-ups, no owner/with, the
-   meeting Q&A flow). Admin/sales get the ByteForce-style full forms. */
+   `light` = agent/partner variants (no owner/with, the meeting Q&A flow).
+   Admin/sales get the ByteForce-style full forms. Founder (ADR-061): follow-ups
+   are DATE-only for EVERY role now — what used to be the light form's privilege
+   ("no time on follow-ups") is the only behavior; meetings keep their time. */
 
 export type BsFormRole = "admin" | "sales" | "agent" | "partner";
 export const isLight = (r: BsFormRole) => r === "agent" || r === "partner";
@@ -21,18 +23,12 @@ export function FollowUpFieldsV2({ light, reps }: { light: boolean; reps: Rep[] 
   const t = tFor(useLocale());
   return (
     <>
-      <div className="grid grid-cols-2 gap-3">
-        <label className="block">
-          <span className={labelCls}>{t(msg.followUpDate)}</span>
-          <input type="date" name="date" required className={inputCls} />
-        </label>
-        {!light ? (
-          <label className="block">
-            <span className={labelCls}>{t(msg.followUpTime)}</span>
-            <input type="time" name="time" required className={inputCls} />
-          </label>
-        ) : null}
-      </div>
+      {/* founder: "remove the time of the follow up just the date" — no time
+          input for ANY role; the server defaults to 09:00 Cairo (ADR-061). */}
+      <label className="block">
+        <span className={labelCls}>{t(msg.followUpDate)}</span>
+        <input type="date" name="date" required className={inputCls} />
+      </label>
       <label className="block">
         <span className={labelCls}>{t(msg.method)}</span>
         <select name="method" required className={inputCls}>
@@ -70,8 +66,8 @@ export function followUpPayload(fd: FormData, light: boolean) {
   return {
     group: "follow_up" as const,
     data: {
+      /* no `time` — the server defaults the slot to 09:00 Cairo (ADR-061) */
       date: String(fd.get("date")),
-      time: light ? undefined : String(fd.get("time")),
       method: String(fd.get("method")) as "call" | "message" | "visit",
       ownerSalesRepId: light ? undefined : String(fd.get("ownerSalesRepId") || "") || undefined,
       followingUpWith: light ? undefined : String(fd.get("followingUpWith") || "") || undefined,

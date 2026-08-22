@@ -301,6 +301,8 @@ export const pForms = {
 
 export const pPanel = {
   followUpDate: { en: "Follow-up date", ar: "تاريخ المتابعة" },
+  /* UNREFERENCED since ADR-061 (founder: follow-ups are date-only) — kept per
+     house convention: existing keys are never deleted, EN stays byte-identical. */
   followUpTime: { en: "Follow-up time", ar: "وقت المتابعة" },
   method: { en: "Method", ar: "الطريقة" },
   owner: { en: "Owner", ar: "المسؤول" },

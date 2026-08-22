@@ -22,16 +22,13 @@ export function FollowUpFields() {
   const t = tFor(useLocale());
   return (
     <>
-      <div className="grid grid-cols-2 gap-3">
-        <label className="block">
-          <span className={labelCls}>{t(stageForms.followUpDate)}</span>
-          <input type="date" name="date" required className={inputCls} />
-        </label>
-        <label className="block">
-          <span className={labelCls}>{t(stageForms.followUpTime)}</span>
-          <input type="time" name="time" required className={inputCls} />
-        </label>
-      </div>
+      {/* founder: "remove the time of the follow up just the date" — a follow-up
+          is a DAY; 09:00 Cairo default server-side (ADR-061). Meetings keep
+          their time input. */}
+      <label className="block">
+        <span className={labelCls}>{t(stageForms.followUpDate)}</span>
+        <input type="date" name="date" required className={inputCls} />
+      </label>
       <label className="block">
         <span className={labelCls}>{t(stageForms.method)}</span>
         <select name="method" required className={inputCls}>
@@ -137,8 +134,8 @@ export function followUpFromForm(fd: FormData) {
   return {
     group: "follow_up" as const,
     data: {
+      /* no `time` — the server defaults the slot to 09:00 Cairo (ADR-061) */
       date: String(fd.get("date")),
-      time: String(fd.get("time")),
       method: String(fd.get("method")) as "call" | "message" | "visit",
       followingUpWith: String(fd.get("followingUpWith") || "") || undefined,
     },

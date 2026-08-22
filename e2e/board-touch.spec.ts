@@ -253,7 +253,6 @@ test("dragging BY THE GRIP still moves a card between stages, on touch", async (
      waiting for another stage's fields */
   await expect(page.locator(".modal-eyebrow")).toContainText("Following Up");
   await page.getByLabel("Follow-up date").fill("2026-10-03");
-  await page.getByLabel("Follow-up time").fill("11:15");
   await page.getByLabel("Method").selectOption("call");
   await page.getByRole("button", { name: "Confirm move" }).click();
   await expect(
