@@ -42,6 +42,7 @@ export async function AppNav({
     .join("")
     .toUpperCase();
   return (
+    <>
     <header className="app-header">
       {/* founder: the REAL ByteForce logo; clicking it goes to THIS app's
           dashboard — never the platform root */}
@@ -81,5 +82,8 @@ export async function AppNav({
         </form>
       </div>
     </header>
+    {/* ADR-060 — the phone's module bar (≤820px), directly under the header */}
+    <EntitySwitch variant="bar" roles={roles} current="byteforce" />
+    </>
   );
 }

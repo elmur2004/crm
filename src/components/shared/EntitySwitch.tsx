@@ -27,7 +27,22 @@ export function bsLandingFor(roles: Role[]): string {
 
 export type ModuleId = "byteforce" | "bsystems" | "accounting" | "vault";
 
-export async function EntitySwitch({ roles, current }: { roles: Role[]; current: ModuleId }) {
+/* ADR-060 — the switcher renders in two shapes. "header" is the desktop pill
+   (hidden from the header ≤820px via .switcher-entity — it is a rigid strip
+   that used to push the whole page sideways; the CSS comment in
+   design-system.css keeps the measurements). "bar" is the phone's module bar:
+   a full-width equal-cell strip the shells render directly UNDER the header,
+   visible only ≤820px, whose 1fr cells can never overflow any viewport. One
+   component, so the segments, hrefs and aria-current can never diverge. */
+export async function EntitySwitch({
+  roles,
+  current,
+  variant = "header",
+}: {
+  roles: Role[];
+  current: ModuleId;
+  variant?: "header" | "bar";
+}) {
   const t = tFor(await getLocale());
   const segments: Array<{ id: ModuleId; href: string; label: string }> = [];
   if (roles.includes("byteforce_staff")) {
@@ -40,10 +55,15 @@ export async function EntitySwitch({ roles, current }: { roles: Role[]; current:
     segments.push({ id: "accounting", href: "/accounting", label: t(shell.switchAccounting) });
     segments.push({ id: "vault", href: "/vault", label: t(shell.switchVault) });
   }
-  /* one destination is no switch at all */
+  /* one destination is no switch at all — single-entity users get NO new
+     furniture in either variant */
   if (segments.length < 2) return null;
   return (
-    <div className="switcher" role="group" aria-label={t(shell.switchCompany)}>
+    <div
+      className={variant === "bar" ? "switcher switcher--bar" : "switcher switcher-entity"}
+      role="group"
+      aria-label={t(shell.switchCompany)}
+    >
       {segments.map((seg) => (
         <Link
           key={seg.id}
@@ -51,7 +71,11 @@ export async function EntitySwitch({ roles, current }: { roles: Role[]; current:
           className="switcher-seg"
           aria-current={current === seg.id ? "true" : undefined}
         >
-          {seg.label}
+          {/* the label rides in its own span: below ~340px a 1fr bar cell is
+              narrower than the longest labels, and text-overflow never applies
+              to a grid container (the seg centers with display:grid) — the
+              bar's ellipsis rule in design-system.css lands on this span */}
+          <span className="switcher-label">{seg.label}</span>
         </Link>
       ))}
     </div>

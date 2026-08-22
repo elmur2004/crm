@@ -1,9 +1,11 @@
 import { expect, test, type Page } from "@playwright/test";
 
-/* §15 Global DoD sweep, V2 edition: no console errors; no horizontal overflow at
-   1440 / 1024 / 768 / 390 px on every major screen, per role. */
+/* §15 Global DoD sweep, V2 edition: no console errors; no horizontal overflow
+   on every major screen, per role. 601 is deliberate (ADR-060): the four-
+   segment header switcher overflowed by a measured +44px in the ~601–645px
+   band, exactly BETWEEN the old sampled widths — this sweep now stands on it. */
 
-const VIEWPORTS = [1440, 1024, 768, 560, 390];
+const VIEWPORTS = [1440, 1024, 768, 601, 560, 390];
 
 function collectErrors(page: Page, sink: string[]) {
   page.on("console", (msg) => {
@@ -180,6 +182,15 @@ test("mobile menu reaches EVERY admin section at 390px (incl. switcher + logout)
      on the switcher now, reachable from the sheet too. */
   await expect(sheetSwitcher.getByRole("link", { name: "ACCOUNTING" })).toBeVisible();
   await expect(sheetSwitcher.getByRole("link", { name: "VAULT" })).toBeVisible();
+  /* ADR-060: every switcher segment in the sheet is a real thumb target —
+     BOTH axes (the language toggle's EN segment is the narrow one) */
+  for (const box of await page
+    .getByRole("menu")
+    .locator(".switcher-seg")
+    .evaluateAll((els) => els.map((el) => el.getBoundingClientRect()))) {
+    expect(box.height).toBeGreaterThanOrEqual(44);
+    expect(box.width).toBeGreaterThanOrEqual(44);
+  }
   await page.getByRole("menu").getByRole("link", { name: "Statements", exact: true }).click();
   await page.waitForURL(/\/b-systems\/statements$/);
 });

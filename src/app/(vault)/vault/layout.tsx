@@ -74,6 +74,8 @@ export default async function VaultShellLayout({
           </form>
         </div>
       </header>
+      {/* ADR-060 — the phone's module bar (≤820px), directly under the header */}
+      <EntitySwitch variant="bar" roles={user.roles} current="vault" />
       {/* ADR-056: the full-width query container the board measures itself
           against. `50cqw` is the content width EXCLUDING the scrollbar —
           the quantity `50vw` cannot express — so the full-bleed board is

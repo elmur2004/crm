@@ -125,12 +125,13 @@
 }
 @media (max-width: 600px) {
   .app-header .user > form { display: none; } /* Log out lives in the sheet */
-  /* The switcher used to hold on down to 400px — but it is a rigid 307px strip
-     inside a `flex: none` cluster, so between ~400 and ~555px the header pushed
-     the whole PAGE sideways (measured +48px at a 480px viewport = 300% zoom on
-     a 1440 monitor; qa-sweep samples 560 and 390 and stepped straight over the
-     band). It rides down with Log out now — both live in the sheet, which is
-     already open at every width below 820px. */
+  /* ≤600px this rule now governs only the LANGUAGE toggle (the entity
+     switcher left the header at 820px — see the module-bar block below). The
+     history matters: the entity strip is rigid (~307px EN) inside a
+     `flex: none` cluster, and it USED to push the whole PAGE sideways between
+     ~400 and ~555px (measured +48px at 480px); after ADR-054 made it four
+     segments the overflow band moved UP to ~601–645px (measured +44px at
+     601px EN) — which is why hiding it only ≤600 was no longer enough. */
   .app-header .user > .switcher { display: none; }
 }
 .nav-item {
@@ -159,6 +160,72 @@
 .switcher-seg[aria-current] { background: var(--color-primary); color: var(--color-on-primary); }
 [data-brand="bsystems"] .app-header .switcher-seg { color: color-mix(in srgb, var(--color-on-primary) 70%, transparent); }
 [data-brand="bsystems"] .app-header .switcher-seg[aria-current] { background: var(--color-surface-card); color: var(--color-primary); }
+
+/* The burger sheet is a light card in EVERY brand, but it lives INSIDE the
+   header element — so the indigo-header overrides above used to bleed into it
+   and paint its switcher segments near-white on the white sheet (the same
+   trap .nav-sheet-extras .nav-item already fixes for Log out). Re-ground both
+   sheet switchers (entity + language) on the card, at ≥44px touch size. */
+.app-header .nav-sheet-extras .switcher {
+  background: var(--color-surface);
+  border-color: var(--color-border);
+}
+.app-header .nav-sheet-extras .switcher-seg {
+  color: var(--color-faint);
+  min-block-size: 44px;
+  /* both axes: the language toggle's EN segment is only ~35px of content —
+     a thumb target must be ≥44px WIDE too, not merely tall */
+  min-inline-size: 44px;
+  display: inline-grid;
+  place-items: center;
+}
+.app-header .nav-sheet-extras .switcher-seg[aria-current] {
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+}
+
+/* ADR-060 — the MODULE BAR: how switching works on a phone. The header pill
+   (.switcher-entity) is a rigid strip that overflowed every narrow band it was
+   ever allowed into (see the ≤600px comment above), so ≤820px it leaves the
+   header entirely and the shells render this full-width bar directly UNDER the
+   header instead: equal 1fr cells (they can NEVER overflow any viewport, at
+   any zoom, in either direction), ≥44px tall, one tap, with the current
+   module inverted on the primary. Single-entity users have no bar at all —
+   EntitySwitch returns null below two segments. Desktop is untouched. */
+.switcher--bar { display: none; }
+@media (max-width: 820px) {
+  .app-header .user > .switcher-entity { display: none; }
+  .switcher--bar {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: 1fr;
+    gap: 4px;
+    padding: 6px 12px;
+    border: none;
+    border-radius: 0;
+    border-block-end: 1px solid var(--color-border);
+    background: var(--color-surface-card);
+  }
+  .switcher--bar .switcher-seg {
+    min-block-size: 44px;
+    min-width: 0;
+    display: grid;
+    place-items: center;
+    padding-inline: 4px;
+    white-space: nowrap;
+    overflow: hidden;
+  }
+  /* below ~340px the longest labels (ACCOUNTING, BYTEFORCE, B-SYSTEMS —
+     measured clipping at 320px, clear at 390px) outgrow a 1fr cell; the cut
+     must be VISIBLE, never silent. text-overflow does not apply to a grid
+     container, so the ellipsis lives on the label span: overflow:hidden gives
+     the span a zero automatic minimum, letting it shrink to the cell. */
+  .switcher--bar .switcher-seg .switcher-label {
+    max-inline-size: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
 
 .user { display: flex; align-items: center; gap: 9px; padding-inline-start: 6px; margin-inline-start: auto; flex: none; }
 .user-avatar {
