@@ -51,6 +51,7 @@ model User {
   ownedLeads    Lead[]         @relation("LeadOwner")
   notifications Notification[]
   leadComments  LeadComment[]  @relation("CommentAuthor")
+  todoCompletions TodoDone[]   @relation("TodoCompleter") // ADR-062 — marks this user checked
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
 }
@@ -142,6 +143,7 @@ model FollowUp {
   prospect          PartnerProspect? @relation(fields: [partnerProspectId], references: [id], onDelete: Cascade)
   ownerSalesRep     SalesRep?        @relation(fields: [ownerSalesRepId], references: [id])
   ownerPortalRep    PortalRep?       @relation(fields: [ownerPortalRepId], references: [id])
+  todoDone          TodoDone? // ADR-062 — manual To-Do completion mark
   createdAt         DateTime         @default(now())
 }
 
@@ -160,6 +162,7 @@ model Meeting {
   outcomeDestination String?
   lead               Lead?            @relation(fields: [leadId], references: [id], onDelete: Cascade)
   prospect           PartnerProspect? @relation(fields: [partnerProspectId], references: [id], onDelete: Cascade)
+  todoDone           TodoDone? // ADR-062 — manual To-Do completion mark
   createdAt          DateTime         @default(now())
 }
 
@@ -328,6 +331,7 @@ model Milestone {
   completedAt     DateTime?
   wonDeal         WonDeal    @relation(fields: [wonDealId], references: [id], onDelete: Cascade)
   statement       Statement?
+  todoDone        TodoDone? // ADR-062 — manual To-Do completion mark
 
   @@unique([wonDealId, index])
 }
@@ -350,7 +354,41 @@ model Statement {
   paidAt         DateTime?
   milestone      Milestone    @relation(fields: [milestoneId], references: [id])
   proofs         Attachment[] // payment proof image (V2 §7)
+  todoDone       TodoDone? // ADR-062 — manual To-Do completion mark
   createdAt      DateTime     @default(now())
+}
+
+model TodoDone {
+  // Founder 2.2/2.3 (ADR-062) — the MANUAL half of To-Do completion. One row =
+  // "this task was checked done today". Keyed to the UNDERLYING dated record
+  // (never a lead, never a rendered string) so a NEW follow-up on the same lead
+  // is a new id and always arrives unchecked. Exactly ONE of the four FKs set
+  // (service invariant — the FollowUp dual-parent pattern); each is UNIQUE so a
+  // record carries at most one mark. All four cascade: a deleted record retires
+  // its mark silently. AUTO completion is never stored here — the projection
+  // derives it (ADR-041 philosophy).
+  id               String     @id @default(cuid())
+  followUpId       String?    @unique
+  meetingId        String?    @unique
+  statementId      String?    @unique
+  milestoneId      String?    @unique
+  /* the task's due instant AT CHECK TIME. The projection honours a mark only
+     while this equals the record's CURRENT due instant — so a meeting
+     rescheduled in place (same id, new datetime) resets to unchecked with zero
+     hooks in the reschedule path. */
+  dueAt            DateTime
+  completedById    String?
+  completedByLabel String // label survives account deletion (LeadComment.authorLabel convention)
+  completedAt      DateTime   @default(now())
+  followUp         FollowUp?  @relation(fields: [followUpId], references: [id], onDelete: Cascade)
+  meeting          Meeting?   @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  statement        Statement? @relation(fields: [statementId], references: [id], onDelete: Cascade)
+  milestone        Milestone? @relation(fields: [milestoneId], references: [id], onDelete: Cascade)
+  completedBy      User?      @relation("TodoCompleter", fields: [completedById], references: [id], onDelete: SetNull)
+
+  /* a mark is valid for the Cairo day it was made (money must reappear
+     tomorrow) — the projection filters on this window */
+  @@index([completedAt])
 }
 
 model Notification {

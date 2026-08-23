@@ -41,12 +41,19 @@ export async function requireUser(): Promise<CurrentUser> {
   };
 }
 
-export async function requireRole(...roles: Role[]): Promise<CurrentUser> {
-  const user = await requireUser();
+/** The role check on an ALREADY-authenticated caller. Split out so a route
+    that must authenticate BEFORE it touches the database on untrusted input
+    (see requireLeadAccess's `known`) can still run the house role check
+    without a second session round-trip. */
+export function assertRole(user: CurrentUser, ...roles: Role[]): CurrentUser {
   if (!user.roles.some((r) => roles.includes(r))) {
     throw new ApiError(403, "You do not have access to this area");
   }
   return user;
+}
+
+export async function requireRole(...roles: Role[]): Promise<CurrentUser> {
+  return assertRole(await requireUser(), ...roles);
 }
 
 /** Brand-partitioned API namespaces derive the brand from the ROUTE, never input.
@@ -83,12 +90,20 @@ export { isDataEntry } from "./roles";
 
 /** V2 lead access: admin → any B-Systems lead; sales → internal-bucket leads;
     agent/partner → ONLY their own (ownerUserId). ByteForce: staff only. */
-export async function requireLeadAccess(leadId: string): Promise<{
+export async function requireLeadAccess(
+  leadId: string,
+  /* Review hardening: an already-authenticated caller. A route that must
+     resolve the record from untrusted input (the To-Do done routes look a
+     FollowUp/Meeting id up to find its lead) authenticates FIRST and passes
+     the user in — so an anonymous POST is refused before any database work
+     and can never tell a real record id from a made-up one. */
+  known?: CurrentUser,
+): Promise<{
   user: CurrentUser;
   isAdmin: boolean;
   role: Role;
 }> {
-  const user = await requireUser();
+  const user = known ?? (await requireUser());
   const lead = await db.lead.findUnique({
     where: { id: leadId },
     select: { brand: true, ownerType: true, ownerUserId: true },

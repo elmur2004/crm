@@ -57,6 +57,19 @@ describe("Full backup round-trip", () => {
         mentions: JSON.stringify([{ userId: user.id, name: "Elmur" }]),
       },
     });
+    /* ADR-062 — a manual To-Do completion mark rides the backup too (keyed to
+       the won deal's milestone; ids preserved keeps the FK intact) */
+    const milestone = await db.milestone.findFirstOrThrow({
+      where: { wonDeal: { leadId: lead.id } },
+    });
+    await db.todoDone.create({
+      data: {
+        milestoneId: milestone.id,
+        dueAt: new Date("2026-08-20T06:00:00Z"),
+        completedById: user.id,
+        completedByLabel: "Elmur",
+      },
+    });
     const fileKey = "backupintegrationtest1.png";
     await storage.put(fileKey, Buffer.from("png-bytes-here"));
     await db.attachment.create({
@@ -82,6 +95,7 @@ describe("Full backup round-trip", () => {
     expect(counts["user"]).toBe(1);
     expect(counts["lead"]).toBe(1);
     expect(counts["milestone"]).toBe(1);
+    expect(counts["todoDone"]).toBe(1);
 
     const restoredUser = await db.user.findUniqueOrThrow({
       where: { email: "admin@byteforce.com" },
@@ -99,6 +113,14 @@ describe("Full backup round-trip", () => {
     expect(restoredLead.wonDeal!.estimatedValue).toBe(100_000_00);
     expect(restoredLead.wonDeal!.milestones[0]!.commissionValue).toBe(10_000_00);
     expect(restoredLead.createdAt).toBeInstanceOf(Date); // dates round-trip
+
+    /* the completion mark survives with its FK and completer intact (ADR-062) */
+    const restoredMark = await db.todoDone.findUniqueOrThrow({
+      where: { milestoneId: milestone.id },
+    });
+    expect(restoredMark.completedById).toBe(user.id);
+    expect(restoredMark.completedByLabel).toBe("Elmur");
+    expect(restoredMark.dueAt.getTime()).toBe(new Date("2026-08-20T06:00:00Z").getTime());
 
     expect(await db.notification.count()).toBe(1);
     const restoredComment = await db.leadComment.findFirstOrThrow();
@@ -334,5 +356,9 @@ describe("Restoring a pre-rename backup cannot strand a prospect card", () => {
     });
     expect(await pendingUndoFor("admin-1")).toBeNull();
     expect((await pendingUndoFor("admin-2"))?.id).toBe("undo-bystander");
+
+    /* ADR-062 — this payload predates the TodoDone table (no `todoDone` key):
+       it restores cleanly with zero marks, per the `?? []` missing-table rule */
+    expect(await db.todoDone.count()).toBe(0);
   });
 });

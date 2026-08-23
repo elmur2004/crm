@@ -33,6 +33,10 @@ const MODELS = [
   "wonDeal",
   "milestone",
   "statement",
+  /* ADR-062 — AFTER all five parents (user, lead→followUp/meeting, milestone,
+     statement): the manual To-Do completion marks; deletes run reversed so it
+     clears first */
+  "todoDone",
   "negotiationNote",
   "notification",
   "leadComment",

@@ -24,6 +24,7 @@ export async function resetDb(): Promise<void> {
   await db.vaultDocument.deleteMany();
   await db.vaultForm.deleteMany();
   await db.vaultEmployee.deleteMany();
+  await db.todoDone.deleteMany(); // references FollowUp/Meeting/Statement/Milestone — before all four
   await db.statement.deleteMany(); // references Milestone (restrict)
   await db.milestone.deleteMany();
   await db.wonDeal.deleteMany();
