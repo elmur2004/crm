@@ -853,3 +853,35 @@
   Money is the exception on purpose: a statement or milestone expected
   yesterday still sits under Today until it is settled, so a payment can
   never quietly disappear.
+
+## The To-Do gets a checkbox, and finished tasks stop disappearing (2026-08-23)
+- **Check a task off.** Every row on the To-Do — follow-ups, meetings, and
+  for the admin the statements and milestones — now has a checkbox at the
+  start. Tick it and the task drops out of the day's list into a "Done"
+  section underneath, crossed out, with your name on it: "Done · Elmur".
+  Ticked by mistake? Untick it in Done and it comes straight back.
+- **The CRM completes tasks by itself, visibly.** Exactly as you described:
+  if an agent has a Follow Up task and the lead moves on to Meeting Setting,
+  the system understands the follow-up happened. Before, that task just
+  silently vanished; now it moves to Done and says WHY — "Moved to Meeting
+  Setting", "Superseded by a newer step", "Meeting attended", "Paid",
+  "Milestone completed". Those rows can't be unticked from the To-Do —
+  undoing them means undoing the CRM move itself, which stays where it
+  belongs, on the board.
+- **A new follow-up is a new task.** Recording another follow-up on the same
+  lead never inherits an old tick — it always arrives unchecked. Same for a
+  rescheduled meeting: new time, fresh unchecked task.
+- **Money still never vanishes.** Ticking a pending statement or milestone
+  clears it off TODAY's list only. If it is still unpaid tomorrow, it is
+  back on the list unchecked — the only way to silence it for good is to
+  actually mark it paid or complete the milestone. The Done section says
+  "Completed today" on it, so nothing about that is a surprise the next
+  morning.
+- **A delayed meeting is not a finished one.** Push a meeting to another
+  day and it simply leaves today's list and turns up again on its new date —
+  it does not land in Done. Delay it to later the same day and it stays
+  where it is, still waiting to be ticked.
+- Everyone gets the checkbox on their own tasks — admin, internal sales,
+  agents, partners, and the ByteForce side — and nobody can tick a task on
+  a lead they cannot see (that is enforced on the server, like everything
+  else). Works in Arabic, right-to-left, same as the rest.

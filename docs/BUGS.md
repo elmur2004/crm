@@ -202,3 +202,34 @@ the moment a failure is found; close them with a reference to the fixing commit/
   preserved: an undeclared token leaves `rgba(0, 0, 0, 0)`, which is not an
   `rgb()`, so the missing-token case still fails — as a timeout rather than a
   mismatch. ADR-058, Entry 052.)
+
+## BUG-013 — 2026-08-23 — undoing a DELAYED meeting reschedule leaves `outcome: "delayed"` on the meeting
+- Severity: minor (pre-existing, found while adjudicating the ADR-062 review —
+  not introduced by it; no data loss, and the meeting's date is restored
+  correctly)
+- Where: `src/lib/services/leads.ts` `applyLeadEvent` + `src/lib/services/undo.ts`
+  `restoreUpdated`. A T-7 (`meeting_outcome: delayed`) event pushes **two**
+  `UpdatedRef`s for the SAME meeting row: the `meeting_outcome` pre-write
+  captures the state before it (`outcome: null`), then `persistGroup`'s
+  `meeting_reschedule` handler captures the state it finds (`outcome:
+  "delayed"`, the value the pre-write just set) before nulling it. `restoreUpdated`
+  replays the refs in FORWARD order, so the second one wins and the undone
+  meeting ends up with `outcome: "delayed"` and its original datetime — a state
+  the forward path can never produce (T-7 always nulls the outcome in the same
+  transaction).
+- Repro (verified on the embedded test Postgres): move a lead to Meeting
+  Setting with a meeting; apply `{ type: "meeting_outcome", outcome: "delayed" }`
+  with a `meeting_reschedule` group; then `performUndo`. Observed:
+  `afterReschedule = { outcome: null, datetime: 2026-09-09T13:30Z }`,
+  `afterUndo = { outcome: "delayed", datetime: 2026-09-02T11:00Z }` — expected
+  `outcome: null`.
+- Consequence for ADR-062: this is the one state in which the To-Do's
+  `doneMeetingDelayed` label renders (a meeting dated today carrying
+  `outcome: "delayed"` is not live, so the Done section labels it "Meeting
+  delayed"). The branch is therefore kept, not dead code — see the note in
+  `TodoBody.tsx`. On the normal path a delayed meeting is a MOVED task, not a
+  completed one (SPEC §5.8).
+- Status: **open** — out of scope for the ADR-062 commits (it lives in the undo
+  snapshot's ref ordering, not in the To-Do). Fix shape: de-duplicate
+  `UpdatedRef`s per (model, id) keeping the FIRST capture, or replay
+  `restoreUpdated` in reverse.

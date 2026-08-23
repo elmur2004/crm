@@ -3113,3 +3113,127 @@ ADR" below.
   service must not emit rows no page may show).
 - Resolves: —
 - Status: Accepted
+
+## ADR-062 — 2026-08-23 — To-Do completion: a projection plus one small table, keyed to the record, day-scoped
+- Context: founder items 2.2/2.3 — "The To-Do List should be properly
+  connected to CRM activity... The task can be completed in two ways:
+  1. Automatically through CRM movement... 2. Manually: by marking the task
+  as completed", with his example (a Follow Up completing when the lead
+  reaches Meeting Setting) and "Add a checkbox next to every task... Completed
+  tasks should be visually distinguished and removed from the active task
+  list... move to a completed/done tasks section." The To-Do was already a
+  pure projection (ADR-041) reshaped to Today-only (ADR-061): the AUTO half
+  mostly happened — a resolved task simply left the list — but it vanished
+  without a trace, and no manual completion existed at all.
+- Decision:
+  - **Auto stays derived; only MANUAL becomes state.** One new table,
+    `TodoDone`: four nullable UNIQUE cascade FKs (followUpId / meetingId /
+    statementId / milestoneId — the FollowUp dual-parent house pattern;
+    exactly one set, service invariant), `dueAt` snapshot, `completedById`
+    (SetNull) + `completedByLabel` (the label-survives-deletion convention),
+    `completedAt`. A bare polymorphic (kind, recordId) pair was ruled out by
+    the schema's own cascade-planning law — a column with no relation is
+    invisible to cascade planning. All four FKs cascade, so `deleteLead`'s
+    hand-deleted statements/milestones and the Lead→FollowUp/Meeting cascades
+    retire marks at the database, with no service code knowing.
+  - **The identity IS the record id.** The founder's complaint dissolves by
+    construction: follow-ups are append-only, so a new follow-up on the same
+    lead is a new row, a new id, and an unchecked checkbox — nothing is keyed
+    to the lead or to a rendered string. The ONE record edited in place
+    (Meeting on reschedule) is covered by the `dueAt` snapshot rule: the
+    projection honours a mark only while the snapshot equals the record's
+    current due instant, so a rescheduled meeting resets to unchecked with
+    zero hooks in the reschedule path.
+  - **A manual mark is valid for the Cairo day it was made.** The projection
+    counts marks with `completedAt` in today's window only. For lead kinds
+    this is free (yesterday's task is off the list anyway — ADR-061); for the
+    MONEY kinds it is load-bearing: a checked-but-still-pending statement or
+    milestone returns to Today unchecked tomorrow, preserving ADR-061's
+    money-never-vanishes asymmetry. Checking again on a later day refreshes
+    the stamp (upsert), so the hide is always a same-day decision.
+  - **The Done section derives, today only.** Below Today, rendered only when
+    nonempty (the ADR-041 Overdue precedent): the manual marks plus every
+    record that carries TODAY's date but is no longer live — labelled with
+    what completed it (moved to {stage} / superseded / meeting outcome /
+    paid / milestone completed; money auto-dones window on paidAt/completedAt
+    today so yesterday's payment does not resurface). AUTO WINS over a stale
+    manual mark: the CRM reason is the truer one, and an auto row must not
+    offer a restore that cannot restore. Manual rows uncheck back to Today
+    (delete the mark); auto rows render the checkbox disabled — reversing the
+    CRM is a CRM action, not a To-Do action.
+  - **Walls re-derived from the RECORD, never trusted from input.** Two thin
+    routes over one service (`/api/b-systems/todo/done`,
+    `/api/byteforce/todo/done` — brand from the ROUTE): lead kinds resolve
+    the record's leadId (a prospect-parented record 404s outright — ADR-061)
+    and pass `requireLeadAccess`; the money kinds are `requireBsAdmin` and
+    exist only on the B-Systems route. The service additionally refuses any
+    record that is not a live task in today's window (wrong stage,
+    superseded, archived, resolved, wrong brand), so `TodoDone` rows stay
+    meaningful.
+  - **Uncheck is the reversal — no UndoEntry.** The checkbox is its own
+    two-way switch (the comments.ts precedent for a lightweight
+    self-reversing action outside the undo system); money moves keep their
+    existing invalidation semantics untouched because manual completion never
+    mutates the underlying record. No ActivityLog either: a To-Do mark is a
+    personal day-list gesture, not a CRM event — the completer's name lives
+    on the mark itself.
+  - **UI**: a native checkbox FIRST in each row (clear of the ADR-055 admin
+    action cluster at the row end; RTL-correct by flex order), in a new
+    string-free shared client component on the MilestoneCheckbox pattern;
+    done rows are struck through + muted with a small reason label. Zero new
+    tokens (the three-scope law is untouched); new i18n keys appended with
+    real Arabic, every existing EN string byte-identical.
+- Alternatives considered: materialising auto-completions as rows (rejected:
+  double bookkeeping against ADR-041's projection philosophy — the CRM already
+  knows); keying the mark to the lead or the rendered row (rejected: the
+  founder's exact complaint — completion must be per-task); a (kind, recordId)
+  string pair without relations (rejected: invisible to cascade planning,
+  ADR-049); resetting rescheduled meetings via hooks in the reschedule path
+  (rejected: the dueAt snapshot does it declaratively in one place);
+  permanent manual marks on money tasks (rejected: overrides the deliberate
+  money-never-vanishes rule for ever); making manual completion undoable via
+  UndoEntry (rejected: the uncheck IS the undo, and consuming undo rows for a
+  checkbox gesture would retire real pending reverts).
+- Review hardening (folded in before shipping, same ADR — the shape did not
+  change, four edges did):
+  - **Auth before the lookup.** These are the one route shape that must read a
+    record to find the lead it hangs off, so `leadIdOfTodoRecord` was running
+    *before* the first guard — an anonymous POST got 404 for a made-up id and
+    401 for a real one, a record-existence oracle with no session. Both routes
+    now call `requireUser()` first and hand the caller down: `requireLeadAccess`
+    takes an optional already-authenticated user, and `assertRole` (the role
+    check split out of `requireRole`) does the money kinds' admin gate without
+    a second session round-trip. Anonymous is 401 either way, with a
+    byte-identical message.
+  - **A DELAYED meeting is a MOVED task, not a completed one** (SPEC §5.8 now
+    says so). T-7 nulls the outcome in the same transaction as the new
+    datetime, so the row simply leaves today's window and returns to Today on
+    its new date; delayed to later the SAME day it never leaves. The
+    `doneMeetingDelayed` label is kept anyway, because the state is reachable
+    on the undo path (BUG-013) and falling through to "Meeting attended" would
+    be a lie.
+  - **The Done section states its day scope on the page** (`doneScope` —
+    "Completed today"), not only in this ADR: the founder is the one person
+    guaranteed to tick a statement and meet it again tomorrow.
+  - **The checkbox survives a dead network.** A rejected `fetch` (offline,
+    server restart mid-request) is not a non-ok response; it was escaping the
+    handler and leaving `busy` true, so the row's control died until a reload.
+    try/catch/finally: the message shows, the control re-enables, the click
+    can be repeated.
+  - **§13's wall clause is now backed by tests.** `todo-done-routes.integration.test.ts`
+    drives the REAL route handlers against the real Postgres with only the
+    session stubbed (`vi.mock` on `@/lib/auth/index`) — sales/agent/partner/
+    byteforce_staff/admin scope, uncheck under the same wall, brand both
+    directions, the money kinds' admin gate, the ADR-061 prospect 404, a
+    deactivated account, and the anonymous 401.
+- Interpretations flagged — Needs founder confirmation (PROGRESS Entry 057):
+  (a) a follow-up DUE today whose lead moved stage on an EARLIER day still
+  lists under today's Done (windowing is on the task's due date; deriving
+  "when the move happened" would need history scans) — it reads as honest, but
+  it is an interpretation, not his sentence; (b) a manual tick on a money task
+  hides it for TODAY only; (c) a meeting delayed to another day leaves Today
+  with no Done row (above) — the alternative, giving it a "Meeting delayed"
+  Done row, would need the pre-reschedule instant snapshotted, i.e. a schema
+  column, so it is deferred until he says he wants it.
+- Resolves: —
+- Status: Accepted

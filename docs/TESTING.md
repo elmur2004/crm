@@ -2373,3 +2373,143 @@ every dashboard formula, journeys 1-5 (SPEC §13).
   boards (§6.3 / V2 §2.3), all journeys, To-Do, accounting, portal — the
   ship gate for the three ADR-061 commits.
 - Verdict: **PASS** — shipped to origin/main.
+
+## Run 068 — 2026-08-23 — ADR-062 commit 1: the TodoDone table, service and walls
+- Suites/commands:
+  - Migration proof on a THROWAWAY embedded Postgres (fresh data dir, port
+    5700-range): `prisma migrate dev --name todo_done` generated
+    `20260823071649_todo_done` on top of the 13-migration head; then on a
+    SECOND fresh throwaway `prisma migrate deploy` applied all 14 from
+    scratch and a repeat run reported "No pending migrations to apply"
+    (idempotent boot).
+  - `npx tsc --noEmit` — clean.
+  - `npx vitest run` on todo-done.integration.test.ts +
+    backup.integration.test.ts + todo.integration.test.ts — 3 files,
+    27 passed / 0 failed / 0 skipped.
+- Cases: 27 passed / 0 failed / 0 skipped. Covers: check/uncheck round-trip
+  with completer identity + idempotence; the IDENTITY rule (new follow-up =
+  new id arrives uncheckable-clean, old id refused); the dueAt snapshot
+  refresh on a rescheduled meeting; liveness walls (moved stage, archived,
+  not-today, overdue, unarranged/resolved/superseded meeting); brand from the
+  route (cross-brand 404 both directions); ADR-061 prospect-parented records
+  404 in leadIdOfTodoRecord; money kinds (pending-expected-yesterday
+  checkable, paid refused, completed/undated refused, byteforce refused);
+  Postgres-level cascades through deleteLead (FollowUp cascade AND the
+  hand-deleted milestone path); backup round-trip with a TodoDone row (ids +
+  FKs + completer survive) and a pre-TodoDone payload restoring cleanly with
+  zero marks.
+- Failures: none.
+- SPEC coverage touched: §5.8 (new — manual completion walls + identity), §3
+  server-side permissions, backup/restore invariants (ADR-053 sync triangle).
+- Verdict: **PASS** — commit fc7d5d5.
+
+## Run 069 — 2026-08-23 — ADR-062 commit 2: the projection's Done section + UI round
+- Suites/commands:
+  - `npx tsc --noEmit` — clean.
+  - `npx vitest run` on todo.integration.test.ts + todo-done.integration.test.ts
+    — 2 files, 32 passed / 0 failed / 0 skipped (the 8 new ADR-062 projection
+    cases on top of the ADR-041/061 set, which is untouched and green).
+  - `npx playwright test e2e/todo-done.spec.ts e2e/todo.spec.ts
+    e2e/todo-assign.spec.ts e2e/i18n.spec.ts` (build + `next start` on 3100 —
+    the port was free; no config copy needed) — 7 passed / 0 failed in 3.0m.
+    `test-results/.last-run.json`: status "passed", failedTests [].
+- Cases: 32 unit/integration + 7 e2e passed / 0 failed. New projection cases:
+  manual check leaves Today for Done with the completer's name and unchecks
+  back; day-scoped marks (yesterday's mark neither hides nor lists);
+  dueAt-snapshot reset on an in-place reschedule; the founder's own example
+  via the REAL event service (auto "moved" beats a prior manual check, not
+  restorable); supersession (new task arrives unchecked); meeting outcome
+  read over the stage it left for; money (checked statement hides TODAY only
+  and is back unchecked tomorrow; paid/completed land as auto-dones;
+  uncheckMilestone returns the task); done-list scoping per role. E2E: the
+  accessible checkbox (aria "Mark done: …"), Done — N heading, line-through
+  + "Done · Elmur", uncheck restore, the board's drag event minting the
+  disabled "Moved to Meeting Setting" auto-done row while the new meeting
+  task arrives unchecked; the agent checking HIS row and 403ing on an
+  admin-bucket record id and on the money kinds; todo-assign + todo + i18n
+  re-run untouched-green (existing EN strings byte-identical).
+- Brand audit (checklist, by hand, over the changed UI): **PASS** — the
+  checkbox is the native input every other screen uses, zero new CSS and
+  zero new tokens (three-scope law untouched); done rows use existing
+  utilities (`text-brand-muted`, `line-through`); no physical left/right
+  properties (flex order keeps RTL); real Arabic on all 13 new keys.
+- Failures: none.
+- SPEC coverage touched: §5.8 (manual + automatic completion, Done section,
+  restore asymmetry, money day-scope), §13's new To-Do completion clause,
+  ADR-055 row actions regression, i18n byte-identity.
+- Verdict: **PASS** — commit 72a6965. (The FULL vitest + Playwright sweep is
+  the phase gate's job, per the working agreement.)
+
+## Run 070 — 2026-08-23 — ADR-062 SHIP GATE: review adjudication + full suite + migration re-proof
+- Scope: the three ADR-062 commits (fc7d5d5 / 72a6965 / 4db72df) after the
+  review round was folded into them — the guard-first fix on both done
+  routes, the checkbox's dead-network path, the Done section's day-scope
+  label, the delayed-meeting clarification, and the route-level scope-wall
+  tests that SPEC §13's clause was asserting without cover.
+- Suites/commands:
+  - `npx tsc --noEmit` — **clean** (0 errors), run twice: after the code
+    fixes and again on the final tree.
+  - `npx vitest run` (FULL) — **31 files, 408 passed / 0 failed / 0 skipped**
+    in 59.6s. (+8 over Run 069's set: the new
+    `src/lib/services/todo-done-routes.integration.test.ts`.)
+  - `npx playwright test` (FULL suite). Port 3100 was held by another
+    workstream, so the config was COPIED to `playwright.config.port3117.ts`
+    (baseURL + `next start -p 3117`), run, and the copy deleted — the other
+    process was never touched. **85 passed + 2 skipped (the pre-existing
+    opt-in skips) / 0 failed** in 13.0m; exit code 0.
+    `test-results/.last-run.json`: `{"status":"passed","failedTests":[]}`.
+  - MIGRATION RE-PROOF on a THROWAWAY embedded Postgres (fresh data dir,
+    port 6474, deleted after — never the dev or test cluster):
+    `prisma migrate deploy` from scratch applied **14/14** migrations ending
+    at `20260823071649_todo_done`; a SECOND `deploy` reported **"No pending
+    migrations to apply"**; `prisma migrate status` → **"Database schema is
+    up to date!"**. `_prisma_migrations`: **14 rows, none rolled back**.
+    `public` base tables: **40**.
+- Migration structure verified in the database itself (not from the schema
+  file): `TodoDone` has 9 columns (`id`, `followUpId`, `meetingId`,
+  `statementId`, `milestoneId` nullable; `dueAt` NOT NULL; `completedById`
+  nullable; `completedByLabel` NOT NULL; `completedAt` NOT NULL); 6 indexes
+  (pkey + FOUR unique — one per FK — + `TodoDone_completedAt_idx`); 5 foreign
+  keys — FollowUp / Meeting / Statement / Milestone all `ON DELETE CASCADE`,
+  `completedById → User` `ON DELETE SET NULL`.
+- Row counts on the freshly migrated database: TodoDone 0, Lead 0, FollowUp
+  0, Meeting 0, Statement 0, Milestone 0, User 0. Live check on that same
+  throwaway: inserting one mark → TodoDone **1**; a SECOND mark on the same
+  `followUpId` → **23505 unique_violation**; deleting the parent Lead →
+  TodoDone **0** (the FollowUp cascade carries the mark out).
+- Cases (the review round's additions): 8 new route-level integration cases —
+  an anonymous POST answering **401 for a real record id and for a made-up
+  one alike, with a byte-identical message** (the pre-fix code answered 404
+  vs 401: this case is red on the old routes); `bsystems_sales` completing an
+  internal-bucket task and 403 on an agent-owned one; agent and partner each
+  reaching only their own record, with the wall holding for the UNCHECK too
+  (the other man's mark survives); the money kinds refusing sales and agent
+  and admitting the admin; the ByteForce route refusing the money kinds
+  outright (400); brand both directions (byteforce_staff walled off a
+  B-Systems record, the B-Systems admin off a ByteForce one); the ADR-061
+  prospect-parented 404; a deactivated account refused on its OWN record;
+  and the liveness wall still refusing the admin a not-today task. One new
+  e2e case: a meeting delayed to ANOTHER day leaves Today with no Done row,
+  while one delayed to later TODAY stays, unchecked (SPEC §5.8).
+- Brand audit (checklist, by hand, over the changed UI — TodoBody,
+  TodoCheckbox, the todo dict): **PASS**. Diff scanned for hex/rgb/hsl
+  literals, `font-family`, and physical `left`/`right`/`ml-`/`mr-`/`pl-`/
+  `pr-` properties: **zero hits**. The one new element is a
+  `text-xs text-brand-muted` span inside the existing `.card-head`, which is
+  `display:flex; justify-content:space-between` — so it mirrors in RTL by
+  order, with no physical property. Zero new tokens (the three-scope law
+  untouched); `--color-muted` and `--color-danger` confirmed present in all
+  three scopes (branding/byteforce, branding/b-systems, src/themes/neutral).
+  i18n: exactly ONE new key (`doneScope` — "Completed today" / "أُنجزت
+  اليوم") with real Arabic; the dict diff is purely additive, every existing
+  EN string byte-identical.
+- Failures: none. Found and FILED, not fixed: **BUG-013** — undoing a T-7
+  delayed reschedule leaves `outcome: "delayed"` on the meeting (pre-existing,
+  in the undo snapshot's ref ordering; reproduced on the embedded test
+  Postgres). It is why the To-Do keeps its `doneMeetingDelayed` label rather
+  than deleting it as dead code.
+- SPEC coverage touched: §5.8 (all clauses, plus the new delayed-meeting
+  sentence), §13's To-Do completion clause — now actually backed by
+  integration tests at the wall, which was the gap this round closed — §3
+  server-side permissions, ADR-017 fresh-authorization re-read.
+- Verdict: **PASS** — shipped to origin/main.

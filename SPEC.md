@@ -178,6 +178,15 @@ Certain field events move the card without the user picking a Next Action, e.g. 
 ### 5.7 Terminology normalization
 The founder's original wording is preserved in meaning but normalized in the UI (full glossary in §16): "salesman" → sales rep, "propasel" → proposal, "tap" → tab/detail panel, "signing in (first time)" → sign up, "fate joined" → date joined.
 
+### 5.8 The To-Do page (both apps) — founder additions 2026-08-23 (ADR-041/055/061/062)
+- The To-Do is a projection of **TODAY** (Cairo calendar day) over the records that already carry dates: lead follow-ups and arranged meetings that are their lead's latest record in the matching stage, plus — B-Systems admin only — pending statements and open milestones expected on or before today. No task rows exist as separate state; archived leads and the partners funnel project nothing (ADR-043, ADR-061).
+- **Every task row carries a checkbox.** A task completes in exactly two ways: **manually**, by checking the box (a completion mark keyed to the underlying record, written by whoever may see the task, enforced server-side with the projection's own scope wall), or **automatically**, when the CRM resolves it — the lead leaves the matching stage, a newer record supersedes it, the meeting receives an outcome, the statement is paid, the milestone is completed.
+- A meeting **delayed to another day** is a *moved* task, not a completed one: it leaves today's list and comes back to Today on its new date, without a Done row (delayed to later the same day, it simply stays in Today, unchecked). Of the three outcomes only `Attended` and `Cancelled` complete a meeting task.
+- Completed tasks leave the active list and appear in a **Done** section below Today (today only, rendered only when nonempty), visually distinguished and labelled with what completed them.
+- A **manual** completion can be unchecked back to Today; an **automatic** completion cannot — reversing it is a CRM action. Manual completion never mutates the underlying CRM or money record.
+- A new follow-up (or meeting) on the same lead is a **new task** and always arrives unchecked; a meeting rescheduled in place is likewise a fresh task (the mark snapshots the due instant and stops matching).
+- A manual mark is valid for the Cairo day it was made: a statement or milestone still pending the next day returns to Today unchecked — money never silently vanishes (the ADR-061 asymmetry).
+
 ---
 
 ## 6. App A — ByteForce CRM (full specification)
@@ -631,7 +640,7 @@ Rules:
 
 **Unit tests** — the pipeline engine transition function (every row of §10 — §10.2a's PA rows included — as a case, including illegal moves), and every dashboard formula in §6.5 / §8.5 against fixture data with known expected numbers.
 
-**Integration tests** — automatic side effects: T-5 proposal-sent auto-move; T-6 attended-destination flow; T-9 client auto-creation; PP-2 auto-return on new number; PP-4 partner conversion; PP-6 agent qualification (a pure move — nothing minted) and PP-4a's separate account action (minted and immediately assignable); PP-3 Lead → Contacted committing with no field group at all, and Waiting in and out of every active stage; PP-8 the To-Do carrying a Contacted card ONLY when a follow-up was actually recorded; PP-5 partner-lead attribution into the CRM; P-2 server-side rejection of a rep setting Won (API level, not just UI); P-6 WonDeal auto-creation; P-7/P-8 milestone generation, locking, and unlock; upload validation (type/size) for CVs and recordings.
+**Integration tests** — automatic side effects: T-5 proposal-sent auto-move; T-6 attended-destination flow; T-9 client auto-creation; PP-2 auto-return on new number; PP-4 partner conversion; PP-6 agent qualification (a pure move — nothing minted) and PP-4a's separate account action (minted and immediately assignable); PP-3 Lead → Contacted committing with no field group at all, and Waiting in and out of every active stage; PP-8 the To-Do carrying a Contacted card ONLY when a follow-up was actually recorded; PP-5 partner-lead attribution into the CRM; P-2 server-side rejection of a rep setting Won (API level, not just UI); P-6 WonDeal auto-creation; P-7/P-8 milestone generation, locking, and unlock; upload validation (type/size) for CVs and recordings; §5.8 To-Do completion — manual check/uncheck under every role's scope wall (a caller can never complete a task on a record he cannot see), automatic completion by stage move / supersession / meeting outcome / statement paid / milestone completed, the new-record-arrives-unchecked identity rule, and the day-scoped validity of a manual mark on a money task.
 
 **E2E journeys (Playwright)** — each must pass before its phase closes and every run is logged in `TESTING.md`:
 1. ByteForce full cycle: add rep → add lead → Following Up → Meeting (attended → proposal) → Sent ✓ → auto Following Up (after proposal) → Won → Client card exists → dashboard numbers correct.

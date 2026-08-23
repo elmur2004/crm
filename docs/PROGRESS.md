@@ -2850,3 +2850,72 @@ comment, and the ADR-013 mechanism note all fixed; .env.example confirmed tracke
   (5) old-app exports are one-way once the new ids are in use: identical
   totals there, but raw-id labels and no departments-report line for
   bsystems-tagged rows.
+
+## Entry 057 — 2026-08-23 — Founder 2.2/2.3: the To-Do learns to be checked off
+- Done:
+  - Founder items 2.2 (link CRM stages with To-Do tasks) and 2.3 (manual
+    task completion), on top of the Today-only shape ADR-061 just shipped.
+    Three commits, local only (not pushed):
+  - (1) `fc7d5d5` — the STATE: `TodoDone` (one row per manually-checked
+    task, keyed to the UNDERLYING record via four unique cascade FKs, dueAt
+    snapshot, completer id + label), a real migration
+    `20260823071649_todo_done` proved on a throwaway Postgres (from-scratch
+    deploy + idempotent re-deploy), the `setTodoDone` service (liveness
+    walls: only a live task in today's Cairo window is checkable; uncheck
+    deletes — the checkbox is its own undo), two brand-partitioned routes
+    re-deriving access from the record (`requireLeadAccess` / admin-only
+    money kinds; prospect-parented records 404 per ADR-061), backup MODELS +
+    db-reset registration, 17 new integration cases.
+  - (2) `72a6965` — the PROJECTION + UI: `todoFor` items carry `recordId`;
+    manual marks subtract from Today (valid for the Cairo day they were
+    made — a checked-but-pending statement/milestone RETURNS tomorrow,
+    money never vanishes); a derived Done section (moved / superseded /
+    meeting outcome / paid / milestone completed; auto beats manual and is
+    not restorable; manual unchecks back to Today); the checkbox first in
+    every row for every role in both apps (native input, string-free client
+    component, pre-translated aria); 13 new i18n keys with real Arabic,
+    existing EN byte-identical; e2e todo-done.spec (check, uncheck,
+    auto-done via the board's drag event, agent role + 403 walls).
+  - (3) docs: ADR-062, SPEC §5.8 + §13 clause, CHANGELOG in the founder's
+    voice, IMPLEMENTATION note on the identity trap, TESTING Runs 068–070
+    (070 is the ship gate: tsc clean, 408 vitest, 85 e2e + 2 skips with
+    `.last-run.json` "passed", the migration re-proved 14/14 from scratch and
+    idempotent on a throwaway Postgres, brand audit PASS).
+  - Review round folded into the same three commits (no new ADR — the shape
+    held, four edges did not): **auth before the record lookup** on both done
+    routes (an anonymous POST was getting 404 vs 401 and could tell a real
+    record id from a made-up one — `requireUser` now runs first, with
+    `requireLeadAccess(leadId, user)` and a new `assertRole` so the money
+    branch keeps one session round-trip); **the checkbox survives a dead
+    network** (a rejected fetch was leaving the row's control disabled with no
+    message — try/catch/finally); **the Done section says "Completed today"**
+    on the page instead of only in the ADR; **a delayed meeting is documented
+    as a MOVED task, not a completed one** (SPEC §5.8); and **§13's scope-wall
+    clause is now backed by real tests** — a new
+    `todo-done-routes.integration.test.ts` drives the actual route handlers
+    with only the session stubbed. Found on the way and filed, not fixed:
+    BUG-013 (undoing a T-7 delayed reschedule leaves `outcome: "delayed"` —
+    pre-existing, lives in the undo snapshot's ref ordering).
+- In progress: nothing — tree clean, three commits, pushed after the gate.
+- Next steps: founder to review the confirmation items; BUG-013 when the undo
+  system is next opened.
+- Blockers: none.
+- Needs founder confirmation: (1) NEW — a follow-up DUE TODAY whose lead
+  moved stage on an EARLIER day lists under today's Done as "Moved to
+  {stage}" (the Done window keys on the task's due date; the alternative —
+  filtering by when the move happened — needs history scans). Confirm this
+  reading. (2) NEW — meaning of the checkbox on MONEY rows: checking a
+  statement/milestone hides it for TODAY ONLY and it returns tomorrow while
+  still pending (deliberate — money never vanishes; the real completion is
+  Mark paid / the milestone check). Confirm that is the wanted behaviour.
+  (3) NEW — a meeting DELAYED to another day leaves today's To-Do with NO
+  Done row (it is a moved task; it comes back to Today on its new date).
+  Giving it a "Meeting delayed" Done row would mean snapshotting the
+  pre-reschedule instant — a schema column — so it waits on his word.
+  Carried from Entry 056: (4) overdue items invisible on the To-Do +
+  the pressed Today chip hiding overdue follow-ups — confirm both readings.
+  Carried from Entry 055: (5) the B-Systems DEPARTMENT beside the B-Systems
+  COMPANY filter — confirm he means a service line. (6) re-typing the two
+  campaign expenses to "Media Buying / Campaigns" (no number moves).
+  (7) iOS saves inside ByteForce carry the B-Systems mark. (8) old-app
+  exports one-way once the new accounting ids are in use.

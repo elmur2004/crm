@@ -1489,3 +1489,83 @@ landed target in the assertion (do both).
   holds cards renders "No follow-ups due today" (new key, real Arabic) —
   the plain `emptyColumn` "Nothing here yet" would misread as an empty
   column.
+
+## ADR-062 — the To-Do completion identity trap, and where the rules live (2026-08-23)
+
+The founder's 2.2/2.3 ask ("a checkbox next to every task") hides one sharp
+edge: **what is a task's identity?** Key the mark to anything but the
+underlying record id and completion silently becomes per-LEAD — his exact
+complaint. The traps met:
+
+- **The projection threw the id away.** `TodoItem` carried kind/at/href/leadId
+  but not the FollowUp/Meeting/Statement/Milestone id, even though every
+  query already held it. The fix is one field (`recordId`) — but any UI keyed
+  on the rendered row (title, date string, lead id) would have been wrong in
+  a way no quick test catches: it only shows once a SECOND follow-up lands on
+  the same lead.
+- **Append-only records make identity free — except ONE.** Follow-ups,
+  proposals, notes: new record, new id, so "a new follow-up arrives
+  unchecked" needs zero code. The exception is Meeting on reschedule
+  (`persistGroup` meeting_reschedule): the SAME row gets a new datetime. A
+  checked meeting rescheduled to later today would stay invisibly done.
+  Rather than hooking the reschedule path (a hook someone will forget the
+  next time a record becomes editable), `TodoDone.dueAt` snapshots the due
+  instant at check time and the PROJECTION honours a mark only while the
+  snapshot equals the record's current instant. The rule sits in one place;
+  reschedule code knows nothing. If another record ever grows an
+  edit-the-date path (statements/milestones have none today), it is covered
+  for free.
+- **Day-scoping is load-bearing on money only.** Marks count only when
+  `completedAt` falls in today's Cairo window. Lead tasks leave the window by
+  themselves (ADR-061 killed overdue), but a PERMANENT mark on a pending
+  statement/milestone would override the money-never-vanishes asymmetry for
+  ever. Tests pin the "back tomorrow, unchecked" behaviour specifically.
+- **Auto beats manual, decided in the projection.** A task checked manually
+  whose lead then moves appears in BOTH derivations; if manual won, Done
+  would offer a restore that cannot restore (the CRM moved on). The live set
+  is computed first, manual marks subtract only from it, and the auto loop
+  skips live keys — so the precedence is structural, not an if-chain.
+- **The wall is two-layered on purpose.** Routes re-derive access from the
+  RECORD (`leadIdOfTodoRecord` → `requireLeadAccess`; money → admin), so a
+  client's kind/recordId pair is never trusted — and the service separately
+  refuses non-live records so a 403-proof caller still cannot mint marks on
+  yesterday's tasks or another brand's rows. Prospect-parented FollowUps
+  (leadId null) 404 inside `leadIdOfTodoRecord`, or `requireLeadAccess(null)`
+  would have been a crash path.
+- **…but "resolve the record, then guard it" inverted the house order**
+  (caught in review). Every other route guards first; these two could not,
+  because the guard needs a leadId only the record knows. Left as written,
+  an ANONYMOUS POST did real database work and answered 404 for a made-up
+  record id but 401 for a real one — a record-existence oracle with no
+  session. The shape that keeps both properties: authenticate up front, then
+  pass the caller down. `requireLeadAccess(leadId, known?)` takes an
+  already-authenticated user, and the role check inside `requireRole` is
+  split out as `assertRole(user, ...roles)` so the money branch gates on
+  admin without a second `auth()` + user read. **Rule for the next route
+  that must look something up to know who may touch it: `requireUser()`
+  first, always — the lookup is not the guard.**
+- **Testing a route, not just its service.** The scope walls (SPEC §13) live
+  in the route, so proving them at the service layer proves nothing —
+  `setTodoDone` takes an already-guarded caller by contract. The pattern that
+  works here without a browser: `vi.mock("@/lib/auth/index", () => ({ auth }))`
+  with a `vi.hoisted` stub, then import the route module and call `POST(new
+  Request(...))` against the real embedded Postgres. Only the session is
+  fake; guards, Zod, `handleRoute`'s error mapping and the service are real.
+  Note the mock must be declared by the `@/lib/auth/index` specifier even
+  though `guards.ts` imports `./index` — Vitest matches the resolved file, so
+  both spellings hit the same module.
+- **A rejected fetch is not a failed response.** `TodoCheckbox` (and the
+  `MilestoneCheckbox` it copies) awaited `fetch` with no try/catch: on a
+  non-ok RESPONSE it showed the error, but on a REJECTION (offline, server
+  restart mid-request) the handler threw, `setBusy(false)` never ran, and the
+  row's checkbox stayed `disabled` until a full reload — the one failure mode
+  with no message and no retry. try/catch/finally. `MilestoneCheckbox` still
+  carries the same wart (one control per won-deal page); it is untouched here
+  only to keep the ADR-062 diff honest.
+- **Cascade note.** All four TodoDone FKs cascade at the DATABASE, so
+  `deleteLead`'s hand-deleted statements/milestones retire marks without the
+  service knowing — verified through the real `deleteLead` in the
+  integration suite. The backup MODELS list places `todoDone` after all five
+  parents (user, lead-cascaded followUp/meeting, milestone, statement);
+  reversed deletes clear it first. A pre-TodoDone export restores cleanly
+  (missing table key → `?? []`).
