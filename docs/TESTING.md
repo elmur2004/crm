@@ -2401,7 +2401,7 @@ every dashboard formula, journeys 1-5 (SPEC §13).
 - Failures: none.
 - SPEC coverage touched: §5.8 (new — manual completion walls + identity), §3
   server-side permissions, backup/restore invariants (ADR-053 sync triangle).
-- Verdict: **PASS** — commit fc7d5d5.
+- Verdict: **PASS** — commit 8c894e9.
 
 ## Run 069 — 2026-08-23 — ADR-062 commit 2: the projection's Done section + UI round
 - Suites/commands:
@@ -2437,11 +2437,11 @@ every dashboard formula, journeys 1-5 (SPEC §13).
 - SPEC coverage touched: §5.8 (manual + automatic completion, Done section,
   restore asymmetry, money day-scope), §13's new To-Do completion clause,
   ADR-055 row actions regression, i18n byte-identity.
-- Verdict: **PASS** — commit 72a6965. (The FULL vitest + Playwright sweep is
+- Verdict: **PASS** — commit 01dbf41. (The FULL vitest + Playwright sweep is
   the phase gate's job, per the working agreement.)
 
 ## Run 070 — 2026-08-23 — ADR-062 SHIP GATE: review adjudication + full suite + migration re-proof
-- Scope: the three ADR-062 commits (fc7d5d5 / 72a6965 / 4db72df) after the
+- Scope: the three ADR-062 commits (8c894e9 / 01dbf41 / 9da6541) after the
   review round was folded into them — the guard-first fix on both done
   routes, the checkbox's dead-network path, the Done section's day-scope
   label, the delayed-meeting clarification, and the route-level scope-wall

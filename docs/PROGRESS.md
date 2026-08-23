@@ -2856,7 +2856,7 @@ comment, and the ADR-013 mechanism note all fixed; .env.example confirmed tracke
   - Founder items 2.2 (link CRM stages with To-Do tasks) and 2.3 (manual
     task completion), on top of the Today-only shape ADR-061 just shipped.
     Three commits, local only (not pushed):
-  - (1) `fc7d5d5` — the STATE: `TodoDone` (one row per manually-checked
+  - (1) `8c894e9` — the STATE: `TodoDone` (one row per manually-checked
     task, keyed to the UNDERLYING record via four unique cascade FKs, dueAt
     snapshot, completer id + label), a real migration
     `20260823071649_todo_done` proved on a throwaway Postgres (from-scratch
@@ -2866,7 +2866,7 @@ comment, and the ADR-013 mechanism note all fixed; .env.example confirmed tracke
     re-deriving access from the record (`requireLeadAccess` / admin-only
     money kinds; prospect-parented records 404 per ADR-061), backup MODELS +
     db-reset registration, 17 new integration cases.
-  - (2) `72a6965` — the PROJECTION + UI: `todoFor` items carry `recordId`;
+  - (2) `01dbf41` — the PROJECTION + UI: `todoFor` items carry `recordId`;
     manual marks subtract from Today (valid for the Cairo day they were
     made — a checked-but-pending statement/milestone RETURNS tomorrow,
     money never vanishes); a derived Done section (moved / superseded /
