@@ -56,5 +56,5 @@ export default async function BsTodoPage() {
     };
     rowActions = (item) => <TodoRowActions item={item} assign={assign} />;
   }
-  return <TodoBody lists={lists} rowActions={rowActions} />;
+  return <TodoBody lists={lists} apiBase="/api/b-systems" rowActions={rowActions} />;
 }

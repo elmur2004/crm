@@ -26,4 +26,28 @@ export const todoPage = {
      reuses the crm dict's assignLead.* keys; the owner label reuses
      ownerFilters.unassigned. */
   takeIt: { en: "Take it", ar: "أتولاه بنفسي" },
+  /* Founder 2.2/2.3 (ADR-062) — the completion checkbox and the Done section.
+     A task completes manually (the checkbox) or automatically (the CRM moved
+     on); completed tasks land under "Done" instead of vanishing. */
+  done: { en: "Done", ar: "منجز" },
+  /* Review: the Done list is TODAY's, and a manual tick on a still-pending
+     money task is only good for the day it was made — so the section says so
+     on the page, not only in the ADR. Without it "the statement I ticked is
+     back tomorrow" reads as a bug. */
+  doneScope: { en: "Completed today", ar: "أُنجزت اليوم" },
+  markDoneAria: { en: "Mark done: {title}", ar: "وضع علامة الإنجاز: {title}" },
+  restoreAria: { en: "Restore to Today: {title}", ar: "إعادة إلى مهام اليوم: {title}" },
+  autoDoneAria: {
+    en: "Completed by CRM activity: {title}",
+    ar: "اكتملت من حركة النظام: {title}",
+  },
+  doneBy: { en: "Done · {name}", ar: "أنجزها {name}" },
+  doneMoved: { en: "Moved to {stage}", ar: "انتقل إلى {stage}" },
+  doneSuperseded: { en: "Superseded by a newer step", ar: "حلّت محلها خطوة أحدث" },
+  doneMeetingAttended: { en: "Meeting attended", ar: "تم حضور الاجتماع" },
+  doneMeetingCancelled: { en: "Meeting cancelled", ar: "أُلغي الاجتماع" },
+  doneMeetingDelayed: { en: "Meeting delayed", ar: "تأجل الاجتماع" },
+  donePaid: { en: "Paid", ar: "مدفوع" },
+  doneMilestone: { en: "Milestone completed", ar: "اكتملت مرحلة الدفع" },
+  checkFailed: { en: "Could not update the task", ar: "تعذر تحديث المهمة" },
 } satisfies Record<string, Msg>;

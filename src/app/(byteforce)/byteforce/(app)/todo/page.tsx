@@ -10,5 +10,5 @@ export const metadata = { title: "To-Do — ByteForce CRM" };
 export default async function ByteforceTodoPage() {
   await requirePageRole("/login", "byteforce_staff");
   const lists = await todoFor({ brand: "byteforce", scope: { kind: "all" } });
-  return <TodoBody lists={lists} />;
+  return <TodoBody lists={lists} apiBase="/api/byteforce" />;
 }

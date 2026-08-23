@@ -3,6 +3,9 @@ import { db } from "@/lib/db";
 import { resetDb } from "@/tests/db-reset";
 import { cairoToUtc, utcToCairo } from "@/lib/datetime";
 import { cairoDayWindow, todoFor } from "./todo";
+import { setTodoDone } from "./todo-done";
+import { applyLeadEvent } from "./leads";
+import type { Actor } from "./activity";
 
 /* ADR-041 — the To-Do projection: Cairo-day windowing, live-record selection,
    role scoping, admin extras. Fixed instants throughout — no wall-clock
@@ -470,7 +473,7 @@ describe("Partner tasks are OFF the To-Do (ADR-061)", () => {
     expect(await todayRows()).toEqual([]);
   });
 
-  it("an arranged, unresolved prospect meeting dated today yields no row either", async () => {
+  it("an arranged, unresolved prospect meeting dated today yields no row either — nor a Done row (ADR-062)", async () => {
     const p = await prospect("partner", "meeting_setting", "Both");
     await db.meeting.create({
       data: {
@@ -480,6 +483,8 @@ describe("Partner tasks are OFF the To-Do (ADR-061)", () => {
       },
     });
     expect(await todayRows()).toEqual([]);
+    const lists = await todoFor({ brand: "bsystems", scope: { kind: "all" }, now: NOW });
+    expect(lists.done).toEqual([]); // the partners funnel reaches NO section
   });
 
   it("and a partner card with both records due today still yields nothing — while a LEAD's follow-up shows as ever", async () => {
@@ -520,5 +525,244 @@ describe("Partner tasks are OFF the To-Do (ADR-061)", () => {
     const rows = await todayRows();
     expect(rows.map((r) => r.title)).toEqual(["Control Lead"]);
     expect(rows[0]!.kind).toBe("follow_up");
+  });
+});
+
+/* ADR-062 — founder 2.2/2.3: "the corresponding task should remain visible in
+   the To-Do List until the required action is completed", completed either
+   MANUALLY (checkbox → TodoDone mark) or AUTOMATICALLY (the CRM moved on).
+   Completed tasks leave Today and land in a DONE section — derived for the
+   auto half, day-scoped for the manual half — instead of vanishing. */
+describe("To-Do completion — the Done section (ADR-062)", () => {
+  const elmur: Actor = { id: null, label: "Elmur" };
+  const adminLists = () => todoFor({ brand: "bsystems", scope: { kind: "all" }, now: NOW });
+  const checkNow = (kind: "follow_up" | "meeting" | "statement" | "milestone", recordId: string) =>
+    setTodoDone({ brand: "bsystems", kind, recordId, done: true, actor: elmur, now: NOW });
+
+  it("MANUAL: a checked follow-up leaves Today and shows under Done with the completer's name; unchecking restores it", async () => {
+    const lead = await makeLead({ name: "Checked Lead", stage: "following_up" });
+    const f = await fu(lead.id, cairoToUtc("2026-08-20", "09:00"));
+
+    await checkNow("follow_up", f.id);
+    const lists = await adminLists();
+    expect(lists.today).toEqual([]);
+    expect(lists.done).toHaveLength(1);
+    expect(lists.done[0]).toMatchObject({
+      kind: "follow_up",
+      recordId: f.id,
+      leadId: lead.id,
+      done: { by: "manual", name: "Elmur" },
+    });
+
+    /* the restore: done → uncheck → back under Today, unchecked */
+    await setTodoDone({
+      brand: "bsystems",
+      kind: "follow_up",
+      recordId: f.id,
+      done: false,
+      actor: elmur,
+      now: NOW,
+    });
+    const restored = await adminLists();
+    expect(restored.today.map((i) => i.recordId)).toEqual([f.id]);
+    expect(restored.done).toEqual([]);
+  });
+
+  it("MANUAL marks are day-scoped: yesterday's mark neither hides today's task nor lists under today's Done", async () => {
+    const lead = await makeLead({ name: "Stale Mark", stage: "following_up" });
+    const f = await fu(lead.id, cairoToUtc("2026-08-20", "09:00"));
+    /* a mark stamped YESTERDAY (bypassing the service — its liveness gate
+       would refuse it today, which is the point of the projection-side rule) */
+    await db.todoDone.create({
+      data: {
+        followUpId: f.id,
+        dueAt: f.dueAt,
+        completedByLabel: "Elmur",
+        completedAt: cairoToUtc("2026-08-19", "12:00"),
+      },
+    });
+    const lists = await adminLists();
+    expect(lists.today.map((i) => i.recordId)).toEqual([f.id]); // unchecked again
+    expect(lists.done).toEqual([]);
+  });
+
+  it("IDENTITY: the dueAt snapshot — a meeting checked done then rescheduled to later TODAY returns unchecked (same id, new instant)", async () => {
+    const lead = await makeLead({ name: "Resched Lead", stage: "meeting_setting" });
+    const m = await db.meeting.create({
+      data: { leadId: lead.id, arranged: true, datetime: cairoToUtc("2026-08-20", "10:00") },
+    });
+    await checkNow("meeting", m.id);
+    expect((await adminLists()).done.map((i) => i.recordId)).toEqual([m.id]);
+
+    /* the reschedule path edits the SAME row in place (leads.ts) */
+    await db.meeting.update({
+      where: { id: m.id },
+      data: { datetime: cairoToUtc("2026-08-20", "17:00") },
+    });
+    const lists = await adminLists();
+    expect(lists.today.map((i) => i.recordId)).toEqual([m.id]); // back, unchecked
+    expect(lists.done).toEqual([]); // the stale mark is not honoured anywhere
+  });
+
+  it("AUTO by stage move — the founder's own example: the follow-up completes when the lead reaches Meeting Setting, and auto beats a manual check", async () => {
+    const lead = await makeLead({ name: "Moving Lead", stage: "following_up" });
+    const f = await fu(lead.id, cairoToUtc("2026-08-20", "09:00"));
+    /* the founder checked it first — the CRM move must still own the row */
+    await checkNow("follow_up", f.id);
+
+    await applyLeadEvent({
+      brand: "bsystems",
+      leadId: lead.id,
+      event: { type: "drag", to: "meeting_setting" },
+      group: {
+        group: "meeting",
+        data: { arranged: true, date: "2026-08-20", time: "15:00", mode: "online" },
+      },
+      actor: elmur,
+      role: "bsystems_admin",
+    });
+
+    const lists = await adminLists();
+    /* Today now shows the NEW meeting task; the old follow-up sits under Done
+       with the moved reason — not manual, so it is not restorable */
+    expect(lists.today.map((i) => i.kind)).toEqual(["meeting"]);
+    const doneFollowUp = lists.done.find((i) => i.recordId === f.id);
+    expect(doneFollowUp?.done).toEqual({ by: "auto", reason: "moved", stage: "meeting_setting" });
+  });
+
+  it("AUTO by supersession: a newer follow-up on the same lead completes the old one — and the new task arrives unchecked", async () => {
+    const lead = await makeLead({ name: "Super Lead", stage: "following_up" });
+    const oldF = await fu(
+      lead.id,
+      cairoToUtc("2026-08-20", "09:00"),
+      new Date("2026-08-18T00:00:00Z"),
+    );
+    await checkNow("follow_up", oldF.id); // checked while it was live
+    const newF = await fu(
+      lead.id,
+      cairoToUtc("2026-08-20", "15:00"),
+      new Date("2026-08-19T00:00:00Z"),
+    );
+
+    const lists = await adminLists();
+    expect(lists.today.map((i) => i.recordId)).toEqual([newF.id]); // B unchecked
+    const done = lists.done.find((i) => i.recordId === oldF.id);
+    expect(done?.done).toEqual({ by: "auto", reason: "superseded" }); // auto wins over the mark
+  });
+
+  it("AUTO by meeting outcome: the resolved meeting reads its outcome, not the stage it left for", async () => {
+    const lead = await makeLead({ name: "Outcome Lead", stage: "meeting_setting" });
+    await db.meeting.create({
+      data: { leadId: lead.id, arranged: true, datetime: cairoToUtc("2026-08-20", "15:00") },
+    });
+    await applyLeadEvent({
+      brand: "bsystems",
+      leadId: lead.id,
+      event: { type: "meeting_outcome", outcome: "attended", destination: "sending_proposal" },
+      group: { group: "proposal", data: { service: "ERP rollout", sent: false } },
+      actor: elmur,
+      role: "bsystems_admin",
+    });
+    const lists = await adminLists();
+    expect(lists.today).toEqual([]);
+    expect(lists.done).toHaveLength(1);
+    expect(lists.done[0]!.done).toEqual({
+      by: "auto",
+      reason: "meeting_outcome",
+      outcome: "attended",
+    });
+  });
+
+  it("MONEY: a checked statement hides for TODAY only — tomorrow it is back unchecked (money never vanishes); paid/completed land as auto-dones", async () => {
+    const wl = await makeLead({ name: "Money Lead", stage: "won" });
+    const deal = await db.wonDeal.create({
+      data: { leadId: wl.id, estimatedValue: 1000, totalCommissionPercent: 1000 },
+    });
+    const ms = await db.milestone.create({
+      data: {
+        wonDealId: deal.id,
+        index: 1,
+        value: 500,
+        expectedEnd: cairoToUtc("2026-08-20", "00:00"),
+      },
+    });
+    const ms2 = await db.milestone.create({ data: { wonDealId: deal.id, index: 2, value: 500 } });
+    const s = await db.statement.create({
+      data: {
+        code: "ST-9100",
+        milestoneId: ms2.id,
+        clientName: "Money Lead",
+        milestoneLabel: "M2",
+        milestoneValue: 0,
+        percentBp: 0,
+        amount: 0,
+        closerLabel: "x",
+        status: "pending",
+        expectedDate: cairoToUtc("2026-08-19", "00:00"), // yesterday — still today's task
+      },
+    });
+
+    await checkNow("statement", s.id);
+    const lists = await adminLists();
+    expect(lists.today.map((i) => i.kind)).toEqual(["milestone"]);
+    expect(lists.done.map((i) => i.recordId)).toEqual([s.id]);
+    expect(lists.done[0]!.done).toEqual({ by: "manual", name: "Elmur" });
+
+    /* tomorrow: the mark's day has passed and the money is STILL pending */
+    const tomorrow = await todoFor({
+      brand: "bsystems",
+      scope: { kind: "all" },
+      now: cairoToUtc("2026-08-21", "12:00"),
+    });
+    expect(tomorrow.today.map((i) => i.recordId).sort()).toEqual([ms.id, s.id].sort());
+    expect(tomorrow.done).toEqual([]);
+
+    /* the AUTO half: paid today / completed today, expected on the list */
+    await db.statement.update({
+      where: { id: s.id },
+      data: { status: "paid", paidAt: cairoToUtc("2026-08-20", "13:00") },
+    });
+    await db.milestone.update({
+      where: { id: ms.id },
+      data: { completed: true, completedAt: cairoToUtc("2026-08-20", "14:00") },
+    });
+    const after = await adminLists();
+    expect(after.today).toEqual([]);
+    const reasons = Object.fromEntries(after.done.map((i) => [i.recordId, i.done]));
+    expect(reasons[s.id]).toEqual({ by: "auto", reason: "statement_paid" });
+    expect(reasons[ms.id]).toEqual({ by: "auto", reason: "milestone_completed" });
+
+    /* the correction path: unchecking the milestone puts the task back */
+    await db.milestone.update({
+      where: { id: ms.id },
+      data: { completed: false, completedAt: null },
+    });
+    const corrected = await adminLists();
+    expect(corrected.today.map((i) => i.recordId)).toEqual([ms.id]);
+  });
+
+  it("SCOPE: an agent's Done section carries only his own leads — sales only the internal bucket", async () => {
+    const agent = await db.user.create({
+      data: { name: "Scoped Agent", phone: "+201099911144", passwordHash: "x" },
+    });
+    const own = await makeLead({
+      name: "Agent Done",
+      stage: "meeting_setting", // moved on — its follow-up auto-completed
+      ownerType: "agent",
+      ownerUserId: agent.id,
+    });
+    await fu(own.id, cairoToUtc("2026-08-20", "09:00"));
+    const other = await makeLead({ name: "Internal Done", stage: "meeting_setting" });
+    await fu(other.id, cairoToUtc("2026-08-20", "10:00"));
+
+    const agentLists = await todoFor({
+      brand: "bsystems",
+      scope: { kind: "own", userId: agent.id },
+      now: NOW,
+    });
+    expect(agentLists.done.map((i) => i.title)).toEqual(["Agent Done"]);
+
+    const salesLists = await todoFor({ brand: "bsystems", scope: { kind: "internal" }, now: NOW });
+    expect(salesLists.done.map((i) => i.title)).toEqual(["Internal Done"]);
   });
 });
