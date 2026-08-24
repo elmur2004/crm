@@ -13,6 +13,7 @@ import { leadTypeLabel, ownerTypeLabel } from "@/lib/i18n/dict/labels";
 import { common, crmPage, leadDetail as m } from "@/lib/i18n/dict/crm";
 import { callSheet } from "@/lib/i18n/dict/call";
 import { StageBadge } from "@/components/shared/StageBadge";
+import { NoAnswerBadge } from "@/components/shared/NoAnswerBadge";
 import { ArchiveButton } from "@/components/shared/ArchiveButton";
 import { archiveMsgs } from "@/lib/i18n/dict/crm";
 import { GroupHistory } from "@/components/internal/GroupHistory";
@@ -156,9 +157,7 @@ export default async function BsLeadDetailPage({
             {lead.readyToClose ? (
               <span className="badge badge--accent">{t(common.readyToClose)}</span>
             ) : null}
-            {lead.noAnswer ? (
-              <span className="badge badge--noanswer">{t(common.noAnswer)}</span>
-            ) : null}
+            <NoAnswerBadge locale={locale} count={lead.noAnswerCount} />
             {lead.archived ? (
               <span className="badge badge--archived">{t(archiveMsgs.archived)}</span>
             ) : null}

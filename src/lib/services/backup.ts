@@ -167,6 +167,15 @@ export async function importBackup(
     if (predatesFollowUpDueTimeSet(payload.tables!["followUp"] ?? [])) {
       await backfillFollowUpDueTimeSet(tx);
     }
+    /* ADR-064 — the third vector, and it needs NO era gate. A backup exported
+       before the tally holds Lead rows with no `noAnswerCount`; createMany
+       restores them at 0 while `noAnswer` is true, and the card would then wear
+       no marker at all despite being flagged. Unlike the ADR-063 twin above
+       this one runs blind, because the state it repairs — flagged with a zero
+       tally — is not a legitimate value ANY write path can produce (the two
+       fields move together, always), so on a post-ADR-064 payload it matches
+       nothing. That is the same reasoning as the stage normalisation. */
+    await backfillNoAnswerCount(tx);
     await tx.activityLog.create({
       data: {
         entityType: "user",
@@ -227,6 +236,27 @@ export async function backfillFollowUpDueTimeSet(
     SET "dueTimeSet" = true
     WHERE "dueTimeSet" = false
       AND ("dueAt" AT TIME ZONE 'UTC' AT TIME ZONE 'Africa/Cairo')::time <> TIME '09:00'`;
+}
+
+/* ------------------------------------------------------- ADR-064 backfill */
+
+/** The TypeScript twin of the backfill in
+    `prisma/migrations/20260825204500_lead_no_answer_count/migration.sql`,
+    statement for statement, for the one path the migration cannot reach:
+    `importBackup` re-inserts a PRE-tally export verbatim onto an
+    already-migrated database.
+
+    The rule: a lead carrying the flag was tried at least ONCE — which is all
+    the old boolean could ever claim. `noAnswer` is maintained as
+    `noAnswerCount > 0` by every write path, so "flagged with a zero tally" is
+    a state only a legacy restore can produce; this repairs exactly those rows
+    and matches nothing on a modern payload. Re-runnable for the same reason. */
+export async function backfillNoAnswerCount(tx: Prisma.TransactionClient): Promise<void> {
+  await tx.$executeRaw`
+    UPDATE "Lead"
+    SET "noAnswerCount" = 1
+    WHERE "noAnswer" = true
+      AND "noAnswerCount" = 0`;
 }
 
 /* ------------------------------------------ ADR-057 / ADR-059 normalisation */

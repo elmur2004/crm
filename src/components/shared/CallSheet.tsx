@@ -17,6 +17,7 @@ import { callSheet as m } from "@/lib/i18n/dict/call";
    dict/call */
 import { archiveMsgs, common as crmCommon, leadDetail as ld } from "@/lib/i18n/dict/crm";
 import { StageBadge } from "@/components/shared/StageBadge";
+import { NoAnswerBadge } from "@/components/shared/NoAnswerBadge";
 import { LeadChat } from "@/components/shared/LeadChat";
 import { GroupHistory } from "@/components/internal/GroupHistory";
 import { HistoryPanel } from "@/components/internal/HistoryPanel";
@@ -106,9 +107,9 @@ export async function CallSheet({
           {lead.readyToClose ? (
             <span className="badge badge--accent">{t(crmCommon.readyToClose)}</span>
           ) : null}
-          {lead.noAnswer ? (
-            <span className="badge badge--noanswer">{t(crmCommon.noAnswer)}</span>
-          ) : null}
+          {/* ADR-064 — mid-call, "we tried 3 times" is exactly the context the
+              caller needs, so the sheet carries the tally too */}
+          <NoAnswerBadge locale={locale} count={lead.noAnswerCount} />
           {lead.archived ? (
             <span className="badge badge--archived">{t(archiveMsgs.archived)}</span>
           ) : null}

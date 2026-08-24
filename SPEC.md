@@ -264,6 +264,9 @@ On saving Won fields, a Client card is auto-created/linked (assumption A-1, defa
 - Five columns: **Following Up | Meeting Setting | Sending Proposals | Won | Lost**.
 - Cards display: lead name, type badge, assigned rep, and the key datum of the current stage (next follow-up date, meeting datetime, estimated value…). Clicking a card opens the same detail as §6.1 with all accumulated field groups and the History panel.
 - All movement between columns is automatic per §6.2 / §10 (no free drag in v1).
+- **Column order (ADR-064).** Every column lists its cards most-recently-updated first, except **Meeting Setting**, which is a diary: it lists them by the meeting's own datetime, **soonest first, always** (not a toggle), with cards that have no meeting datetime yet last. The ordering is computed server-side, where the card list is built, and applies to all three boards that carry the column (App A §6.3, App B §2.3, the partners board §7.2).
+- **The Today chip (ADR-061, extended by ADR-064).** The Following Up and Meeting Setting column heads each carry a Today toggle: it names how many of that column's cards fall on today's **Cairo** calendar day and, pressed, shows only those. Default off, client-side over the loaded cards, and a filtered column still accepts drops — a card that LANDS in the column releases the filter, so a drop is never swallowed by it (the Meeting Setting drop form defaults to "not arranged", which stores no time and so can never match "today"). Pressed with no matches, the column says so rather than claiming to be empty.
+- **The "didn't answer" marker is a tally (ADR-039, extended by ADR-064).** A card marker, never a stage: each press of "Didn't answer" records one more attempt, "Answered" resets it to none, and **any** stage move clears it with the flag. The badge shows the count from the second attempt on. Undo restores the exact previous count.
 
 ### 6.4 Clients section
 Cards, one per client:

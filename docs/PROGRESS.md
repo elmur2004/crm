@@ -3034,3 +3034,131 @@ comment, and the ADR-013 mechanism note all fixed; .env.example confirmed tracke
   expenses to "Media Buying / Campaigns". (8) iOS saves inside ByteForce
   carry the B-Systems mark. (9) old-app exports one-way once the new
   accounting ids are in use.
+
+## Entry 059 — 2026-08-25 — Meeting Setting reads like a diary; "didn't answer" learns to count
+- Done:
+  - **Founder request 1 — "the column of meeting setting should be in time order
+    always in order of these meetings taking place and also add the today filter
+    on top."** ADR-064, commit 1.
+    - `orderMeetingColumn(cards, meetingStage)` — a new pure module,
+      `src/lib/board-order.ts` — sorts ONLY the Meeting Setting cards, soonest
+      meeting first, and writes them back into the slots they already occupied,
+      so every other column keeps its `updatedAt desc` untouched. Called
+      server-side by the three components that build the card lists (the
+      B-Systems CRM page, `internal/pages.tsx`, `partners/pages.tsx`), so a
+      phone receives the board already ordered.
+    - The sort key is the instant the card SHOWS (`meetingAt`, the same latest
+      `Meeting.datetime` each board's `keyDatum` prints). No datetime ⇒ sorts
+      LAST, never hidden; several such cards keep their incoming order; an
+      unparseable instant degrades to "last" instead of NaN-poisoning the sort.
+    - The ADR-061 Today chip is REUSED on that column on all three boards —
+      `useTodayFilter` was generalised from `(leads, enabled)` reading
+      `followUpDueAt` to `(items, at)` with an instant accessor (`null` = no
+      chip). Same component, same count, same `aria-pressed`, same post-mount
+      Cairo-day sampling, same "a filtered column still accepts drops".
+    - The prospect board gets its first chip. ADR-061 skipped it only because
+      ADR-059 left it no follow-up column; it has a meeting column.
+    - One new string pair: `noTodayMeetings` ("No meetings today" / "لا توجد
+      اجتماعات اليوم") — the filtered empty state must not name follow-ups in a
+      column that holds none.
+  - **Founder request 2 — "make the didn't answer button a counter so we can
+    know how many times we tried."** ADR-064, commit 2.
+    - `Lead.noAnswerCount Int @default(0)` + migration
+      `20260825204500_lead_no_answer_count` (`ADD COLUMN IF NOT EXISTS`, backfill
+      guarded so a boot replay matches nothing). Existing flagged lead ⇒ 1,
+      unflagged ⇒ 0.
+    - `noAnswer` is KEPT and maintained as `noAnswerCount > 0`: the
+      backup/restore path recreates rows verbatim, so dropping the column would
+      break restoring any older backup file — and every existing reader, filter,
+      query and test keys on the flag. The invariant is asserted on every
+      transition in the new integration suite.
+    - Pressing "Didn't answer" now always counts (no longer idempotent — that is
+      the feature); the Answered press resets to 0; a stage move still
+      auto-clears both (ADR-039 addendum); undo restores the PREVIOUS count
+      exactly, including for a stage move, with a fallback for entries recorded
+      before this ADR.
+    - `importBackup` gained the migration's twin (`backfillNoAnswerCount`) — a
+      pre-tally backup would otherwise restore flagged leads at 0 and the marker
+      would silently disappear. Un-gated, unlike ADR-063's twin, because
+      "flagged with a zero tally" is not a state any write path can produce.
+    - The card offers BOTH buttons now — it used to be one button that flipped,
+      which made a second attempt unrecordable.
+    - One `NoAnswerBadge` for all five places the marker shows. One attempt reads
+      "No answer" as always (English byte-identical); from two up it reads
+      "No answer · 3", the Today chip's own shape. `title`/`aria-label` carry the
+      sentence: "Tried once" / "Tried 3 times", "محاولة واحدة" / "عدد المحاولات: 3".
+  - **Migration proved on a throwaway database** (fresh cluster, `migrate
+    deploy`, column dropped to recreate today's production shape, rows planted):
+    BEFORE 2 flagged + 1 unflagged, no count column → AFTER both flagged rows at
+    count 1 and the unflagged at 0 → a row hand-set to 4 survived a REPLAY of the
+    same SQL unchanged. Invariant `noAnswer === count > 0` held throughout.
+  - **Tests** (Run 073): board-order unit 9/9; the no-answer tally integration
+    suite 12/12; the five neighbouring integration suites re-run 74/74; e2e
+    `meeting-order` (5, new) + `follow-up-today` (3) + `prospect-pipeline` (8) +
+    `no-answer` (3, two new) + `byteforce-board` (2) + `undo` (1) all green,
+    `.last-run.json` `"status": "passed"` both rounds. `npx tsc --noEmit` clean
+    per commit. Arabic/RTL passes on both features.
+  - **Brand audit over the changed UI** (both boards, both card bodies, the
+    partners board, the two lead details, the call sheet, the new badge): PASS —
+    zero hex / `rgb()` / `hsl()` / `font-family` in any added line, and **no new
+    CSS custom property**, so the all-three-scopes law is not triggered: the chip
+    rides `.today-chip` and the badge rides `.badge--noanswer`, both already
+    token-driven and unchanged. (The ship-gate round below re-tuned the VALUE of
+    the existing `--bcard-h-max`, which is a component-local property on
+    `.col-cards`, not a brand token — it exists in no brand scope, so the law is
+    still not triggered.) No physical left/right utilities added (RTL, A-12); no
+    `data-brand` touched; no emoji.
+  - **Ship-gate review round — five distinct findings, all five FIXED, none
+    refuted** (TESTING Run 074; folded into ADR-064 and IMPLEMENTATION notes
+    13-15 and into the two commits themselves, not a new ADR and not a third
+    commit). Full gate on the final tree: `tsc --noEmit` clean, `vitest run`
+    447/447, the FULL Playwright suite 95 passed / 2 skipped (the opt-in audit
+    spec) with `.last-run.json` `"status": "passed"`, and the migration re-proved
+    8/8 on a throwaway database.
+    (1) MEDIUM, the real one: the tally was a read-modify-write with the
+    read OUTSIDE the transaction, so two racing presses recorded one attempt and
+    the loser's undo entry carried a stale count behind a fingerprint that
+    matched — now an atomic `{ increment: 1 }` with the undo prior taken from
+    inside the transaction, plus two CONCURRENT integration cases against the
+    real Postgres. (2) ADR-064 justified the sort key with an `arranged:false` +
+    datetime row no write path can produce — wording corrected, and persisting
+    that slot deliberately NOT done (it would print a time nobody agreed to).
+    (3) the badge's `aria-label` sat on a bare `<span>`, where ARIA forbids a
+    name — `role="img"` added. (4) a default drop into Meeting Setting vanished
+    behind its own new Today chip — the filter now releases when a card lands in
+    the column, on all three boards. (5) the card-height constant was measured
+    against a two-button meta row that no longer exists — re-measured in
+    Chromium (195.4px unflagged, 235.5px flagged: the badge wraps the chips row
+    AND the third button wraps the meta row), `--bcard-h-max` 204 → 220px, and
+    the A6 e2e fixture now flags its lead so the floor is measured against a real
+    worst-case card.
+  - **Migration RE-PROVED** on a throwaway cluster, more faithfully than Run 073:
+    every migration deployed from EMPTY, the ADR-064 one PARKED so the two legacy
+    rows exist before it runs, then deployed for real — flagged ⇒ 1, unflagged
+    ⇒ 0 — then `migrate deploy` a second time (no pending migrations, tallies
+    unchanged) and the SQL body replayed against a lead hand-set to 5, which
+    stayed 5. Column shape `integer NOT NULL DEFAULT 0`. 8/8 checks passed.
+- In progress: nothing — tree clean, both commits pushed.
+- Next steps: founder confirmations (1)-(2) below; nothing else outstanding.
+- Blockers: none.
+- Needs founder confirmation: (1) NEW — A SINGLE ATTEMPT SHOWS NO NUMBER. The
+  badge reads plain "No answer" for the first try and only grows a number from
+  the second ("No answer · 2"), because "· 1" reads as clutter and the badge
+  being there already says it happened once; hovering always says it in words
+  ("Tried once"). Confirm that is the reading he wants, or we print "· 1" too.
+  (2) NEW — MOVING A CARD STILL WIPES THE COUNT. ADR-039 clears the marker on any
+  stage move; the tally goes with it, so "we tried 4 times before they finally
+  answered" is not kept once the card moves on. The activity log still holds
+  every attempt. Confirm, or we keep the number as history on the lead.
+  Carried from Entry 058: (3) the follow-up backfill's one false negative (a
+  deliberate pre-ADR-061 09:00 now shows as date-only). Carried from Entry 057:
+  (4) a follow-up DUE TODAY whose lead moved stage on an EARLIER day lists under
+  today's Done as "Moved to {stage}". (5) the checkbox on MONEY rows hides for
+  TODAY only. (6) a meeting DELAYED to another day leaves today's To-Do with NO
+  Done row. Carried from Entry 056: (7) overdue items invisible on the To-Do +
+  the pressed Today chip hiding overdue follow-ups — which now applies to the
+  MEETING chip too, by design (same rule, same column head). Carried from Entry
+  055: (8) the B-Systems DEPARTMENT beside the B-Systems COMPANY filter. (9)
+  re-typing the two campaign expenses to "Media Buying / Campaigns". (10) iOS
+  saves inside ByteForce carry the B-Systems mark. (11) old-app exports one-way
+  once the new accounting ids are in use.

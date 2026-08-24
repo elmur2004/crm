@@ -2664,3 +2664,187 @@ every dashboard formula, journeys 1-5 (SPEC §13).
   out-of-scope ones (`app/api/files/[id]/route.ts`'s standalone HTML page and
   `app/manifest.ts`'s PWA colours) — untouched by these commits.
 - Failures/bugs filed: none.
+
+## Run 073 — 2026-08-25 — ADR-064: the Meeting Setting diary + the "didn't answer" tally (both commits)
+- Suites/commands:
+  - `npx tsc --noEmit` — clean, run before EACH of the two commits.
+  - Commit 1 (ordering + chip): `npx vitest run src/lib/board-order.test.ts
+    src/lib/brand-tokens.test.ts src/lib/services/lead-sort.test.ts
+    src/lib/datetime.test.ts` → 4 files, 24 cases. Then Playwright over
+    `e2e/meeting-order.spec.ts` (new), `e2e/follow-up-today.spec.ts`,
+    `e2e/prospect-pipeline.spec.ts` → 16 cases.
+  - Commit 2 (the tally): `npx vitest run
+    src/lib/services/no-answer-count.integration.test.ts` → 12 cases; then the
+    neighbouring suites `bsystems` + `undo` + `leads` + `backup` + `same-stage` +
+    `prospect-stages-migration` → 6 files, 74 cases. `backup` re-run after the
+    restore twin landed (`backfillNoAnswerCount`) with its 2 new cases → 19
+    cases green with the tally suite. Then Playwright over
+    `e2e/no-answer.spec.ts` (2 new cases), `e2e/byteforce-board.spec.ts`,
+    `e2e/undo.spec.ts`, `e2e/meeting-order.spec.ts` → 11 cases.
+  - Playwright ran from a TEMPORARY copy of `playwright.config.ts` on port 3140
+    (another workstream held 3100) with a verified-free embedded-Postgres port;
+    the copy was deleted after each round and never committed. `test-results/
+    .last-run.json` read directly after both rounds: `"status": "passed"`,
+    `"failedTests": []`.
+- Cases: 156 passed / 0 failed / 0 skipped (24 + 16 + 12 + 74 + 11 + a 19-case
+  re-run of backup + the tally suite after the restore twin).
+- Failures: none.
+- SPEC coverage touched:
+  - §2.3 / §6.1 the board columns — the Meeting Setting column's ORDER on all
+    three boards (ByteForce, B-Systems, Partners & Agents), including the
+    datetime-less card sorting last and never vanishing.
+  - ADR-061's Today chip, generalised — count, `aria-pressed`, the filtered
+    empty state, and the Cairo day, now on the meeting columns.
+  - §6.2 meeting field group (the `arranged: false` record with no datetime is
+    the "not arranged" card the ordering has to place).
+  - ADR-039 the "didn't answer" marker — flag, never a stage; auto-clear on any
+    stage move; idempotent clear — all re-proved with the tally added.
+  - ADR-045 undo — `lead_no_answer` and `lead_event` inverses restoring the exact
+    previous count, plus a pre-ADR-064 payload shape.
+  - §10 transition tables untouched (no stage, next action or destination
+    changed by either commit).
+- Migration proof (throwaway database, ADR-064's
+  `20260825204500_lead_no_answer_count`): fresh embedded cluster → `prisma
+  migrate deploy` applied every migration → `noAnswerCount` dropped to recreate
+  the CURRENT production shape → rows planted (2 leads with `noAnswer = true`,
+  1 with `false`). BEFORE: `[{noAnswer:false,n:1},{noAnswer:true,n:2}]`, column
+  absent. Migration SQL run verbatim → AFTER:
+  `[{noAnswer:false,noAnswerCount:0,n:1},{noAnswer:true,noAnswerCount:1,n:2}]`.
+  One row then hand-set to `noAnswerCount = 4` and the SAME SQL replayed (the
+  boot retry): unchanged — `bk-clear-1` 0, `bk-flag-1` 1, `bk-flag-2` **4**. The
+  invariant `noAnswer === noAnswerCount > 0` held on every row at every step.
+- Brand audit over the changed UI (BsBoard, InternalBoard, PartnersBoard, the two
+  board pages, partners/pages, the two lead details, CallSheet, the new
+  NoAnswerBadge and board-order): **PASS** — zero hex / `rgb()` / `hsl()` /
+  `font-family` in any added line, and **no new CSS custom property at all**, so
+  the "a token must exist in all three scopes" law is not triggered: the chip
+  rides the existing `.today-chip` and the badge the existing `.badge--noanswer`,
+  neither of which changed. No physical left/right utilities added (RTL, A-12),
+  no `data-brand` touched, zero emoji. Arabic/RTL proved live for both features
+  (the chip reads اليوم on Meeting Setting with the order intact under `dir=rtl`;
+  the badge reads لم يرد · 2 with `aria-label` عدد المحاولات: 2).
+- Failures/bugs filed: none.
+- Verdict: **PASS** for both commits. The full-suite ship gate is still owed
+  before pushing (phase-gate job); these commits are local.
+
+## Run 074 — 2026-08-25 — ADR-064 SHIP GATE: review adjudication + full suite + migration re-proof
+- Suites/commands, all on the FINAL tree, in this order:
+  - `npx tsc --noEmit` — clean.
+  - `npx vitest run` (FULL, not a subset) — **34 files, 447 tests: 447 passed /
+    0 failed / 0 skipped**, 108.43s. That is Run 073's 445 plus the two
+    CONCURRENCY cases the review fix added;
+    `no-answer-count.integration.test.ts` alone is **14 passed (14)**, up from 12.
+  - `npx playwright test` (FULL suite, every spec) — **95 passed / 0 failed /
+    2 skipped** of 97 collected, 11.8m. `test-results/.last-run.json` read
+    directly afterwards: `{"status": "passed", "failedTests": []}`. The 2 skips
+    are `e2e/audit.spec.ts`, opt-in behind `AUDIT=1`
+    (`test.skip(!RUN, "audit is opt-in (AUDIT=1)")`) — a standing gate, not a
+    regression.
+  - Playwright ran from a TEMPORARY copy of `playwright.config.ts` on port 3200:
+    another workstream still held 3100 (PID 26384, LISTENING) and was left
+    alone, per the rule. The copy `playwright.p3200.config.ts` was deleted
+    afterwards and never committed; the embedded-Postgres port stays pid-derived.
+  - The suite was run TWICE, end to end. The first full run (95 passed /
+    2 skipped, `"status": "passed"`) predated the one assertion added for finding
+    3, so rather than topping it up with a targeted spec the whole suite was
+    re-run on the final tree — the verdict above is the second run's.
+- Cases: 447 vitest + 95 Playwright = **542 passed, 0 failed, 2 skipped
+  (opt-in)**, plus the 8-check migration re-proof below.
+- Failures: none.
+- Review adjudication — 7 findings raised; two PAIRS were the same defect
+  described twice (1+5, and 3+7), so 5 distinct. All 5 verified against the code
+  and schema, and all 5 FIXED; none needed refuting.
+  1. **MEDIUM — `setNoAnswer` lost a concurrent attempt, and its undo entry lied.**
+     The read sat OUTSIDE the transaction and the write was an absolute value, so
+     two overlapping presses both read 2 and both wrote 3: two tries made, one
+     recorded — exactly the number the founder asked the card to keep. Worse, the
+     loser's undo payload carried the count it had already lost while its
+     `fingerprint` still MATCHED the row it wrote, so the undo was accepted and
+     rolled the tally further back than the press being undone. Fixed with an
+     atomic `noAnswerCount: value ? { increment: 1 } : 0` (`SET "noAnswerCount" =
+     "noAnswerCount" + 1`) and an undo prior taken from inside the transaction —
+     the counting press from `fresh.noAnswerCount - 1`, the resetting press from
+     an in-transaction read. TWO NEW integration cases exercise a REAL race
+     against the embedded Postgres (`Promise.all`, not a sequential loop):
+     "racing presses each count" (1 banked + 5 concurrent gives 6 attempts AND 6
+     activity rows) and "racing presses each snapshot their OWN prior number"
+     (4 concurrent, so the four entries' priors are the set {0,1,2,3}, asserted
+     as a SET because landing order is not deterministic, plus the
+     `noAnswer === count > 0` invariant on every payload).
+  2. **LOW — ADR-064 justified the sort key with a row no write path produces.**
+     `persistGroup` nulls the datetime whenever `arranged` is false, so the
+     `arranged:false` + datetime "proposed slot" is real in the schema and
+     handled by both the key datum and the sort key, but unreachable today.
+     ADR-064 and IMPLEMENTATION note 5 corrected in place. Persisting the slot
+     was considered and deliberately NOT done: it would print a time nobody
+     agreed to and order the founder's diary by it — a pipeline change needing
+     its own ADR and a founder answer.
+  3. **LOW — `aria-label` on a bare span is prohibited by ARIA 1.2.** The badge's
+     "Tried 3 times" sentence never reached a screen reader (`role=generic`
+     forbids a name); only the hover half of the documented contract worked.
+     `role="img"` added, and `e2e/no-answer.spec.ts` now asserts the COMPUTED
+     accessible name (`getByRole("img", { name: "Tried 3 times" })`) — the
+     existing `toHaveAttribute` assertions passed either way and could never have
+     caught it.
+  4. **LOW — a default drop into Meeting Setting vanished behind its own new
+     Today chip.** The drop form defaults to "not arranged", an unarranged
+     meeting stores no datetime, and the chip keeps only today's instants — so
+     the freshly dropped card rendered NOWHERE, and near-certainly, because it is
+     the default rather than a choice. `useTodayFilter` gained a `landedHere`
+     counter (default 0, so every existing caller is unchanged) and releases the
+     filter when a card lands; all three boards bump it for the destination stage
+     on a successful commit, which also retires ADR-061's latent version of the
+     same papercut on Following Up. SPEC 2.3 and the changelog updated.
+  5. **LOW — the column-height floor's measured constant was stale.** The comment
+     sized `--bcard-h-max` against "the meta row's two buttons"; a flagged card
+     now carries three plus a widened badge. RE-MEASURED in Chromium on the
+     shipped CSS at the 218px six-column width: the richest card is **195.4px**
+     unflagged and **235.5px** flagged — the badge wraps `.bcard-chips` AND the
+     third button wraps `.bcard-meta`, about +40px, far more than the ~16px one
+     extra button would cost (the seed data's tallest card is 186.3px and would
+     have hidden this entirely). `--bcard-h-max` 204px to **220px** (floor 429 to
+     461px): the largest floor that still sits under 62vh on the founder's
+     1440x760 monitor (471px), so his column does not move — the whole point of
+     the documented band. The A6 zoom fixture now FLAGS its last lead, so the
+     live oracle is a real worst-case card (measured **195.3px**; two of those
+     plus the gap are 399.6px, inside the new 461px floor — A6 green).
+- SPEC coverage touched: 2.3 the Today chip (the drop-release clause added);
+  6.3 the "didn't answer" tally (its concurrency semantics); ADR-045 undo (the
+  `lead_no_answer` inverse under concurrency); 10 transition tables untouched by
+  every step-1 fix.
+- MIGRATION RE-PROOF (throwaway database, `20260825204500_lead_no_answer_count`)
+  — **8/8 checks passed**, and more faithful than Run 073's, because the legacy
+  rows are planted BEFORE the migration runs instead of after a hand-dropped
+  column:
+  - fresh embedded cluster on port 5877, EMPTY. The ADR-064 migration folder
+    PARKED, then `npx prisma migrate deploy` applied every earlier migration from
+    scratch; `information_schema` confirms `noAnswerCount` does NOT exist yet.
+  - two legacy rows inserted by raw SQL: `proof-flagged` (`noAnswer = true`) and
+    `proof-clean` (`noAnswer = false`).
+  - migration folder restored, `npx prisma migrate deploy` reported "The
+    following migration(s) have been applied: 20260825204500_lead_no_answer_count".
+    AFTER: `proof-flagged {noAnswer: true, noAnswerCount: 1}` and
+    `proof-clean {noAnswer: false, noAnswerCount: 0}` — the FLAGGED lead
+    backfilled to 1, the UNFLAGGED one left at 0.
+  - `migrate deploy` run a SECOND time (idempotence): "16 migrations found in
+    prisma/migrations / No pending migrations to apply.", both tallies unchanged.
+  - the SQL BODY replayed against a lead hand-set to 5 (the boot retry in
+    `scripts/start.mjs`): `ADD COLUMN IF NOT EXISTS` no-ops and the `= 0` guard
+    matches nothing — `proof-flagged` stays **5**, `proof-clean` stays 0.
+  - column shape verified from `information_schema`: `integer`, `NOT NULL`,
+    `DEFAULT 0`.
+- Brand audit over the changed UI (NoAnswerBadge, TodayChip, InternalBoard,
+  BsBoard, PartnersBoard, design-system.css): **PASS**. Across 216 added lines:
+  zero hex / `rgb()` / `hsl()` / `oklch()` / `font-family`, zero emoji, zero
+  physical left/right utilities (RTL, A-12), `data-brand` untouched,
+  `--gradient-hero` and `.bs-mesh` untouched. The single custom-property line is
+  the VALUE of the pre-existing `--bcard-h-max`, a component-local property on
+  `.col-cards` that exists in NO brand scope (grepped: it appears only in
+  `design-system.css`), so the "a token must exist in all three scopes" law is
+  not triggered — no new token was introduced. No i18n dict file was touched at
+  all, so every existing English string is byte-identical and no new key needed
+  Arabic. The only hardcoded colours in the repo remain the two pre-existing,
+  out-of-scope ones (`app/api/files/[id]/route.ts`'s standalone HTML page and
+  `app/manifest.ts`'s PWA colours) — untouched.
+- Failures/bugs filed: none.
+- Verdict: **PASS** — ship gate cleared for both commits.

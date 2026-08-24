@@ -922,3 +922,69 @@
   reason to move it.
 - Meetings are untouched — a meeting still asks for its time and always
   shows it. That never was the thing you wanted removed.
+
+## Meeting Setting reads like a diary, and "didn't answer" counts (2026-08-25)
+
+**You asked for two things.**
+
+### 1. "The column of meeting setting should be in time order, always."
+
+- **The Meeting Setting column is now sorted by when the meeting actually
+  happens** — the soonest one at the top, then the next, then the next. Open the
+  board and read straight down: that is your day. It is not a button you switch
+  on; the column simply works that way now, on the ByteForce board, the
+  B-Systems board, and the Partners & Agents board.
+- **A card whose meeting has no time yet waits at the bottom.** It does not
+  disappear and it does not sit in the middle pretending to be scheduled — it
+  stays where you can see it, under the real appointments, still saying
+  "Meeting not arranged" until someone sets the time.
+- **Every other column is exactly as it was.** Nothing else was re-sorted.
+
+### 2. "Also add the Today filter on top."
+
+- **The same little "Today" button you got for Follow Ups is now on Meeting
+  Setting too.** It tells you how many meetings you have today before you press
+  it, and pressing it hides everything else so the column shows today only.
+  Press it again to see everything.
+- **"Today" means today in Cairo**, whatever clock the laptop or the phone is
+  set to.
+- **The Partners & Agents board gets one for the first time.** It never had a
+  Follow Up column to put the first chip on — it does have a meeting column.
+- If you press Today and nothing is on today, the column says **"No meetings
+  today"** rather than pretending it is empty. Your cards are still there.
+- You can still drag a card into the column while the filter is on — and the
+  filter lets go the moment the card lands, so you SEE the move you just made.
+  It used to swallow it: a card you drag into Meeting Setting has no meeting
+  time until you tick "we agreed on a time", so with Today pressed it was
+  filtered straight back out of the column you had just dropped it in. Press
+  Today again whenever you want it back; the count never changed.
+
+### 3. "Make the didn't answer button a counter so we can know how many times we tried."
+
+- **Every press of "Didn't answer" now counts one more try.** Press it once and
+  the card says **No answer**, exactly as before. Press it again and it says
+  **No answer · 2**. Again, **No answer · 3**. Hover it and it says it in words:
+  "Tried 3 times".
+- **The first try shows no number on purpose.** A "· 1" is just clutter — the
+  badge being there already means you tried once, and hovering says so.
+- **"Didn't answer" now stays on the card.** It used to turn into "Answered"
+  after one press, which meant a second try could never be recorded. Now both
+  buttons sit there: keep pressing "Didn't answer" for each attempt, and press
+  **"Answered — clear flag"** the moment they pick up.
+- **Answered wipes the count back to nothing**, and the next run of attempts
+  starts again at one.
+- **Moving the card to another column still clears it**, as it always has —
+  reaching them is the whole point, so the count starts fresh with the new
+  stage.
+- **Undo gives the exact number back.** Undo the fourth try and the card reads
+  three, not zero. Undo an "Answered" press and your number comes back.
+- **The number shows everywhere the marker shows** — the board card, the lead's
+  page, and the call sheet, so mid-call you can see you have already tried three
+  times.
+- **Restoring an old backup keeps the marker.** A backup taken before today does
+  not know about counting. Loading one back in no longer drops the "didn't
+  answer" marker off those cards — each one comes back saying you tried once,
+  which is all an older backup can honestly claim. A backup taken from today
+  onward comes back with its exact numbers.
+- All of it reads properly in Arabic, right to left: **لم يرد · 2**, and hovering
+  says **عدد المحاولات: 2**.

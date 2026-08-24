@@ -3355,3 +3355,230 @@ ADR" below.
 - Resolves: refines ADR-061 (display half); ADR-061's server default and DST
   re-anchor stand unchanged.
 - Status: Accepted
+
+## ADR-064 — 2026-08-25 — Meeting Setting is a diary: soonest first, with the Today chip; "didn't answer" becomes a tally
+- Context: two founder requests, verbatim.
+  1. "the column of meeting setting should be in time order always in order of
+     these meetings taking place and also add the today filter on top"
+  2. "make the didn't answer button a counter so we can know how many times we
+     tried"
+  Both are about a board card telling the truth at a glance: one column was
+  ordered by the wrong clock, and one marker recorded THAT something happened
+  without recording HOW OFTEN.
+- Decision:
+  - **The Meeting Setting column sorts by WHEN THE MEETING IS, always.** Every
+    board column is `updatedAt desc` — right for a queue of work, wrong for a
+    column of appointments. That one column now runs soonest-first, on all
+    three boards (ByteForce, B-Systems, and the Partners & Agents board, whose
+    unified pipeline has a `meeting_setting` stage since ADR-059). "Always"
+    means it is a property of the column, not a toggle: there is no control to
+    turn it off, because a diary out of order is not a feature.
+  - **Where: server-side, in one pure function.** `orderMeetingColumn(cards,
+    meetingStage)` in `src/lib/board-order.ts`, called by the three server
+    components that BUILD the card lists, so a phone receives the board already
+    ordered. It is deliberately NOT a second Prisma `orderBy`: the instant lives
+    on a child row (`Meeting.datetime`, latest record wins) and only for cards
+    in one stage, which no single relational sort expresses without re-ordering
+    the other five columns. It sorts the meeting cards AMONG THEMSELVES and puts
+    them back in the slots they already occupied, so every other column keeps
+    its `updatedAt desc` byte for byte — pinned by a unit test that checks the
+    untouched cards are still at their original indices.
+  - **A card with no meeting datetime sorts LAST, and never vanishes.**
+    "Meeting not arranged" is a real, common state of that column, and those
+    cards are the ones still owing a decision — they belong under the diary, not
+    scattered through it. Several of them keep their incoming order (the sort is
+    stable, so the fallback is still `updatedAt desc`), and an unparseable
+    instant is treated as "no datetime" rather than being allowed to poison the
+    comparator with NaN (`Infinity - Infinity`; the comparator branches instead
+    of subtracting).
+  - **The sort key is the datum the card SHOWS.** `meetingAt` is computed by the
+    same expression each board's `keyDatum` already uses — the latest meeting
+    record's `datetime`, only while the card sits in that column — so the eye can
+    verify the order against the line it reads. Neither the key datum nor the
+    sort key consults `arranged` — both ask only whether a datetime is there —
+    so a record with NO datetime sinks and every record WITH one is placed by
+    its time. **Correction (review).** An earlier draft of this bullet said that
+    rule "includes the `arranged = false` + datetime 'proposed slot' (V2 §3)".
+    The shape is real in the schema and both expressions handle it, but no write
+    path in the app can currently produce it: `persistGroup` stores
+    `datetime: payload.data.arranged && date && time ? … : null`, so an
+    unarranged meeting is always stored with a null datetime even when the agent
+    typed a slot (the typed slot reaches the admin notification from the
+    payload, never the row). Every card in the diary today is therefore an
+    ARRANGED meeting, and unarranged ones sink. Persisting the proposed slot was
+    considered and NOT done here: it would make the card print "Meeting: Oct 5,
+    14:00" for a time nobody has agreed to and order the founder's diary by it,
+    which is a pipeline behaviour change needing its own ADR and a founder
+    answer, not a side effect of a sort.
+  - **The Today chip is REUSED, not forked.** ADR-061's `TodayChip` +
+    `useTodayFilter` (same component, same count, same `aria-pressed` button,
+    same client-side Cairo-day sampling after mount, same "a filtered column
+    still accepts drops") now rides five column heads instead of two. The hook
+    was generalised by ONE parameter: it took `(leads, enabled)` and read
+    `followUpDueAt` itself; it now takes `(items, at)`, where `at` is the
+    instant accessor and `null` means "no chip on this column". Accessors are
+    module-level consts on each board, because `at` is a memo dependency.
+  - **The prospect board gains a chip for the first time.** ADR-061 wrote "the
+    prospect board gets no chip: since ADR-059 it has no follow-up column to put
+    one on" — an ABSENCE of a column, never a decision that the founder wanted
+    less there. It has a meeting column, so it gets the meeting chip, with the
+    same shared component and the shared `dict/crm` strings (the same precedent
+    the drag-grip label already set: shared board strings are not duplicated
+    into `dict/partners`).
+  - **One new string, not a reused wrong one:** `noTodayMeetings` ("No meetings
+    today" / "لا توجد اجتماعات اليوم"). The filtered empty state must not say
+    "No follow-ups due today" in a column that holds no follow-ups.
+  - **"Didn't answer" becomes a TALLY: `Lead.noAnswerCount Int @default(0)`.**
+    Migration `20260825204500_lead_no_answer_count`, `ADD COLUMN IF NOT EXISTS`
+    so it replays at boot (scripts/start.mjs retries `migrate deploy`). Backfill:
+    an existing flagged lead starts at **1**, an unflagged one at 0 — once is all
+    history can honestly claim, because the old column recorded that it happened,
+    never how often. The backfill is guarded `WHERE "noAnswer" = true AND
+    "noAnswerCount" = 0`, so a replay matches nothing and can never reset a lead
+    that has since counted higher. Proved on a throwaway database: 2 flagged +
+    1 unflagged in, 2 rows at count 1 + 1 row at count 0 out; a row manually set
+    to 4 survived a second run of the same SQL unchanged.
+  - **`noAnswer` is KEPT, and maintained as `noAnswerCount > 0`.** Dropping it
+    was rejected outright: `exportBackup`/`importBackup` recreate rows verbatim,
+    so removing a column breaks restoring every backup file taken before today —
+    and the flag is read by the card badge, the detail headers, the call sheet,
+    RBAC tests and any `where: { noAnswer: … }` query. The two fields are written
+    together in every path, and that invariant is asserted on EVERY transition in
+    the integration suite (a helper reads the row and fails unless `noAnswer ===
+    count > 0`).
+  - **…which means the RESTORE path needs the migration's twin, and this one is
+    UN-GATED.** A backup exported before today holds Lead rows with no
+    `noAnswerCount`; `createMany` gives them the column default while `noAnswer`
+    is true, and a flagged card with a zero tally wears no marker at all — the
+    founder's "we tried" would vanish on the way back in. So
+    `backfillNoAnswerCount(tx)` runs inside `importBackup`'s transaction, the
+    third such twin after ADR-057/059's stage normalisation and ADR-063's
+    `dueTimeSet`. Unlike ADR-063's it needs no era gate: `flagged + 0` is not a
+    state any write path can produce, so on a modern payload it matches nothing
+    — the same reasoning that lets the stage normalisation run blind. Proved
+    both ways: a pre-tally payload restores flagged-at-1, a post-tally payload
+    carrying 5 restores at 5.
+  - **Pressing "Didn't answer" is no longer idempotent — that IS the feature.**
+    `setNoAnswer(brand, id, true, actor)` always increments; the early-return now
+    guards only the clear-a-clear-marker case, which keeps ADR-039's "clearing an
+    already-clear flag writes no third row". The wire is unchanged
+    (`{ value: boolean }`, Zod-parsed server-side): `true` = one more attempt,
+    `false` = the Answered press, which resets to 0.
+  - **The board card now offers BOTH buttons.** It used to be ONE button that
+    flipped its label, which made a second attempt unrecordable — the counter
+    would have been unreachable past 1. "Didn't answer" is now always offered on
+    an active card, and "Answered — clear flag" appears beside it once there is a
+    tally to clear.
+  - **ADR-039's auto-clear survives, and takes the tally with it.** Any stage
+    move still clears the marker ("any move = contact made"); the count goes to 0
+    with it, because the story moved on and the next attempt count starts fresh.
+  - **Undo restores the PREVIOUS COUNT exactly, not merely the boolean.** The
+    `lead_no_answer` payload carries `{ noAnswer, noAnswerCount }` as they were
+    (never a value derived from the incoming `value`), read from INSIDE the
+    write's transaction (see the review adjudication below), and
+    `StageEventSnapshot`
+    gains `noAnswerCount`, so undoing the 4th attempt leaves 3 and undoing an
+    Answered press gives the number back. Entries written BEFORE this ADR carry
+    only the boolean — the undo window is minutes, but a deploy can land inside
+    one — so `noAnswerCountOf(count, noAnswer)` revives a missing or malformed
+    count as the honest minimum (flagged means 1, clear means 0).
+  - **The badge reads as attempts, and stays compact.** One `NoAnswerBadge`
+    component for all five places the marker shows (both boards' cards, both lead
+    details, the call sheet), so the number cannot disagree with itself. One
+    attempt renders the same two words as always ("No answer" / "لم يرد") — a
+    bare "· 1" is noise, and the badge being there IS the one attempt, which also
+    keeps the existing English string byte-identical for the e2e that asserts it.
+    From 2 up it renders "No answer · 3" in the Today chip's own `label · n`
+    shape, already proved to read correctly right-to-left. The unambiguous
+    sentence rides `title` + `aria-label`: "Tried once" / "Tried 3 times", and in
+    Arabic "محاولة واحدة" / "عدد المحاولات: 3" — phrased count-agnostically on
+    purpose, because "11 مرات" is not grammatical Arabic while "عدد المحاولات: 11"
+    is. No new CSS: `.badge--noanswer` is unchanged, so nothing new to keep in
+    three token scopes.
+  - **Prospects get no equivalent.** `services/partners.ts` states that prospects
+    carry no lead-style flag; the partnership pipeline has a `didnt_answer`
+    STAGE, which is a different mechanism. This request is about leads.
+- **Review adjudication (ship gate).** Seven findings were raised against these
+  two commits; two pairs were the same defect twice, so five distinct ones. All
+  five were verified against the code and schema and all five were FIXED — none
+  needed refuting.
+  - **(medium, ×2) The tally was a read-modify-write straddling the transaction
+    boundary.** `setNoAnswer` read the row through `getLead` (outside the tx),
+    computed `lead.noAnswerCount + 1`, then wrote that ABSOLUTE number inside
+    the tx. Under READ COMMITTED two overlapping presses both read 2 and both
+    wrote 3: two tries made, one recorded — precisely the number the founder
+    asked the card to keep. The board's `busy` flag is per-component and
+    serialises nothing across a second tab, a phone, or a second rep on a shared
+    B-Systems board. Worse, the loser's undo entry snapshotted the count it had
+    already lost while its `fingerprint` still matched the row it wrote, so the
+    undo was ACCEPTED and rolled the tally further back than the press being
+    undone. Fixed by making the write atomic — `noAnswerCount: value ?
+    { increment: 1 } : 0`, i.e. `SET "noAnswerCount" = "noAnswerCount" + 1`, so
+    the second press blocks on the row lock and counts from the committed value
+    — and by taking the undo payload from inside the transaction: the counting
+    press derives it from the row the update RETURNED (`fresh.noAnswerCount - 1`,
+    with the flag following the number as everywhere else), and the Answered
+    press, which resets to an absolute 0, from a read taken inside the tx before
+    it. Two new integration cases press CONCURRENTLY against the real embedded
+    Postgres: six racing presses must leave six attempts and six activity rows,
+    and four racing presses must between them record priors 0/1/2/3 — asserted
+    as a set, because the landing order is not deterministic but "every press
+    names the number it truly replaced" is.
+  - **(low) The ADR's own justification for the sort key cited a row no write
+    path can produce.** Corrected in place above: `persistGroup` nulls the
+    datetime whenever `arranged` is false, so the `arranged = false` + datetime
+    "proposed slot" is real in the schema and handled by both the key datum and
+    the sort key, but unreachable today. Persisting it was considered and NOT
+    done — it would print a time nobody agreed to and order the founder's diary
+    by it, which needs its own ADR and a founder answer.
+  - **(low) `aria-label` on a bare `<span>` is prohibited by ARIA.** The badge's
+    "Tried 3 times" sentence rode `title` + `aria-label` on an unroled `<span>`,
+    which maps to `role=generic`, where ARIA 1.2 forbids a name — conforming
+    assistive tech dropped it, so only the hover half of the documented contract
+    worked. Fixed with `role="img"`, the standard role for a compound badge read
+    as one thing; the e2e attribute assertions are unaffected.
+  - **(low) A default drop into Meeting Setting vanished behind its own new
+    Today chip.** The drop form defaults to "not arranged", an unarranged
+    meeting stores no datetime, and the chip keeps only cards whose instant is
+    today — so with the chip pressed the freshly dropped card rendered NOWHERE,
+    and near-certainly, since it is the default rather than a choice. Fixed by
+    releasing the filter when a card LANDS in that column: `useTodayFilter`
+    takes a `landedHere` counter (0 = no drops, so boards that pass nothing keep
+    the old behaviour) and each board bumps it for the destination stage on a
+    successful commit. Applied to all three boards, which also retires ADR-061's
+    latent version of the same papercut on Following Up.
+  - **(low, ×2) The column height floor's measured constant went stale.** The
+    comment sized `--bcard-h-max` against a card with "the meta row's two
+    buttons"; a flagged card now carries three and a widened badge. RE-MEASURED
+    in Chromium on the shipped CSS at the 218px six-column width: the richest
+    unflagged card is 195.4px and the same card flagged is 235.5px — the badge
+    wraps the chips row and the third button wraps the meta row, ~+40px, well
+    beyond the ~16px a third button alone would cost. `--bcard-h-max` goes
+    204px → **220px** (floor 429 → 461px), which covers every flagged card
+    measured and is also the MOST the floor may take: 461px still sits under
+    62vh on the founder's 1440x760 monitor (471px), so his column does not move
+    — the whole point of the documented band. The four-way exotic stack (2-line
+    name AND a company AND a tally AND a long meeting datum) still beats it,
+    exactly as a freakishly long key datum always beat 204px; the comment says
+    so with the real numbers. The e2e A6 fixture now FLAGS its last lead, so the
+    live oracle is taken from the tallest card a rep can actually produce
+    (measured 195.3px, two of which fit the new floor) instead of a card shape
+    the board no longer shows.
+- Alternatives considered: a client-side sort inside the board component
+  (rejected: the card list is built server-side, and the client would then own an
+  ordering rule the server contradicts); a `Lead.nextMeetingAt` denormalised
+  column kept in sync by the meeting writes (rejected: a second source for a
+  child row's field, for a sort over at most a screenful of cards); hiding
+  datetime-less cards while the column is sorted (rejected: a card must never
+  disappear from its own column); showing "· 1" on a single attempt (rejected:
+  one attempt should not read as a clumsy 1); DROPPING `noAnswer` for the count
+  alone (rejected: the backup/restore path recreates rows verbatim and every
+  existing reader keys on the flag); incrementing on a dedicated
+  `/no-answer/increment` route (rejected: the existing `{ value: boolean }` route
+  already says "one more" vs "reset", and a new route would leave two ways to
+  write one field); a separate Arabic plural form per count band (rejected: the
+  count-agnostic phrasing is correct for every n, and plural rules belong in a
+  real ICU layer, not in four hand-written keys).
+- Resolves: extends ADR-061 (the chip, generalised) and ADR-039 (the marker,
+  counted); ADR-039's auto-clear and idempotent-clear both stand.
+- Status: Accepted

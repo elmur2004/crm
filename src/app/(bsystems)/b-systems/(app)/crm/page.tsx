@@ -145,6 +145,7 @@ export default async function BsCrmPage({
     ownerLabel: ownerLabel(locale, l),
     readyToClose: l.readyToClose,
     noAnswer: l.noAnswer,
+    noAnswerCount: l.noAnswerCount, // ADR-064 — the card says how many tries
     keyDatum: keyDatum(locale, l),
     waHref: waHref(l.number),
     /* the Today chip's datum (ADR-061) — the same latest follow-up the key

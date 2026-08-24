@@ -178,17 +178,47 @@ export async function markReadyToClose(brand: Brand, leadId: string, actor: Acto
 }
 
 /* Founder directive (ADR-039) — the "didn't answer" flag: a card marker only
-   ("just so we know"), toggleable; deliberately NOT a stage (the partnership
-   pipeline's didnt_answer STAGE is a different flow). No stage change, no
-   notification; both moves are activity-logged. */
+   ("just so we know"); deliberately NOT a stage (the partnership pipeline's
+   didnt_answer STAGE is a different flow). No stage change, no notification;
+   both moves are activity-logged.
+
+   Founder (ADR-064) — "make the didn't answer button a counter so we can know
+   how many times we tried": the marker is a TALLY now. `value: true` means ONE
+   MORE ATTEMPT and always counts (it is no longer idempotent — that is the
+   whole feature); `value: false` is the Answered button and resets the tally to
+   zero. `noAnswer` is kept in lockstep as `noAnswerCount > 0`, so every existing
+   reader, filter, query and test on the flag keeps working. */
 export async function setNoAnswer(brand: Brand, leadId: string, value: boolean, actor: Actor) {
   const lead = await getLead(brand, leadId);
   assertNotArchived(lead);
-  if (lead.noAnswer === value) return lead;
+  /* clearing an already-clear marker is still a no-op (ADR-039's idempotence,
+     which the "writes no third row" test pins). Counting UP never is. */
+  if (!value && !lead.noAnswer && lead.noAnswerCount === 0) return lead;
   return db.$transaction(async (tx) => {
+    /* Review — the tally is written ATOMICALLY, never as an absolute number
+       computed from a read taken before the transaction. `{ increment: 1 }`
+       compiles to `SET "noAnswerCount" = "noAnswerCount" + 1`, so under READ
+       COMMITTED the second of two racing presses blocks on the row lock and
+       then counts from the number the first one committed. Read-modify-write
+       would make both presses write the same value and silently drop an
+       attempt — losing exactly the number the founder asked the card to keep
+       ("so we can know how many times we tried"). Two tabs, a phone and a
+       laptop, or two reps on the same B-Systems board all produce it; the
+       board's `busy` flag is per-component and guards none of them.
+
+       The Answered press resets to an absolute 0 — idempotent, so it needs no
+       increment — but the tally it WIPES still has to be read inside the
+       transaction to be restorable. The counting press needs no read at all:
+       the previous number is the returned row minus the one we just added. */
+    const before = value
+      ? null
+      : await tx.lead.findUniqueOrThrow({
+          where: { id: lead.id },
+          select: { noAnswer: true, noAnswerCount: true },
+        });
     const fresh = await tx.lead.update({
       where: { id: lead.id },
-      data: { noAnswer: value },
+      data: { noAnswer: value, noAnswerCount: value ? { increment: 1 } : 0 },
     });
     await writeLog(tx, {
       entityType: "lead",
@@ -210,7 +240,32 @@ export async function setNoAnswer(brand: Brand, leadId: string, value: boolean, 
       fingerprint: fresh.updatedAt,
       label: undoLabel.en,
       labelAr: undoLabel.ar,
-      payload: { noAnswer: !value },
+      /* ADR-064 — undo restores the PREVIOUS TALLY exactly, not merely the
+         boolean: undoing the 4th attempt must leave 3, and undoing an Answered
+         press must give the founder back the number they had.
+
+         Review — that number comes from INSIDE the transaction, never from the
+         pre-transaction `lead`. A stale snapshot here would be worse than the
+         lost attempt it came with, because its fingerprint still matches the
+         row it just wrote — so the undo is ACCEPTED and quietly rolls the tally
+         further back than the press it is undoing.
+
+         The counting press is exact: the prior is the row the atomic increment
+         RETURNED minus the one it just added, so it is right however many
+         presses raced. The Answered press reads instead, and that read takes no
+         row lock — a "Didn't answer" press committing between it and the update
+         would leave the entry one low. That window is one transaction wide and
+         needs the two DIFFERENT buttons pressed at once on one lead; the cost
+         is an undo that restores 3 instead of 4, never a lost attempt. Closing
+         it properly needs `SELECT … FOR UPDATE`, which Prisma cannot express
+         portably — not worth raw SQL for this.
+
+         `noAnswer` is maintained as `noAnswerCount > 0` by every write path, so
+         the flag follows the number rather than being snapshotted apart from
+         it. */
+      payload: before
+        ? { noAnswer: before.noAnswer, noAnswerCount: before.noAnswerCount }
+        : { noAnswer: fresh.noAnswerCount - 1 > 0, noAnswerCount: fresh.noAnswerCount - 1 },
     });
     return fresh;
   });
@@ -585,7 +640,7 @@ export async function applyLeadEvent(opts: {
        inside the transaction (double-submit / racing tabs → 409). */
     const fresh = await tx.lead.findUniqueOrThrow({
       where: { id: lead.id },
-      select: { stage: true, noAnswer: true },
+      select: { stage: true, noAnswer: true, noAnswerCount: true },
     });
     if (fresh.stage !== lead.stage) {
       throw new ApiError(409, "This lead just moved — reload and try again");
@@ -652,10 +707,15 @@ export async function applyLeadEvent(opts: {
     if (result.toStage !== lead.stage) {
       /* Founder (ADR-039 addendum): ANY stage move signals the client was
          reached — the "didn't answer" marker clears itself with the move.
-         The cleared row is logged only when the flag was actually set. */
+         The cleared row is logged only when the flag was actually set.
+         ADR-064: the TALLY goes with it — the story moved on, so the next
+         attempt count starts fresh. Undo puts the old number back. */
       await tx.lead.update({
         where: { id: lead.id },
-        data: { stage: result.toStage, ...(fresh.noAnswer ? { noAnswer: false } : {}) },
+        data: {
+          stage: result.toStage,
+          ...(fresh.noAnswer ? { noAnswer: false, noAnswerCount: 0 } : {}),
+        },
       });
       if (fresh.noAnswer) {
         await writeLog(tx, {
@@ -742,6 +802,8 @@ export async function applyLeadEvent(opts: {
       const snapshot: StageEventSnapshot = {
         stage: lead.stage,
         noAnswer: fresh.noAnswer,
+        /* ADR-064 — the tally the auto-clear above wiped, restored exactly */
+        noAnswerCount: fresh.noAnswerCount,
         created,
         updated,
       };

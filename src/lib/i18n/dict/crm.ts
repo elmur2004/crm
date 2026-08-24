@@ -63,6 +63,16 @@ export const common = {
   noAnswer: { en: "No answer", ar: "لم يرد" },
   markNoAnswer: { en: "Didn't answer", ar: "لم يرد على الاتصال" },
   clearNoAnswer: { en: "Answered — clear flag", ar: "تم الرد — إزالة العلامة" },
+  /* founder (ADR-064): "make the didn't answer button a counter so we can know
+     how many times we tried". The badge stays the SAME two words for a single
+     attempt — a bare "· 1" is noise, and the badge being there already says it
+     happened once — and grows a count from the second try on, in the chip's own
+     "label · n" shape. The full sentence rides the badge's title/aria-label, so
+     the number can never be read as anything but attempts. The Arabic phrasing
+     is count-agnostic on purpose: "عدد المحاولات: 11" is grammatical where
+     "11 مرات" is not. The "label · n" join is the Today chip's, verbatim. */
+  noAnswerTriedOnce: { en: "Tried once", ar: "محاولة واحدة" },
+  noAnswerTriedTimes: { en: "Tried {n} times", ar: "عدد المحاولات: {n}" },
   nextAction: { en: "Next action", ar: "الإجراء التالي" },
   confirmWin: { en: "Confirm win", ar: "تأكيد المكسب" },
   ownerFilter: { en: "Owner filter", ar: "تصفية حسب المالك" },

@@ -24,6 +24,7 @@ import { board as msg, common } from "@/lib/i18n/dict/crm";
 import { callSheet } from "@/lib/i18n/dict/call";
 import { CardGrip, useMouseOnlyListeners, type CardDrag } from "@/components/shared/CardGrip";
 import { TodayChip, useTodayFilter } from "@/components/shared/TodayChip";
+import { NoAnswerBadge } from "@/components/shared/NoAnswerBadge";
 import { stageKey } from "@/components/bsystems/stageColors";
 import {
   FollowUpFields,
@@ -51,6 +52,9 @@ export interface InternalBoardLead {
   stage: string;
   keyDatum: string;
   noAnswer: boolean;
+  /** ADR-064 — how many times we tried; 0 = no marker. `noAnswer` above stays
+      the is-flagged truth (count > 0) for every existing reader. */
+  noAnswerCount: number;
   latestProposalValue: number | null; // Won form prefill (ADR-011)
   /** wa.me link, precomputed server-side (null when no confident country code) */
   waHref: string | null;
@@ -84,7 +88,8 @@ function LeadCardBody({
   apiBase: string;
   drag?: CardDrag;
 }) {
-  const t = tFor(useLocale());
+  const locale = useLocale();
+  const t = tFor(locale);
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const active = lead.stage !== "won" && lead.stage !== "lost";
@@ -105,7 +110,7 @@ function LeadCardBody({
       <p className="bcard-rep mt-1">{lead.subtitle}</p>
       <div className="bcard-chips">
         {lead.partnerBadge ? <span className="bcard-badge">{lead.partnerBadge}</span> : null}
-        {lead.noAnswer ? <span className="badge badge--noanswer">{t(common.noAnswer)}</span> : null}
+        <NoAnswerBadge locale={locale} count={lead.noAnswerCount} />
         {/* founder: dial straight from the card. stopPropagation on BOTH the
             click and the pointer-down so it neither drags the card nor
             triggers the whole-card navigation. */}
@@ -139,26 +144,53 @@ function LeadCardBody({
             {lead.keyDatum}
             {active ? (
               /* founder (ADR-039/042): the didn't-answer marker, same click
-                 guards as on the B-Systems board */
-              <button
-                type="button"
-                disabled={busy}
-                onClick={async (e) => {
-                  e.stopPropagation();
-                  setBusy(true);
-                  await fetch(`${apiBase}/leads/${lead.id}/no-answer`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ value: !lead.noAnswer }),
-                  });
-                  setBusy(false);
-                  router.refresh();
-                }}
-                onPointerDown={(e) => e.stopPropagation()}
-                className="underline underline-offset-2 ms-1 disabled:opacity-50"
-              >
-                {lead.noAnswer ? t(common.clearNoAnswer) : t(common.markNoAnswer)}
-              </button>
+                 guards as on the B-Systems board.
+                 founder (ADR-064): a COUNTER — "Didn't answer" is always
+                 offered (every press is one more try) and Answered appears
+                 beside it once there is a tally to clear. Full parity with the
+                 B-Systems card, as ADR-042 requires. */
+              <>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={async (e) => {
+                    e.stopPropagation();
+                    setBusy(true);
+                    await fetch(`${apiBase}/leads/${lead.id}/no-answer`, {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ value: true }),
+                    });
+                    setBusy(false);
+                    router.refresh();
+                  }}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  className="underline underline-offset-2 ms-1 disabled:opacity-50"
+                >
+                  {t(common.markNoAnswer)}
+                </button>
+                {lead.noAnswerCount > 0 ? (
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={async (e) => {
+                      e.stopPropagation();
+                      setBusy(true);
+                      await fetch(`${apiBase}/leads/${lead.id}/no-answer`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ value: false }),
+                      });
+                      setBusy(false);
+                      router.refresh();
+                    }}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    className="underline underline-offset-2 ms-1 disabled:opacity-50"
+                  >
+                    {t(common.clearNoAnswer)}
+                  </button>
+                ) : null}
+              </>
             ) : null}
           </span>
         </div>

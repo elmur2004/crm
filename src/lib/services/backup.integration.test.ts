@@ -261,6 +261,80 @@ describe("Restoring never invents a follow-up clock (ADR-063)", () => {
   });
 });
 
+/* ADR-064 — the third stranding vector, and the reason `Lead.noAnswer` was
+   KEPT rather than replaced by the tally: a backup exported before the count
+   existed restores flagged leads verbatim, and `createMany` would give them the
+   column default (0). A flagged card with a zero tally wears NO marker, so the
+   "we tried" the founder recorded would vanish on the way back in. */
+describe("Restoring a pre-tally backup keeps the didn't-answer marker (ADR-064)", () => {
+  it("a PRE-tally export (no key at all) comes back flagged, at one attempt", async () => {
+    const now = new Date().toISOString();
+    const lead = (id: string, name: string, noAnswer: boolean) => ({
+      id,
+      brand: "bsystems",
+      name,
+      number: "0100000009",
+      type: "cold_call",
+      stage: "new",
+      noAnswer,
+      /* no `noAnswerCount` key at all — the pre-ADR-064 shape */
+      createdAt: now,
+      updatedAt: now,
+    });
+    await importBackup(
+      {
+        app: "byteforce-bsystems-sales-platform",
+        version: 1,
+        exportedAt: now,
+        tables: {
+          lead: [lead("legacy-flagged", "Legacy Flagged Corp", true), lead("legacy-clear", "Legacy Clear Corp", false)],
+        },
+      },
+      admin,
+    );
+
+    const rows = Object.fromEntries(
+      (await db.lead.findMany({ select: { id: true, noAnswer: true, noAnswerCount: true } })).map(
+        (r) => [r.id, [r.noAnswer, r.noAnswerCount]],
+      ),
+    );
+    expect(rows).toEqual({
+      "legacy-flagged": [true, 1], // "it happened" — the honest minimum
+      "legacy-clear": [false, 0],
+    });
+  });
+
+  it("a POST-tally export is restored verbatim — the twin never inflates a real count", async () => {
+    const now = new Date().toISOString();
+    await importBackup(
+      {
+        app: "byteforce-bsystems-sales-platform",
+        version: 1,
+        exportedAt: now,
+        tables: {
+          lead: [
+            {
+              id: "modern-lead",
+              brand: "bsystems",
+              name: "Modern Tally Corp",
+              number: "0100000010",
+              type: "cold_call",
+              stage: "new",
+              noAnswer: true,
+              noAnswerCount: 5,
+              createdAt: now,
+              updatedAt: now,
+            },
+          ],
+        },
+      },
+      admin,
+    );
+    const back = await db.lead.findUniqueOrThrow({ where: { id: "modern-lead" } });
+    expect([back.noAnswer, back.noAnswerCount]).toEqual([true, 5]);
+  });
+});
+
 /* ADR-057 — the second stranding vector. importBackup does deleteMany +
    createMany with ids preserved and NO transformation, so restoring a backup
    exported BEFORE the agent rename would re-insert agent cards at

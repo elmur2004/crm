@@ -435,10 +435,19 @@
      the card that makes THAT end safe — which is not the same card. Measured in
      Chromium on the shipped CSS at a 218px column (the 6-column board), on the
      richest card in the app — B-Systems: name + company + owner chip + Call +
-     WhatsApp + the meta row's two buttons:
+     WhatsApp + the meta row's buttons:
        186.3px  as it renders today, name on one line
        190.4px  with the name at its 2-line clamp
-       202.4px  ...and a long key datum on top — the tallest a real card gets
+       202.4px  ...and a long key datum on top
+     RE-MEASURED after ADR-064 (review), same conditions, because the meta row
+     grew: "Didn't answer" is now ALWAYS offered and "Answered — clear flag"
+     appears BESIDE it once there is a tally, so a flagged card carries THREE
+     inline buttons where it carried at most two, and the chips row's badge
+     widened from "No answer" to "No answer · 3":
+       195.4px  the rich card above, unflagged — the old 202.4 lineage
+       235.5px  ...once it carries a tally: the badge wraps the chips row and
+                the third button wraps the meta row, ~+40px in total
+       195.3px  a flagged ByteForce card with a 2-line name (what A6 measures)
      --bcard-h sizes the CEILING and is deliberately SHORTER than the richest
      card: a ceiling written against the tallest card would let the box grow to
      nearly six ordinary cards, which is the endless column the founder asked us
@@ -447,10 +456,16 @@
      --bcard-h-max sizes the FLOOR, for the mirror reason: a floor written
      against a short card shows a sliver LESS than two whole cards the moment a
      name wraps to its second line, which is the common case and not the exotic
-     one. It is not a mathematical guarantee — `.bcard-meta` carries no line
-     clamp, so a freakishly long key datum can still beat 204px. */
+     one. 220px is the flagged common case with room to spare, and is also the
+     MOST the floor may take: 2*220+9+12 = 461px still sits under 62vh on the
+     founder's 1440x760 monitor (471px), so his column does not move — the whole
+     point of the band below. It has never been a mathematical guarantee —
+     `.bcard-meta` and `.bcard-chips` carry no line clamp, so the four-way stack
+     that produces the 235.5px card above (2-line name AND a company AND a tally
+     AND a long meeting datum) still beats it, exactly as a freakishly long key
+     datum always beat 204px. */
   --bcard-h: 176px;
-  --bcard-h-max: 204px;
+  --bcard-h-max: 220px;
   --bcard-gap: 9px;
   --col-cards-pad-b: 12px;
   display: flex; flex-direction: column; gap: var(--bcard-gap);
@@ -468,16 +483,19 @@
    written in viewport units against a fixed-px card. Measured, it showed 2.54
    cards at 100% zoom, 1.26 at 200% and 0.83 at 300% — at high zoom the column
    could not display ONE whole card. It is now derived from the card itself:
-     FLOOR   2 of the TALLEST cards + 1 gap + the bottom padding = 429px
+     FLOOR   2 of the TALLEST cards + 1 gap + the bottom padding = 461px
      MIDDLE  62vh
      CEILING 5 reference cards + 4 gaps + the bottom padding     = 928px
 
    READ THE BAND BEFORE QUOTING "62vh is unchanged". The middle only rules
-   while 62vh sits between the two ends, i.e. a viewport 692px to 1497px tall.
+   while 62vh sits between the two ends, i.e. a viewport 744px to 1497px tall.
+   (It was 692px until ADR-064's re-measure lifted the floor from 429 to 461 —
+   see --bcard-h-max above for why 220px is the most the floor may take.)
    The founder's 1440x760 monitor at 100% is inside it (62vh = 471px), which is
    the whole of the "nothing moves at your usual zoom" claim — it is about HIS
    zoom, not about every screen. Outside the band an end takes over: the floor
-   from roughly 1.1x zoom in, and the ceiling only on a screen taller than
+   from just past 1x zoom (1.03x on his monitor, where 62vh falls to 461), and
+   the ceiling only on a screen taller than
    ~1500 CSS px. On such a screen the column IS taller than the old flat 510px
    ceiling (558px at 1440x900, 893px at 2560x1440) — that is the fix, not a
    regression: 510px was 2.9 cards, and the founder asked for about five. It is
@@ -486,7 +504,7 @@
    The floor is a floor on the column BOX, not on what fits the SCREEN. Past
    about 2x zoom the viewport itself is shorter than two cards, so the second
    card is reached by scrolling the page. Do not "fix" that by capping the
-   floor to the viewport (`min(429px, 100vh - something)`): at 300% that
+   floor to the viewport (`min(461px, 100vh - something)`): at 300% that
    resolves to well under one card and hands back exactly the 0.83-of-a-card
    column this rule exists to delete. */
 .col-cards {

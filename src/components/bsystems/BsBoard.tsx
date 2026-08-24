@@ -24,6 +24,7 @@ import { board as msg, common } from "@/lib/i18n/dict/crm";
 import { callSheet } from "@/lib/i18n/dict/call";
 import { CardGrip, useMouseOnlyListeners, type CardDrag } from "@/components/shared/CardGrip";
 import { TodayChip, useTodayFilter } from "@/components/shared/TodayChip";
+import { NoAnswerBadge } from "@/components/shared/NoAnswerBadge";
 import { stageKey } from "./stageColors";
 import {
   GroupFieldsV2,
@@ -47,6 +48,9 @@ export interface BsBoardLead {
   ownerLabel: string;
   readyToClose: boolean;
   noAnswer: boolean;
+  /** ADR-064 — how many times we tried; 0 = no marker. `noAnswer` above stays
+      the is-flagged truth (count > 0) for every existing reader. */
+  noAnswerCount: number;
   keyDatum: string;
   /** wa.me link, precomputed server-side (null when no confident country code) */
   waHref: string | null;
@@ -69,7 +73,8 @@ const MEETING_AT = (lead: BsBoardLead) => lead.meetingAt;
    so the dragged visual must ride an overlay — a transformed card inside a
    scrolling, clipping column would vanish under its neighbours. */
 function LeadCardBody({ lead, drag }: { lead: BsBoardLead; drag?: CardDrag }) {
-  const t = tFor(useLocale());
+  const locale = useLocale();
+  const t = tFor(locale);
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   return (
@@ -92,7 +97,7 @@ function LeadCardBody({ lead, drag }: { lead: BsBoardLead; drag?: CardDrag }) {
         <span className="owner-chip" data-owner-key={lead.ownerType}>
           {lead.ownerLabel}
         </span>
-        {lead.noAnswer ? <span className="badge badge--noanswer">{t(common.noAnswer)}</span> : null}
+        <NoAnswerBadge locale={locale} count={lead.noAnswerCount} />
         {/* founder: dial straight from the card. stopPropagation on BOTH the
             click and the pointer-down so it neither drags the card nor
             triggers the whole-card navigation. */}
@@ -143,27 +148,55 @@ function LeadCardBody({ lead, drag }: { lead: BsBoardLead; drag?: CardDrag }) {
             ) : null}
             {lead.stage !== "won" && lead.stage !== "lost" ? (
               /* founder (ADR-039): "didn't answer" — a marker "just so we
-                 know"; toggleable, never a stage move. Same click guards as
-                 the RTC button so it neither drags nor opens the lead. */
-              <button
-                type="button"
-                disabled={busy}
-                onClick={async (e) => {
-                  e.stopPropagation();
-                  setBusy(true);
-                  await fetch(`/api/b-systems/leads/${lead.id}/no-answer`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ value: !lead.noAnswer }),
-                  });
-                  setBusy(false);
-                  router.refresh();
-                }}
-                onPointerDown={(e) => e.stopPropagation()}
-                className="underline underline-offset-2 ms-1 disabled:opacity-50"
-              >
-                {lead.noAnswer ? t(common.clearNoAnswer) : t(common.markNoAnswer)}
-              </button>
+                 know"; never a stage move. Same click guards as the RTC button
+                 so it neither drags nor opens the lead.
+                 founder (ADR-064): it is a COUNTER, so "Didn't answer" is
+                 always offered — every press is one more try — and the
+                 Answered button appears beside it once there is a tally to
+                 clear. It used to be one button that flipped, which made a
+                 second attempt unrecordable. */
+              <>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={async (e) => {
+                    e.stopPropagation();
+                    setBusy(true);
+                    await fetch(`/api/b-systems/leads/${lead.id}/no-answer`, {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ value: true }),
+                    });
+                    setBusy(false);
+                    router.refresh();
+                  }}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  className="underline underline-offset-2 ms-1 disabled:opacity-50"
+                >
+                  {t(common.markNoAnswer)}
+                </button>
+                {lead.noAnswerCount > 0 ? (
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={async (e) => {
+                      e.stopPropagation();
+                      setBusy(true);
+                      await fetch(`/api/b-systems/leads/${lead.id}/no-answer`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ value: false }),
+                      });
+                      setBusy(false);
+                      router.refresh();
+                    }}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    className="underline underline-offset-2 ms-1 disabled:opacity-50"
+                  >
+                    {t(common.clearNoAnswer)}
+                  </button>
+                ) : null}
+              </>
             ) : null}
           </span>
         </div>

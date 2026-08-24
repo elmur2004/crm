@@ -251,6 +251,23 @@ test("A6: a long column shows at least two whole cards at every zoom, and still 
     expect(res.status()).toBe(201);
     ids.push(((await res.json()) as { id: string }).id);
   }
+  /* Review — the LAST lead is flagged twice, which makes it both the FIRST card
+     in the column (`updatedAt desc`) and the richest one, so the live oracle
+     below is taken from the tallest card a rep can actually produce. ADR-064
+     turned the meta row's one flipping button into two side by side ("Didn't
+     answer" always, "Answered — clear flag" once there is a tally) beside the
+     ready-to-close button, and put a "No answer · 2" badge in the chips row:
+     three inline buttons no longer share one line at the 218px six-column
+     width, so a flagged card is a text line taller than the card `--bcard-h-max`
+     was originally measured against. With unflagged fixtures this test measured
+     a card shape the board no longer shows and the floor could go stale
+     unnoticed — which is exactly what it did. */
+  for (let i = 0; i < 2; i += 1) {
+    const flag = await sp.request.post(`/api/byteforce/leads/${ids[ids.length - 1]}/no-answer`, {
+      data: { value: true },
+    });
+    expect(flag.ok()).toBe(true);
+  }
   const state = await seed.storageState();
 
   try {

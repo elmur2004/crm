@@ -32,6 +32,7 @@ import { waHref } from "@/lib/phone-dial";
 import { StatCard } from "@/components/shared/StatCard";
 import { AnimatedValue } from "@/components/shared/AnimatedValue";
 import { StageBadge } from "@/components/shared/StageBadge";
+import { NoAnswerBadge } from "@/components/shared/NoAnswerBadge";
 import { stageKey } from "@/components/bsystems/stageColors";
 import { AddLeadForm, AddRepForm, ClientEditForm } from "./forms";
 import { LeadChat } from "@/components/shared/LeadChat";
@@ -344,9 +345,7 @@ export async function LeadDetailBody({ ctx, leadId }: { ctx: InternalAppCtx; lea
                 {t(common.partnerPrefix)} {lead.partner.companyName}
               </span>
             ) : null}
-            {lead.noAnswer ? (
-              <span className="badge badge--noanswer">{t(crmCommon.noAnswer)}</span>
-            ) : null}
+            <NoAnswerBadge locale={locale} count={lead.noAnswerCount} />
             {lead.archived ? (
               <span className="badge badge--archived">{t(archiveMsgs.archived)}</span>
             ) : null}
@@ -529,6 +528,8 @@ export async function CrmBoardBody({
     stage: lead.stage,
     keyDatum: keyDatum(lead),
     noAnswer: lead.noAnswer,
+    noAnswerCount: lead.noAnswerCount, // ADR-064 — the card says how many tries
+
     latestProposalValue: lead.proposals[0]?.estimatedValue ?? null,
     waHref: waHref(lead.number),
     /* the Today chip's datum (ADR-061) — the same latest follow-up the key

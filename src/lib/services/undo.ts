@@ -60,6 +60,10 @@ export type UpdatedRef =
 export interface StageEventSnapshot {
   stage: string;
   noAnswer: boolean;
+  /** ADR-064 — the "didn't answer" TALLY before the move wiped it. Optional:
+      entries recorded before ADR-064 carry only the boolean, and those revive
+      through `noAnswerCountOf` below. */
+  noAnswerCount?: number;
   created: CreatedRef[];
   updated: UpdatedRef[];
   /** prospects only (PP-1): the dialed-numbers list before the move */
@@ -68,6 +72,15 @@ export interface StageEventSnapshot {
 
 interface LeadFieldsSnapshot {
   fields: Record<string, string | null>;
+}
+
+/** ADR-064 — the "didn't answer" tally an undo payload puts back. An entry
+    recorded BEFORE ADR-064 carries only the boolean (the window is minutes, but
+    a deploy can land inside one), so a missing or malformed count revives as
+    the honest minimum: flagged means it happened at least once. */
+function noAnswerCountOf(count: unknown, noAnswer: boolean): number {
+  if (typeof count === "number" && Number.isInteger(count) && count >= 0) return count;
+  return noAnswer ? 1 : 0;
 }
 
 /* ---------------------------------------------------------------- recording */
@@ -280,14 +293,23 @@ async function undoLead(
       await restoreUpdated(tx, snap.updated);
       await tx.lead.update({
         where: { id: lead.id },
-        data: { stage: snap.stage, noAnswer: snap.noAnswer },
+        data: {
+          stage: snap.stage,
+          noAnswer: snap.noAnswer,
+          noAnswerCount: noAnswerCountOf(snap.noAnswerCount, snap.noAnswer),
+        },
       });
       return;
     }
     case "lead_no_answer":
+      /* ADR-064 — the TALLY comes back, not just the flag: undoing the 4th
+         attempt leaves 3, and undoing an Answered press gives the number back */
       await tx.lead.update({
         where: { id: lead.id },
-        data: { noAnswer: Boolean(payload.noAnswer) },
+        data: {
+          noAnswer: Boolean(payload.noAnswer),
+          noAnswerCount: noAnswerCountOf(payload.noAnswerCount, Boolean(payload.noAnswer)),
+        },
       });
       return;
     case "lead_ready":

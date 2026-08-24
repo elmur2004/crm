@@ -1669,3 +1669,175 @@ complaint. The traps met:
   `.record-group`: every record group also prints its creation stamp, which
   always carries a time.
 - Last updated: 2026-08-25 (Entry 058, ADR-063)
+
+## ADR-064 — the traps in ordering ONE column and in counting a boolean (2026-08-25)
+
+**1. The one-button toggle made the counter unreachable.** The scouting for this
+work said the card "offers both a Didn't answer action and an Answered-clear-flag
+action". It does not, and did not: `BsBoard`/`InternalBoard` render a SINGLE
+button whose label flips (`lead.noAnswer ? clearNoAnswer : markNoAnswer`) and
+whose body posts `{ value: !lead.noAnswer }`. So the moment a lead was flagged,
+the only thing the card could do was clear it — a tally would have been frozen at
+1 for ever, and every test would still have passed. Read the render, not the
+summary. Fixed by splitting it into two buttons: "Didn't answer" is always
+offered on an active card (each press = `{ value: true }` = one more try), and
+"Answered — clear flag" appears beside it only when there is something to clear.
+
+**2. `Infinity - Infinity` is `NaN`, and a NaN comparator silently corrupts a
+sort.** The natural way to sort "nulls last" is to map null to
+`Number.POSITIVE_INFINITY` and subtract. Two datetime-less cards then compare as
+`NaN`, which `Array.prototype.sort` treats as "no opinion" — the result is
+implementation-defined and, worse, quietly plausible. `orderMeetingColumn`
+branches (`if (ka === kb) return 0; return ka < kb ? -1 : 1`) instead, and a unit
+test pins that several undated cards keep their incoming order at the back.
+
+**3. Ordering ONE column of a shared list.** The boards do
+`leads.filter(l => l.stage === stage)` per column over one array, so "sort just
+this column" has to be expressed on the whole array. Sorting the array by
+`(stage, meetingAt)` would re-order everything else. The trick is to sort the
+meeting cards among themselves and write them back into the SLOTS they already
+occupied: every other card stays at its original index, which is the invariant
+the unit test actually asserts (`f1 / m-soon / p1 / m-late / f2`).
+
+**4. `useTodayFilter` is a hook, so the accessor must be stable.** Generalising
+it from "reads `followUpDueAt`" to "takes an accessor" put a function into the
+memo dependency list. An inline `(l) => isMeetingCol ? l.meetingAt : l.followUpDueAt`
+would be a new identity every render and would recompute the filter every time.
+Each board declares `FOLLOW_UP_AT` / `MEETING_AT` at MODULE level and the column
+picks between them with a ternary. Also worth remembering: the hook must be called
+unconditionally, so a column with no chip passes `null` rather than skipping the
+call.
+
+**5. The sort key must be the datum the card PRINTS.** The meeting line on a card
+comes from `meetings[0]?.datetime` (latest record; neither expression consults
+`arranged` — both ask only whether a datetime is there). Sorting by anything
+else — say, only arranged meetings — would produce a column where the printed
+times are out of order, which reads as a bug however defensible the rule is.
+`meetingAt` is therefore computed by the same expression as `keyDatum`, and in
+`partners/pages.tsx` it was extracted into one `meetingAtOf(p)` used by both, so
+the two cannot drift. **Correction (review):** an earlier draft added that an
+unarranged record WITH a datetime is V2 §3's "proposed slot" and prints its
+time. That shape is real in the schema and both expressions handle it, but
+`persistGroup` nulls the datetime whenever `arranged` is false, so no write path
+produces it and every card in the diary is an arranged meeting. See ADR-064 for
+why persisting the proposed slot was deliberately NOT done here.
+
+**6. Counting a boolean means the write is no longer idempotent — and one test
+depended on that.** `setNoAnswer` began with `if (lead.noAnswer === value) return
+lead;`. Removing it wholesale would break ADR-039's pinned behaviour ("clearing
+an already-clear flag writes no third row"). The guard is now asymmetric: only
+the CLEAR path early-returns (`if (!value && !lead.noAnswer && count === 0)`);
+counting up never does, because that is the entire feature.
+
+**7. An undo payload that stores a DERIVED value cannot restore a number.** The
+old payload was `{ noAnswer: !value }` — the inverse computed from the incoming
+argument. That works for a boolean and is useless for a count: undoing the 4th
+attempt has to leave 3, which `!value` cannot express. The payload now snapshots
+what was actually there (`{ noAnswer: lead.noAnswer, noAnswerCount:
+lead.noAnswerCount }`). Same trap in `StageEventSnapshot`, which the stage-move
+auto-clear writes.
+
+**8. Undo entries written before the migration.** The undo window is minutes, but
+a deploy can land inside one, so a pending `lead_no_answer` entry can carry only
+the old boolean. `noAnswerCountOf(count, noAnswer)` in `undo.ts` revives a
+missing or malformed count as the honest minimum (flagged ⇒ 1, clear ⇒ 0) and is
+covered by a test that rewrites a real pending entry into the old shape.
+
+**9. Keeping the boolean is not redundancy, it is the restore path.**
+`exportBackup`/`importBackup` recreate rows verbatim (`createMany` over whatever
+the file holds). A dropped column breaks restoring every file taken before the
+change — this repo has been bitten by schema-vs-backup mismatches before. So
+`noAnswer` stays, maintained as `noAnswerCount > 0` in every write, and the
+integration suite's `marker()` helper re-asserts that invariant on every single
+transition rather than trusting the writers.
+
+**9b. Keeping the column is not enough — the RESTORE needs the migration's twin
+too, and this one does not want ADR-063's gate.** A pre-tally backup has Lead
+rows with `noAnswer: true` and no `noAnswerCount` key; `createMany` hands them
+the default 0, and a flagged card with a zero tally renders NO badge. So
+`backfillNoAnswerCount(tx)` joins the two twins already inside `importBackup`.
+The ADR-063 twin is gated on `predatesFollowUpDueTimeSet` because `dueTimeSet =
+false` is a legitimate modern value and re-running the rule over it would invent
+a clock. `noAnswer = true` with `noAnswerCount = 0` is NOT a legitimate value —
+no write path can produce it — so this twin runs blind, like the stage
+normalisation, and matches nothing on a modern payload. The test asserts both
+directions: a pre-tally payload comes back flagged-at-1, a modern payload
+carrying 5 comes back at 5. Whenever a column is added whose value is derivable
+from an older column, ask which of those two shapes the new field is.
+
+**10. The badge had to stay byte-identical at count 1.** `e2e/no-answer.spec.ts`
+and `e2e/byteforce-board.spec.ts` both assert `getByText("No answer", { exact:
+true })` after a single press. Rendering "No answer · 1" would have broken two
+untouched specs — and the founder's own instruction was that one attempt must not
+read as a clumsy 1. Both point the same way: no number on the first attempt.
+
+**11. Arabic plurals are a real trap.** "3 مرات" is right, "11 مرات" is not
+(11+ takes the singular مرة). Rather than hand-roll count bands, the Arabic
+sentence is phrased count-agnostically — "عدد المحاولات: 11" — which is
+grammatical for every n. The visible badge reuses the Today chip's `label · n`
+join, already proved to render correctly right-to-left.
+
+**12. Port hygiene on this machine.** Playwright hardcodes 3100 and another
+workstream was holding it, so both e2e rounds ran from a temporary copy of
+`playwright.config.ts` on 3140 (deleted afterwards, never committed). The
+pid-derived e2e Postgres port also collided — with a Windows ZOMBIE socket, not a
+live process (`netstat` showed LISTENING on a pid `Get-Process` could not find),
+which is exactly the failure mode the config's own comment warns about. Pin a
+verified-free port in the copy rather than killing anything.
+
+**13. Counting is where the transaction boundary starts to matter (review).**
+`setNoAnswer` inherited the file's ordinary shape — `getLead` outside, the write
+inside `db.$transaction` — which is harmless for a BOOLEAN (two racing presses
+both write `true` and agree) and quietly wrong for a COUNTER (two racing presses
+both read 2 and both write 3, so a try is lost). The tell is the assignment, not
+the transaction: an absolute value computed from a read taken before the lock is
+a lost update however tight the tx is. Re-reading INSIDE the transaction does not
+fix it either — a plain `SELECT` takes no row lock under READ COMMITTED, so both
+callers still compute 3. Only an atomic operator does: `{ increment: 1 }`
+compiles to `SET "noAnswerCount" = "noAnswerCount" + 1`, and the second UPDATE
+blocks on the row lock and then re-reads the committed value.
+
+The second half of the trap is the undo entry. Its payload was copied from the
+same pre-transaction snapshot, and `recordUndo`'s `fingerprint` is taken from the
+row the write RETURNED — so the loser's entry carried a stale count with a
+fingerprint that MATCHED. Nothing rejected it; the undo was accepted and rolled
+the tally further back than the press it was undoing. A stale snapshot guarded by
+a fresh fingerprint is worse than no guard, because it looks verified. The
+counting path now derives the prior from `fresh.noAnswerCount - 1`; the clear
+path, which writes an absolute 0 and so cannot derive anything, reads inside the
+transaction.
+
+Testing this needed a real race, not a sequential loop: the integration suite
+runs against a real embedded Postgres, so `Promise.all` over N presses genuinely
+overlaps. The undo assertion is a SET (`priors === [0,1,2,3]`) rather than a
+sequence, because concurrent landing order is not deterministic while "every
+press names the number it truly replaced" is.
+
+**14. A card gains ~40px when it is flagged, not ~16px (review).** The obvious
+arithmetic — a third inline button wraps the meta row, so +1 text line — is half
+the answer. Measured in Chromium at the 218px six-column width, the same card
+goes 195.4px → 235.5px when it carries a tally, because the `No answer · n` badge
+ALSO wraps `.bcard-chips` onto a new line beside the owner chip, Call and
+WhatsApp. Two wraps, not one. Anything sized off a card measurement has to be
+re-measured after a change to EITHER row, and the measurement has to be taken
+from a constructed worst-case card: the seed data's tallest card is 186.3px and
+would have hidden this entirely.
+
+The floor that constant feeds is not free to grow. `--bcard-h-max` went 204 → 220
+(floor 429 → 461px) rather than to the 244 the flagged rich card would justify,
+because 2*220+9+12 = 461 is the largest floor that still sits under 62vh on the
+founder's 1440x760 monitor (471px) — past that the floor takes over from the
+middle of the clamp and his board visibly changes height at his own zoom, which
+the band's comment exists to prevent. When a measured constant and a documented
+promise disagree, say which one you honoured and why, in the comment.
+
+**15. A filter on a DROP TARGET needs a release (review).** ADR-061's Today chip
+was safe on Following Up because a non-matching drop needs the rep to type a
+non-today date. On Meeting Setting the drop form defaults to "not arranged", an
+unarranged meeting stores no datetime at all, and the chip keeps only cards with
+a today instant — so the default drop is invisible, every time. The same
+component moved to a column with a different default turned a rare papercut into
+the common case. `useTodayFilter` now takes a `landedHere` counter and releases
+when it bumps; the boards own the counter because only they know a commit
+succeeded. Defaulting it to 0 keeps every existing caller's behaviour, which is
+what let it be applied to all three boards without re-proving each column.

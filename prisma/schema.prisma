@@ -100,6 +100,12 @@ model Lead {
   // BS adds: negotiation (V2 §1)
   readyToClose Boolean    @default(false) // V2 §3 flag — admin notified
   noAnswer     Boolean    @default(false) // founder: "didn't answer" card marker (ADR-039) — a flag, not a stage
+  /* ADR-064 — "make the didn't answer button a counter so we can know how many
+     times we tried": how many attempts this card has recorded. `noAnswer` above
+     is KEPT and maintained as `noAnswerCount > 0` — the backup/restore path
+     recreates rows verbatim, so dropping a column would break restoring any
+     existing backup file, and every reader/query/test on the flag keeps working. */
+  noAnswerCount Int       @default(0)
   archived     Boolean    @default(false) // founder: archive (ADR-043) — soft-hide, restorable, no data loss
   archivedAt   DateTime?
   /* ADR-051 — who TYPED this in, which is never who OWNS it. Set on every
