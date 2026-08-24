@@ -14,7 +14,7 @@ import type { RequiredGroup } from "@/lib/pipeline-engine/types";
 import { BusinessActivityField, businessActivityFrom } from "./forms";
 import { tFor } from "@/lib/i18n/core";
 import { useLocale } from "@/components/shared/LocaleProvider";
-import { sameStageActionLabel, stageLabel } from "@/lib/i18n/dict/labels";
+import { optionalLabel, sameStageActionLabel, stageLabel } from "@/lib/i18n/dict/labels";
 import {
   followUpMethodLabel,
   importanceOptionLabel,
@@ -46,13 +46,19 @@ function FollowUpFields({ reps }: { reps: Rep[] }) {
   const t = tFor(locale);
   return (
     <>
-      {/* founder: "remove the time of the follow up just the date" — a follow-up
-          is a DAY; 09:00 Cairo default server-side (ADR-061). Meetings keep
-          their time input below. */}
-      <label className="block">
-        <span className={labelCls}>{t(pPanel.followUpDate)}</span>
-        <input type="date" name="date" required className={inputCls} />
-      </label>
+      {/* founder (ADR-063): "let's get the time back for the follow up but it's
+          not mandtory" — the day is required, the time is an extra. Blank keeps
+          the ADR-061 behaviour: 09:00 Cairo server-side, rendered date-only. */}
+      <div className="grid grid-cols-2 gap-3">
+        <label className="block">
+          <span className={labelCls}>{t(pPanel.followUpDate)}</span>
+          <input type="date" name="date" required className={inputCls} />
+        </label>
+        <label className="block">
+          <span className={labelCls}>{optionalLabel(locale, pPanel.followUpTime)}</span>
+          <input type="time" name="time" className={inputCls} />
+        </label>
+      </div>
       <label className="block">
         <span className={labelCls}>{t(pPanel.method)}</span>
         <select name="method" required className={inputCls}>
@@ -218,8 +224,10 @@ export function prospectGroupPayload(group: RequiredGroup | null, fd: FormData) 
     return {
       group: "follow_up" as const,
       data: {
-        /* no `time` — the server defaults the slot to 09:00 Cairo (ADR-061) */
+        /* ADR-063 — an untouched time input must send NO key: a bare
+           String(fd.get("time")) is the literal "null" and 400s the submit. */
         date: String(fd.get("date")),
+        time: String(fd.get("time") || "") || undefined,
         method: String(fd.get("method")) as "call" | "message" | "visit",
         ownerSalesRepId: String(fd.get("ownerSalesRepId") || "") || undefined,
         followingUpWith: String(fd.get("followingUpWith") || "") || undefined,

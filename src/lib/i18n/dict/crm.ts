@@ -267,8 +267,10 @@ export const eventPanel = {
 
 export const stageForm = {
   followUpDate: { en: "Follow-up date", ar: "تاريخ المتابعة" },
-  /* UNREFERENCED since ADR-061 (founder: follow-ups are date-only) — kept per
-     house convention: existing keys are never deleted, EN stays byte-identical. */
+  /* Orphaned by ADR-061 (follow-ups went date-only), RE-REFERENCED by ADR-063:
+     this is the label of the optional time box, rendered through
+     `optionalLabel()`. Kept alive by the house convention that never deletes a
+     key — EN byte-identical across both moves. */
   followUpTime: { en: "Follow-up time", ar: "وقت المتابعة" },
   method: { en: "Method", ar: "الوسيلة" },
   methodCall: { en: "Call", ar: "مكالمة" },

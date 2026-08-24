@@ -1569,3 +1569,103 @@ complaint. The traps met:
   parents (user, lead-cascaded followUp/meeting, milestone, statement);
   reversed deletes clear it first. A pre-TodoDone export restores cleanly
   (missing table key → `?? []`).
+
+## ADR-063 — giving an optional field back: the omit-the-key trap, and the flag that had to exist (2026-08-25)
+- **The trap ADR-061 wrote down, met from the other side.** ADR-061's note
+  records that after DELETING a time input, `String(fd.get("time"))` is the
+  literal string `"null"`, which fails `timeStr` and 400s every follow-up
+  submit. Restoring an OPTIONAL input hits the same edge from the opposite
+  direction: an input the user never touches submits `""`, and
+  `String(fd.get("time"))` on a MISSING field is still `"null"`. Both fail
+  the HH:mm gate. The four builders therefore send
+  `time: String(fd.get("time") || "") || undefined` — the exact
+  omit-when-empty idiom already used for `ownerSalesRepId` /
+  `followingUpWith` in the same objects (`JSON.stringify` drops an
+  `undefined` value, so the key never leaves the browser, and Zod's
+  `.optional()` accepts it on any non-JSON path too). Never `""`, never
+  `"null"`, never a bare `String(...)`.
+  The four builders: `internal/LeadEventPanel.tsx` `followUpFromForm`,
+  `bsystems/roleForms.tsx` `followUpPayload`,
+  `partners/ProspectEventPanel.tsx` `prospectGroupPayload` (follow_up arm),
+  `portal/groupForms.tsx` `followUpFromForm`. The SEVEN meeting time inputs
+  and their `meetingSchema` / `meetingRescheduleSchema` requirements were not
+  touched — ADR-061's KEPT list still holds.
+- **Why a flag and not a formatting rule.** `FollowUp.dueAt` is one UTC
+  instant, so "blank ⇒ 09:00 Cairo" (ADR-061) makes a defaulted row and a
+  deliberate 09:00 row byte-identical. There is no render-time predicate that
+  can separate them, now or ever — hence `dueTimeSet`, written from the WIRE
+  in `followUpDueTimeSet` (groups.ts), next door to `followUpDueAt` so the
+  slot rule and the marker rule cannot drift apart.
+- **The backfill's one false negative is structural, not a bug.** The rule is
+  "not 09:00 Cairo ⇒ the user chose it". A pre-ADR-061 user who typed 09:00
+  is indistinguishable from the default and stays date-only. Two things make
+  this the right trade: the wrong answer shows LESS rather than inventing a
+  time, and the rule is stated in the migration file itself, in the ADR, and
+  in the founder-facing CHANGELOG.
+- **Cairo wall clock in SQL, not a fixed offset.**
+  `("dueAt" AT TIME ZONE 'UTC' AT TIME ZONE 'Africa/Cairo')::time <> TIME '09:00'`
+  — `dueAt` is `timestamp` (no zone) holding UTC, so the first `AT TIME ZONE`
+  labels it and the second converts. Egypt runs DST, so a naive
+  `dueAt::time <> '07:00'` would be right for half the year and wrong for the
+  other half; the fixture set in `follow-up-time.integration.test.ts` plants
+  09:00 rows on BOTH sides of the transition for exactly this reason.
+- **Two copies of the same rule, kept honest by a parity test.** The
+  migration cannot reach `importBackup`, which re-inserts a pre-marker export
+  onto an already-migrated database — so `backfillFollowUpDueTimeSet` in
+  backup.ts is its twin (the arrangement `normaliseProspectStages` already
+  uses). The integration test READS the UPDATE statement out of
+  `prisma/migrations/20260825093000_follow_up_due_time_set/migration.sql` and
+  runs both against identical fixtures, diffing the classification — so the
+  twin cannot silently drift from what ships.
+- **A twin that runs blind is a different bug (review catch, fixed before
+  push).** Copying `normaliseProspectStages`'s arrangement, the ADR-063 twin
+  was first called unconditionally inside the restore transaction. That works
+  for stages — a retired stage key is never a legitimate value — and is WRONG
+  here: `exportBackup` uses `findMany()` with no `select`, so a post-marker
+  export carries `"dueTimeSet": false` on every date-only row, `createMany`
+  restores that false faithfully, and the blind backfill then flipped any of
+  them not sitting at 09:00 Cairo. Export → Import would grow clocks nobody
+  chose. The discriminator is the payload's SHAPE, not its version: a
+  pre-marker export has no `dueTimeSet` key at all, which is
+  `predatesFollowUpDueTimeSet(rows)` in backup.ts, and the gate reads
+  `if (predates…) await backfill…`. The lesson worth carrying: **before
+  copying a restore-path twin, ask whether the value it rewrites can be
+  legitimate.** For a renamed enum key, no. For a boolean with a meaningful
+  `false`, yes — and then the twin needs an era test in front of it.
+  The old doc comment ("rows already marked are never touched, so this is safe
+  to run on any database") was true only of rows marked TRUE; it now says so.
+- **`dueTimeSet = false` ⇒ 09:00 Cairo is an INVARIANT, and the seed was
+  breaking it.** Everything the backfill does rests on that implication, and
+  `prisma/seed.ts` was the one writer producing rows the rule calls impossible
+  (10:00 / 11:00 / 12:00 / 13:00 Cairo, unmarked) — which is precisely what made
+  the blind-backfill bug observable on a demo database. Three seeded follow-ups
+  now say `dueTimeSet: true`; the fourth moved to 09:00 Cairo (06:00Z) and stays
+  unmarked, so the demo shows both shapes. If a future write path needs a
+  date-only row, it must land on 09:00 Cairo or carry the marker — there is no
+  third option.
+- **The spring-forward nudge is now visible.** `followUpDueAt` moves a posted
+  00:00–00:59 forward one hour on Egypt's transition day (that wall clock does
+  not exist), and ADR-063 is the first release that PRINTS the result: 00:30 on
+  2026-04-24 reads back as 01:30. Same instant as before, newly legible.
+  Measured over every 2026 transition: 45 date×time cases, 45 keep their posted
+  DAY, 3 clocks move — all of them the non-existent midnight hour. Accepted and
+  noted in groups.ts rather than "fixed", because no instant both keeps the day
+  and shows 00:30.
+- **Where a follow-up's clock is decided (all of it).** Service:
+  `todo.ts` `withTime: f.dueTimeSet` on the Today row AND the Done row (it
+  was a constant `false` — ADR-061). Render: `formatCairo(dueAt, dueTimeSet)`
+  in `b-systems/crm/page.tsx` (Next + the negotiation Response datum),
+  `internal/pages.tsx` (ByteForce board), `partners/pages.tsx` (prospect
+  card) and `internal/GroupHistory.tsx` — that last ONE line serves the lead
+  detail, the prospect detail and the call sheet, which is why there is no
+  fourth place to forget. `formatCairoDate(x)` is exactly
+  `formatCairo(x, false)`, so the conditional is a one-argument change.
+- **e2e gotcha: the same lead name appears TWICE on the To-Do.** Recording a
+  second follow-up supersedes the first, and ADR-062 puts the superseded one
+  in the Done section — with the same lead link, so a bare
+  `page.locator("li").filter({ has: link })` is a strict-mode violation. Row
+  assertions scope to the Today `<section>` first. Likewise the "no clock"
+  assertion on the lead detail must sit on the `Due …` PARAGRAPH, not on the
+  `.record-group`: every record group also prints its creation stamp, which
+  always carries a time.
+- Last updated: 2026-08-25 (Entry 058, ADR-063)

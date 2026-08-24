@@ -47,7 +47,9 @@ export interface TodoItem {
   recordId: string;
   at: Date;
   /* date-only records hide the clock. Follow-ups joined the date-only club
-     (founder, ADR-061) — only MEETINGS still show a time. */
+     (founder, ADR-061); ADR-063 made that per-row rather than absolute — a
+     follow-up whose time the person actually CHOSE shows it again. Meetings
+     always do. */
   withTime: boolean;
   title: string;
   href: string;
@@ -286,8 +288,10 @@ export async function todoFor(opts: {
         kind: "follow_up",
         recordId: f.id,
         at: f.dueAt,
-        withTime: false, // ADR-061: follow-ups are date-only
-
+        /* ADR-063: PER ROW now, not a constant — the clock shows only when the
+           person recording the follow-up actually chose one. Blank submissions
+           (the ADR-061 norm) stay a bare date. */
+        withTime: f.dueTimeSet,
         title: lead.name,
         href: `${leadBase}/${lead.id}`,
         leadId: lead.id,
@@ -399,7 +403,7 @@ export async function todoFor(opts: {
       kind: "follow_up",
       recordId: f.id,
       at: f.dueAt,
-      withTime: false,
+      withTime: f.dueTimeSet, // ADR-063 — the Done row reads like its Today twin
       title: f.lead.name,
       href: `${leadBase}/${f.lead.id}`,
       leadId: f.lead.id,

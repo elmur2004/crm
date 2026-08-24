@@ -2513,3 +2513,154 @@ every dashboard formula, journeys 1-5 (SPEC §13).
   integration tests at the wall, which was the gap this round closed — §3
   server-side permissions, ADR-017 fresh-authorization re-read.
 - Verdict: **PASS** — shipped to origin/main.
+
+## Run 071 — 2026-08-25 — ADR-063: the optional follow-up time (both commits)
+- Scope: the two ADR-063 commits — the `dueTimeSet` marker + migration +
+  backfill (commit 1) and the four restored form inputs + every conditional
+  follow-up display + docs (commit 2).
+- Suites/commands:
+  - `npx tsc --noEmit` — **clean** (0 errors), run after each commit's code.
+  - `npx vitest run` (FULL) — **32 files, 420 passed / 0 failed / 0 skipped**.
+    (+12 over Run 070's 408: the new
+    `src/lib/services/follow-up-time.integration.test.ts` — 9 cases — and 3
+    new `followUpDueTimeSet` unit cases in `groups.test.ts`.)
+  - `npx playwright test` (FULL suite). Port 3100 was held by another
+    workstream (a `D:\Healthcare App` Next server), so the config was COPIED
+    to `playwright.port3111.config.ts` (baseURL + `next start -p 3111`), the
+    suite run against it, and the copy DELETED — the other process was never
+    touched. **88 passed + 2 skipped (the pre-existing opt-in skips) /
+    0 failed** in 12.1m; exit code 0.
+    `test-results/.last-run.json`: `{"status":"passed","failedTests":[]}`.
+    (+3 over Run 070's 85: the new `e2e/follow-up-time.spec.ts`.)
+- MIGRATION PROOF on a THROWAWAY embedded Postgres (fresh data dir, port 5877,
+  deleted after — never the dev, test or e2e cluster). The interesting half is
+  that the backfill was proved over REAL legacy rows, not an empty table:
+  1. `prisma migrate deploy` on an empty database → 15/15 applied.
+  2. Rewound to the PRE-ADR-063 state: `ALTER TABLE "FollowUp" DROP COLUMN
+     "dueTimeSet"` + the migration's `_prisma_migrations` row deleted
+     (verified absent: `dueTimeSet present before the migration: false`).
+  3. Planted **5** follow-ups across both sides of Egypt's DST: 14:30 Cairo
+     (summer), 09:00 Cairo (summer), 21:45 Cairo (summer), 09:00 Cairo
+     (winter), 09:01 Cairo (winter). **BEFORE: 5 rows, 0 time-set.**
+  4. `prisma migrate deploy` → the ADR-063 migration applied over that data.
+     **AFTER: 3 time-set / 2 date-only** — 14:30, 21:45 and 09:01 marked
+     chosen; both 09:00 rows (summer AND winter, i.e. the Cairo wall clock,
+     not a fixed offset) left as days.
+  5. IDEMPOTENCE: the migration SQL re-executed by hand → **identical
+     counts (3/2)**; a third `prisma migrate deploy` → **"No pending
+     migrations to apply."**
+  6. DRIFT: `prisma migrate diff --from-config-datasource --to-schema
+     prisma/schema.prisma --exit-code` on a second throwaway cluster →
+     **"No difference detected."**, exit 0 — the hand-written SQL and
+     schema.prisma agree.
+- Backfill parity (unit-level, inside the vitest run): the integration test
+  READS the UPDATE statement out of the shipped migration file and runs it and
+  `backfillFollowUpDueTimeSet` (backup.ts's twin, used by `importBackup`)
+  against identical fixtures, diffing the classification — so the restore path
+  cannot drift from the migration.
+- Founder-journey e2e (`e2e/follow-up-time.spec.ts`, all green): the optional
+  input is present and NOT `required`; blank submits cleanly and renders a bare
+  date on the lead's records, the board card and the To-Do row; a chosen 16:45
+  renders "…, 16:45" in all three; 23:45 is still on TODAY's list (the Cairo
+  day never moves); Arabic reads "وقت المتابعة (اختياري)" right-to-left and a
+  time chosen there lands.
+- Adjusted (behaviour deliberately reversed, not a regression): the three
+  existing `Follow-up time` **absence** assertions from ADR-061 —
+  `byteforce-board.spec.ts`, `journey4-portal-rep-cycle.spec.ts`,
+  `same-stage.spec.ts` — now assert the OPTIONAL input is visible and carries
+  no `required`, and their date-only assertions stay exactly as they were
+  (all three leave the box blank).
+- Failures/bugs filed: none.
+
+## Run 072 — 2026-08-25 — ADR-063 review round + the full ship gate
+- Scope: the five review findings raised against the two ADR-063 commits, and
+  the complete gate on the tree that shipped. Fixes were folded into the two
+  existing commits (`8ed1119` code/migration, `763d71d` forms/display/docs) —
+  no third commit.
+- Findings adjudicated (4 fixed, 1 refuted-as-a-defect but documented):
+  1. **`importBackup` ran the ADR-063 backfill unconditionally** (medium) —
+     CONFIRMED and FIXED. Reproduced RED first, on the embedded test Postgres,
+     with a permanent regression test rather than a throwaway probe: a
+     `dueTimeSet = false` FollowUp at `2026-08-20T07:00:00Z` (10:00 Cairo) was
+     exported carrying `"dueTimeSet": false` and came back from `importBackup`
+     as `true` (`AssertionError: expected true to be false`). The restore now
+     runs the twin only for a PRE-marker payload —
+     `predatesFollowUpDueTimeSet(rows)`, i.e. `rows.some(r => !("dueTimeSet" in
+     r))`, because `exportBackup` has no `select` and a post-marker export
+     always states the key. Same test GREEN after the gate.
+  2. **`prisma/seed.ts` broke the `dueTimeSet = false ⇒ 09:00 Cairo`
+     invariant** (low) — CONFIRMED and FIXED. The four seeded follow-ups were
+     verified with `Intl` in Africa/Cairo as 10:00 / 11:00 / 12:00 / 13:00
+     (all inside Egypt's DST window). Three now carry `dueTimeSet: true`; the
+     partner-referred lead's moved `2026-08-21T09:00:00Z → 06:00Z` (09:00
+     Cairo, same Cairo DAY) and stays unmarked, so the demo holds one example
+     of each shape. Confirmed no test or spec pins those instants.
+  3. **Four stale "UNREFERENCED since ADR-061" i18n comments** (low) —
+     CONFIRMED and FIXED in `auth.ts`, `crm.ts`, `internal.ts`, `partners.ts`.
+     Comments only: the four `followUpTime` strings are byte-identical
+     (`"Follow-up time"` / `"وقت المتابعة"`), which `e2e/i18n.spec.ts` and the
+     three form specs re-proved in the run below.
+  4. **The twin's "safe to run on any database" comment** (medium, same fix as
+     1) — CONFIRMED and CORRECTED: it was only ever true of rows marked TRUE.
+  5. **The spring-forward hour-shift is now visible** (low) — REFUTED as a
+     defect, DOCUMENTED as an accepted consequence. Re-measured by running the
+     shipped `cairoToUtc`/`utcToCairo`/`followUpDueAt` algorithm over every
+     2026 Egypt transition: **45 date×time cases, 45 keep their posted Cairo
+     DAY, 3 clocks move** — 00:00/00:30/00:59 on 2026-04-24 → 01:00/01:30/01:59
+     — and those three wall clocks do not exist that night. No instant both
+     keeps the day and shows 00:30, so no behaviour change; noted beside the
+     nudge in groups.ts.
+- Suites/commands (final tree, all after the fixes):
+  - `npx tsc --noEmit` — **clean** (0 errors, exit 0).
+  - `npx vitest run` (FULL) — **32 files, 422 passed / 0 failed / 0 skipped**
+    in 110.0s. (+2 over Run 071's 420: both new cases in
+    `backup.integration.test.ts` — a post-marker export round-trips a
+    date-only row at a non-09:00 Cairo instant unchanged, and a PRE-marker
+    export with the key absent is still backfilled.)
+  - `npx playwright test` (FULL suite) — **88 passed + 2 skipped / 0 failed**
+    in 11.9m, exit code 0. `test-results/.last-run.json`:
+    `{"status":"passed","failedTests":[]}` (read directly, not through a pipe).
+    The 2 skips are the pre-existing opt-in `audit.spec.ts` pair, unchanged
+    since Run 070. Port 3100 was again held by another workstream (the
+    `D:\Healthcare App` Next server, PID 26384 — never touched), so the config
+    was COPIED to `playwright.tmp3111.config.ts` (baseURL + `next start -p
+    3111`), the suite run against it, and **the copy deleted** — verified by a
+    clean `git status` before committing.
+- MIGRATION RE-PROOF on a THROWAWAY embedded Postgres (fresh data dir
+  `.pgdata/proof-adr063`, port 5799, deleted at the end — never the dev, test
+  or e2e cluster). **16 checks, 0 failures.** Real `prisma migrate deploy`
+  throughout, against the shipped migration file:
+  1. Empty database → `prisma migrate deploy` → **15/15 migrations recorded
+     finished**, `dueTimeSet` present.
+  2. Deploy AGAIN → **"No pending migrations to apply."**, still 15;
+     `prisma migrate status` → **"Database schema is up to date"**. Column
+     shape read from `information_schema`: **boolean / NOT NULL / DEFAULT
+     false**.
+  3. Rewound to the PRE-ADR-063 world — `ALTER TABLE "FollowUp" DROP COLUMN
+     "dueTimeSet"` + its `_prisma_migrations` row deleted (column verified
+     absent; `prisma migrate status` then reported it pending).
+  4. Planted **4** legacy follow-ups, read back through the Cairo wall clock to
+     prove the instants: **2026-08-20 14:30 and 09:00 (summer, UTC+3)** and
+     **2026-01-15 14:30 and 09:00 (winter, UTC+2)**.
+  5. `prisma migrate deploy` → `Applying migration
+     20260825093000_follow_up_due_time_set` over that data. **Both 14:30 rows
+     → `dueTimeSet = true`; both 09:00 rows → `false`**, summer and winter
+     alike (the rule is a Cairo wall clock, never a fixed offset). Recorded
+     once: `finished_at` set, `applied_steps_count = 1`, `rolled_back_at` null.
+  6. IDEMPOTENCE: a further `prisma migrate deploy` → **"No pending migrations
+     to apply."**, exactly **one** `_prisma_migrations` row; then the
+     migration BODY replayed by hand as `scripts/start.mjs` would on a boot
+     retry — the `ADD COLUMN IF NOT EXISTS` did not throw and the backfill
+     `UPDATE` **matched 0 rows**, classification byte-identical.
+- Brand audit over the changed UI (roleForms, LeadEventPanel,
+  ProspectEventPanel, portal groupForms, GroupHistory, internal/pages,
+  partners/pages, b-systems crm page): **PASS** — zero hex / `font-family` /
+  `rgb()` / `hsl()` in any added line, **no new CSS custom property** (so the
+  "a token must exist in all three scopes" law is not triggered at all), the
+  inputs wear the shared `field-input` / `field-label` classes that already
+  resolve through the theming layer, no physical left/right utilities added
+  (RTL, A-12), no `data-brand` touched, and **0 emoji across 521 added lines**.
+  The only hardcoded colours in the repo remain the two pre-existing,
+  out-of-scope ones (`app/api/files/[id]/route.ts`'s standalone HTML page and
+  `app/manifest.ts`'s PWA colours) — untouched by these commits.
+- Failures/bugs filed: none.

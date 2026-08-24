@@ -7,6 +7,7 @@ import { inputCls, labelCls } from "@/components/portal/groupForms";
 import { tFor } from "@/lib/i18n/core";
 import { useLocale } from "@/components/shared/LocaleProvider";
 import { common, stageForm as msg } from "@/lib/i18n/dict/crm";
+import { optionalLabel } from "@/lib/i18n/dict/labels";
 
 /* V2 §3/§4 — the role-aware stage forms for the unified B-Systems pipeline.
    `light` = agent/partner variants (no owner/with, the meeting Q&A flow).
@@ -20,15 +21,24 @@ export const isLight = (r: BsFormRole) => r === "agent" || r === "partner";
 type Rep = { id: string; name: string };
 
 export function FollowUpFieldsV2({ light, reps }: { light: boolean; reps: Rep[] }) {
-  const t = tFor(useLocale());
+  const locale = useLocale();
+  const t = tFor(locale);
   return (
     <>
-      {/* founder: "remove the time of the follow up just the date" — no time
-          input for ANY role; the server defaults to 09:00 Cairo (ADR-061). */}
-      <label className="block">
-        <span className={labelCls}>{t(msg.followUpDate)}</span>
-        <input type="date" name="date" required className={inputCls} />
-      </label>
+      {/* founder (ADR-063): "let's get the time back for the follow up but it's
+          not mandtory" — for EVERY role, light forms included. The day is
+          required, the time is an extra; blank keeps the ADR-061 behaviour
+          exactly (09:00 Cairo server-side, date-only everywhere). */}
+      <div className="grid grid-cols-2 gap-3">
+        <label className="block">
+          <span className={labelCls}>{t(msg.followUpDate)}</span>
+          <input type="date" name="date" required className={inputCls} />
+        </label>
+        <label className="block">
+          <span className={labelCls}>{optionalLabel(locale, msg.followUpTime)}</span>
+          <input type="time" name="time" className={inputCls} />
+        </label>
+      </div>
       <label className="block">
         <span className={labelCls}>{t(msg.method)}</span>
         <select name="method" required className={inputCls}>
@@ -66,8 +76,10 @@ export function followUpPayload(fd: FormData, light: boolean) {
   return {
     group: "follow_up" as const,
     data: {
-      /* no `time` — the server defaults the slot to 09:00 Cairo (ADR-061) */
+      /* ADR-063 — an untouched time input must send NO key: a bare
+         String(fd.get("time")) is the literal "null" and 400s the submit. */
       date: String(fd.get("date")),
+      time: String(fd.get("time") || "") || undefined,
       method: String(fd.get("method")) as "call" | "message" | "visit",
       ownerSalesRepId: light ? undefined : String(fd.get("ownerSalesRepId") || "") || undefined,
       followingUpWith: light ? undefined : String(fd.get("followingUpWith") || "") || undefined,

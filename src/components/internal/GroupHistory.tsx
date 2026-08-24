@@ -1,4 +1,4 @@
-import { formatCairo, formatCairoDate } from "@/lib/datetime";
+import { formatCairo } from "@/lib/datetime";
 import { formatEGP } from "@/lib/money";
 import { tFor } from "@/lib/i18n/core";
 import { getLocale } from "@/lib/i18n/server";
@@ -12,6 +12,7 @@ type FollowUpRow = {
   id: string;
   context: string;
   dueAt: Date;
+  dueTimeSet: boolean; // ADR-063 — was the clock chosen, or is it the 09:00 default?
   method: string;
   followingUpWith: string | null;
   ownerSalesRep?: { name: string } | null;
@@ -78,8 +79,10 @@ export async function GroupHistory({
           title={contextMsg ? t(contextMsg) : t(records.followUpContexts.initial)}
           at={f.createdAt}
         >
-          {/* ADR-061: a follow-up is due on a DAY — no clock (meetings keep theirs) */}
-          <p>{t(records.due)} {formatCairoDate(f.dueAt)} · {f.method === "call" ? t(common.call) : f.method === "message" ? t(common.message) : t(common.visit)}</p>
+          {/* ADR-061 + ADR-063: due on a DAY unless the recorder chose a time
+              (meetings keep theirs unconditionally). This one line feeds the
+              lead detail, the prospect detail AND the call sheet. */}
+          <p>{t(records.due)} {formatCairo(f.dueAt, f.dueTimeSet)} · {f.method === "call" ? t(common.call) : f.method === "message" ? t(common.message) : t(common.visit)}</p>
           {owner ? <p>{t(records.ownerColon)} {owner}</p> : null}
           {f.followingUpWith ? <p>{t(records.withColon)} {f.followingUpWith}</p> : null}
         </Section>

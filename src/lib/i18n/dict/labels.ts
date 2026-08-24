@@ -72,3 +72,16 @@ export function ownerTypeLabel(locale: Locale, owner: string): string {
     ownerTypeMsgs[owner as OwnerType]?.[locale] ?? OWNER_TYPE_LABELS[owner as OwnerType] ?? owner
   );
 }
+
+/* ADR-063 — the house's optional-field idiom ("Department (optional)",
+   "Label (optional)", "Assign to rep (optional)") pulled out as a SUFFIX. The
+   four `followUpTime` keys the ADR-061 removal left behind are re-referenced
+   verbatim — English byte-identical, real Arabic already there — instead of
+   being duplicated into four near-copies just to add two words. */
+export const optionalSuffix: Msg = { en: "(optional)", ar: "(اختياري)" };
+
+/** "Follow-up time" + "(optional)" in one locale — the label an optional field
+    wears, built from the field's own existing key. */
+export function optionalLabel(locale: Locale, m: Msg): string {
+  return `${m[locale]} ${optionalSuffix[locale]}`;
+}

@@ -5,6 +5,7 @@ import { toPiasters } from "@/lib/money";
 import { useLocale } from "@/components/shared/LocaleProvider";
 import { tFor } from "@/lib/i18n/core";
 import { stageForms } from "@/lib/i18n/dict/auth";
+import { optionalLabel } from "@/lib/i18n/dict/labels";
 
 /* §8.2 — portal stage group forms ("the same shapes" as §6.2). The follow-up
    Owner is the deal's rep, stamped SERVER-SIDE in applyDealEvent (ADR-026) —
@@ -19,16 +20,23 @@ export const btnAccent = "btn-accent";
 export const btnGhost = "btn-ghost";
 
 export function FollowUpFields() {
-  const t = tFor(useLocale());
+  const locale = useLocale();
+  const t = tFor(locale);
   return (
     <>
-      {/* founder: "remove the time of the follow up just the date" — a follow-up
-          is a DAY; 09:00 Cairo default server-side (ADR-061). Meetings keep
-          their time input. */}
-      <label className="block">
-        <span className={labelCls}>{t(stageForms.followUpDate)}</span>
-        <input type="date" name="date" required className={inputCls} />
-      </label>
+      {/* founder (ADR-063): "let's get the time back for the follow up but it's
+          not mandtory" — the day is required, the time is an extra. Blank keeps
+          the ADR-061 behaviour: 09:00 Cairo server-side, rendered date-only. */}
+      <div className="grid grid-cols-2 gap-3">
+        <label className="block">
+          <span className={labelCls}>{t(stageForms.followUpDate)}</span>
+          <input type="date" name="date" required className={inputCls} />
+        </label>
+        <label className="block">
+          <span className={labelCls}>{optionalLabel(locale, stageForms.followUpTime)}</span>
+          <input type="time" name="time" className={inputCls} />
+        </label>
+      </div>
       <label className="block">
         <span className={labelCls}>{t(stageForms.method)}</span>
         <select name="method" required className={inputCls}>
@@ -134,8 +142,10 @@ export function followUpFromForm(fd: FormData) {
   return {
     group: "follow_up" as const,
     data: {
-      /* no `time` — the server defaults the slot to 09:00 Cairo (ADR-061) */
+      /* ADR-063 — an untouched time input must send NO key: a bare
+         String(fd.get("time")) is the literal "null" and 400s the submit. */
       date: String(fd.get("date")),
+      time: String(fd.get("time") || "") || undefined,
       method: String(fd.get("method")) as "call" | "message" | "visit",
       followingUpWith: String(fd.get("followingUpWith") || "") || undefined,
     },

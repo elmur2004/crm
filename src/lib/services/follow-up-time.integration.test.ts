@@ -231,6 +231,53 @@ describe("ADR-063 — the migration's backfill rule, run as shipped", () => {
   });
 });
 
+describe("ADR-063 — the To-Do clock is per row, not a constant", () => {
+  it("shows the time only on the follow-up whose time was chosen; a meeting keeps its own", async () => {
+    const actor = await makeActor();
+    await leadWithFollowUp(actor, "Chose A Time", {
+      date: "2026-08-20",
+      time: "16:45",
+      method: "call",
+    });
+    const { lead: dayOnlyLead } = await leadWithFollowUp(actor, "Left It Blank", {
+      date: "2026-08-20",
+      method: "call",
+    });
+    /* a meeting on a third lead — its clock is unconditional (ADR-061) */
+    const meetingLead = await createLead(
+      "bsystems",
+      { name: "Has A Meeting", number: "0101112226", type: "cold_call" },
+      actor,
+    );
+    await applyLeadEvent({
+      brand: "bsystems",
+      leadId: meetingLead.id,
+      event: { type: "next_action", action: "meeting_setting" },
+      group: {
+        group: "meeting",
+        data: { arranged: true, date: "2026-08-20", time: "11:00", mode: "online" },
+      } as never,
+      actor,
+      role: "bsystems_admin",
+    });
+
+    const lists = await todoFor({
+      brand: "bsystems",
+      scope: { kind: "all" },
+      now: cairoToUtc("2026-08-20", "12:00"),
+    });
+    const byTitle = new Map(lists.today.map((i) => [i.title, i]));
+    expect(byTitle.get("Chose A Time")).toMatchObject({ kind: "follow_up", withTime: true });
+    expect(byTitle.get("Left It Blank")).toMatchObject({ kind: "follow_up", withTime: false });
+    expect(byTitle.get("Has A Meeting")).toMatchObject({ kind: "meeting", withTime: true });
+
+    /* and the blank one really is the 09:00 default underneath — the row hides
+       a clock it HAS, which is the entire ADR-063 design */
+    const blank = await db.followUp.findFirstOrThrow({ where: { leadId: dayOnlyLead.id } });
+    expect(utcToCairo(blank.dueAt).time).toBe("09:00");
+  });
+});
+
 describe("ADR-063 — a time never moves a follow-up off its Cairo day", () => {
   it("23:30 belongs to its own day: it is TODAY at midday and gone the next morning", async () => {
     const actor = await makeActor();

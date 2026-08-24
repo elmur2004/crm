@@ -38,18 +38,20 @@ test("ByteForce board: drag opens the stage form; didn't-answer toggles; whole c
   const card = page.locator('[data-deal-card="Parity Deal"]');
   await expect(card).toBeVisible();
 
-  /* Drag New → Following Up: the FULL internal follow-up form opens — which,
-     since ADR-061, asks for a DAY and no time at all. */
+  /* Drag New → Following Up: the FULL internal follow-up form opens — a
+     required DAY and, since ADR-063, an OPTIONAL time. Left blank here, so the
+     card must still read date-only (the ADR-061 norm). */
   await dragTo(page, card, page.locator('[data-stage="following_up"]'));
   await expect(page.getByText("Complete this stage's details to confirm the move")).toBeVisible();
   await expect(page.getByLabel("Follow-up date")).toBeVisible();
-  await expect(page.getByLabel("Follow-up time")).toHaveCount(0); // ADR-061: date-only
+  await expect(page.getByLabel("Follow-up time (optional)")).toBeVisible(); // ADR-063
   await page.getByLabel("Follow-up date").fill("2026-10-01");
   await page.getByLabel("Method").selectOption("call");
   await page.getByRole("button", { name: "Confirm move" }).click();
   const movedCard = page.locator('[data-stage="following_up"] [data-deal-card="Parity Deal"]');
   await expect(movedCard).toBeVisible();
-  /* …and the created follow-up renders DATE-ONLY on the card's key datum */
+  /* …and with the time left blank the follow-up renders DATE-ONLY on the
+     card's key datum — no 9:00 AM nobody chose (ADR-063) */
   await expect(movedCard).toContainText("Next: 1 Oct 2026");
   await expect(movedCard).not.toContainText("1 Oct 2026, ");
 

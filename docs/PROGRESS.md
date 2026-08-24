@@ -2919,3 +2919,118 @@ comment, and the ADR-013 mechanism note all fixed; .env.example confirmed tracke
   campaign expenses to "Media Buying / Campaigns" (no number moves).
   (7) iOS saves inside ByteForce carry the B-Systems mark. (8) old-app
   exports one-way once the new accounting ids are in use.
+
+## Entry 058 — 2026-08-25 — The follow-up time comes back, optional — and the app learns to tell chosen from default
+- Done:
+  - One founder request, verbatim: *"let's get the time back for the follow
+    up but it's not mandtory"*. A REFINEMENT of ADR-061 (three days old),
+    not a revert: the day-only default stays the norm, the time becomes an
+    available extra. Two commits, both carrying the review fixes of (4) below:
+  - (1) `8ed1119` — the MARKER and the SERVER: `FollowUp.dueTimeSet Boolean
+    @default(false)` (a boolean, not a second copy of the wall clock —
+    `dueAt` stays the single source of the instant), written from the wire by
+    `followUpDueTimeSet` in groups.ts and stamped in `persistGroup`; the real
+    migration `20260825093000_follow_up_due_time_set` with its backfill,
+    proved on a THROWAWAY Postgres over real legacy rows (rewound to the
+    pre-migration state, 5 rows planted across both sides of Egypt's DST →
+    3 marked chosen / 2 left as days; re-run twice unchanged; `migrate diff`
+    "No difference detected"); the same rule twinned into `importBackup`
+    (`backfillFollowUpDueTimeSet`) so restoring a pre-marker backup cannot
+    flatten legacy times, with a parity test that runs the shipped migration
+    SQL and the twin against identical fixtures; 9 new integration cases + 3
+    unit cases.
+  - (2) this entry's own commit — the FORMS and the DISPLAY: the optional time input back
+    on all four follow-up forms (internal LeadEventPanel, bsystems roleForms
+    including the light agent/partner variants, partners ProspectEventPanel,
+    portal groupForms) — no `required`, beside the date in the meeting forms'
+    two-column grid, labelled with the house's existing optional idiom via
+    `optionalLabel(locale, followUpTime)` so ADR-061's four surviving
+    `followUpTime` keys are RE-referenced (English byte-identical) instead of
+    duplicated; one new Msg `optionalSuffix` ("(optional)" / "(اختياري)").
+    Every payload builder omits the key when the box is blank. Every
+    follow-up display went conditional — `todo.ts` `withTime` is per row on
+    Today AND Done, plus `formatCairo(dueAt, dueTimeSet)` on the B-Systems
+    board (Next + the negotiation Response datum), the ByteForce board, the
+    prospect card and `GroupHistory` (the one line behind lead detail,
+    prospect detail and the call sheet). Meetings untouched. New
+    `e2e/follow-up-time.spec.ts` (blank ⇒ date / chosen ⇒ clock on records +
+    board + To-Do; 23:45 still belongs to today; an Arabic pass), and the
+    three ADR-061 "no time input" assertions flipped to "optional input
+    present, not required".
+  - (3) docs: ADR-063 (the marker, the backfill rule and its one false
+    negative, the alternatives), CHANGELOG in the founder's voice,
+    IMPLEMENTATION note on the omit-the-key-when-blank trap (met from the
+    opposite direction to ADR-061's) and the Cairo-wall-clock SQL,
+    TESTING Run 071 (tsc clean, 420 vitest, 88 e2e + 2 skips with
+    `.last-run.json` "passed", the migration proof with before/after counts).
+  - (4) REVIEW ROUND before the push — five findings adjudicated against the
+    code and the schema, four fixed, one refuted-as-stated-but-documented, all
+    folded into the two commits above (no third commit for the fixes):
+    - **The restore could invent a clock (medium, FIXED).** `importBackup` ran
+      the ADR-063 backfill unconditionally, so it also rewrote rows from a
+      POST-marker export that legitimately carry `dueTimeSet = false`. Proved
+      red first with a new round-trip test (a date-only row at 10:00 Cairo came
+      back `true`), then gated on the payload's era —
+      `predatesFollowUpDueTimeSet(rows)`, since a pre-marker export has no such
+      key at all. Two new integration cases: the post-marker round-trip stays
+      untouched, the pre-marker export is still backfilled.
+    - **The seed broke the backfill's own invariant (low, FIXED).** Four demo
+      follow-ups sat at 10:00–13:00 Cairo with no marker — the state the rule
+      calls impossible, and the reachable population that made the bug above
+      visible. Three now say `dueTimeSet: true`; the fourth moved to 09:00
+      Cairo and stays unmarked, so the demo has one example of each shape.
+    - **Four stale i18n comments (low, FIXED).** The `followUpTime` keys still
+      read "UNREFERENCED since ADR-061"; ADR-063 re-references all four through
+      `optionalLabel()`. Comments replaced in auth/crm/internal/partners dicts —
+      strings untouched, English still byte-identical. (`todo.ts`'s two
+      genuinely-unreferenced keys keep their notes.)
+    - **The blind-twin doc comment (medium, same fix).** "Rows already marked
+      are never touched, so this is safe to run on any database" was true only
+      of rows marked TRUE. Corrected in place.
+    - **The spring-forward hour-shift (low, REFUTED as a defect, DOCUMENTED).**
+      A posted 00:30 on 2026-04-24 prints as 01:30 — but that wall clock does
+      not exist that night, and no instant both keeps the posted DAY and shows
+      00:30. Re-measured over every 2026 transition: 45 date×time cases, 45
+      keep their day, 3 clocks move (all the non-existent midnight hour).
+      Accepted as an ADR-063 consequence and noted beside the nudge in
+      groups.ts; no behaviour change.
+  - FINAL GATE on the shipped tree (TESTING Run 072): `npx tsc --noEmit`
+    clean; `npx vitest run` **32 files / 422 passed** (+2 for the new backup
+    round-trip cases); the FULL Playwright suite **88 passed + 2 skipped / 0
+    failed** in 11.9m with `test-results/.last-run.json` read directly as
+    `{"status":"passed","failedTests":[]}` (3100 was held by the
+    `D:\Healthcare App` server again, so the config was copied to port 3111
+    and the copy deleted); and a MIGRATION RE-PROOF on a throwaway Postgres —
+    16 checks, 0 failures: 15/15 from empty, "No pending migrations" on the
+    second deploy, then rewound and re-deployed over planted legacy rows so
+    the backfill was watched classifying **14:30 → time-set and 09:00 →
+    date-only in BOTH August (UTC+3) and January (UTC+2)**, idempotent on a
+    hand-replay (`UPDATE` matched 0 rows).
+  - Brand audit over the changed UI (roleForms, LeadEventPanel,
+    ProspectEventPanel, portal groupForms, GroupHistory, internal/pages,
+    partners/pages, b-systems crm page): **PASS** — no hex/`font-family`/`rgb()`
+    in any added line, no new CSS custom property (so the all-three-scopes law
+    is not triggered), inputs use the shared `field-input`/`field-label`
+    classes, no physical left/right utilities added (RTL, A-12), no `data-brand`
+    touched, zero emoji in 521 added lines.
+- In progress: nothing — tree clean, two commits, pushed after the gate below.
+- Next steps: founder to confirm the backfill reading below.
+- Blockers: none.
+- Needs founder confirmation: (1) NEW — THE BACKFILL'S ONE FALSE NEGATIVE.
+  Old follow-ups get their times back by the rule "any stored instant that is
+  not 09:00 on the Cairo clock was really chosen" — true for every row written
+  while the form demanded a time. The cost: a follow-up where someone
+  DELIBERATELY typed 09:00 before ADR-061 now shows as a date only, because
+  09:00 is also the slot the system fills in when nobody chooses. It errs
+  toward showing less rather than inventing a time; confirm that is the
+  trade he wants (the alternative needs history scans and still guesses).
+  Carried from Entry 057: (2) a follow-up DUE TODAY whose lead moved stage on
+  an EARLIER day lists under today's Done as "Moved to {stage}". (3) the
+  checkbox on MONEY rows hides for TODAY only. (4) a meeting DELAYED to
+  another day leaves today's To-Do with NO Done row. Carried from Entry 056:
+  (5) overdue items invisible on the To-Do + the pressed Today chip hiding
+  overdue follow-ups. Carried from Entry 055: (6) the B-Systems DEPARTMENT
+  beside the B-Systems COMPANY filter. (7) re-typing the two campaign
+  expenses to "Media Buying / Campaigns". (8) iOS saves inside ByteForce
+  carry the B-Systems mark. (9) old-app exports one-way once the new
+  accounting ids are in use.

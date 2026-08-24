@@ -12,7 +12,7 @@ import { internalCrmConfig } from "@/lib/pipeline-engine/configs/internal-crm";
 import { toPiasters, toPounds } from "@/lib/money";
 import { tFor } from "@/lib/i18n/core";
 import { useLocale } from "@/components/shared/LocaleProvider";
-import { sameStageActionLabel, stageLabel } from "@/lib/i18n/dict/labels";
+import { optionalLabel, sameStageActionLabel, stageLabel } from "@/lib/i18n/dict/labels";
 import { common, events } from "@/lib/i18n/dict/internal";
 
 /* §6.1/§6.2 — selecting a Next Action opens exactly that stage's field group right
@@ -28,16 +28,25 @@ const btnPrimary = "btn-primary";
 const btnGhost = "btn-ghost";
 
 export function FollowUpFields({ reps }: { reps: Rep[] }) {
-  const t = tFor(useLocale());
+  const locale = useLocale();
+  const t = tFor(locale);
   return (
     <>
-      {/* founder: "remove the time of the follow up just the date" — a follow-up
-          is a DAY. No time input anywhere; the stored instant defaults to 09:00
-          Cairo server-side (followUpDueAt, ADR-061). Meetings keep their time. */}
-      <label className="block">
-        <span className={labelCls}>{t(events.followUpDate)}</span>
-        <input type="date" name="date" required className={inputCls} />
-      </label>
+      {/* founder (ADR-061): "remove the time of the follow up just the date",
+          then (ADR-063) "let's get the time back for the follow up but it's not
+          mandtory". So: the DAY is required, the time is an extra. Left blank,
+          the stored instant is still the 09:00 Cairo default and every screen
+          keeps printing a date only. */}
+      <div className="grid grid-cols-2 gap-3">
+        <label className="block">
+          <span className={labelCls}>{t(events.followUpDate)}</span>
+          <input type="date" name="date" required className={inputCls} />
+        </label>
+        <label className="block">
+          <span className={labelCls}>{optionalLabel(locale, events.followUpTime)}</span>
+          <input type="time" name="time" className={inputCls} />
+        </label>
+      </div>
       <label className="block">
         <span className={labelCls}>{t(events.method)}</span>
         <select name="method" required className={inputCls}>
@@ -71,8 +80,13 @@ export function followUpFromForm(fd: FormData) {
   return {
     group: "follow_up" as const,
     data: {
-      /* no `time` — the server defaults the slot to 09:00 Cairo (ADR-061) */
+      /* ADR-063 — the time is OPTIONAL, so an empty box must send NO key at
+         all: `String(fd.get("time"))` on an untouched input yields the literal
+         "null", which fails the HH:mm gate and 400s the submit. `|| undefined`
+         is the same omit-when-empty idiom the two fields below already use —
+         JSON.stringify drops it, and the server falls back to 09:00 Cairo. */
       date: String(fd.get("date")),
+      time: String(fd.get("time") || "") || undefined,
       method: String(fd.get("method")) as "call" | "message" | "visit",
       ownerSalesRepId: String(fd.get("ownerSalesRepId") || "") || undefined,
       followingUpWith: String(fd.get("followingUpWith") || "") || undefined,

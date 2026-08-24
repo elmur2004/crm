@@ -3237,3 +3237,121 @@ ADR" below.
   column, so it is deferred until he says he wants it.
 - Resolves: —
 - Status: Accepted
+
+## ADR-063 — 2026-08-25 — The follow-up time comes back OPTIONAL; one flag says whether it was chosen
+- Context: founder, verbatim — "let's get the time back for the follow up but
+  it's not mandtory". This REFINES ADR-061 (three days old), it does not
+  revert it: ADR-061 removed the time input from all four follow-up forms,
+  made every follow-up render date-only, and defaulted the stored slot to
+  09:00 Cairo. The day-only default stays the norm; the time becomes an
+  available extra. The server never stopped accepting it — `followUpSchema.time`
+  has been `.optional()` throughout — so this is a client and a DISPLAY
+  problem, plus the one thing the data cannot express.
+- Decision:
+  - **The display problem, stated.** `FollowUp.dueAt` is ONE UTC instant, so a
+    blank submission (09:00 Cairo by ADR-061's default) and a deliberate 09:00
+    are byte-identical. Simply turning the clock back on everywhere would print
+    "9:00 AM" on every follow-up recorded during the date-only window — a time
+    nobody chose. No formatting rule can fix that; the information is not in
+    the row.
+  - **One marker: `FollowUp.dueTimeSet Boolean @default(false)`.** Set TRUE
+    only when a time actually arrived on the wire (`followUpDueTimeSet` in
+    groups.ts — `input.time !== undefined`, next door to `followUpDueAt` so the
+    slot rule and the marker rule cannot drift). A BOOLEAN, not a nullable
+    "HH:mm" string: `dueAt` must stay the single source of the instant, and a
+    second copy of the wall clock is a second thing to keep in sync (and to get
+    wrong across DST). Migration `20260825093000_follow_up_due_time_set`.
+  - **Backfill, honest and stated: 09:00 Cairo means date-only.** Existing rows
+    are marked time-set exactly when their stored instant is NOT 09:00 on the
+    CAIRO wall clock (`("dueAt" AT TIME ZONE 'UTC' AT TIME ZONE 'Africa/Cairo')::time
+    <> TIME '09:00'`) — those are the pre-ADR-061 rows, written when every form
+    REQUIRED a time, so the user really picked it and their times come back.
+    Rows at exactly 09:00 Cairo stay date-only: every row created during the
+    date-only window, plus **the one accepted FALSE NEGATIVE — someone who
+    deliberately typed 09:00 before ADR-061 loses that clock.** The rule errs
+    toward showing LESS (a date the user certainly meant) rather than inventing
+    a time, and the alternative — reading history to find which form was live
+    when each row was written — is a scan with no better answer. Flagged for
+    founder confirmation in PROGRESS Entry 058.
+    The rule is re-runnable by construction (`WHERE "dueTimeSet" = false`, and
+    every row left false is at 09:00), and `ADD COLUMN IF NOT EXISTS` keeps the
+    DDL replayable at boot (scripts/start.mjs retries `migrate deploy`).
+  - **`importBackup` carries the same rule.** A backup exported before the
+    marker holds FollowUp rows with no `dueTimeSet`; `createMany` would restore
+    them at the default and silently flatten every legacy chosen time. So
+    `backfillFollowUpDueTimeSet` runs inside the restore transaction — the same
+    twin arrangement ADR-057/ADR-059 use for `normaliseProspectStages`, and a
+    parity test runs both against identical fixtures and diffs the result.
+  - **…but ONLY for a pre-marker payload — the twin is GATED, and the stage
+    twin is not.** (Review finding, fixed before push.) The two twins are not
+    symmetric. A retired stage key can never be a legitimate value, so
+    `normaliseProspectStages` is safe to run blind. `dueTimeSet = false` very
+    much can be legitimate, and `exportBackup` calls `findMany()` with no
+    `select`, so a POST-marker export states `"dueTimeSet": false` EXPLICITLY on
+    every date-only row. Running the backfill over those would hand a follow-up
+    a clock nobody chose — the exact failure this ADR exists to prevent, arriving
+    through the restore door. A PRE-marker export has no such key at all, so the
+    payload itself distinguishes the two eras: `predatesFollowUpDueTimeSet(rows)`
+    (`rows.some(r => !("dueTimeSet" in r))`) decides, and only then does the
+    backfill run. Rejected: bumping `BACKUP_VERSION` to gate on the number —
+    the version has never tracked the schema in this repo (the vault, the
+    accounting tables and ADR-062's TodoDone all landed at version 1), and
+    raising it would make every older deployment reject a newer file it can in
+    fact read. Proved with a round-trip test, red first: a `dueTimeSet = false`
+    row at 10:00 Cairo came back `true` before the gate and `false` after.
+  - **A seeded instant must state its intent.** (Same review.) The rule the
+    backfill rests on — `dueTimeSet = false` ⇒ 09:00 Cairo — is an INVARIANT of
+    every write path, and `prisma/seed.ts` was the one place breaking it: four
+    demo follow-ups authored at 10:00 / 11:00 / 12:00 / 13:00 Cairo with no
+    marker at all. Three now carry `dueTimeSet: true` (they read as chosen
+    hours), and the partner-referred lead's moved to 09:00 Cairo and stays
+    unmarked — so the demo database carries one honest example of EACH shape,
+    and no write path in the repo produces a row the backfill would have to
+    guess about.
+  - **The spring-forward hour-shift becomes VISIBLE, and is accepted.** (Same
+    review.) `followUpDueAt`'s re-anchor nudges a posted 00:00–00:59 forward an
+    hour on Egypt's spring-forward day, because that wall clock does not exist:
+    on 2026-04-24 a posted 00:30 is stored — and now PRINTED — as 01:30. Under
+    ADR-061 no clock was printed, so the nudge was invisible; it is the same
+    instant either way. No behaviour change: there is no instant that both keeps
+    the posted DAY and shows 00:30, and the day is what a follow-up is about.
+    Proved over every 2026 transition — 45 date×time cases, 45 keep their day,
+    and those three are the only clocks that move. Noted beside the nudge in
+    groups.ts.
+  - **The field is optional and LOOKS optional.** The time input returns to all
+    four follow-up forms (internal LeadEventPanel, bsystems roleForms — light
+    variants included, partners ProspectEventPanel, portal groupForms) with NO
+    `required` attribute, beside the date in the same two-column grid the
+    meeting forms already use. The label reuses the house's optional idiom
+    ("Department (optional)", "Label (optional)") as a SUFFIX —
+    `optionalLabel(locale, followUpTime)` in labels.ts — so the four
+    `followUpTime` keys ADR-061 left unreferenced are re-referenced verbatim,
+    English byte-identical, rather than duplicated into four near-copies. One
+    new Msg, `optionalSuffix` ("(optional)" / "(اختياري)").
+  - **Every follow-up display becomes conditional; meetings do not.**
+    `formatCairo(dueAt, dueTimeSet)` replaces the flat `formatCairoDate` on the
+    B-Systems board key datum (Next AND the negotiation Response datum), the
+    ByteForce board key datum, the prospect card line, and `GroupHistory` (one
+    line that feeds the lead detail, the prospect detail AND the call sheet).
+    `todo.ts` `withTime` is now PER ROW (`f.dueTimeSet`) on both the Today and
+    the Done follow-up rows instead of the ADR-061 constant `false`. Meetings
+    keep `withTime: true` and their required time inputs, untouched — a meeting
+    genuinely has a time.
+  - **The Cairo calendar day is untouched.** A time is a detail OF the day: the
+    Today chip, `cairoDayWindow`, and the To-Do windows all still key on the
+    Cairo day-string, and `followUpDueAt`'s spring-forward re-anchor still keeps
+    a posted time on its posted date. Pinned at 23:30/23:45 and at 00:30 on
+    Egypt's transition day, in both the integration and the e2e suites.
+- Alternatives considered: a nullable `dueTime` "HH:mm" column (rejected: two
+  sources for one wall clock — `dueAt` would still be the instant everything
+  sorts and windows by, and the copy would drift across DST); inferring
+  "chosen" from `dueAt` at RENDER time instead of storing a flag (rejected:
+  that is the backfill's false negative made permanent — every future
+  deliberate 09:00 would print as a date, for ever); making the time REQUIRED
+  again (rejected: he said "not mandtory"); dropping the marker and printing
+  the clock on everything (rejected: it invents a 9:00 AM on every historic
+  row — the exact thing ADR-061 was asked to remove); a separate
+  "date-only" checkbox in the form (rejected: an empty box already says it).
+- Resolves: refines ADR-061 (display half); ADR-061's server default and DST
+  re-anchor stand unchanged.
+- Status: Accepted

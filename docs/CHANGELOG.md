@@ -885,3 +885,40 @@
   agents, partners, and the ByteForce side — and nobody can tick a task on
   a lead they cannot see (that is enforced on the server, like everything
   else). Works in Arabic, right-to-left, same as the rest.
+
+## The time on a follow-up is back — and it is yours to give or skip (2026-08-25)
+- **The time box is there again, and nothing makes you fill it.** You said
+  *"let's get the time back for the follow up but it's not mandtory"* — so
+  every follow-up form now shows **Follow-up date** and, beside it,
+  **Follow-up time (optional)**. Fill it when the appointment is at a
+  particular hour; leave it alone when the day is the whole point. Every
+  role sees it: your side, the sales team's, agents', partners', and the
+  partners board too. In Arabic it reads **وقت المتابعة (اختياري)**.
+- **If you leave it blank, nothing on any screen changes.** The card still
+  says "Next: 25 Aug 2026", the lead's records still say "Due 25 Aug 2026",
+  the To-Do row still shows the day. No 9:00 AM appears out of nowhere —
+  that was the whole reason to take the time away three days ago, and it
+  stays true.
+- **If you give a time, it comes back everywhere it matters.** The board
+  card, the lead's records, the call sheet and the To-Do all show
+  "25 Aug 2026, 16:45". Two follow-ups can sit side by side, one with a
+  time and one without, and each reads exactly the way it was written.
+- **Your OLD follow-ups get their times back too.** Every follow-up
+  recorded before we removed the field had a time you actually typed, and
+  those times are now showing again. The one exception, so you are not
+  surprised: if you deliberately picked 9:00 in the morning back then, that
+  one now shows as just a date — 9:00 is the hour the system itself uses
+  when nobody chooses, so it is the one time we cannot tell apart from
+  silence. Tell us if you would rather we handled that differently.
+- **Restoring a backup never invents a time either.** If you ever export the
+  system and load it back, every follow-up comes back reading exactly the way
+  it read before — the ones you dated stay dates, the ones you timed keep
+  their hour. Backups taken before this week still get the old times back on
+  the way in, same rule as above, but a backup taken from today onward already
+  knows the answer and is trusted to say it.
+- **A time never changes which day a follow-up belongs to.** A follow-up at
+  23:45 tonight is still on TODAY's To-Do and still counts under the
+  "Today" chip on the board. The time is a detail of the day, never a
+  reason to move it.
+- Meetings are untouched — a meeting still asks for its time and always
+  shows it. That never was the thing you wanted removed.

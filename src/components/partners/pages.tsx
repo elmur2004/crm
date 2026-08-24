@@ -95,8 +95,12 @@ export async function PartnersPipelineBody({
        already says "didn't answer", the recorded call-back is the news. */
     const meetingAt = p.stage === config.meetingStage ? (p.meetings[0]?.datetime ?? null) : null;
     if (nextFollowUp && !meetingAt && !config.terminalStages.includes(p.stage)) {
-      /* ADR-061: a follow-up is a DAY — no clock (the meeting line keeps its time) */
-      return t(pPipeline.nextAt).replace("{dt}", formatCairoDate(nextFollowUp.dueAt));
+      /* ADR-061 + ADR-063: a DAY unless someone chose a time (the meeting line
+         keeps its time unconditionally) */
+      return t(pPipeline.nextAt).replace(
+        "{dt}",
+        formatCairo(nextFollowUp.dueAt, nextFollowUp.dueTimeSet),
+      );
     }
     switch (p.stage) {
       case config.didntAnswerStage:

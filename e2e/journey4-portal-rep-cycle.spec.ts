@@ -104,11 +104,12 @@ test("journey 4: agent requests to join, admin approves, agent works the board w
   const card = page.locator('[data-deal-card="Nadia Prospect"]');
   await expect(card).toBeVisible();
 
-  /* Drag New → Following Up; the LIGHT form opens: day only, NO time field. */
+  /* Drag New → Following Up; the LIGHT form opens: a required day, an OPTIONAL
+     time (ADR-063 — the field came back for every role), still no Owner. */
   await dragTo(page, card, page.locator('[data-stage="following_up"]'));
   await expect(page.getByText("Complete this stage's details to confirm the move")).toBeVisible();
   await expect(page.getByLabel("Follow-up date")).toBeVisible();
-  await expect(page.getByLabel("Follow-up time")).toHaveCount(0); // ADR-061 (was the V2 §3 light-form privilege)
+  await expect(page.getByLabel("Follow-up time (optional)")).toBeVisible();
   await expect(page.getByLabel("Owner")).toHaveCount(0);
   await page.getByLabel("Follow-up date").fill("2026-10-01");
   await page.getByLabel("Method").selectOption("call");
