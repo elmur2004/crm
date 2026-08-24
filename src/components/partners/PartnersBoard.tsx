@@ -21,11 +21,13 @@ import { tFor } from "@/lib/i18n/core";
 import { useLocale } from "@/components/shared/LocaleProvider";
 import { stageLabel } from "@/lib/i18n/dict/labels";
 import { pCommon, pPipeline, prospectKindLabel } from "@/lib/i18n/dict/partners";
-/* the grip's label is the one shared board string this file needs — the same
-   key the two CRM boards use, not a duplicate in dict/partners */
-import { common } from "@/lib/i18n/dict/crm";
+/* the grip's label and the Today chip's filtered empty-state are shared board
+   strings — the same keys the two CRM boards use, not duplicates in
+   dict/partners (the chip itself is the same component, ADR-064) */
+import { board, common } from "@/lib/i18n/dict/crm";
 import { callSheet } from "@/lib/i18n/dict/call";
 import { CardGrip, useMouseOnlyListeners, type CardDrag } from "@/components/shared/CardGrip";
+import { TodayChip, useTodayFilter } from "@/components/shared/TodayChip";
 import {
   ProspectGroupFields,
   prospectGroupPayload,
@@ -63,6 +65,10 @@ export interface ProspectCard {
   /** §7.2b — Qualified, and the login has not been minted yet (either kind) */
   awaitingAccount: boolean;
   keyDatum: string;
+  /** ISO instant of the meeting this card SHOWS — set only on Meeting Setting
+      cards; the column is SORTED by it server-side and its Today chip filters
+      on it (ADR-064). Null = no datetime yet, which sorts last. */
+  meetingAt: string | null;
   defaults: ProspectGateDefaults;
   cardNumbers: string[];
   /** dial / wa.me links for the card's primary number, precomputed server-side */
@@ -179,19 +185,41 @@ function Card({
   );
 }
 
+/* the instant this board's Today chip filters on — module-level so the memo in
+   useTodayFilter sees a stable accessor (ADR-064) */
+const MEETING_AT = (card: ProspectCard) => card.meetingAt;
+
 function Column({
   stage,
+  meetingStage,
   cards,
   suppressClickRef,
+  landedHere,
 }: {
   stage: string;
+  /** the one column that carries the chip, from the config (ADR-059: shared) */
+  meetingStage: string;
   cards: ProspectCard[];
   suppressClickRef: { current: boolean };
+  /** drops this column has accepted this mount — bump releases its Today chip */
+  landedHere: number;
 }) {
   const locale = useLocale();
   const t = tFor(locale);
   /* one board, one context: the droppable id IS the stage key (ADR-059) */
   const { setNodeRef, isOver } = useDroppable({ id: stage });
+  /* founder (ADR-064): "also add the today filter on top" — the lead boards'
+     chip, same component, on the one column this board shares with them.
+     ADR-061 skipped this board only because ADR-059 left it no follow-up
+     column; a meeting column it has. Client-side over the loaded cards, the
+     CAIRO day, default OFF, and the droppable stays the whole column so a
+     filtered column still accepts drops. */
+  const isMeetingCol = stage === meetingStage;
+  const { todayOnly, toggle, todayCount, visible } = useTodayFilter(
+    cards,
+    isMeetingCol ? MEETING_AT : null,
+    landedHere,
+  );
   return (
     <div
       ref={setNodeRef}
@@ -202,13 +230,24 @@ function Column({
       <div className="col-bar" aria-hidden />
       <div className="col-head">
         <span className="col-title">{stageLabel(locale, stage)}</span>
-        <span className="count-pill">{cards.length}</span>
+        <span className="flex items-center gap-1.5">
+          {isMeetingCol ? (
+            <TodayChip count={todayCount} pressed={todayOnly} onToggle={toggle} />
+          ) : null}
+          <span className="count-pill">{visible.length}</span>
+        </span>
       </div>
       <div className="col-cards">
-        {cards.map((c) => (
+        {visible.map((c) => (
           <Card key={c.id} card={c} suppressClickRef={suppressClickRef} />
         ))}
-        {cards.length === 0 ? <div className="col-empty">{t(pPipeline.emptyColumn)}</div> : null}
+        {visible.length === 0 ? (
+          /* a pressed chip with zero matches must not claim the column is
+             empty — cards may merely be hidden by the filter (ADR-061 review) */
+          <div className="col-empty">
+            {todayOnly && cards.length > 0 ? t(board.noTodayMeetings) : t(pPipeline.emptyColumn)}
+          </div>
+        ) : null}
       </div>
     </div>
   );
@@ -236,7 +275,14 @@ export function PartnersBoard({ cards, reps }: { cards: ProspectCard[]; reps: Re
      on drop must not navigate (whole-card onClick checks this ref) */
   const suppressClickRef = useRef(false);
 
-  async function commit(body: unknown, prospectId: string) {
+  /* Review — which column last accepted a drop, and how many drops it has
+     taken this mount. A column whose Today chip is pressed lets go when a card
+     lands in it, so the rep never drags a card in and watches it vanish behind
+     the filter (see useTodayFilter). Counted rather than flagged so two drops
+     into the same column are two distinct signals. */
+  const [landed, setLanded] = useState<{ stage: string; n: number }>({ stage: "", n: 0 });
+
+  async function commit(body: unknown, prospectId: string, to: string) {
     setBusy(true);
     setError(null);
     const res = await fetch(`/api/b-systems/partners-pipeline/${prospectId}/event`, {
@@ -251,6 +297,7 @@ export function PartnersBoard({ cards, reps }: { cards: ProspectCard[]; reps: Re
       return;
     }
     setPending(null);
+    setLanded((p) => ({ stage: to, n: p.stage === to ? p.n + 1 : 1 }));
     router.refresh();
   }
 
@@ -286,7 +333,7 @@ export function PartnersBoard({ cards, reps }: { cards: ProspectCard[]; reps: Re
        modal at all: Lead → Contacted (founder 1.2), anything → Waiting (1.1),
        an agent → Qualified (1.3), and the drag back to Lead as before. */
     if (!requiredGroupForTarget(cardConfig, card.stage, to)) {
-      void commit({ event: { type: "drag", to } }, id);
+      void commit({ event: { type: "drag", to } }, id, to);
       return;
     }
     setPending({ id, to }); // the stage's form opens; cancel reverts
@@ -317,8 +364,10 @@ export function PartnersBoard({ cards, reps }: { cards: ProspectCard[]; reps: Re
             <Column
               key={stage}
               stage={stage}
+              meetingStage={config.meetingStage}
               cards={cards.filter((c) => c.stage === stage)}
               suppressClickRef={suppressClickRef}
+              landedHere={landed.stage === stage ? landed.n : 0}
             />
           ))}
         </div>
@@ -387,6 +436,7 @@ export function PartnersBoard({ cards, reps }: { cards: ProspectCard[]; reps: Re
                     ),
                   },
                   pending.id,
+                  pending.to,
                 );
               }}
               className="contents"

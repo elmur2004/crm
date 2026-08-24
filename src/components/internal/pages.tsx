@@ -3,6 +3,8 @@ import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import type { Brand } from "@/lib/pipeline-engine/constants";
 import { INTERNAL_STAGES, LEAD_TYPES } from "@/lib/pipeline-engine/constants";
+import { internalCrmConfig } from "@/lib/pipeline-engine/configs/internal-crm";
+import { orderMeetingColumn } from "@/lib/board-order";
 import { tFor } from "@/lib/i18n/core";
 import { getLocale } from "@/lib/i18n/server";
 import { leadTypeLabel, stageLabel } from "@/lib/i18n/dict/labels";
@@ -535,7 +537,17 @@ export async function CrmBoardBody({
       lead.stage === "following_up" && lead.followUps[0]
         ? lead.followUps[0].dueAt.toISOString()
         : null,
+    /* ADR-064 — the instant the Meeting Setting card SHOWS (its keyDatum
+       above), which is also the instant its column is ordered and filtered by */
+    meetingAt:
+      lead.stage === internalCrmConfig.meetingStage && lead.meetings[0]?.datetime
+        ? lead.meetings[0].datetime.toISOString()
+        : null,
   }));
+  /* founder (ADR-064): the Meeting Setting column runs soonest-meeting-first,
+     always — server-side, where the list is built, so the client never has to
+     re-order. Every other column keeps its `updatedAt desc`. */
+  const orderedCards = orderMeetingColumn(cards, internalCrmConfig.meetingStage);
 
   return (
     <div className="space-y-6">
@@ -584,10 +596,15 @@ export async function CrmBoardBody({
           </div>
         </form>
       </FilterPanel>
-      {cards.length === 0 && activeCount > 0 ? (
+      {orderedCards.length === 0 && activeCount > 0 ? (
         <p className="empty">{t(board.noMatches)}</p>
       ) : (
-        <InternalBoard leads={cards} reps={reps} basePath={ctx.basePath} apiBase={ctx.apiBase} />
+        <InternalBoard
+          leads={orderedCards}
+          reps={reps}
+          basePath={ctx.basePath}
+          apiBase={ctx.apiBase}
+        />
       )}
     </div>
   );

@@ -53,7 +53,16 @@ export interface BsBoardLead {
   /** ISO instant of the latest follow-up's dueAt — set only on Following Up
       cards; feeds the column's Today chip (ADR-061) */
   followUpDueAt: string | null;
+  /** ISO instant of the meeting this card SHOWS — set only on Meeting Setting
+      cards; the column is SORTED by it server-side and its Today chip filters
+      on it (ADR-064). Null = no datetime yet, which sorts last. */
+  meetingAt: string | null;
 }
+
+/* the two instants a column can filter "today" on — module-level so the memo in
+   useTodayFilter sees a stable accessor (ADR-064) */
+const FOLLOW_UP_AT = (lead: BsBoardLead) => lead.followUpDueAt;
+const MEETING_AT = (lead: BsBoardLead) => lead.meetingAt;
 
 /* The card's CONTENT — shared verbatim by the in-column draggable and the
    DragOverlay clone. Founder: columns cap their height and scroll inside now,
@@ -204,25 +213,36 @@ function Column({
   wonBlocked,
   draggingId,
   suppressClickRef,
+  landedHere,
 }: {
   stage: string;
   leads: BsBoardLead[];
   wonBlocked: boolean;
   draggingId: string | null;
   suppressClickRef: { current: boolean };
+  /** drops this column has accepted this mount — bump releases its Today chip */
+  landedHere: number;
 }) {
   const locale = useLocale();
   const t = tFor(locale);
   const { setNodeRef, isOver } = useDroppable({ id: stage });
   const blocked = wonBlocked && stage === "won";
   const overCls = isOver ? (blocked ? "col--over-blocked" : "col--over-valid") : "";
-  /* founder (ADR-061): the Following Up column's Today chip — client-side over
-     the already-loaded cards, default OFF. "Today" is the CAIRO calendar day,
-     never the viewer's local one; the day is sampled post-mount / on press,
-     never at render (see useTodayFilter). The droppable stays the whole
-     column, so a filtered column still accepts drops. */
+  /* founder (ADR-061 + ADR-064): the Today chip — on Following Up, and now on
+     Meeting Setting too. Client-side over the already-loaded cards, default
+     OFF. "Today" is the CAIRO calendar day, never the viewer's local one; the
+     day is sampled post-mount / on press, never at render (see useTodayFilter).
+     The droppable stays the whole column, so a filtered column still accepts
+     drops. Each column filters on its OWN instant, and says so when the filter
+     empties it. */
   const isFollowUpCol = stage === "following_up";
-  const { todayOnly, toggle, todayCount, visible } = useTodayFilter(leads, isFollowUpCol);
+  const isMeetingCol = stage === bsystemsCrmConfig.meetingStage;
+  const { todayOnly, toggle, todayCount, visible } = useTodayFilter(
+    leads,
+    isMeetingCol ? MEETING_AT : isFollowUpCol ? FOLLOW_UP_AT : null,
+    landedHere,
+  );
+  const hasChip = isFollowUpCol || isMeetingCol;
   return (
     <div
       ref={setNodeRef}
@@ -234,9 +254,7 @@ function Column({
       <div className="col-head">
         <span className="col-title">{stageLabel(locale, stage)}</span>
         <span className="flex items-center gap-1.5">
-          {isFollowUpCol ? (
-            <TodayChip count={todayCount} pressed={todayOnly} onToggle={toggle} />
-          ) : null}
+          {hasChip ? <TodayChip count={todayCount} pressed={todayOnly} onToggle={toggle} /> : null}
           <span className="count-pill">{visible.length}</span>
         </span>
       </div>
@@ -257,7 +275,7 @@ function Column({
             {isOver && blocked
               ? t(msg.blocked)
               : todayOnly && leads.length > 0
-                ? t(msg.noTodayFollowUps)
+                ? t(isMeetingCol ? msg.noTodayMeetings : msg.noTodayFollowUps)
                 : t(msg.emptyColumn)}
           </div>
         ) : null}
@@ -291,7 +309,19 @@ export function BsBoard({
 
   const canWin = role === "admin" || role === "sales";
 
-  async function commitDrop(body: unknown, leadId: string, surface: "modal" | "toast" = "modal") {
+  /* Review — which column last accepted a drop, and how many drops it has
+     taken this mount. A column whose Today chip is pressed lets go when a card
+     lands in it, so the rep never drags a card in and watches it vanish behind
+     the filter (see useTodayFilter). Counted rather than flagged so two drops
+     into the same column are two distinct signals. */
+  const [landed, setLanded] = useState<{ stage: string; n: number }>({ stage: "", n: 0 });
+
+  async function commitDrop(
+    body: unknown,
+    leadId: string,
+    to: string,
+    surface: "modal" | "toast" = "modal",
+  ) {
     setBusy(true);
     setError(null);
     const res = await fetch(`/api/b-systems/leads/${leadId}/event`, {
@@ -310,6 +340,7 @@ export function BsBoard({
       return;
     }
     setPendingDrop(null);
+    setLanded((p) => ({ stage: to, n: p.stage === to ? p.n + 1 : 1 }));
     router.refresh();
   }
 
@@ -338,7 +369,7 @@ export function BsBoard({
       return;
     }
     if (to === "new") {
-      void commitDrop({ event: { type: "drag", to } }, leadId, "toast"); // intake — no form
+      void commitDrop({ event: { type: "drag", to } }, leadId, to, "toast"); // intake — no form
       return;
     }
     setPendingDrop({ leadId, to }); // the stage's form opens; cancel reverts
@@ -369,6 +400,7 @@ export function BsBoard({
               wonBlocked={!canWin}
               draggingId={draggingId}
               suppressClickRef={suppressClickRef}
+              landedHere={landed.stage === stage ? landed.n : 0}
             />
           ))}
         </div>
@@ -435,6 +467,7 @@ export function BsBoard({
                     }),
                   },
                   pendingDrop.leadId,
+                  pendingDrop.to,
                 );
               }}
               className="contents"

@@ -349,9 +349,12 @@ export const board = {
   },
   confirmMove: { en: "Confirm move", ar: "تأكيد النقل" },
   /* founder (ADR-061): "make a little filter in top of the follow up column
-     called today" — the chip's label; the count rides beside it. */
+     called today" — the chip's label; the count rides beside it. ADR-064 puts
+     the same chip on Meeting Setting, so the label is shared, not duplicated. */
   todayFilter: { en: "Today", ar: "اليوم" },
   /* review: a pressed chip with zero matches must not claim the column is
-     empty — cards may merely be hidden by the filter. */
+     empty — cards may merely be hidden by the filter. One line per column: on
+     Meeting Setting "no follow-ups" would name the wrong record entirely. */
   noTodayFollowUps: { en: "No follow-ups due today", ar: "لا توجد متابعات مستحقة اليوم" },
+  noTodayMeetings: { en: "No meetings today", ar: "لا توجد اجتماعات اليوم" },
 } satisfies Record<string, Msg>;

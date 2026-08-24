@@ -13,6 +13,7 @@ import {
 import { telHref, waHref } from "@/lib/phone-dial";
 import { listBsOwnerReps } from "@/lib/services/sales-reps";
 import { partnersConfigFor } from "@/lib/pipeline-engine/configs/partners";
+import { orderMeetingColumn } from "@/lib/board-order";
 import { formatCairo, formatCairoDate } from "@/lib/datetime";
 import { StageBadge } from "@/components/shared/StageBadge";
 import { GroupHistory } from "@/components/internal/GroupHistory";
@@ -80,6 +81,16 @@ export async function PartnersPipelineBody({
   /* the disclosure chip counts every control that is off its default */
   const activeCount = [search !== "", kind !== "any"].filter(Boolean).length;
 
+  /* ADR-064 — the ONE meeting instant a card has: the latest meeting record,
+     and only while the card sits in the Meeting Setting column. The line the
+     card shows, the order its column runs in, and what its Today chip filters
+     on are all THIS, so the eye can verify the order against what it reads. */
+  function meetingAtOf(p: (typeof prospects)[number]): Date | null {
+    return p.stage === partnersConfigFor(p.kind).meetingStage
+      ? (p.meetings[0]?.datetime ?? null)
+      : null;
+  }
+
   function keyDatum(p: (typeof prospects)[number]): string {
     /* ADR-059 — no stage plays the follow-up role any more, so the "Next: {dt}"
        datum hangs off the RECORD: a card carrying a real follow-up shows its
@@ -93,7 +104,7 @@ export async function PartnersPipelineBody({
        To-Do's side-by-side rows exist to avoid. Everywhere else an active
        card's recorded follow-up wins, Didn't Answer included: the column
        already says "didn't answer", the recorded call-back is the news. */
-    const meetingAt = p.stage === config.meetingStage ? (p.meetings[0]?.datetime ?? null) : null;
+    const meetingAt = meetingAtOf(p);
     if (nextFollowUp && !meetingAt && !config.terminalStages.includes(p.stage)) {
       /* ADR-061 + ADR-063: a DAY unless someone chose a time (the meeting line
          keeps its time unconditionally) */
@@ -137,6 +148,7 @@ export async function PartnersPipelineBody({
       p.stage === partnersConfigFor(p.kind).wonStage &&
       (p.kind === "agent" ? !p.agentUserId : Boolean(p.partner) && !p.partner?.userId),
     keyDatum: keyDatum(p),
+    meetingAt: meetingAtOf(p)?.toISOString() ?? null,
     defaults: {
       kind: p.kind,
       companyName: p.companyName,
@@ -152,6 +164,11 @@ export async function PartnersPipelineBody({
     telHref: telHref(p.number),
     waHref: waHref(p.number),
   }));
+  /* founder (ADR-064): the Meeting Setting column runs soonest-meeting-first,
+     always — server-side, where the list is built. Every other column keeps its
+     `updatedAt desc`. Both kinds share the stage set since ADR-059, so one
+     stage key orders the whole board. */
+  const orderedCards = orderMeetingColumn(cards, partnersConfigFor("partner").meetingStage);
 
   return (
     <div className="space-y-6">
@@ -205,10 +222,10 @@ export async function PartnersPipelineBody({
           </div>
         </form>
       </FilterPanel>
-      {cards.length === 0 && activeCount > 0 ? (
+      {orderedCards.length === 0 && activeCount > 0 ? (
         <p className="empty">{t(pPipeline.noMatches)}</p>
       ) : (
-        <PartnersBoard cards={cards} reps={reps} />
+        <PartnersBoard cards={orderedCards} reps={reps} />
       )}
     </div>
   );

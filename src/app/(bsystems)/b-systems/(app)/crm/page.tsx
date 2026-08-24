@@ -4,6 +4,8 @@ import { bsRoleOf } from "@/lib/api/bsystems";
 import { listBsLeads, listOwnLeads } from "@/lib/services/bsystems-admin";
 import { listBsOwnerReps } from "@/lib/services/sales-reps";
 import { LEAD_TYPES } from "@/lib/pipeline-engine/constants";
+import { bsystemsCrmConfig } from "@/lib/pipeline-engine/configs/bsystems-crm";
+import { orderMeetingColumn } from "@/lib/board-order";
 import { formatCairo } from "@/lib/datetime";
 import { formatEGP } from "@/lib/money";
 import { waHref } from "@/lib/phone-dial";
@@ -126,6 +128,14 @@ export default async function BsCrmPage({
     Boolean,
   ).length;
 
+  /* ADR-064 — the instant the Meeting Setting card SHOWS (its keyDatum above),
+     which is also the instant its column is ordered and filtered by. One
+     function, so the eye can verify the order against the line it reads. */
+  const meetingAt = (l: LeadRow): string | null =>
+    l.stage === "meeting_setting" && l.meetings[0]?.datetime
+      ? l.meetings[0].datetime.toISOString()
+      : null;
+
   const leads: BsBoardLead[] = rows.map((l) => ({
     id: l.id,
     name: l.name,
@@ -141,7 +151,12 @@ export default async function BsCrmPage({
        datum shows, only on Following Up cards */
     followUpDueAt:
       l.stage === "following_up" && l.followUps[0] ? l.followUps[0].dueAt.toISOString() : null,
+    meetingAt: meetingAt(l),
   }));
+  /* founder (ADR-064): the Meeting Setting column runs soonest-meeting-first,
+     always — server-side, where the list is built, so the client never has to
+     re-order. Every other column keeps its `updatedAt desc`. */
+  const orderedLeads = orderMeetingColumn(leads, bsystemsCrmConfig.meetingStage);
 
   const reps =
     role === "admin" || role === "sales"
@@ -206,10 +221,10 @@ export default async function BsCrmPage({
           </div>
         </form>
       </FilterPanel>
-      {leads.length === 0 && activeCount > 0 ? (
+      {orderedLeads.length === 0 && activeCount > 0 ? (
         <p className="empty">{t(m.noMatches)}</p>
       ) : (
-        <BsBoard leads={leads} role={role} reps={reps} />
+        <BsBoard leads={orderedLeads} role={role} reps={reps} />
       )}
     </div>
   );
