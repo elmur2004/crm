@@ -135,6 +135,11 @@ model FollowUp {
   partnerProspectId String?
   context           String // initial | after_proposal | after_meeting
   dueAt             DateTime // ONE UTC instant; agent forms collect date-only (V2 §3 — time 09:00 Cairo default)
+  /* ADR-063 — did the submitter actually CHOOSE the slot? `dueAt` stays the one
+     source of the instant; this only says whether its clock is the caller's or
+     the ADR-061 09:00 Cairo default, so a blank submission renders date-only
+     and a chosen time renders with its clock. */
+  dueTimeSet        Boolean          @default(false)
   method            String // call | message | visit
   ownerSalesRepId   String?
   ownerPortalRepId  String?

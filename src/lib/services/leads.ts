@@ -19,6 +19,7 @@ import { storage } from "@/lib/storage";
 import { cairoToUtc } from "@/lib/datetime";
 import {
   followUpDueAt,
+  followUpDueTimeSet,
   groupPayloadSchema,
   type GroupPayload,
   type WonDealInput,
@@ -810,6 +811,9 @@ export async function persistGroup(
         ...parent,
         context: extra.followUpContext ?? "initial",
         dueAt: followUpDueAt(payload.data),
+        /* ADR-063 — true only when the submitter actually chose the slot; the
+           09:00 Cairo default stays indistinguishable in `dueAt` alone. */
+        dueTimeSet: followUpDueTimeSet(payload.data),
         method: payload.data.method,
         ownerSalesRepId: payload.data.ownerSalesRepId ?? null,
         ownerPortalRepId: payload.data.ownerPortalRepId ?? null,

@@ -22,7 +22,10 @@ export const followUpSchema = z.object({
   /* Founder (ADR-061): EVERY follow-up form collects the DAY only now — what
      V2 §3 gave agents is the rule for all roles. `time` stays OPTIONAL (never
      required) so API callers and old clients keep working; absent ⇒ the slot
-     defaults to 09:00 Cairo in followUpDueAt. Meetings still require a time. */
+     defaults to 09:00 Cairo in followUpDueAt. Meetings still require a time.
+     Founder (ADR-063): "let's get the time back for the follow up but it's not
+     mandtory" — the forms ask again, the day-only default stays the norm, and
+     this field is exactly as optional as it always was on the wire. */
   time: timeStr.optional(),
   method: z.enum(FOLLOW_UP_METHODS),
   ownerSalesRepId: z.string().optional(),
@@ -37,8 +40,25 @@ export function followUpDueAt(input: FollowUpInput): Date {
      posted 00:xx wall-clock may not exist on the transition day — the solver
      then lands on the EVE. Nudge one hour forward (DST jumps are one hour,
      mirroring todo.ts startOfCairoDay) so a posted time can never move a
-     follow-up off its posted date. The 09:00 default is always safe. */
+     follow-up off its posted date. The 09:00 default is always safe.
+
+     ADR-063 accepts a once-a-year consequence this makes VISIBLE for the first
+     time: on 2026-04-24 a posted 00:00/00:30/00:59 is stored as 01:00/01:30/
+     01:59 Cairo and, now that a chosen time is printed, the screens say so.
+     The posted hour simply does not exist that night — there is no instant
+     that both keeps the day and shows 00:30 — and the DAY, which is what a
+     follow-up is actually about, is never lost. Proved over every 2026
+     transition: 45 date×time cases, 45 keep their day, and these three are the
+     only clocks that move. */
   return utcToCairo(at).date === input.date ? at : new Date(at.getTime() + 60 * 60 * 1000);
+}
+
+/** ADR-063 — the marker behind `FollowUp.dueTimeSet`. `dueAt` remains the ONE
+    source of the instant; this says only whether the clock on it is the
+    caller's own choice or the 09:00 Cairo default, which is the difference no
+    instant can express. TRUE only when a time actually arrived. */
+export function followUpDueTimeSet(input: FollowUpInput): boolean {
+  return input.time !== undefined;
 }
 
 export const meetingSchema = z

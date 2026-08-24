@@ -190,7 +190,11 @@ export async function seed() {
 
       const fu = await mk({ name: `${prefix} Textiles`, number: "0221000002", type: "event_data", stage: "following_up", repId: rep1 });
       await db.followUp.create({
-        data: { leadId: fu.id, context: "initial", dueAt: new Date("2026-08-20T07:00:00Z"), method: "call", followingUpWith: "Procurement lead" },
+        /* ADR-063 — 10:00 on the Cairo clock, and stated as CHOSEN. A seeded
+           instant that is not the 09:00 default must say so, or the demo data
+           claims a time nobody picked (and violates the invariant the backfill
+           rests on: dueTimeSet=false ⇒ 09:00 Cairo). */
+        data: { leadId: fu.id, context: "initial", dueAt: new Date("2026-08-20T07:00:00Z"), dueTimeSet: true, method: "call", followingUpWith: "Procurement lead" },
       });
       await log("lead", fu.id, "stage_change", "T-1", "new", "following_up");
 
@@ -265,7 +269,7 @@ export async function seed() {
          it is the founder's item 2.1, shipped as data. */
       if (company === "Suez Shipping") {
         await db.followUp.create({
-          data: { partnerProspectId: p.id, context: "initial", dueAt: new Date("2026-08-22T08:00:00Z"), method: "visit" },
+          data: { partnerProspectId: p.id, context: "initial", dueAt: new Date("2026-08-22T08:00:00Z"), dueTimeSet: true, method: "visit" }, // 11:00 Cairo, chosen (ADR-063)
         });
       }
       if (stage === "meeting_setting") {
@@ -418,7 +422,10 @@ export async function seed() {
       },
     });
     await db.followUp.create({
-      data: { leadId: partnerLead.id, context: "initial", dueAt: new Date("2026-08-21T09:00:00Z"), method: "call" },
+      /* ADR-063 — the one seeded follow-up that is a BLANK submission: the
+         09:00 Cairo default, left unmarked, so the demo carries an example of
+         each shape (this row renders date-only; the other three show a clock). */
+      data: { leadId: partnerLead.id, context: "initial", dueAt: new Date("2026-08-21T06:00:00Z"), method: "call" },
     });
     await log("lead", partnerLead.id, "create", "PP-5");
 
@@ -444,7 +451,7 @@ export async function seed() {
     await mkAgentLead("Fresh Deal", "Startup One", "new");
     const dealFu = await mkAgentLead("Follow-up Deal", "Growth Co", "following_up");
     await db.followUp.create({
-      data: { leadId: dealFu.id, context: "initial", dueAt: new Date("2026-08-23T10:00:00Z"), method: "message", ownerPortalRepId: seededRep.id },
+      data: { leadId: dealFu.id, context: "initial", dueAt: new Date("2026-08-23T10:00:00Z"), dueTimeSet: true, method: "message", ownerPortalRepId: seededRep.id }, // 13:00 Cairo, chosen (ADR-063)
     });
     const dealNeg = await mkAgentLead("Negotiation Deal", "Talks Co", "negotiation");
     await db.negotiationNote.create({

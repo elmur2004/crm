@@ -153,6 +153,20 @@ export async function importBackup(
        normalisation the two migrations run, so it can never re-strand a card nor
        leave a restored card's History speaking a retired vocabulary. */
     await normaliseProspectStages(tx);
+    /* ADR-063 — a backup exported BEFORE the marker existed holds FollowUp rows
+       with no `dueTimeSet` at all; createMany restores them at the column
+       default (false), which would silently turn every legacy CHOSEN time into
+       a date-only row. Same reasoning as the stage normalisation above: the
+       restore runs the SAME backfill the migration runs — but ONLY for that
+       pre-marker payload, which is the difference between this twin and the
+       stage one. A retired stage key cannot be a legitimate value; `dueTimeSet
+       = false` very much can, and a POST-marker export states it explicitly on
+       every date-only row. Running the backfill over those would hand a
+       follow-up a clock NOBODY CHOSE — precisely the failure ADR-063 exists to
+       prevent — so the payload is asked which era it comes from first. */
+    if (predatesFollowUpDueTimeSet(payload.tables!["followUp"] ?? [])) {
+      await backfillFollowUpDueTimeSet(tx);
+    }
     await tx.activityLog.create({
       data: {
         entityType: "user",
@@ -175,6 +189,44 @@ export async function importBackup(
   }
 
   return counts;
+}
+
+/* ------------------------------------------------------- ADR-063 backfill */
+
+/** Does this export predate the ADR-063 marker? `exportBackup` calls
+    `findMany()` with no `select`, so a POST-marker export carries `dueTimeSet`
+    on EVERY FollowUp row — `false` included — while a PRE-marker export has no
+    such key at all. That absence is the only honest signal of the era, and it
+    is the exact precondition the backfill's rule assumes. No rows ⇒ nothing to
+    backfill either way, so the answer is `false`. */
+export function predatesFollowUpDueTimeSet(rows: Record<string, unknown>[]): boolean {
+  return rows.some((row) => !("dueTimeSet" in row));
+}
+
+/** The TypeScript twin of the backfill in
+    `prisma/migrations/20260825093000_follow_up_due_time_set/migration.sql`,
+    statement for statement, for the one path the migration cannot reach:
+    `importBackup` re-inserts a PRE-marker export verbatim onto an
+    already-migrated database.
+
+    The rule, stated honestly: an instant that is NOT 09:00 on the CAIRO wall
+    clock can only have come from a form that required a time, so the user
+    really chose it. Rows at exactly 09:00 Cairo stay date-only — that is every
+    row written during the ADR-061 date-only window, plus the one accepted false
+    negative (someone who deliberately typed 09:00 before ADR-061). Rows already
+    marked TRUE are never touched, so this is re-runnable — but that is NOT the
+    same as safe on any database: a row deliberately marked FALSE at some other
+    clock is indistinguishable here from a legacy row, so only a caller that has
+    established the pre-marker era may run it (`predatesFollowUpDueTimeSet`, or
+    the migration, which by definition runs the moment the column is born). */
+export async function backfillFollowUpDueTimeSet(
+  tx: Prisma.TransactionClient,
+): Promise<void> {
+  await tx.$executeRaw`
+    UPDATE "FollowUp"
+    SET "dueTimeSet" = true
+    WHERE "dueTimeSet" = false
+      AND ("dueAt" AT TIME ZONE 'UTC' AT TIME ZONE 'Africa/Cairo')::time <> TIME '09:00'`;
 }
 
 /* ------------------------------------------ ADR-057 / ADR-059 normalisation */

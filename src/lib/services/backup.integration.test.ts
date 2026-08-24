@@ -151,6 +151,116 @@ describe("Full backup round-trip", () => {
   });
 });
 
+/* ADR-063 — the restore runs the marker backfill, and the review caught what
+   that costs if it runs blind. `exportBackup` uses `findMany()` with no
+   `select`, so a POST-marker export carries `"dueTimeSet": false` EXPLICITLY on
+   every date-only row; re-marking those on import would hand a follow-up a
+   clock nobody chose — the exact thing ADR-063 exists to prevent. The payload
+   can tell the two eras apart (a PRE-marker export has no such key at all), so
+   the restore asks before it backfills. */
+describe("Restoring never invents a follow-up clock (ADR-063)", () => {
+  it("round-trips a date-only follow-up whose instant is NOT 09:00 Cairo", async () => {
+    const actor: Actor = { id: null, label: "Backup Admin" };
+    const lead = await createLead(
+      "bsystems",
+      { name: "Clock Corp", number: "0100000009", type: "cold_call" },
+      actor,
+    );
+    /* the seeded shape: 10:00 on the Cairo clock (DST), marked date-only —
+       byte-for-byte the instant prisma/seed.ts writes */
+    const dayOnly = await db.followUp.create({
+      data: {
+        leadId: lead.id,
+        context: "initial",
+        dueAt: new Date("2026-08-20T07:00:00Z"),
+        method: "call",
+        dueTimeSet: false,
+        followingUpWith: "day only",
+      },
+    });
+    const chosen = await db.followUp.create({
+      data: {
+        leadId: lead.id,
+        context: "initial",
+        dueAt: new Date("2026-08-20T13:45:00Z"),
+        method: "call",
+        dueTimeSet: true,
+        followingUpWith: "chosen",
+      },
+    });
+
+    const json = JSON.parse(JSON.stringify(await exportBackup())) as {
+      tables: { followUp: Array<Record<string, unknown>> };
+    };
+    /* the export really does state the false — that is what makes the era
+       knowable, and what a blind backfill would overwrite */
+    expect(json.tables.followUp.map((r) => r["dueTimeSet"]).sort()).toEqual([false, true]);
+
+    await resetDb();
+    await importBackup(json, admin);
+
+    expect((await db.followUp.findUniqueOrThrow({ where: { id: dayOnly.id } })).dueTimeSet).toBe(
+      false,
+    );
+    expect((await db.followUp.findUniqueOrThrow({ where: { id: chosen.id } })).dueTimeSet).toBe(
+      true,
+    );
+  });
+
+  it("still backfills a PRE-marker export, where the key is absent entirely", async () => {
+    const now = new Date().toISOString();
+    await importBackup(
+      {
+        app: "byteforce-bsystems-sales-platform",
+        version: 1,
+        exportedAt: now,
+        tables: {
+          lead: [
+            {
+              id: "legacy-lead-1",
+              brand: "bsystems",
+              name: "Legacy Clock Corp",
+              number: "0100000008",
+              type: "cold_call",
+              stage: "following_up",
+              createdAt: now,
+              updatedAt: now,
+            },
+          ],
+          followUp: [
+            /* no `dueTimeSet` key at all — the pre-ADR-063 shape */
+            {
+              id: "legacy-fu-chosen",
+              leadId: "legacy-lead-1",
+              context: "initial",
+              dueAt: "2026-08-20T11:30:00Z", // 14:30 Cairo — a time somebody typed
+              method: "call",
+              createdAt: now,
+            },
+            {
+              id: "legacy-fu-default",
+              leadId: "legacy-lead-1",
+              context: "initial",
+              dueAt: "2026-08-20T06:00:00Z", // 09:00 Cairo — the ADR-061 default
+              method: "call",
+              createdAt: now,
+            },
+          ],
+        },
+      },
+      admin,
+    );
+
+    const rows = Object.fromEntries(
+      (await db.followUp.findMany({ select: { id: true, dueTimeSet: true } })).map((r) => [
+        r.id,
+        r.dueTimeSet,
+      ]),
+    );
+    expect(rows).toEqual({ "legacy-fu-chosen": true, "legacy-fu-default": false });
+  });
+});
+
 /* ADR-057 — the second stranding vector. importBackup does deleteMany +
    createMany with ids preserved and NO transformation, so restoring a backup
    exported BEFORE the agent rename would re-insert agent cards at
