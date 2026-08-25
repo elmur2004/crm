@@ -50,6 +50,10 @@ model User {
   createdProspects PartnerProspect[] @relation("ProspectCreator")
   ownedLeads    Lead[]         @relation("LeadOwner")
   notifications Notification[]
+  /* ADR-065 — the DEVICES this person asked to be notified on. Cascade: an
+     account that is deleted must stop receiving push, and there is nothing to
+     preserve (a browser re-subscribes in one press). */
+  pushSubscriptions PushSubscription[]
   leadComments  LeadComment[]  @relation("CommentAuthor")
   todoCompletions TodoDone[]   @relation("TodoCompleter") // ADR-062 — marks this user checked
   createdAt     DateTime       @default(now())
@@ -415,6 +419,36 @@ model Notification {
   createdAt DateTime  @default(now())
 
   @@index([userId, readAt])
+}
+
+model PushSubscription {
+  /* ADR-065 (founder: "I want it to shoot me actual notifications") — one row
+     per DEVICE that agreed to receive web push, exactly as the browser's
+     PushSubscription describes it. One person has several (phone, laptop,
+     the installed home-screen app), so the key is the ENDPOINT, not the user:
+     the endpoint IS the device's address at its push service, it is unique
+     across the world, and re-subscribing the same device must refresh the row
+     rather than mint a second one.
+
+     `endpoint` unique also carries the ownership rule: a device that signs into
+     a different account re-points to whoever is signed in now, so the previous
+     account can never keep pushing to a phone it no longer holds.
+
+     No secret of OURS lives here: p256dh/auth are the BROWSER's public
+     subscription material, useless without the endpoint they belong to. The
+     server's VAPID private key is read from the environment and is never
+     stored in the database. */
+  id         String   @id @default(cuid())
+  userId     String
+  endpoint   String   @unique
+  p256dh     String // the device's public key (base64url)
+  auth       String // the device's auth secret (base64url)
+  userAgent  String   @default("") // a human label so a person can tell devices apart
+  createdAt  DateTime @default(now())
+  lastSeenAt DateTime @default(now()) // refreshed every time the device re-subscribes
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model Attachment {

@@ -35,6 +35,7 @@ export async function resetDb(): Promise<void> {
   await db.wonInfo.deleteMany();
   await db.client.deleteMany();
   await db.notification.deleteMany();
+  await db.pushSubscription.deleteMany(); // ADR-065 — references User, before it
   await db.negotiationNote.deleteMany();
   await db.leadComment.deleteMany();
   await db.lead.deleteMany();

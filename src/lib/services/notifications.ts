@@ -1,38 +1,46 @@
 import { db } from "@/lib/db";
 import type { Prisma } from "../../../generated/prisma/client";
+import { schedulePush } from "./push/deliver";
 
 /* V2 §10 — in-app notifications. userId=null rows broadcast to every admin; the
-   nav bell polls (ADR-009 pattern). WhatsApp delivery is future scope (the agent
-   confirmation copy references it only). */
+   nav bell polls (ADR-009 pattern).
 
-export async function notifyAdmins(input: {
-  /* "needs_owner": ADR-051 — a data-entry user added a lead that belongs to
-     nobody until the admin assigns it. */
-  type: "meeting_request" | "ready_to_close" | "registration" | "needs_owner";
+   ADR-065 — and now they buzz a phone as well. Web push is hooked into
+   `writeNotification` below, which is THE one place a Notification row is
+   created: `notifyAdmins`, `notifyUser` and the lead-chat mention loop all go
+   through it, so every existing type pushes and every FUTURE type pushes with
+   no per-callsite work and nothing to remember. With no VAPID keys configured
+   the hook returns before it does anything at all — see push/deliver.ts. */
+
+/** Every kind of news this system can deliver. `needs_owner` is ADR-051 (a
+    data-entry user added a lead that belongs to nobody until the admin assigns
+    it); `mention` is the lead-chat @mention (founder V5); `assigned` is the
+    lead handover. */
+export type NotificationType =
+  | "meeting_request"
+  | "ready_to_close"
+  | "registration"
+  | "needs_owner"
+  | "assigned"
+  | "mention";
+
+type NotificationInput = {
+  /** null = broadcast to every B-Systems admin */
+  userId: string | null;
+  type: NotificationType;
   title: string;
   body: string;
-  leadId?: string;
-}) {
-  await db.notification.create({
-    data: {
-      userId: null, // broadcast to admins
-      type: input.type,
-      title: input.title,
-      body: input.body,
-      leadId: input.leadId ?? null,
-    },
-  });
-}
+  leadId?: string | null;
+};
 
-/* Founder (lead assignment): "it will be visible in his system". A notification
-   addressed to ONE account — their bell already polls the same endpoint and
-   deep-links through Notification.leadId to the lead. Written inside the
-   assigning transaction so the ownership change and the news are atomic. */
-export async function notifyUser(
-  tx: Prisma.TransactionClient,
-  input: { userId: string; type: "assigned"; title: string; body: string; leadId?: string },
+/** THE central write. Everything that notifies anybody comes through here, so
+    the push send is hooked exactly once. Accepts a transaction client so a
+    caller can keep the news atomic with the change it is news about. */
+async function writeNotification(
+  client: Prisma.TransactionClient,
+  input: NotificationInput,
 ) {
-  await tx.notification.create({
+  const row = await client.notification.create({
     data: {
       userId: input.userId,
       type: input.type,
@@ -41,6 +49,47 @@ export async function notifyUser(
       leadId: input.leadId ?? null,
     },
   });
+  /* fire-and-forget, and inert unless the host has VAPID keys */
+  schedulePush({
+    id: row.id,
+    userId: row.userId,
+    type: row.type,
+    title: row.title,
+    body: row.body,
+    leadId: row.leadId,
+  });
+  return row;
+}
+
+export async function notifyAdmins(input: {
+  type: Extract<
+    NotificationType,
+    "meeting_request" | "ready_to_close" | "registration" | "needs_owner"
+  >;
+  title: string;
+  body: string;
+  leadId?: string;
+}) {
+  await writeNotification(db, { ...input, userId: null });
+}
+
+/* Founder (lead assignment): "it will be visible in his system". A notification
+   addressed to ONE account — their bell already polls the same endpoint and
+   deep-links through Notification.leadId to the lead. Written inside the
+   assigning transaction so the ownership change and the news are atomic.
+   ADR-065 widened it to carry the lead-chat @mention too, so that path stops
+   writing its own `notification.create` and inherits the push hook. */
+export async function notifyUser(
+  tx: Prisma.TransactionClient,
+  input: {
+    userId: string;
+    type: Extract<NotificationType, "assigned" | "mention">;
+    title: string;
+    body: string;
+    leadId?: string | null;
+  },
+) {
+  await writeNotification(tx, input);
 }
 
 export function listNotifications(opts: { isAdmin: boolean; userId: string; take?: number }) {

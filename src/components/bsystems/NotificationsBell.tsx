@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { tFor } from "@/lib/i18n/core";
 import { useLocale } from "@/components/shared/LocaleProvider";
 import { bell } from "@/lib/i18n/dict/admin";
+import { PushToggle } from "@/components/shared/PushToggle";
 
 /* V2 §10 — the admin nav bell: polls /api/b-systems/notifications (ADR-009's
    polling pattern), shows unread count, click-through opens the lead. */
@@ -120,6 +121,10 @@ export function NotificationsBell({
               </button>
             ))
           )}
+          {/* ADR-065 — the enable-notifications control. Renders NOTHING unless
+              the host has VAPID keys, so with none configured this menu is
+              exactly the menu it was before. */}
+          <PushToggle />
         </div>
       ) : null}
     </div>

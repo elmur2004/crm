@@ -70,6 +70,19 @@ describe("Full backup round-trip", () => {
         completedByLabel: "Elmur",
       },
     });
+    /* ADR-065 — a registered phone rides the backup too. It is a brand-new
+       table, so it needs no restore twin; what it DOES need is to be in the
+       MODELS list at all (the exact failure INTEGRATION-PLAN §3 warns about,
+       and the one undoEntry already fell into once). */
+    await db.pushSubscription.create({
+      data: {
+        userId: user.id,
+        endpoint: "https://push.example/backup-device",
+        p256dh: "device-public-key",
+        auth: "device-auth-secret",
+        userAgent: "iPhone",
+      },
+    });
     const fileKey = "backupintegrationtest1.png";
     await storage.put(fileKey, Buffer.from("png-bytes-here"));
     await db.attachment.create({
@@ -123,6 +136,12 @@ describe("Full backup round-trip", () => {
     expect(restoredMark.dueAt.getTime()).toBe(new Date("2026-08-20T06:00:00Z").getTime());
 
     expect(await db.notification.count()).toBe(1);
+    /* the registered phone came back attached to the same account (ADR-065) */
+    const restoredDevice = await db.pushSubscription.findUniqueOrThrow({
+      where: { endpoint: "https://push.example/backup-device" },
+    });
+    expect(restoredDevice.userId).toBe(user.id);
+    expect(restoredDevice.userAgent).toBe("iPhone");
     const restoredComment = await db.leadComment.findFirstOrThrow();
     expect(restoredComment.leadId).toBe(lead.id); // chat thread round-trips
     expect(restoredComment.authorUserId).toBe(user.id);

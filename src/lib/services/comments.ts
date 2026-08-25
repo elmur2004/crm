@@ -2,6 +2,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { ApiError } from "@/lib/api-error";
 import { writeLog } from "./activity";
+import { notifyUser } from "./notifications";
 
 /* Founder: a mini chat inside every lead — the team asks questions, follows up
    and @mentions each other so whoever talks to the lead has the full picture.
@@ -130,17 +131,19 @@ export async function addLeadComment(opts: {
     /* Mentioned teammates get a bell notification (self-mentions don't).
        Each brand has its own bell; byteforce rows stay deep-link-less (leadId
        null) because a dual-role user's OTHER bell would link the wrong app —
-       the body names the lead instead. */
+       the body names the lead instead.
+
+       ADR-065: through `notifyUser`, not a `notification.create` of its own.
+       This was the one write path that bypassed the helper, which meant a
+       mention would have been the ONE type that never reached a phone. */
     for (const m of mentions) {
       if (m.userId === opts.author.id) continue;
-      await tx.notification.create({
-        data: {
-          userId: m.userId,
-          type: "mention",
-          title: `${authorLabel} mentioned you`,
-          body: `${lead.name}: ${body.slice(0, 140)}`,
-          leadId: lead.brand === "bsystems" ? lead.id : null,
-        },
+      await notifyUser(tx, {
+        userId: m.userId,
+        type: "mention",
+        title: `${authorLabel} mentioned you`,
+        body: `${lead.name}: ${body.slice(0, 140)}`,
+        leadId: lead.brand === "bsystems" ? lead.id : null,
       });
     }
     await writeLog(tx, {

@@ -39,6 +39,14 @@ const MODELS = [
   "todoDone",
   "negotiationNote",
   "notification",
+  /* ADR-065 — the push device registry. AFTER `user` (its only parent) and
+     deletes run reversed, so it clears before the accounts do. It needs NO
+     restore twin: it is a brand-new table with no legacy shape to repair, and a
+     backup taken before today simply has no `pushSubscription` key, which the
+     `?? []` missing-table rule already handles. Rows are safe to carry: a
+     subscription's p256dh/auth are the BROWSER's public material and the
+     server's VAPID private key is never stored here. */
+  "pushSubscription",
   "leadComment",
   /* data vault (ADR-053) — BEFORE attachment: Attachment rows now reference
      VaultSheet/VaultDocument/VaultTask (vault employee before its tasks) */

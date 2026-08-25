@@ -316,3 +316,34 @@ export const bell = {
      on the dot, the ADR-064 NoAnswerBadge precedent). */
   unread: { en: "Unread", ar: "غير مقروء" },
 } satisfies Record<string, Msg>;
+
+/* ADR-065 — founder: "I installed the website as an app on my phone I want it
+   to shoot me actual notifications." The control at the foot of the bell, and
+   the three HONEST states it can be in. Every one of them says what to do next;
+   none of them pretends. */
+export const push = {
+  enable: { en: "Turn on phone notifications", ar: "تفعيل إشعارات الهاتف" },
+  enabling: { en: "Turning on…", ar: "جارٍ التفعيل…" },
+  on: { en: "Phone notifications are on", ar: "إشعارات الهاتف مُفعّلة" },
+  turnOff: { en: "Turn off", ar: "إيقاف" },
+  /* the browser itself is refusing — no button can fix that, only settings */
+  blocked: {
+    en: "Notifications are blocked for this site. Allow them in your browser or phone settings, then come back.",
+    ar: "الإشعارات محظورة لهذا الموقع. اسمح بها من إعدادات المتصفح أو الهاتف ثم عُد إلى هنا.",
+  },
+  /* iOS delivers web push ONLY to a home-screen install — say so rather than
+     offering a button that cannot work */
+  needsInstall: {
+    en: "On iPhone, add this app to your Home Screen first (Share → Add to Home Screen), then open it from there and turn notifications on.",
+    ar: "على الآيفون، أضف هذا التطبيق إلى الشاشة الرئيسية أولاً (مشاركة ← إضافة إلى الشاشة الرئيسية)، ثم افتحه من هناك وفعّل الإشعارات.",
+  },
+  failed: {
+    en: "Could not turn notifications on. Try again.",
+    ar: "تعذّر تفعيل الإشعارات. حاول مرة أخرى.",
+  },
+  /* the person dismissed the browser prompt without choosing */
+  dismissed: {
+    en: "You closed the permission request. Press again when you are ready.",
+    ar: "أغلقت طلب الإذن. اضغط مرة أخرى عندما تكون مستعدًا.",
+  },
+} satisfies Record<string, Msg>;
