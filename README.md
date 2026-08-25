@@ -90,6 +90,33 @@ npx prisma migrate deploy && npm run start
   the Home page restores a full backup onto any empty, migrated database — this
   is exactly how the dev data crossed from SQLite to Postgres.
 
+### Phone notifications (web push) — optional, ADR-065
+
+Push is OFF until the host has a VAPID keypair. With none set the app behaves
+exactly as it did before the feature existed: no enable button, no service
+worker registered, nothing sent. To switch it on, set these on the HOST (the
+same place `DATABASE_URL` and `AUTH_SECRET` live) and restart:
+
+| variable | required | what it is |
+| --- | --- | --- |
+| `VAPID_PUBLIC_KEY` | yes | the public half; browsers receive it, so it is not a secret |
+| `VAPID_PRIVATE_KEY` | yes | **secret.** Anyone holding it can push to every subscribed device |
+| `VAPID_SUBJECT` | no | a `mailto:` or `https:` contact for the push services; defaults to `AUTH_URL`, then to the production origin |
+
+Generate a pair with `npx web-push generate-vapid-keys` (the package is already a
+dependency). Never commit them, never put them in a file inside the repository.
+Both keys are read at RUNTIME on every request — there is deliberately no
+`NEXT_PUBLIC_` variable here, because that would be baked into the client bundle
+when the container builds, which happens before anything can be set on the host.
+Rotating the pair is safe: a subscription is welded to the key it was made with,
+so the control notices the mismatch, reads as OFF again on each device, and one
+press re-subscribes it against the new key.
+
+Then, on each device: open the app, press the bell, and press **Turn on phone
+notifications**. On iPhone/iPad this works only from an app added to the Home
+Screen and opened from there (iOS 16.4+); the control says so when it detects a
+plain Safari tab.
+
 ## Architecture in one paragraph
 
 Brand theming is structural: each route group owns its `<html data-brand="…">`, and

@@ -3162,3 +3162,106 @@ comment, and the ADR-013 mechanism note all fixed; .env.example confirmed tracke
   re-typing the two campaign expenses to "Media Buying / Campaigns". (10) iOS
   saves inside ByteForce carry the B-Systems mark. (11) old-app exports one-way
   once the new accounting ids are in use.
+
+## Entry 060 — 2026-08-25 — The bell marks what is unread; the installed app receives real web push
+- Done:
+  - **Founder request 1 — "make a distict mark or a color for the un opened
+    notifications."** ADR-065 §1, commit 1.
+    - `NotificationsBell` signalled read-ness with a single Tailwind
+      `opacity-60` on READ rows — an ABSENCE, which reads only against a
+      brighter neighbour and not at all when every row is new. An unread row now
+      carries four positive cues: a tinted well (`--color-primary-tint`), a 3px
+      bar down its logical inline start (`--color-accent`), a dot in that same
+      accent, and a title at weight 700.
+    - The dot carries the WORD "Unread" (`role="img"` + `aria-label` + `title`,
+      the ADR-064 `NoAnswerBadge` precedent), so the meaning never rides on
+      colour alone.
+    - **NO NEW TOKEN** — deliberately. `--color-accent` is the same accent the
+      bell's count badge already wears, so the count and the marked rows read as
+      one statement in both brands; the hover deepens the tint with
+      `color-mix()` over two existing tokens rather than adding a third. ADR-057's
+      three-scope law cannot be broken by a token that was never introduced.
+    - `border-inline-start: 3px solid transparent` sits on EVERY row, so marking
+      one costs no width and the text never shifts, and Arabic gets the bar on
+      the right with no second rule.
+    - `<p>` inside `<button>` became `<span>` while we were there (invalid HTML;
+      `.bell-item-title` is `500 14px/20px`, byte-identical to what
+      `text-sm font-medium` rendered).
+    - `e2e/notifications.spec.ts` proves it in BOTH brands and in Arabic: two
+      unread rows marked, one opened and its mark gone while its neighbour keeps
+      its own, the computed bar 3px on the right under RTL, the count untouched.
+  - **Founder request 2 — "I want it to shoot me actual notifications."**
+    ADR-065 §2-§5, commit 2.
+    - `PushSubscription` (userId, endpoint UNIQUE, p256dh, auth, userAgent,
+      createdAt, lastSeenAt; cascade on user delete) + migration
+      `20260825230000_push_subscription`, hand-written with `IF NOT EXISTS`
+      guards and a `pg_constraint` lookup for the FK so a boot replay is safe.
+    - `public/sw.js` — a push-only service worker at the origin ROOT (scope `/`
+      for free, no `Service-Worker-Allowed` header). Handles `push`,
+      `notificationclick` (focus an open window, then navigate) and
+      `pushsubscriptionchange`. **No `fetch` handler and no caching at all** — a
+      caching worker is how a deploy gets stranded behind a stale bundle.
+    - `/api/push/public-key` (session-gated, `force-dynamic`, `no-store`),
+      `/api/push/subscribe`, `/api/push/unsubscribe`. The user id always comes
+      from the session, never the body.
+    - `src/lib/services/push/` — `config` (the flag + the keys), `payload`
+      (pure: the deep link and the privacy rule), `subscriptions` (the store and
+      its wall), `send` (`web-push`, dynamically imported, behind a test seam),
+      `deliver` (recipients, fan-out, pruning, the fire-and-forget scheduler).
+    - **The ONE central write.** There were THREE places a `Notification` row was
+      created, not one: `notifyAdmins`, `notifyUser`, and a
+      `tx.notification.create` of its own inside `addLeadComment`. All three now
+      funnel through a private `writeNotification()`, which is where the push is
+      hooked — so all six live types push, and every future type does too.
+      `notifyUser` widened to carry `mention`.
+    - **The push wall is the bell's wall**, deliberately the same predicate:
+      addressed rows to that account, `userId: null` broadcasts to B-Systems
+      admins only, never to a deactivated or unapproved account.
+    - **The privacy rule:** a push carries the notification's own title and body
+      and nothing else — exactly what `listNotifications` already showed that
+      recipient. A unit test pins the payload to four keys.
+    - **Impersonation is refused server-side** (403 on `impersonatorId`) — an
+      admin acting as someone else would otherwise have registered their own
+      phone against that person's account. The public-key route returns `null`
+      in that session so the offer is not even made.
+    - `PushToggle` at the foot of both bells: three honest states (offer /
+      on-with-a-turn-off / blocked-by-the-browser) plus the iPhone-not-installed
+      truth. `Notification.requestPermission()` is the FIRST statement after the
+      click, because iOS refuses a request it cannot attribute to a gesture.
+    - **Feature-flagged and INERT without keys**, which is what production is on
+      this deploy: no control, no service worker registered at all, no send, no
+      request. `e2e/push-notifications.spec.ts` asserts
+      `navigator.serviceWorker.getRegistrations()` is EMPTY after browsing both
+      apps, that `/api/push/*` all 401 anonymously, that the key route answers
+      `{key: null}`, and that no console error appears anywhere on that path.
+    - `PushSubscription` registered in `backup.ts` MODELS and `db-reset.ts`; the
+      round-trip is asserted. It needs no restore twin (new table, no legacy
+      shape) — reasoning recorded in ADR-065 §6.
+    - `next.config.ts` gained ONE header, scoped to `/sw.js`: no-store, because
+      Cloudflare caches `.js` by extension and a stale worker at an edge outlives
+      the deploy that fixed it.
+  - **Migration proved on a throwaway cluster** (own port, own data dir, never
+    `.pgdata/dev`): `migrate deploy` from empty (17 migrations), the table/index/
+    FK inspected, a duplicate endpoint refused with SQLSTATE 23505, a user delete
+    cascading its device away, `migrate deploy` again (no pending), then the
+    migration file replayed by hand twice more with the rows intact.
+  - **Secret sweep clean**: no generated key in any tracked file, in any commit
+    of this series, or in the staged/unstaged diff; no `.env*` file touched by
+    any commit; no `NEXT_PUBLIC_*VAPID*` name anywhere; no client component
+    reaching the keypair; and the BUILT client bundle contains zero occurrences
+    of `web-push`, `vapidDetails`, `VAPID_PUBLIC_KEY` or `VAPID_PRIVATE_KEY`.
+- Decisions: ADR-065 (the unread mark; web push via a service worker and VAPID;
+  the runtime-read public key and why `NEXT_PUBLIC_` was rejected; the feature
+  flag; the iOS constraints; the payload privacy rule).
+- Tests: Run 075 — see `docs/TESTING.md`.
+- Next / open:
+  - **Needs founder action (not a code task):** set `VAPID_PUBLIC_KEY` and
+    `VAPID_PRIVATE_KEY` on the host and restart. Until then the feature is
+    invisible by design. Names and instructions are in `README.md` → Deploy →
+    "Phone notifications (web push)"; the generated pair was handed over out of
+    band and is not in this repository.
+  - Deferred deliberately: a "your devices" list so a person can see and revoke
+    the phones they have registered (each device can already turn itself off,
+    and nobody yet has more than one); a per-type mute; and any real end-to-end
+    delivery test, which needs a real push service and a real phone — the
+    founder's first press IS that test.

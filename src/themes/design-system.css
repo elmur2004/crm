@@ -281,8 +281,15 @@
   padding: 12px 16px;
 }
 .bell-item:last-child { border-bottom: 0; }
-.bell-item:hover { background: var(--color-surface); }
-.bell-item[data-unread="false"] { opacity: .6; }
+/* brand audit: `--color-surface` is Paper (#FAFAFD) against the menu's white
+   card — a 5/255 delta that is invisible in B-Systems. Deepen the card the same
+   way the unread row deepens its tint, so BOTH hovers actually read. */
+.bell-item:hover { background: color-mix(in srgb, var(--color-surface-card) 94%, var(--color-ink)); }
+/* brand audit: the dimming used to BE the read/unread signal; four positive
+   cues carry that now, so it only has to soften a row it no longer has to
+   distinguish. At .6 the muted body line composited to ~2.4:1, which is not
+   something to leave behind in the very rule this change rewrites. */
+.bell-item[data-unread="false"] { opacity: .75; }
 .bell-item[data-unread="true"] {
   background: var(--color-primary-tint);
   border-inline-start-color: var(--color-accent);
@@ -292,6 +299,14 @@
 .bell-item[data-unread="true"]:hover {
   background: color-mix(in srgb, var(--color-primary-tint) 88%, var(--color-ink));
 }
+/* brand audit (medium): the tint is a well, and `--color-muted` body text on it
+   measures 4.17:1 in B-Systems — under the 4.5:1 AA bar for 12.5px text, and
+   3.30:1 once the hover deepens it. The regression would land on exactly the
+   rows this feature exists to draw the eye to, so the marked row states its own
+   body colour. `--color-ink-soft` exists in all three scopes and resolves to
+   the ink value in both brands. The (0,3,0) selector also settles the cascade
+   against the `text-brand-muted` utility on the same element. */
+.bell-item[data-unread="true"] .feed-text { color: var(--color-ink-soft); }
 .bell-item-head { display: flex; align-items: center; gap: 7px; }
 .bell-dot { width: 7px; height: 7px; border-radius: 50%; flex: none; background: var(--color-accent); }
 /* 14px/20px 500 = the text-sm font-medium this row carried before */
@@ -309,15 +324,11 @@
   padding: 11px 16px; border-top: 1px solid var(--color-border);
   background: var(--color-surface-card);
 }
-.bell-foot-btn {
-  background: var(--color-surface-card); color: var(--color-ink); border: 1px solid var(--color-border);
-  border-radius: var(--radius-control); padding: 8px 13px;
-  font: 600 12px var(--font-body); cursor: pointer; flex: none;
-}
-.bell-foot-btn:hover { border-color: var(--color-muted); }
-.bell-foot-btn:disabled { opacity: .5; cursor: default; }
-.bell-foot-btn--go { background: var(--color-primary); color: var(--color-on-primary); border-color: transparent; }
-.bell-foot-btn--go:hover { background: color-mix(in srgb, var(--color-ink) 8%, var(--color-primary)); border-color: transparent; }
+/* the buttons themselves are the house primitives (.btn-primary / .btn-ghost +
+   .btn--sm) rather than a fork of them — brand audit: an earlier draft
+   reproduced both token for token, down to the identical hover color-mix, so
+   any future change to the button primitives would simply have missed the bell
+   foot. They inherit the shared transition and :active feedback too. */
 .bell-foot-state { display: flex; align-items: center; gap: 6px; font: 600 12px var(--font-body); margin-inline-end: auto; }
 .bell-foot-tick { width: 7px; height: 7px; border-radius: 50%; flex: none; background: var(--color-accent); }
 .bell-foot-note { flex: 1 1 100%; font: 400 11.5px/1.5 var(--font-body); color: var(--color-muted); text-wrap: pretty; }

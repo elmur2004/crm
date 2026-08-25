@@ -1841,3 +1841,121 @@ the common case. `useTodayFilter` now takes a `landedHere` counter and releases
 when it bumps; the boards own the counter because only they know a commit
 succeeded. Defaulting it to 0 keeps every existing caller's behaviour, which is
 what let it be applied to all three boards without re-proving each column.
+
+## ADR-065 — the traps in shipping a notification you cannot test (2026-08-25)
+
+### 1. "One central helper" was three write paths, and the third was the one that mattered
+The plan said the push should hook into "the ONE central place that writes a
+Notification". There wasn't one. `notifyAdmins` and `notifyUser` lived in
+`services/notifications.ts`, but `addLeadComment` (`services/comments.ts:136`)
+called `tx.notification.create` directly, inside its own transaction, for the
+@mention loop. Hooking the helper alone would have shipped a feature where five
+of six notification types buzz your phone and the sixth — the one a colleague
+sends you ON PURPOSE to get your attention — silently does not.
+
+The fix is small and worth copying: a private `writeNotification(client, input)`
+that takes a `Prisma.TransactionClient` (which a full `PrismaClient` satisfies,
+so `db` passes too), with `notifyAdmins`/`notifyUser` as thin public faces over
+it, and `notifyUser`'s `type` union widened to include `mention`. **The lesson is
+the audit, not the refactor:** before hooking "the central place", grep for the
+model's `.create` across the whole tree, not just the module that names it.
+
+    grep -rn "notification.create" src/
+
+### 2. A fire-and-forget inside a transaction is unobservable — give it a handle
+`schedulePush` deliberately does not await, because two of the three write paths
+sit inside `db.$transaction` and holding a transaction open across a call to a
+push service puts somebody else's outage on our connection pool. But a
+fire-and-forget cannot be asserted: a test that calls `notifyAdmins()` and then
+checks the fake sender races the delivery and passes or fails by luck.
+
+The module keeps a `Set` of in-flight promises and exports
+`pushDeliveriesSettled()`. Tests await it; a future graceful-shutdown hook can
+too. Each promise already carries its own `.catch()`, so `Promise.all` over the
+set can never reject and can never turn a delivery failure into an unhandled
+rejection on a request thread.
+
+### 3. `Uint8Array` is no longer a `BufferSource`
+`pushManager.subscribe({ applicationServerKey })` takes a `BufferSource`, and
+under the ES2024 lib types that means an `ArrayBufferView<ArrayBuffer>`
+specifically. The canonical `urlBase64ToUint8Array` helper — the one in the
+Next.js PWA guide, in every blog post, and in half the SW files on the web —
+returns `Uint8Array<ArrayBufferLike>` and no longer type-checks:
+
+    Type 'Uint8Array<ArrayBufferLike>' is not assignable to type
+    'string | BufferSource | null | undefined'
+      Types of property 'buffer' are incompatible.
+
+Allocate the `ArrayBuffer` first, fill a view over it, and return the BUFFER
+(`urlBase64ToBytes` in `PushToggle.tsx`). Same bytes, and it satisfies the type
+without a cast — worth preferring over the `as unknown as BufferSource` that a
+hurried fix reaches for, because the cast would also have hidden a real mistake.
+
+### 4. Playwright pre-denies notifications, so "never asked" must be stated
+A fresh Playwright `BrowserContext` reports `Notification.permission === "denied"`,
+not `"default"`. The first UI-state test therefore rendered the BLOCKED state and
+failed with `Expected: "off" / Received: "blocked"` — a correct component and a
+harness artefact. `addInitScript` redefining `Notification.permission` (it is a
+configurable static accessor) models each state of the world explicitly, which is
+also how the blocked case and the iPhone-in-a-tab case are driven. Deriving these
+from the harness's defaults would have been testing Playwright, not the app.
+
+### 5. The keys must be read at runtime, and `NEXT_PUBLIC_` cannot be
+Every guide — including Next.js's own PWA page — puts the VAPID public key in
+`NEXT_PUBLIC_VAPID_PUBLIC_KEY`. For this deployment that is silently wrong: the
+container BUILDS the app and only then does the host inject environment
+variables, so a `NEXT_PUBLIC_` value is inlined as the empty string for ever and
+no restart can change it. The rule for this repo: **anything the founder sets on
+the host after a build must be reached through a request, never a `NEXT_PUBLIC_`
+name.** `GET /api/push/public-key` (`force-dynamic`, `no-store`) is that request,
+and the service worker uses the same route when it has to re-subscribe itself.
+A guard test would be nice; for now the secret sweep asserts that no
+`NEXT_PUBLIC_*VAPID*` name exists anywhere in the tree.
+
+### 6. Registering the service worker eagerly would have broken the inert path
+The obvious shape — register `/sw.js` on mount, subscribe later — quietly
+violates the one property that makes this safe to deploy: with no keys
+configured the app must be EXACTLY what it was. An always-installed worker is a
+permanent new failure surface for a feature nobody switched on, and it would
+have made "no keys" observably different from "before this feature existed".
+Registration therefore happens inside the click handler and nowhere else, and
+the e2e proves the consequence rather than the intent:
+
+    const regs = await navigator.serviceWorker.getRegistrations();
+    expect(regs.map(r => r.scope)).toEqual([]);
+
+### 7. Order of operations in the enable handler is an iOS requirement
+`Notification.requestPermission()` must be the first statement after the click.
+Registering the worker first and asking afterwards works on desktop Chrome and
+fails on an iPhone, because iOS will not attribute the prompt to a user gesture
+once an unrelated `await` has intervened. Nothing in CI can catch this — the
+comment in `PushToggle.enable()` is the only guard, so it says why rather than
+what.
+
+### 8. `/sw.js` needs a cache header because of what sits IN FRONT of the origin
+`updateViaCache: "none"` at registration handles the browser's HTTP cache.
+Cloudflare is a separate problem: it caches by file extension unless the origin
+says otherwise, and a stale service worker at an edge outlives the deploy that
+fixed it — the worst shape of bug, because the fix deploys and nothing changes.
+One `next.config.ts` `headers()` entry, scoped to `/sw.js` alone, sets
+`no-cache, no-store, must-revalidate`. Scope it to the one path: a global header
+block in that file would silently apply to every route in three apps.
+
+### 9. The e2e suite shares one database, so a notification outlives its lead
+`Notification.leadId` is a plain column with NO relation to `Lead`, so deleting a
+lead leaves its notifications behind (this is pre-existing and deliberate —
+history survives). A spec that manufactures notifications therefore has to mark
+them read on the way out, or every later spec inherits a lit-up bell. Also:
+`/api/byteforce/leads/[id]` has no DELETE (only the B-Systems namespace does), so
+a ByteForce fixture lead is cleaned up by ARCHIVING it (ADR-043), which drops it
+out of the boards, the counts and the To-Do — everything a later spec can see.
+
+### 10. Proving a migration twice is not the same as proving it idempotent
+`prisma migrate deploy` run twice proves almost nothing the second time: it reads
+`_prisma_migrations`, sees the row, and skips the file. The case
+`scripts/start.mjs` actually creates is a HALF-APPLIED migration replayed at
+boot, so the proof has to execute the SQL FILE itself against the already-migrated
+database — twice — and then check the data is still there. That is what caught
+nothing this time and would have caught a bare `CREATE TABLE` or a bare
+`ALTER TABLE ... ADD CONSTRAINT` (Postgres has no `IF NOT EXISTS` for the latter;
+use a `pg_constraint` lookup inside a `DO $$ … $$` block).

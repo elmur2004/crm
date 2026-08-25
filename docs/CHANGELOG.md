@@ -1,5 +1,58 @@
 # Changelog — user-visible changes per phase/release
 
+## The bell marks what you have not read, and the saved app can ring your phone (2026-08-25)
+- You said: *"make a distict mark or a color for the un opened notifications"* —
+  and *"also I want the website to sent actual notification so I installed the
+  website as an app on my phone I want it to shoot me actual notifications."*
+
+### What you have not opened now looks different
+- **A new notification wears a mark of its own.** It sits in a tinted strip,
+  with a coloured bar down its edge and a dot in the same colour as the number
+  on the bell, and its headline is bolder. Open it and all of that goes quietly
+  away. Before today the only signal was that the ones you HAD opened looked a
+  little faded — which tells you nothing at all on a morning when everything is
+  new.
+- **It works the same in both apps and in Arabic.** Orange in ByteForce, the
+  B-Systems pink in B-Systems — the same colour the count on the bell already
+  uses, so the "3" and the three marked rows read as one thing. In Arabic the
+  bar moves to the right-hand edge by itself.
+- **The bell itself is unchanged.** The count, the tap-through to the lead, the
+  refresh every few seconds: all exactly as they were.
+
+### Your phone can now ring for real
+- **There is one new button, at the bottom of the bell: "Turn on phone
+  notifications."** Press it, say yes when your phone asks, and from then on
+  anything that lights the bell also arrives on your lock screen.
+- **Everything that already notifies you, notifies your phone.** A lead assigned
+  to you. Someone mentioning you in a lead's chat. A meeting request. A lead
+  marked ready to close. A new agent registration. A lead typed in by data entry
+  that still needs an owner. Nothing was left out, and anything we add later is
+  included automatically.
+- **Tapping it opens that exact lead**, in the right app — and in the window you
+  already have open rather than stacking up new ones.
+- **It only ever tells you what the bell already told you.** A notification on
+  your phone carries its headline and its one line of text and nothing else. No
+  figure, no client detail, nothing about a lead that you could not already read
+  on the screen. That rule also means nobody can be pushed news they are not
+  allowed to see: the phone follows exactly the same permissions as the bell.
+- **Every device is its own switch.** Turn it on for your phone and leave your
+  laptop quiet, or have both. Turn it off from the same place. If a phone is
+  wiped or the app deleted, we notice on the next send and quietly forget it, so
+  nothing keeps trying to reach a device that is gone.
+- **It tells you the truth instead of pretending.** If your browser is blocking
+  us it says so and where to change it. If you open the site in Safari on an
+  iPhone instead of the app you saved to your Home Screen, it says that too, in
+  one sentence — because on an iPhone notifications only ever work from the
+  saved app. If you close the permission box without choosing, it says so and
+  waits for you to press again.
+- **What you must do to switch it on.** Two keys have to be set on the server
+  first (they are with the deployment notes). Until they are, the button does
+  not appear at all and the app is exactly what it was this morning — nothing
+  to break, nothing to undo. Once they are set: open the app from your Home
+  Screen, tap the bell, tap **Turn on phone notifications**, and tap **Allow**
+  when iPhone asks. That is the whole thing, and it is per device.
+
+
 ## Partners and agents on one set of columns, with a Waiting stage (2026-08-21)
 - You said: *"Add a new stage called Waiting. Order: Meeting Setting then
   Waiting then Qualified. Leads in Waiting must remain fully editable at any

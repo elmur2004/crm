@@ -28,6 +28,29 @@ async function login(page: Page, identifier: string, password: string, landing: 
 const row = (page: Page, title: string) =>
   page.locator(".bell-menu .bell-item", { hasText: title });
 
+/* WCAG 2.x contrast, measured on what the browser actually painted. The row's
+   own background is the ground (the menu card behind it is opaque), so the
+   ratio is computed from the row's background-color and the text's color. */
+const contrastIn = (rowLocator: ReturnType<typeof row>, childSelector: string) =>
+  rowLocator.evaluate((el, sel) => {
+    const parse = (c: string) =>
+      (c.match(/[\d.]+/g) ?? []).slice(0, 3).map(Number) as [number, number, number];
+    const lum = ([r, g, b]: [number, number, number]) => {
+      const f = (v: number) => {
+        const s = v / 255;
+        return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+      };
+      return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
+    };
+    const bg = parse(getComputedStyle(el).backgroundColor);
+    const fg = parse(getComputedStyle(el.querySelector(sel)!).color);
+    const [a, b] = [lum(bg), lum(fg)].sort((x, y) => y - x);
+    return (a! + 0.05) / (b! + 0.05);
+  }, childSelector);
+
+const contrastOfBody = (r: ReturnType<typeof row>) => contrastIn(r, ".feed-text");
+const contrastOfTitle = (r: ReturnType<typeof row>) => contrastIn(r, ".bell-item-title");
+
 test("an unread notification is MARKED, and opening it takes the mark away", async ({
   page,
 }) => {
@@ -77,6 +100,13 @@ test("an unread notification is MARKED, and opening it takes the mark away", asy
   expect(paint.barWidth).toBe("3px");
   expect(paint.barColor).not.toBe(paint.bg);
   expect(Number(paint.weight)).toBeGreaterThanOrEqual(700);
+
+  /* ...and the well must not have made the row HARDER to read. The brand audit
+     measured the muted body line at 4.17:1 on the B-Systems tint — under the
+     4.5:1 AA bar for 12.5px text, on exactly the rows this feature exists to
+     draw the eye to. Measured live, in both brands, rather than trusted. */
+  expect(await contrastOfBody(alpha)).toBeGreaterThanOrEqual(4.5);
+  expect(await contrastOfTitle(alpha)).toBeGreaterThanOrEqual(4.5);
 
   /* OPEN one: it marks read and deep-links to the lead (unchanged behaviour) */
   await alpha.click();
@@ -138,6 +168,9 @@ test("an unread notification is MARKED, and opening it takes the mark away", asy
   });
   expect(bfPaint.bg).not.toBe("rgba(0, 0, 0, 0)");
   expect(bfPaint.bar).not.toBe(bfPaint.bg);
+  /* the same AA bar, measured under the OTHER brand's tokens */
+  expect(await contrastOfBody(gamma)).toBeGreaterThanOrEqual(4.5);
+  expect(await contrastOfTitle(gamma)).toBeGreaterThanOrEqual(4.5);
 
   /* ---- clean up after ourselves: the suite shares ONE seeded database, and a
      spec that leaves extra cards on a board breaks whichever journey runs next.

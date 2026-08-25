@@ -2848,3 +2848,199 @@ every dashboard formula, journeys 1-5 (SPEC §13).
   `app/manifest.ts`'s PWA colours) — untouched.
 - Failures/bugs filed: none.
 - Verdict: **PASS** — ship gate cleared for both commits.
+
+## Run 075 — 2026-08-25 — ADR-065 SHIP GATE: the unread mark + web push, both commits, full suites, migration proof, secret sweep
+- Suites/commands, all on the FINAL tree, in this order:
+  - `npx tsc --noEmit` — clean. (Run once per commit and again after every
+    review fix; clean every time.)
+  - `npx vitest run` (FULL, not a subset) — **36 files, 478 tests: 478 passed /
+    0 failed / 0 skipped**, 112.14s. That is Run 074's 447 plus **31**: 30 new
+    push cases (`src/lib/services/push/push.test.ts` 11 pure cases — the feature
+    flag and the payload; `src/lib/services/push.integration.test.ts` 19 cases —
+    the registry, the wall, delivery, pruning, every type, the inert path) and
+    1 new `brand-tokens.test.ts` case (the full semantic set in all THREE
+    scopes). `backup.integration.test.ts` gained assertions inside an existing
+    case rather than a new one, so its count is unchanged.
+  - `npx playwright test` (FULL suite, every spec) — **98 passed / 0 failed /
+    2 skipped** of 100 collected, 12.5m.
+    `test-results/.last-run.json` read directly afterwards:
+    `{"status": "passed", "failedTests": []}`. The 2 skips are
+    `e2e/audit.spec.ts`, opt-in behind `AUDIT=1` — the same standing gate as
+    Run 074, not a regression. Collected went 97 → 100: `notifications.spec.ts`
+    (+1) and `push-notifications.spec.ts` (+2).
+  - Playwright ran from a TEMPORARY copy of `playwright.config.ts` on port
+    **3220**: another workstream still held 3100 (PID 26384, LISTENING) and was
+    left alone, per the rule. The copy also pinned the embedded-Postgres port,
+    because the committed config's pid-derived `5500 + pid % 400` landed on a
+    live socket (5556) on the first attempt and initdb refused; two later ports
+    were vacated the same way by this session’s own stopped runs, so the final
+    run used app 3220 / Postgres 5740. The copy
+    `playwright.local.config.ts` was deleted afterwards and never committed; the
+    committed config is untouched.
+  - The FULL suite COMPLETED twice. The first full run was green (98 passed /
+    2 skipped) but predated two later fixes; a second was started, then stopped
+    mid-flight the moment a third fix landed, because a run against a superseded
+    tree proves nothing about the one being pushed. The verdict above is the
+    third launch and the second completion — on the truly final tree, with
+    `npx tsc --noEmit` and the full vitest re-run against that same tree first.
+    Nothing was "topped up" with a targeted spec.
+- Cases: 478 vitest + 98 Playwright = **576 passed,
+  0 failed, 2 skipped (opt-in)**, plus the 5-stage migration proof and the
+  10-check secret sweep below.
+- Failures: none.
+
+### The two new e2e specs, and what they would catch
+- `e2e/notifications.spec.ts` — two real notifications made the way the app
+  makes them (mark two leads ready to close), then: both rows carry
+  `data-unread="true"` AND the accessible word "Unread"; the row is really
+  PAINTED (a tinted background, a 3px inline-start bar in a different colour, a
+  title at weight ≥ 700, measured through `getComputedStyle`); opening one
+  deep-links to its lead and takes its mark away while its neighbour keeps its
+  own; under Arabic the mark keeps its word (`غير مقروء`) and the bar's logical
+  start resolves to `border-right: 3px` with `border-left: 0`; and the whole
+  thing repeats in the OTHER brand through a ByteForce lead-chat mention.
+  It would FAIL against the pre-change code at the first locator: `.bell-item`
+  and `data-unread` did not exist.
+- `e2e/push-notifications.spec.ts` — **the inert path first, because that is
+  what ships**: `/sw.js` served 200 as JavaScript with `no-store`, its source
+  containing `push` and `notificationclick` handlers and NO `fetch` handler; the
+  ADR-060 manifest still 200 and still named B-Systems; all three `/api/push/*`
+  routes 401 for an anonymous caller; the key route answering `{"key": null}`
+  for a signed-in admin; NO enable control in the bell menu;
+  `navigator.serviceWorker.getRegistrations()` **empty** after browsing both
+  apps; and zero console errors along that path. Then the three honest states,
+  with the key stubbed at the network edge and each browser state set explicitly
+  through `addInitScript`: the pressable offer (English and Arabic), the
+  blocked-by-the-browser sentence with no button, and the iPhone-not-installed
+  sentence with no button.
+- **Contrast is now asserted, not assumed.** Both specs compute the WCAG ratio
+  from the LIVE painted colours (`getComputedStyle` on the row's background and
+  the text's colour) and require ≥ 4.5:1 for the marked row's title AND body, in
+  both brands. This is the permanent guard for review finding 1 below; the
+  earlier `toHaveAttribute` assertions passed either way and could never have
+  caught it.
+
+### Migration proof — `20260825230000_push_subscription`, on a THROWAWAY database
+Ran on a fresh embedded-Postgres cluster with its own port and its own data dir
+(never `.pgdata/dev`, never the vitest or e2e clusters), then stopped and
+deleted. Five stages, all passed:
+1. `npx prisma migrate deploy` on an EMPTY database — all **17** migrations
+   applied in order, "All migrations have been successfully applied."
+2. The shape is real: 8 columns with the right types and defaults
+   (`userAgent` `''::text`, `createdAt`/`lastSeenAt` `CURRENT_TIMESTAMP`);
+   `PushSubscription_endpoint_key` UNIQUE, `PushSubscription_userId_idx`,
+   `PushSubscription_pkey`; and `PushSubscription_userId_fkey` with
+   `confdeltype = 'c'` (ON DELETE CASCADE).
+   Behaviour: one user holding TWO devices is fine; a DUPLICATE endpoint is
+   refused with SQLSTATE **23505**; deleting a user cascades their device away
+   (3 rows in, ps-3 gone, ps-1/ps-2 intact).
+3. `npx prisma migrate deploy` AGAIN — "No pending migrations to apply."
+4. The migration FILE replayed by hand against the already-migrated database,
+   TWICE more, with no error — the case `scripts/start.mjs` actually creates
+   when it retries `migrate deploy` after a half-applied deploy. (Running
+   `migrate deploy` twice proves almost nothing here: the second run reads
+   `_prisma_migrations`, sees the row and skips the file.)
+5. The data survived the replay unchanged, and
+   `SELECT ... WHERE finished_at IS NULL OR rolled_back_at IS NOT NULL` returned
+   **0** rows.
+
+### Secret sweep — 10 checks, all clean
+Run against the generated keypair itself (read from the scratchpad file, never
+printed) plus the generic shapes a leak would take:
+1. no generated key in any of the **473** tracked files;
+2. no generated key in any commit of the series (`17a8489..HEAD`);
+3. no generated key in the staged or the unstaged diff;
+4. no real `.env*` file tracked (`.env.example` is a pre-existing template and
+   is excluded by name — then asserted absent from every commit, so the
+   exclusion cannot hide a change to it);
+5. no `VAPID_*` name assigned a key-shaped value anywhere in the repo;
+6. no `"use client"` file reading `VAPID_PRIVATE_KEY` or the keypair;
+7. no `NEXT_PUBLIC_*VAPID*` name in any of the **435** CODE files — narrowed to
+   code on purpose after it first fired on `docs/DECISIONS.md` and
+   `docs/IMPLEMENTATION.md`, which NAME the rejected variable in prose;
+   documenting a rejected name is the opposite of shipping it, and what matters
+   is that nothing the BUNDLER reads contains one;
+8. `VAPID_PRIVATE_KEY` read in exactly ONE non-test code file
+   (`src/lib/services/push/config.ts`) — one named place, so the blast radius is
+   one file;
+9. every VAPID value in a test fixture is a self-evident fake
+   (`test-public-key`, `test-private-key`, `pub`, `priv`), never key-shaped;
+10. and the strongest form, taken from the BUILT artefact rather than the
+    source — see below.
+- Check 10, from the BUILT artefact rather than the source: `.next/static`
+  contains **zero** occurrences of `VAPID_PRIVATE_KEY`, `VAPID_PUBLIC_KEY`,
+  `web-push` or `vapidDetails`. Source can be reasoned about; a bundle cannot
+  argue.
+
+### Brand audit — PASS, with one real regression caught and fixed
+Run over both commits' UI by the `brand-auditor` lens. Verdict: PASS on every
+criterion SPEC §4.4 enumerates — no hardcoded hex/`rgb()`/font-family in any
+added line (every colour a `var()` or a `color-mix()` over tokens, every type a
+`font:` shorthand ending in `var(--font-body)`); the "NO NEW TOKEN" claim
+verified **36/36** (12 distinct tokens × 3 scopes); B-Systems pink confined to
+three cues (a 3px bar, a 7px dot, a 7px tick) with the row's surface an INDIGO
+tint — strictly less pink than the pre-existing `.bell-count`; ByteForce palette
+clean with no emoji; RTL clean (`text-align: start`, `border-inline-start`,
+`margin-inline-end`, zero physical left/right). Findings 1-4 below came from it.
+
+### Review adjudication — 6 findings, all verified, all FIXED, none refuted
+1. **MEDIUM — the unread tint pushed the row's BODY text under WCAG AA.**
+   `--color-muted` on the B-Systems tint measures **4.17:1**, under the 4.5:1
+   bar for 12.5px text, and **3.30:1** once the hover deepens it (ByteForce a
+   marginal 4.56:1 / 3.62:1). The regression landed on exactly the rows the
+   feature exists to draw the eye to. Fixed with
+   `.bell-item[data-unread="true"] .feed-text { color: var(--color-ink-soft) }`
+   — a token present in all three scopes, at a (0,3,0) specificity that also
+   settles the cascade against the `text-brand-muted` utility on the same
+   element. Turned into a LIVE e2e contrast assertion in both brands rather than
+   a one-off measurement.
+2. **MEDIUM (self-review) — a rotated keypair would have produced a LYING UI.**
+   A `PushSubscription` is welded to the `applicationServerKey` it was made
+   with. After a rotation the old subscription still looks healthy to the
+   browser, every send is refused with 403 (not the 404/410 that prunes), and
+   the control would have read "Phone notifications are on" while the phone
+   stayed silent for ever — the dishonest state ADR-065 §5 forbids. Fixed with
+   `boundToKey()`: a mismatch reads as OFF at mount, and pressing enable
+   unsubscribes and re-subscribes against the current key. The comparison's
+   failure mode is deliberately benign — unreadable ⇒ "no" ⇒ exactly what a
+   first-time enable does. README corrected too: it had claimed rotation was
+   seamless, which was not true of the code as first written.
+3. **LOW — `.bell-item:hover` was invisible in B-Systems.** It hovered to
+   `--color-surface` (Paper `#FAFAFD`) against the menu's `#FFFFFF` card: a
+   5/255 delta, visible in ByteForce and imperceptible in B-Systems. Fixed by
+   deepening the card with the same `color-mix()` the unread hover uses.
+4. **LOW — the read-row dimming cost legibility it no longer earns.**
+   `opacity: .6` composited the muted body line to ≈2.4:1. The dimming used to
+   BE the read/unread signal; four positive cues carry that now, so it only has
+   to soften a row it no longer has to distinguish. Raised to `.75`.
+5. **LOW — the bell-foot buttons forked the button primitives.** `.bell-foot-btn`
+   and `--go` reproduced `.btn-ghost` and `.btn-primary` token for token, down to
+   the identical hover `color-mix`, so any future change to the primitives would
+   have missed the bell foot. Replaced with `btn-primary btn--sm` /
+   `btn-ghost btn--sm`, duplicate rules deleted; the foot inherits the shared
+   transition and `:active` feedback for free.
+6. **LOW (self-review) — the `web-push` ESM interop was betting on one shape.**
+   `(await import("web-push")).default` is correct under Node's ESM interop
+   (verified: `default.sendNotification` is a function, the namespace's is
+   `undefined`) but some bundlers hand back the namespace instead. This path
+   cannot be exercised in CI — there is no push service and no phone — so it now
+   accepts BOTH shapes rather than betting on one.
+- **A gap in the GUARDS, not the code, was also closed.**
+  `brand-tokens.test.ts` enforced the identical semantic set between the two
+  BRAND files only; `neutral.css` was machine-checked for the stage tokens and
+  the accounting pair and trusted for everything else — a latent third instance
+  of the exact failure ADR-057 exists for. The three scopes are identical today
+  (90 tokens each, verified) and a new case keeps them that way. Trap for the
+  next person: `neutral.css` declares stage tokens several to a line, so the
+  ADR-019 pair-check's `^\s*` anchor sees only the first of each — a probe
+  written that way reported 33 phantom omissions before the anchor was dropped.
+
+### What is NOT covered, stated plainly
+No test in this repository proves that a real phone buzzes. That needs a real
+push service, a real VAPID pair and a real device, and none of the three exists
+in CI — the sender is faked everywhere, deliberately (ADR-065 decision H). What
+IS proved is everything on either side of it: the row that triggers it, who may
+receive it, what the payload may contain, where a tap lands, what happens when
+a device is gone, and — most importantly — that with no keys configured none of
+it runs at all. The founder's first press on his own iPhone is the end-to-end
+test, and the ADR says so rather than implying otherwise.

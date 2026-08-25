@@ -3582,3 +3582,307 @@ ADR" below.
 - Resolves: extends ADR-061 (the chip, generalised) and ADR-039 (the marker,
   counted); ADR-039's auto-clear and idempotent-clear both stand.
 - Status: Accepted
+
+## ADR-065 — 2026-08-25 — An unread notification wears a POSITIVE mark; the installed app receives real web push, feature-flagged off until the host has keys
+- Context: two founder requests, verbatim.
+  1. "make a distict mark or a color for the un opened notifications"
+  2. "also I want the website to sent actual notification so I installed the
+     website as an app on my phone I want it to shoot me actual notifications"
+  Both are about the bell finally being worth looking at: one about telling new
+  from seen at a glance, one about not having to look at all. ADR-060 shipped
+  the web manifest three days ago (`display: standalone`, the official
+  B-Systems icons) and the founder has already saved the site to his home
+  screen — which is the exact precondition iOS requires before it will deliver
+  a web push at all.
+
+### 1. The unread mark is a MARK, not the absence of a dimming
+- **The defect, stated plainly.** `NotificationsBell` signalled read-ness with a
+  single Tailwind `opacity-60` on READ rows. An absence only reads against a
+  present neighbour: with every row unread — the common case for someone who
+  has been away — the menu carried no signal at all, and the founder's own
+  words ("make a distict mark") say he was reading it as one undifferentiated
+  list.
+- **Decision: four cues, none of which is colour alone.** An unread row now
+  carries a tinted well (`--color-primary-tint`), a 3px bar down its LOGICAL
+  inline start (`--color-accent`), a dot in that same accent, and a title at
+  weight 700 instead of 500. Read rows keep the existing dimming, so the two
+  states sit in one menu and are told apart without comparison.
+- **The mark carries the WORD "Unread"** — `role="img"` + `aria-label` + `title`
+  on the dot, the ADR-064 `NoAnswerBadge` precedent (a bare `<span>` maps to
+  `role=generic`, where ARIA 1.2 prohibits a name, so conforming assistive tech
+  drops it). Colour is never the only channel, and the e2e asserts the word
+  rather than a computed colour.
+- **NO NEW TOKEN, on purpose.** ADR-057's three-scope law has been broken twice
+  in this repo's history, and the cheapest way not to break it a third time is
+  not to need it. `--color-accent` is the SAME accent the bell's count badge
+  already wears, so the "2" on the bell and the two marked rows beneath it read
+  as one statement — ByteForce orange, B-Systems Signal Pink used exactly as
+  the brand's 12% cue and never as a canvas. The hover state deepens the tint
+  through `color-mix()` over two existing tokens rather than introducing a
+  third: a plain `--color-surface` hover would have REMOVED the mark precisely
+  while the pointer was on it.
+- **The transparent bar is on every row.** `border-inline-start: 3px solid
+  transparent` sits on read and unread alike, so marking a row costs no width
+  and the text never shifts; `inline-start` puts the bar on the right in Arabic
+  with no second rule, which the e2e asserts by reading the computed
+  `border-right-width` under RTL.
+- **`<p>` inside `<button>` became `<span>` while we were there** — phrasing
+  content is what a button's content model allows, and the previous markup was
+  invalid HTML. The visual result is byte-identical (`.bell-item-title` is
+  `500 14px/20px`, which is exactly what `text-sm font-medium` was).
+
+### 2. Real notifications = web push, a service worker, and VAPID
+- **Decision: the standard web stack, nothing bespoke.** A `PushSubscription`
+  table, a service worker at the origin root, VAPID keys held by the host, and
+  a send hooked into the notification write. No third-party notification
+  service, no native app, no polling daemon.
+- **`web-push`, not hand-rolled crypto.** A web push is not an HTTP POST: the
+  payload must be encrypted per RFC 8291 (ECDH on P-256 into HKDF into
+  AES-128-GCM, `aes128gcm` content encoding) and the request signed per RFC
+  8292 (an ES256 JWT). All of that is expressible with Node's WebCrypto — and
+  all of it fails SILENTLY when subtly wrong: the push service returns 201 and
+  the phone simply never buzzes. Nothing in CI can catch that, because CI has no
+  push service and no phone. Hand-rolling was seriously considered and rejected
+  on exactly that asymmetry. The dependency is imported DYNAMICALLY, from inside
+  a configured send only, so it can never be traced into a client bundle and a
+  missing module degrades to "no push" rather than a boot failure. Verified: the
+  built client bundle contains zero occurrences of `web-push`, `vapidDetails`,
+  `VAPID_PUBLIC_KEY` or `VAPID_PRIVATE_KEY`.
+- **ONE central write, so no type can be missed.** There were THREE places a
+  `Notification` row was created — `notifyAdmins`, `notifyUser`, and a
+  `tx.notification.create` of its own inside `addLeadComment`'s mention loop.
+  The brief assumed one; it was not one. All three now funnel through a private
+  `writeNotification(client, input)` in `services/notifications.ts`, which is
+  where `schedulePush` is called. `notifyUser` widened to carry `mention`, so
+  the lead-chat path — which would otherwise have been the ONE type that never
+  reached a phone — inherits the hook, and every FUTURE type gets it with no
+  per-callsite work and nothing to remember. An integration test drives all six
+  live types and asserts six rows and six pushes, each to the right device.
+- **The push wall IS the bell's wall, by construction.** `pushRecipientsFor` is
+  deliberately the same predicate `listNotifications` uses: an addressed row
+  goes to that one account; a `userId: null` row is the admin broadcast and
+  reaches B-Systems ADMINS only. Deactivated and unapproved accounts are
+  excluded for the same reason `requireUser` refuses them — they cannot open the
+  app, so they must not be told what is in it. A deleted account's devices
+  cascade away with it.
+- **THE PRIVACY RULE: a push carries the notification's own title and body and
+  NOTHING else.** Those two strings are exactly what `listNotifications` already
+  hands that same recipient. Nothing is looked up and added — no lead field, no
+  money, no counterparty detail. The only computed value is a URL, which is a
+  route and not data. A unit test asserts the payload has exactly four keys
+  (`title`, `body`, `url`, `tag`) and that the recipient's user id never appears
+  in the serialised payload.
+- **Where a tap lands.** A `Notification` row does not record which APP it
+  belongs to (the two bells solve that with a `leadPathBase` prop), so the brand
+  comes from the LEAD when there is one. Without a lead the type is exact: a
+  `mention` with a null `leadId` is a ByteForce lead BY CONSTRUCTION
+  (`comments.ts` nulls the id only for that brand, precisely so a dual-role
+  user's other bell cannot deep-link into the wrong app), `registration` is the
+  Registrations screen, and anything else is a B-Systems broadcast whose lead
+  has since been deleted — its app landing is the honest answer, never a link
+  that will 404. `deepLinkFor` is pure and unit-tested, including the invariant
+  that it only ever returns a relative in-app path.
+- **One device, one row, keyed on the ENDPOINT.** The endpoint is the device's
+  address at its push service and is unique across the world, so re-subscribing
+  the same device refreshes its row rather than minting a second — and the
+  unique constraint carries the ownership rule for free: a device that signs
+  into a DIFFERENT account re-points to whoever is signed in now, so the
+  previous account can never keep pushing to a phone it no longer holds. One
+  person keeps as many devices as they sign in on; each is its own switch.
+- **Pruning is on the push service's word, not a guess.** 404/410 is the only
+  signal that a subscription is gone (uninstalled, wiped, expired), and only
+  that raises `PushSubscriptionGone` and deletes the row. Every other failure —
+  a 500, a timeout, a bad day at a push service — leaves the device registered,
+  because a crash is not a goodbye. Both halves are integration-tested.
+- **Nothing secret is in the database.** `p256dh` and `auth` are the BROWSER's
+  public subscription material, useless without the endpoint they belong to. The
+  server's VAPID private key is read from the environment on every send and is
+  never written to a row, a log line or a backup.
+
+### 3. The public key is read at RUNTIME. NEXT_PUBLIC was rejected outright
+- **Why it had to be.** Production shape: the app is built INSIDE the container
+  at deploy time, and the founder sets environment variables on the host. A
+  `NEXT_PUBLIC_VAPID_PUBLIC_KEY` is INLINED into the client bundle at build
+  time — which happens before he can set anything — so it would be baked as the
+  empty string for ever and only a fresh build could ever change it. The Next.js
+  PWA guide itself uses `NEXT_PUBLIC_`; for this deployment shape that guide is
+  wrong.
+- **Decision: `GET /api/push/public-key`,** brand-agnostic and session-gated
+  (the `/api/undo` precedent), `force-dynamic`, `Cache-Control: no-store`. The
+  browser asks when the bell menu opens; the service worker asks again when it
+  has to re-subscribe itself after a browser-side rotation. The founder sets two
+  variables, restarts, and it is live — no rebuild.
+- **`key: null` is the honest "not configured" answer,** and the control simply
+  does not render. It is ALSO the answer while an admin is impersonating
+  somebody (see below), because the correct UI outcome is identical.
+- The value is public by definition — every subscribed browser holds it. The
+  session gate is house style, not secrecy.
+
+### 4. FEATURE-FLAGGED, and the inert path is what actually ships
+- **The rule: with no VAPID keys configured, the app is byte for byte what it
+  was before this feature existed.** That is not an optimisation; it is the
+  property that makes this safe to deploy to a host where nobody has set
+  anything yet, which is exactly what production is the moment this lands.
+- `pushConfigured()` reads `process.env` at CALL TIME. `schedulePush` returns on
+  its first line before it reads a row, opens a connection or creates a promise.
+  `deliverNotificationPush` checks again for callers that reach it directly.
+  `PushToggle` renders `null` and makes no further request.
+- **The service worker is registered ONLY on the press of the enable button.**
+  Not on page load, not on mount. With no keys there is no button, so no service
+  worker is ever installed at all — the strongest available form of "unchanged",
+  and the e2e asserts it by reading `navigator.serviceWorker.getRegistrations()`
+  and requiring it to be empty after browsing both apps. Registering eagerly was
+  considered and rejected: an always-installed worker is a permanent new failure
+  surface for a feature nobody has switched on.
+- **The service worker caches NOTHING and has no `fetch` handler,** by design
+  and asserted by the e2e reading its source. This app deploys from `main`
+  several times a day; a caching worker is how a deploy gets stranded behind a
+  stale bundle. It handles `push`, `notificationclick` and
+  `pushsubscriptionchange`, and that is the whole file.
+- The `subscribe` route deliberately does NOT check the flag: it is a device
+  registry, and a browser cannot produce a subscription at all without an
+  `applicationServerKey`, which it only has when the keys ARE configured. One
+  fewer branch to get wrong.
+
+### 5. The permission flow respects the platform, and says only true things
+- **Asking happens on a real user gesture,** and `Notification.requestPermission()`
+  is the FIRST statement after the click — every `await` in that handler comes
+  after it, because iOS refuses a request it cannot attribute to a gesture.
+- **Where: the foot of the bell menu.** There is no per-account settings page
+  for an admin (`/b-systems/profile` exists for agents and partners only), and
+  the bell is the one place every role that HAS notifications can reach on a
+  phone without navigating. It rides both bells, so ByteForce staff get it too.
+  It is sticky at the foot of a scrolling list, and it renders only when the menu
+  is open — a closed bell makes no request, so no screen gains a poll.
+- **Three honest states, plus two platform truths.** Not enabled (a pressable
+  offer) · enabled on this device (with a Turn off) · blocked by the browser
+  (which no button can undo, so it names the settings instead of offering one) ·
+  an iPhone that is NOT a home-screen install (iOS delivers web push only there
+  and exposes no `PushManager` in a tab, so it names the one step that would fix
+  it rather than offering a button that could only ever fail) · anything else
+  unsupported (render nothing, like the unconfigured case). The first three are
+  e2e-driven with the key stubbed at the network edge, since no CI browser can
+  hold a real push subscription.
+- **iOS, concretely, so nobody is surprised.** iOS/iPadOS 16.4+; the site must be
+  added to the Home Screen and OPENED FROM THERE; the manifest must declare
+  `display: standalone` (ADR-060 does); permission must be granted from inside
+  that installed app, per device. Safari in a tab on iOS will never deliver one,
+  and no code in this repo can change that.
+- **IMPERSONATION IS REFUSED, server-side.** `requireUser()` returns the person
+  being acted AS, so an admin who pressed the button while impersonating would
+  have attached their own phone to that person's account and started receiving
+  that person's notifications — the one real leak this feature could produce.
+  The subscribe route throws 403 on `impersonatorId`, and the public-key route
+  returns `null` so the offer is not even made.
+
+### 5b. Review adjudication (self-review + brand audit, before the gate)
+Six findings were raised against the two commits. All six were verified against
+the code and the rendered page, and all six were FIXED — none needed refuting.
+- **(medium) The unread tint pushed the row's BODY text under WCAG AA.** The
+  brand audit measured `--color-muted` on the B-Systems tint at **4.17:1** —
+  under the 4.5:1 bar for 12.5px text — and **3.30:1** once the hover deepens
+  it; ByteForce was a marginal 4.56:1 / 3.62:1. The regression landed on exactly
+  the rows the feature exists to draw the eye to. Fixed with
+  `.bell-item[data-unread="true"] .feed-text { color: var(--color-ink-soft) }` —
+  a token that exists in all three scopes, at a selector specificity of (0,3,0)
+  that also settles the cascade against the `text-brand-muted` utility on the
+  same element. Turned into a permanent guard rather than a one-off measurement:
+  `e2e/notifications.spec.ts` now computes the WCAG ratio from the LIVE painted
+  colours and requires ≥ 4.5:1 for the title and the body, in BOTH brands.
+- **(medium, self-review) A rotated keypair would have produced a LYING UI.** A
+  `PushSubscription` is welded to the `applicationServerKey` it was created
+  with. Had the pair on the host ever been rotated, the old subscription would
+  still look healthy to the browser, every send against it would be refused with
+  a 403 (not the 404/410 that prunes), and the control would have cheerfully
+  read "Phone notifications are on" while the phone stayed silent for ever —
+  precisely the dishonest state §5 forbids. Fixed by comparing the stored
+  subscription's key against the server's current one (`boundToKey`): a mismatch
+  reads as OFF at mount, and pressing enable unsubscribes and re-subscribes. The
+  comparison's failure mode is deliberately benign — if it cannot read the key
+  it answers "no", and the caller then does exactly what a first-time enable
+  does.
+- **(low) `.bell-item:hover` was invisible in B-Systems.** It hovered to
+  `--color-surface`, which is Paper `#FAFAFD` against the menu's `#FFFFFF` card
+  — a 5/255 delta, visible in ByteForce and imperceptible in B-Systems. Fixed by
+  deepening the card with the same `color-mix()` the unread hover uses, so both
+  hovers actually read.
+- **(low) The read-row dimming was carried forward at a legibility cost it no
+  longer earns.** `opacity: .6` composited the muted body line to ≈2.4:1. The
+  dimming used to BE the read/unread signal; four positive cues carry that now,
+  so it only has to soften a row it no longer has to distinguish. Raised to
+  `.75` — in the very rule this change was rewriting, which is the moment to do
+  it or never.
+- **(low) The bell-foot buttons forked the button primitives.** `.bell-foot-btn`
+  and `--go` reproduced `.btn-ghost` and `.btn-primary` token for token, down to
+  the identical hover `color-mix`, so a future change to the primitives would
+  have missed the bell foot entirely. Replaced with `btn-primary btn--sm` /
+  `btn-ghost btn--sm` and the duplicate rules deleted; the foot also inherits
+  the shared transition and `:active` feedback for free.
+- **(low, self-review) The `web-push` ESM interop was betting on one shape.**
+  `(await import("web-push")).default` is right under Node's ESM interop —
+  verified directly: `default.sendNotification` is a function while the
+  namespace's is `undefined` — but some bundlers hand back the namespace
+  instead, and this is the one path CI can never exercise (no push service, no
+  phone). It now accepts BOTH shapes rather than betting on one.
+- **And one gap the audit found in the GUARDS rather than the code.**
+  `brand-tokens.test.ts` enforced the identical semantic set between the two
+  BRAND files only; `neutral.css` was machine-checked for the stage tokens and
+  the accounting pair and trusted for everything else — a latent third instance
+  of the exact failure ADR-057 exists for. The three scopes are identical today
+  (90 tokens each, verified); a new case now keeps them that way. Note for
+  whoever writes the next one: `neutral.css` declares stage tokens several to a
+  line, so the ADR-019 pair-check's `^\s*` anchor sees only the first of each —
+  a probe written that way reported 33 phantom omissions before the anchor was
+  dropped.
+
+### 6. Accepted tradeoffs, named
+- **A push is fired and forgotten, and two of the three write paths are inside a
+  transaction.** Holding a transaction open across a network round-trip to a
+  push service would put someone else's outage on this app's connection pool, so
+  `schedulePush` is deliberately not awaited. The cost: if such a transaction
+  later rolls back, a phone may buzz for something that did not happen, while
+  the bell — the record — correctly shows nothing. A short deferral plus an
+  existence check was considered and rejected: it converts a rare phantom into a
+  routine LOST notification whenever a commit takes longer than the delay. Push
+  is the courtesy; the row is the truth.
+- **No restore twin, and that is a decision rather than an oversight.**
+  `PushSubscription` is added to `backup.ts`'s `MODELS` (after `user`, its only
+  parent, with deletes running reversed) and to `src/tests/db-reset.ts`. It needs
+  none of ADR-057/063/064's backfill twins: it is a brand-new table with no
+  legacy shape to repair, and a backup taken before today simply has no
+  `pushSubscription` key, which the existing `?? []` missing-table rule already
+  handles — the same path ADR-062's `todoDone` took. The round-trip is asserted
+  in `backup.integration.test.ts`, because the failure this table CAN have is
+  falling out of `MODELS` entirely, which is exactly what happened to `undoEntry`
+  once (INTEGRATION-PLAN §3).
+- **The migration is hand-written with `IF NOT EXISTS` guards** (and a
+  `pg_constraint` lookup for the foreign key, which Postgres gives no
+  `IF NOT EXISTS` for), the house rule since ADR-064: `scripts/start.mjs` retries
+  `migrate deploy` at boot, so a half-applied deploy must be replayable. Proved
+  on a THROWAWAY cluster: deploy from empty (17 migrations), then again (no
+  pending), then the file replayed by hand twice more with the data intact; the
+  unique endpoint refused a duplicate with SQLSTATE 23505 and deleting a user
+  cascaded their device away.
+- **One `next.config.ts` header, scoped to `/sw.js` alone:** `Cache-Control:
+  no-cache, no-store, must-revalidate`. Cloudflare caches `.js` by extension
+  unless the origin says otherwise, and a stale service worker at an edge
+  outlives the deploy that fixed it. `updateViaCache: "none"` at registration
+  covers the browser's own cache; this covers the proxy in front of it. No other
+  route's headers change.
+- **`src/proxy.ts` needed no change** — its matcher is `/byteforce`,
+  `/b-systems`, `/portal`, `/accounting`, `/vault`, so neither `/sw.js` nor
+  `/manifest.webmanifest` nor `/api/push/*` was ever gated behind a sign-in
+  redirect. Verified rather than assumed.
+- Alternatives considered and rejected: a bundler-emitted service worker under
+  `/_next/static` (needs a `Service-Worker-Allowed` header to reach root scope —
+  `public/sw.js` gets it for free); a `NEXT_PUBLIC_` public key (baked at build,
+  before the founder can set anything); a dedicated settings page for the toggle
+  (most roles have none, and a phone user should not have to find it); a per-lead
+  notification `tag` so repeats collapse (rejected — every row is a distinct
+  thing he asked to be told; the tag is the notification id, which buys
+  redelivery-dedup instead); refusing `subscribe` when unconfigured (unreachable,
+  and a branch that can only be wrong); a green "on" tick (the founder's R4
+  no-green ruling stands — the tick is the brand accent).
+- Resolves: extends V2 §10 (in-app notifications) and ADR-060 (the manifest,
+  which is what makes an iOS install — and therefore iOS push — possible).
+- Status: Accepted

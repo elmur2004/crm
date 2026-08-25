@@ -45,6 +45,31 @@ function urlBase64ToBytes(base64String: string): ArrayBuffer {
   return buffer;
 }
 
+/** Is this existing subscription bound to the key the SERVER is using now?
+
+    A `PushSubscription` is welded to the `applicationServerKey` it was created
+    with. If the pair on the host is ever rotated, an old subscription keeps
+    looking perfectly healthy to the browser while every send against it is
+    refused — the phone goes silent and the control cheerfully says "on", which
+    is exactly the lying UI this feature is not allowed to have. Compare, and
+    re-subscribe when they differ.
+
+    The failure mode is deliberately benign: if this cannot read the key it
+    answers "no", and the caller then does what a first-time enable does. */
+function boundToKey(sub: PushSubscription, key: string): boolean {
+  const raw = sub.options?.applicationServerKey;
+  if (!raw) return false;
+  const bytes = new Uint8Array(raw as ArrayBuffer);
+  let binary = "";
+  for (const b of bytes) binary += String.fromCharCode(b);
+  const asUrlSafe = window
+    .btoa(binary)
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
+  return asUrlSafe === key.replace(/=+$/, "");
+}
+
 function isIOS(): boolean {
   const ua = navigator.userAgent;
   /* iPadOS reports itself as a Macintosh; the touch points give it away */
@@ -90,7 +115,11 @@ export function PushToggle() {
       const reg = await navigator.serviceWorker.getRegistration("/").catch(() => null);
       const existing = reg ? await reg.pushManager.getSubscription().catch(() => null) : null;
       if (!alive) return;
-      setState(existing && Notification.permission === "granted" ? "on" : "off");
+      /* "on" means REACHABLE, not merely subscribed: a subscription welded to a
+         key the server has since rotated away from can never be delivered to,
+         so it reads as off and one press repairs it. */
+      const usable = existing !== null && boundToKey(existing, serverKey);
+      setState(usable && Notification.permission === "granted" ? "on" : "off");
     })();
     return () => {
       alive = false;
@@ -120,12 +149,17 @@ export function PushToggle() {
         updateViaCache: "none",
       });
       await navigator.serviceWorker.ready;
-      const sub =
-        (await reg.pushManager.getSubscription()) ??
-        (await reg.pushManager.subscribe({
-          userVisibleOnly: true,
-          applicationServerKey: urlBase64ToBytes(key),
-        }));
+      let sub = await reg.pushManager.getSubscription();
+      if (sub && !boundToKey(sub, key)) {
+        /* welded to a key the server no longer uses — drop it and start again,
+           otherwise this device is silently unreachable for ever */
+        await sub.unsubscribe().catch(() => undefined);
+        sub = null;
+      }
+      sub ??= await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToBytes(key),
+      });
       const res = await fetch("/api/push/subscribe", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -174,14 +208,14 @@ export function PushToggle() {
             <span className="bell-foot-tick" aria-hidden />
             {t(msg.on)}
           </span>
-          <button type="button" className="bell-foot-btn" onClick={() => void disable()}>
+          <button type="button" className="btn-ghost btn--sm" onClick={() => void disable()}>
             {t(msg.turnOff)}
           </button>
         </>
       ) : (
         <button
           type="button"
-          className="bell-foot-btn bell-foot-btn--go"
+          className="btn-primary btn--sm"
           onClick={() => void enable()}
           disabled={state === "busy"}
         >

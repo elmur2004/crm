@@ -163,6 +163,48 @@ describe("stage tokens exist in ALL THREE brand scopes (ADR-057)", () => {
     }
   });
 
+  /* ADR-065 (brand audit) — the law says ALL THREE scopes, and until now only
+     the two BRAND files were checked for the full semantic set: neutral was
+     machine-checked for the stage tokens and the accounting pair, and trusted
+     for everything else. A shared component that lands in the `(home)` or
+     `(vault)` shell (both `[data-brand="neutral"]`) and reaches for a token
+     neutral happens not to declare paints NOTHING there, with CI green — which
+     is the exact shape of the two failures ADR-057 was written for. The three
+     scopes are identical today (90 tokens each); this keeps them that way.
+
+     NOT anchored to the start of a line, unlike the ADR-019 pair-check above:
+     `neutral.css` declares the stage tokens several to a line, and a `^\s*`
+     anchor silently sees only the first of each — which is how a probe of this
+     very question first reported 33 phantom omissions. */
+  it("byteforce, b-systems and neutral declare the identical FULL semantic set", () => {
+    const semantic = (css: string, selector: string) =>
+      [
+        ...new Set(
+          [...scopeBody(css, selector).matchAll(/(--(?:color|font|gradient|radius|shadow)-[\w-]+)\s*:/g)].map(
+            (m) => m[1]!,
+          ),
+        ),
+      ].sort();
+    const bf = semantic(read("branding/byteforce/tokens.css"), '[data-brand="byteforce"]');
+    const bs = semantic(read("branding/b-systems/tokens.css"), '[data-brand="bsystems"]');
+    const neutral = semantic(read("src/themes/neutral.css"), '[data-brand="neutral"]');
+    expect(bf.length).toBeGreaterThan(80);
+    expect(bs).toEqual(bf);
+    expect(neutral).toEqual(bf);
+    /* and the ones the notifications bell spends are really among them */
+    for (const name of [
+      "--color-accent",
+      "--color-primary-tint",
+      "--color-ink-soft",
+      "--color-hairline",
+      "--color-surface-card",
+      "--radius-control",
+      "--font-body",
+    ]) {
+      expect(neutral).toContain(name);
+    }
+  });
+
   it("every stage token is bridged into Tailwind's theme", () => {
     const globals = read("src/app/globals.css");
     for (const name of stageNames(read("branding/b-systems/tokens.css"), '[data-brand="bsystems"]')) {

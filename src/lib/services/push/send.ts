@@ -39,7 +39,12 @@ export type PushSender = (
 const TTL_SECONDS = 60 * 60 * 24;
 
 const realSender: PushSender = async (target, payloadJson, vapid) => {
-  const webpush = (await import("web-push")).default;
+  /* `web-push` is CommonJS. Under Node's ESM interop the whole module.exports
+     lands on `.default`; some bundlers hand back the namespace itself instead.
+     This path cannot be exercised in CI (there is no push service and no
+     phone), so it accepts BOTH shapes rather than betting on one. */
+  const mod = await import("web-push");
+  const webpush = (mod as unknown as { default?: typeof mod }).default ?? mod;
   try {
     await webpush.sendNotification(
       { endpoint: target.endpoint, keys: { p256dh: target.p256dh, auth: target.auth } },
