@@ -1,4 +1,4 @@
-import { handleRoute, requireBsAdmin } from "@/lib/auth/guards";
+import { handleRoute, requireVault } from "@/lib/auth/guards";
 import { ApiError } from "@/lib/api-error";
 import { importVault } from "@/lib/services/vault/backup";
 
@@ -8,7 +8,7 @@ import { importVault } from "@/lib/services/vault/backup";
    to ActivityLog, and consumes pending undo entries (destructive). */
 
 export const POST = handleRoute(async (req: Request) => {
-  const user = await requireBsAdmin();
+  const user = await requireVault();
   const form = await req.formData();
   const file = form.get("export");
   if (!(file instanceof File)) throw new ApiError(400, "No vault export file provided");

@@ -1,4 +1,4 @@
-import { handleRoute, requireBsAdmin } from "@/lib/auth/guards";
+import { handleRoute, requireAccounting } from "@/lib/auth/guards";
 import { ApiError } from "@/lib/api-error";
 import { db } from "@/lib/db";
 import { writeLog } from "@/lib/services/activity";
@@ -16,7 +16,7 @@ import { ACCT_COMPANIES, type AcctCompany } from "@/lib/accounting/constants";
    wrapper. Filenames are the SPA's own. Logged to ActivityLog. */
 
 export const GET = handleRoute(async (req: Request) => {
-  const user = await requireBsAdmin();
+  const user = await requireAccounting();
   const url = new URL(req.url);
   const all = url.searchParams.get("all");
   const rawCompany = url.searchParams.get("company");

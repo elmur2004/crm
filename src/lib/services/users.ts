@@ -65,6 +65,11 @@ export const createUserSchema = z
       .or(z.literal("").transform(() => undefined)),
     password: z.string().min(8),
     roles: z.array(z.enum(ROLES)).min(1),
+    /* ADR-066 — per-admin module access. Optional and DEFAULTED TO TRUE so the
+       create form, the seed and every existing caller behave exactly as before;
+       unticking a box on a new admin is the only way one arrives false. */
+    canAccessAccounting: z.boolean().optional(),
+    canAccessVault: z.boolean().optional(),
   })
   .refine((u) => u.email || u.phone, { message: "An email or a phone is required" })
   .refine((u) => !u.phone || isValidPhone(u.phone), {
@@ -84,7 +89,17 @@ export async function createUser(input: z.infer<typeof createUserSchema>, actor:
   const passwordHash = await hashPassword(input.password);
   return db.$transaction(async (tx) => {
     const user = await tx.user.create({
-      data: { name: input.name, email: email ?? null, phone: phone ?? null, passwordHash, passwordPlain: input.password },
+      data: {
+        name: input.name,
+        email: email ?? null,
+        phone: phone ?? null,
+        passwordHash,
+        passwordPlain: input.password,
+        /* ADR-066 — `?? true` keeps the column default's promise at the ONE
+           place that could quietly break it: an omitted field means "as before". */
+        canAccessAccounting: input.canAccessAccounting ?? true,
+        canAccessVault: input.canAccessVault ?? true,
+      },
     });
     for (const role of input.roles) {
       await tx.userRole.create({ data: { userId: user.id, role } });
@@ -112,6 +127,10 @@ export const updateUserSchema = z
       .or(z.literal("").transform(() => undefined)),
     password: z.string().min(8, "At least 8 characters").optional(),
     roles: z.array(z.enum(ROLES)).min(1).optional(),
+    /* ADR-066 — the two module flags. Absent = untouched, exactly like every
+       other optional field on this schema. */
+    canAccessAccounting: z.boolean().optional(),
+    canAccessVault: z.boolean().optional(),
   })
   .refine((u) => !u.phone || isValidPhone(u.phone), {
     message: "Enter a valid phone number",
@@ -145,6 +164,21 @@ export async function updateUser(
   ) {
     throw new ApiError(400, "You cannot remove your own admin access");
   }
+  /* ADR-066 / no self-lockout — the exact twin of the rule above it, and for
+     the same reason: whoever is standing at the Users page must always be able
+     to walk back into what he is configuring. An admin may take Accounting or
+     the Data Vault from ANY other admin, never from himself; another admin can
+     always do it for him. Enforced HERE, in the service, so the API and any
+     future caller inherit it — the checkbox being disabled in the UI is a
+     courtesy, never the rule. */
+  if (actor.id === userId) {
+    if (input.canAccessAccounting === false) {
+      throw new ApiError(400, "You cannot remove your own access to Accounting");
+    }
+    if (input.canAccessVault === false) {
+      throw new ApiError(400, "You cannot remove your own access to the Data Vault");
+    }
+  }
 
   return db.$transaction(async (tx) => {
     const updated = await tx.user.update({
@@ -157,6 +191,10 @@ export async function updateUser(
           passwordHash: await hashPassword(input.password),
           passwordPlain: input.password,
         }),
+        ...(input.canAccessAccounting !== undefined && {
+          canAccessAccounting: input.canAccessAccounting,
+        }),
+        ...(input.canAccessVault !== undefined && { canAccessVault: input.canAccessVault }),
       },
     });
     if (input.roles) {

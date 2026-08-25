@@ -1,4 +1,4 @@
-import { handleRoute, requireBsAdmin } from "@/lib/auth/guards";
+import { handleRoute, requireAccounting } from "@/lib/auth/guards";
 import { ApiError } from "@/lib/api-error";
 import {
   mediaReceived,
@@ -13,7 +13,7 @@ import {
    mode "sent": ledger + tagged withdrawal. */
 
 export const POST = handleRoute(async (req: Request) => {
-  const user = await requireBsAdmin();
+  const user = await requireAccounting();
   const body = (await req.json()) as Record<string, unknown>;
   const actor = { id: user.id, label: user.name };
   if (body["mode"] === "received") {

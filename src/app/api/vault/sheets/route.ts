@@ -1,4 +1,4 @@
-import { handleRoute, requireBsAdmin } from "@/lib/auth/guards";
+import { handleRoute, requireVault } from "@/lib/auth/guards";
 import { createVaultSheet, vaultSheetSchema } from "@/lib/services/vault/sheets";
 import { fieldFile, fieldStr } from "@/lib/services/vault/multipart";
 
@@ -6,7 +6,7 @@ import { fieldFile, fieldStr } from "@/lib/services/vault/multipart";
    (link or file, never both/neither) is the Zod union + a service assertion. */
 
 export const POST = handleRoute(async (req: Request) => {
-  const user = await requireBsAdmin();
+  const user = await requireVault();
   const form = await req.formData();
   const input = vaultSheetSchema.parse({
     company: fieldStr(form, "company"),

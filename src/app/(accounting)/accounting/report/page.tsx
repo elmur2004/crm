@@ -1,4 +1,4 @@
-import { requireBsAdminPage } from "@/lib/auth/page-guards";
+import { requireAccountingPage } from "@/lib/auth/page-guards";
 import { getLocale } from "@/lib/i18n/server";
 import { tFor } from "@/lib/i18n/core";
 import { acct } from "@/lib/i18n/dict/accounting";
@@ -29,7 +29,7 @@ export default async function AcctReportPage({
 }: {
   searchParams: Promise<{ company?: string; month?: string }>;
 }) {
-  await requireBsAdminPage();
+  await requireAccountingPage();
   const locale = await getLocale();
   const t = tFor(locale);
   const view = acctView(await searchParams);

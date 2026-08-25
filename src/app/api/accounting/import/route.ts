@@ -1,4 +1,4 @@
-import { handleRoute, requireBsAdmin } from "@/lib/auth/guards";
+import { handleRoute, requireAccounting } from "@/lib/auth/guards";
 import { ApiError } from "@/lib/api-error";
 import { importAccounting } from "@/lib/accounting/import";
 import { ACCT_COMPANIES, type AcctCompany } from "@/lib/accounting/constants";
@@ -11,7 +11,7 @@ import { ACCT_COMPANIES, type AcctCompany } from "@/lib/accounting/constants";
    reconciliation numbers for the manual side-by-side check. */
 
 export const POST = handleRoute(async (req: Request) => {
-  const user = await requireBsAdmin();
+  const user = await requireAccounting();
   const form = await req.formData();
   const file = form.get("file");
   if (!(file instanceof File)) throw new ApiError(400, "No export file provided");

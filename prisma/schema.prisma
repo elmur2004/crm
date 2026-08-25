@@ -29,6 +29,17 @@ model User {
      TRADEOFF (flagged): anyone with admin access or a DB/backup dump reads it. */
   passwordPlain String?
   active        Boolean        @default(true) // A-4 kill-switch
+  /* ADR-066 (founder: "block some admins from accessing accounting or data
+     vault") — PER-ADMIN module access. Deliberately FLAGS, not roles: this
+     codebase iterates the role union in a dozen places (bsRoleOf, landingFor,
+     bucketFor, ownerTypeForRole, the assignable-owner roster, the To-Do scope,
+     the proxy) and a capability role would have to be excluded from every one.
+     Both default TRUE, so every admin that exists keeps exactly the access he
+     has today and no backfill is needed. They NARROW bsystems_admin and can
+     never widen anything: a non-admin is refused by role long before a flag is
+     read (see canUseModule in lib/auth/roles.ts). */
+  canAccessAccounting Boolean   @default(true)
+  canAccessVault      Boolean   @default(true)
   /* founder: agent self-signup is a REQUEST — "pending" until the admin approves
      it on the Registrations page ("approved" | "pending" | "rejected"). Admin-
      created, seeded, and partner-provisioned accounts are approved from birth. */

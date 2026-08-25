@@ -1,12 +1,12 @@
 import { ApiError } from "@/lib/api-error";
-import { handleRoute, requireBsAdmin } from "@/lib/auth/guards";
+import { handleRoute, requireVault } from "@/lib/auth/guards";
 import { createVaultDocument, vaultDocumentSchema } from "@/lib/services/vault/documents";
 import { fieldFile, fieldStr } from "@/lib/services/vault/multipart";
 
 /* ADR-053 — create a document (multipart: fields + REQUIRED file). */
 
 export const POST = handleRoute(async (req: Request) => {
-  const user = await requireBsAdmin();
+  const user = await requireVault();
   const form = await req.formData();
   const input = vaultDocumentSchema.parse({
     company: fieldStr(form, "company"),

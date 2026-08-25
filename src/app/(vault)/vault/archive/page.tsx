@@ -1,4 +1,4 @@
-import { requireBsAdminPage } from "@/lib/auth/page-guards";
+import { requireVaultPage } from "@/lib/auth/page-guards";
 import { getLocale } from "@/lib/i18n/server";
 import { tFor, type Msg } from "@/lib/i18n/core";
 import { vault } from "@/lib/i18n/dict/vault";
@@ -32,7 +32,7 @@ type ArchivedRow = {
 };
 
 export default async function VaultArchivePage() {
-  await requireBsAdminPage();
+  await requireVaultPage();
   const locale = await getLocale();
   const t = tFor(locale);
 

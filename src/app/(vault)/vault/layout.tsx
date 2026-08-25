@@ -7,7 +7,7 @@ import { BrandLogo } from "@/components/shared/BrandLogo";
 import { UndoControl } from "@/components/shared/UndoControl";
 import { VaultModuleNav } from "@/components/vault/VaultModuleNav";
 import { logout } from "@/lib/auth/actions";
-import { requireBsAdminPage } from "@/lib/auth/page-guards";
+import { requireVaultPage } from "@/lib/auth/page-guards";
 import { tFor } from "@/lib/i18n/core";
 import { getLocale } from "@/lib/i18n/server";
 import { nav, roles } from "@/lib/i18n/dict/crm";
@@ -22,7 +22,7 @@ import { vault } from "@/lib/i18n/dict/vault";
 export default async function VaultShellLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  const user = await requireBsAdminPage();
+  const user = await requireVaultPage();
   const locale = await getLocale();
   const t = tFor(locale);
   const initials = user.name

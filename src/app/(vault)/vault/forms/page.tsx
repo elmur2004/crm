@@ -1,4 +1,4 @@
-import { requireBsAdminPage } from "@/lib/auth/page-guards";
+import { requireVaultPage } from "@/lib/auth/page-guards";
 import { getLocale } from "@/lib/i18n/server";
 import { tFor } from "@/lib/i18n/core";
 import { vault } from "@/lib/i18n/dict/vault";
@@ -26,7 +26,7 @@ export default async function VaultFormsPage({
 }: {
   searchParams: Promise<Record<string, string | undefined>>;
 }) {
-  await requireBsAdminPage();
+  await requireVaultPage();
   const locale = await getLocale();
   const t = tFor(locale);
   const params = vaultFormListParams.parse(await searchParams);

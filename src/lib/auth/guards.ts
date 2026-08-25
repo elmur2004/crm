@@ -1,5 +1,6 @@
 import { auth } from "./index";
 import { db } from "@/lib/db";
+import { canUseModule, type ModuleKey } from "./roles";
 import type { Brand, Role } from "@/lib/pipeline-engine/constants";
 
 /* SPEC §3's hard rules live HERE, not in the UI. Every route handler calls a guard;
@@ -17,6 +18,14 @@ export type CurrentUser = {
   portalRepId: string | null;
   /** set while an admin is acting as this user (snap-back impersonation) */
   impersonatorId: string | null;
+  /* ADR-066 — per-admin module access, read fresh from the User row on EVERY
+     request like `active` and the roles are. Deliberately NOT in the JWT: a
+     revoked admin must lose the module on his very next request, not at his
+     next sign-in. Under impersonation the row read here is the IMPERSONATED
+     user's (the session's `user.id` is theirs; `impersonatorId` only remembers
+     who to snap back to), so acting as someone honours THEIR access. */
+  canAccessAccounting: boolean;
+  canAccessVault: boolean;
 };
 
 /** Identity from the session + fresh authorization state from the DB (ADR-017). */
@@ -38,6 +47,8 @@ export async function requireUser(): Promise<CurrentUser> {
     roles: user.roles.map((r) => r.role as Role),
     portalRepId: user.portalRep?.id ?? null,
     impersonatorId: session?.user?.impersonatorId ?? null,
+    canAccessAccounting: user.canAccessAccounting,
+    canAccessVault: user.canAccessVault,
   };
 }
 
@@ -70,6 +81,46 @@ export async function requireBsAdmin(): Promise<CurrentUser> {
   return requireRole("bsystems_admin");
 }
 
+/* ---- ADR-066: the two MODULE walls ----------------------------------------
+
+   Founder: "I want to have the ability to block some admins from acsessing
+   accounting or data vault."
+
+   `requireBsAdmin` is no longer enough for /api/accounting/** or /api/vault/**:
+   admin is the FLOOR, and a per-user flag can take one module away on top of
+   it. Every route under those two namespaces calls the matching guard here
+   instead — a route that forgets is a hole, so `module-access.integration.test`
+   reads both directories and fails if any route file still reaches for the old
+   guard.
+
+   The authorization state is re-read from the database inside `requireUser`, so
+   revoking a flag bites on the NEXT request with no re-login (ADR-017's rule,
+   extended). The edge proxy still gates these paths on the role alone — it runs
+   on the edge runtime and cannot reach Postgres — which is why THIS is the wall
+   and the proxy is only navigation hygiene. */
+
+export async function requireModule(module: ModuleKey): Promise<CurrentUser> {
+  const user = assertRole(await requireUser(), "bsystems_admin");
+  if (!canUseModule(user, module)) {
+    throw new ApiError(403, MODULE_DENIED[module]);
+  }
+  return user;
+}
+
+/** Kept as its own message per module so a 403 body names what was refused. */
+const MODULE_DENIED: Record<ModuleKey, string> = {
+  accounting: "Your account does not have access to Accounting",
+  vault: "Your account does not have access to the Data Vault",
+};
+
+export async function requireAccounting(): Promise<CurrentUser> {
+  return requireModule("accounting");
+}
+
+export async function requireVault(): Promise<CurrentUser> {
+  return requireModule("vault");
+}
+
 /* ---- ADR-051: the data-entry role's TWO permissions, and nothing else ----
 
    Founder: "This user is just able to add leads or partners or agents... They
@@ -87,6 +138,7 @@ export async function requireProspectCreator(): Promise<CurrentUser> {
 /* the predicate itself is pure and lives in ./roles, so services and their
    tests can use it without pulling next-auth in; re-exported for route code */
 export { isDataEntry } from "./roles";
+export { canUseModule, MODULE_KEYS, type ModuleKey } from "./roles";
 
 /** V2 lead access: admin → any B-Systems lead; sales → internal-bucket leads;
     agent/partner → ONLY their own (ownerUserId). ByteForce: staff only. */

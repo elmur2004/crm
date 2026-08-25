@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { requireRole, requireUser, type CurrentUser } from "./guards";
 import { landingFor } from "./landing";
+import { canUseModule, type ModuleKey } from "./roles";
 import type { Role } from "@/lib/pipeline-engine/constants";
 
 /* Page-level guard: like requireRole but redirects instead of throwing
@@ -33,4 +34,32 @@ export async function requireBsAdminPage(): Promise<CurrentUser> {
   );
   if (!user.roles.includes("bsystems_admin")) redirect("/b-systems/crm");
   return user;
+}
+
+/* ---- ADR-066: the two MODULE page walls -----------------------------------
+
+   The page twin of `requireModule` in ./guards. An admin whose flag was taken
+   away is bounced to /no-access, which NAMES the module and offers the way
+   back — an honest refusal instead of a bounce to a sign-in form he does not
+   need, a blank screen, or (worse) a redirect that lands him somewhere the
+   guard will bounce him from again.
+
+   No loop is possible: /no-access lives in the brand-neutral (home) group, is
+   outside the proxy matcher and outside both module route groups, and asks only
+   for a signed-in account. A user who is not an admin at ALL never reaches this
+   line — `requireBsAdminPage` above has already sent him to his own board, which
+   is the behaviour that shipped with ADR-054 and must not change. */
+
+export async function requireModulePage(module: ModuleKey): Promise<CurrentUser> {
+  const user = await requireBsAdminPage();
+  if (!canUseModule(user, module)) redirect(`/no-access?module=${module}`);
+  return user;
+}
+
+export async function requireAccountingPage(): Promise<CurrentUser> {
+  return requireModulePage("accounting");
+}
+
+export async function requireVaultPage(): Promise<CurrentUser> {
+  return requireModulePage("vault");
 }

@@ -1,4 +1,4 @@
-import { handleRoute, requireBsAdmin } from "@/lib/auth/guards";
+import { handleRoute, requireVault } from "@/lib/auth/guards";
 import { exportVault } from "@/lib/services/vault/backup";
 
 /* ADR-054, founder directive B — the vault module's own export. ADMIN ONLY.
@@ -7,7 +7,7 @@ import { exportVault } from "@/lib/services/vault/backup";
    vault-only). Logged to ActivityLog. */
 
 export const GET = handleRoute(async () => {
-  const user = await requireBsAdmin();
+  const user = await requireVault();
   const payload = await exportVault({ id: user.id, label: user.name });
   const stamp = payload.exportedAt.slice(0, 10);
   return new Response(JSON.stringify(payload), {

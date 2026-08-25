@@ -26,7 +26,18 @@ function loginPathFor(): string {
 function allowed(pathname: string, roles: Role[]): boolean {
   if (pathname.startsWith("/byteforce")) return roles.includes("byteforce_staff");
   /* ADR-054: the Accounting and Data Vault MODULES — switcher peers of the two
-     CRMs, admin-only. The page guards (requireBsAdminPage) stay the real wall. */
+     CRMs, admin-only. The page guards stay the real wall.
+
+     ADR-066 made these two modules PER-ADMIN, and this check deliberately did
+     NOT follow. It runs on the edge runtime, where there is no database
+     connection and no Prisma; the only thing it can read is the JWT — and
+     putting the flags in the token is precisely what ADR-066 refuses, because
+     a token is minted at sign-in and a revoked admin must lose the module on
+     his NEXT REQUEST, not at his next login. So this stays a coarse role check
+     that lets a blocked admin through, and `requireModulePage` (page) /
+     `requireModule` (API) refuse him a millisecond later against the live User
+     row — with /no-access as the honest landing. The edge is navigation
+     hygiene here; the server is the wall. */
   if (pathname.startsWith("/accounting") || pathname.startsWith("/vault")) {
     return roles.includes("bsystems_admin");
   }

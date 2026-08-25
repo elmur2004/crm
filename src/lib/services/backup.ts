@@ -17,6 +17,14 @@ const BACKUP_APP = "byteforce-bsystems-sales-platform";
 /* FK-safe INSERT order (parents before children). Deletes run in reverse.
    Keep in sync with prisma/schema.prisma and src/tests/db-reset.ts. */
 const MODELS = [
+  /* ADR-066 added two columns to User (canAccessAccounting / canAccessVault).
+     No new entry and NO restore twin: `findMany()` carries both columns on a
+     modern export, and a PRE-ADR-066 payload simply has no such keys, so
+     `createMany` lands every restored account on the column DEFAULT — true —
+     which for an admin is exactly the access he had before the feature existed
+     and for anybody else means nothing at all (the guards check the role
+     first). The three twins below exist because their default was the WRONG
+     answer for legacy rows; here the default IS the answer. */
   "user",
   "userRole",
   "salesRep",

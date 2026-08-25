@@ -1,5 +1,5 @@
 import { ApiError } from "@/lib/api-error";
-import { handleRoute, requireBsAdmin } from "@/lib/auth/guards";
+import { handleRoute, requireVault } from "@/lib/auth/guards";
 import { replaceVaultSheetFile } from "@/lib/services/vault/sheets";
 import { fieldFile } from "@/lib/services/vault/multipart";
 
@@ -8,7 +8,7 @@ import { fieldFile } from "@/lib/services/vault/multipart";
 
 export const POST = handleRoute(
   async (req: Request, ctx: { params: Promise<{ id: string }> }) => {
-    const user = await requireBsAdmin();
+    const user = await requireVault();
     const { id } = await ctx.params;
     const file = fieldFile(await req.formData());
     if (!file) throw new ApiError(400, "No file provided");

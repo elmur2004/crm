@@ -6,7 +6,7 @@ import { ModuleBrandScope, ModuleLogo } from "@/components/shared/ModuleBrandSco
 import { UndoControl } from "@/components/shared/UndoControl";
 import { AcctModuleNav } from "@/components/accounting/AcctModuleNav";
 import { logout } from "@/lib/auth/actions";
-import { requireBsAdminPage } from "@/lib/auth/page-guards";
+import { requireAccountingPage } from "@/lib/auth/page-guards";
 import { tFor } from "@/lib/i18n/core";
 import { getLocale } from "@/lib/i18n/server";
 import { nav, roles } from "@/lib/i18n/dict/crm";
@@ -21,7 +21,7 @@ import { acct } from "@/lib/i18n/dict/accounting";
 export default async function AccountingShellLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  const user = await requireBsAdminPage();
+  const user = await requireAccountingPage();
   const locale = await getLocale();
   const t = tFor(locale);
   const initials = user.name

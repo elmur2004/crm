@@ -186,3 +186,29 @@ export const shell = {
   switchAccounting: { en: "ACCOUNTING", ar: "الحسابات" },
   switchVault: { en: "VAULT", ar: "الخزنة" },
 } satisfies Record<string, Msg>;
+
+/* ADR-066 — the honest refusal an admin sees when a module has been taken away
+   from HIS account. It names the module, says who can give it back, and says
+   plainly that nothing else changed, so the page can never read as an outage. */
+export const noAccess = {
+  meta: { en: "No access — ByteForce × B-Systems", ar: "لا توجد صلاحية — ByteForce × B-Systems" },
+  eyebrow: { en: "ACCESS", ar: "الصلاحيات" },
+  titleAccounting: {
+    en: "Accounting is not open to your account",
+    ar: "وحدة الحسابات غير متاحة لحسابك",
+  },
+  titleVault: {
+    en: "The Data Vault is not open to your account",
+    ar: "خزنة البيانات غير متاحة لحسابك",
+  },
+  titleGeneric: { en: "This area is not open to your account", ar: "هذا القسم غير متاح لحسابك" },
+  sub: {
+    en: "An administrator turned this module off for your account. Nothing else changed — the rest of the system works exactly as it did.",
+    ar: "قام أحد المديرين بإيقاف هذه الوحدة لحسابك. لم يتغيّر أي شيء آخر — يعمل باقي النظام تمامًا كما كان.",
+  },
+  ask: {
+    en: "Need it back? An admin can switch it on again from Users.",
+    ar: "تحتاجها مرة أخرى؟ يمكن لأي مدير إعادة تفعيلها من صفحة المستخدمين.",
+  },
+  back: { en: "Back to your dashboard", ar: "العودة إلى لوحتك" },
+} satisfies Record<string, Msg>;
