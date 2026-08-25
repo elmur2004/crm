@@ -311,4 +311,8 @@ export const bell = {
   notificationsAria: { en: "Notifications", ar: "الإشعارات" },
   unreadSuffix: { en: " ({n} unread)", ar: " ({n} غير مقروء)" },
   empty: { en: "No notifications yet.", ar: "لا توجد إشعارات بعد." },
+  /* founder: "make a distict mark or a color for the un opened notifications".
+     The mark's own word, so the cue is never colour alone (title + aria-label
+     on the dot, the ADR-064 NoAnswerBadge precedent). */
+  unread: { en: "Unread", ar: "غير مقروء" },
 } satisfies Record<string, Msg>;

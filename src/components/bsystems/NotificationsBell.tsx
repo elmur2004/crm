@@ -95,12 +95,28 @@ export function NotificationsBell({
                 key={n.id}
                 type="button"
                 onClick={() => void openItem(n)}
-                className={`block w-full text-start px-4 py-3 border-b border-brand-hairline last:border-0 hover:bg-brand-surface ${
-                  n.readAt ? "opacity-60" : ""
-                }`}
+                className="bell-item"
+                /* the cue the CSS keys on — and the one an e2e can assert
+                   without reading a colour */
+                data-unread={n.readAt ? "false" : "true"}
               >
-                <p className="text-sm font-medium">{n.title}</p>
-                <p className="feed-text text-brand-muted mt-0.5 whitespace-pre-wrap">{n.body}</p>
+                <span className="bell-item-head">
+                  {n.readAt ? null : (
+                    /* role=img, not a bare <span>: ARIA 1.2 forbids a name on
+                       role=generic, so a bare span's aria-label is dropped by
+                       conforming assistive tech (ADR-064's finding). */
+                    <span
+                      className="bell-dot"
+                      role="img"
+                      aria-label={t(bell.unread)}
+                      title={t(bell.unread)}
+                    />
+                  )}
+                  <span className="bell-item-title">{n.title}</span>
+                </span>
+                <span className="feed-text text-brand-muted mt-0.5 whitespace-pre-wrap block">
+                  {n.body}
+                </span>
               </button>
             ))
           )}

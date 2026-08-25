@@ -256,6 +256,48 @@
   max-height: 24rem; overflow-y: auto;
 }
 
+/* founder: "make a distict mark or a color for the un opened notifications."
+   Read rows used to be DIMMED and that was the whole signal — an absence, which
+   only reads once you have something dimmer to compare against, and not at all
+   when every row is unread. An unread row now carries a POSITIVE mark: a tinted
+   well, a bar down its LOGICAL inline start, a dot, and a heavier title. The dot
+   carries the word "Unread" (role=img + aria-label + title, the ADR-064 badge
+   precedent), so the meaning never rides on colour alone.
+
+   Every value is a token that already exists in ALL THREE scopes (ADR-057's
+   law): --color-accent is the same accent the bell COUNT badge above already
+   wears, so the "2" and the two marked rows are visibly the same statement —
+   ByteForce orange, B-Systems Signal Pink used exactly as a cue and never as a
+   canvas. Nothing new to keep in three files.
+
+   The transparent 3px start-border sits on EVERY row, so marking one adds no
+   width and the text never shifts; inline-start means Arabic gets the bar on
+   the right with no extra rule. */
+.bell-item {
+  display: block; width: 100%; text-align: start; cursor: pointer;
+  background: transparent; color: inherit;
+  border: none; border-bottom: 1px solid var(--color-hairline);
+  border-inline-start: 3px solid transparent;
+  padding: 12px 16px;
+}
+.bell-item:last-child { border-bottom: 0; }
+.bell-item:hover { background: var(--color-surface); }
+.bell-item[data-unread="false"] { opacity: .6; }
+.bell-item[data-unread="true"] {
+  background: var(--color-primary-tint);
+  border-inline-start-color: var(--color-accent);
+}
+/* a tint the hover must DEEPEN rather than wash away (plain --color-surface
+   would remove the mark exactly while the pointer is on it) */
+.bell-item[data-unread="true"]:hover {
+  background: color-mix(in srgb, var(--color-primary-tint) 88%, var(--color-ink));
+}
+.bell-item-head { display: flex; align-items: center; gap: 7px; }
+.bell-dot { width: 7px; height: 7px; border-radius: 50%; flex: none; background: var(--color-accent); }
+/* 14px/20px 500 = the text-sm font-medium this row carried before */
+.bell-item-title { font: 500 14px/20px var(--font-body); }
+.bell-item[data-unread="true"] .bell-item-title { font-weight: 700; }
+
 /* ---------- 2.2 page header ---------- */
 .page { --page-pad: 26px; padding: 26px var(--page-pad) 44px; }
 .page--detail { padding: 20px var(--page-pad) 44px; }
