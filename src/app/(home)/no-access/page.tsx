@@ -43,7 +43,12 @@ export default async function NoAccessPage({
   return (
     <main className="login-shell">
       <div className="login-pane">
-        <div className="login-inner">
+        {/* `mx-auto`, because this page uses the sign-in shell WITHOUT its brand
+            billboard: `.login-pane` is a column flex box whose child would
+            otherwise stretch from the inline start, leaving a 400px column
+            pinned to the left of a very wide screen. A utility class, not a new
+            rule — nothing is added to any stylesheet. */}
+        <div className="login-inner mx-auto">
           <div className="mb-4">
             <LanguageToggle />
           </div>
