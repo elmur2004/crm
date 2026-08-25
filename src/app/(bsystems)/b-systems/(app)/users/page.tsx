@@ -85,6 +85,17 @@ export default async function UsersPage() {
                           {roleBadges[r.role] ? t(roleBadges[r.role]) : r.role}
                         </span>
                       ))}
+                      {/* ADR-066 — a module TAKEN AWAY says so on the row, so
+                          the founder reads who is blocked without opening
+                          anyone. Only ever shown for an admin: for anybody else
+                          the flags mean nothing at all. */}
+                      {u.roles.some((r) => r.role === "bsystems_admin") &&
+                      !u.canAccessAccounting ? (
+                        <span className="badge badge--archived">{t(d.badgeNoAccounting)}</span>
+                      ) : null}
+                      {u.roles.some((r) => r.role === "bsystems_admin") && !u.canAccessVault ? (
+                        <span className="badge badge--archived">{t(d.badgeNoVault)}</span>
+                      ) : null}
                     </span>
                   </td>
                   <td>{formatCairoDate(u.createdAt)}</td>
@@ -97,8 +108,11 @@ export default async function UsersPage() {
                           email: u.email,
                           phone: u.phone,
                           roles: u.roles.map((r) => r.role),
+                          canAccessAccounting: u.canAccessAccounting,
+                          canAccessVault: u.canAccessVault,
                         }}
                         isBootstrapAdmin={u.email === "admin@byteforce.com"}
+                        isSelf={u.id === user.id}
                       />
                       {u.active && u.id !== user.id ? (
                         <form action={impersonate.bind(null, u.id)}>

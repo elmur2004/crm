@@ -185,6 +185,21 @@ export const usersAdmin = {
     ar: "تظهر في عمود كلمة المرور بعد تعيينها.",
   },
   accessLegend: { en: "Access", ar: "الصلاحيات" },
+  /* ADR-066 — the founder's per-admin module switches, right under the role
+     boxes they narrow. */
+  modulesLegend: { en: "Modules", ar: "الوحدات" },
+  moduleAccounting: { en: "Accounting", ar: "الحسابات" },
+  moduleVault: { en: "Data Vault", ar: "خزنة البيانات" },
+  modulesHint: {
+    en: "B-Systems admins only. Untick to block this admin from that module — nothing else about the account changes.",
+    ar: "لمديري B-Systems فقط. أزِل العلامة لمنع هذا المدير من تلك الوحدة — لا يتغيّر أي شيء آخر في الحساب.",
+  },
+  modulesSelfHint: {
+    en: "You cannot take a module away from your own account — another admin can do it for you.",
+    ar: "لا يمكنك سحب وحدة من حسابك — يمكن لمدير آخر أن يفعل ذلك نيابةً عنك.",
+  },
+  badgeNoAccounting: { en: "No Accounting", ar: "بدون الحسابات" },
+  badgeNoVault: { en: "No Data Vault", ar: "بدون خزنة البيانات" },
   changesApply: { en: "Changes apply immediately.", ar: "تسري التغييرات فورًا." },
   saveUser: { en: "Save user", ar: "حفظ المستخدم" },
   addUser: { en: "Add user", ar: "إضافة مستخدم" },

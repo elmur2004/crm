@@ -5,7 +5,7 @@ import { LanguageToggle } from "@/components/shared/LanguageToggle";
 import { EntitySwitch } from "@/components/shared/EntitySwitch";
 import { ShellNav } from "@/components/shared/ShellNav";
 import { logout } from "@/lib/auth/actions";
-import type { Role } from "@/lib/pipeline-engine/constants";
+import type { ModuleAccessBearer } from "@/lib/auth/roles";
 import { tFor } from "@/lib/i18n/core";
 import { getLocale } from "@/lib/i18n/server";
 import { nav } from "@/lib/i18n/dict/internal";
@@ -17,12 +17,14 @@ import { todoPage } from "@/lib/i18n/dict/todo";
 export async function AppNav({
   basePath,
   userName,
-  roles = [],
+  user,
   extraItems = [],
 }: {
   basePath: string;
   userName: string;
-  roles?: Role[];
+  /* ADR-066 — the switcher needs the two module flags as well as the roles, so
+     the whole bearer is threaded through (required: see EntitySwitch). */
+  user: ModuleAccessBearer;
   extraItems?: Array<{ href: string; label: string }>;
 }) {
   const locale = await getLocale();
@@ -54,7 +56,7 @@ export async function AppNav({
         extras={
           <>
             <LanguageToggle />
-            <EntitySwitch roles={roles} current="byteforce" />
+            <EntitySwitch user={user} current="byteforce" />
             <form action={logout.bind(null, "/login")}>
               <button type="submit" className="nav-item">
                 {t(nav.logOut)}
@@ -65,7 +67,7 @@ export async function AppNav({
       />
       <div className="user">
         <LanguageToggle />
-        <EntitySwitch roles={roles} current="byteforce" />
+        <EntitySwitch user={user} current="byteforce" />
         {/* founder V5: lead-chat mentions land here too */}
         <NotificationsBell apiBase="/api/byteforce" leadPathBase={`${basePath}/leads/lead`} />
         <span className="user-avatar" aria-hidden>
@@ -83,7 +85,7 @@ export async function AppNav({
       </div>
     </header>
     {/* ADR-060 — the phone's module bar (≤820px), directly under the header */}
-    <EntitySwitch variant="bar" roles={roles} current="byteforce" />
+    <EntitySwitch variant="bar" user={user} current="byteforce" />
     </>
   );
 }

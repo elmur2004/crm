@@ -48,7 +48,7 @@ export default async function VaultShellLayout({
           extras={
             <>
               <LanguageToggle />
-              <EntitySwitch roles={user.roles} current="vault" />
+              <EntitySwitch user={user} current="vault" />
               <form action={logout.bind(null, "/login")}>
                 <button type="submit" className="nav-item">
                   {t(nav.logOut)}
@@ -59,7 +59,7 @@ export default async function VaultShellLayout({
         />
         <div className="user">
           <LanguageToggle />
-          <EntitySwitch roles={user.roles} current="vault" />
+          <EntitySwitch user={user} current="vault" />
           <span className="user-avatar" aria-hidden>
             {initials}
           </span>
@@ -75,7 +75,7 @@ export default async function VaultShellLayout({
         </div>
       </header>
       {/* ADR-060 — the phone's module bar (≤820px), directly under the header */}
-      <EntitySwitch variant="bar" roles={user.roles} current="vault" />
+      <EntitySwitch variant="bar" user={user} current="vault" />
       {/* ADR-056: the full-width query container the board measures itself
           against. `50cqw` is the content width EXCLUDING the scrollbar —
           the quantity `50vw` cannot express — so the full-bleed board is

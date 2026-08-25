@@ -102,7 +102,7 @@ export default async function BSystemsAppLayout({
           extras={
             <>
               <LanguageToggle />
-              <EntitySwitch roles={user.roles} current="bsystems" />
+              <EntitySwitch user={user} current="bsystems" />
               <form action={logout.bind(null, "/login")}>
                 <button type="submit" className="nav-item">
                   {t(nav.logOut)}
@@ -117,7 +117,7 @@ export default async function BSystemsAppLayout({
               granted the notifications endpoint — a bell that can only ever
               poll a 403 is worse than no bell. */}
           {role === "bsystems_data_entry" ? null : <NotificationsBell />}
-          <EntitySwitch roles={user.roles} current="bsystems" />
+          <EntitySwitch user={user} current="bsystems" />
           <span className="user-avatar" aria-hidden>
             {initials}
           </span>
@@ -133,7 +133,7 @@ export default async function BSystemsAppLayout({
         </div>
       </header>
       {/* ADR-060 — the phone's module bar (≤820px), directly under the header */}
-      <EntitySwitch variant="bar" roles={user.roles} current="bsystems" />
+      <EntitySwitch variant="bar" user={user} current="bsystems" />
       {/* ADR-056: the full-width query container the board measures itself
           against. `50cqw` is the content width EXCLUDING the scrollbar —
           the quantity `50vw` cannot express — so the full-bleed board is

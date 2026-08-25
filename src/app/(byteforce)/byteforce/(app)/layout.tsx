@@ -10,7 +10,7 @@ export default async function ByteForceAppLayout({
   return (
     <>
       <ImpersonationBar />
-      <AppNav basePath="/byteforce" userName={user.name} roles={user.roles} />
+      <AppNav basePath="/byteforce" userName={user.name} user={user} />
       {/* ADR-056: the full-width query container the board measures itself
           against. `50cqw` is the content width EXCLUDING the scrollbar —
           the quantity `50vw` cannot express — so the full-bleed board is
