@@ -3265,3 +3265,109 @@ comment, and the ADR-013 mechanism note all fixed; .env.example confirmed tracke
     and nobody yet has more than one); a per-type mute; and any real end-to-end
     delivery test, which needs a real push service and a real phone — the
     founder's first press IS that test.
+
+## Entry 061 — 2026-08-26 — Accounting and the Data Vault become per-admin, and the wall is the live database row
+- Done:
+  - **Founder request, verbatim — "I want to have the ability to block some
+    admins from acsessing accounting or data vault."** ADR-066, two code commits.
+  - **The model: two flags, not two roles.** `User.canAccessAccounting` and
+    `User.canAccessVault`, both `Boolean @default(true)`. A capability ROLE was
+    rejected deliberately: the role union is iterated in a dozen places
+    (`bsRoleOf`, `landingFor`/`LANDING_PRIORITY`, `bucketFor`,
+    `ownerTypeForRole`, `listAssignableOwners`, the To-Do scope,
+    `staffRolesForBrand`, `EntitySwitch`'s `BS_ROLES`, the edge proxy) and a
+    module role would have had to be excluded from every one of them — the same
+    cross-cutting shape ADR-051 had to fight from the other side. The flags
+    touch nothing that walks roles.
+    The `true` default IS the backfill: every account, admin or not, came out of
+    the migration exactly where it went in, and the migration contains no
+    `UPDATE` that could be wrong.
+  - **The flags NARROW `bsystems_admin` and can never grant.** One pure
+    predicate — `canUseModule` in `src/lib/auth/roles.ts` — checks the ROLE
+    first and the flag second. This is load-bearing, not tidiness: `true` is the
+    column default, so every non-admin row in the table carries it, and a guard
+    that read the flag first would have handed the whole company the books at
+    migration time. The test that protects the ORDER asserts the 403 BODY (a
+    non-admin must get the role message, never a module message), because the
+    status code is 403 either way.
+  - **The server is the wall, and it reads the LIVE row.** Commit 1:
+    - `requireModule` / `requireAccounting` / `requireVault` replaced
+      `requireBsAdmin` in **all 40** route files under `src/app/api/accounting`
+      (18) and `src/app/api/vault` (22).
+    - `requireModulePage` / `requireAccountingPage` / `requireVaultPage`
+      replaced `requireBsAdminPage` in **all 21** page and layout files in the
+      `(accounting)` and `(vault)` route groups. No server actions and no other
+      auth entry point exist in either group — grepped, not assumed.
+    - The flags ride in `requireUser`'s existing per-request User read (ADR-017)
+      and are deliberately NOT in the JWT: a revoked admin is refused on his very
+      next request, with no sign-out. Proved by a test that flips the flag
+      underneath a live session — 200, then 403.
+    - The hole this could have shipped with is 40 files deep, so
+      `module-access.integration.test.ts` READS both directories and fails if any
+      `route.ts` misses the new guard or still mentions the old one; the same
+      sweep covers the pages. A route added tomorrow cannot skip the wall.
+  - **The edge proxy stays coarse, on purpose.** It runs on the edge runtime with
+    no database, so the only material it could gate on is the JWT — which is
+    exactly what this ADR refuses to put the flags into. It still lets a blocked
+    admin through and the page guard refuses him against the live row a
+    millisecond later. Reasoning written at the line in `src/proxy.ts`.
+  - **The refusal is honest:** `/no-access?module=…`, a brand-neutral page in the
+    `(home)` group (outside the proxy matcher and both module groups, so no loop
+    is reachable) that names the module, says nothing else changed, points at
+    Users, and links back to the person's own dashboard. New i18n keys with real
+    Arabic; NO new CSS and NO new token — it reuses the sign-in shell's existing
+    neutral classes.
+  - **No self-lockout.** `updateUser` refuses `canAccess* : false` when
+    `actor.id === userId` — the exact twin of the "you cannot remove your own
+    admin access" rule beside it. It refuses a `false` specifically, never "the
+    field is present", because the edit modal posts both flags on every save of
+    an admin including your own row; a test pins that no-op path still passing.
+    The UI locks the two boxes on your own row and writes the reason under them —
+    the courtesy, not the rule.
+  - **Impersonation honours the impersonated user's flags** in both directions,
+    and needed no code: `impersonate()` signs in AS the target, so `requireUser`
+    reads the target's row. Two tests pin it precisely BECAUSE it is invisible in
+    the diff.
+  - **The UI stops offering the door.** Commit 2:
+    - `EntitySwitch` takes the whole bearer instead of `roles` and calls the SAME
+      `canUseModule` predicate the guards call. The prop is REQUIRED, so a call
+      site that forgets it fails to compile. One component still renders the
+      desktop pill, the ADR-060 phone module bar and the burger sheet, so the
+      three can never disagree. Fewer than two segments still returns `null`,
+      exactly as for a single-company account.
+    - Users grows a **Modules** fieldset under the role boxes, shown only once
+      B-Systems admin is ticked; a blocked admin's row wears a muted
+      "No Accounting" / "No Data Vault" badge (existing `.badge--archived`).
+    - `EntitySwitch` held the ONLY links into `/accounting` and `/vault` anywhere
+      in the codebase — grepped. ADR-054 had already removed both from the nav,
+      and notifications deep-link to leads only.
+  - **Backup/restore needs no twin backfill**, and that is a decision, not an
+    omission: `user` was already in `MODELS`; a pre-ADR-066 payload restores on
+    the column default (`true`), which is exactly the access that export was
+    taken under, and a modern payload states both flags on every row. Written at
+    the `MODELS` entry so the next reader does not hunt for a missing twin.
+  - **Migration proved on a THROWAWAY cluster** (own port 5777, own data dir,
+    never `.pgdata/dev`): deploy every migration EXCEPT the new one, insert a
+    pre-existing admin and a pre-existing non-admin, apply ADR-066, confirm both
+    accounts hold both modules; then `migrate deploy` again AND the migration
+    file replayed by hand, and the same assertion re-run — `migrate status` clean,
+    18 migrations, no drift.
+- Decisions: ADR-066 (flags not roles; the flag narrows and never grants; the
+  live row not the token; all 40 routes and all 21 pages; why the edge proxy
+  stays coarse; the `/no-access` refusal; no self-lockout including why the
+  pinned admin is not exempt; impersonation; the switcher; why no restore twin).
+- Tests: Run 076 — see `docs/TESTING.md`.
+- Next / open:
+  - Deferred deliberately: a per-module read-only mode (the founder asked to
+    BLOCK, not to demote, and a read-only accounting module is a different
+    feature with its own forty walls); an activity-log entry naming which module
+    was taken and by whom (the generic `users_admin_edit` row already records
+    that the account was edited and by whom — a per-flag trigger is worth doing
+    the day he asks who took it away); and per-module access for the ByteForce
+    CRM or the portal, which nobody has asked for and which the predicate would
+    have to be widened to express.
+  - Known consequence, recorded not hidden: the pinned bootstrap admin's module
+    flags are NOT self-healed by `ensureAdminExists` or the seed, so a block
+    applied to `admin@byteforce.com` survives a deploy — which is the point, but
+    it means a second admin who blocks the founder is the only one who can
+    unblock him.

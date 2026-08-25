@@ -3044,3 +3044,152 @@ receive it, what the payload may contain, where a tap lands, what happens when
 a device is gone, and — most importantly — that with no keys configured none of
 it runs at all. The founder's first press on his own iPhone is the end-to-end
 test, and the ADR says so rather than implying otherwise.
+
+## Run 076 — 2026-08-26 — ADR-066 SHIP GATE: per-admin module access — three commits, both full suites, migration proof, brand audit
+- Suites/commands, all on the FINAL tree, in this order:
+  - `npx tsc --noEmit` — clean. Run once per commit and again after the brand-audit
+    fix; clean every time.
+  - `npx vitest run` (FULL, not a subset) — **37 files, 496 tests: 496 passed /
+    0 failed / 0 skipped**, 125.71s. That is Run 075's 478 plus **18**, all in one
+    new file, `src/lib/services/module-access.integration.test.ts`. No existing
+    file's count changed — this feature adds a guard, it does not alter any
+    behaviour an existing test describes.
+  - `npx playwright test` (FULL suite, every spec) — **105 passed / 0 failed /
+    2 skipped** of 107 collected, 14.2m.
+    `test-results/.last-run.json` read directly afterwards:
+    `{"status": "passed", "failedTests": []}`.
+    The 2 skips are `e2e/audit.spec.ts`, opt-in behind `AUDIT=1` — the same
+    standing gate as Runs 074 and 075, not a regression. Collected went 100 → 107:
+    the 7 cases of the new `e2e/module-access.spec.ts`.
+  - Playwright ran from a TEMPORARY copy of `playwright.config.ts` on port
+    **3117**. Port 3100 was verified free at the time (`netstat` showed nothing
+    LISTENING anywhere in the 3xxx range), but the house rule is to leave the
+    shared port alone rather than race another workstream for it. The copy
+    `playwright.port3117.config.ts` was deleted afterwards and never committed;
+    the committed config is untouched.
+  - The FULL Playwright suite COMPLETED TWICE and was green both times
+    (105 passed / 2 skipped, 12.6m then 14.2m). The FIRST completion predated the
+    one brand-audit fix below, and a run against a superseded tree proves nothing
+    about the one being pushed — so `npx tsc --noEmit`, the full vitest and the
+    full Playwright suite were all re-run from scratch on the final tree, and the
+    verdict above is that second pair. Nothing was "topped up" with a targeted
+    spec; `test-results/.last-run.json` above is the FINAL run's file.
+- Cases: 496 vitest + 105 Playwright = **601 passed, 0 failed, 2 skipped
+  (opt-in)**, plus the 7-stage migration proof below.
+- Failures: none.
+
+### The 18 new vitest cases, and what each would catch
+`src/lib/services/module-access.integration.test.ts` — the real route modules,
+the real guards, the real Postgres; only `auth()` is stubbed (the
+`todo-done-routes` pattern), because the session is the one part of a request
+that cannot come from the database.
+- **The wall, per module (3 cases).** A blocked admin gets 403 from
+  `GET /api/accounting/export` (and `GET /api/vault/search`) while an allowed one
+  gets 200, and the 403 BODY names the module. Each case also asserts the OTHER
+  module is untouched — proving the two switches are genuinely independent, which
+  a single shared flag would pass every other assertion here.
+- **A legacy account keeps both (1).** A row written with no opinion about the
+  flags comes back `true`/`true` and reaches both modules — the migration's
+  promise, expressed against the column default.
+- **Anonymous is 401 before any flag is read (1).**
+- **The wall is the DATABASE ROW (2).** One session is minted and never touched
+  again: call → 200, flip the column underneath it → 403, flip it back → 200. No
+  sign-out, no new token. This is the case that fails the moment anybody moves
+  the flags into the JWT.
+- **The flag can never GRANT (2).** Five non-admin roles are each created with
+  BOTH flags explicitly `true` — which is what the column default puts on every
+  non-admin row in the real table — and every one is refused on both modules. The
+  assertion is on the 403 BODY, not the status: a non-admin must receive the ROLE
+  message, never a module message, which pins the ORDER of the two checks.
+  Reverse them and only this assertion goes red. A second pure case exercises
+  `canUseModule` with no database at all, including an admin who also holds
+  another role.
+- **No self-lockout (4).** Revoking your own Accounting or Vault throws and writes
+  nothing (verified by re-reading the row AND by the two modules still answering
+  200 afterwards); another admin may revoke and restore the same person freely
+  while his own access stays put; a self-save that sets both flags TRUE still
+  succeeds — the rule refuses a `false`, not the presence of the field, and the
+  edit modal posts both flags on every save of an admin; a new admin is born with
+  both, and one can be withheld at creation.
+- **Impersonation, both directions (2).** A full admin acting AS a blocked admin
+  is refused on both modules while his own session still passes; a blocked admin
+  acting AS a full admin is allowed on both while his own session is still
+  refused. Needed no production code, which is exactly why it needed a test: a
+  future refactor of the session shape could invert it without touching a line
+  of this feature.
+- **The forty-route audit, written as a test (3).** It READS
+  `src/app/api/accounting` and `src/app/api/vault` with `readdirSync` and asserts,
+  per `route.ts`, that it calls the module guard AND contains no `requireBsAdmin`
+  — the absence matters as much as the presence, so a half-finished edit calling
+  both still fails. A ≥ 40 floor and a `files.length > 0` guard mean a namespace
+  that MOVES fails loudly instead of passing vacuously over zero files. A third
+  case sweeps every `page.tsx`/`layout.tsx` in the two route groups the same way,
+  skipping the route-group `<html>` shells that never held a guard. A route or
+  page added tomorrow cannot silently miss the wall.
+
+### The 7 new e2e cases (`e2e/module-access.spec.ts`)
+Serial, through the real UI, on the shared seeded database.
+1. The founder creates an admin through the real Add-user form with the Data
+   Vault unticked, and a second with both. Asserts the Modules fieldset does not
+   exist until "B-Systems admin" is ticked, that both boxes start ticked, and
+   that only the blocked admin's row wears "No Data Vault".
+2. The blocked admin's DESKTOP header pill shows ACCOUNTING and B-SYSTEMS and no
+   VAULT; `/vault` redirects to `/no-access?module=vault` with the module named in
+   the heading, "Nothing else changed" on the page and a working link back; a
+   DEEP url (`/vault/tasks`) is refused the same way; and
+   `GET /api/vault/search` is 403 with "Data Vault" in the body.
+3. The same admin still reaches `/accounting` (page AND API 200) and still uses
+   Users and the CRM — a module switch, not a demotion.
+4. The ADR-060 PHONE MODULE BAR drops the segment too, and the shortened bar
+   still cannot push the page sideways.
+5. An allowed admin is completely unaffected: both segments, both modules, both
+   APIs.
+6. The founder's own row: both module boxes DISABLED, the reason visible, and his
+   own access to both modules still answering 200.
+7. Two live sessions at once — the founder revokes the Data Vault from an admin
+   who is already signed in and standing inside it. His very next API call is 403
+   and `/vault` now refuses him, WITHOUT a sign-out, while Users and the rest of
+   the CRM still work.
+
+### Migration proof — throwaway cluster, 7 stages
+Own port (**5777**), own data dir (`.pgdata/migproof-<pid>`, deleted afterwards),
+never `.pgdata/dev` and never the test or e2e clusters.
+1. `prisma migrate deploy` with `20260826090000_user_module_access` MOVED ASIDE —
+   i.e. production's schema as it stands this morning.
+2. Insert, by raw SQL, one pre-existing `bsystems_admin` and one pre-existing
+   `bsystems_sales`, both born before the columns existed.
+3. Put the migration back and `prisma migrate deploy`.
+4. Read both rows: `canAccessAccounting = true`, `canAccessVault = true` on BOTH.
+   The admin keeps exactly the access he had; the script FAILS LOUD if he does
+   not.
+5. `prisma migrate deploy` again (no-op — it reads `_prisma_migrations` and
+   skips), AND the migration SQL FILE replayed by hand against the already-migrated
+   database. That second half is the part that matters: `scripts/start.mjs`
+   retries `migrate deploy` at boot, so the real risk is a HALF-APPLIED file being
+   replayed, which a repeat `migrate deploy` never exercises (IMPLEMENTATION.md
+   §10). Both `ALTER TABLE … ADD COLUMN IF NOT EXISTS` statements replayed clean.
+6. Re-read both rows — unchanged, both still true.
+7. `prisma migrate status`: "Database schema is up to date!", 18 migrations found,
+   no drift.
+
+### Brand audit
+Run against the diff by the `brand-auditor` subagent. **PASS** — zero hardcoded
+colours or fonts anywhere in the change, zero unresolved classes, **zero new
+tokens** (so ADR-057's three-scope law is not even engaged), no B-Systems rule
+touched, and the new Arabic verified as genuine and RTL-safe. Two Low items:
+- `/no-access` used the sign-in shell WITHOUT its brand billboard, so its 400px
+  column sat pinned to the inline start of a very wide screen. **Fixed** (one
+  utility class, commit 3) and both full suites re-run afterwards.
+- The Arabic for "Vault" differs between the switcher segment (`الخزنة`) and the
+  module's full name (`خزنة البيانات`). **Not changed, deliberately**: the English
+  does exactly the same thing (the segment reads "VAULT", the module is called
+  "Data Vault"), `switchVault` is a pre-existing ADR-054 string that
+  `e2e/module-bar.spec.ts` asserts on byte-for-byte, and the house rule is that
+  existing English strings stay identical.
+- Verified separately: `git diff 53bce87..HEAD -- src/lib/i18n/` contains no
+  deleted lines at all — every i18n change is a pure insertion, so no existing
+  string moved a byte.
+- Verdict: PASS — 601 cases green across both full suites on the final tree, the
+  forty-route wall proved by a test that reads the directory rather than by a
+  count taken once, the migration proved idempotent on a throwaway cluster with
+  an existing admin keeping his access, and the brand audit clean.

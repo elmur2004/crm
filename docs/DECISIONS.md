@@ -3886,3 +3886,199 @@ the code and the rendered page, and all six were FIXED — none needed refuting.
 - Resolves: extends V2 §10 (in-app notifications) and ADR-060 (the manifest,
   which is what makes an iOS install — and therefore iOS push — possible).
 - Status: Accepted
+
+## ADR-066 — 2026-08-26 — Accounting and the Data Vault become PER-ADMIN: two flags on the account, never two roles, and the live database row is the wall
+- Context: one founder request, verbatim — *"I want to have the ability to block
+  some admins from acsessing accounting or data vault."* Since ADR-054 the two
+  modules have been switcher peers of the two CRMs, gated on exactly one thing:
+  `bsystems_admin`. Hold the role, hold both modules. The founder now wants a
+  second admin who runs the CRM without seeing the books, or without the
+  registry, or without either — and he wants the two decisions independent of
+  one another.
+
+### 1. TWO BOOLEAN COLUMNS ON `User`, not two new roles
+- **Decision.** `User.canAccessAccounting` and `User.canAccessVault`, both
+  `Boolean @default(true)`. Nothing else in the data model moves.
+- **Why not roles.** A capability role (`accounting_user`, `vault_user`) is the
+  obvious shape and the wrong one *here*. This codebase ITERATES the role union
+  in a dozen places that have nothing to do with modules: `bsRoleOf` (picks ONE
+  role to render a shell for), `landingFor` / `LANDING_PRIORITY` (answers "where
+  does this person live"), `bucketFor` and `ownerTypeForRole` (decide who OWNS a
+  lead), `listAssignableOwners` (the roster a lead may be handed to), the To-Do
+  scope, `staffRolesForBrand`, `EntitySwitch`'s `BS_ROLES`, and the edge proxy's
+  `allowed()`. A role meaning "may open a module" would have to be excluded from
+  every single one of them — and an omission would not fail loudly; it would put
+  a phantom person in the owner dropdown, or land somebody on a landing page
+  that is not theirs. That is precisely the class of cross-cutting change that
+  has cost this repo before: ADR-051 records the same lesson from the other side,
+  where the data-entry role had to be carved OUT of five places one at a time.
+  A flag is inert. It decides anything in exactly three files (`roles.ts`,
+  `guards.ts`, `page-guards.ts`) plus the switcher and the Users form. Nothing
+  that walks roles can trip over it.
+- **Why the default is `true`, and why that IS the backfill.** Every account in
+  the table — admin or not — comes out of the migration with both flags true.
+  For an admin that is bit-for-bit the access he had a second before the
+  migration ran; for anybody else it means nothing at all (see §2). No backfill
+  script exists because none is needed, and no `UPDATE` in the migration means
+  no way for one to be wrong.
+- Alternatives rejected: a single `blockedModules` string/JSON column
+  (unindexed, unqueryable, and "which admins are blocked from the vault" becomes
+  a table scan through text); a `UserModuleAccess` join table (a whole model, its
+  own backup entry, its own reset ordering, and a MISSING row that has to be read
+  as "allowed" — a default expressed in code instead of in the schema); an
+  `AcctSettings`-style singleton listing the allowed admins (inverts the default,
+  so a NEW admin would arrive blocked, which is not what "block some admins"
+  means).
+
+### 2. The flag NARROWS `bsystems_admin`. It can never GRANT
+- **Decision, stated once, in one pure predicate** — `canUseModule` in
+  `src/lib/auth/roles.ts`:
+  ```
+  if (!user.roles.includes("bsystems_admin")) return false;   // the floor
+  return module === "accounting" ? user.canAccessAccounting : user.canAccessVault;
+  ```
+- **This is load-bearing, not decorative.** `true` is the column DEFAULT, so
+  every sales rep, agent, partner, data-entry account and ByteForce staffer in
+  the table already carries `canAccessVault = true`. If the flag were read before
+  the role — or instead of it — the migration itself would have handed the whole
+  company the books. The role is checked FIRST, and the ORDER is pinned by a
+  test that asserts the 403 body a non-admin receives is the ROLE message ("You
+  do not have access to this area"), not a module message: swap the two checks
+  and that test goes red even though the status code would not change.
+- `requireModule` applies `assertRole(..., "bsystems_admin")` before the
+  predicate for the same reason, so the refusal a non-admin sees is byte-for-byte
+  the one that existed before this ADR.
+
+### 3. The SERVER is the wall, and it reads the LIVE ROW
+- **Decision.** `requireModule("accounting" | "vault")` — surfaced as
+  `requireAccounting` / `requireVault` — replaces `requireBsAdmin` in **all forty**
+  route files under `src/app/api/accounting` (18) and `src/app/api/vault` (22).
+  `requireModulePage` — surfaced as `requireAccountingPage` / `requireVaultPage` —
+  replaces `requireBsAdminPage` in **all twenty-one** page and layout files under
+  the `(accounting)` and `(vault)` route groups. There were no server actions and
+  no other auth entry point in either group: grepped, not assumed.
+- **The flags are NOT in the JWT.** `requireUser` already re-reads `active`,
+  `registrationStatus` and the roles from the User row on every request
+  (ADR-017); the two flags ride along in that same query and cost nothing extra.
+  A token is minted at sign-in and lives for days, so authorization state inside
+  one means a revoked admin keeps the module until he happens to sign out. The
+  founder's request is an act of REMOVAL, and removal that waits is not removal.
+  A test signs in once, calls the module, has the flag flipped underneath it, and
+  calls again on the same session: 200, then 403, with no re-login.
+- **The hole this feature could have shipped with is forty files deep**, so the
+  directory itself is the assertion.
+  `src/lib/services/module-access.integration.test.ts` READS both API
+  directories, requires every `route.ts` to call the module guard and to contain
+  no `requireBsAdmin`, and does the same sweep over every page/layout in the two
+  route groups. A route added tomorrow cannot silently miss the wall. The module
+  UI is not the security boundary and is not treated as one.
+
+### 4. The EDGE PROXY stays coarse, deliberately
+- **Decision.** `src/proxy.ts` still gates `/accounting` and `/vault` on
+  `roles.includes("bsystems_admin")` and was NOT taught about the flags.
+- **Why.** It runs on the edge runtime: no database connection, no Prisma. The
+  only authorization material available to it is the JWT — and putting the flags
+  in the JWT is exactly what §3 refuses. So the proxy lets a blocked admin
+  through and the page guard refuses him a millisecond later against the live
+  row. The edge check remains navigation hygiene (it keeps a portal role out of
+  an internal URL without a database round-trip); the server is the wall. The
+  reasoning is written at that line in `proxy.ts` so the next reader does not
+  "fix" it.
+
+### 5. The refusal is a PAGE that names the module — `/no-access`
+- **Decision.** A blocked admin who types `/vault` is redirected to
+  `/no-access?module=vault`: a brand-neutral page that names the module, says
+  plainly that nothing else about his account changed, tells him an admin can
+  switch it back on from Users, and links him to his own dashboard.
+- **Why not an existing bounce.** `requireBsAdminPage` sends a non-admin to
+  `/b-systems/crm`; `requirePageRole` sends a signed-in stranger to
+  `landingFor(roles)`. For a blocked ADMIN both are dishonest — his landing IS
+  `/b-systems`, so the bounce would read as the link simply not working, over and
+  over, with nothing on screen explaining why. ADR-051 already made this argument
+  once (a data-entry user dumped on `/login` as if his session had expired); this
+  is the same mistake with a different subject.
+- **No loop is reachable.** `/no-access` lives in the `(home)` route group —
+  outside the proxy's matcher, outside both module route groups — so no module
+  guard runs on it. It asks only that somebody be signed in (anonymous →
+  `/login`), reads no flag and grants nothing: the decision was already made by
+  the guard that redirected there.
+- **No new CSS and no new token.** It reuses the sign-in page's neutral shell
+  classes (`.login-shell`, `.login-pane`, `.login-title`, `.login-foot`), which
+  already exist in `neutral.css`. ADR-057's three-scope law has been broken twice
+  in this repo's history, and the cheapest way not to break it a third time is not
+  to need a token. The new i18n keys carry real Arabic.
+
+### 6. NO SELF-LOCKOUT
+- **Decision.** `updateUser` refuses `canAccessAccounting: false` or
+  `canAccessVault: false` when `actor.id === userId`. It is the exact twin of the
+  rule immediately above it in the same function ("You cannot remove your own
+  admin access") and exists for the same reason: whoever is standing at the Users
+  page configuring this must always be able to walk back into what he is
+  configuring. Another admin may take a module from him at any time, and give it
+  back.
+- **Revocation only.** Saving the edit modal on your own row posts both flags as
+  `true` (the boxes are locked at their current value), and that must keep
+  working — the rule refuses a `false`, never a no-op. A test pins that
+  distinction, because "reject any self-edit of the flags" would have broken a
+  save the UI performs every time.
+- The UI disables the two boxes on your own row and writes the reason under them.
+  That is the courtesy. The RULE lives in the service, so the API route and any
+  future caller inherit it whether they remember to or not.
+- **The pinned bootstrap admin is NOT exempt** (`admin@byteforce.com`).
+  `ensureAdminExists` heals `active`, `registrationStatus`, the roles and the
+  password; it deliberately does not touch the module flags, and neither does the
+  seed's `upsertUser` update clause. If either did, "block some admins" would
+  carry a silent exception — and worse, a block applied on Monday would be undone
+  by the next deploy. The consequence, recorded honestly: if a SECOND admin
+  blocks the founder's own account, the founder needs that second admin (or a
+  database edit) to get it back. He cannot do it to himself, which is §6's whole
+  point.
+
+### 7. IMPERSONATION honours the IMPERSONATED user's flags
+- **Decision, and it required no new code — only a proof.** `impersonate()` mints
+  a token for the TARGET, so the resulting session carries the target as
+  `session.user.id`; `impersonatorId` merely remembers who to snap back to.
+  `requireUser` reads the row at `session.user.id`, so the flags in force while
+  impersonating are the impersonated account's — in BOTH directions: a full admin
+  acting as a blocked one is refused, and a blocked admin acting as a full one is
+  allowed. That is the honest reading of "you are that person right now", and it
+  matches how `active`, `registrationStatus` and the roles have always behaved
+  under impersonation. Two tests pin both directions so a future refactor of the
+  session shape cannot quietly invert it.
+
+### 8. The switcher hides what the server would refuse
+- `EntitySwitch` now takes the whole bearer (`roles` + the two flags) instead of
+  `roles`, and calls the SAME `canUseModule` predicate the guards call. The prop
+  is REQUIRED, never optional: a caller that forgets it fails to compile, which
+  is the only way this can never drift back into offering a door that refuses.
+  One component still renders all three shapes — the desktop header pill, the
+  ADR-060 phone module bar, and the burger sheet (which receives the switcher
+  through `extras`) — so the three can never disagree.
+- If fewer than two segments remain the switcher returns `null`, exactly as it
+  already did for a single-company account. An admin stripped of both modules is
+  simply a single-destination user; ADR-060's "no new furniture" rule needed no
+  special case.
+- The Users table prints a muted "No Accounting" / "No Data Vault" badge on a
+  blocked admin's row (the existing `.badge--archived`, no new token), so the
+  founder reads who is blocked without opening anybody.
+- `EntitySwitch`'s two module segments were the ONLY links into `/accounting`
+  and `/vault` anywhere in the codebase — grepped, not assumed. Notifications
+  deep-link to leads only, and ADR-054 removed both modules from the nav, so
+  there is no dashboard tile and no nav item to hide.
+
+### 9. Backup / restore needs NO twin backfill, and that is a decision
+- `user` was already in `backup.ts` MODELS and in `db-reset.ts`; two new columns
+  on an existing model add no entry to either.
+- ADR-057/059, ADR-063 and ADR-064 each needed a TypeScript twin of their
+  migration's backfill, because `importBackup` re-inserts a legacy payload
+  verbatim onto an already-migrated database and the column DEFAULT was the wrong
+  answer for those rows. Here the default IS the answer: a pre-ADR-066 export
+  carries no such keys, `createMany` lands every restored account on `true`, and
+  `true` is exactly the access that export was taken under. A post-ADR-066 export
+  states both flags on every row, so a blocked admin restores blocked. Nothing to
+  repair in either direction. Written at the `user` entry in `MODELS` so the next
+  reader does not go hunting for a missing twin.
+- Resolves: extends ADR-054 (the two modules as switcher peers, admin-only),
+  ADR-017 (authorization re-read from the database on every request) and SPEC §3
+  (permissions are server-side).
+- Status: Accepted

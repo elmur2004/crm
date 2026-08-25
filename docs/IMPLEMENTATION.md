@@ -1959,3 +1959,94 @@ database — twice — and then check the data is still there. That is what caug
 nothing this time and would have caught a bare `CREATE TABLE` or a bare
 `ALTER TABLE ... ADD CONSTRAINT` (Postgres has no `IF NOT EXISTS` for the latter;
 use a `pg_constraint` lookup inside a `DO $$ … $$` block).
+
+## ADR-066 — the traps in narrowing a role you did not add (2026-08-26)
+
+### 1. The column DEFAULT is the reason a non-admin must be refused FIRST
+`canAccessAccounting` / `canAccessVault` default to `true` so no admin loses
+anything at the migration. The consequence is easy to miss and expensive to get
+wrong: **every row in `User` now says `true`**, including every sales rep, agent,
+partner, data-entry account and ByteForce staffer. A guard that read the flag
+before (or instead of) the role would have handed the entire company the books
+the moment the migration ran — the feature would have been a privilege
+escalation shipped as a restriction.
+
+So the predicate checks `bsystems_admin` first and only then the flag, and the
+test that protects the ORDER does not assert the status code (403 either way) —
+it asserts the MESSAGE BODY: a non-admin must get "You do not have access to
+this area" (the role wall), never "Your account does not have access to
+Accounting" (the module wall). Reverse the two checks and only that assertion
+goes red.
+
+### 2. Forty walls, and the only honest audit is one that reads the folder
+The scouting note said "FORTY route files … a missed route is a hole". Counting
+them by hand once proves nothing about next month. The test therefore walks
+`src/app/api/accounting` and `src/app/api/vault` with `readdirSync`, and for
+every `route.ts` asserts (a) it calls the module guard and (b) it contains no
+`requireBsAdmin` at all. The same sweep runs over `page.tsx`/`layout.tsx` in the
+two route groups, skipping files that hold no page guard (the route-group
+`<html>` shells never had one). A route or page added tomorrow cannot miss the
+wall without turning this red.
+
+Two details that make the sweep trustworthy rather than decorative:
+- it asserts the ABSENCE of the old guard as well as the presence of the new
+  one, so a route that calls both (a plausible half-finished edit) still fails;
+- it asserts `files.length > 0` and a ≥ 40 floor, so a namespace that MOVES —
+  and takes the scan's ground out from under it — fails instead of passing
+  vacuously with zero files.
+
+### 3. `requireBsAdminPage` had to stay, and stay unchanged
+It is still the guard for `/b-systems/partners`, `/b-systems/partners-pipeline`
+and their detail pages. The two module page guards WRAP it rather than replacing
+its logic, which buys the ADR-051 bounce behaviour for free: a non-admin who
+wanders into `/vault` is still sent to `/b-systems/crm` exactly as before, and
+only somebody who IS an admin can ever reach the flag check. A blocked admin is
+the only person who ever sees `/no-access`.
+
+### 4. `/no-access` must live where no guard can reach it
+Putting the refusal page anywhere inside `(accounting)` or `(vault)` would have
+been an infinite redirect: the group layout guards run on every page in the
+group, including the one you redirect to. Putting it under `/b-systems` would put
+it behind the proxy matcher and the B-Systems shell (and give a blocked admin a
+full app chrome around a "you cannot come in" message). It lives in `(home)`,
+which owns its own `<html>`, is outside the proxy matcher, and holds only the
+sign-in page — so nothing runs on it but its own `requireUser`. It reads no flag
+and grants nothing; the decision was already made by the guard that redirected.
+
+### 5. A required prop is the only durable way to hide a door
+`EntitySwitch` used to take `roles: Role[]`. Adding `modules?: {...}` as an
+optional prop would have compiled everywhere and silently kept showing the
+segment at any call site that forgot it — and there are four (three shells plus
+`AppNav`, which passes it through to two header shapes and a phone bar). Taking
+the whole bearer as a REQUIRED prop turns every forgotten call site into a
+compile error. `CurrentUser` already satisfies `ModuleAccessBearer`
+structurally, so all four call sites became `user={user}`.
+
+### 6. "Refuse a self-edit of the flags" would have broken a save the UI performs
+The edit modal posts BOTH flags on every save of an admin, including your own
+row, where they are locked at their current value — so `{canAccessAccounting:
+true, canAccessVault: true}` arrives on a self-edit routinely. The no-self-lockout
+rule therefore refuses `=== false` specifically, never "the field is present".
+A test pins the no-op path passing, because the obvious stricter rule looks
+safer and would have made your own row unsaveable.
+
+### 7. The pinned admin's flags are deliberately NOT self-healed
+`ensureAdminExists` re-asserts `active`, `registrationStatus`, the roles and the
+password for `admin@byteforce.com` on every sign-in, and the seed re-asserts name
+and password on every run. Neither touches the module flags, on purpose: if they
+did, a block applied to that account on Monday would be silently undone by the
+next deploy or the next sign-in, and "block some admins" would carry an unwritten
+exception. The cost, stated plainly: if a second admin blocks the founder's own
+account, the founder needs that second admin (or a database edit) to get it
+back — he cannot do it himself, which is what the no-self-lockout rule is for.
+
+### 8. Impersonation needed no code, which is exactly why it needed a test
+`impersonate()` signs in AS the target, so `session.user.id` is the target's id
+and `impersonatorId` is only a breadcrumb for the snap-back. Because
+`requireUser` reads the row at `session.user.id`, the module flags follow the
+impersonated account with no new logic at all. That is the correct behaviour and
+it is invisible in the diff — so a future refactor of the session shape (say,
+one that starts resolving the *impersonator* for auditing) could invert it
+without a single line of this feature changing. Two tests pin both directions:
+a full admin acting as a blocked one is refused; a blocked admin acting as a
+full one is allowed.

@@ -1,5 +1,55 @@
 # Changelog — user-visible changes per phase/release
 
+## Accounting and the Data Vault can be taken away from one admin at a time (2026-08-26)
+- You said: *"I want to have the ability to block some admins from acsessing
+  accounting or data vault."*
+
+### One tick each, per person
+- **Users has a new box called Modules**, sitting right under the access boxes:
+  **Accounting** and **Data Vault**. It appears the moment you tick "B-Systems
+  admin" and not before, because for anybody else the two ticks would mean
+  nothing — nobody but an admin has ever been able to open either module, and
+  that has not changed.
+- **The two are completely independent.** Take Accounting away from someone and
+  his Data Vault is exactly where he left it, and the other way round.
+- **A new admin arrives with both**, and so did everybody who already exists.
+  Nobody lost anything the moment this went live — you have to take it away on
+  purpose.
+
+### You can see who is blocked at a glance
+- **The person's row says it out loud** — "No Accounting", "No Data Vault" —
+  beside their access badges. You do not have to open anybody to find out.
+
+### What a blocked admin experiences
+- **The button is simply not there.** ACCOUNTING or VAULT disappears from the
+  switcher at the top of the screen, from the strip under the header on a phone,
+  and from the menu behind the burger. He is not shown a door that will not open.
+- **If he types the address anyway, he gets a straight answer**, not a blank
+  screen and not a bounce back to where he started: a page that names the module,
+  says an admin can switch it back on from Users, adds that nothing else about
+  his account changed, and gives him a link back to his own dashboard. It reads
+  the same in Arabic.
+- **Everything else is untouched.** His leads, his boards, his To-Do, Users,
+  Statements, the other module — all exactly as they were. This is one switch,
+  not a demotion.
+
+### It takes effect immediately, and it cannot be worked around
+- **The moment you save, he is out.** He does not have to sign out and back in;
+  his very next click is refused. Give it back and he is in again just as fast.
+- **Hiding the button is not the lock.** Every single page and every single
+  request inside both modules asks the question again on the server before it
+  answers — forty of them, and a test now reads the folder itself so a page
+  added next month cannot quietly skip the check.
+- **Opening someone's account "as them" shows THEIR access, not yours.** If you
+  open the account of an admin who is blocked from the vault, you are blocked
+  from the vault too, until you snap back.
+
+### One thing you cannot do
+- **You cannot take a module away from your own account.** The two ticks are
+  locked on your own row, with the reason written under them. Any other admin
+  can do it for you, and give it back — but nobody can lock himself out of the
+  thing he is standing in front of configuring.
+
 ## The bell marks what you have not read, and the saved app can ring your phone (2026-08-25)
 - You said: *"make a distict mark or a color for the un opened notifications"* —
   and *"also I want the website to sent actual notification so I installed the
