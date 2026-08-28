@@ -210,7 +210,7 @@ export default async function VaultTasksPage({
                           : t(vault.onTime)}
                     </td>
                     <td className="td-mono u-ltr">
-                      {task.completedAt ? formatCairo(task.completedAt) : "—"}
+                      {task.completedAt ? formatCairo(task.completedAt, locale) : "—"}
                     </td>
                     <td>
                       {task.resultText || task.attachments.length > 0 || task.links.length > 0 ? (

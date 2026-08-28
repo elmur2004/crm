@@ -147,7 +147,7 @@ export default async function ProfilePage({
             </div>
             <div className="fields-cell">
               <p className="fields-label">{t(d.labelPartnerSince)}</p>
-              <p className="fields-value">{formatCairoDate(partner.dateJoined)}</p>
+              <p className="fields-value">{formatCairoDate(partner.dateJoined, locale)}</p>
             </div>
           </div>
           <p className="panel-hint">{t(d.conversionHint)}</p>

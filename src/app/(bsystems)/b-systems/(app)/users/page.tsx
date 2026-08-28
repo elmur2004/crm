@@ -106,7 +106,7 @@ export default async function UsersPage({
                       ) : null}
                     </span>
                   </td>
-                  <td>{formatCairoDate(u.createdAt)}</td>
+                  <td>{formatCairoDate(u.createdAt, locale)}</td>
                   <td>
                     <span className="flex items-center gap-2 flex-wrap">
                       <EditUserButton

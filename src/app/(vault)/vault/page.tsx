@@ -158,7 +158,7 @@ export default async function VaultOverviewPage({
               <tbody>
                 {data.activity.map((a) => (
                   <tr key={a.id}>
-                    <td className="td-mono u-ltr">{formatCairo(a.createdAt)}</td>
+                    <td className="td-mono u-ltr">{formatCairo(a.createdAt, locale)}</td>
                     <td>
                       <span className="chip-outline">
                         {a.entityType in ENTITY_LABELS

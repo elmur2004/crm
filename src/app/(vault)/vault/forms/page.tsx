@@ -94,7 +94,7 @@ export default async function VaultFormsPage({
                       </a>
                     </td>
                     <td>{f.notes ?? "—"}</td>
-                    <td className="td-mono u-ltr">{formatCairoDate(f.createdAt)}</td>
+                    <td className="td-mono u-ltr">{formatCairoDate(f.createdAt, locale)}</td>
                     <td>
                       <span className="inline-flex items-center gap-2 flex-wrap">
                         <EditFormButton

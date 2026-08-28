@@ -90,7 +90,7 @@ export default async function WonLeadDetailPage({
               <div className="money-tile">
                 <p className="money-label">{t(wonLeads.labelContractDate)}</p>
                 <p className="money-value">
-                  {w.contractDate ? formatCairoDate(w.contractDate) : "—"}
+                  {w.contractDate ? formatCairoDate(w.contractDate, locale) : "—"}
                 </p>
               </div>
             </div>
@@ -187,8 +187,8 @@ export default async function WonLeadDetailPage({
                     {m.commissionValue != null
                       ? `${t(common.commissionSep)}${formatEGP(m.commissionValue)}`
                       : ""}
-                    {m.expectedStart ? ` · ${formatCairoDate(m.expectedStart)}` : ""}
-                    {m.expectedEnd ? ` → ${formatCairoDate(m.expectedEnd)}` : ""}
+                    {m.expectedStart ? ` · ${formatCairoDate(m.expectedStart, locale)}` : ""}
+                    {m.expectedEnd ? ` → ${formatCairoDate(m.expectedEnd, locale)}` : ""}
                   </span>
                 </div>
               );

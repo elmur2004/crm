@@ -62,11 +62,11 @@ function keyDatum(locale: Locale, lead: LeadRow): string {
          the clock rides `dueTimeSet`, never the instant (a defaulted 09:00 and
          a chosen 09:00 are the same instant). */
       return lead.followUps[0]
-        ? `${t(m.nextPrefix)}${formatCairo(lead.followUps[0].dueAt, lead.followUps[0].dueTimeSet)}`
+        ? `${t(m.nextPrefix)}${formatCairo(lead.followUps[0].dueAt, locale, lead.followUps[0].dueTimeSet)}`
         : t(m.noFollowUp);
     case "meeting_setting":
       return lead.meetings[0]?.datetime
-        ? `${t(m.meetingPrefix)}${formatCairo(lead.meetings[0].datetime)}`
+        ? `${t(m.meetingPrefix)}${formatCairo(lead.meetings[0].datetime, locale)}`
         : t(m.meetingNotArranged);
     case "sending_proposal":
       return lead.proposals[0]?.estimatedValue != null
@@ -80,7 +80,7 @@ function keyDatum(locale: Locale, lead: LeadRow): string {
       const n = lead.negotiationNotes[0];
       if (!f || (n && n.createdAt > f.createdAt)) return t(m.noResponseDate);
       /* the response date is a follow-up record — same conditional clock */
-      return `${t(m.responsePrefix)}${formatCairo(f.dueAt, f.dueTimeSet)}`;
+      return `${t(m.responsePrefix)}${formatCairo(f.dueAt, locale, f.dueTimeSet)}`;
     }
     case "lost":
       return lead.lostInfo[0]?.reason ?? "";

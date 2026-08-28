@@ -14,7 +14,7 @@ import {
 } from "@/lib/pipeline-engine/constants";
 import { ApiError } from "@/lib/api-error";
 import { storage } from "@/lib/storage";
-import { cairoToUtc } from "@/lib/datetime";
+import { cairoToUtc, formatCairo } from "@/lib/datetime";
 import {
   followUpDueAt,
   followUpDueTimeSet,
@@ -830,9 +830,18 @@ export async function applyLeadEvent(opts: {
   });
 
   if (notifyMeeting) {
+    /* ADR-068 — the one place a formatted time is STORED. This body is
+       persisted on the Notification row AND copied verbatim into the web-push
+       payload, so it has to read like the rest of the product: twelve-hour.
+       It is reformatted from the INSTANT (cairoToUtc first), never by
+       string-munging "14:00", so Cairo/DST correctness stays where it belongs;
+       and it is rendered in ENGLISH deliberately — this body never passes
+       through tFor, it is a stored English sentence. Rows written before this
+       change keep their 24-hour text forever: it is a record of what was sent,
+       not a rendering, and rewriting it would be rewriting history. */
     const when =
       notifyMeeting.date && notifyMeeting.time
-        ? `${notifyMeeting.date} ${notifyMeeting.time}`
+        ? formatCairo(cairoToUtc(notifyMeeting.date, notifyMeeting.time), "en")
         : "no slot chosen";
     await notifyAdmins({
       type: "meeting_request",

@@ -256,7 +256,7 @@ export default async function BsLeadsPage({
                         <td>
                           <StageBadge stage={lead.stage} />
                         </td>
-                        <td className="td-nowrap">{formatCairoDate(lead.createdAt)}</td>
+                        <td className="td-nowrap">{formatCairoDate(lead.createdAt, locale)}</td>
                       </tr>
                     ))}
                   </tbody>

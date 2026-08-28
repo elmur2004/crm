@@ -78,7 +78,7 @@ export default async function RegistrationsPage({
                     </td>
                     <td className="td-mono">{u.email ?? "—"}</td>
                     <td className="td-mono">{u.phone ?? "—"}</td>
-                    <td>{formatCairo(u.createdAt)}</td>
+                    <td>{formatCairo(u.createdAt, locale)}</td>
                     <td>
                       <RegistrationActions userId={u.id} />
                     </td>
@@ -119,7 +119,7 @@ export default async function RegistrationsPage({
                         .join(", ")}
                     </span>
                   </td>
-                  <td>{formatCairo(u.createdAt)}</td>
+                  <td>{formatCairo(u.createdAt, locale)}</td>
                   <td>
                     {u.registrationStatus === "pending" ? (
                       <span className="badge badge--entity badge--entity-both">

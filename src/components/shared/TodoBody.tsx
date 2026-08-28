@@ -93,7 +93,7 @@ export async function TodoBody({
             errorText={t(m.checkFailed)}
           />
           <span className="text-brand-muted whitespace-nowrap">
-            {formatCairo(item.at, item.withTime)}
+            {formatCairo(item.at, locale, item.withTime)}
           </span>
           <span className="chip-outline shrink-0">{t(KIND_LABEL[item.kind])}</span>
           <Link href={item.href} className="font-medium underline underline-offset-2">
@@ -127,7 +127,7 @@ export async function TodoBody({
             errorText={t(m.checkFailed)}
           />
           <span className="text-brand-muted whitespace-nowrap">
-            {formatCairo(item.at, item.withTime)}
+            {formatCairo(item.at, locale, item.withTime)}
           </span>
           <span className="chip-outline shrink-0">{t(KIND_LABEL[item.kind])}</span>
           <Link
@@ -148,7 +148,7 @@ export async function TodoBody({
         <div>
           <p className="u-eyebrow">{t(m.eyebrow)}</p>
           <h1 className="u-h1">
-            {t(m.title)} — {formatCairoDate(new Date())}
+            {t(m.title)} — {formatCairoDate(new Date(), locale)}
           </h1>
         </div>
       </div>

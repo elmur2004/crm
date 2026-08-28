@@ -190,7 +190,7 @@ export default async function WonLeadsPage({
                         ? `${t(common.commissionSep)}${formatEGP(m.commissionValue)}`
                         : ""}
                       {m.expectedEnd
-                        ? ` · ${t(wonLeads.dueWord)} ${formatCairoDate(m.expectedEnd)}`
+                        ? ` · ${t(wonLeads.dueWord)} ${formatCairoDate(m.expectedEnd, locale)}`
                         : ""}
                     </span>
                   </div>

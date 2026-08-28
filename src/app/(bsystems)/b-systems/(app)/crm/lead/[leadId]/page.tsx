@@ -201,7 +201,7 @@ export default async function BsLeadDetailPage({
           </div>
           <div className="fields-cell">
             <p className="fields-label">{t(m.fieldDateCreated)}</p>
-            <p className="fields-value">{formatCairo(lead.createdAt)}</p>
+            <p className="fields-value">{formatCairo(lead.createdAt, locale)}</p>
           </div>
           <div className="fields-cell">
             <p className="fields-label">{t(m.fieldRequirements)}</p>
@@ -291,7 +291,7 @@ export default async function BsLeadDetailPage({
                   {negotiationNotes.map((n) => (
                     <li key={n.id}>
                       <p className="whitespace-pre-wrap">{n.note}</p>
-                      <p className="record-time">{formatCairo(n.createdAt)}</p>
+                      <p className="record-time">{formatCairo(n.createdAt, locale)}</p>
                     </li>
                   ))}
                 </ul>

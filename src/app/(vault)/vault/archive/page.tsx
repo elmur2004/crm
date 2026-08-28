@@ -132,7 +132,7 @@ export default async function VaultArchivePage() {
                         <td>
                           <span className="chip-outline">{companyLabel(row.company)}</span>
                         </td>
-                        <td className="td-mono u-ltr">{formatCairo(row.archivedAt)}</td>
+                        <td className="td-mono u-ltr">{formatCairo(row.archivedAt, locale)}</td>
                         <td>
                           <ArchiveButton postUrl={row.restoreUrl} archived={true} />
                         </td>

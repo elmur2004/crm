@@ -142,7 +142,7 @@ export default async function VaultDocumentsPage({
                         )}
                       </td>
                       <td>{d.description ?? "—"}</td>
-                      <td className="td-mono u-ltr">{formatCairoDate(d.createdAt)}</td>
+                      <td className="td-mono u-ltr">{formatCairoDate(d.createdAt, locale)}</td>
                       <td>
                         <span className="inline-flex items-center gap-2 flex-wrap">
                           <EditDocumentButton

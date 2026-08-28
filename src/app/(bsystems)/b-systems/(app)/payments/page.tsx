@@ -75,13 +75,13 @@ export default async function PaymentsPage({
                     <td className="td-title">{s.clientName}</td>
                     <td>{s.milestoneLabel}</td>
                     <td>{formatEGP(s.amount + s.adjustments)}</td>
-                    <td>{s.expectedDate ? formatCairoDate(s.expectedDate) : "—"}</td>
+                    <td>{s.expectedDate ? formatCairoDate(s.expectedDate, locale) : "—"}</td>
                     <td>
                       {s.status === "paid" ? (
                         <>
                           <span className="text-brand-success">
                             {t(common.paid)}
-                            {s.paidAt ? ` ${formatCairoDate(s.paidAt)}` : ""}
+                            {s.paidAt ? ` ${formatCairoDate(s.paidAt, locale)}` : ""}
                             {s.proofs[0]?.fileOk ? (
                               <>
                                 {" · "}

@@ -45,9 +45,13 @@ test("the lead detail records another follow-up without leaving Following Up", a
   await expect(page.getByText("Following up", { exact: true })).toHaveCount(2);
   /* month abbreviation is ICU-dependent in en-GB ("Sep" / "Sept") — the day and
      year prove the NEW record landed, and with the time left blank it renders
-     DATE-ONLY (ADR-061's norm, kept by ADR-063) */
+     DATE-ONLY (ADR-061's norm, kept by ADR-063).
+     ADR-068 widened the hour to \d{1,2}: the clock is twelve-hour now, so
+     "9:00 AM" has a ONE-digit hour. Left at \d{2} this assertion would have gone
+     on passing while proving nothing — the one test in the suite that got
+     WEAKER by being left alone. */
   await expect(page.getByText(/Due 8 Sept? 2026/)).toBeVisible();
-  await expect(page.getByText(/8 Sept? 2026, \d{2}:\d{2}/)).toHaveCount(0);
+  await expect(page.getByText(/8 Sept? 2026, \d{1,2}:\d{2}/)).toHaveCount(0);
 
   await page.goto("/b-systems/crm");
   await expect(

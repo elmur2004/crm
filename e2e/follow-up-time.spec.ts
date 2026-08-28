@@ -15,9 +15,11 @@ import { expect, test, type Page } from "@playwright/test";
 const CAIRO = "Africa/Cairo";
 const cairoDate = () => new Intl.DateTimeFormat("en-CA", { timeZone: CAIRO }).format(new Date());
 /* the app's own rendering (src/lib/datetime formatCairo) — same Node, same ICU,
-   so "Sep" vs "Sept" can never split the test from the page */
-const dateLabel = () =>
-  new Intl.DateTimeFormat("en-GB", {
+   so "Sep" vs "Sept" can never split the test from the page.
+   ADR-068: Arabic renders in Arabic now (Arabic month name, Arabic comma,
+   LATIN digits), so the label is per-locale. */
+const dateLabel = (locale: "en" | "ar" = "en") =>
+  new Intl.DateTimeFormat(locale === "ar" ? "ar-EG-u-nu-latn" : "en-GB", {
     timeZone: CAIRO,
     day: "numeric",
     month: "short",
@@ -109,17 +111,53 @@ test("blank time ⇒ a date, chosen time ⇒ the clock — on History, the board
   /* ---- 2. the same lead, this time with a time chosen ---- */
   await logFollowUp(page, id, "16:45");
 
-  await expect(dueLine(page)).toHaveText(new RegExp(`^Due ${day}, 16:45 · `));
+  await expect(dueLine(page)).toHaveText(new RegExp(`^Due ${day}, 4:45 PM · `));
 
   await page.goto("/b-systems/crm");
   await expect(page.locator('[data-deal-card="Optional Time Lead"]')).toContainText(
-    `Next: ${day}, 16:45`,
+    `Next: ${day}, 4:45 PM`,
   );
 
   await page.goto("/b-systems/todo");
-  await expect(todayRow(page, "Optional Time Lead")).toContainText(`${day}, 16:45`);
+  await expect(todayRow(page, "Optional Time Lead")).toContainText(`${day}, 4:45 PM`);
 
   expect((await page.request.delete(`/api/b-systems/leads/${id}`)).ok()).toBe(true);
+});
+
+/* ADR-068 — the founder's twelve-hour clock, proved on a screen rather than
+   only in datetime.test.ts: a morning follow-up and an afternoon one on the
+   same day must read AM and PM, and NOTHING anywhere may print a 13:00-23:00
+   hour. The negative assertion is the one that catches a call site somebody
+   forgot to thread the locale through. */
+test("the To-Do and the board read a twelve-hour clock — AM, PM, and no 24-hour hour anywhere", async ({
+  page,
+}) => {
+  await login(page);
+  const morning = await leadInFollowingUp(page, "Morning Clock Lead", "0107780004");
+  const evening = await leadInFollowingUp(page, "Evening Clock Lead", "0107780005");
+  await logFollowUp(page, morning, "09:30");
+  await logFollowUp(page, evening, "20:15");
+
+  await page.goto("/b-systems/todo");
+  await expect(todayRow(page, "Morning Clock Lead")).toContainText("9:30 AM");
+  await expect(todayRow(page, "Evening Clock Lead")).toContainText("8:15 PM");
+  /* hours 13-23 can only come out of a 24-hour renderer */
+  await expect(page.getByText(/\b(1[3-9]|2[0-3]):[0-5][0-9]\b/)).toHaveCount(0);
+
+  await page.goto("/b-systems/crm");
+  await expect(page.locator('[data-deal-card="Evening Clock Lead"]')).toContainText("8:15 PM");
+  await expect(page.getByText(/\b(1[3-9]|2[0-3]):[0-5][0-9]\b/)).toHaveCount(0);
+
+  /* and the same page in Arabic: the marker is م, never a latin PM */
+  await page.getByRole("button", { name: "عربي" }).click();
+  await expect(page.locator('[data-deal-card="Evening Clock Lead"]')).toContainText("8:15 م");
+  await expect(page.locator('[data-deal-card="Evening Clock Lead"]')).not.toContainText("PM");
+  await expect(page.getByText(/\b(1[3-9]|2[0-3]):[0-5][0-9]\b/)).toHaveCount(0);
+  await page.getByRole("button", { name: "EN" }).click();
+
+  for (const id of [morning, evening]) {
+    expect((await page.request.delete(`/api/b-systems/leads/${id}`)).ok()).toBe(true);
+  }
 });
 
 test("a late-evening time never moves a follow-up off its Cairo day (it is still Today)", async ({
@@ -132,7 +170,7 @@ test("a late-evening time never moves a follow-up off its Cairo day (it is still
   await logFollowUp(page, id, "23:45");
 
   await page.goto("/b-systems/todo");
-  await expect(todayRow(page, "Late Evening Lead")).toContainText(`${dateLabel()}, 23:45`);
+  await expect(todayRow(page, "Late Evening Lead")).toContainText(`${dateLabel()}, 11:45 PM`);
 
   expect((await page.request.delete(`/api/b-systems/leads/${id}`)).ok()).toBe(true);
 });
@@ -155,11 +193,15 @@ test("Arabic: the label reads وقت المتابعة (اختياري), and a ch
   await timeBox.fill("18:30");
   await page.getByRole("button", { name: "حفظ السجل" }).click();
 
-  /* the record's own line keeps the clock — the date itself renders through the
-     one en-GB formatter in both locales, so only the label is translated */
-  await expect(page.locator("p").filter({ hasText: /18:30/ }).first()).toContainText(
-    `${dateLabel()}, 18:30`,
+  /* the record's own line keeps the clock — and since ADR-068 it reads as a
+     twelve-hour Arabic clock: Arabic month name, Arabic comma, LATIN digits,
+     and CLDR's own evening marker م rather than a latin PM. (A "6:30 م" glued
+     to an English date would render bidi-reversed in an RTL paragraph — the
+     marker parked against the DATE — which is why the whole string is Arabic.) */
+  await expect(page.locator("p").filter({ hasText: /6:30/ }).first()).toContainText(
+    `${dateLabel("ar")}، 6:30 م`,
   );
+  await expect(page.locator("p").filter({ hasText: /6:30/ }).first()).not.toContainText("PM");
 
   expect((await page.request.delete(`/api/b-systems/leads/${id}`)).ok()).toBe(true);
 });

@@ -86,11 +86,11 @@ export default async function StatementDocumentPage({
           <div className="text-end">
             <p className="print-code">{s.code}</p>
             <p className="print-date">
-              {t(d.issuedWord)} {formatCairoDate(s.createdAt)}
+              {t(d.issuedWord)} {formatCairoDate(s.createdAt, locale)}
             </p>
             {s.expectedDate ? (
               <p className="print-date">
-                {t(d.expectedPaymentWord)} {formatCairoDate(s.expectedDate)}
+                {t(d.expectedPaymentWord)} {formatCairoDate(s.expectedDate, locale)}
               </p>
             ) : null}
           </div>
@@ -165,7 +165,7 @@ export default async function StatementDocumentPage({
           <div className="text-end">
             {s.status === "paid" && s.paidAt ? (
               <p className="print-party-line">
-                {t(d.paidOnWord)} {formatCairoDate(s.paidAt)}
+                {t(d.paidOnWord)} {formatCairoDate(s.paidAt, locale)}
               </p>
             ) : null}
             {s.proofs[0]?.fileOk ? (

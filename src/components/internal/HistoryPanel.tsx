@@ -36,7 +36,7 @@ export async function HistoryPanel({
             <span className="tl-dot" />
           </span>
           <div className="tl-text flex flex-wrap items-baseline gap-x-2 pb-3">
-            <span className="tl-time">{formatCairo(e.createdAt)}</span>
+            <span className="tl-time">{formatCairo(e.createdAt, locale)}</span>
             <span>{e.actorLabel}</span>
             {TRIGGER_PHRASES[e.trigger] ? (
               <span className="tl-pill">{t(TRIGGER_PHRASES[e.trigger])}</span>

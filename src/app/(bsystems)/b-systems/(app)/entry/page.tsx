@@ -87,7 +87,7 @@ export default async function DataEntryPage({
                       </td>
                       <td>{lead.companyName ?? "—"}</td>
                       <td className="td-mono u-ltr">{lead.number}</td>
-                      <td>{formatCairoDate(lead.createdAt)}</td>
+                      <td>{formatCairoDate(lead.createdAt, locale)}</td>
                       <td>{t(lead.editable ? d.statusWaiting : d.statusTaken)}</td>
                       <td>
                         {lead.editable ? (
@@ -138,7 +138,7 @@ export default async function DataEntryPage({
                       </td>
                       <td>{prospectKindLabel(locale, p.kind)}</td>
                       <td className="td-mono u-ltr">{p.number}</td>
-                      <td>{formatCairoDate(p.createdAt)}</td>
+                      <td>{formatCairoDate(p.createdAt, locale)}</td>
                       <td>{t(p.editable ? d.statusWaiting : d.statusInPipeline)}</td>
                       <td>
                         {/* the same correction right, on the same terms — the

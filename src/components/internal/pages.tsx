@@ -380,7 +380,7 @@ export async function LeadDetailBody({ ctx, leadId }: { ctx: InternalAppCtx; lea
           </div>
           <div className="fields-cell">
             <p className="fields-label">{t(leadDetail.dateCreatedColon)}</p>
-            <p className="fields-value">{formatCairo(lead.createdAt)}</p>
+            <p className="fields-value">{formatCairo(lead.createdAt, locale)}</p>
           </div>
           {lead.description ? (
             <div className="fields-cell col-span-full">
@@ -502,16 +502,16 @@ export async function CrmBoardBody({
   function keyDatum(lead: (typeof leads)[number]): string {
     switch (lead.stage) {
       case "new":
-        return formatCairo(lead.createdAt); // intake cards show when they arrived
+        return formatCairo(lead.createdAt, locale); // intake cards show when they arrived
       case "following_up":
         /* ADR-061 + ADR-063: a follow-up is a DAY unless someone chose a time —
            the clock rides `dueTimeSet`, never the instant. */
         return lead.followUps[0]
-          ? `${t(board.nextPrefix)} ${formatCairo(lead.followUps[0].dueAt, lead.followUps[0].dueTimeSet)}`
+          ? `${t(board.nextPrefix)} ${formatCairo(lead.followUps[0].dueAt, locale, lead.followUps[0].dueTimeSet)}`
           : t(board.noFollowUpSet);
       case "meeting_setting":
         return lead.meetings[0]?.datetime
-          ? `${t(board.meetingPrefix)} ${formatCairo(lead.meetings[0].datetime)}`
+          ? `${t(board.meetingPrefix)} ${formatCairo(lead.meetings[0].datetime, locale)}`
           : t(board.meetingNotArranged);
       case "sending_proposal":
         return lead.proposals[0]?.estimatedValue != null
@@ -676,7 +676,7 @@ export async function ClientsBody({ ctx }: { ctx: InternalAppCtx }) {
                   <p className="ecard-stat-label">{t(clientsPage.toBeCollectedColon)}</p>
                   <p className="ecard-stat-value">
                     {formatEGP(c.toBeCollected)}
-                    {c.dueDate ? ` (${t(clientsPage.due)} ${formatCairoDate(c.dueDate)})` : ""}
+                    {c.dueDate ? ` (${t(clientsPage.due)} ${formatCairoDate(c.dueDate, locale)})` : ""}
                   </p>
                 </div>
               </div>

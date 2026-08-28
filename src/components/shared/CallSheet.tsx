@@ -93,7 +93,7 @@ export async function CallSheet({
     { label: t(ld.fieldIndustry), value: lead.industry ?? "—" },
     { label: t(ld.fieldPosition), value: lead.position ?? "—" },
     { label: t(ld.fieldCompany), value: lead.companyName ?? "—" },
-    { label: t(ld.fieldDateCreated), value: formatCairo(lead.createdAt) },
+    { label: t(ld.fieldDateCreated), value: formatCairo(lead.createdAt, locale) },
     { label: t(ld.fieldRequirements), value: lead.requirements ?? "—" },
     { label: t(ld.fieldNotes), value: lead.description ?? "—" },
   ];
@@ -238,7 +238,7 @@ export async function CallSheet({
               {negotiationNotes.map((n) => (
                 <li key={n.id}>
                   <p className="whitespace-pre-wrap">{n.note}</p>
-                  <p className="record-time">{formatCairo(n.createdAt)}</p>
+                  <p className="record-time">{formatCairo(n.createdAt, locale)}</p>
                 </li>
               ))}
             </ul>

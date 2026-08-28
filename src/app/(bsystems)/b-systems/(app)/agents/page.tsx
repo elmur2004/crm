@@ -109,7 +109,7 @@ async function AgentsDetailed() {
               </p>
             </div>
             <p className="text-brand-meta text-brand-muted">
-              {t(d.joinedWord)} {formatCairoDate(a.user.createdAt)}
+              {t(d.joinedWord)} {formatCairoDate(a.user.createdAt, locale)}
             </p>
           </div>
           {a.user.ownedLeads.length === 0 ? (
@@ -137,7 +137,7 @@ async function AgentsDetailed() {
                       <td>
                         <StageBadge stage={l.stage} />
                       </td>
-                      <td>{formatCairoDate(l.createdAt)}</td>
+                      <td>{formatCairoDate(l.createdAt, locale)}</td>
                     </tr>
                   ))}
                 </tbody>

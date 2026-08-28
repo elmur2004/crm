@@ -129,7 +129,7 @@ export default async function StatementsPage({
                     <td>{formatEGP(s.amount)}</td>
                     <td>{s.adjustments ? formatEGP(s.adjustments) : "—"}</td>
                     <td>{s.closerLabel}</td>
-                    <td>{s.expectedDate ? formatCairoDate(s.expectedDate) : "—"}</td>
+                    <td>{s.expectedDate ? formatCairoDate(s.expectedDate, locale) : "—"}</td>
                     <td>
                       {s.status === "paid" ? (
                         <span className="inline-flex items-center gap-2 flex-wrap">

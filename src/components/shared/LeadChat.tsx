@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { tFor, type Locale } from "@/lib/i18n/core";
+import { tFor } from "@/lib/i18n/core";
+import { formatCairoShort } from "@/lib/datetime";
 import { useLocale } from "@/components/shared/LocaleProvider";
 import { chat } from "@/lib/i18n/dict/chat";
 
@@ -22,16 +23,6 @@ export interface ChatComment {
 export interface ChatMentionable {
   userId: string;
   name: string;
-}
-
-function timeLabel(iso: string, locale: Locale): string {
-  return new Intl.DateTimeFormat(locale === "ar" ? "ar-EG-u-nu-latn" : "en-GB", {
-    timeZone: "Africa/Cairo",
-    day: "numeric",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(new Date(iso));
 }
 
 const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -194,7 +185,7 @@ export function LeadChat({
               >
                 <p className="chat-meta">
                   <span className="chat-author">{c.authorLabel}</span>
-                  <span className="chat-time">{timeLabel(c.createdAt, locale)}</span>
+                  <span className="chat-time">{formatCairoShort(new Date(c.createdAt), locale)}</span>
                 </p>
                 <p className="chat-body" dir="auto">{renderBody(c.body, c.mentions)}</p>
               </li>

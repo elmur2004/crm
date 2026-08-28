@@ -110,7 +110,7 @@ export async function PartnersPipelineBody({
          keeps its time unconditionally) */
       return t(pPipeline.nextAt).replace(
         "{dt}",
-        formatCairo(nextFollowUp.dueAt, nextFollowUp.dueTimeSet),
+        formatCairo(nextFollowUp.dueAt, locale, nextFollowUp.dueTimeSet),
       );
     }
     switch (p.stage) {
@@ -118,7 +118,7 @@ export async function PartnersPipelineBody({
         return t(pPipeline.awaitingNewNumber);
       case config.meetingStage:
         return meetingAt
-          ? t(pPipeline.meetingAt).replace("{dt}", formatCairo(meetingAt))
+          ? t(pPipeline.meetingAt).replace("{dt}", formatCairo(meetingAt, locale))
           : t(pPipeline.notArranged);
       case config.lostStage:
         return p.lostInfo[0]?.reason ?? "";
@@ -626,7 +626,7 @@ export async function PartnerDetailBody({ partnerId }: { partnerId: string }) {
             <p className="u-eyebrow mt-3">{t(pDirectory.eyebrow)}</p>
             <h1 className="u-h1">{partner.companyName}</h1>
             <p className="text-brand-meta text-brand-muted mt-2">
-              {t(pDirectory.dateJoined)} {formatCairoDate(partner.dateJoined)}
+              {t(pDirectory.dateJoined)} {formatCairoDate(partner.dateJoined, locale)}
             </p>
           </div>
           <div className="page-actions">
@@ -724,7 +724,7 @@ export async function PartnerDetailBody({ partnerId }: { partnerId: string }) {
                       </td>
                       <td className="td-mono">{lead.number}</td>
                       <td>{lead.salesRep?.name ?? t(pDirectory.unassigned)}</td>
-                      <td>{formatCairoDate(lead.createdAt)}</td>
+                      <td>{formatCairoDate(lead.createdAt, locale)}</td>
                       <td>
                         <StageBadge stage={lead.stage} />
                       </td>

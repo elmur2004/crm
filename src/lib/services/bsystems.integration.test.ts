@@ -13,7 +13,7 @@ import {
 import { listBsLeads, listOwnLeads } from "./bsystems-admin";
 import { internalDashboard } from "./metrics";
 import { todoFor } from "./todo";
-import { cairoToUtc } from "@/lib/datetime";
+import { cairoToUtc, formatCairo } from "@/lib/datetime";
 import { applyProspectEvent, createPartnerLogin, createProspect } from "./partners";
 import { checkMilestone, uncheckMilestone } from "./milestones";
 import {
@@ -370,7 +370,13 @@ describe("Agent light flow (V2 §3)", () => {
     const note = await db.notification.findFirstOrThrow({ where: { leadId: lead.id } });
     expect(note.type).toBe("meeting_request");
     expect(note.userId).toBeNull();
-    expect(note.body).toContain("2026-09-20 14:00");
+    /* ADR-068 — the stored body now reads twelve-hour, reformatted from the
+       INSTANT (never by munging "14:00"). Asserted through the app's own
+       formatter rather than a literal: en-GB's September abbreviation is
+       ICU-dependent ("Sep" / "Sept"), and this is the last place to accept a
+       expectation that a Node upgrade can break. */
+    expect(note.body).toContain(formatCairo(cairoToUtc("2026-09-20", "14:00"), "en"));
+    expect(note.body).toMatch(/2:00 PM/);
     expect(note.body).toContain("technical colleague: yes");
   });
 
