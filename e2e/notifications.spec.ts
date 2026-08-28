@@ -110,7 +110,11 @@ test("an unread notification is MARKED, and opening it takes the mark away", asy
 
   /* OPEN one: it marks read and deep-links to the lead (unchanged behaviour) */
   await alpha.click();
-  await expect(page).toHaveURL(new RegExp(`/b-systems/crm/lead/${leads[0]}$`));
+  /* ADR-067 — the bell opens the lead IN its company, so the row's own company
+     rides the URL: one shell, and the address always says which side you are on */
+  await expect(page).toHaveURL(
+    new RegExp(`/b-systems/crm/lead/${leads[0]}\\?company=bsystems$`),
+  );
 
   await page.goto("/b-systems");
   await page.getByRole("button", { name: /^Notifications/ }).click();

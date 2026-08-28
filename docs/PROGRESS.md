@@ -3371,3 +3371,117 @@ comment, and the ADR-013 mechanism note all fixed; .env.example confirmed tracke
     applied to `admin@byteforce.com` survives a deploy — which is the point, but
     it means a second admin who blocks the founder is the only one who can
     unblock him.
+## Entry 062 — 2026-08-29 — ONE CRM: the two company apps merge into a single shell, and the company lives in the URL
+- Done: the shell / routing / nav / access half of the founder's merge request
+  (ADR-067). His words: *"I need to completely merge the systems and byte force
+  CRMs, and I want the switching to be inside the CRM… The entire interface
+  changes and all of that. I don't need that. I don't want it. I just want the b
+  systems CRM. I can have a switch button between b systems and byte force, and
+  the entire boards change accordingly… make sure that this is there, and there
+  is no confusion in it."*
+  - **The company is one answer, in one file.** `src/lib/crm/company.ts` — pure,
+    no next-auth, no Prisma — states which companies an account's roles let it
+    see and which one is on screen. It NARROWS and can never grant; 44 unit
+    tests walk every role combination against every shape a `?company=` value can
+    arrive in, and one asserts the property outright over all 64 role subsets.
+  - **Three server guards, and the directory is the assertion.**
+    `requireCompanyPage` (the four shared addresses), `requireCompanySection`
+    (the twenty-one company-exclusive ones), `requireBsAdminCompanyPage`. A Next
+    server layout can read neither searchParams nor the pathname, so the layout
+    can only ask "does this account hold ANY company" — the per-company refusal
+    lives in every page, and `page-company-guards.test.ts` reads the whole route
+    directory and fails naming any `page.tsx` that skips it, reaches for a
+    company-blind guard, or calls the throwing `bsRoleOf` before its company is
+    pinned. ADR-066's pattern, applied where the structural hole would have been.
+  - **`bsRoleOrNull`**, because widening `/b-systems` to ByteForce staff made
+    fifteen call sites of a THROWING helper reachable overnight — and a throw in
+    the layout would have shown a ByteForce teammate a 500 instead of his own CRM.
+  - **The redirect map** (`lib/crm/legacy-routes.ts`, applied in the proxy before
+    the sign-in check): ten rules, query merged rather than replaced, sign-in
+    still consolidated, catch-all so nothing under `/byteforce` can 404. It is
+    permanent furniture, not a transition — pushes already on his phone carry the
+    old addresses and nothing can rewrite them. 307 until he confirms §2 below.
+  - **One shell.** The `(byteforce)` route group and `AppNav` are deleted; all
+    eight ByteForce screens re-mounted under `/b-systems` — dashboard, board (with
+    its drag, its didn't-answer tally, its Today chips and its filters), the rep
+    DIRECTORY with the Unassigned bucket and the archive tab, lead detail, call
+    sheet, Clients, To-Do. Nothing was lost; the checklist is below.
+  - **The switch** renders in the shell so no screen can forget it, names the
+    company in WORDS above the segments (never colour alone), and is not rendered
+    at all for an account with one company — asserted negatively, on every nav
+    destination and inside the burger sheet.
+  - **The module bar dropped to three cells.** `BYTEFORCE` + `B-SYSTEMS` became
+    one `CRM` segment, so the bar asks "which module" and the company switch asks
+    "which company". ADR-060's overflow contract improves rather than survives:
+    wider cells at 320/390px, one fewer segment in the desktop pill.
+  - **The bug this merge could have shipped:** three plain `method="get"` filter
+    forms REPLACE the whole query string on submit, so applying a filter on the
+    ByteForce board would have dropped the company and bounced him back to
+    B-Systems — looking like data loss, not a nav bug. All three carry a hidden
+    company input, with an e2e per company.
+  - **The API namespaces did not move, and that is the point.** No route handler
+    learned about `company`; accepting one from a request is the single way this
+    merge could have widened access.
+- Decisions: ADR-067 (one shell; chrome stays B-Systems in both modes and the
+  SPEC conflict that creates; `?company=` and the three alternatives rejected;
+  the redirect map and why it is permanent; the switch's placement against the
+  ADR-060 module bar; the nav-per-company table; narrowing-only access with the
+  layout-cannot-be-the-wall consequence; what deliberately did not change).
+- Tests: Run 077 — see `docs/TESTING.md`.
+- **NEEDS FOUNDER CONFIRMATION** (three visible consequences of what he asked
+  for, none of them hidden in a diff):
+  1. **The ByteForce-branded app shell is retired.** He said he does not want the
+     whole interface to change when he looks at ByteForce work, and that is what
+     this delivers — but SPEC §4 still defines App A as the ByteForce-branded
+     app, and CLAUDE.md rule 6 restates it. The ByteForce brand TOKENS are
+     untouched and still used by the accounting module; it is one shell that
+     retired, not a brand. SPEC needs an edit once he confirms.
+  2. **A ByteForce-only teammate now sees B-Systems chrome** at a `/b-systems/...`
+     address, with a "ByteForce staff" role line. He said "same app, locked to
+     ByteForce", so this follows — but it is what Sara will actually see on
+     Monday.
+  3. **ByteForce work carries the B-Systems browser-tab icon**, because the
+     ByteForce route group owned that favicon. Same accepted trade-off ADR-060
+     part E recorded for the iOS home-screen icon.
+- Also worth his eye, decided rather than discovered: the ByteForce nav keeps its
+  OWN Arabic (its "CRM" is المبيعات, not the B-Systems إدارة العملاء), because
+  that is the word ByteForce staff read today; and the accounting module's
+  `?company=` still defaults to ByteForce while the merged CRM defaults to
+  B-Systems — the two are deliberately NOT wired together, and making the module
+  switch carry the company across is a separate question worth asking him.
+- Next / open:
+  - **The next workstream ports the screens' data layer** — see the handover in
+    the session notes: brand as a required first positional on `listBsLeads`,
+    `listOwnLeads`, `adminHome`, `adminWonLeads`, `salesWonLeads` and especially
+    `closerWonLeads` (which filters on `ownerUserId` with NO brand predicate and
+    is safe today only because ByteForce leads never carry an owner).
+  - **Still to come from the same request:** the twelve-hour clock everywhere
+    (display only — `formatCairo`, never `wallClockParts`), and the negotiation
+    response date getting its own To-Do kind and wording.
+- Blockers: none.
+
+### ADR-067 inventory checklist — every ByteForce screen, action and guard, ticked
+- [x] `/byteforce` dashboard → `/b-systems?company=byteforce` (brand-scoped
+      metrics; the B-Systems agent/partner counts do NOT render there)
+- [x] `/byteforce/crm` board → `/b-systems/crm?company=byteforce` — six columns,
+      no Negotiation; drag, drop-opens-form, didn't-answer tally, Today chips,
+      search + type filters, Clear link
+- [x] `/byteforce/leads` rep DIRECTORY → `/b-systems/leads?company=byteforce`
+      (rep cards + per-rep counts + the Unassigned card), not the B-Systems table
+- [x] `/byteforce/leads/rep/:repId` → `/b-systems/leads/rep/:repId?company=byteforce`
+      — including `unassigned` and `?view=archived`, the only door to the archive
+- [x] `/byteforce/leads/lead/:leadId` → `/b-systems/leads/lead/:leadId?company=byteforce`
+      (LeadEventPanel, GroupHistory, HistoryPanel, LeadChat, ArchiveButton)
+- [x] `…/call` call sheet, with the tel: link and the back link that keeps the
+      company
+- [x] `/byteforce/clients` → `/b-systems/clients?company=byteforce` — ClientsBody
+      and ClientEditForm, kept SEPARATE from Won Leads
+- [x] `/byteforce/todo` → `/b-systems/todo?company=byteforce` — the plain daily
+      list, no admin assign controls, no statement/milestone rows
+- [x] `/byteforce/login` → `/login` (ADR-028 preserved)
+- [x] The five nav items, with their own EN and Arabic labels
+- [x] The notifications bell, still on `/api/byteforce/notifications`
+      (`isAdmin: false`, unchanged)
+- [x] The eleven `/api/byteforce/**` routes — untouched, still the brand wall
+- [x] The three ByteForce page guards, now company-aware and fail-closed
+- [x] Undo, the impersonation bar, the language toggle, the burger sheet
