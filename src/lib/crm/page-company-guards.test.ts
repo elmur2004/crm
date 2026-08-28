@@ -85,12 +85,12 @@ describe("every merged CRM page states which company it is for", () => {
        data-entry e2e caught on the first draft of these guards. */
     for (const file of pagesUnder(APP)) {
       const src = readFileSync(file, "utf8");
-      if (!/requireCompanyPage/.test(src)) continue;
+      if (!/\brequireCompanyPage\b/.test(src)) continue;
       expect(
         src,
         `${path.relative(process.cwd(), file)} resolves the company but never narrows the ` +
           "roles — add narrowRoles(...) for the B-Systems branch (ADR-067)",
-      ).toMatch(/narrowRoles/);
+      ).toMatch(/\bnarrowRoles\b/);
     }
   });
 
