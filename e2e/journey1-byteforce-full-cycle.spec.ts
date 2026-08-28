@@ -30,7 +30,7 @@ test("journey 1: ByteForce full cycle to Won", async ({ page }) => {
   await page.getByLabel("Email or phone").fill("sara@byteforce.example");
   await page.getByLabel("Password").fill("byteforce123");
   await page.getByRole("button", { name: "Sign in" }).click();
-  await expect(page).toHaveURL(/\/byteforce$/);
+  await expect(page).toHaveURL(/\/b-systems\?company=byteforce$/);
 
   /* Dashboard baseline — the seed populates every stage, so assert deltas. */
   const totalBefore = await tile(page, "Total leads");
@@ -39,7 +39,7 @@ test("journey 1: ByteForce full cycle to Won", async ({ page }) => {
   const collectBefore = await tile(page, "To be collected");
 
   /* Add a sales rep (§6.1 — reps unlimited). */
-  await page.goto("/byteforce/leads");
+  await page.goto("/b-systems/leads?company=byteforce");
   await page.getByRole("button", { name: "Add sales rep" }).click();
   await page.getByLabel("Rep name").fill("Journey Rep");
   await page.getByRole("button", { name: "Add", exact: true }).click();
@@ -58,7 +58,7 @@ test("journey 1: ByteForce full cycle to Won", async ({ page }) => {
 
   /* Founder fix (ADR-040): the freshly added lead is ALREADY on the CRM board
      — the New column lists every intake lead before its first move. */
-  await page.goto("/byteforce/crm");
+  await page.goto("/b-systems/crm?company=byteforce");
   await expect(
     page.locator('[data-stage-key="intake"]').getByRole("link", { name: "Journey Lead Co" }),
   ).toBeVisible();
@@ -107,7 +107,7 @@ test("journey 1: ByteForce full cycle to Won", async ({ page }) => {
   await expect(page.getByRole("heading", { level: 1 }).getByText("Won")).toBeVisible();
 
   /* Client card auto-created (A-1) with the mapped values. */
-  await page.goto("/byteforce/clients");
+  await page.goto("/b-systems/clients?company=byteforce");
   /* Fresh e2e DB — exactly one client card on the page. */
   await expect(page.getByText("Journey Lead Co")).toBeVisible();
   await expect(page.getByText("Full brand campaign")).toBeVisible();
@@ -117,7 +117,7 @@ test("journey 1: ByteForce full cycle to Won", async ({ page }) => {
 
   /* Dashboard numbers (§6.5) — deltas over the seeded baseline: +1 lead, won
      value +5000, to-be-collected +3000, pipeline unchanged (the lead ended Won). */
-  await page.goto("/byteforce");
+  await page.goto("/b-systems?company=byteforce");
   expect(await tile(page, "Total leads")).toBe(totalBefore + 1);
   expect(await tile(page, "Won value")).toBe(wonValueBefore + 5000);
   expect(await tile(page, "To be collected")).toBe(collectBefore + 3000);

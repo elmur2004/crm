@@ -179,12 +179,25 @@ export const shell = {
      strip is a slider — chevrons page it when it overflows */
   navScrollBack: { en: "Scroll navigation backward", ar: "تمرير شريط التنقل للخلف" },
   navScrollForward: { en: "Scroll navigation forward", ar: "تمرير شريط التنقل للأمام" },
+  /* ADR-067 — this label finally sits on the control it names. It used to be
+     the MODULE switcher's group label, which was never what that strip does;
+     the modules got their own `switchModule` and this moved to the COMPANY
+     switch. The English is byte-identical, only better aimed. */
   switchCompany: { en: "Switch company", ar: "تبديل الشركة" },
-  /* module switcher segments (ADR-054) — the two CRMs keep their literal brand
-     names; the modules are words, so they translate. Uppercase EN matches the
-     brand segments; Arabic has no case. */
+  switchModule: { en: "Switch module", ar: "تبديل الوحدة" },
+  /* module switcher segments (ADR-054) — the modules are words, so they
+     translate. Uppercase EN matches the old brand segments; Arabic has no case.
+     ADR-067 collapsed the two company segments into ONE `CRM`: the two CRMs are
+     no longer separate destinations, so the bar answers "which module" and the
+     company switch answers "which company" — one question each. */
+  switchCrm: { en: "CRM", ar: "إدارة العملاء" },
   switchAccounting: { en: "ACCOUNTING", ar: "الحسابات" },
   switchVault: { en: "VAULT", ar: "الخزنة" },
+  /* the company switch's own text label — it NAMES the company you are looking
+     at, in words, beside the segments. The founder asked that there be "no
+     confusion in it", so the current company can never be carried by colour
+     alone. */
+  companyLabel: { en: "Company", ar: "الشركة" },
 } satisfies Record<string, Msg>;
 
 /* ADR-066 — the honest refusal an admin sees when a module has been taken away

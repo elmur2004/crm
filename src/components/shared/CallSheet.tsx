@@ -43,12 +43,15 @@ export async function CallSheet({
   brand,
   leadId,
   leadPath,
+  query = "",
   apiBase,
 }: {
   brand: Brand;
   leadId: string;
-  /** "/b-systems/crm/lead" | "/byteforce/leads/lead" */
+  /** "/b-systems/crm/lead" | "/b-systems/leads/lead" (ADR-067: one shell) */
   leadPath: string;
+  /** ADR-067 — "?company=byteforce"; the back link keeps the company */
+  query?: string;
   apiBase: string;
 }) {
   const locale = await getLocale();
@@ -168,7 +171,7 @@ export async function CallSheet({
           </a>
         ) : null}
         <p className="call-back">
-          <Link href={`${leadPath}/${lead.id}`} className="text-brand-link underline underline-offset-2">
+          <Link href={`${leadPath}/${lead.id}${query}`} className="text-brand-link underline underline-offset-2">
             {t(m.backToLead)}
           </Link>
         </p>

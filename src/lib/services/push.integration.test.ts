@@ -252,8 +252,8 @@ describe("delivering to real devices", () => {
     await deliverNotificationPush(notification({ id: "a", leadId: bs.id }));
     await deliverNotificationPush(notification({ id: "b", leadId: bf.id }));
     expect(sent.map((s) => s.payload.url)).toEqual([
-      `/b-systems/crm/lead/${bs.id}`,
-      `/byteforce/leads/lead/${bf.id}`,
+      `/b-systems/crm/lead/${bs.id}?company=bsystems`,
+      `/b-systems/leads/lead/${bf.id}?company=byteforce`,
     ]);
   });
 

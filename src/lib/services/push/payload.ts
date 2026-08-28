@@ -47,9 +47,17 @@ export function deepLinkFor(
   n: Pick<NotificationForPush, "type" | "leadId">,
   leadBrand: Brand | null,
 ): string {
-  if (n.leadId && leadBrand === "bsystems") return `/b-systems/crm/lead/${n.leadId}`;
-  if (n.leadId && leadBrand === "byteforce") return `/byteforce/leads/lead/${n.leadId}`;
-  if (n.leadId === null && n.type === "mention") return "/byteforce";
+  /* ADR-067 — the merged shell. New pushes carry the merged address with the
+     company spelled out; pushes ALREADY DELIVERED still carry /byteforce/...
+     and reach the same screen through the redirect map in lib/crm/legacy-routes
+     (which is why that map is permanent furniture, not a transition). */
+  if (n.leadId && leadBrand === "bsystems") {
+    return `/b-systems/crm/lead/${n.leadId}?company=bsystems`;
+  }
+  if (n.leadId && leadBrand === "byteforce") {
+    return `/b-systems/leads/lead/${n.leadId}?company=byteforce`;
+  }
+  if (n.leadId === null && n.type === "mention") return "/b-systems?company=byteforce";
   if (n.type === "registration") return "/b-systems/registrations";
   return "/b-systems";
 }

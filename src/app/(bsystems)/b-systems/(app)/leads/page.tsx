@@ -1,7 +1,11 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { requirePageRole } from "@/lib/auth/page-guards";
-import { bsRoleOf } from "@/lib/api/bsystems";
+import { requireCompanyPage } from "@/lib/auth/page-guards";
+import { bsRoleOrNull } from "@/lib/api/bsystems";
+import { crmHomeFor } from "@/lib/crm/nav";
+import { crmQuery } from "@/lib/crm/company";
+import { LeadsBody } from "@/components/internal/pages";
+import { BYTEFORCE_CTX } from "../ctx";
 import { listBsLeads } from "@/lib/services/bsystems-admin";
 import { LEAD_SORTS, sortLeads, type LeadSort } from "@/lib/services/lead-sort";
 import { BSYSTEMS_STAGES, LEAD_TYPES } from "@/lib/pipeline-engine/constants";
@@ -54,6 +58,7 @@ export default async function BsLeadsPage({
   searchParams,
 }: {
   searchParams: Promise<{
+    company?: string;
     q?: string;
     owner?: string;
     stage?: string;
@@ -62,18 +67,22 @@ export default async function BsLeadsPage({
     view?: string;
   }>;
 }) {
-  const user = await requirePageRole(
-    "/login",
-    "bsystems_admin",
-    "bsystems_sales",
-    "bsystems_agent",
-    "bsystems_partner",
-  );
-  if (bsRoleOf(user) !== "bsystems_admin") redirect("/b-systems/crm");
+  const params = await searchParams;
+  const { user, company } = await requireCompanyPage(params.company);
+
+  /* ADR-067 — the shared Leads address, and the two companies mean genuinely
+     different screens by it. ByteForce's Leads is a directory of SALES REP
+     CARDS with an Unassigned bucket and a per-rep drill-down (which is also the
+     only door to its archive); B-Systems' is this flat filterable table with
+     owner buckets. Two bodies, one address, chosen by the company — never
+     merged into "the leads table", which would quietly lose the rep directory. */
+  if (company === "byteforce") return <LeadsBody ctx={BYTEFORCE_CTX} />;
+
+  const role = bsRoleOrNull(user);
+  if (role !== "bsystems_admin") redirect(`${crmHomeFor("bsystems", role)}${crmQuery("bsystems")}`);
 
   const locale = await getLocale();
   const t = tFor(locale);
-  const params = await searchParams;
   const owner = OWNER_KEYS.some((f) => f.key === params.owner) ? params.owner! : "any";
   const stage = (BSYSTEMS_STAGES as readonly string[]).includes(params.stage ?? "")
     ? params.stage!
@@ -119,6 +128,10 @@ export default async function BsLeadsPage({
       <div className="filter-layout">
         <FilterPanel activeCount={activeCount} defaultOpen={activeCount > 0}>
           <form method="get" className="card filter-card" aria-label={t(lf.filters)}>
+            {/* ADR-067 — a method="get" submit REPLACES the whole query string
+                with this form's fields; without this the company would be
+                dropped on every Apply. */}
+            <input type="hidden" name="company" value={company} />
             <label className="filter-section">
               <span className="filter-section-label">{t(lf.search)}</span>
               <input

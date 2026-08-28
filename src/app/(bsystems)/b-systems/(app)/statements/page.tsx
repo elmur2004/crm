@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { requirePageRole } from "@/lib/auth/page-guards";
+import { requireCompanySection } from "@/lib/auth/page-guards";
 import { bsRoleOf } from "@/lib/api/bsystems";
 import { listStatements, waitingToBePaidOut } from "@/lib/services/statements";
 import { formatEGP } from "@/lib/money";
@@ -18,13 +18,19 @@ export async function generateMetadata() {
 /* V2 §2.9/§7 — checked milestones wait here; Generate opens the editable tab;
    Create files the coded statement; Mark paid uploads the proof image. */
 
-export default async function StatementsPage() {
-  const user = await requirePageRole(
-    "/login",
-    "bsystems_admin",
-    "bsystems_sales",
-    "bsystems_agent",
-    "bsystems_partner",
+export default async function StatementsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ company?: string }>;
+}) {
+  /* ADR-067 — a B-Systems-ONLY section: refused under company=byteforce, and
+     refused BEFORE the role narrowing below, so a ByteForce-only teammate is
+     redirected rather than falling into bsRoleOf and turning into a 500.
+     Past this line bsRoleOf is TOTAL: holding "bsystems" is exactly holding one
+     of the five B-Systems roles, so it can no longer throw. */
+  const { user } = await requireCompanySection(
+    "bsystems",
+    (await searchParams).company,
   );
   if (bsRoleOf(user) !== "bsystems_admin") redirect("/b-systems/crm");
 

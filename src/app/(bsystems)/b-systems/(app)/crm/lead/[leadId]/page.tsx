@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
-import { requirePageRole } from "@/lib/auth/page-guards";
+import { requireCompanySection } from "@/lib/auth/page-guards";
 import { requireLeadAccess } from "@/lib/auth/guards";
 import { getLeadDetail } from "@/lib/services/leads";
 import { listBsOwnerReps } from "@/lib/services/sales-reps";
@@ -40,16 +40,14 @@ export const metadata = { title: "Lead — B-Systems CRM" };
 
 export default async function BsLeadDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ leadId: string }>;
+  searchParams: Promise<{ company?: string }>;
 }) {
-  await requirePageRole(
-    "/login",
-    "bsystems_admin",
-    "bsystems_sales",
-    "bsystems_agent",
-    "bsystems_partner",
-  );
+  /* ADR-067 — the B-Systems lead detail. ByteForce's is a different screen at
+     /b-systems/leads/lead/[leadId]; this address is B-Systems only. */
+  await requireCompanySection("bsystems", (await searchParams).company);
   const locale = await getLocale();
   const t = tFor(locale);
   const { leadId } = await params;

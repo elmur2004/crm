@@ -150,14 +150,14 @@ test("an unread notification is MARKED, and opening it takes the mark away", asy
 
   const saraCtx = await page.context().browser()!.newContext();
   const saraPage = await saraCtx.newPage();
-  await login(saraPage, SARA.id, SARA.password, /\/byteforce$/);
+  await login(saraPage, SARA.id, SARA.password, /\/b-systems\?company=byteforce$/);
   const mention = await saraPage.request.post(`/api/byteforce/leads/${bfLead.id}/comments`, {
     data: { body: "@Elmur can you look at Unread Mark Gamma?" },
   });
   expect(mention.ok()).toBe(true);
   await saraCtx.close();
 
-  await page.goto("/byteforce");
+  await page.goto("/b-systems?company=byteforce");
   await page.getByRole("button", { name: /^Notifications/ }).click();
   const gamma = row(page, "mentioned you");
   await expect(gamma).toHaveAttribute("data-unread", "true");

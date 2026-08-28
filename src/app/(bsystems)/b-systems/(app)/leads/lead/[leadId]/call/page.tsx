@@ -4,31 +4,31 @@ import { tFor } from "@/lib/i18n/core";
 import { getLocale } from "@/lib/i18n/server";
 import { callSheet } from "@/lib/i18n/dict/call";
 
-/* Founder — the page the Dial button opens: everything about the lead on one
-   phone-first screen, with a tel: link at the top. Role wall is the same as the
-   lead detail; CallSheet re-checks requireLeadAccess for the specific lead. */
+/* ADR-067 — ByteForce's call sheet, in the merged shell. Same shared component
+   as the B-Systems one, this company's paths and API namespace. CallSheet
+   re-checks requireLeadAccess per lead. */
 
 export async function generateMetadata() {
   const locale = await getLocale();
   return { title: `${tFor(locale)(callSheet.meta)} — B-Systems CRM` };
 }
 
-export default async function BsCallSheetPage({
+export default async function MergedCallSheetPage({
   params,
   searchParams,
 }: {
   params: Promise<{ leadId: string }>;
   searchParams: Promise<{ company?: string }>;
 }) {
-  /* ADR-067 — B-Systems only; ByteForce's call sheet is its own route. */
-  await requireCompanySection("bsystems", (await searchParams).company);
+  await requireCompanySection("byteforce", (await searchParams).company);
   const { leadId } = await params;
   return (
     <CallSheet
-      brand="bsystems"
+      brand="byteforce"
       leadId={leadId}
-      leadPath="/b-systems/crm/lead"
-      apiBase="/api/b-systems"
+      leadPath="/b-systems/leads/lead"
+      query="?company=byteforce"
+      apiBase="/api/byteforce"
     />
   );
 }

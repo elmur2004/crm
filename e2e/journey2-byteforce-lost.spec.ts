@@ -8,7 +8,7 @@ test("journey 2: ByteForce lost path with reason", async ({ page }) => {
   await page.getByLabel("Email or phone").fill("sara@byteforce.example");
   await page.getByLabel("Password").fill("byteforce123");
   await page.getByRole("button", { name: "Sign in" }).click();
-  await expect(page).toHaveURL(/\/byteforce$/);
+  await expect(page).toHaveURL(/\/b-systems\?company=byteforce$/);
 
   /* Read current dashboard numbers for delta assertions. KPI values COUNT UP
      on load — sample until two consecutive reads agree (animation settled). */
@@ -31,7 +31,7 @@ test("journey 2: ByteForce lost path with reason", async ({ page }) => {
   const lostBefore = await settled("Lost", true);
 
   /* New lead under the seeded rep. */
-  await page.goto("/byteforce/leads");
+  await page.goto("/b-systems/leads?company=byteforce");
   await page.getByRole("link", { name: /Laila Mostafa/ }).click();
   await page.getByRole("button", { name: "Add lead" }).click();
   await page.getByLabel("Name").fill("Lost Cause Ltd");
@@ -48,7 +48,7 @@ test("journey 2: ByteForce lost path with reason", async ({ page }) => {
   await expect(page.getByText("Budget frozen for this year")).toBeVisible();
 
   /* Dashboard reflects the change. */
-  await page.goto("/byteforce");
+  await page.goto("/b-systems?company=byteforce");
   await expect(
     page.getByText("Total leads").locator("..").getByText(String(totalBefore + 1), { exact: true }),
   ).toBeVisible();

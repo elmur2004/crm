@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { requirePageRole } from "@/lib/auth/page-guards";
+import { requireCompanySection } from "@/lib/auth/page-guards";
 import { bsRoleOf } from "@/lib/api/bsystems";
 import { listAgentsDetailed, listBsLeads } from "@/lib/services/bsystems-admin";
 import { BSYSTEMS_STAGES } from "@/lib/pipeline-engine/constants";
@@ -24,14 +24,16 @@ export async function generateMetadata() {
 export default async function AgentsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ view?: string }>;
+  searchParams: Promise<{ company?: string; view?: string }>;
 }) {
-  const user = await requirePageRole(
-    "/login",
-    "bsystems_admin",
-    "bsystems_sales",
-    "bsystems_agent",
-    "bsystems_partner",
+  /* ADR-067 — a B-Systems-ONLY section: refused under company=byteforce, and
+     refused BEFORE the role narrowing below, so a ByteForce-only teammate is
+     redirected rather than falling into bsRoleOf and turning into a 500.
+     Past this line bsRoleOf is TOTAL: holding "bsystems" is exactly holding one
+     of the five B-Systems roles, so it can no longer throw. */
+  const { user } = await requireCompanySection(
+    "bsystems",
+    (await searchParams).company,
   );
   if (bsRoleOf(user) !== "bsystems_admin") redirect("/b-systems/crm");
 

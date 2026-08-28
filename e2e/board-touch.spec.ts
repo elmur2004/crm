@@ -86,7 +86,7 @@ async function loginByteForce(page: Page) {
   await page.getByLabel("Email or phone").fill("sara@byteforce.example");
   await page.getByLabel("Password").fill("byteforce123");
   await page.getByRole("button", { name: "Sign in" }).click();
-  await page.waitForURL(/\/byteforce$/);
+  await page.waitForURL(/\/b-systems\?company=byteforce$/);
 }
 
 async function seedLeads(page: Page, prefix: string, count: number) {
@@ -119,7 +119,7 @@ test("a finger on a card SCROLLS the column and the board — it never moves the
   await loginByteForce(page);
   const ids = await seedLeads(page, "Touch Lead", 7);
 
-  await page.goto("/byteforce/crm");
+  await page.goto("/b-systems/crm?company=byteforce");
   const column = page.locator('[data-stage="new"]');
   const list = column.locator(".col-cards");
   await expect(list.locator('[data-deal-card^="Touch Lead"]')).toHaveCount(7);
@@ -226,12 +226,12 @@ test("a finger on a card SCROLLS the column and the board — it never moves the
   const gb3 = (await first.locator(".bcard-grip").boundingBox())!;
   await page.touchscreen.tap(gb3.x + gb3.width / 2, gb3.y + gb3.height / 2);
   await page.waitForTimeout(300);
-  await expect(page).toHaveURL(/\/byteforce\/crm$/);
+  await expect(page).toHaveURL(/\/b-systems\/crm\?company=byteforce$/);
 
   /* (5) ...while a tap on the card body still opens it */
   const rep = (await first.locator(".bcard-rep").boundingBox())!;
   await page.touchscreen.tap(rep.x + rep.width / 2, rep.y + rep.height / 2);
-  await page.waitForURL(/\/byteforce\/leads\/lead\//);
+  await page.waitForURL(/\/b-systems\/leads\/lead\//);
 
   await archiveAll(page, ids);
 });
@@ -240,7 +240,7 @@ test("dragging BY THE GRIP still moves a card between stages, on touch", async (
   await loginByteForce(page);
   const ids = await seedLeads(page, "Grip Lead", 1);
 
-  await page.goto("/byteforce/crm");
+  await page.goto("/b-systems/crm?company=byteforce");
   const card = page.locator('[data-deal-card="Grip Lead 1"]');
   await expect(card).toBeVisible();
   const grip = (await card.locator(".bcard-grip").boundingBox())!;
@@ -276,7 +276,7 @@ test.describe(() => {
     await loginByteForce(page);
     const ids = await seedLeads(page, "Mouse Lead", 1);
 
-    await page.goto("/byteforce/crm");
+    await page.goto("/b-systems/crm?company=byteforce");
     const card = page.locator('[data-deal-card="Mouse Lead 1"]');
     await expect(card).toBeVisible();
     const label = "Drag to move this card";
@@ -321,7 +321,7 @@ test.describe(() => {
     await page.getByRole("button", { name: "Sign in" }).click();
     await page.waitForURL(/\/b-systems$/);
 
-    for (const path of ["/b-systems/crm", "/b-systems/partners-pipeline", "/byteforce/crm"]) {
+    for (const path of ["/b-systems/crm", "/b-systems/partners-pipeline", "/b-systems/crm?company=byteforce"]) {
       await page.goto(path);
       const card = page.locator(".bcard[data-deal-card]").first();
       await expect(card, `${path} needs at least one card to prove the grip`).toBeVisible();

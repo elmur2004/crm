@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
-import { requirePageRole } from "@/lib/auth/page-guards";
-import { bsRoleOf } from "@/lib/api/bsystems";
+import { requireCompanyPage } from "@/lib/auth/page-guards";
+import { bsRoleOrNull } from "@/lib/api/bsystems";
 import { todoFor, type TodoItem, type TodoScope } from "@/lib/services/todo";
 import { TodoBody } from "@/components/shared/TodoBody";
 import { TodoRowActions, type TodoAssign } from "@/components/bsystems/TodoRowActions";
@@ -16,15 +16,23 @@ export const metadata = { title: "To-Do — B-Systems CRM" };
    Scope mirrors requireLeadAccess: admin all, sales internal bucket,
    agents/partners their own leads; statement/milestone rows are admin-only. */
 
-export default async function BsTodoPage() {
-  const user = await requirePageRole(
-    "/login",
-    "bsystems_admin",
-    "bsystems_sales",
-    "bsystems_agent",
-    "bsystems_partner",
-  );
-  const role = bsRoleOf(user);
+export default async function BsTodoPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ company?: string }>;
+}) {
+  const { user, company } = await requireCompanyPage((await searchParams).company);
+
+  /* ADR-067 — the shared To-Do. Under ByteForce it is the plain daily list all
+     ByteForce staff have always seen: every ByteForce lead, and NO admin row
+     actions — assigning an owner is a B-Systems admin subsystem (its roster
+     and its endpoint are B-Systems-locked), so it is not offered here. */
+  if (company === "byteforce") {
+    const lists = await todoFor({ brand: "byteforce", scope: { kind: "all" } });
+    return <TodoBody lists={lists} apiBase="/api/byteforce" />;
+  }
+
+  const role = bsRoleOrNull(user);
   const scope: TodoScope =
     role === "bsystems_admin"
       ? { kind: "all" }

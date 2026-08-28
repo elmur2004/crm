@@ -1,6 +1,11 @@
 import Link from "next/link";
-import { requirePageRole } from "@/lib/auth/page-guards";
-import { bsRoleOf } from "@/lib/api/bsystems";
+import { redirect } from "next/navigation";
+import { requireCompanyPage } from "@/lib/auth/page-guards";
+import { bsRoleOrNull } from "@/lib/api/bsystems";
+import { crmHomeFor } from "@/lib/crm/nav";
+import { crmQuery } from "@/lib/crm/company";
+import { CrmBoardBody } from "@/components/internal/pages";
+import { BYTEFORCE_CTX } from "../ctx";
 import { listBsLeads, listOwnLeads } from "@/lib/services/bsystems-admin";
 import { listBsOwnerReps } from "@/lib/services/sales-reps";
 import { LEAD_TYPES } from "@/lib/pipeline-engine/constants";
@@ -87,16 +92,27 @@ function keyDatum(locale: Locale, lead: LeadRow): string {
 export default async function BsCrmPage({
   searchParams,
 }: {
-  searchParams: Promise<{ owner?: string; q?: string; type?: string }>;
+  searchParams: Promise<{ company?: string; owner?: string; q?: string; type?: string }>;
 }) {
-  const user = await requirePageRole(
-    "/login",
-    "bsystems_admin",
-    "bsystems_sales",
-    "bsystems_agent",
-    "bsystems_partner",
-  );
-  const engineRole = bsRoleOf(user);
+  const params = await searchParams;
+  const { user, company } = await requireCompanyPage(params.company);
+
+  /* ADR-067 — THE board, and the founder's headline: "I can have a switch
+     button between b systems and byte force, and the entire boards change
+     accordingly." Two board components, chosen by company, one shared engine.
+
+     They stay two on purpose. Each is statically bound at module level to its
+     own stage set and config — INTERNAL_STAGES (six columns) against
+     BSYSTEMS_STAGES (seven, with Negotiation) — and that binding is a SAFETY
+     property: a ByteForce card cannot be rendered into a negotiation column
+     because the column does not exist in that module. Parameterising one board
+     by config at runtime is how a negotiation column appears on a ByteForce
+     board. CLAUDE.md forbids forking the ENGINE; it does not ask us to merge
+     the views, and the engine here is already the one shared module. */
+  if (company === "byteforce") return <CrmBoardBody ctx={BYTEFORCE_CTX} params={params} />;
+
+  const engineRole = bsRoleOrNull(user);
+  if (!engineRole) redirect(`/b-systems${crmQuery("bsystems")}`);
   const role: BsFormRole =
     engineRole === "bsystems_admin"
       ? "admin"
@@ -108,7 +124,6 @@ export default async function BsCrmPage({
 
   const locale = await getLocale();
   const t = tFor(locale);
-  const params = await searchParams;
   const filter = FILTERS.some((f) => f.key === params.owner) ? params.owner! : "any";
   const search = (params.q ?? "").trim();
   const type = (LEAD_TYPES as readonly string[]).includes(params.type ?? "")
@@ -177,6 +192,10 @@ export default async function BsCrmPage({
       </div>
       <FilterPanel activeCount={activeCount} variant="inline" defaultOpen={activeCount > 0}>
         <form method="get" className="card filter-card filter-card--inline" aria-label={t(lf.filters)}>
+          {/* ADR-067 — a method="get" submit REPLACES the whole query string
+              with this form's fields; without this the company would be
+              dropped on every Apply. */}
+          <input type="hidden" name="company" value={company} />
           <label className="filter-section">
             <span className="filter-section-label">{t(lf.search)}</span>
             <input

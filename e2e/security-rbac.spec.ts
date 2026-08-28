@@ -173,22 +173,49 @@ test("internal sales: internal bucket only, no admin APIs; brands stay partition
   });
   expect(partnersApi.status()).toBe(403); // V2: Partners & Agents is admin-only
 
-  /* Agents cannot reach ByteForce (page redirect + API 403). */
-  await agentPage.goto("/byteforce");
-  await expect(agentPage).toHaveURL(/\/login/);
+  /* ADR-067 — ONE shell, two companies, and asking for a company you do not
+     hold is refused BY THE SERVER, not merely hidden. An agent typing the
+     ByteForce company lands back on his OWN board with his own leads; he never
+     sees a ByteForce card, and the API still refuses him outright. */
+  await agentPage.goto("/b-systems/crm?company=byteforce");
+  await expect(agentPage).toHaveURL(/company=bsystems/);
+  await expect(agentPage.getByRole("heading", { name: "CRM" })).toBeVisible();
+  await expect(agentPage.locator('[data-deal-card="Cairo Textiles"]')).toHaveCount(0);
   const bfApi = await agentPage.request.post("/api/byteforce/reps", { data: { name: "x" } });
   expect(bfApi.status()).toBe(403);
 
-  /* ByteForce staff cannot reach B-Systems (page redirect + API 403). */
+  /* And the mirror: ByteForce staff now LIVE in the merged shell (that is the
+     merge), so /b-systems is theirs — but only as ByteForce. Every
+     B-Systems-only section is refused, none of them 500s on the way, and the
+     B-Systems API is exactly as closed to them as it was before. */
   const staff = await browser.newContext();
   const staffPage = await staff.newPage();
-  await login(staffPage, "sara@byteforce.example", "byteforce123", /\/byteforce$/);
-  await staffPage.goto("/b-systems");
-  await expect(staffPage).toHaveURL(/\/login/);
+  await login(staffPage, "sara@byteforce.example", "byteforce123", /\/b-systems\?company=byteforce$/);
+  await staffPage.goto("/b-systems?company=bsystems");
+  await expect(staffPage).toHaveURL(/company=byteforce/);
+  for (const section of [
+    "/b-systems/users",
+    "/b-systems/registrations",
+    "/b-systems/statements",
+    "/b-systems/won-leads",
+    "/b-systems/partners",
+    "/b-systems/partners-pipeline",
+    "/b-systems/agents",
+    "/b-systems/payments",
+    "/b-systems/profile",
+    "/b-systems/entry",
+  ]) {
+    const res = await staffPage.goto(section);
+    /* assert the STATUS, not only the URL: the trap here is a throwing
+       bsRoleOf turning a refusal into a 500 that merely looks like a refusal */
+    expect(res?.status(), `${section} must refuse without erroring`).toBe(200);
+    await expect(staffPage).toHaveURL(/company=byteforce/);
+  }
   const crossBrand = await staffPage.request.post("/api/b-systems/leads", {
     data: { name: "x", number: "1", type: "cold_call" },
   });
   expect(crossBrand.status()).toBe(403);
+  expect((await staffPage.request.get("/api/b-systems/notifications")).status()).toBe(403);
 
   /* ADR-054: the Accounting and Data Vault MODULES are bsystems_admin-only —
      the proxy turns every other signed-in role away at the door (the fine

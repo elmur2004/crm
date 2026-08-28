@@ -1,7 +1,7 @@
 import type { Msg } from "@/lib/i18n/core";
 
 /* Founder (ADR-041) — the To-Do page: "no fancy stuff, so I don't miss
-   anything". Shared by both apps (/b-systems/todo and /byteforce/todo). */
+   anything". ONE page since ADR-067 — /b-systems/todo, for both companies. */
 
 export const todoPage = {
   navItem: { en: "To-Do", ar: "مهام اليوم" },

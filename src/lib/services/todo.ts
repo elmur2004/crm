@@ -159,7 +159,20 @@ export async function todoFor(opts: {
 }): Promise<TodoLists> {
   const now = opts.now ?? new Date();
   const { start, end } = cairoDayWindow(now);
-  const leadBase = opts.brand === "bsystems" ? "/b-systems/crm/lead" : "/byteforce/leads/lead";
+  /* ADR-067 — one merged shell, so both deep links start at /b-systems; the
+     two companies keep their own SCREENS (B-Systems' lead detail lives under
+     /crm/lead, ByteForce's under /leads/lead) and the row carries the company
+     so a click never lands the founder on the other company's CRM.
+
+     A bare /b-systems/... link would in fact resolve correctly today — every
+     account that can see a B-Systems screen has bsystems as its default — but
+     the ByteForce rows genuinely need the parameter, and a To-Do row that
+     states its company is a row you can forward to somebody. */
+  const leadBase =
+    opts.brand === "bsystems"
+      ? "/b-systems/crm/lead"
+      : "/b-systems/leads/lead";
+  const leadQuery = `?company=${opts.brand}`;
   /* Statements and milestones are admin-owned subsystems. (The partnership
      CRM used to join here too — ADR-061 took its rows off the To-Do.) */
   const adminExtras = opts.brand === "bsystems" && opts.scope.kind === "all";
@@ -293,7 +306,7 @@ export async function todoFor(opts: {
            (the ADR-061 norm) stay a bare date. */
         withTime: f.dueTimeSet,
         title: lead.name,
-        href: `${leadBase}/${lead.id}`,
+        href: `${leadBase}/${lead.id}${leadQuery}`,
         leadId: lead.id,
         ownerUserId: lead.ownerUserId,
         ownerName: ownerNameOf(lead),
@@ -314,7 +327,7 @@ export async function todoFor(opts: {
         at: m.datetime,
         withTime: true,
         title: lead.name,
-        href: `${leadBase}/${lead.id}`,
+        href: `${leadBase}/${lead.id}${leadQuery}`,
         leadId: lead.id,
         ownerUserId: lead.ownerUserId,
         ownerName: ownerNameOf(lead),
@@ -405,7 +418,7 @@ export async function todoFor(opts: {
       at: f.dueAt,
       withTime: f.dueTimeSet, // ADR-063 — the Done row reads like its Today twin
       title: f.lead.name,
-      href: `${leadBase}/${f.lead.id}`,
+      href: `${leadBase}/${f.lead.id}${leadQuery}`,
       leadId: f.lead.id,
       ownerUserId: f.lead.ownerUserId,
       ownerName: ownerNameOf(f.lead),
@@ -423,7 +436,7 @@ export async function todoFor(opts: {
       at: m.datetime,
       withTime: true,
       title: m.lead.name,
-      href: `${leadBase}/${m.lead.id}`,
+      href: `${leadBase}/${m.lead.id}${leadQuery}`,
       leadId: m.lead.id,
       ownerUserId: m.lead.ownerUserId,
       ownerName: ownerNameOf(m.lead),

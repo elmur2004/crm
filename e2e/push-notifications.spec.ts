@@ -74,7 +74,7 @@ test("with NO keys configured the app is exactly what it was — and the worker 
      registered only when somebody presses the (absent) button, so with no keys
      the app has no worker at all — the strongest form of "unchanged". ---- */
   await page.goto("/b-systems/crm");
-  await page.goto("/byteforce");
+  await page.goto("/b-systems?company=byteforce");
   const registrations = await page.evaluate(async () => {
     if (!("serviceWorker" in navigator)) return ["no-sw-api"];
     const regs = await navigator.serviceWorker.getRegistrations();

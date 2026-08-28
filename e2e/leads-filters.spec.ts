@@ -120,10 +120,10 @@ test("admin: search and filter the CRM board cards; ByteForce board filters too"
   await expect(page.getByText("No cards match these filters.")).toBeVisible();
 
   /* ByteForce board: Search + Type (no owner buckets there). */
-  await page.goto("/byteforce/crm?q=Cairo+Textiles");
+  await page.goto("/b-systems/crm?company=byteforce&q=Cairo+Textiles");
   await expect(page.locator('[data-deal-card="Cairo Textiles"]')).toBeVisible();
   await expect(page.locator('[data-deal-card="Cairo Logistics"]')).toHaveCount(0);
   await page.getByRole("link", { name: "Clear filters" }).click();
-  await page.waitForURL(/\/byteforce\/crm$/);
+  await page.waitForURL(/\/b-systems\/crm\?company=byteforce$/);
   await expect(page.locator('[data-deal-card="Cairo Logistics"]')).toBeVisible();
 });

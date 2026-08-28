@@ -80,11 +80,14 @@ type Rep = { id: string; name: string };
 function LeadCardBody({
   lead,
   basePath,
+  query,
   apiBase,
   drag,
 }: {
   lead: InternalBoardLead;
   basePath: string;
+  /* ADR-067 — "?company=byteforce"; every card link keeps the company */
+  query: string;
   apiBase: string;
   drag?: CardDrag;
 }) {
@@ -100,7 +103,7 @@ function LeadCardBody({
       <CardGrip drag={drag} label={t(common.dragHandle)} />
       <div className="bcard-name-row">
         <Link
-          href={`${basePath}/leads/lead/${lead.id}`}
+          href={`${basePath}/leads/lead/${lead.id}${query}`}
           className="bcard-name"
           onClick={(e) => e.stopPropagation()}
         >
@@ -115,7 +118,7 @@ function LeadCardBody({
             click and the pointer-down so it neither drags the card nor
             triggers the whole-card navigation. */}
         <Link
-          href={`${basePath}/leads/lead/${lead.id}/call`}
+          href={`${basePath}/leads/lead/${lead.id}/call${query}`}
           className="card-dial"
           onClick={(e) => e.stopPropagation()}
           onPointerDown={(e) => e.stopPropagation()}
@@ -202,12 +205,15 @@ function LeadCardBody({
 function LeadCard({
   lead,
   basePath,
+  query,
   apiBase,
   dragging,
   suppressClickRef,
 }: {
   lead: InternalBoardLead;
   basePath: string;
+  /* ADR-067 — "?company=byteforce"; every card link keeps the company */
+  query: string;
   apiBase: string;
   dragging: boolean;
   suppressClickRef: { current: boolean };
@@ -229,13 +235,14 @@ function LeadCard({
         /* whole card opens the lead — but never right after a drag (the
            browser fires a click on drop; the guard swallows it) */
         if (suppressClickRef.current) return;
-        router.push(`${basePath}/leads/lead/${lead.id}`);
+        router.push(`${basePath}/leads/lead/${lead.id}${query}`);
       }}
       className={`bcard ${isDragging || dragging ? "bcard--ghost" : ""}`}
     >
       <LeadCardBody
         lead={lead}
         basePath={basePath}
+        query={query}
         apiBase={apiBase}
         drag={{ attributes, listeners, setActivatorNodeRef }}
       />
@@ -247,6 +254,7 @@ function Column({
   stage,
   leads,
   basePath,
+  query,
   apiBase,
   draggingId,
   suppressClickRef,
@@ -255,6 +263,8 @@ function Column({
   stage: string;
   leads: InternalBoardLead[];
   basePath: string;
+  /* ADR-067 — "?company=byteforce"; every card link keeps the company */
+  query: string;
   apiBase: string;
   draggingId: string | null;
   suppressClickRef: { current: boolean };
@@ -301,6 +311,7 @@ function Column({
             key={l.id}
             lead={l}
             basePath={basePath}
+            query={query}
             apiBase={apiBase}
             dragging={draggingId === l.id}
             suppressClickRef={suppressClickRef}
@@ -324,11 +335,14 @@ export function InternalBoard({
   leads,
   reps,
   basePath,
+  query,
   apiBase,
 }: {
   leads: InternalBoardLead[];
   reps: Rep[];
   basePath: string;
+  /* ADR-067 — "?company=byteforce"; every card link keeps the company */
+  query: string;
   apiBase: string;
 }) {
   const locale = useLocale();
@@ -456,6 +470,7 @@ export function InternalBoard({
               stage={stage}
               leads={leads.filter((l) => l.stage === stage)}
               basePath={basePath}
+              query={query}
               apiBase={apiBase}
               draggingId={draggingId}
               suppressClickRef={suppressClickRef}
@@ -475,7 +490,7 @@ export function InternalBoard({
                 const l = leads.find((x) => x.id === draggingId);
                 return l ? (
                   <div className="bcard bcard--lift" aria-hidden>
-                    <LeadCardBody lead={l} basePath={basePath} apiBase={apiBase} />
+                    <LeadCardBody lead={l} basePath={basePath} query={query} apiBase={apiBase} />
                   </div>
                 ) : null;
               })()

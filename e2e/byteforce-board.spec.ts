@@ -27,14 +27,14 @@ test("ByteForce board: drag opens the stage form; didn't-answer toggles; whole c
   await page.getByLabel("Email or phone").fill("sara@byteforce.example");
   await page.getByLabel("Password").fill("byteforce123");
   await page.getByRole("button", { name: "Sign in" }).click();
-  await page.waitForURL(/\/byteforce$/);
+  await page.waitForURL(/\/b-systems\?company=byteforce$/);
 
   const created = await page.request.post("/api/byteforce/leads", {
     data: { name: "Parity Deal", number: "01055512345", type: "cold_call" },
   });
   expect(created.status()).toBe(201);
 
-  await page.goto("/byteforce/crm");
+  await page.goto("/b-systems/crm?company=byteforce");
   const card = page.locator('[data-deal-card="Parity Deal"]');
   await expect(card).toBeVisible();
 
@@ -66,7 +66,7 @@ test("ByteForce board: drag opens the stage form; didn't-answer toggles; whole c
      ground (the chips row now carries Call + WhatsApp, which swallow clicks
      on purpose). */
   await card.locator(".bcard-rep").click();
-  await page.waitForURL(/\/byteforce\/leads\/lead\//);
+  await page.waitForURL(/\/b-systems\/leads\/lead\//);
   await expect(page.getByText("Parity Deal").first()).toBeVisible();
 });
 
@@ -82,7 +82,7 @@ test("a long column scrolls inside itself and a scrolled-to card still drags out
   await page.getByLabel("Email or phone").fill("sara@byteforce.example");
   await page.getByLabel("Password").fill("byteforce123");
   await page.getByRole("button", { name: "Sign in" }).click();
-  await page.waitForURL(/\/byteforce$/);
+  await page.waitForURL(/\/b-systems\?company=byteforce$/);
 
   const ids: string[] = [];
   for (let i = 1; i <= 7; i++) {
@@ -93,7 +93,7 @@ test("a long column scrolls inside itself and a scrolled-to card still drags out
     ids.push(((await res.json()) as { id: string }).id);
   }
 
-  await page.goto("/byteforce/crm");
+  await page.goto("/b-systems/crm?company=byteforce");
   const list = page.locator('[data-stage="new"] .col-cards');
   await expect(list.locator('[data-deal-card^="Cap Lead"]')).toHaveCount(7);
 

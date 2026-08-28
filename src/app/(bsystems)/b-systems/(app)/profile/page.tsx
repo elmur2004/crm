@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
-import { requirePageRole } from "@/lib/auth/page-guards";
+import { requireCompanySection } from "@/lib/auth/page-guards";
 import { bsRoleOf } from "@/lib/api/bsystems";
 import { getRepProfile } from "@/lib/services/portal-reps";
 import { formatCairoDate } from "@/lib/datetime";
@@ -21,13 +21,19 @@ export async function generateMetadata() {
 /* V2 §8 — agent: the ex-portal profile (edit, CV, password). Partner: the
    auto-provisioned account's company data (read-only) + password change. */
 
-export default async function ProfilePage() {
-  const user = await requirePageRole(
-    "/login",
-    "bsystems_admin",
-    "bsystems_sales",
-    "bsystems_agent",
-    "bsystems_partner",
+export default async function ProfilePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ company?: string }>;
+}) {
+  /* ADR-067 — a B-Systems-ONLY section: refused under company=byteforce, and
+     refused BEFORE the role narrowing below, so a ByteForce-only teammate is
+     redirected rather than falling into bsRoleOf and turning into a 500.
+     Past this line bsRoleOf is TOTAL: holding "bsystems" is exactly holding one
+     of the five B-Systems roles, so it can no longer throw. */
+  const { user } = await requireCompanySection(
+    "bsystems",
+    (await searchParams).company,
   );
   const role = bsRoleOf(user);
   if (role !== "bsystems_agent" && role !== "bsystems_partner") redirect("/b-systems");

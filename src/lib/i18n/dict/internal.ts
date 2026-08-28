@@ -1,6 +1,9 @@
 import type { Msg } from "@/lib/i18n/core";
 
-/* Dict for the internal CRM surface (App A chrome + the shared internal bodies).
+/* Dict for the internal CRM surface (the ByteForce nav + the shared internal
+   bodies). ADR-067 retired the ByteForce app CHROME into the merged B-Systems
+   shell; these nav labels did NOT retire with it — they are what ByteForce
+   staff read in the merged nav under company=byteforce, in both languages.
    EN strings are BYTE-IDENTICAL to the previous literals — the e2e suite asserts
    on them. Stage / lead-type labels come from "@/lib/i18n/dict/labels". */
 
@@ -22,12 +25,16 @@ export const common = {
   service: { en: "Service", ar: "الخدمة" },
 } satisfies Record<string, Msg>;
 
-/* ---- app chrome (AppNav) ---- */
+/* ---- the ByteForce nav (lib/crm/nav.ts) ---- */
 export const nav = {
   home: { en: "Home", ar: "الرئيسية" },
   leads: { en: "Leads", ar: "العملاء المحتملون" },
   crm: { en: "CRM", ar: "المبيعات" },
   clients: { en: "Clients", ar: "العملاء" },
+  /* ADR-067 — `staff` and `byteforceDashboard` lost their call sites with the
+     ByteForce header (the role line now reuses the Registrations badge, and
+     the mark is the B-Systems one). Kept, not deleted: an EN string in this
+     repo is asserted on, and a retired key costs nothing. */
   staff: { en: "Staff", ar: "موظف" },
   logOut: { en: "Log out", ar: "تسجيل الخروج" },
   byteforceDashboard: { en: "ByteForce dashboard", ar: "لوحة ByteForce الرئيسية" },

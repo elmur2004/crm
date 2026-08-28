@@ -54,14 +54,24 @@ import { GroupHistory } from "./GroupHistory";
 import { HistoryPanel } from "./HistoryPanel";
 import { ApiError } from "@/lib/api-error";
 
-/* Brand-parameterized server bodies for the internal CRMs (§6). App A mounts them
-   under /byteforce (Phase 1); App B under /b-systems (Phase 2). All data access is
-   brand-scoped through the services. */
+/* Brand-parameterized server bodies for the internal CRMs (§6). ADR-067 mounts
+   them under the MERGED shell at /b-systems with ?company=byteforce; the API
+   base stays the ByteForce namespace, which is what keeps the server-side brand
+   derivation exactly where it was. All data access is brand-scoped through the
+   services. */
 
 export interface InternalAppCtx {
   brand: Brand;
-  basePath: string; // "/byteforce" | "/b-systems"
-  apiBase: string; // "/api/byteforce" | "/api/b-systems"
+  basePath: string; // "/b-systems" — the merged shell
+  apiBase: string; // "/api/byteforce" | "/api/b-systems" — the brand wall
+  /* ADR-067 — "?company=byteforce". EVERY href these bodies emit carries it, or
+     the founder loses his company the moment he clicks anything. */
+  query: string;
+  /* the same value as a bare literal, for the hidden input that keeps a plain
+     method="get" filter form from REPLACING the whole query string on submit —
+     the highest-probability confusion bug in the merge: apply a filter on the
+     ByteForce board and you would be silently thrown back to B-Systems. */
+  company: Brand;
 }
 
 /* Mono eyebrow context line per brand (design spec §2.2 — additive, not a reword). */
@@ -151,7 +161,7 @@ export async function LeadsBody({ ctx }: { ctx: InternalAppCtx }) {
       </div>
       <div className="ecard-grid">
         {reps.map((rep) => (
-          <Link key={rep.id} href={`${ctx.basePath}/leads/rep/${rep.id}`} className="ecard">
+          <Link key={rep.id} href={`${ctx.basePath}/leads/rep/${rep.id}${ctx.query}`} className="ecard">
             <div className="ecard-top">
               <span className="ecard-mark" aria-hidden>
                 {markInitials(rep.name)}
@@ -164,7 +174,7 @@ export async function LeadsBody({ ctx }: { ctx: InternalAppCtx }) {
           </Link>
         ))}
         {unassigned > 0 || unassignedArchived > 0 ? (
-          <Link href={`${ctx.basePath}/leads/rep/unassigned`} className="ecard ecard--accent">
+          <Link href={`${ctx.basePath}/leads/rep/unassigned${ctx.query}`} className="ecard ecard--accent">
             <div className="ecard-top">
               <span className="ecard-mark" aria-hidden>
                 U
@@ -216,7 +226,7 @@ export async function RepLeadsBody({
     <div className="space-y-6">
       <div className="page-head">
         <div>
-          <Link href={`${ctx.basePath}/leads`} className="text-sm text-brand-muted underline underline-offset-2">
+          <Link href={`${ctx.basePath}/leads${ctx.query}`} className="text-sm text-brand-muted underline underline-offset-2">
             {t(leadsPage.backToAllReps)}
           </Link>
           <h1 className="u-h1">
@@ -225,11 +235,11 @@ export async function RepLeadsBody({
         </div>
         <div className="page-actions">
           <nav className="flex gap-1 flex-wrap" aria-label={t(archiveMsgs.archived)}>
-            <Link href={basePath} className="nav-item" aria-current={archived ? undefined : "page"}>
+            <Link href={`${basePath}${ctx.query}`} className="nav-item" aria-current={archived ? undefined : "page"}>
               {t(archiveMsgs.active)}
             </Link>
             <Link
-              href={`${basePath}?view=archived`}
+              href={`${basePath}${ctx.query}${ctx.query ? "&" : "?"}view=archived`}
               className="nav-item"
               aria-current={archived ? "page" : undefined}
             >
@@ -257,7 +267,7 @@ export async function RepLeadsBody({
                 {leads.map((lead) => (
                   <tr key={lead.id}>
                     <td>
-                      <Link href={`${ctx.basePath}/leads/lead/${lead.id}`} className="td-title">
+                      <Link href={`${ctx.basePath}/leads/lead/${lead.id}${ctx.query}`} className="td-title">
                         {lead.name}
                       </Link>
                       {lead.partner ? (
@@ -310,7 +320,7 @@ export async function LeadDetailBody({ ctx, leadId }: { ctx: InternalAppCtx; lea
     <div className="space-y-6">
       <div className="page-head">
         <div>
-          <Link href={`${ctx.basePath}/crm`} className="text-sm text-brand-muted underline underline-offset-2">
+          <Link href={`${ctx.basePath}/crm${ctx.query}`} className="text-sm text-brand-muted underline underline-offset-2">
             {t(leadDetail.backToBoard)}
           </Link>
         </div>
@@ -318,7 +328,7 @@ export async function LeadDetailBody({ ctx, leadId }: { ctx: InternalAppCtx; lea
           {/* founder: the dial entry point — opens the phone-first call sheet.
               PRIMARY, not accent: calling the lead is the page's one true
               action, and accent is already the Ready-to-close cue here. */}
-          <Link href={`${ctx.basePath}/leads/lead/${lead.id}/call`} className="btn-primary">
+          <Link href={`${ctx.basePath}/leads/lead/${lead.id}/call${ctx.query}`} className="btn-primary">
             {t(callSheet.navLabel)}
           </Link>
           {/* founder: "message on WhatsApp" beside every Call — outlined, since
@@ -564,6 +574,12 @@ export async function CrmBoardBody({
           className="card filter-card filter-card--inline"
           aria-label={t(leadsFilters.filters)}
         >
+          {/* ADR-067 — a plain method="get" submit REPLACES the whole query
+              string with this form's own fields. Without this, applying a
+              filter on the ByteForce board would drop ?company= and bounce the
+              founder back to B-Systems, which reads as data loss rather than a
+              nav bug. */}
+          <input type="hidden" name="company" value={ctx.company} />
           <label className="filter-section">
             <span className="filter-section-label">{t(leadsFilters.search)}</span>
             <input
@@ -590,7 +606,7 @@ export async function CrmBoardBody({
               {t(leadsFilters.apply)}
             </button>
             {activeCount > 0 ? (
-              <Link href={`${ctx.basePath}/crm`} className="filter-reset">
+              <Link href={`${ctx.basePath}/crm${ctx.query}`} className="filter-reset">
                 {t(leadsFilters.clear)}
               </Link>
             ) : null}
@@ -604,6 +620,7 @@ export async function CrmBoardBody({
           leads={orderedCards}
           reps={reps}
           basePath={ctx.basePath}
+          query={ctx.query}
           apiBase={ctx.apiBase}
         />
       )}

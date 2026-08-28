@@ -27,7 +27,7 @@ test.use({ launchOptions: { ignoreDefaultArgs: ["--hide-scrollbars"] } });
 
 /* 1440 device px wide, the founder's monitor; his zoom steps plus the extremes */
 const ZOOMS = [0.25, 0.5, 0.67, 0.8, 0.9, 1, 1.25, 1.5, 2, 3];
-const BOARDS = ["/b-systems/crm", "/b-systems/partners-pipeline", "/byteforce/crm"];
+const BOARDS = ["/b-systems/crm", "/b-systems/partners-pipeline", "/b-systems/crm?company=byteforce"];
 const ORDINARY = ["/b-systems", "/b-systems/leads", "/accounting", "/vault"];
 
 async function signedInState(browser: Browser, baseURL: string) {
@@ -232,7 +232,7 @@ test("A6: a long column shows at least two whole cards at every zoom, and still 
   await sp.getByLabel("Email or phone").fill("sara@byteforce.example");
   await sp.getByLabel("Password").fill("byteforce123");
   await sp.getByRole("button", { name: "Sign in" }).click();
-  await sp.waitForURL(/\/byteforce$/);
+  await sp.waitForURL(/\/b-systems\?company=byteforce$/);
   const ids: string[] = [];
   for (let i = 1; i <= 7; i++) {
     /* The names WRAP to the `.bcard-name` 2-line clamp on purpose. The floor is
@@ -273,7 +273,7 @@ test("A6: a long column shows at least two whole cards at every zoom, and still 
   try {
     for (const z of ZOOMS) {
       await atZoom(browser, baseURL!, state, z, async (page) => {
-        await page.goto("/byteforce/crm");
+        await page.goto("/b-systems/crm?company=byteforce");
         const list = page.locator('[data-stage="new"] .col-cards');
         await list.waitFor();
         const m = await page.evaluate(() => {

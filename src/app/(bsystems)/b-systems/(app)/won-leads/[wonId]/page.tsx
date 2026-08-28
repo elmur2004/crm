@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { db } from "@/lib/db";
-import { requirePageRole } from "@/lib/auth/page-guards";
+import { requireCompanySection } from "@/lib/auth/page-guards";
 import { bsRoleOf } from "@/lib/api/bsystems";
 import { formatEGP } from "@/lib/money";
 import { formatCairoDate } from "@/lib/datetime";
@@ -20,15 +20,19 @@ export async function generateMetadata() {
 
 export default async function WonLeadDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ wonId: string }>;
+  searchParams: Promise<{ company?: string }>;
 }) {
-  const user = await requirePageRole(
-    "/login",
-    "bsystems_admin",
-    "bsystems_sales",
-    "bsystems_agent",
-    "bsystems_partner",
+  /* ADR-067 — a B-Systems-ONLY section: refused under company=byteforce, and
+     refused BEFORE the role narrowing below, so a ByteForce-only teammate is
+     redirected rather than falling into bsRoleOf and turning into a 500.
+     Past this line bsRoleOf is TOTAL: holding "bsystems" is exactly holding one
+     of the five B-Systems roles, so it can no longer throw. */
+  const { user } = await requireCompanySection(
+    "bsystems",
+    (await searchParams).company,
   );
   if (bsRoleOf(user) !== "bsystems_admin") redirect("/b-systems/won-leads");
 

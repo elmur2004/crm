@@ -1,6 +1,10 @@
 import { redirect } from "next/navigation";
-import { requirePageRole } from "@/lib/auth/page-guards";
-import { bsRoleOf } from "@/lib/api/bsystems";
+import { requireCompanyPage } from "@/lib/auth/page-guards";
+import { bsRoleOrNull } from "@/lib/api/bsystems";
+import { crmHomeFor } from "@/lib/crm/nav";
+import { crmQuery } from "@/lib/crm/company";
+import { DashboardBody } from "@/components/internal/pages";
+import { BYTEFORCE_CTX } from "./ctx";
 import { adminHome } from "@/lib/services/bsystems-admin";
 import { BSYSTEMS_STAGES } from "@/lib/pipeline-engine/constants";
 import { formatEGP } from "@/lib/money";
@@ -16,17 +20,25 @@ import { stageAccent, stageKey } from "@/components/bsystems/stageColors";
 export const metadata = { title: "Home — B-Systems CRM" };
 
 /* V2 §2.1 — admin Home: the v1 dashboard + agent/partner counts + their leads'
-   pipeline chart. Non-admins land on their CRM board. */
+   pipeline chart. Non-admins land on their CRM board.
 
-export default async function BSystemsHomePage() {
-  const user = await requirePageRole(
-    "/login",
-    "bsystems_admin",
-    "bsystems_sales",
-    "bsystems_agent",
-    "bsystems_partner",
-  );
-  if (bsRoleOf(user) !== "bsystems_admin") redirect("/b-systems/crm");
+   ADR-067 — one of the FOUR addresses both companies share, so it branches on
+   the company before it does anything else. Under ByteForce it is the ByteForce
+   dashboard (brand-scoped metrics, no partner/agent counts — those are
+   B-Systems concepts and must never render on a ByteForce Home). */
+
+export default async function BSystemsHomePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ company?: string }>;
+}) {
+  const { user, company } = await requireCompanyPage((await searchParams).company);
+  if (company === "byteforce") return <DashboardBody ctx={BYTEFORCE_CTX} />;
+
+  const role = bsRoleOrNull(user);
+  /* the role's own first destination, which by construction accepts
+     company=bsystems and this role — so the bounce cannot ping-pong */
+  if (role !== "bsystems_admin") redirect(`${crmHomeFor("bsystems", role)}${crmQuery("bsystems")}`);
 
   const locale = await getLocale();
   const t = tFor(locale);

@@ -83,10 +83,10 @@ const base: NotificationForPush = {
 describe("where tapping a push lands (ADR-065 decision F)", () => {
   it("deep-links a lead in ITS OWN app", () => {
     expect(deepLinkFor({ type: "assigned", leadId: "lead-1" }, "bsystems")).toBe(
-      "/b-systems/crm/lead/lead-1",
+      "/b-systems/crm/lead/lead-1?company=bsystems",
     );
     expect(deepLinkFor({ type: "mention", leadId: "lead-1" }, "byteforce")).toBe(
-      "/byteforce/leads/lead/lead-1",
+      "/b-systems/leads/lead/lead-1?company=byteforce",
     );
   });
 
@@ -94,7 +94,9 @@ describe("where tapping a push lands (ADR-065 decision F)", () => {
     /* comments.ts nulls `leadId` for a byteforce lead ON PURPOSE, so that a
        dual-role user's other bell cannot deep-link into the wrong app. The push
        has to honour the same intent rather than default to B-Systems. */
-    expect(deepLinkFor({ type: "mention", leadId: null }, null)).toBe("/byteforce");
+    expect(deepLinkFor({ type: "mention", leadId: null }, null)).toBe(
+      "/b-systems?company=byteforce",
+    );
   });
 
   it("sends a registration to Registrations and any other lead-less broadcast to the app", () => {
@@ -133,7 +135,7 @@ describe("what a push actually carries (ADR-065 decision F — the privacy rule)
     expect(Object.keys(payload).sort()).toEqual(["body", "tag", "title", "url"]);
     expect(payload.title).toBe(base.title);
     expect(payload.body).toBe(base.body);
-    expect(payload.url).toBe("/b-systems/crm/lead/lead-1");
+    expect(payload.url).toBe("/b-systems/crm/lead/lead-1?company=bsystems");
   });
 
   it("tags on the notification id, so a redelivered push replaces rather than repeats", () => {

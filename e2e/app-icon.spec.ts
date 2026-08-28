@@ -56,8 +56,15 @@ test("login screen and shells carry the real B-Systems install identity", async 
   expect(bsIconHref).toBeTruthy();
   expect(bsIconHref).not.toBe(iconHref);
 
-  await page.goto("/byteforce");
+  /* ADR-067 — ByteForce work now lives in the MERGED shell, so it carries the
+     B-Systems tile, not its own orange one. That is a real, visible consequence
+     of retiring the ByteForce-branded shell and is flagged for the founder in
+     PROGRESS — the same accepted trade-off ADR-060 part E already recorded for
+     the iOS home-screen icon. What must still hold is that an authed shell has
+     a REAL group favicon, never the neutral placeholder. */
+  await page.goto("/b-systems?company=byteforce");
   await expect(page.locator('link[rel="apple-touch-icon"]')).toHaveCount(1);
   const bfIconHref = await page.locator('link[rel="icon"]').first().getAttribute("href");
-  expect(bfIconHref).not.toBe(iconHref); // ByteForce keeps its orange tile
+  expect(bfIconHref).not.toBe(iconHref);
+  expect(bfIconHref).toBe(bsIconHref);
 });

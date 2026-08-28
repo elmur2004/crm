@@ -156,7 +156,7 @@ test("B-Systems board: a pressed chip with nothing today says so instead of 'emp
 });
 
 test("ByteForce board: full parity — same order, same chip (ADR-042)", async ({ page }) => {
-  await login(page, "sara@byteforce.example", "byteforce123", /\/byteforce$/);
+  await login(page, "sara@byteforce.example", "byteforce123", /\/b-systems\?company=byteforce$/);
   const ids = [
     await leadMeetingAt(page, "/api/byteforce", "BF Late Meeting", "0107780012", {
       date: cairoDate(1),
@@ -170,7 +170,7 @@ test("ByteForce board: full parity — same order, same chip (ADR-042)", async (
   ];
   const mine = ["BF Soon Meeting", "BF Late Meeting", "BF No Meeting"];
 
-  await page.goto("/byteforce/crm");
+  await page.goto("/b-systems/crm?company=byteforce");
   const col = page.locator('[data-stage="meeting_setting"]');
   await expect(col.locator('[data-deal-card="BF No Meeting"]')).toBeVisible();
   expect(await orderOf(col, mine)).toEqual(mine);

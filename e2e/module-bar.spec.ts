@@ -29,7 +29,7 @@ const overflow = (page: Page) =>
 
 const bar = (page: Page) => page.locator(".switcher--bar");
 
-test("the module bar switches all four shells in ONE tap at phone width", async ({ page }) => {
+test("the module bar switches all three modules in ONE tap at phone width", async ({ page }) => {
   await login(page, "admin@byteforce.com", "password123", /\/b-systems$/);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/b-systems");
@@ -41,9 +41,12 @@ test("the module bar switches all four shells in ONE tap at phone width", async 
   const barBox = (await bar(page).boundingBox())!;
   expect(barBox.y).toBeGreaterThanOrEqual(header.y + header.height - 1);
 
-  /* four segments, every one a thumb target, all inside the viewport */
+  /* ADR-067 — THREE segments now, not four: the two CRMs merged into one app,
+     so the bar asks "which module" and the company switch asks "which company".
+     Every cell is a thumb target, all inside the viewport — and each one is
+     WIDER than it was, which is the direction ADR-060's overflow work wanted. */
   const segs = bar(page).locator(".switcher-seg");
-  await expect(segs).toHaveCount(4);
+  await expect(segs).toHaveCount(3);
   for (const box of await segs.evaluateAll((els) => els.map((el) => el.getBoundingClientRect()))) {
     expect(box.height).toBeGreaterThanOrEqual(44);
     expect(box.right).toBeLessThanOrEqual(391);
@@ -51,8 +54,8 @@ test("the module bar switches all four shells in ONE tap at phone width", async 
   }
   expect(await overflow(page)).toBeLessThanOrEqual(1);
 
-  /* the current module is unmistakable, and ONE tap moves between all four */
-  await expect(bar(page).getByRole("link", { name: "B-SYSTEMS" })).toHaveAttribute(
+  /* the current module is unmistakable, and ONE tap moves between all three */
+  await expect(bar(page).getByRole("link", { name: "CRM", exact: true })).toHaveAttribute(
     "aria-current",
     "true",
   );
@@ -73,12 +76,22 @@ test("the module bar switches all four shells in ONE tap at phone width", async 
   );
   expect(await overflow(page)).toBeLessThanOrEqual(1);
 
-  await bar(page).getByRole("link", { name: "BYTEFORCE" }).click();
-  await page.waitForURL(/\/byteforce$/);
-  await expect(bar(page).getByRole("link", { name: "BYTEFORCE" })).toHaveAttribute(
+  await bar(page).getByRole("link", { name: "CRM", exact: true }).click();
+  await page.waitForURL(/\/b-systems$/);
+  await expect(bar(page).getByRole("link", { name: "CRM", exact: true })).toHaveAttribute(
     "aria-current",
     "true",
   );
+  expect(await overflow(page)).toBeLessThanOrEqual(1);
+
+  /* ADR-067 — and the COMPANY switch is a DIFFERENT control, on the page
+     ground below the bar, carrying its own words. Two strips, two questions. */
+  const company = page.getByRole("group", { name: "Switch company" });
+  await expect(company).toBeVisible();
+  await expect(company.getByRole("link", { name: "ByteForce" })).toBeVisible();
+  const companyBox = (await company.boundingBox())!;
+  const barAfter = (await bar(page).boundingBox())!;
+  expect(companyBox.y).toBeGreaterThan(barAfter.y + barAfter.height - 1);
   expect(await overflow(page)).toBeLessThanOrEqual(1);
 });
 
@@ -111,12 +124,13 @@ test("Arabic: the bar mirrors, keeps its localized labels, and still fits", asyn
   await expect(bar(page)).toBeVisible();
   await expect(bar(page).getByRole("link", { name: "الحسابات" })).toBeVisible();
   await expect(bar(page).getByRole("link", { name: "الخزنة" })).toBeVisible();
-  /* RTL order: the first DOM segment (BYTEFORCE) renders at the inline START,
-     which is the RIGHT edge */
+  /* RTL order: the first DOM segment (CRM) renders at the inline START,
+     which is the RIGHT edge. Three segments since ADR-067, so the last index
+     moved with the count — the assertion is about ORDER, not about four. */
   const xs = await bar(page)
     .locator(".switcher-seg")
     .evaluateAll((els) => els.map((el) => el.getBoundingClientRect().x));
-  expect(xs[0]!).toBeGreaterThan(xs[3]!);
+  expect(xs[0]!).toBeGreaterThan(xs[xs.length - 1]!);
   expect(await overflow(page)).toBeLessThanOrEqual(1);
 
   await bar(page).getByRole("link", { name: "الحسابات" }).click();
@@ -130,9 +144,9 @@ test("Arabic: the bar mirrors, keeps its localized labels, and still fits", asyn
 
 test("hard-narrow screens cut long labels VISIBLY — ellipsis, page still never scrolls", async ({ page }) => {
   await login(page, "admin@byteforce.com", "password123", /\/b-systems$/);
-  /* 320px sits below the project's 390px sampled floor: each 1fr cell lands
-     around 67px and the longest labels (ACCOUNTING, BYTEFORCE, B-SYSTEMS)
-     really are cut — the point of this test is that the cut is visible */
+  /* 320px sits below the project's 390px sampled floor. With three cells they
+     are ~100px each now (ADR-067), so ACCOUNTING — the longest label left —
+     is still cut, and the point of this test is that the cut is VISIBLE. */
   await page.setViewportSize({ width: 320, height: 700 });
   await page.goto("/b-systems");
   await expect(bar(page)).toBeVisible();
@@ -153,11 +167,29 @@ test("hard-narrow screens cut long labels VISIBLY — ellipsis, page still never
   }
 });
 
-test("a single-entity user gets NO bar — zero new furniture", async ({ page }) => {
-  await login(page, "sara@byteforce.example", "byteforce123", /\/byteforce$/);
+test("a single-entity user gets NO bar and NO company switch — zero new furniture", async ({
+  page,
+}) => {
+  await login(page, "sara@byteforce.example", "byteforce123", /\/b-systems\?company=byteforce$/);
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto("/byteforce");
+  await page.goto("/b-systems?company=byteforce");
   await expect(page.locator(".switcher--bar")).toHaveCount(0);
+  /* ADR-067 decision 7 — a ByteForce-locked teammate is shown NO switch at
+     all, on any screen and inside the burger sheet. A hidden-but-present
+     switch would be a failure, so this is asserted negatively. */
+  for (const path of [
+    "/b-systems?company=byteforce",
+    "/b-systems/crm?company=byteforce",
+    "/b-systems/todo?company=byteforce",
+    "/b-systems/leads?company=byteforce",
+    "/b-systems/clients?company=byteforce",
+  ]) {
+    await page.goto(path);
+    await expect(page.getByRole("group", { name: "Switch company" })).toHaveCount(0);
+  }
+  await page.goto("/b-systems?company=byteforce");
+  await page.getByRole("button", { name: "Open menu" }).click();
+  await expect(page.getByRole("group", { name: "Switch company" })).toHaveCount(0);
   expect(await overflow(page)).toBeLessThanOrEqual(1);
 });
 
@@ -168,7 +200,13 @@ test("the sheet's switchers are tap-sized and legible on the light card", async 
   await page.getByRole("button", { name: "Open menu" }).click();
 
   const sheetSegs = page.getByRole("menu").locator(".switcher-seg");
-  await expect(sheetSegs).toHaveCount(6); // 4 modules + EN/عربي
+  /* ADR-067: 3 modules + EN/عربي. The COMPANY segments are deliberately NOT
+     here (review, Run 080): the sheet carries the controls whose HEADER twin is
+     hidden below 820px, and the company switch has no header twin — it lives in
+     the page body and is on screen at every width (pinned at 390px with the
+     sheet shut, in the test above). Duplicating it into the sheet put two live,
+     identically-named "Switch company" groups on one phone screen. */
+  await expect(sheetSegs).toHaveCount(5);
   /* thumb-sized in BOTH axes — height alone left the ~35px-wide EN segment
      sub-thumb-size, so the width is pinned too */
   for (const box of await sheetSegs.evaluateAll((els) => els.map((el) => el.getBoundingClientRect()))) {
@@ -178,7 +216,7 @@ test("the sheet's switchers are tap-sized and legible on the light card", async 
   /* legible: a NON-current segment's ink is the card's own token, never the
      indigo header's translucent white (the bleed the sheet used to inherit —
      the sheet lives INSIDE the header element) */
-  const seg = page.getByRole("menu").getByRole("link", { name: "BYTEFORCE" });
+  const seg = page.getByRole("menu").getByRole("link", { name: "ACCOUNTING" });
   const color = await seg.evaluate((el) => getComputedStyle(el).color);
   expect(color).not.toContain("255, 255, 255");
 });

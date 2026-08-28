@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { requirePageRole } from "@/lib/auth/page-guards";
+import { requireCompanySection } from "@/lib/auth/page-guards";
 import { bsRoleOf } from "@/lib/api/bsystems";
 import { listRegistrations } from "@/lib/services/users";
 import { formatCairo } from "@/lib/datetime";
@@ -17,13 +17,19 @@ export async function generateMetadata() {
    sign-ups arrive here as pending requests; the admin approves or declines
    them. Below that, the registry of everyone on the system. */
 
-export default async function RegistrationsPage() {
-  const user = await requirePageRole(
-    "/login",
-    "bsystems_admin",
-    "bsystems_sales",
-    "bsystems_agent",
-    "bsystems_partner",
+export default async function RegistrationsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ company?: string }>;
+}) {
+  /* ADR-067 — a B-Systems-ONLY section: refused under company=byteforce, and
+     refused BEFORE the role narrowing below, so a ByteForce-only teammate is
+     redirected rather than falling into bsRoleOf and turning into a 500.
+     Past this line bsRoleOf is TOTAL: holding "bsystems" is exactly holding one
+     of the five B-Systems roles, so it can no longer throw. */
+  const { user } = await requireCompanySection(
+    "bsystems",
+    (await searchParams).company,
   );
   if (bsRoleOf(user) !== "bsystems_admin") redirect("/b-systems/crm");
 

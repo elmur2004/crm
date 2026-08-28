@@ -227,6 +227,30 @@
   }
 }
 
+/* ADR-067 — THE COMPANY SWITCH. Deliberately NOT another bar.
+
+   The module bar above is full-bleed chrome under the header and answers
+   "which module". This answers "which company", so it must never be mistaken
+   for it: it sits INSIDE the page, on the light page ground, aligned with the
+   page content, and it is LABELLED — the label names the company you are on,
+   in words, so the current company never rides on colour alone (the founder:
+   "there is no confusion in it"). Zero new tokens: it reuses .switcher /
+   .switcher-seg exactly as they are, so the three-scope token law is untouched
+   and nothing here can break a brand that does not define a new variable. */
+.company-switch {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px;
+  margin-block-end: 18px;
+}
+.company-switch-label {
+  font: 700 10.5px var(--font-mono); letter-spacing: .1em; text-transform: uppercase;
+  color: var(--color-muted);
+}
+.company-switch-current { color: var(--color-ink); }
+.company-switch .switcher { background: var(--color-surface-card); }
+/* on a phone it stacks under the module bar with room to breathe — two strips,
+   two questions, never two guesses at the same one */
+@media (max-width: 820px) { .company-switch { margin-block-end: 14px; } }
+
 .user { display: flex; align-items: center; gap: 9px; padding-inline-start: 6px; margin-inline-start: auto; flex: none; }
 .user-avatar {
   width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; flex: none;

@@ -100,7 +100,8 @@ test("the blocked admin never sees VAULT in the header pill, and the URL refuses
   await expect(pill).toBeVisible();
   await expect(pill.getByRole("link", { name: "ACCOUNTING" })).toBeVisible();
   await expect(pill.getByRole("link", { name: "VAULT" })).toHaveCount(0);
-  await expect(pill.getByRole("link", { name: "B-SYSTEMS" })).toBeVisible();
+  /* ADR-067 — the two company segments became one CRM segment */
+  await expect(pill.getByRole("link", { name: "CRM", exact: true })).toBeVisible();
 
   /* typing the URL: an honest refusal that NAMES the module, and a way back */
   await page.goto("/vault");
