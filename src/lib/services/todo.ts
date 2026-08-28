@@ -1,5 +1,10 @@
 import { db } from "@/lib/db";
 import type { Brand } from "@/lib/pipeline-engine/constants";
+import {
+  configForBrand,
+  datedStagesFor,
+  followUpStagesFor,
+} from "@/lib/pipeline-engine/configs/for-brand";
 import { cairoToUtc, utcToCairo } from "@/lib/datetime";
 
 /* Founder (ADR-041) — the To-Do page: "the actual date of today with the
@@ -177,6 +182,16 @@ export async function todoFor(opts: {
      CRM used to join here too — ADR-061 took its rows off the To-Do.) */
   const adminExtras = opts.brand === "bsystems" && opts.scope.kind === "all";
   const scopedLead = leadWhere(opts.brand, opts.scope);
+  /* ADR-067 — the STAGES come from this company's own pipeline config, never
+     from a list written out here. This projection is shared by both companies
+     and the two pipelines genuinely differ: B-Systems has a negotiation stage
+     and ByteForce does not. A literal ["following_up","meeting_setting",
+     "negotiation"] is one pipeline's vocabulary imposed on the other — inert
+     today only because no ByteForce lead can reach a stage its own config has
+     never heard of, and quietly wrong the day either pipeline renames a stage. */
+  const datedStages = datedStagesFor(opts.brand);
+  const followUpStages = followUpStagesFor(opts.brand);
+  const meetingStage = configForBrand(opts.brand).meetingStage;
 
   /* Hardening (review): pick the TRUE latest record per lead FIRST — across
      follow-ups, meetings, AND proposals (a B-6 groupless proposal-sent return
@@ -201,7 +216,7 @@ export async function todoFor(opts: {
     db.lead.findMany({
       where: {
         ...scopedLead,
-        stage: { in: ["following_up", "meeting_setting", "negotiation"] },
+        stage: { in: datedStages },
       },
       select: {
         id: true,
@@ -231,8 +246,27 @@ export async function todoFor(opts: {
       include: { lead: { select: DONE_LEAD_SELECT } },
     }),
     /* the MANUAL marks (ADR-062) — valid only for the Cairo day they were
-       made: tomorrow a still-pending money task returns unchecked */
-    db.todoDone.findMany({ where: { completedAt: { gte: start, lt: end } } }),
+       made: tomorrow a still-pending money task returns unchecked.
+
+       ADR-067 — and SCOPED, like everything else this projection reads. It used
+       to fetch every mark made today across both companies and every owner, then
+       throw away the ones it could not match. The output was right (the lookup
+       is by record id), but a ByteForce To-Do was reading B-Systems marks —
+       including `completedByLabel`, which is a colleague's NAME. The right rows
+       leaving the database is not the same as the wrong rows never being asked
+       for. The money marks join only when the money rows themselves do. */
+    db.todoDone.findMany({
+      where: {
+        completedAt: { gte: start, lt: end },
+        OR: [
+          { followUp: { lead: scopedLead } },
+          { meeting: { lead: scopedLead } },
+          ...(adminExtras
+            ? [{ statementId: { not: null } }, { milestoneId: { not: null } }]
+            : []),
+        ],
+      },
+    }),
     adminExtras
       ? db.statement.findMany({
           /* ADR-043 clarification: an archived lead's money TASKS leave the
@@ -292,11 +326,7 @@ export async function todoFor(opts: {
       p?.createdAt.getTime() ?? 0,
       n?.createdAt.getTime() ?? 0,
     );
-    if (
-      (lead.stage === "following_up" || lead.stage === "negotiation") &&
-      f &&
-      f.createdAt.getTime() === newest
-    ) {
+    if (followUpStages.includes(lead.stage) && f && f.createdAt.getTime() === newest) {
       items.push({
         kind: "follow_up",
         recordId: f.id,
@@ -314,7 +344,7 @@ export async function todoFor(opts: {
       });
     }
     if (
-      lead.stage === "meeting_setting" &&
+      lead.stage === meetingStage &&
       m &&
       m.createdAt.getTime() === newest &&
       m.arranged &&
@@ -411,7 +441,7 @@ export async function todoFor(opts: {
      the truer one, and the row must not offer a restore that cannot restore). */
   for (const f of todaysFollowUps) {
     if (!f.lead || liveKeys.has(`follow_up:${f.id}`)) continue;
-    const stageMatches = f.lead.stage === "following_up" || f.lead.stage === "negotiation";
+    const stageMatches = followUpStages.includes(f.lead.stage);
     done.push({
       kind: "follow_up",
       recordId: f.id,
@@ -444,7 +474,7 @@ export async function todoFor(opts: {
       done:
         m.outcome !== null
           ? { by: "auto", reason: "meeting_outcome", outcome: m.outcome }
-          : m.lead.stage !== "meeting_setting"
+          : m.lead.stage !== meetingStage
             ? { by: "auto", reason: "moved", stage: m.lead.stage }
             : { by: "auto", reason: "superseded" },
     });

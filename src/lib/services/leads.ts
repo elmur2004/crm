@@ -1,10 +1,8 @@
 import { z } from "zod";
 import { db } from "@/lib/db";
 import type { Prisma } from "../../../generated/prisma/client";
-import { internalCrmConfig } from "@/lib/pipeline-engine/configs/internal-crm";
-import { bsystemsCrmConfig } from "@/lib/pipeline-engine/configs/bsystems-crm";
 import { transition } from "@/lib/pipeline-engine/transition";
-import type { EngineEvent, PipelineConfig } from "@/lib/pipeline-engine/types";
+import type { EngineEvent } from "@/lib/pipeline-engine/types";
 import {
   LEAD_TYPES,
   isSameStageAction,
@@ -37,11 +35,12 @@ import { formatMsg } from "@/lib/i18n/core";
 import { stageLabel } from "@/lib/i18n/dict/labels";
 import { undoLabels } from "@/lib/i18n/dict/undo";
 
-/* V2 (ADR-030): ByteForce keeps the v1 pipeline; B-Systems runs the unified
-   role-aware pipeline (negotiation stage, milestone-tab win, owner buckets). */
-export function configForBrand(brand: Brand): PipelineConfig {
-  return brand === "byteforce" ? internalCrmConfig : bsystemsCrmConfig;
-}
+/* ADR-067 — the brand->config selector moved into the engine (configs/for-brand),
+   because the To-Do and its completion marks now need it too and must not pull
+   this whole module in to get it. Re-exported here so existing importers and the
+   engine's own tests keep their address. */
+import { configForBrand } from "@/lib/pipeline-engine/configs/for-brand";
+export { configForBrand };
 
 /* Lead lifecycle for Apps A & B (§6.1–§6.4, §10.1). applyLeadEvent is the single
    write path for every pipeline move: engine-validated, group-gated, atomic, and

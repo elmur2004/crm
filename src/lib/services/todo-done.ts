@@ -3,6 +3,7 @@ import type { Brand } from "@/lib/pipeline-engine/constants";
 import { ApiError } from "@/lib/api-error";
 import type { Actor } from "./activity";
 import { cairoDayWindow, type TodoKind } from "./todo";
+import { configForBrand, followUpStagesFor } from "@/lib/pipeline-engine/configs/for-brand";
 
 /* Founder 2.2/2.3 (ADR-062) — MANUAL To-Do completion. "Add a checkbox next to
    every task in the To-Do List. Checking the box manually marks the task as
@@ -126,8 +127,11 @@ export async function setTodoDone(opts: {
     });
     if (!f?.lead || f.lead.brand !== opts.brand) throw new ApiError(404, "Task not found");
     if (f.lead.archived) throw new ApiError(400, NOT_TODAY); // ADR-043: archived leads carry no to-dos
+    /* ADR-067 — this company's own follow-up stages (see configs/for-brand):
+       the checkbox must judge liveness by the SAME rule the projection used, and
+       both must read it from the pipeline the lead actually runs on. */
     const live =
-      (f.lead.stage === "following_up" || f.lead.stage === "negotiation") &&
+      followUpStagesFor(opts.brand).includes(f.lead.stage) &&
       f.lead.followUps[0]?.id === f.id &&
       f.createdAt.getTime() === newestOf(f.lead);
     if (!live) throw new ApiError(400, NOT_TODAY);
@@ -143,7 +147,7 @@ export async function setTodoDone(opts: {
     if (!m?.lead || m.lead.brand !== opts.brand) throw new ApiError(404, "Task not found");
     if (m.lead.archived) throw new ApiError(400, NOT_TODAY);
     const live =
-      m.lead.stage === "meeting_setting" &&
+      m.lead.stage === configForBrand(opts.brand).meetingStage &&
       m.lead.meetings[0]?.id === m.id &&
       m.createdAt.getTime() === newestOf(m.lead) &&
       m.arranged &&
