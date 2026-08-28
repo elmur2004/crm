@@ -175,7 +175,13 @@ test("mobile menu reaches EVERY admin section at 390px (incl. switcher + logout)
     "Statements",
     "Users",
   ]) {
-    await expect(page.getByRole("menu").getByRole("link", { name: label, exact: true })).toBeVisible();
+    /* the sheet's NAV rows specifically: ADR-067's module strip also carries a
+       "CRM" segment down here, and the two are different controls — the nav row
+       opens the board, the segment picks the module. Scoped by the nav row's
+       own class so the assertion says which one it means. */
+    await expect(
+      page.getByRole("menu").locator(".nav-sheet-link").filter({ hasText: new RegExp(`^${label}$`) }),
+    ).toBeVisible();
   }
   await expect(page.getByRole("menu").getByRole("button", { name: "Log out" })).toBeVisible();
   const sheetSwitcher = page.getByRole("menu").getByRole("group", { name: "Switch module" });
@@ -204,7 +210,8 @@ test("mobile menu reaches EVERY admin section at 390px (incl. switcher + logout)
     expect(box.width).toBeGreaterThanOrEqual(44);
   }
   await page.getByRole("menu").getByRole("link", { name: "Statements", exact: true }).click();
-  await page.waitForURL(/\/b-systems\/statements$/);
+  /* ADR-067 — every nav href in the merged shell spells the company out */
+  await page.waitForURL(/\/b-systems\/statements\?company=bsystems$/);
 });
 
 /* ADR-054 — the founder's module directive: Accounting and Data Vault are

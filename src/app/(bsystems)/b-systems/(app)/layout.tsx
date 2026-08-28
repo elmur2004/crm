@@ -77,7 +77,7 @@ export default async function BSystemsAppLayout({
      hold has no nav, no home and no bell to render. */
   const navs: PerCompany<Array<{ href: string; label: string }>> = {};
   const homes: PerCompany<string> = {};
-  const bells: PerCompany<{ apiBase: string; leadPathBase: string }> = {};
+  const bells: PerCompany<{ apiBase: string; leadPathBase: string; leadQuery: string }> = {};
   for (const company of companies) {
     navs[company] = crmNavFor(company, role).map((item) => ({
       href: item.href,
@@ -89,10 +89,18 @@ export default async function BSystemsAppLayout({
     /* ADR-051: a data-entry account receives no notifications and is not
        granted the notifications endpoint — a bell that can only ever poll a
        403 is worse than no bell. */
-    bells.bsystems = { apiBase: "/api/b-systems", leadPathBase: "/b-systems/crm/lead" };
+    bells.bsystems = {
+      apiBase: "/api/b-systems",
+      leadPathBase: "/b-systems/crm/lead",
+      leadQuery: "?company=bsystems",
+    };
   }
   if (companies.includes("byteforce")) {
-    bells.byteforce = { apiBase: "/api/byteforce", leadPathBase: "/b-systems/leads/lead" };
+    bells.byteforce = {
+      apiBase: "/api/byteforce",
+      leadPathBase: "/b-systems/leads/lead",
+      leadQuery: "?company=byteforce",
+    };
   }
 
   const roleLabel = role

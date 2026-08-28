@@ -238,8 +238,11 @@
    .switcher-seg exactly as they are, so the three-scope token law is untouched
    and nothing here can break a brand that does not define a new variable. */
 .company-switch {
-  display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px;
-  margin-block-end: 18px;
+  display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px;
+  /* as little page height as a labelled control can honestly cost: it sits
+     above EVERY screen, and the board's columns are already measured against
+     the viewport (.col-cards caps at 62vh) */
+  margin-block-end: 12px;
 }
 .company-switch-label {
   font: 700 10.5px var(--font-mono); letter-spacing: .1em; text-transform: uppercase;
@@ -249,7 +252,7 @@
 .company-switch .switcher { background: var(--color-surface-card); }
 /* on a phone it stacks under the module bar with room to breathe — two strips,
    two questions, never two guesses at the same one */
-@media (max-width: 820px) { .company-switch { margin-block-end: 14px; } }
+@media (max-width: 820px) { .company-switch { margin-block-end: 10px; } }
 
 .user { display: flex; align-items: center; gap: 9px; padding-inline-start: 6px; margin-inline-start: auto; flex: none; }
 .user-avatar {

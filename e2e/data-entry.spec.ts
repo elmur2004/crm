@@ -91,7 +91,9 @@ test("data entry: adds a lead and a card, owns neither, and is walled out of eve
     "/b-systems/todo",
   ]) {
     await page.goto(path);
-    await expect(page).toHaveURL(/\/b-systems\/entry$/);
+    /* ADR-067 — the bounce still lands on his ONE destination; the merged shell
+       spells the company out on every link, so the address carries it too */
+    await expect(page).toHaveURL(/\/b-systems\/entry(\?company=bsystems)?$/);
   }
 
   /* ...and the APIs behind them refuse server-side (the real wall) */

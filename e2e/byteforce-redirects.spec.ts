@@ -21,14 +21,15 @@ async function loginByteForce(page: Page) {
   await page.waitForURL(/\/b-systems\?company=byteforce$/);
 }
 
-/** A real seeded ByteForce lead, so the id-bearing rules are proved on a row
-    that actually renders rather than on a shape. */
+/** A real seeded ByteForce lead, read off the board itself, so the id-bearing
+    rules are proved on a row that actually renders rather than on a shape. */
 async function aByteForceLead(page: Page): Promise<{ id: string; name: string }> {
-  const res = await page.request.get("/api/byteforce/leads");
-  expect(res.status()).toBe(200);
-  const leads = (await res.json()) as Array<{ id: string; name: string }>;
-  expect(leads.length).toBeGreaterThan(0);
-  return leads[0]!;
+  await page.goto("/b-systems/crm?company=byteforce");
+  const link = page.locator('a[href*="/leads/lead/"]').first();
+  await expect(link).toBeVisible();
+  const href = (await link.getAttribute("href"))!;
+  const name = (await link.textContent())!.trim();
+  return { id: href.split("/leads/lead/")[1]!.split("?")[0]!, name };
 }
 
 test("the five sections all land in the merged shell with ByteForce preselected", async ({
@@ -104,7 +105,7 @@ test("the lead deep link in every already-delivered push still opens that lead",
   await expect(page).toHaveURL(
     new RegExp(`/b-systems/leads/lead/${lead.id}\\?company=byteforce$`),
   );
-  await expect(page.getByRole("heading", { name: lead.name })).toBeVisible();
+  await expect(page.locator(".identity-name")).toContainText(lead.name);
 
   await page.goto(`/byteforce/leads/lead/${lead.id}/call`);
   await expect(page).toHaveURL(

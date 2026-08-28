@@ -1,5 +1,12 @@
 import { expect, test, type Page } from "@playwright/test";
 
+/* the filter sidebar collapses behind a "Filters" disclosure only under 900px;
+   at desktop width the form is already open, so opening it is best-effort */
+async function openFilters(page: Page) {
+  const toggle = page.getByRole("button", { name: "Filters" });
+  if (await toggle.count()) await toggle.click();
+}
+
 /* ============================================================================
    ADR-067 — ONE CRM, TWO COMPANIES.
 
@@ -94,7 +101,7 @@ test("the company survives navigation, filters and the back button", async ({ pa
   /* THE confusion bug this merge could have shipped: a plain method="get"
      filter form REPLACES the whole query string on submit. Applying a filter on
      the ByteForce board must not throw the founder back to B-Systems. */
-  await page.getByRole("button", { name: "Filters" }).click().catch(() => undefined);
+  await openFilters(page);
   await page.getByRole("searchbox").first().fill("Cairo Textiles");
   await page.getByRole("button", { name: "Apply" }).click();
   await page.waitForURL(/q=Cairo\+Textiles/);
@@ -117,7 +124,7 @@ test("the company survives navigation, filters and the back button", async ({ pa
 test("the B-Systems filter form keeps its company too", async ({ page }) => {
   await login(page, "admin@byteforce.com", "password123", /\/b-systems$/);
   await page.goto("/b-systems/leads?company=bsystems");
-  await page.getByRole("button", { name: "Filters" }).click().catch(() => undefined);
+  await openFilters(page);
   await page.getByRole("searchbox").first().fill("Delta Textiles");
   await page.getByRole("button", { name: "Apply" }).click();
   await page.waitForURL(/q=Delta\+Textiles/);

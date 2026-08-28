@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { requireCompanySection } from "@/lib/auth/page-guards";
+import { BS_PIPELINE_ROLES } from "@/lib/crm/company";
 import { bsRoleOf } from "@/lib/api/bsystems";
 import { adminWonLeads, closerWonLeads, salesWonLeads } from "@/lib/services/won-leads";
 import { DeleteLeadButton } from "@/components/bsystems/leadActions";
@@ -62,6 +63,7 @@ export default async function WonLeadsPage({
   const { user } = await requireCompanySection(
     "bsystems",
     (await searchParams).company,
+    BS_PIPELINE_ROLES,
   );
   const role = bsRoleOf(user);
   const locale = await getLocale();

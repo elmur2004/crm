@@ -75,6 +75,25 @@ describe("every merged CRM page states which company it is for", () => {
     },
   );
 
+  it("a page that only resolves the company still narrows its ROLES", () => {
+    /* `requireCompanyPage` answers "which company" and deliberately nothing
+       else. The four addresses both companies share therefore have to narrow
+       roles themselves — and the merged shell now lets every CRM role through
+       the door, including the add-only data-entry account that ADR-051 carved
+       out of every pipeline screen. A shared page that skipped `narrowRoles`
+       would silently re-grant it, which is exactly the regression the
+       data-entry e2e caught on the first draft of these guards. */
+    for (const file of pagesUnder(APP)) {
+      const src = readFileSync(file, "utf8");
+      if (!/requireCompanyPage/.test(src)) continue;
+      expect(
+        src,
+        `${path.relative(process.cwd(), file)} resolves the company but never narrows the ` +
+          "roles — add narrowRoles(...) for the B-Systems branch (ADR-067)",
+      ).toMatch(/narrowRoles/);
+    }
+  });
+
   it("no merged page calls the THROWING bsRoleOf before its company is settled", () => {
     /* bsRoleOf throws for an account with no B-Systems role — a 500 where a
        redirect belongs. It is total (and therefore fine) only AFTER

@@ -3,6 +3,7 @@ import { requireRole, requireUser, type CurrentUser } from "./guards";
 import { landingFor } from "./landing";
 import { canUseModule, type ModuleKey } from "./roles";
 import {
+  BS_PIPELINE_ROLES,
   CRM_ROLES,
   crmQuery,
   resolveCompany,
@@ -101,7 +102,15 @@ export interface CompanyPage {
   companies: CrmCompany[];
 }
 
-/** The shared-screen guard: admits any CRM role, then decides the company.
+/** Decide the COMPANY, and nothing else.
+
+    It deliberately does NOT narrow roles — that is each screen's own business,
+    and the role set a merged screen accepts depends on WHICH company it is
+    rendering (under ByteForce the company itself proves `byteforce_staff`,
+    because `companiesFor` only ever reports a company a role already carries).
+    So every caller follows this with `narrowRoles` for the B-Systems branch, or
+    uses `requireCompanySection`, which takes the role list as an argument you
+    cannot forget to pass.
 
     LOOP SAFETY, argued rather than hoped for. There is exactly one redirect
     here and it fires only when the URL named a REAL company this account does
@@ -122,6 +131,15 @@ export async function requireCompanyPage(requested?: string): Promise<CompanyPag
   return { user, company: resolved.company, companies: resolved.companies };
 }
 
+/** Narrow an already-resolved company page to a role set. Redirects to the
+    account's own landing on a miss — the ADR-051 behaviour, which is what keeps
+    a data-entry account out of every pipeline screen even though the merged
+    shell now lets it through the door. */
+export function narrowRoles(page: CompanyPage, ...roles: Role[]): CompanyPage {
+  if (!roles.some((r) => page.user.roles.includes(r))) redirect(landingFor(page.user.roles));
+  return page;
+}
+
 /** The guard for a screen that exists for ONE company only.
 
     Decision 6, in code: B-Systems has sections ByteForce does not (Won Leads,
@@ -133,21 +151,30 @@ export async function requireCompanyPage(requested?: string): Promise<CompanyPag
 
     It runs BEFORE the section's own role narrowing on purpose: a ByteForce-only
     teammate who types /b-systems/users must be redirected here, not fall
-    through to `bsRoleOf` and turn into a 500. */
+    through to `bsRoleOf` and turn into a 500.
+
+    The role list is a REQUIRED parameter, typed as a NON-EMPTY tuple, so a
+    call site cannot forget it and silently widen a section to every CRM role —
+    the exact regression this guard's first draft shipped, caught by the
+    data-entry spec. Company FIRST, then the role: a ByteForce-only teammate is
+    bounced by the company check (to his own home), while a data-entry account
+    passes it and is bounced by the role check (to its one destination), which is
+    byte-for-byte what each of these pages did before the merge. */
 export async function requireCompanySection(
   only: CrmCompany,
-  requested?: string,
+  requested: string | undefined,
+  roles: readonly [Role, ...Role[]],
 ): Promise<CompanyPage> {
   const page = await requireCompanyPage(requested);
   if (page.company !== only) redirect(`/b-systems${crmQuery(page.company)}`);
-  return page;
+  return narrowRoles(page, ...roles);
 }
 
 /** The company-aware `requireBsAdminPage`: B-Systems only, admin only.
     Company first, THEN the role — so the ByteForce-only case never reaches the
     admin bounce (which would send him to a B-Systems board he cannot see). */
 export async function requireBsAdminCompanyPage(requested?: string): Promise<CompanyPage> {
-  const page = await requireCompanySection("bsystems", requested);
+  const page = await requireCompanySection("bsystems", requested, BS_PIPELINE_ROLES);
   if (!page.user.roles.includes("bsystems_admin")) redirect(`/b-systems/crm${crmQuery("bsystems")}`);
   return page;
 }

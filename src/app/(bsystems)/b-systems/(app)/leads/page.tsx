@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { requireCompanyPage } from "@/lib/auth/page-guards";
+import { narrowRoles, requireCompanyPage } from "@/lib/auth/page-guards";
 import { bsRoleOrNull } from "@/lib/api/bsystems";
 import { crmHomeFor } from "@/lib/crm/nav";
-import { crmQuery } from "@/lib/crm/company";
+import { BS_PIPELINE_ROLES, crmQuery } from "@/lib/crm/company";
 import { LeadsBody } from "@/components/internal/pages";
 import { BYTEFORCE_CTX } from "../ctx";
 import { listBsLeads } from "@/lib/services/bsystems-admin";
@@ -68,7 +68,7 @@ export default async function BsLeadsPage({
   }>;
 }) {
   const params = await searchParams;
-  const { user, company } = await requireCompanyPage(params.company);
+  const { user, company, companies } = await requireCompanyPage(params.company);
 
   /* ADR-067 — the shared Leads address, and the two companies mean genuinely
      different screens by it. ByteForce's Leads is a directory of SALES REP
@@ -78,6 +78,12 @@ export default async function BsLeadsPage({
      merged into "the leads table", which would quietly lose the rep directory. */
   if (company === "byteforce") return <LeadsBody ctx={BYTEFORCE_CTX} />;
 
+  /* ADR-051 + ADR-067 — under ByteForce the company itself proves
+     `byteforce_staff` (companiesFor only reports a company a role carries), so
+     the role narrowing below applies to the B-SYSTEMS branch: the same four
+     pipeline roles this page always accepted, with the data-entry account still
+     carved out of it and sent to its one destination. */
+  narrowRoles({ user, company, companies }, ...BS_PIPELINE_ROLES);
   const role = bsRoleOrNull(user);
   if (role !== "bsystems_admin") redirect(`${crmHomeFor("bsystems", role)}${crmQuery("bsystems")}`);
 

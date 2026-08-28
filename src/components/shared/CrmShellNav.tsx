@@ -93,11 +93,17 @@ export function CrmShellBell({
   fallback,
 }: {
   /** apiBase + leadPathBase per company; a company with no bell has no entry */
-  bases: PerCompany<{ apiBase: string; leadPathBase: string }>;
+  bases: PerCompany<{ apiBase: string; leadPathBase: string; leadQuery: string }>;
   fallback: CrmCompany;
 }) {
   const params = useSearchParams();
   const base = pick(bases, params, fallback);
   if (!base) return null;
-  return <NotificationsBell apiBase={base.apiBase} leadPathBase={base.leadPathBase} />;
+  return (
+    <NotificationsBell
+      apiBase={base.apiBase}
+      leadPathBase={base.leadPathBase}
+      leadQuery={base.leadQuery}
+    />
+  );
 }

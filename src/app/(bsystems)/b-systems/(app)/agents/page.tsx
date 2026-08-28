@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireCompanySection } from "@/lib/auth/page-guards";
+import { BS_PIPELINE_ROLES } from "@/lib/crm/company";
 import { bsRoleOf } from "@/lib/api/bsystems";
 import { listAgentsDetailed, listBsLeads } from "@/lib/services/bsystems-admin";
 import { BSYSTEMS_STAGES } from "@/lib/pipeline-engine/constants";
@@ -34,6 +35,7 @@ export default async function AgentsPage({
   const { user } = await requireCompanySection(
     "bsystems",
     (await searchParams).company,
+    BS_PIPELINE_ROLES,
   );
   if (bsRoleOf(user) !== "bsystems_admin") redirect("/b-systems/crm");
 

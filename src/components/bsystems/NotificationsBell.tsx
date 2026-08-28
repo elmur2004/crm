@@ -25,9 +25,15 @@ const POLL_MS = 15_000;
 export function NotificationsBell({
   apiBase = "/api/b-systems",
   leadPathBase = "/b-systems/crm/lead",
+  leadQuery = "",
 }: {
   apiBase?: string;
   leadPathBase?: string;
+  /* ADR-067 — "?company=byteforce". One shell, two companies: the row must open
+     the lead IN the company it belongs to, or a dual-company account clicking a
+     ByteForce notification lands on a screen his default company does not have
+     and is bounced to Home. */
+  leadQuery?: string;
 } = {}) {
   const router = useRouter();
   const t = tFor(useLocale());
@@ -67,7 +73,7 @@ export function NotificationsBell({
     );
     void fetch(`${apiBase}/notifications/${n.id}`, { method: "PATCH" });
     setOpen(false);
-    if (n.leadId) router.push(`${leadPathBase}/${n.leadId}`);
+    if (n.leadId) router.push(`${leadPathBase}/${n.leadId}${leadQuery}`);
   }
 
   return (

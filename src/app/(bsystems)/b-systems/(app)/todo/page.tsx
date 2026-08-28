@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
-import { requireCompanyPage } from "@/lib/auth/page-guards";
+import { narrowRoles, requireCompanyPage } from "@/lib/auth/page-guards";
+import { BS_PIPELINE_ROLES } from "@/lib/crm/company";
 import { bsRoleOrNull } from "@/lib/api/bsystems";
 import { todoFor, type TodoItem, type TodoScope } from "@/lib/services/todo";
 import { TodoBody } from "@/components/shared/TodoBody";
@@ -21,7 +22,7 @@ export default async function BsTodoPage({
 }: {
   searchParams: Promise<{ company?: string }>;
 }) {
-  const { user, company } = await requireCompanyPage((await searchParams).company);
+  const { user, company, companies } = await requireCompanyPage((await searchParams).company);
 
   /* ADR-067 — the shared To-Do. Under ByteForce it is the plain daily list all
      ByteForce staff have always seen: every ByteForce lead, and NO admin row
@@ -32,6 +33,12 @@ export default async function BsTodoPage({
     return <TodoBody lists={lists} apiBase="/api/byteforce" />;
   }
 
+  /* ADR-051 + ADR-067 — under ByteForce the company itself proves
+     `byteforce_staff` (companiesFor only reports a company a role carries), so
+     the role narrowing below applies to the B-SYSTEMS branch: the same four
+     pipeline roles this page always accepted, with the data-entry account still
+     carved out of it and sent to its one destination. */
+  narrowRoles({ user, company, companies }, ...BS_PIPELINE_ROLES);
   const role = bsRoleOrNull(user);
   const scope: TodoScope =
     role === "bsystems_admin"

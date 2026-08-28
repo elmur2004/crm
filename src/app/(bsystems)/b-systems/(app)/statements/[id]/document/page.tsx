@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { requireCompanySection } from "@/lib/auth/page-guards";
+import { BS_PIPELINE_ROLES } from "@/lib/crm/company";
 import { bsRoleOf } from "@/lib/api/bsystems";
 import { statementDocument } from "@/lib/services/statements";
 import { ApiError } from "@/lib/api-error";
@@ -37,6 +38,7 @@ export default async function StatementDocumentPage({
   const { user } = await requireCompanySection(
     "bsystems",
     (await searchParams).company,
+    BS_PIPELINE_ROLES,
   );
   const { id } = await params;
 

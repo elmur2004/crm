@@ -39,17 +39,26 @@ export type CrmCompany = (typeof CRM_COMPANIES)[number];
 const _brandsMatch: readonly CrmCompany[] = BRANDS satisfies readonly Brand[];
 void _brandsMatch;
 
-/** Every role that puts a person inside the B-Systems half of the CRM. */
-export const BS_CRM_ROLES: Role[] = [
+/** The four B-Systems roles that live in the PIPELINE app — Home, the board,
+    Leads, the To-Do, Won Leads and the rest. ADR-051 carved `bsystems_data_entry`
+    out of every one of them: it adds and nothing else, and has exactly ONE
+    destination. Keeping that carve-out spelled out here means the merged guards
+    inherit it instead of quietly re-granting it. */
+export const BS_PIPELINE_ROLES: readonly [Role, ...Role[]] = [
   "bsystems_admin",
   "bsystems_sales",
   "bsystems_agent",
   "bsystems_partner",
+];
+
+/** Every role that puts a person inside the B-Systems half of the CRM. */
+export const BS_CRM_ROLES: readonly [Role, ...Role[]] = [
+  ...BS_PIPELINE_ROLES,
   "bsystems_data_entry",
 ];
 
 /** Every role that may enter the merged shell at all (either company). */
-export const CRM_ROLES: Role[] = [...BS_CRM_ROLES, "byteforce_staff"];
+export const CRM_ROLES: readonly [Role, ...Role[]] = [...BS_CRM_ROLES, "byteforce_staff"];
 
 /** Which companies these roles can see. NARROWING ONLY — never a grant. */
 export function companiesFor(roles: Role[]): CrmCompany[] {

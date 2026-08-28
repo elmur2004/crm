@@ -168,7 +168,10 @@ test("an unread notification is MARKED, and opening it takes the mark away", asy
   });
   expect(bfPaint.bg).not.toBe("rgba(0, 0, 0, 0)");
   expect(bfPaint.bar).not.toBe(bfPaint.bg);
-  /* the same AA bar, measured under the OTHER brand's tokens */
+  /* the same AA bar on the ByteForce feed. ADR-067 merged the two apps into one
+     shell, so this is no longer "the other brand's tokens" — the chrome is
+     B-Systems in both companies now. What it still proves is that the unread
+     mark is legible on the OTHER company's rows, which is the point. */
   expect(await contrastOfBody(gamma)).toBeGreaterThanOrEqual(4.5);
   expect(await contrastOfTitle(gamma)).toBeGreaterThanOrEqual(4.5);
 

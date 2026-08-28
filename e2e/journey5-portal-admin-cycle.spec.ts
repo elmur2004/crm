@@ -14,6 +14,11 @@ const PNG = Buffer.concat([
 ]);
 
 async function dragTo(page: Page, card: Locator, column: Locator) {
+  /* the columns scroll INTERNALLY (.col-cards caps at 62vh), so a card far down
+     a busy column is laid out below its own column's visible box. Bring it into
+     view first — exactly what a person does before grabbing it — which scrolls
+     the COLUMN, not the page, so the drop target below stays where it is. */
+  await card.scrollIntoViewIfNeeded();
   const from = (await card.boundingBox())!;
   const to = (await column.boundingBox())!;
   /* grab middle-right — clear of the link and the ready-to-close button */

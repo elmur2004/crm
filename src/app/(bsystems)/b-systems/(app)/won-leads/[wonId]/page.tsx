@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { requireCompanySection } from "@/lib/auth/page-guards";
+import { BS_PIPELINE_ROLES } from "@/lib/crm/company";
 import { bsRoleOf } from "@/lib/api/bsystems";
 import { formatEGP } from "@/lib/money";
 import { formatCairoDate } from "@/lib/datetime";
@@ -33,6 +34,7 @@ export default async function WonLeadDetailPage({
   const { user } = await requireCompanySection(
     "bsystems",
     (await searchParams).company,
+    BS_PIPELINE_ROLES,
   );
   if (bsRoleOf(user) !== "bsystems_admin") redirect("/b-systems/won-leads");
 

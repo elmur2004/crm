@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { requireCompanySection } from "@/lib/auth/page-guards";
+import { BS_PIPELINE_ROLES } from "@/lib/crm/company";
 import { bsRoleOf } from "@/lib/api/bsystems";
 import { listRegistrations } from "@/lib/services/users";
 import { formatCairo } from "@/lib/datetime";
@@ -30,6 +31,7 @@ export default async function RegistrationsPage({
   const { user } = await requireCompanySection(
     "bsystems",
     (await searchParams).company,
+    BS_PIPELINE_ROLES,
   );
   if (bsRoleOf(user) !== "bsystems_admin") redirect("/b-systems/crm");
 

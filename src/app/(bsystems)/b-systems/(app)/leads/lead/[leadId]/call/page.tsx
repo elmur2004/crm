@@ -20,7 +20,7 @@ export default async function MergedCallSheetPage({
   params: Promise<{ leadId: string }>;
   searchParams: Promise<{ company?: string }>;
 }) {
-  await requireCompanySection("byteforce", (await searchParams).company);
+  await requireCompanySection("byteforce", (await searchParams).company, ["byteforce_staff"]);
   const { leadId } = await params;
   return (
     <CallSheet

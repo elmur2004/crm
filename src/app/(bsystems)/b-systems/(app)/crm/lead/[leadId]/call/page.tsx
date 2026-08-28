@@ -1,4 +1,5 @@
 import { requireCompanySection } from "@/lib/auth/page-guards";
+import { BS_PIPELINE_ROLES } from "@/lib/crm/company";
 import { CallSheet } from "@/components/shared/CallSheet";
 import { tFor } from "@/lib/i18n/core";
 import { getLocale } from "@/lib/i18n/server";
@@ -21,7 +22,7 @@ export default async function BsCallSheetPage({
   searchParams: Promise<{ company?: string }>;
 }) {
   /* ADR-067 — B-Systems only; ByteForce's call sheet is its own route. */
-  await requireCompanySection("bsystems", (await searchParams).company);
+  await requireCompanySection("bsystems", (await searchParams).company, BS_PIPELINE_ROLES);
   const { leadId } = await params;
   return (
     <CallSheet

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireCompanySection } from "@/lib/auth/page-guards";
+import { BS_PIPELINE_ROLES } from "@/lib/crm/company";
 import { bsRoleOf } from "@/lib/api/bsystems";
 import { paymentsFor } from "@/lib/services/statements";
 import { formatEGP } from "@/lib/money";
@@ -30,6 +31,7 @@ export default async function PaymentsPage({
   const { user } = await requireCompanySection(
     "bsystems",
     (await searchParams).company,
+    BS_PIPELINE_ROLES,
   );
   const role = bsRoleOf(user);
   if (role !== "bsystems_agent" && role !== "bsystems_partner") redirect("/b-systems");

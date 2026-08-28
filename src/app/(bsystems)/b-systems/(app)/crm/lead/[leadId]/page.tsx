@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { requireCompanySection } from "@/lib/auth/page-guards";
+import { BS_PIPELINE_ROLES } from "@/lib/crm/company";
 import { requireLeadAccess } from "@/lib/auth/guards";
 import { getLeadDetail } from "@/lib/services/leads";
 import { listBsOwnerReps } from "@/lib/services/sales-reps";
@@ -47,7 +48,7 @@ export default async function BsLeadDetailPage({
 }) {
   /* ADR-067 — the B-Systems lead detail. ByteForce's is a different screen at
      /b-systems/leads/lead/[leadId]; this address is B-Systems only. */
-  await requireCompanySection("bsystems", (await searchParams).company);
+  await requireCompanySection("bsystems", (await searchParams).company, BS_PIPELINE_ROLES);
   const locale = await getLocale();
   const t = tFor(locale);
   const { leadId } = await params;

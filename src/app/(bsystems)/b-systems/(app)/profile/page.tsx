@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { requireCompanySection } from "@/lib/auth/page-guards";
+import { BS_PIPELINE_ROLES } from "@/lib/crm/company";
 import { bsRoleOf } from "@/lib/api/bsystems";
 import { getRepProfile } from "@/lib/services/portal-reps";
 import { formatCairoDate } from "@/lib/datetime";
@@ -34,6 +35,7 @@ export default async function ProfilePage({
   const { user } = await requireCompanySection(
     "bsystems",
     (await searchParams).company,
+    BS_PIPELINE_ROLES,
   );
   const role = bsRoleOf(user);
   if (role !== "bsystems_agent" && role !== "bsystems_partner") redirect("/b-systems");

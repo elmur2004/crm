@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { requireCompanySection } from "@/lib/auth/page-guards";
+import { BS_CRM_ROLES } from "@/lib/crm/company";
 import { bsRoleOf } from "@/lib/api/bsystems";
 import { listMyEntries } from "@/lib/services/data-entry";
 import { formatCairoDate } from "@/lib/datetime";
@@ -33,6 +34,7 @@ export default async function DataEntryPage({
   const { user } = await requireCompanySection(
     "bsystems",
     (await searchParams).company,
+    BS_CRM_ROLES,
   );
   /* the page belongs to data entry; the admin has the real sections */
   if (bsRoleOf(user) !== "bsystems_data_entry") redirect("/b-systems");

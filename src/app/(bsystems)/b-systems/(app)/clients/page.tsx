@@ -20,6 +20,6 @@ export default async function MergedClientsPage({
 }: {
   searchParams: Promise<{ company?: string }>;
 }) {
-  await requireCompanySection("byteforce", (await searchParams).company);
+  await requireCompanySection("byteforce", (await searchParams).company, ["byteforce_staff"]);
   return <ClientsBody ctx={BYTEFORCE_CTX} />;
 }

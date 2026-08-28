@@ -4082,3 +4082,276 @@ the code and the rendered page, and all six were FIXED — none needed refuting.
   ADR-017 (authorization re-read from the database on every request) and SPEC §3
   (permissions are server-side).
 - Status: Accepted
+## ADR-067 — ONE CRM: the two company apps merge into a single shell, and the company lives in the URL
+- Context: one founder request, transcribed verbatim — *"So I have a big edit on
+  the system. I need to completely merge the systems and byte force CRMs, and I
+  want the switching to be inside the CRM. So the CRM page, I can switch between
+  it. But every other page, we do… we don't have the entire page for byte force.
+  The entire interface changes and all of that. I don't need that. I don't want
+  it. I just want the b systems CRM. I can have a switch button between b systems
+  and byte force, and the entire boards change accordingly. The same thing with
+  the to do. When I go to the to do, I can switch this and this between byte force
+  and b systems. So make sure that this is there, and there is no confusion in
+  it."*
+  Asked how far the switch reaches, he was explicit that **everything** switches —
+  not only the board and the To-Do but the Leads list, Won Leads / Clients and the
+  rest. Asked what a ByteForce-only teammate gets, he was equally explicit:
+  **the same app, locked to ByteForce**, shown no switch, and *"nobody gains
+  access they do not have today."*
+
+  This ADR covers the shell, the routing, the nav and the access rules. Two
+  further pieces of the same request — the twelve-hour clock everywhere, and the
+  negotiation response date getting its own To-Do row — are separate workstreams
+  and get their own ADR.
+
+### 1. ONE SHELL. The B-Systems shell becomes THE shell
+- **Decision.** The `(byteforce)` route group is deleted in full: its root layout,
+  its favicon, its app layout, its context and its eight pages, plus
+  `components/internal/AppNav.tsx`, the ByteForce header. Every ByteForce screen
+  is re-mounted under `/b-systems` in the merged shell.
+- **Why.** He asked for exactly this, twice in one paragraph: *"we don't have the
+  entire page for byte force… I don't need that. I don't want it."* A second app
+  shell is precisely the thing he said he does not want.
+- **Nothing was lost.** The ByteForce bodies were already brand-parameterized
+  server components (`components/internal/pages.tsx`), so the merge is a
+  re-mount, not a rewrite: the dashboard, the board (drag, drop-opens-form, the
+  didn't-answer tally, the Today chips, search + type), the rep DIRECTORY with
+  its Unassigned bucket and its per-rep archive tab, the lead detail, the call
+  sheet, Clients and the To-Do all moved intact. The rep directory and Clients
+  were the two most likely casualties — B-Systems' Leads is a flat table, not a
+  rep directory, and Clients and Won Leads are different tables over different
+  concepts — so both are kept as ByteForce-EXCLUSIVE routes rather than aliased
+  onto a B-Systems screen that has no data for them.
+
+### 2. THE CHROME STAYS B-SYSTEMS IN BOTH MODES — and this contradicts SPEC
+- **Decision.** Switching company changes the DATA and never the skin. Same
+  header, same mark, same colours, same `data-brand="bsystems"` on `<html>`. The
+  merged shell does NOT re-stamp the brand per company the way
+  `ModuleBrandScope` does for the accounting module.
+- **Why.** It is the literal reading of *"The entire interface changes and all of
+  that. I don't need that."* A company switch that repainted the app would be the
+  interface change he rejected, arriving through a smaller door.
+- **The SPEC conflict, named rather than glossed.** SPEC §4 defines "branded" as
+  *"Every page of App A reads unmistakably as ByteForce … switching between
+  /byteforce and /b-systems demonstrates the theming layer with no brand bleed"*,
+  and CLAUDE.md rule 6 restates App A as the ByteForce-branded app. That is no
+  longer achievable as written, because App A no longer exists as an app. **This
+  is flagged for founder confirmation in PROGRESS**, along with its two visible
+  consequences: a ByteForce-only teammate now sees B-Systems chrome at a
+  `/b-systems/...` address, and ByteForce work carries the B-Systems browser tab
+  icon (the same accepted trade-off ADR-060 part E already recorded for the iOS
+  home-screen icon).
+- **The BRAND is not retired — one SHELL is.** `branding/byteforce/tokens.css`
+  is untouched and still consumed by the accounting module's per-company scope
+  (ADR-054), so ADR-057's three-scope token law is unaffected and
+  `brand-tokens.test.ts` still reads the same file. The company switch itself
+  introduces **no new token**: it reuses `.switcher` / `.switcher-seg` and four
+  variables that already exist in all three scopes.
+
+### 3. THE COMPANY LIVES IN THE URL — `?company=`, mirroring accounting
+- **Decision.** The merged CRM keeps the unchanged `/b-systems` prefix and the
+  company rides the query string: `?company=bsystems|byteforce`.
+- **Why this shape.** It is the idiom this codebase already chose for exactly
+  this question. The accounting module puts its company in `?company=`
+  (`lib/accounting/params.ts`), re-emits it on every nav href through
+  `acctQuery`, and reads it in a CLIENT nav component because a server layout
+  cannot see searchParams. Copying that gives the app ONE company idiom instead
+  of two, and moves zero existing B-Systems addresses.
+- **Alternative rejected — a path segment** (`/b-systems/byteforce/crm`). It has
+  one real advantage: the shell layout could then be the single server wall,
+  because a layout can read the path. It was rejected because it relocates every
+  existing `/b-systems/*` address — breaking push deep links already delivered,
+  every To-Do href, the notifications bell's click-through and some thirty e2e
+  specs — to buy a guard convenience that §7 solves another way.
+- **Alternative rejected — a per-user "last company" cookie.** It is the smallest
+  diff and the worst answer: the same URL would show different things to the same
+  person depending on history, and a link he sends somebody would not carry what
+  he was looking at.
+- **Alternative rejected — a canonicalising redirect on every bare URL** (bounce
+  `/b-systems/crm` to `/b-systems/crm?company=bsystems` so every rendered address
+  is explicit). It buys shareability that is already there — the switch, the nav
+  and the filter forms all write the company, so any URL reached by clicking is
+  explicit — and it costs an extra round trip on every landing plus a redirect
+  branch on every page. Determinism is guaranteed the honest way instead:
+  `defaultCompanyFor` is a pure function of the ROLES, so two accounts with the
+  same roles resolve a bare URL identically, forever.
+- **A bare B-Systems URL is never ambiguous, by construction.** `companiesFor`
+  lists bsystems first, so every account that can render a B-Systems screen has
+  bsystems as its default. Bare `/b-systems/...` links inside the B-Systems half
+  are therefore correct as they stand and were left alone.
+
+### 4. EVERY RETIRED `/byteforce` ADDRESS REDIRECTS — permanently, not transitionally
+- **Decision.** `src/lib/crm/legacy-routes.ts` maps the retired prefix; the proxy
+  applies it as its FIRST branch, before the sign-in check, cloning the incoming
+  URL so the query string is preserved and `company=byteforce` is MERGED into it
+  rather than replacing it. Ten rules, specific first, catch-all last:
+  `/byteforce` → `/b-systems`; `/byteforce/{todo,crm,clients,leads}` →
+  the same section; `/byteforce/leads/rep/:repId` (including the literal
+  `unassigned`, and `?view=archived`) ; `/byteforce/leads/lead/:leadId`;
+  `…/call`; `/byteforce/login` → `/login` with no company (sign-in stays
+  consolidated, ADR-028); and anything else → ByteForce's home, so **nothing
+  under the prefix can 404**.
+- **This map is permanent furniture.** It is not a courtesy to bookmarks that
+  fades: web pushes ALREADY DELIVERED to the founder's phone carry
+  `/byteforce/leads/lead/<id>` and `/byteforce` baked into their payload at send
+  time, and the service worker opens whatever URL it was given. Nothing can go
+  back and rewrite them. Its own e2e file proves every rule, including the two
+  id-bearing ones against a real seeded lead.
+- **Redirect BEFORE the auth check**, so an anonymous visitor following an old
+  bookmark is sent to the merged address first and only then asked to sign in —
+  he arrives where he was going instead of being bounced from an address that no
+  longer exists.
+- **307, not 308.** A permanent redirect is cached by browsers indefinitely. Until
+  the founder has confirmed the shell retirement (§2), 308 would be a one-way
+  door with no cheap rollback. Promote it after he confirms.
+- **`/api/byteforce/**` is NOT redirected** and must never be: it is the wall
+  (§7).
+
+### 5. THE SWITCH IS UNMISSABLE, AND THE COMPANY IS LEGIBLE IN WORDS
+- **Decision.** `CompanySwitch` renders in the SHELL — inside `.page`, above the
+  screen's own content — so it appears on every switchable screen and no page can
+  forget it. It carries a text label that NAMES the company you are on
+  ("Company · ByteForce"), marks the active segment with `aria-current`, and is
+  labelled `Switch company` as a group.
+- **Never colour alone.** The founder asked that *"there is no confusion in it"*.
+  The inverted fill on the current segment is a reinforcement; the sentence above
+  it is the statement.
+- **It is not rendered at all below two companies**, exactly as `EntitySwitch`
+  has always behaved for a single-entity account (ADR-060's "no new furniture"
+  rule). A ByteForce-locked teammate and a B-Systems-only rep see nothing new,
+  and an e2e asserts that NEGATIVELY on every nav destination and inside the
+  burger sheet — a hidden-but-present switch would be a failure.
+- **The href carries ONLY the company.** `owner`, `stage`, `sort` and `view` are
+  B-Systems-shaped and mean nothing to the ByteForce bodies; carrying them across
+  a switch would leave a board that looks filtered but is not, which reads as
+  data loss rather than as a nav bug. Company-exclusive and id-bearing addresses
+  fall back to the target company's Home, because their equivalent either does
+  not exist or is about a record belonging to the other company.
+
+### 6. THE MODULE BAR AND THE COMPANY SWITCH ANSWER DIFFERENT QUESTIONS
+- **Decision.** `EntitySwitch`'s two company segments (`BYTEFORCE`, `B-SYSTEMS`)
+  collapse into ONE `CRM` segment whose href is `landingFor(roles)`. The bar now
+  reads CRM / ACCOUNTING / VAULT — three modules, one axis — and the company gets
+  its own differently-shaped, differently-placed, LABELLED control.
+- **Why not both on the bar.** After the merge the two CRMs are not separate
+  destinations, so a four-cell strip would have been asking "which module" and
+  "which company" in the same row of identical-looking cells. On a phone that is
+  the two-competing-switchers failure the founder specifically asked us to avoid.
+- **Why not the company in the header pill.** Five segments walks straight back
+  into the 601–645px overflow band ADR-060 had to close.
+- **ADR-060's invariant improves rather than survives.** The bar goes from four
+  equal `1fr` cells to three, so every cell gets WIDER and the 320px ellipsis case
+  gets easier; the desktop pill sheds a segment instead of gaining one. The two
+  controls are never mistaken for each other: the bar is full-bleed chrome under
+  the header, the company switch sits on the light page ground, inside the page's
+  own width, under a text label.
+- **`shell.switchCompany` finally sits on the control it names.** It was the
+  MODULE switcher's group label, which was never what that strip did; the modules
+  got a new `switchModule` key and this moved. No existing English string
+  changed; the new keys carry real Arabic.
+
+### 7. ACCESS IS SERVER-SIDE AND NARROWING ONLY
+- **One pure predicate, `src/lib/crm/company.ts`.** `companiesFor(roles)` reads
+  the roles an account already holds and reports which company each of them lets
+  it see. There is no branch in that file that can hand anybody a company a role
+  does not already carry, and `resolveCompany` can only return a member of
+  `companiesFor(roles)` — asserted directly, over all 64 role subsets, in
+  `company.test.ts`. This is ADR-066's `canUseModule` lesson applied to the
+  company: state the narrowing rule ONCE, in a file with no next-auth and no
+  Prisma, so services, guards, the shell and the tests all read the same answer.
+- **The matrix.** `byteforce_staff` only → `[byteforce]`, no switch. Any single
+  B-Systems role (admin / sales / agent / partner / data entry) → `[bsystems]`,
+  no switch. Both → `[bsystems, byteforce]`, default **bsystems** (his own words,
+  *"I just want the b systems CRM"*, and the same precedence `LANDING_PRIORITY`
+  already gives `bsystems_admin` over `byteforce_staff`). Neither → refused
+  before this file is reached.
+- **Three page guards.** `requireCompanyPage` for the four addresses both
+  companies share; `requireCompanySection(only)` for the twenty-one that exist
+  for one company only; `requireBsAdminCompanyPage` for the admin-only B-Systems
+  sections. A REAL company you do not hold is REFUSED — redirected to the company
+  you do hold — rather than silently swapped behind the label you asked for. This
+  is the one place the accounting precedent is deliberately NOT copied: there,
+  any admin may see either company's books, so a silent fallback is honest; here
+  the companies are a permission. Junk still falls back rather than 400s, because
+  a page is not an API.
+- **A LAYOUT CANNOT BE THE WALL**, and that is the structural cost of §3: a Next
+  server layout can read neither searchParams nor the pathname. The layout
+  enforces only "this account holds SOME company"; the per-company refusal lives
+  in every page. A page that forgot would be the hole, so
+  `page-company-guards.test.ts` reads the whole route directory and fails naming
+  any `page.tsx` that does not call a company-aware guard, that reaches for the
+  company-blind `requirePageRole` / `requireBsAdminPage`, or that calls the
+  THROWING `bsRoleOf` before its company is pinned. The directory is the
+  assertion — ADR-066's pattern, made cheaper (no database needed).
+- **`bsRoleOrNull`**, a total twin of `bsRoleOf`. `bsRoleOf` throws for an account
+  with no B-Systems role, which was fine while the B-Systems layout guard bounced
+  such accounts first. Admitting `byteforce_staff` made fifteen page call sites
+  reachable overnight, and a throw in the LAYOUT would have 500'd the whole app
+  for the teammate whose own CRM it was rendering. Pages use the null-returning
+  one and redirect; API routes keep the throwing one, whose throw is a 403. Past
+  `requireCompanySection("bsystems")` the original is total again — holding
+  `bsystems` is exactly holding one of the five B-Systems roles — which is why
+  the exclusive pages could keep it, and why the sweep test checks that ordering.
+- **THE API NAMESPACES DID NOT MOVE, AND THAT IS THE POINT.**
+  `/api/byteforce/**` still refuses a B-Systems-only caller and `/api/b-systems/**`
+  still refuses a ByteForce-only one, from the ROUTE and never from a parameter
+  (`internalCrmHandlers(brand)`, `requireBrandStaff`, `requireLeadAccess`). **No
+  route handler learned about `company`** — accepting a company from a request
+  would be the single way this merge could widen access, so there is no such
+  parameter to accept. The merged pages simply call the base that matches the
+  company they are rendering.
+- **The edge proxy widened, deliberately and coarsely.** `/b-systems` now admits
+  `byteforce_staff`, because that prefix IS the merged shell. That is safe for
+  exactly the reason ADR-066 wrote at the same line for the module flags: it is
+  navigation hygiene, and the page guards narrow per section and per company
+  against the LIVE User row a millisecond later. The proxy deliberately does NOT
+  check `?company=` either: the edge has only the JWT, which is minted at sign-in
+  and can be stale, so refusing a company on a stale token would turn a role
+  change into a lockout.
+- **The bell follows the company, and gains nobody anything.** Notifications carry
+  no brand column; the two feeds are separated by the ROUTE, and "am I an admin"
+  is decided inside the B-Systems route from the role alone. A ByteForce view
+  polls `/api/byteforce/notifications` (which passes `isAdmin: false`, as it
+  always has), so a ByteForce-only teammate cannot start seeing B-Systems admin
+  broadcasts, and the founder in ByteForce mode does not either.
+
+### 8. The confusion bug this merge could have shipped
+- Three filter forms are plain `method="get"` submissions, which REPLACE the whole
+  query string with the form's own fields. Applying a filter on the ByteForce
+  board would therefore have dropped `?company=byteforce` and bounced the founder
+  back to B-Systems — and it would have looked like data loss, not like a nav
+  bug. All three now carry a hidden `company` input, and an e2e applies a filter
+  in each company and asserts the company is still on the URL afterwards. It is
+  written up here rather than buried in a diff because it is the exact failure
+  mode he asked us to prevent.
+
+### 9. What deliberately did NOT change
+- **The two BOARDS stay two components.** Each is statically bound at module level
+  to its own stage set — `INTERNAL_STAGES` (six columns) against
+  `BSYSTEMS_STAGES` (seven, with Negotiation) — and that binding is a SAFETY
+  property: a ByteForce card cannot be rendered into a negotiation column because
+  the column does not exist in its module. Parameterising one board by config at
+  runtime is how a negotiation column appears on a ByteForce board. CLAUDE.md
+  forbids forking the ENGINE — which is already the one shared module, selected
+  by `configForBrand` — it does not ask us to merge the views.
+- **Clients and Won Leads stay siblings**, not one aliased screen. They share only
+  their origin: a `Client` carries service / estimated value / collected /
+  to-be-collected / retainer / technical owner; a `WonDeal` carries a commission
+  percentage in basis points, milestones with sequential locks, attachments and
+  statements. No ByteForce lead ever gets a WonDeal and no B-Systems lead ever
+  gets a Client.
+- **The Today chips reset across a switch.** They are component state, not URL
+  state (ADR-061), and a company switch is a navigation. That is correct and no
+  data leaks; it is written down so nobody "fixes" it into the query string.
+- **Undo still crosses companies**, by design and unchanged: it is per-USER and
+  brand-agnostic, so after a switch the pill can still offer your own last action
+  in the other company. It is your own action, not a leak — decided deliberately
+  rather than discovered in QA.
+- **No schema change and no migration.** Nothing in this ADR touches the database.
+- Resolves: supersedes ADR-028's two-app shell arrangement for the CRM only
+  (sign-in was already consolidated); extends ADR-054 (the switcher's peers),
+  ADR-060 (the phone module bar), ADR-066 (the narrowing-predicate pattern and
+  the coarse-edge / live-row-wall split); conflicts with SPEC §4's definition of
+  App A, flagged for founder confirmation.
+- Status: Accepted (shell / routing / nav / access). The twelve-hour clock and
+  the negotiation To-Do row from the same request are separate workstreams.

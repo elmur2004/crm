@@ -144,25 +144,37 @@ test("Arabic: the bar mirrors, keeps its localized labels, and still fits", asyn
 
 test("hard-narrow screens cut long labels VISIBLY — ellipsis, page still never scrolls", async ({ page }) => {
   await login(page, "admin@byteforce.com", "password123", /\/b-systems$/);
-  /* 320px sits below the project's 390px sampled floor. With three cells they
-     are ~100px each now (ADR-067), so ACCOUNTING — the longest label left —
-     is still cut, and the point of this test is that the cut is VISIBLE. */
+
+  /* 320px is the project's hard floor. ADR-067 took the bar from four cells to
+     three, so each cell went from ~67px to ~100px and ACCOUNTING — the longest
+     label left — now FITS here. That is the merge paying for itself, and the
+     assertion follows the fact rather than the other way round. */
   await page.setViewportSize({ width: 320, height: 700 });
   await page.goto("/b-systems");
   await expect(bar(page)).toBeVisible();
   expect(await overflow(page)).toBeLessThanOrEqual(1);
   const label = bar(page).getByRole("link", { name: "ACCOUNTING" }).locator(".switcher-label");
-  /* the label genuinely overflows its cell at this width… */
-  expect(await label.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(true);
-  /* …and the clip carries an ellipsis. It must live on the label SPAN — a
-     block-level grid item — because text-overflow never applies to the grid
-     seg itself; asserting it here pins that structure. */
+  expect(await label.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
+
+  /* the STRUCTURE that makes a cut visible must still be in place, because the
+     day a label grows or a fourth module arrives it is the only thing standing
+     between the founder and silently truncated text. It must live on the label
+     SPAN — a block-level grid item — since text-overflow never applies to the
+     grid seg itself; asserting it here pins that structure. */
   expect(await label.evaluate((el) => getComputedStyle(el).textOverflow)).toBe("ellipsis");
-  /* the bar itself still cannot push the page sideways */
+  expect(await label.evaluate((el) => getComputedStyle(el).overflow)).toBe("hidden");
+
+  /* and it really does clip rather than push: below the floor, where the label
+     genuinely outgrows its cell, the cut appears and the page still never
+     scrolls sideways */
+  await page.setViewportSize({ width: 240, height: 700 });
+  await page.goto("/b-systems");
+  expect(await label.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(true);
+  expect(await overflow(page)).toBeLessThanOrEqual(1);
   for (const box of await bar(page)
     .locator(".switcher-seg")
     .evaluateAll((els) => els.map((el) => el.getBoundingClientRect()))) {
-    expect(box.right).toBeLessThanOrEqual(321);
+    expect(box.right).toBeLessThanOrEqual(241);
     expect(box.left).toBeGreaterThanOrEqual(-1);
   }
 });

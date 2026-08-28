@@ -18,7 +18,7 @@ export default async function MergedRepLeadsPage({
   searchParams: Promise<{ company?: string; view?: string }>;
 }) {
   const { company, view } = await searchParams;
-  await requireCompanySection("byteforce", company);
+  await requireCompanySection("byteforce", company, ["byteforce_staff"]);
   const { repId } = await params;
   return <RepLeadsBody ctx={BYTEFORCE_CTX} repId={repId} archived={view === "archived"} />;
 }
