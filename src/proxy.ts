@@ -1,6 +1,7 @@
 import NextAuth from "next-auth";
 import { NextResponse } from "next/server";
 import { authConfig } from "@/lib/auth/config";
+import { mergedByteforcePath } from "@/lib/crm/legacy-routes";
 import type { Role } from "@/lib/pipeline-engine/constants";
 
 /* Coarse route-group gating ONLY (edge runtime — JWT roles, no DB). The real
@@ -11,8 +12,7 @@ import type { Role } from "@/lib/pipeline-engine/constants";
 const { auth } = NextAuth(authConfig);
 
 const PUBLIC_PATHS = [
-  /^\/byteforce\/login/, // legacy paths — pages redirect to /login (ADR-028)
-  /^\/b-systems\/login/,
+  /^\/b-systems\/login/, // legacy path — the page redirects to /login (ADR-028)
   /^\/portal$/,
   /^\/portal\/login/,
   /^\/portal\/signup/,
@@ -24,7 +24,6 @@ function loginPathFor(): string {
 }
 
 function allowed(pathname: string, roles: Role[]): boolean {
-  if (pathname.startsWith("/byteforce")) return roles.includes("byteforce_staff");
   /* ADR-054: the Accounting and Data Vault MODULES — switcher peers of the two
      CRMs, admin-only. The page guards stay the real wall.
 
@@ -44,12 +43,28 @@ function allowed(pathname: string, roles: Role[]): boolean {
   if (pathname.startsWith("/b-systems")) {
     // V2 (ADR-030): the role-aware B-Systems CRM — per-section scoping happens
     // in the page guards; any B-Systems role may enter the app shell.
+    //
+    // ADR-067: `byteforce_staff` is admitted too, because this prefix is now
+    // the MERGED shell — a ByteForce-only teammate lives here. That widening
+    // is safe for exactly the reason written above for the module flags: it is
+    // navigation hygiene, and `requireCompanyPage` / `requireCompanySection`
+    // narrow per section and per company against the LIVE User row a
+    // millisecond later. A page that forgets to call one would be the hole, so
+    // page-company-guards.integration.test reads the route directory and fails
+    // naming any page.tsx that does not.
+    //
+    // Deliberately NOT checked here: the `?company=` value itself. The edge
+    // has only the JWT, which is minted at sign-in and can be stale — refusing
+    // a company on a stale token would turn a role change into a lockout,
+    // which is the same trap ADR-066 refused for the module flags. The page
+    // guard reads the live roles and is the wall.
     return (
       roles.includes("bsystems_admin") ||
       roles.includes("bsystems_sales") ||
       roles.includes("bsystems_agent") ||
       roles.includes("bsystems_partner") ||
-      roles.includes("bsystems_data_entry")
+      roles.includes("bsystems_data_entry") ||
+      roles.includes("byteforce_staff")
     );
   }
   return true; // /portal keeps only its public landing/signup pages
@@ -57,6 +72,21 @@ function allowed(pathname: string, roles: Role[]): boolean {
 
 export default auth((req) => {
   const { pathname } = req.nextUrl;
+
+  /* ADR-067 — the retired shell, before anything else. It runs ahead of the
+     sign-in check so an anonymous visitor following an old bookmark is sent to
+     the MERGED address first and only then asked to sign in: he arrives where
+     he was going, instead of being bounced to /login from an address that no
+     longer exists. */
+  const merged = mergedByteforcePath(pathname);
+  if (merged) {
+    const url = req.nextUrl.clone();
+    url.pathname = merged;
+    if (merged === "/login") url.search = "";
+    else url.searchParams.set("company", "byteforce");
+    return NextResponse.redirect(url);
+  }
+
   if (PUBLIC_PATHS.some((re) => re.test(pathname))) return NextResponse.next();
 
   const roles = (req.auth?.user?.roles ?? []) as Role[];

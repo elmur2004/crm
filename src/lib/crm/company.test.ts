@@ -126,7 +126,7 @@ describe("resolveCompany — the whole matrix", () => {
         companies: ["bsystems", "byteforce"],
       });
     }
-    expect(resolveCompany(BOTH, undefined).company).toBe("bsystems");
+    expect(resolveCompany(BOTH, undefined)).toMatchObject({ company: "bsystems" });
   });
 
   it("an account with no CRM role resolves to nothing, whatever it asks for", () => {

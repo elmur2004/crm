@@ -7,7 +7,9 @@ import type { Role } from "@/lib/pipeline-engine/constants";
 
 export const LANDING_PRIORITY: Array<[Role, string]> = [
   ["bsystems_admin", "/b-systems"],
-  ["byteforce_staff", "/byteforce"],
+  /* ADR-067 — the merged shell. ByteForce work lives at the B-Systems address
+     now, with the company spelled out; /byteforce redirects here (proxy.ts). */
+  ["byteforce_staff", "/b-systems?company=byteforce"],
   ["bsystems_sales", "/b-systems/crm"],
   ["bsystems_agent", "/b-systems/crm"],
   ["bsystems_partner", "/b-systems/crm"],
