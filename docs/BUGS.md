@@ -233,3 +233,22 @@ the moment a failure is found; close them with a reference to the fixing commit/
   snapshot's ref ordering, not in the To-Do). Fix shape: de-duplicate
   `UpdatedRef`s per (model, id) keeping the FIRST capture, or replay
   `restoreUpdated` in reverse.
+## BUG-014 — 2026-08-29 — `prospect-stages-migration` compares two activity logs whose row ORDER is not pinned
+- Where: `src/lib/services/prospect-stages-migration.integration.test.ts:466`
+  (and one sibling assertion in the same file).
+- Symptom: `expect(tsWorld).toEqual(sqlWorld)` fails with a diff in which every
+  row is present on both sides and only their ORDER differs — e.g. the
+  `agent won` and `partner following_up` entries swapped. Both sides carry the
+  same trigger (`PP-3`) and the same from/to stages.
+- Found: the BASELINE run taken before ADR-067's first line of code, on the
+  UNCHANGED tree — **494 passed / 2 failed**. It is recorded here so nobody reads
+  a later green run as a fix, and so nobody hunts this in the merge.
+- Every run since (four full `npx vitest run` passes across ADR-067) has been
+  green, which makes it an ordering flake rather than a break: the two activity
+  rows are written inside one transaction and come back in whatever order
+  Postgres returns them when no `orderBy` disambiguates a tie.
+- Fix shape (not done — untouched by ADR-067, which changes no service and no
+  query in that file): give the comparison a deterministic sort, or add a
+  tie-breaking `orderBy` to the two reads, rather than relying on insertion order.
+- Status: **open** — pre-existing, unrelated to the merge, low severity (a test
+  ordering assumption, not product behaviour).

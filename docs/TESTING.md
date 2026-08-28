@@ -3193,3 +3193,140 @@ touched, and the new Arabic verified as genuine and RTL-safe. Two Low items:
   forty-route wall proved by a test that reads the directory rather than by a
   count taken once, the migration proved idempotent on a throwaway cluster with
   an existing admin keeping his access, and the brand audit clean.
+## Run 077 — 2026-08-29 — ADR-067 SHIP GATE: one merged CRM — four commits, both full suites, the access matrix per role
+- Suites/commands, all on the FINAL tree, in this order:
+  - `npx tsc --noEmit` — clean. Run once per commit and again after every fix
+    below; clean every time.
+  - `npx vitest run` (FULL, not a subset) — **40 files, 596 tests: 596 passed /
+    0 failed / 0 skipped**, 161.77s. Run 076's 496 plus **100**, in three new
+    files: `src/lib/crm/company.test.ts` (44), `legacy-routes.test.ts` (5 cases
+    covering 25 addresses) and `page-company-guards.test.ts` (51 — one pair per
+    route file, plus three whole-directory sweeps).
+  - `npx playwright test` (FULL suite, every spec) — **119 passed / 0 failed /
+    2 skipped** of 121 collected, 14.2m. The 2 skips are `e2e/audit.spec.ts`,
+    opt-in behind `AUDIT=1` — the same standing gate as Runs 074-076, not a
+    regression. Collected went 107 → 121: the 6 cases of the new
+    `e2e/byteforce-redirects.spec.ts` and the 8 of `e2e/company-switch.spec.ts`;
+    no spec was deleted. `test-results/.last-run.json` read directly afterwards:
+    `{"status": "passed", "failedTests": []}` — the summary line AND the file,
+    never a tailed pipe.
+  - Playwright ran from a TEMPORARY copy of `playwright.config.ts` on port
+    **3177**, verified free with `netstat` first. Port 3100 was also free at the
+    time, but the house rule is to leave the shared port alone rather than race
+    another workstream for it. The copy `playwright.e2e-3177.config.ts` was
+    deleted afterwards; the committed config is untouched.
+- **A BASELINE was taken before the first line of code**, and it mattered:
+  `npx vitest run` on the pre-change tree came back **494 passed / 2 failed** —
+  both in `src/lib/services/prospect-stages-migration.integration.test.ts`,
+  comparing two activity-log arrays whose row ORDER is not pinned. Nothing to do
+  with this work. Both have passed on every run since, which makes them an
+  ordering flake rather than a break; filed in `docs/BUGS.md` so the next reader
+  does not mistake a green run for a fix.
+- Cases: 596 vitest + 119 Playwright = **715 passed, 0 failed, 2 skipped
+  (opt-in)**.
+- Failures: none on the final tree. Six were found and fixed along the way; the
+  most important one is below, because it is the reason this ADR ships safe.
+
+### The failure that earned its keep
+`e2e/data-entry.spec.ts` went red, and it was right to. The first draft of
+`requireCompanySection` took only the company, so widening the merged shell to
+admit `byteforce_staff` ALSO admitted `bsystems_data_entry` — the add-only
+account ADR-051 deliberately carved out of every pipeline screen — into Won
+Leads, Statements, the board and the printable statement document. Nothing in
+the UI would have shown it; the account simply had doors it never had.
+
+The fix is structural, not a patch: the guard now takes the role list it accepts
+as a REQUIRED parameter typed as a NON-EMPTY tuple, so `tsc` listed all sixteen
+call sites and each got back the exact list its page carried before the merge.
+Company is checked FIRST and the role SECOND, so a ByteForce teammate is turned
+away by the company (to his own home) and a data-entry account by its role (to
+its one page) — each landing exactly where it landed before. A new sweep case
+fails any shared page that resolves a company without narrowing roles.
+
+### The 100 new vitest cases, and what each would catch
+- **`src/lib/crm/company.test.ts` (44).** The permission core, tested before any
+  UI existed. Every role combination the seed can produce against every shape a
+  `?company=` value can arrive in — absent, junk, the company you hold, the one
+  you do not. The last case is the one that matters most: over ALL 64 role
+  subsets, `resolveCompany` never returns a company outside
+  `companiesFor(roles)`. That turns "nobody gains access they do not have today"
+  from a promise into an assertion.
+- **`legacy-routes.test.ts` (5 cases, 25 addresses).** One per redirect rule,
+  including both id-bearing shapes (the ones baked into pushes already delivered
+  to the founder's phone), the `unassigned` literal, `/byteforce/login` →
+  `/login`, and six stale shapes that must land on Home rather than 404. It also
+  asserts `/api/byteforce/**` is NOT redirected — that namespace is the wall.
+- **`page-company-guards.test.ts` (51).** The anti-hole sweep. It reads the whole
+  merged route directory and fails naming any `page.tsx` that does not call a
+  company-aware guard, that reaches for the company-blind `requirePageRole` /
+  `requireBsAdminPage`, that resolves a company without narrowing roles, or that
+  calls the THROWING `bsRoleOf` before its company is pinned. A page added
+  tomorrow cannot quietly become the hole — which is the only honest mitigation
+  for the one structural cost of putting the company in the query string: a Next
+  server layout can read neither searchParams nor the pathname, so the layout
+  cannot be the wall.
+
+### The 14 new Playwright cases
+- **`e2e/byteforce-redirects.spec.ts` (6).** The promise to every old link: the
+  five sections, the rep drill-down with its `unassigned` bucket and its
+  `?view=archived` tab (proving the query is MERGED, not replaced), the lead and
+  call-sheet deep links against a real seeded lead, a filtered board URL, six
+  stale shapes that must not 404, and an anonymous visitor who reaches sign-in
+  without a loop and lands on ByteForce afterwards.
+- **`e2e/company-switch.spec.ts` (8).** Per role. The founder switches and the
+  CHROME is asserted IDENTICAL before and after (brand attribute, wordmark,
+  header background) — the founder's "I don't want the entire interface to
+  change", pinned. The nav adapts, and every href it renders is walked for a 200
+  and a heading. The company survives nav clicks, the back button, and BOTH
+  filter forms — the GET-form drop was the highest-probability confusion bug in
+  this change and it now has a test in each company. A ByteForce-locked teammate
+  gets no switch on any destination or in the burger sheet, asserted NEGATIVELY.
+  A B-Systems-only rep is refused the ByteForce routes with a 200, not a 500 —
+  the `bsRoleOf`-throws trap, asserted by STATUS rather than by URL. Data entry
+  still has exactly one destination in either company. Arabic mirrors, keeps its
+  words, and does not overflow at 320 / 390 / 601 / 820px.
+
+### Rewritten, never deleted
+Sixteen specs navigated to `/byteforce` paths and fifteen asserted the old
+landing; every one was rewritten to the merged address. Three changed MEANING
+rather than URL and were rewritten by hand:
+- `e2e/security-rbac.spec.ts` — its two cross-app blocks are now the merge's own
+  matrix: an agent who types the ByteForce company lands back on his own board
+  with no ByteForce card on it, and ByteForce staff LIVE in `/b-systems` but are
+  refused all ten B-Systems-only sections, each asserted with a 200 status so a
+  500 cannot pass as a refusal. Both API 403s are untouched — the API wall did
+  not move, and the spec proves it.
+- `e2e/module-bar.spec.ts` — the bar is three segments, not four; the RTL order
+  assertion now indexes from the end rather than assuming four; the sheet holds
+  seven segments (3 modules + EN/عربي + the 2 companies); and the 320px ellipsis
+  test tells the truth about its own premise: with three cells instead of four,
+  ACCOUNTING now FITS at the project's floor, so the test asserts the fit, pins
+  the ellipsis STRUCTURE that would clip a longer label, and proves a real cut at
+  240px. Leaving that one alone would have left it green while testing nothing.
+- `e2e/qa-sweep.spec.ts` — the four-shell walk became a three-module walk plus a
+  company switch, and the sheet's nav rows are now located by their own class,
+  because the module strip legitimately carries a "CRM" segment down there too.
+- `e2e/journey5` — its drag helper scrolls the card into its column's view first,
+  the way a person does. The columns scroll INTERNALLY (`.col-cards` caps at
+  62vh), so a card far down a busy column was laid out below its own column's
+  visible box; the ASSERTION is unchanged.
+- `e2e/app-icon.spec.ts` and `e2e/notifications.spec.ts` kept their assertions and
+  gained honest comments: ByteForce work now carries the B-Systems tab icon
+  (flagged for the founder in PROGRESS), and the unread bar is no longer measured
+  "under the other brand's tokens" because there is one brand in the CRM now.
+
+### Brand audit
+No new token, in any scope. The company switch reuses `.switcher` /
+`.switcher-seg` and four variables that already exist in all three files
+(`--color-muted`, `--color-ink`, `--color-surface-card`, `--font-mono`) — checked
+in `branding/b-systems/tokens.css`, `branding/byteforce/tokens.css` and
+`src/themes/neutral.css`. Grepped the new components and the merged layout for
+hex/rgb/hsl literals and font-family names: none. `branding/byteforce/tokens.css`
+is untouched and still consumed by the accounting module's per-company scope, so
+`src/lib/brand-tokens.test.ts` reads the same file it always did and passes
+unchanged — retiring one SHELL is not retiring a brand.
+
+### No migration
+This change touches no Prisma model, no column and no enum, so there is no
+migration to prove on a throwaway database. Said explicitly so the absence reads
+as a decision rather than an omission.
