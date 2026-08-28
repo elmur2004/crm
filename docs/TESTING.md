@@ -3330,3 +3330,47 @@ unchanged — retiring one SHELL is not retiring a brand.
 This change touches no Prisma model, no column and no enum, so there is no
 migration to prove on a throwaway database. Said explicitly so the absence reads
 as a decision rather than an omission.
+
+## Run 078 — 2026-08-29 — ADR-067 part two: the company reaches the DATA — three commits, both full suites, the inventory walked in a browser
+- Suites/commands, all on the FINAL tree, in this order:
+  - `npx tsc --noEmit` — clean. Run per commit and after every fix; clean every time.
+  - `npx vitest run` (FULL) — **42 files, 609 tests: 609 passed / 0 failed /
+    0 skipped**, 132.11s, from `D:/CRM` (capital D). Run 077's 596 plus **13**,
+    in two new files: `src/lib/services/company-scope.integration.test.ts` (6)
+    and `todo-company-scope.integration.test.ts` (7).
+  - `npx playwright test` (FULL suite, every spec) — **124 passed / 0 failed /
+    2 skipped** of 126 collected, 14.1m. The 2 skips are `e2e/audit.spec.ts`
+    behind `AUDIT=1` — the standing gate since Run 074, not a regression.
+    Collected went 121 → 126: the 5 cases of the new
+    `e2e/company-inventory.spec.ts`; no spec deleted.
+    `test-results/.last-run.json` read directly afterwards:
+    `{"status": "passed", "failedTests": []}` — the summary line AND the file.
+  - Playwright ran from a TEMPORARY copy of `playwright.config.ts` on port
+    **3178**, verified free with `netstat` first, deleted afterwards and never
+    committed; the checked-in config is untouched. Port 3100 was left alone.
+- A BASELINE was taken before the first line of code: `npx vitest run` on the
+  pre-change tree came back **40 files / 596 passed / 0 failed**, matching Run
+  077's final figure. So every number above is attributable to this work.
+  Notably the Run 077 baseline's two `prospect-stages-migration` flakes
+  (BUG-014) did NOT reappear in either run here.
+- Cases: 609 vitest + 124 Playwright = **733 passed, 0 failed, 2 skipped
+  (opt-in)**.
+- Failures: none.
+
+### The tests were written to be able to fail, and were checked that they can
+Every assertion added here was MUTATION-CHECKED against the bug it exists for —
+the change reverted, the suite re-run, the failure confirmed, the change
+restored. Three of them earned that:
+- Removing the company from `closerWonLeads` turns the commission test red.
+- Restoring the literal stage list in BOTH places in `todoFor` turns the
+  negotiation test red. (Reverting only ONE of the two did not — the second gate
+  still caught it, which is how the check found that a single-line mutation was
+  not enough to prove the pair.)
+- The first draft of the marks-scoping test asserted on the To-Do's OUTPUT and
+  passed happily with the scoping removed — because the output was never wrong;
+  the READ was. Rewritten to assert on the query itself, it fails as it should.
+  A test that cannot fail is worse than no test, because it is counted.
+- Verdict: PASS — 733 cases green across both full suites, the cross-company
+  data isolation proved from the ABSENCE side with twins seeded in both
+  companies, and the ByteForce inventory walked screen by screen in a real
+  browser rather than checked off a diff.

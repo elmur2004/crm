@@ -4348,6 +4348,67 @@ the code and the rendered page, and all six were FIXED — none needed refuting.
   in the other company. It is your own action, not a leak — decided deliberately
   rather than discovered in QA.
 - **No schema change and no migration.** Nothing in this ADR touches the database.
+### 10. THE COMPANY IS AN ARGUMENT, NOT A LITERAL — the data layer
+- **The problem the merge created.** While each company had its own route group,
+  "which company's rows is this screen showing" was answered by WHICH FOLDER THE
+  PAGE LIVED IN, and the services could hold the answer as a literal. One merged
+  shell ends that: the same `page.tsx` now renders either company, so the row set
+  has to follow the company the guard resolved. Six queries were still deciding
+  for themselves — `listBsLeads`, `listOwnLeads`, `adminHome`, `adminWonLeads`,
+  `salesWonLeads` and `closerWonLeads`.
+- **Decision.** `brand` is a REQUIRED FIRST POSITIONAL on all six, with NO DEFAULT
+  VALUE, and every page passes the company IT resolved rather than a literal. The
+  missing-default is the whole point: a default would let a forgotten argument be
+  silently wrong instead of a compile error, which is the hole put straight back.
+  This is ADR-066's required-`user`-prop lesson applied to the data layer — the
+  compiler enumerated all thirty-odd call sites the moment the signatures changed.
+- **One of them was not a latent risk but a live bug.** `closerWonLeads` — the
+  screen with commission money on it — filtered on `ownerUserId` ALONE, with no
+  company predicate anywhere in the query. It has returned the right rows only by
+  accident: a ByteForce lead has never carried an `ownerUserId`, because
+  `createLead` leaves it null and only `assignLeadOwner` sets it, which is
+  B-Systems-locked. That is a property of today's WRITE paths, not a rule about
+  this READ — and this merge puts an assign-capable screen one switch away from
+  ByteForce work. The company is now in the WHERE.
+- **The tests are written from the other direction.** Every case seeds a TWIN in
+  the other company first and asserts on what is ABSENT, because a test that
+  seeds one company passes just as happily against a query that filters by
+  nothing — which is exactly how the above survived this long. Removing the
+  company from the closer's query turns the commission test red.
+- **This opens no new screen.** The argument exists to make the wrong answer
+  REPRESENTABLE and therefore catchable, not to grow a ByteForce Won Leads page.
+  Won Leads stays B-Systems-only (§9), and the only caller that ever passes
+  `byteforce` is a test.
+
+### 11. THE TO-DO SPEAKS EACH COMPANY'S OWN PIPELINE
+- **Decision.** The To-Do projection and its completion marks derive their stage
+  vocabulary from `configForBrand(brand)` — via new `datedStagesFor` /
+  `followUpStagesFor` helpers — instead of the literal
+  `["following_up", "meeting_setting", "negotiation"]` that appeared in four
+  places in `services/todo.ts` and two in `services/todo-done.ts`.
+- **Why it mattered.** The To-Do is shared by both companies and the two
+  pipelines genuinely differ: B-Systems negotiates, ByteForce has never had that
+  stage. A literal list is one pipeline's vocabulary imposed on the other. It was
+  inert only because no ByteForce lead can reach a stage its own config has never
+  heard of — and it would stop being inert the day either pipeline renames a
+  stage, at which point one company's rows would quietly stop appearing with
+  nothing failing anywhere. The list and the checkbox now read the SAME rule from
+  the SAME place, which is also what keeps a Done row's judgement consistent with
+  the row it came from.
+- **`configForBrand` moved into the engine**, beside the two configs it chooses
+  between, so a read-only projection no longer imports the whole lead write path
+  to learn the name of a stage. `services/leads.ts` re-exports it; no caller moved.
+- **The manual marks are scoped now too.** The projection used to fetch every
+  `TodoDone` made today across BOTH companies and every owner, then discard what
+  it could not match. Its OUTPUT was always right — marks are looked up by record
+  id — but a mark carries `completedByLabel`, a colleague's NAME, so a ByteForce
+  To-Do was reading B-Systems people to throw them away. The right rows leaving
+  the database is not the same thing as the wrong rows never being asked for. The
+  money marks now join only on the screens that show money.
+- **That one is asserted against the QUERY, not the output**, because the output
+  never showed the difference and never would have. It is the rare case where the
+  read itself is the contract.
+
 - Resolves: supersedes ADR-028's two-app shell arrangement for the CRM only
   (sign-in was already consolidated); extends ADR-054 (the switcher's peers),
   ADR-060 (the phone module bar), ADR-066 (the narrowing-predicate pattern and

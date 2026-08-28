@@ -3485,3 +3485,89 @@ comment, and the ADR-013 mechanism note all fixed; .env.example confirmed tracke
 - [x] The eleven `/api/byteforce/**` routes — untouched, still the brand wall
 - [x] The three ByteForce page guards, now company-aware and fail-closed
 - [x] Undo, the impersonation bar, the language toggle, the burger sheet
+
+## Entry 063 — 2026-08-29 — ONE CRM, part two: the company reaches the DATA, and the ByteForce inventory is walked in a browser
+- Done: the screens-and-data half of the founder's merge (ADR-067 §10-11),
+  continuing Entry 062. Entry 062 gave every ByteForce screen a home in the
+  merged shell; this entry makes sure each one is showing the right ROWS, and
+  proves it against a running app rather than a diff.
+  - **The company became an argument, not a literal.** While each company had
+    its own route group, "whose rows is this screen showing" was answered by
+    which FOLDER the page lived in. One shell ends that. Six queries were still
+    deciding for themselves — `listBsLeads`, `listOwnLeads`, `adminHome`,
+    `adminWonLeads`, `salesWonLeads`, `closerWonLeads` — and now take `brand` as
+    a REQUIRED first positional with NO default, so every page passes the company
+    IT resolved and the figures on a screen cannot disagree with the company in
+    its address. The missing default is the point: a default lets a forgotten
+    argument be silently wrong instead of a compile error. The compiler then
+    listed all thirty-odd call sites.
+  - **One of the six was a live bug, not a latent one.** `closerWonLeads` — the
+    screen with commission money on it — filtered on `ownerUserId` ALONE, with
+    no company anywhere in the query. It returned the right rows only by
+    accident: a ByteForce lead has never been given an owner, because only
+    `assignLeadOwner` sets one and that is B-Systems-locked. That is a fact about
+    today's WRITE paths, not a rule about this READ, and the merge puts an
+    assign-capable screen one switch away from ByteForce work.
+  - **The To-Do speaks each company's own pipeline.** Its stage vocabulary came
+    from a literal `["following_up","meeting_setting","negotiation"]` in four
+    places, and from two more in the completion checkbox. B-Systems negotiates;
+    ByteForce never has. Both now read the stages from `configForBrand`, so the
+    list and the checkbox judge a row by the SAME rule, taken from the pipeline
+    the lead actually runs on. `configForBrand` moved into the engine beside the
+    two configs it picks between.
+  - **The Done section stopped reading the other company's marks.** It used to
+    fetch every completion mark made today across both companies and discard what
+    it could not match. The rows shown were always right — they are matched by
+    record id — but a mark carries the NAME of whoever ticked it, so a ByteForce
+    To-Do was reading B-Systems colleagues to throw them away.
+  - **The inventory is walked, not asserted.** `e2e/company-inventory.spec.ts`
+    opens each ByteForce screen in the merged shell and checks it shows its own
+    content: the rep directory rather than the B-Systems table, the archived tab
+    that is the only door to the archive, the call sheet's dial link, Clients
+    kept separate from Won Leads. It also pins the two things a merge breaks
+    quietly — the boards stay two pipelines (seven columns with Negotiation, six
+    without, checked across one switch) and a filter does not ride along on that
+    switch pretending to be applied.
+- Decisions: ADR-067 extended with §10 (the company as a required argument, the
+  `closerWonLeads` bug, and why the argument opens no new screen) and §11 (the
+  To-Do's stage vocabulary and the marks scoping, including why that one is
+  asserted against the query rather than the output).
+- Tests: Run 078 — 609 vitest + 124 Playwright, 0 failed. Every new assertion was
+  mutation-checked; one had to be rewritten because it could not fail.
+- Next / open, for the workstream after this one:
+  - **The twelve-hour clock**, everywhere, EN and AR — display only. The centre is
+    `formatCairo` in `src/lib/datetime.ts`; `wallClockParts` in the same file must
+    NOT be touched (its `hour12:false` feeds every Cairo-day window and the DST
+    anchor, and its `% 24` cannot correct the "12" that `hour12:true` emits at
+    midnight). Two stragglers: `LeadChat`'s own formatter, and the meeting
+    notification body in `services/leads.ts`, which concatenates the raw form
+    time into a STORED string that is also pushed to his phone — reformat that
+    from the instant, never by string-munging. `e2e/same-stage.spec.ts` asserts
+    `toHaveCount(0)` on a `\d{2}:\d{2}` pattern that a one-digit 12-hour clock
+    stops matching: widen it to `\d{1,2}:\d{2}` or it will pass while testing
+    nothing.
+  - **The negotiation response To-Do row** — its own kind and wording ("check
+    their response"), EN and real Arabic. No migration: `FollowUp.context`
+    already carries `after_negotiation`. Discriminate on the RECORD's context,
+    not the lead's current stage, so a Done row keeps its wording after the deal
+    moves on. Both files it lands in were touched here, so re-read them first.
+  - Worth asking him which of his three phrasings he wants on that row: "see
+    their response" / "check their response" / "check with them".
+- Blockers: none.
+
+### ADR-067 part-two checklist — every switchable screen, verified in a browser
+- [x] Home — ByteForce dashboard figures under `?company=byteforce`, B-Systems
+      admin home under `?company=bsystems`, each from its own scoped query
+- [x] CRM board — ByteForce cards only; six columns, no Negotiation; the
+      B-Systems board still seven; tally and Today chips per company
+- [x] Leads — the rep DIRECTORY under ByteForce (no table on the page), the flat
+      filterable table under B-Systems
+- [x] Rep drill-down, the Unassigned bucket and the archived tab
+- [x] Lead detail and call sheet, each carrying its company onward
+- [x] Clients (ByteForce) and Won Leads (B-Systems) — separate screens, separate
+      tables, each refusing the other company
+- [x] To-Do — rows, deep links, checkbox, Done section and money rows, all
+      per-company, with the other company's marks no longer even read
+- [x] Filters do not survive a switch; the company does survive every filter form
+- [x] Every B-Systems-only section refuses `company=byteforce` with a 200 and a
+      redirect, never a 404 and never a stack trace
