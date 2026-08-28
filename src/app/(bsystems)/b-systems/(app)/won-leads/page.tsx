@@ -60,7 +60,7 @@ export default async function WonLeadsPage({
      redirected rather than falling into bsRoleOf and turning into a 500.
      Past this line bsRoleOf is TOTAL: holding "bsystems" is exactly holding one
      of the five B-Systems roles, so it can no longer throw. */
-  const { user } = await requireCompanySection(
+  const { user, company } = await requireCompanySection(
     "bsystems",
     (await searchParams).company,
     BS_PIPELINE_ROLES,
@@ -70,7 +70,7 @@ export default async function WonLeadsPage({
   const t = tFor(locale);
 
   if (role === "bsystems_admin") {
-    const deals = await adminWonLeads();
+    const deals = await adminWonLeads(company);
     return (
       <div className="space-y-6">
         <div className="page-head">
@@ -124,8 +124,8 @@ export default async function WonLeadsPage({
 
   const deals =
     role === "bsystems_sales"
-      ? await salesWonLeads()
-      : await closerWonLeads(user.id, { showCommission: true });
+      ? await salesWonLeads(company)
+      : await closerWonLeads(company, user.id, { showCommission: true });
 
   return (
     <div className="space-y-6">

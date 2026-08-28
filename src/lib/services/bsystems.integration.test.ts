@@ -262,7 +262,7 @@ describe("Archive (founder, ADR-043)", () => {
     });
 
     /* visible everywhere before */
-    expect((await listBsLeads("any")).map((l) => l.id)).toEqual([lead.id]);
+    expect((await listBsLeads("bsystems", "any")).map((l) => l.id)).toEqual([lead.id]);
     expect((await internalDashboard("bsystems")).totalLeads).toBe(1);
     expect(
       (await todoFor({ brand: "bsystems", scope: { kind: "all" }, now: NOW })).today,
@@ -274,12 +274,12 @@ describe("Archive (founder, ADR-043)", () => {
     expect(fresh.archivedAt).not.toBeNull();
 
     /* hidden from every default surface — but present in the Archived view */
-    expect(await listBsLeads("any")).toHaveLength(0);
+    expect(await listBsLeads("bsystems", "any")).toHaveLength(0);
     expect((await internalDashboard("bsystems")).totalLeads).toBe(0);
     expect(
       (await todoFor({ brand: "bsystems", scope: { kind: "all" }, now: NOW })).today,
     ).toHaveLength(0);
-    expect((await listBsLeads("any", { archived: true })).map((l) => l.id)).toEqual([lead.id]);
+    expect((await listBsLeads("bsystems", "any", { archived: true })).map((l) => l.id)).toEqual([lead.id]);
 
     /* unarchive restores; no data was lost */
     await setArchived("bsystems", lead.id, false, admin);
@@ -287,7 +287,7 @@ describe("Archive (founder, ADR-043)", () => {
     expect(restored.archived).toBe(false);
     expect(restored.archivedAt).toBeNull();
     expect(restored.stage).toBe("following_up");
-    expect((await listBsLeads("any")).map((l) => l.id)).toEqual([lead.id]);
+    expect((await listBsLeads("bsystems", "any")).map((l) => l.id)).toEqual([lead.id]);
 
     const logs = await db.activityLog.findMany({
       where: { entityId: lead.id, trigger: { in: ["archived", "unarchived"] } },
@@ -412,16 +412,16 @@ describe("Won-lead commission visibility (V2 §4)", () => {
       role: "bsystems_admin",
     });
 
-    const forAdmin = await adminWonLeads();
+    const forAdmin = await adminWonLeads("bsystems");
     expect(forAdmin[0]!.milestones[0]!.commissionValue).toBe(30_000_00);
 
-    const forCloser = await closerWonLeads(agent.id, { showCommission: true });
+    const forCloser = await closerWonLeads("bsystems", agent.id, { showCommission: true });
     expect(forCloser).toHaveLength(1);
     expect(forCloser[0]!.totalCommissionPercent).toBe(10_00);
     expect(forCloser[0]!.milestones[0]!.commissionValue).toBe(30_000_00); // M1 unlocked
     expect(forCloser[0]!.milestones[1]!.commissionValue).toBeNull(); // M2 locked
 
-    const forSales = await salesWonLeads();
+    const forSales = await salesWonLeads("bsystems");
     expect(forSales.every((w) => w.totalCommissionPercent === null)).toBe(true);
   });
 });
@@ -872,26 +872,26 @@ describe("Universal lead search (founder: one box — name, company, or number)"
 
   it("matches the lead NAME, case-insensitively and on a partial", async () => {
     const { a } = await searchFixtures();
-    expect(ids(await listBsLeads("any", { search: "textil" }))).toEqual([a.id]);
-    expect(ids(await listBsLeads("any", { search: "TEXTILES" }))).toEqual([a.id]);
+    expect(ids(await listBsLeads("bsystems", "any", { search: "textil" }))).toEqual([a.id]);
+    expect(ids(await listBsLeads("bsystems", "any", { search: "TEXTILES" }))).toEqual([a.id]);
   });
 
   it("matches the COMPANY name (and one query may hit a name here, a company there)", async () => {
     const { a, b } = await searchFixtures();
-    expect(ids(await listBsLeads("any", { search: "nile tra" }))).toEqual([a.id]);
+    expect(ids(await listBsLeads("bsystems", "any", { search: "nile tra" }))).toEqual([a.id]);
     /* "delta" is A's NAME and B's COMPANY — both come back */
-    expect(ids(await listBsLeads("any", { search: "delta" }))).toEqual([a.id, b.id].sort());
+    expect(ids(await listBsLeads("bsystems", "any", { search: "delta" }))).toEqual([a.id, b.id].sort());
   });
 
   it("matches the NUMBER on a partial", async () => {
     const { b } = await searchFixtures();
-    expect(ids(await listBsLeads("any", { search: "0223339" }))).toEqual([b.id]);
+    expect(ids(await listBsLeads("bsystems", "any", { search: "0223339" }))).toEqual([b.id]);
   });
 
   it("matches a SPACED digits query against the stored number (\"010 123\" → 0101234567)", async () => {
     const { a } = await searchFixtures();
-    expect(ids(await listBsLeads("any", { search: "010 123" }))).toEqual([a.id]);
-    expect(ids(await listBsLeads("any", { search: "010-1234-567" }))).toEqual([a.id]);
+    expect(ids(await listBsLeads("bsystems", "any", { search: "010 123" }))).toEqual([a.id]);
+    expect(ids(await listBsLeads("bsystems", "any", { search: "010-1234-567" }))).toEqual([a.id]);
   });
 
   it("matches ARABIC names — the platform is bilingual, so the database must be UTF8", async () => {
@@ -905,19 +905,19 @@ describe("Universal lead search (founder: one box — name, company, or number)"
       },
       admin,
     );
-    expect(ids(await listBsLeads("any", { search: "للأغذية" }))).toEqual([arabic.id]);
-    expect(ids(await listBsLeads("any", { search: "النيل" }))).toEqual([arabic.id]);
+    expect(ids(await listBsLeads("bsystems", "any", { search: "للأغذية" }))).toEqual([arabic.id]);
+    expect(ids(await listBsLeads("bsystems", "any", { search: "النيل" }))).toEqual([arabic.id]);
   });
 
   it("narrows by lead TYPE server-side, and combines type + search (board filters)", async () => {
     const { a, b } = await searchFixtures();
-    expect(ids(await listBsLeads("any", { type: "cold_call" }))).toEqual([a.id]);
-    expect(ids(await listBsLeads("any", { type: "personal_connection" }))).toEqual([b.id]);
-    expect(await listBsLeads("any", { type: "organic" })).toHaveLength(0);
-    expect(ids(await listBsLeads("any", { type: "cold_call", search: "delta" }))).toEqual([a.id]);
-    expect(await listBsLeads("any", { type: "cold_call", search: "karim" })).toHaveLength(0);
+    expect(ids(await listBsLeads("bsystems", "any", { type: "cold_call" }))).toEqual([a.id]);
+    expect(ids(await listBsLeads("bsystems", "any", { type: "personal_connection" }))).toEqual([b.id]);
+    expect(await listBsLeads("bsystems", "any", { type: "organic" })).toHaveLength(0);
+    expect(ids(await listBsLeads("bsystems", "any", { type: "cold_call", search: "delta" }))).toEqual([a.id]);
+    expect(await listBsLeads("bsystems", "any", { type: "cold_call", search: "karim" })).toHaveLength(0);
     /* "any" (and undefined) mean no narrowing at all */
-    expect(await listBsLeads("any", { type: "any" })).toHaveLength(3);
+    expect(await listBsLeads("bsystems", "any", { type: "any" })).toHaveLength(3);
   });
 
   it("an agent's OWN board takes the same search + type narrowing (listOwnLeads)", async () => {
@@ -938,22 +938,22 @@ describe("Universal lead search (founder: one box — name, company, or number)"
       { name: "Someone Else", number: "0106667777", type: "cold_call" },
       admin,
     );
-    expect(ids(await listOwnLeads(agent.id))).toEqual([mine.id]); // scope unchanged
-    expect(ids(await listOwnLeads(agent.id, { search: "own co" }))).toEqual([mine.id]);
-    expect(ids(await listOwnLeads(agent.id, { type: "organic" }))).toEqual([mine.id]);
-    expect(await listOwnLeads(agent.id, { type: "cold_call" })).toHaveLength(0);
+    expect(ids(await listOwnLeads("bsystems", agent.id))).toEqual([mine.id]); // scope unchanged
+    expect(ids(await listOwnLeads("bsystems", agent.id, { search: "own co" }))).toEqual([mine.id]);
+    expect(ids(await listOwnLeads("bsystems", agent.id, { type: "organic" }))).toEqual([mine.id]);
+    expect(await listOwnLeads("bsystems", agent.id, { type: "cold_call" })).toHaveLength(0);
     /* the other owner's lead never leaks in, whatever the query says */
-    expect(await listOwnLeads(agent.id, { search: "Someone Else" })).toHaveLength(0);
+    expect(await listOwnLeads("bsystems", agent.id, { search: "Someone Else" })).toHaveLength(0);
   });
 
   it("returns nothing when nothing matches, and still honours the other filters", async () => {
     const { a } = await searchFixtures();
-    expect(await listBsLeads("any", { search: "zzqq" })).toHaveLength(0);
+    expect(await listBsLeads("bsystems", "any", { search: "zzqq" })).toHaveLength(0);
     /* combines with the owner bucket and the archive view */
-    expect(await listBsLeads("agent", { search: "delta" })).toHaveLength(0);
+    expect(await listBsLeads("bsystems", "agent", { search: "delta" })).toHaveLength(0);
     await setArchived("bsystems", a.id, true, admin);
-    expect(await listBsLeads("any", { search: "textil" })).toHaveLength(0);
-    expect(ids(await listBsLeads("any", { search: "textil", archived: true }))).toEqual([a.id]);
+    expect(await listBsLeads("bsystems", "any", { search: "textil" })).toHaveLength(0);
+    expect(ids(await listBsLeads("bsystems", "any", { search: "textil", archived: true }))).toEqual([a.id]);
   });
 });
 

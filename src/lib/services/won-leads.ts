@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import type { Brand } from "@/lib/pipeline-engine/constants";
 import { ApiError } from "@/lib/api-error";
 import { validateAndStore } from "@/lib/storage";
 import { writeLog, type Actor } from "./activity";
@@ -75,10 +76,17 @@ function milestoneViews(
   });
 }
 
-/** Admin section (V2 §2.4) — every won B-Systems lead. */
-export async function adminWonLeads() {
+/** Admin section (V2 §2.4) — every won lead of this company.
+
+    ADR-067 — `brand` is a REQUIRED FIRST POSITIONAL with no default. The merged
+    shell serves both companies from one address, so the row set has to follow
+    the company the PAGE resolved; a literal buried in here would mean the
+    screen renders whatever this file was last edited to believe. A default
+    value would put the hole straight back, because a forgotten argument would
+    silently be the old literal instead of a compiler error. */
+export async function adminWonLeads(brand: Brand) {
   const wonDeals = await db.wonDeal.findMany({
-    where: { lead: { brand: "bsystems" } },
+    where: { lead: { brand } },
     include: WON_INCLUDE,
     orderBy: { createdAt: "desc" },
   });
@@ -94,10 +102,22 @@ export async function adminWonLeads() {
   }));
 }
 
-/** Closer section (V2 §4) — their own won leads; commission per role. */
-export async function closerWonLeads(userId: string, opts: { showCommission: boolean }) {
+/** Closer section (V2 §4) — their own won leads; commission per role.
+
+    ADR-067 — this query used to filter on `ownerUserId` ALONE, with no company
+    predicate anywhere in it. It returned the right rows only by luck: a
+    ByteForce lead has never carried an `ownerUserId` (createLead leaves it null
+    and only assignLeadOwner sets it, which is B-Systems-locked). That is an
+    accident of today's write paths, not a rule — and this is a commission
+    screen, so the day anything assigns a ByteForce lead the accident becomes a
+    cross-company disclosure of money. The company is now part of the WHERE. */
+export async function closerWonLeads(
+  brand: Brand,
+  userId: string,
+  opts: { showCommission: boolean },
+) {
   const wonDeals = await db.wonDeal.findMany({
-    where: { lead: { ownerUserId: userId } },
+    where: { lead: { brand, ownerUserId: userId } },
     include: WON_INCLUDE,
     orderBy: { createdAt: "desc" },
   });
@@ -114,9 +134,9 @@ export async function closerWonLeads(userId: string, opts: { showCommission: boo
 }
 
 /** Internal-sales view: won leads they are the assigned rep for, commission hidden. */
-export async function salesWonLeads() {
+export async function salesWonLeads(brand: Brand) {
   const wonDeals = await db.wonDeal.findMany({
-    where: { lead: { brand: "bsystems", ownerType: "internal" } },
+    where: { lead: { brand, ownerType: "internal" } },
     include: WON_INCLUDE,
     orderBy: { createdAt: "desc" },
   });

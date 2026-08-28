@@ -50,15 +50,15 @@ describe("Assigning a lead to an agent or a partner", () => {
       admin,
       { ownerType: "agent", ownerUserId: agentA.id },
     );
-    expect((await listOwnLeads(agentA.id)).map((l) => l.id)).toEqual([lead.id]);
+    expect((await listOwnLeads("bsystems", agentA.id)).map((l) => l.id)).toEqual([lead.id]);
 
     await assignLeadOwner(lead.id, agentB.id, admin);
 
     const fresh = await db.lead.findUniqueOrThrow({ where: { id: lead.id } });
     expect(fresh.ownerUserId).toBe(agentB.id);
     expect(fresh.ownerType).toBe("agent");
-    expect((await listOwnLeads(agentB.id)).map((l) => l.id)).toEqual([lead.id]);
-    expect(await listOwnLeads(agentA.id)).toEqual([]);
+    expect((await listOwnLeads("bsystems", agentB.id)).map((l) => l.id)).toEqual([lead.id]);
+    expect(await listOwnLeads("bsystems", agentA.id)).toEqual([]);
   });
 
   it("derives partner and internal buckets from the target's role", async () => {
@@ -75,13 +75,13 @@ describe("Assigning a lead to an agent or a partner", () => {
     await assignLeadOwner(lead.id, partnerUser.id, admin);
     let fresh = await db.lead.findUniqueOrThrow({ where: { id: lead.id } });
     expect(fresh.ownerType).toBe("partner");
-    expect((await listBsLeads("partner")).map((l) => l.id)).toEqual([lead.id]);
+    expect((await listBsLeads("bsystems", "partner")).map((l) => l.id)).toEqual([lead.id]);
 
     await assignLeadOwner(lead.id, salesUser.id, admin);
     fresh = await db.lead.findUniqueOrThrow({ where: { id: lead.id } });
     expect(fresh.ownerType).toBe("internal");
     expect(fresh.ownerUserId).toBe(salesUser.id);
-    expect((await listBsLeads("internal")).map((l) => l.id)).toEqual([lead.id]);
+    expect((await listBsLeads("bsystems", "internal")).map((l) => l.id)).toEqual([lead.id]);
   });
 
   it("NEVER touches partnerId — the PP-5 referral attribution outlives every handover", async () => {
@@ -198,7 +198,7 @@ describe("Assigning a lead to an agent or a partner", () => {
     const fresh = await db.lead.findUniqueOrThrow({ where: { id: lead.id } });
     expect(fresh.ownerUserId).toBe(admin.id);
     expect(fresh.ownerType).toBe("admin");
-    expect(await listOwnLeads(agent.id)).toEqual([]);
+    expect(await listOwnLeads("bsystems", agent.id)).toEqual([]);
   });
 
   /* Founder (To-Do) — "I can assign these to do as an admin or just take it
@@ -221,8 +221,8 @@ describe("Assigning a lead to an agent or a partner", () => {
     const fresh = await db.lead.findUniqueOrThrow({ where: { id: lead.id } });
     expect(fresh.ownerUserId).toBe(admin.id);
     expect(fresh.ownerType).toBe("admin");
-    expect(await listOwnLeads(agent.id)).toEqual([]);
-    expect((await listBsLeads("admin")).map((l) => l.id)).toEqual([lead.id]);
+    expect(await listOwnLeads("bsystems", agent.id)).toEqual([]);
+    expect((await listBsLeads("bsystems", "admin")).map((l) => l.id)).toEqual([lead.id]);
 
     /* no bell for yourself — the log and the undo entry still record the move */
     expect(
@@ -240,7 +240,7 @@ describe("Assigning a lead to an agent or a partner", () => {
     const back = await db.lead.findUniqueOrThrow({ where: { id: lead.id } });
     expect(back.ownerUserId).toBe(agent.id);
     expect(back.ownerType).toBe("agent");
-    expect((await listOwnLeads(agent.id)).map((l) => l.id)).toEqual([lead.id]);
+    expect((await listOwnLeads("bsystems", agent.id)).map((l) => l.id)).toEqual([lead.id]);
   });
 
   it("handing a lead to ANOTHER admin lands in the admin bucket and does ring their bell", async () => {
@@ -291,7 +291,7 @@ describe("Assigning a lead to an agent or a partner", () => {
     const fresh = await db.lead.findUniqueOrThrow({ where: { id: lead.id } });
     expect(fresh.ownerType).toBe("admin");
     expect(fresh.ownerUserId).toBe(founder.id);
-    expect((await listBsLeads("internal")).map((l) => l.id)).toEqual([]);
+    expect((await listBsLeads("bsystems", "internal")).map((l) => l.id)).toEqual([]);
     /* and it does NOT show up on the internal sales team's To-Do
        (today is the only list since ADR-061) */
     const salesTodo = await todoFor({ brand: "bsystems", scope: { kind: "internal" } });
@@ -427,7 +427,7 @@ describe("An agent minted by the account action is assignable the moment he exis
     expect(assigned.partnerId).toBeNull(); // ADR-047: attribution never moves with ownership
 
     /* (c) his own board, and (d) his own To-Do */
-    expect((await listOwnLeads(minted.id)).map((l) => l.name)).toEqual(["Qualified Gate Corp"]);
+    expect((await listOwnLeads("bsystems", minted.id)).map((l) => l.name)).toEqual(["Qualified Gate Corp"]);
     const mine = await todoFor({
       brand: "bsystems",
       scope: { kind: "own", userId: minted.id },

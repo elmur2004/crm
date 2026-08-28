@@ -274,7 +274,7 @@ describe("Everything that keys on the FLAG keeps working (ADR-064 keeps the colu
     await setNoAnswer("bsystems", lead.id, true, admin);
     await setNoAnswer("bsystems", lead.id, true, admin);
 
-    const rows = await listBsLeads("any");
+    const rows = await listBsLeads("bsystems", "any");
     const row = rows.find((l) => l.id === lead.id)!;
     expect(row.noAnswer).toBe(true);
     expect(row.noAnswerCount).toBe(3);

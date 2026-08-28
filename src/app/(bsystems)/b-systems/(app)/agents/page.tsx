@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireCompanySection } from "@/lib/auth/page-guards";
+import type { CrmCompany } from "@/lib/crm/company";
 import { BS_PIPELINE_ROLES } from "@/lib/crm/company";
 import { bsRoleOf } from "@/lib/api/bsystems";
 import { listAgentsDetailed, listBsLeads } from "@/lib/services/bsystems-admin";
@@ -32,7 +33,7 @@ export default async function AgentsPage({
      redirected rather than falling into bsRoleOf and turning into a 500.
      Past this line bsRoleOf is TOTAL: holding "bsystems" is exactly holding one
      of the five B-Systems roles, so it can no longer throw. */
-  const { user } = await requireCompanySection(
+  const { user, company } = await requireCompanySection(
     "bsystems",
     (await searchParams).company,
     BS_PIPELINE_ROLES,
@@ -71,7 +72,7 @@ export default async function AgentsPage({
         </div>
       </div>
 
-      {pipeline ? <AgentsPipeline /> : <AgentsDetailed />}
+      {pipeline ? <AgentsPipeline company={company} /> : <AgentsDetailed />}
     </div>
   );
 }
@@ -149,8 +150,10 @@ async function AgentsDetailed() {
   );
 }
 
-async function AgentsPipeline() {
-  const leads = await listBsLeads("agent");
+/* ADR-067 — the company travels DOWN as a prop: this sub-component runs its
+   own query, so it would otherwise be a screen whose rows nobody chose. */
+async function AgentsPipeline({ company }: { company: CrmCompany }) {
+  const leads = await listBsLeads(company, "agent");
   const locale = await getLocale();
   return (
     <div className="board" data-cols="6plus">

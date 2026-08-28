@@ -48,7 +48,9 @@ export default async function BSystemsHomePage({
 
   const locale = await getLocale();
   const t = tFor(locale);
-  const home = await adminHome();
+  /* ADR-067 — the COMPANY this render resolved, never the literal: the
+     figures on the page and the company in its URL cannot disagree. */
+  const home = await adminHome(company);
   const d = home.base;
   const maxCount = Math.max(1, ...Object.values(home.externalPipeline));
 

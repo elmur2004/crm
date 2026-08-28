@@ -104,7 +104,7 @@ export default async function BsLeadsPage({
 
   /* search + owner + type are SQL; only the stage narrowing stays in JS (the
      admin list is page-sized and the board shares the same service). */
-  const fetched = await listBsLeads(owner, { archived, search, type });
+  const fetched = await listBsLeads(company, owner, { archived, search, type });
   const leads = sortLeads(
     fetched.filter((l) => stage === "any" || l.stage === stage),
     sort,

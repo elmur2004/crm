@@ -139,10 +139,10 @@ export default async function BsCrmPage({
 
   const rows =
     role === "admin"
-      ? await listBsLeads(filter, narrow)
+      ? await listBsLeads(company, filter, narrow)
       : role === "sales"
-        ? await listBsLeads("internal", narrow)
-        : await listOwnLeads(user.id, narrow);
+        ? await listBsLeads(company, "internal", narrow)
+        : await listOwnLeads(company, user.id, narrow);
 
   /* the disclosure chip counts every control that is off its default */
   const activeCount = [search !== "", type !== "any", role === "admin" && filter !== "any"].filter(

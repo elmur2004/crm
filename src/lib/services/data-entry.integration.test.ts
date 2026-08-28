@@ -83,7 +83,7 @@ describe("Data entry adds, and owns nothing", () => {
       { ownerType: "agent", ownerUserId: rep.id },
     );
 
-    const queue = await listBsLeads("unassigned");
+    const queue = await listBsLeads("bsystems", "unassigned");
     expect(queue.map((l) => l.id)).toEqual([lead.id]);
     expect(queue.map((l) => l.id)).not.toContain(owned.id);
 
@@ -93,7 +93,7 @@ describe("Data entry adds, and owns nothing", () => {
     expect(assigned.ownerUserId).toBe(rep.id);
     expect(assigned.ownerType).toBe("agent");
     /* it leaves the queue, and the creator is still on record */
-    expect(await listBsLeads("unassigned")).toHaveLength(0);
+    expect(await listBsLeads("bsystems", "unassigned")).toHaveLength(0);
     expect(assigned.createdByUserId).toBe(entry.id);
   });
 
