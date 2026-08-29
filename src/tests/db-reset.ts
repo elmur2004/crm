@@ -23,6 +23,7 @@ export async function resetDb(): Promise<void> {
   await db.vaultSheet.deleteMany();
   await db.vaultDocument.deleteMany();
   await db.vaultForm.deleteMany();
+  await db.vaultLink.deleteMany(); // ADR-070 — no relations, so order is free
   await db.vaultEmployee.deleteMany();
   await db.todoDone.deleteMany(); // references FollowUp/Meeting/Statement/Milestone — before all four
   await db.statement.deleteMany(); // references Milestone (restrict)

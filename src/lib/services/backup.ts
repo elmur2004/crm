@@ -68,6 +68,11 @@ const MODELS = [
      VaultSheet/VaultDocument/VaultTask (vault employee before its tasks) */
   "vaultEmployee",
   "vaultForm",
+  /* ADR-070 — the Links section. A brand-new table with no relations either
+     way and no legacy shape to repair, so it needs no restore twin: a payload
+     taken before today simply has no `vaultLink` key, which the `?? []`
+     missing-table rule already handles. */
+  "vaultLink",
   "vaultSheet",
   "vaultDocument",
   "vaultTask",

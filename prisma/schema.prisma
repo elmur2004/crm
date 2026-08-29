@@ -805,6 +805,33 @@ model VaultForm {
   @@index([url])
 }
 
+/* ADR-070 — the LINKS section (founder: "a section for the important, repeated
+   links we keep needing to find again"). Built in VaultForm's image on purpose:
+   same company tag, same http/https-only URL with the duplicate handshake, same
+   notes, same archived/archivedAt pair and the same two indexes — a Links row
+   lands where a Form row lands. It adds exactly the two fields he asked for:
+   `category` is FREE TEXT (his eight are suggestions, not a closed list — he
+   asked to be able to type a new one), and `type` is the CLOSED list of his
+   eight kinds, held by Zod like every other pseudo-enum here. */
+model VaultLink {
+  id         String    @id @default(cuid())
+  company    String // byteforce | bsystems
+  name       String
+  url        String // http/https only (old BR-01); duplicate URL = 409 handshake
+  category   String // FREE TEXT — his words, stored verbatim, never translated
+  type       String // video | image | document | sheet | form | folder | website | other
+  notes      String?
+  archived   Boolean   @default(false)
+  archivedAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([company, archived])
+  @@index([url])
+  /* the category filter and the suggestion list both read this column */
+  @@index([category])
+}
+
 model VaultSheet {
   id              String       @id @default(cuid())
   company         String

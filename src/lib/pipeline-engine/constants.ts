@@ -220,6 +220,7 @@ export const LOG_ENTITY_TYPES = [
   /* data vault (ADR-053) — add-only; entityId is the vault row id */
   "vault_employee",
   "vault_form",
+  "vault_link", // ADR-070 — the Links section
   "vault_sheet",
   "vault_document",
   "vault_task",

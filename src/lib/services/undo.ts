@@ -92,6 +92,7 @@ export type UndoEntityType =
   | "lead"
   | "partner_prospect"
   | "vault_form"
+  | "vault_link"
   | "vault_sheet"
   | "vault_document"
   | "vault_task";
@@ -108,6 +109,7 @@ type VaultArchiveDelegate = {
 
 const VAULT_DELEGATES: Record<string, (tx: Prisma.TransactionClient) => VaultArchiveDelegate> = {
   vault_form: (tx) => tx.vaultForm,
+  vault_link: (tx) => tx.vaultLink,
   vault_sheet: (tx) => tx.vaultSheet,
   vault_document: (tx) => tx.vaultDocument,
   vault_task: (tx) => tx.vaultTask,
@@ -115,7 +117,7 @@ const VAULT_DELEGATES: Record<string, (tx: Prisma.TransactionClient) => VaultArc
 
 function isVaultEntityType(
   t: string,
-): t is "vault_form" | "vault_sheet" | "vault_document" | "vault_task" {
+): t is "vault_form" | "vault_link" | "vault_sheet" | "vault_document" | "vault_task" {
   return t in VAULT_DELEGATES;
 }
 

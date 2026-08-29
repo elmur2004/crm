@@ -6,6 +6,7 @@ import { isOverdue } from "./lateness";
 
 export type VaultOverview = {
   forms: number;
+  links: number;
   sheets: number;
   documents: number;
   openTasks: number;
@@ -24,43 +25,48 @@ export type VaultOverview = {
 const VAULT_LOG_TYPES = [
   "vault_employee",
   "vault_form",
+  "vault_link",
   "vault_sheet",
   "vault_document",
   "vault_task",
 ];
 
 export async function vaultOverview(now = new Date()): Promise<VaultOverview> {
-  const [forms, sheets, documents, openTaskRows, archivedCounts, activity] = await Promise.all([
-    db.vaultForm.count({ where: { archived: false } }),
-    db.vaultSheet.count({ where: { archived: false } }),
-    db.vaultDocument.count({ where: { archived: false } }),
-    db.vaultTask.findMany({
-      where: { archived: false, status: "open" },
-      select: { deadline: true },
-    }),
-    Promise.all([
-      db.vaultForm.count({ where: { archived: true } }),
-      db.vaultSheet.count({ where: { archived: true } }),
-      db.vaultDocument.count({ where: { archived: true } }),
-      db.vaultTask.count({ where: { archived: true } }),
-    ]),
-    db.activityLog.findMany({
-      where: { entityType: { in: VAULT_LOG_TYPES } },
-      orderBy: { createdAt: "desc" },
-      take: 12,
-      select: {
-        id: true,
-        entityType: true,
-        action: true,
-        actorLabel: true,
-        trigger: true,
-        createdAt: true,
-      },
-    }),
-  ]);
+  const [forms, links, sheets, documents, openTaskRows, archivedCounts, activity] =
+    await Promise.all([
+      db.vaultForm.count({ where: { archived: false } }),
+      db.vaultLink.count({ where: { archived: false } }),
+      db.vaultSheet.count({ where: { archived: false } }),
+      db.vaultDocument.count({ where: { archived: false } }),
+      db.vaultTask.findMany({
+        where: { archived: false, status: "open" },
+        select: { deadline: true },
+      }),
+      Promise.all([
+        db.vaultForm.count({ where: { archived: true } }),
+        db.vaultLink.count({ where: { archived: true } }),
+        db.vaultSheet.count({ where: { archived: true } }),
+        db.vaultDocument.count({ where: { archived: true } }),
+        db.vaultTask.count({ where: { archived: true } }),
+      ]),
+      db.activityLog.findMany({
+        where: { entityType: { in: VAULT_LOG_TYPES } },
+        orderBy: { createdAt: "desc" },
+        take: 12,
+        select: {
+          id: true,
+          entityType: true,
+          action: true,
+          actorLabel: true,
+          trigger: true,
+          createdAt: true,
+        },
+      }),
+    ]);
 
   return {
     forms,
+    links,
     sheets,
     documents,
     openTasks: openTaskRows.length,

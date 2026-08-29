@@ -7,7 +7,7 @@ import { invalidateUndo } from "@/lib/services/undo";
 /* ============================================================================
    VAULT MODULE BACKUP (ADR-054, founder directive B): module-scoped export /
    import, mirroring the global backup pattern (src/lib/services/backup.ts)
-   but VAULT-ONLY — the five Vault* models, the Attachment rows that belong to
+   but VAULT-ONLY — the six Vault* models, the Attachment rows that belong to
    vault records (vaultSheetId / vaultDocumentId / vaultTaskId set), and those
    attachments' files as base64. Import REPLACES the vault's data atomically
    (rows in one transaction; blobs after commit, same as the global restore),
@@ -23,6 +23,9 @@ const VAULT_BACKUP_APP = "byteforce-bsystems-sales-platform-vault";
 const VAULT_MODELS = [
   "vaultEmployee",
   "vaultForm",
+  /* ADR-070 — the Links section. No relations in either direction, so its
+     position here is free; it is listed at all so the module export carries it. */
+  "vaultLink",
   "vaultSheet",
   "vaultDocument",
   "vaultTask",

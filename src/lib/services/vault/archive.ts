@@ -34,6 +34,7 @@ type ArchivableDelegate = {
 
 const DELEGATES: Record<VaultArchiveKind, (tx: Prisma.TransactionClient) => ArchivableDelegate> = {
   vault_form: (tx) => tx.vaultForm,
+  vault_link: (tx) => tx.vaultLink,
   vault_sheet: (tx) => tx.vaultSheet,
   vault_document: (tx) => tx.vaultDocument,
   vault_task: (tx) => tx.vaultTask,

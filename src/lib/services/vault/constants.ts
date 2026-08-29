@@ -53,13 +53,66 @@ export const VAULT_DOCUMENT_TYPE_LABELS: Record<VaultDocumentType, Msg> = {
   other: { en: "Other", ar: "أخرى" },
 };
 
+/* links (ADR-070) — the founder's own two lists, and they are NOT the same kind
+   of list, which is the whole point of this section:
+
+   TYPE is CLOSED at his eight ("what is behind the link"). It is a plain String
+   column held by Zod, the VAULT_SHEET_TYPES / VAULT_DOCUMENT_TYPES pattern, and
+   it carries EN + AR labels because it is OUR vocabulary, not his words.
+
+   CATEGORY is FREE TEXT. He asked in the same breath for suggestions AND for
+   the ability to type a new one, so these eight are DEFAULTS offered in a
+   datalist — never a validated set. A stored category is his own words and is
+   therefore rendered VERBATIM in both languages (a Msg would imply we could
+   translate whatever he types, and we cannot). The Arabic here is only what the
+   SUGGESTION reads as while he is choosing; picking it stores that Arabic
+   string, exactly as typing it would. */
+export const VAULT_LINK_TYPES = [
+  "video",
+  "image",
+  "document",
+  "sheet",
+  "form",
+  "folder",
+  "website",
+  "other",
+] as const;
+export type VaultLinkType = (typeof VAULT_LINK_TYPES)[number];
+
+export const VAULT_LINK_TYPE_LABELS: Record<VaultLinkType, Msg> = {
+  video: { en: "Video", ar: "فيديو" },
+  image: { en: "Image", ar: "صورة" },
+  document: { en: "Document", ar: "مستند" },
+  sheet: { en: "Sheet", ar: "جدول" },
+  form: { en: "Form", ar: "نموذج" },
+  folder: { en: "Folder", ar: "مجلد" },
+  website: { en: "Website", ar: "موقع إلكتروني" },
+  other: { en: "Other", ar: "أخرى" },
+};
+
+/** Suggestions only — the column takes anything he types (ADR-070). */
+export const VAULT_LINK_CATEGORY_SUGGESTIONS: Msg[] = [
+  { en: "Portfolio", ar: "بورتفوليو" },
+  { en: "Content Calendar", ar: "خطة المحتوى" },
+  { en: "Reference", ar: "مرجع" },
+  { en: "Social Media", ar: "سوشيال ميديا" },
+  { en: "Marketing", ar: "تسويق" },
+  { en: "Project", ar: "مشروع" },
+  { en: "Assets", ar: "أصول" },
+  { en: "Other", ar: "أخرى" },
+];
+
 /* tasks */
 export const VAULT_TASK_STATUSES = ["open", "completed"] as const;
 export type VaultTaskStatus = (typeof VAULT_TASK_STATUSES)[number];
 
-/* the four archivable kinds — employees DEACTIVATE instead (reference BR-13) */
+/* the five archivable kinds — employees DEACTIVATE instead (reference BR-13).
+   ADR-070 added vault_link: the founder wrote "Delete", and in this module
+   Delete has meant Archive since ADR-053, so a link removes exactly the way a
+   form does — out of every list and count, restorable from the Archive tab. */
 export const VAULT_ARCHIVE_KINDS = [
   "vault_form",
+  "vault_link",
   "vault_sheet",
   "vault_document",
   "vault_task",
