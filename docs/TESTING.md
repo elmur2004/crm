@@ -3374,3 +3374,346 @@ restored. Three of them earned that:
   data isolation proved from the ABSENCE side with twins seeded in both
   companies, and the ByteForce inventory walked screen by screen in a real
   browser rather than checked off a diff.
+
+## Run 079 — 2026-08-29 — ADR-068 SHIP GATE: the twelve-hour clock and the negotiation To-Do row — three commits, both full suites
+- Suites/commands, all on the FINAL tree, in this order:
+  - `npx tsc --noEmit` — clean. Run per commit and after every fix; clean every
+    time. It is also the instrument this change was DRIVEN by: making `locale` a
+    required parameter on `formatCairo` produced 48 errors, which is the list of
+    every screen in the product that prints a date or a clock.
+  - `npx vitest run` (FULL) — **43 files, 652 tests: 652 passed / 0 failed /
+    0 skipped**, from `D:/CRM` (capital D). Run 078's 609 plus **43**:
+    28 in `src/lib/datetime.test.ts` (the twelve-hour table in both languages,
+    the marker/separator codepoints, the date-only guard, the wire round-trip),
+    4 in the new `src/lib/datetime.sweep.test.ts`, 6 in
+    `same-stage.integration.test.ts` and 4 in
+    `todo-done-routes.integration.test.ts` for the negotiation row, and 1 more
+    on the notification body in `bsystems.integration.test.ts`.
+    `page-company-guards.test.ts` went 51 → 51 in count but one of its
+    assertions started actually running (see below).
+  - `npx playwright test` (FULL suite, every spec) — **126 passed / 0 failed /
+    2 skipped** of 128 collected, 13.7m. The 2 skips are `e2e/audit.spec.ts`
+    behind `AUDIT=1` — the standing gate since Run 074, not a regression.
+    Collected went 126 → 128: one new case in `e2e/follow-up-time.spec.ts` (the
+    AM/PM pair plus the "no 24-hour hour anywhere" negative, EN and AR) and one
+    in `e2e/same-stage.spec.ts` (the negotiation response row, both languages,
+    checkbox and Done). No spec deleted.
+    `test-results/.last-run.json` read directly afterwards:
+    `{"status": "passed", "failedTests": []}` — the summary line AND the file.
+  - Playwright ran from a TEMPORARY copy of `playwright.config.ts` on port
+    **3178**, verified free with `netstat` first, deleted afterwards and never
+    committed; the checked-in config is untouched. Port 3100 was left alone.
+- A BASELINE was taken before the first line of code: `npx vitest run` on the
+  pre-change tree came back **42 files / 609 passed / 0 failed**, matching Run
+  078's final figure. Every number above is attributable to this work.
+- Cases: 652 vitest + 126 Playwright = **778 passed, 0 failed, 2 skipped
+  (opt-in)**.
+- Failures: none on the final tree. Three were met and fixed on the way, all in
+  the new tests rather than in the product: an ambiguous `getByRole("button",
+  {name: "EN"})` that also matched an undo pill; an Arabic To-Do section
+  addressed by the page TITLE instead of the section heading; and `.check()`
+  timing out on a control that replaces its own row on refresh (the house
+  pattern is `.click()`).
+
+### SPEC coverage touched
+§2 (the display-clock constraint, new), §4.1 / §4.4 (amended by ADR-067, written
+down here), §5.8 (the To-Do — the negotiation response row and the shared page),
+§6 (App A as a mode). Journeys 1–5 all re-run green, including the two ByteForce
+journeys and journey 3's partner cycle, which is where a broken date formatter
+would have shown first.
+
+### Assertions UPDATED, never deleted
+Seven pinned 24-hour expectations changed, and each is a correct update rather
+than a removal:
+- `e2e/follow-up-time.spec.ts` ×4 — `16:45` → `4:45 PM`, `23:45` → `11:45 PM`,
+  and the Arabic one from `18:30` to the full Arabic rendering with the ص/م
+  marker.
+- `src/lib/services/bsystems.integration.test.ts` ×1 — the stored meeting
+  notification body, now asserted through a computed `formatCairo(...)` rather
+  than a literal, because `"Sep"` / `"Sept"` is ICU-dependent and this is the
+  last place to accept a fragile expectation.
+- `e2e/same-stage.spec.ts` ×1 — **the important one.** Its date-only proof was
+  `toHaveCount(0)` on `/8 Sept? 2026, \d{2}:\d{2}/`. A twelve-hour hour is ONE
+  digit, so that pattern would have stopped matching and the assertion would
+  have gone on passing while proving nothing. Widened to `\d{1,2}:\d{2}`.
+- `e2e/follow-up-time.spec.ts`'s `dateLabel()` helper — now per-locale.
+Nothing in the WIRE was touched: every `cairoToUtc` / `utcToCairo` argument,
+every `{date, time}` payload and every `<input type="time">` `.fill()` is still
+`"HH:mm"`, including the two DST assertions where a posted `00:30` is stored as
+`01:30`.
+
+### The tests were written to be able to fail, and were checked that they can
+- Reverting `kindOfFollowUp` to always return `"follow_up"` turns **six** tests
+  red. Reverting ONLY the Done-derivation site turns exactly **one** red — the
+  one that proves a Done row keeps its wording after the deal moves on — which
+  is the evidence that the second emission site is genuinely covered and not
+  shadowed by the first.
+- The clock sweep test was mutation-checked by dropping a two-line
+  `Intl.DateTimeFormat({hour})` file into `src/components/shared/` and confirming
+  it is named in the failure.
+- **A test from the previous commit could not fail at all.**
+  `src/lib/crm/page-company-guards.test.ts` carried four literal BACKSPACE bytes
+  (0x08) where it meant `\b`, so `/\brequireCompanyPage\b/` matched nothing and
+  its "a shared page still narrows its roles" check skipped every file — green
+  because it never ran. Fixed in its own commit and mutation-checked: renaming
+  `narrowRoles` in `todo/page.tsx` now turns it red. Filed as BUG-015.
+- Verdict: PASS — 778 cases green across both full suites; the twelve-hour clock
+  proved at the unit level (exact strings, both languages, midnight and noon, the
+  marker codepoints) AND on real screens in both languages; the storage layer
+  proved unmoved by a round-trip test that includes the two hours a broken
+  twelve-hour formatter would corrupt.
+
+## Run 080 — 2026-08-29 — REVIEW GATE for the ADR-067/068 batch: five findings adjudicated, both full suites re-run, merge acceptance walked
+- Scope: no new feature. This run adjudicates five reviewer findings against the
+  fourteen-commit merge batch (`d31d358`…`7390a6a`), fixes the four that are
+  real, and re-proves the whole tree. Every fix was folded into the commit that
+  introduced the defect rather than appended as a follow-up.
+- Suites/commands, all on the FINAL tree, in this order:
+  - `npx tsc --noEmit` — clean, run after every edit and on the final tree.
+  - `npx vitest run` (FULL) — **44 files, 682 tests: 682 passed /
+    0 failed / 0 skipped**, from `D:/CRM` (capital D). Run 079's 43 files / 652 tests plus one file and **30** tests:
+    27 in the new `src/lib/crm/nav.test.ts`, and 3 more in
+    `src/lib/datetime.sweep.test.ts` (4 → 7) for the hardened clock sweep.
+  - `npx playwright test` (FULL suite, every spec) — **126 passed / 0 failed /
+    2 skipped** of 128 collected, 14.1m. The 2 skips are `e2e/audit.spec.ts`
+    behind `AUDIT=1` — the standing gate since Run 074, not a regression.
+    Collected stayed at 128: no spec added, none deleted; two existing
+    assertions were re-premised (below).
+    `test-results/.last-run.json` read directly afterwards:
+    `{"status": "passed", "failedTests": []}` — the summary line AND the file.
+  - Playwright ran from a TEMPORARY copy of `playwright.config.ts` on port
+    **3187**, verified free with `netstat` first, deleted afterwards and never
+    committed; the checked-in config is untouched. Port 3100 was left alone
+    (it was free, but another workstream may claim it mid-run).
+- No schema change in the batch (`git diff c98d856..HEAD` touches no file under
+  `prisma/`), so no migration proof was owed. The live `/api/health` confirms it
+  independently: `schemaCurrent: true`, `pendingMigrations: []`.
+- Cases: 682 vitest + 126 Playwright = **808 passed, 0 failed, 2 skipped
+  (opt-in)**.
+
+### The five findings, adjudicated against the code
+Each was reproduced before it was believed, and each fix was mutation-checked.
+1. **`datetime.sweep.test.ts` cannot see `toLocaleDateString` — REAL, fixed.**
+   `buildsFormatter` tested for `toLocaleString(`, which is not a substring of
+   `toLocaleDateString(`, so a file using the latter never set the flag and the
+   `buildsFormatter && asksForHour` test could not fire on it. Confirmed by
+   dropping a probe component calling
+   `at.toLocaleDateString(locale, { hour: "numeric", minute: "2-digit" })` into
+   `src/components/shared/` and watching the sweep stay green at 4 passed.
+2. **The same sweep cannot see `timeStyle` or a bare `toLocaleString(locale)` —
+   REAL, fixed with the same change.** Probes confirmed both:
+   `new Intl.DateTimeFormat("en-GB", { timeZone, dateStyle: "medium", timeStyle:
+   "short" })` (which renders `20 Aug 2026, 14:30` — byte-identical to the
+   24-hour string the rule exists to keep out) and
+   `at.toLocaleString("en-GB")` both passed the old sweep untouched.
+   *The fix is not a longer blocklist.* An option-name rule can only catch the
+   spellings its author thought of, and finding 3 in this same batch (BUG-015)
+   was already a guard that could not fail. So the sweep is now a pattern rule
+   PLUS an INVENTORY: the hour pattern is widened (`toLocaleDateString`,
+   `timeStyle`) and exempts nobody, and beside it the complete set of files
+   under `src/app` + `src/components` touching ANY date/time locale API must
+   equal a three-entry allowlist, each with a written reason. A formatter
+   written in an API nobody predicted now fails until it is routed through
+   `datetime.ts` or listed deliberately.
+   The allowlist also drags ADR-068 §3's "known inconsistency" into the suite:
+   the B-Systems dashboard's bare-`ar-EG` weekday heading is now named in a test
+   instead of only in a document. Its two `Number.prototype.toLocaleString`
+   neighbours are pinned by a further assertion — they contain no `Date` at all
+   — so an allowlist slot cannot quietly become a clock.
+   Mutation-checked four ways: all three probes above now turn the sweep red,
+   and adding a `new Date()` to `AnimatedValue.tsx` turns the number-allowlist
+   assertion red. Sweep went 4 → 7 tests.
+3. **`nav.ts` claims a unit test that does not exist — REAL, fixed by writing
+   it.** `ls src/lib/crm/` showed no `nav.test.ts`, and nothing under `src/` or
+   `e2e/` imported `crmNavFor` / `crmHomeFor` except the shell itself. The
+   property was covered only by `e2e/company-switch.spec.ts`, which walks
+   rendered hrefs in a browser. Correcting the comment was the cheaper option
+   and the wrong one — in a repo whose method is "make the directory the
+   assertion", the fast contract is the point. `src/lib/crm/nav.test.ts` (27
+   cases) now reads each nav href's PAGE FILE, extracts the companies and roles
+   the guard there actually admits, and asserts containment in one direction:
+   every item `crmNavFor(company, role)` offers is a page that exists, whose
+   guard admits that company, and whose guard admits that role. The converse is
+   deliberately not asserted (a guard wider than the nav is normal — Users
+   admits the four pipeline roles and bounces non-admins itself).
+   Mutation-checked three ways, each turning it red: a B-Systems-only section
+   added to the ByteForce nav; the ADR-051 data-entry account handed
+   `/b-systems/crm`; and an href with no page behind it.
+4. **BUG-015 names the wrong regexes — REAL, record corrected.**
+   `git show 0b2fca8:src/lib/crm/page-company-guards.test.ts | cat -A | grep
+   '\^H'` returns exactly two lines, and they are exactly the two lines commit
+   `55ffe2a` changed: the filter `/\brequireCompanyPage\b/` and the assertion
+   `/\bnarrowRoles\b/`, both inside "a page that only resolves the company still
+   narrows its ROLES" — two regexes, two backspace bytes each, four in total.
+   The entry had named `/\brequireBsAdminPage\b/` and `/\brequirePageRole\b/`,
+   which live in the NEIGHBOURING check and were correct all along, and it never
+   named `narrowRoles` — the half whose failure is the whole point of the bug.
+   Corrected in `docs/BUGS.md` with the command that settles it.
+5. **`CompanySwitch` rendered twice on a phone with the burger open — REAL,
+   fixed.** `layout.tsx` passed it into `ShellNav`'s `extras` AND rendered it in
+   `<main>`. `extras` renders only inside `.nav-sheet`, a fixed overlay shown at
+   `≤820px`, and no CSS hid either copy — so an account holding both companies
+   got two live, identically-named `role="group" aria-label="Switch company"`
+   controls and two `.company-switch-current` labels on one screen.
+   The house rule it was following ("every control stays reachable from the
+   sheet") does not apply: it exists for controls whose HEADER twin is hidden
+   below 820px (`.app-header .user > form`, `> .switcher`, `> .switcher-entity`
+   each have that `display:none`), and the company switch has no header twin.
+   It lives in the page body and is already on screen at 390px with the sheet
+   SHUT — `module-bar.spec.ts` pins it there, below the module bar. So the sheet
+   copy bought no reachability at all. Dropped from `extras`; the page copy,
+   which is what ADR-067 and the `.company-switch` CSS comment describe, is
+   untouched.
+- **Nothing was refuted.** All five reproduced. Findings 1 and 2 are one defect
+  in one file and were fixed by one change.
+
+### Assertions RE-PREMISED, never deleted
+Both follow from finding 5 and both were made STRICTER, not looser:
+- `e2e/qa-sweep.spec.ts` — asserted the sheet DID carry a company switch
+  (`await expect(sheetCompany.getByRole("link", {name: "ByteForce"}))
+  .toBeVisible()`). It now asserts the sheet carries **none** and the screen
+  carries **exactly one**, as a COUNT — because the old "is visible" assertion
+  passed happily while two of them were on the page, which is how the defect
+  survived the original run.
+- `e2e/module-bar.spec.ts` — the sheet's `.switcher-seg` count went 7 → 5
+  (3 modules + EN/عربي; the 2 company segments are gone from the sheet). This
+  is the assertion that CAUGHT the fix's blast radius: the first full Playwright
+  run after the layout edit came back **1 failed**, naming exactly this case and
+  exactly this count. It was read from the summary line and from
+  `test-results/.last-run.json` (`"status": "failed"`), not from an exit code —
+  the run had exited 0 through a pipe.
+
+### MERGE ACCEPTANCE PASS
+Run explicitly, as three questions. The matrices below are computed by calling
+the SHIPPED functions (`companiesFor`, `defaultCompanyFor`, `canSwitchCompany`,
+`crmHomeFor`, `crmNavFor`, `mergedByteforcePath`), not restated by hand.
+
+**1. For each role combination, which companies are reachable.**
+
+| Roles held | Companies reachable | Default | Switch shown | Landing |
+|---|---|---|---|---|
+| `byteforce_staff` | byteforce | byteforce | no | `/b-systems` |
+| `bsystems_admin` | bsystems | bsystems | no | `/b-systems` |
+| `bsystems_sales` | bsystems | bsystems | no | `/b-systems/crm` |
+| `bsystems_agent` | bsystems | bsystems | no | `/b-systems/crm` |
+| `bsystems_partner` | bsystems | bsystems | no | `/b-systems/crm` |
+| `bsystems_data_entry` | bsystems | bsystems | no | `/b-systems/entry` |
+| `bsystems_admin` + `byteforce_staff` | bsystems, byteforce | bsystems | **YES** | `/b-systems` |
+| `bsystems_sales` + `byteforce_staff` | bsystems, byteforce | bsystems | **YES** | `/b-systems/crm` |
+| `bsystems_agent` + `byteforce_staff` | bsystems, byteforce | bsystems | **YES** | `/b-systems/crm` |
+| `bsystems_partner` + `byteforce_staff` | bsystems, byteforce | bsystems | **YES** | `/b-systems/crm` |
+| `bsystems_data_entry` + `byteforce_staff` | bsystems, byteforce | bsystems | **YES** | `/b-systems/entry` |
+| none of the six | **NONE — refused** | — | no | — |
+
+Nobody reaches a company a role does not already carry: `companiesFor` only
+narrows, asserted over all 64 role subsets in `company.test.ts`, and the same
+predicate is what the guards, the shell and the switch all read. The
+single-company rows get NO switch rendered at all (not a disabled one) —
+asserted negatively in `e2e/module-bar.spec.ts` and `e2e/company-switch.spec.ts`.
+The `data_entry + byteforce_staff` row is the one worth reading twice: it holds
+both companies, so it sees the switch, and it still has exactly ONE destination
+in each — ADR-051's carve-out survives the merge, which is the assertion BUG-015
+had silently disabled and which `nav.test.ts` now also pins at unit level.
+
+**2. For each old `/byteforce` URL, where it lands.**
+The proxy appends `?company=byteforce` to every merged path (preserving any
+incoming query) except `/login`, whose search is cleared.
+
+| Old address | Lands on |
+|---|---|
+| `/byteforce`, `/byteforce/` | `/b-systems?company=byteforce` |
+| `/byteforce/crm` | `/b-systems/crm?company=byteforce` |
+| `/byteforce/todo` | `/b-systems/todo?company=byteforce` |
+| `/byteforce/leads` | `/b-systems/leads?company=byteforce` |
+| `/byteforce/clients` | `/b-systems/clients?company=byteforce` |
+| `/byteforce/leads/rep/<id>` | `/b-systems/leads/rep/<id>?company=byteforce` |
+| `/byteforce/leads/lead/<id>` | `/b-systems/leads/lead/<id>?company=byteforce` |
+| `/byteforce/leads/lead/<id>/call` | `/b-systems/leads/lead/<id>/call?company=byteforce` |
+| `/byteforce/login` | `/login` (search cleared — sign-in is consolidated) |
+| `/byteforce/leads/rep` (no rep) | `/b-systems?company=byteforce` (catch-all) |
+| `/byteforce/anything-stale` | `/b-systems?company=byteforce` (catch-all) |
+| `/byteforce/crm/deep/unknown` | `/b-systems?company=byteforce` (catch-all) |
+
+Nothing under the prefix 404s — the catch-all is last and total. Redirects are
+307 (temporary) deliberately, until the founder confirms the shell retirement.
+The incoming query is merged, not replaced, so `/byteforce/crm?q=Cairo+Textiles`
+arrives filtered and `/byteforce/leads/rep/x?view=archived` arrives on the
+archive tab. This map is load-bearing permanently: web pushes ALREADY on the
+founder's phone carry `/byteforce/leads/lead/<id>` baked into their payload.
+
+**3. Every screen switches company correctly.** Confirmed in a browser against a
+real app by `e2e/company-inventory.spec.ts` (5 cases) and
+`e2e/company-switch.spec.ts` (8 cases), and at the data layer by
+`company-scope.integration.test.ts` and `todo-company-scope.integration.test.ts`:
+
+| Screen | Confirmation |
+|---|---|
+| CRM board | ByteForce cards present under `?company=byteforce`, B-Systems' absent (`Cairo Textiles` visible, `Delta Textiles` count 0), and the reverse. Negotiation exists on the B-Systems board alone — the two pipelines stay two. A card tally on one company's card is not on the other's. |
+| To-Do | Follows the switch, and speaks each company's OWN stage vocabulary (`configForBrand`, 4 sites in `todo.ts` + 2 in `todo-done.ts`); the manual-marks query is scoped to the caller's own company rather than fetched for both and filtered after. |
+| Leads list | Under ByteForce it is the REP DIRECTORY (`Laila Mostafa` link visible, zero `<table>`), not the B-Systems flat table — the screen most easily lost to a merge. Per-rep drill-down and its Archived tab both keep `?company=byteforce`. |
+| Won Leads / Clients | Kept as two different screens over two different concepts. Clients is ByteForce-only (`Cairo Medical Group` visible, `Delta Medical Group` absent); Won Leads is B-Systems-only and, asked for under ByteForce, lands on ByteForce's home with a 200 — never an empty foreign screen, never a stack trace. Commission lists refuse the other company's won deal at the service layer. |
+| Lead detail | Opened from the board, lands on `/b-systems/leads/lead/<id>?company=byteforce` with the right heading; the call sheet keeps the company and renders its `tel:` link. |
+| Nav | Adapts per company: ByteForce renders exactly 5 links and none of the B-Systems-only sections; every rendered href returns 200, keeps `company=byteforce`, and has an `<h1>`. Now also proved at unit level against the guards themselves (`nav.test.ts`). |
+| Chrome | Never changes with the company — same header, same mark, same `data-brand="bsystems"`. Recorded as a deliberate SPEC conflict in ADR-067 §2 and flagged for founder confirmation. |
+
+Exclusive sections refuse rather than empty, in BOTH directions: the seven
+B-Systems-only paths asked for under ByteForce all return 200 and land on
+`/b-systems?company=byteforce`, and `/b-systems/clients` and
+`/b-systems/leads/rep/unassigned` asked for under B-Systems do the same in
+reverse.
+
+### Brand audit — PASS
+- Hardcoded-value grep over every file the batch touched: **empty**. The only
+  hex in the changed tree is in `src/themes/design-system.css` (an EXEMPT scope)
+  and is pre-existing: `#000` inside `mask-image` alpha stencils, one in a
+  comment, and `#fff` inside `@media print`. `git diff c98d856..HEAD` adds no
+  hex and no `font-family` line anywhere.
+- Three-scope token law: the batch DEFINES no new custom property. The four it
+  consumes (`--color-ink`, `--color-muted`, `--color-surface-card`,
+  `--font-mono`) are each present in all three scopes — `branding/byteforce/`,
+  `branding/b-systems/`, `src/themes/neutral.css` — checked one by one.
+- Scope integrity: `(byteforce)` route group and `components/internal/AppNav.tsx`
+  are retired from the tree; `data-brand="byteforce"` now survives only in the
+  accounting module's layout, which still needs it, so `brand-tokens.test.ts`
+  stays green on a fully populated ByteForce scope.
+- New i18n keys all carry real Arabic (`switchModule`, `switchCrm`,
+  `companyLabel`, `kindNegotiationResponse`); no existing English string moved.
+- No pictographic emoji in any i18n dictionary (the single `✓` is inside a code
+  comment, not a UI string). RTL: the batch adds no physical left/right CSS.
+
+### SPEC coverage touched
+No SPEC section changed in this run — the batch's amendments (§2, §4.1, §4.4,
+§5.8, §6) were made in Run 079 and stand. §10's transition tables were not
+touched by any fix here; the pipeline engine is unmodified. Journeys 1–5 all
+re-run green, including both ByteForce journeys.
+
+### The tests were written to be able to fail, and were checked that they can
+This is the third consecutive run in which a guard that could not fail was the
+finding, so every test written or changed here was mutation-checked before it
+was trusted:
+- The hardened clock sweep: three probe components (`toLocaleDateString` with an
+  `hour`; `dateStyle`+`timeStyle`; a bare `toLocaleString(locale)`) each turn it
+  red, and each was confirmed GREEN against the old sweep first. A fourth
+  mutation — adding a `Date` to `AnimatedValue.tsx` — turns the number-allowlist
+  assertion red. All probe files were deleted and `git status --porcelain`
+  confirmed empty after each.
+- `nav.test.ts`: three mutations, three reds (foreign-company section in the
+  ByteForce nav; data-entry handed the board; href with no page).
+- `module-bar.spec.ts`'s re-premised count is itself the mutation evidence for
+  finding 5 — it went red on the first run after the layout change, which is how
+  the fix's blast radius was measured rather than assumed.
+- The BUG-015 backslash trap RECURRED during this run, in a throwaway helper: a
+  `\n` written through a heredoc arrived in the file as a literal newline,
+  breaking the file. It was caught immediately because IMPLEMENTATION's note
+  said to check the bytes first. Every file written in this run was byte-scanned
+  for control characters (`ord(c) < 32`) before being trusted; all clean.
+
+### Verdict
+**PASS.** 808 cases green across both full suites on the final tree, with the
+Playwright verdict confirmed in `test-results/.last-run.json` and not inferred
+from an exit code. Five findings adjudicated, five reproduced, four distinct
+fixes; none refuted. The two access-shaped questions a merge must answer — who
+can reach which company, and where every retired address lands — were walked
+explicitly and are recorded above in full. No permission widened: the only
+product change in this run REMOVES a duplicate control, and the only other
+changes are tests and documentation.

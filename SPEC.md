@@ -57,6 +57,8 @@ The agent may substitute any item with justification logged as an ADR. Defaults:
 
 Constraints: server-side enforcement of all permissions (§3); all monetary values stored as decimal with a configurable currency (default **EGP**, assumption A-9); all timestamps stored UTC, displayed in Africa/Cairo.
 
+**Display clock — TWELVE-HOUR, everywhere (ADR-068).** Every clock a person reads is twelve-hour in both languages: `2:30 PM` in English, `2:30 م` in Arabic (CLDR's own ص / م markers, latin digits, Arabic month names). One formatter owns it — `formatCairo` in `src/lib/datetime.ts` — and it takes the reader's locale as a REQUIRED argument. This is a DISPLAY rule only: storage, the wire shape between the UI and the server (`"HH:mm"`, what an `<input type="time">` submits), every Cairo-day window, every DST re-anchor and every sort stay 24-hour and must not be touched. A structural test fails any screen that builds a clock of its own.
+
 ---
 
 ## 3. Roles & access matrix
@@ -83,6 +85,7 @@ Hard rules enforced server-side, not just hidden in UI:
 ### 4.1 Architecture
 
 - One `ThemeProvider` keyed by app scope via a `data-brand` attribute: `byteforce` (App A) or `bsystems` (Apps B and C — the Portal is B-Systems-branded).
+- **Amended by ADR-067 for the CRM shell only.** The two CRMs are now ONE application: the merged shell stays `data-brand="bsystems"` in BOTH companies, because the founder asked for exactly that (*"we don't have the entire page for byte force… I don't need that. I don't want it"*). Switching company changes the DATA, never the skin. The ByteForce tokens are NOT retired — the accounting module still re-stamps `data-brand` per company via `ModuleBrandScope`, so `branding/byteforce/tokens.css` remains live and the three-scope token rule is unchanged. **Needs founder confirmation** (PROGRESS Entry 062).
 - Canonical tokens live in `branding/byteforce/tokens.css` and `branding/b-systems/tokens.css` as CSS custom properties scoped to `[data-brand="…"]`. Components consume only semantic tokens (`--color-primary`, `--color-surface`, `--font-display`, `--gradient-hero`, logo slots, radii). **Zero hardcoded brand values in components.** Tailwind maps utilities to these variables.
 - Logo and font files are founder-supplied into `branding/byteforce/` and `branding/b-systems/` (each folder's README lists expected files). The agent wires whatever filenames are actually present and records the mapping as an ADR.
 
@@ -145,7 +148,7 @@ Rule of thumb: Raleway above, Inter below — anything longer than two lines is 
 
 ### 4.4 Definition of "branded" for the Global DoD
 
-Every page of App A reads unmistakably as ByteForce; every page of Apps B and C reads unmistakably as B-Systems; switching between `/byteforce` and `/b-systems` demonstrates the theming layer with no brand bleed (logos, colors, typography all swap). `/brand-audit` (and the `brand-auditor` subagent) verify: no hardcoded hex/fonts outside `branding/` and `src/themes/`, B-Systems pink ≤ accent usage and no pure-white canvases, gradient confined to hero components, ByteForce palette discipline, RTL-safe layouts, no emoji in ByteForce UI copy.
+Every page of Apps B and C reads unmistakably as B-Systems. **Amended by ADR-067:** the sentence this paragraph used to open with — that every page of App A reads unmistakably as ByteForce, and that switching between `/byteforce` and `/b-systems` demonstrates the theming layer — describes a shell the founder asked to be removed. `/byteforce` no longer exists as an interface (its addresses redirect), and ByteForce work is shown in the B-Systems shell under `?company=byteforce`. The theming layer is still demonstrated with no brand bleed, in the **accounting module**, whose `?company=` switch does swap the brand scope (ADR-054). **Needs founder confirmation** (PROGRESS Entry 062). `/brand-audit` (and the `brand-auditor` subagent) verify: no hardcoded hex/fonts outside `branding/` and `src/themes/`, B-Systems pink ≤ accent usage and no pure-white canvases, gradient confined to hero components, ByteForce palette discipline, RTL-safe layouts, no emoji in ByteForce UI copy.
 
 ---
 
@@ -186,12 +189,16 @@ The founder's original wording is preserved in meaning but normalized in the UI 
 - A **manual** completion can be unchecked back to Today; an **automatic** completion cannot — reversing it is a CRM action. Manual completion never mutates the underlying CRM or money record.
 - A new follow-up (or meeting) on the same lead is a **new task** and always arrives unchecked; a meeting rescheduled in place is likewise a fresh task (the mark snapshots the due instant and stops matching).
 - A manual mark is valid for the Cairo day it was made: a statement or milestone still pending the next day returns to Today unchecked — money never silently vanishes (the ADR-061 asymmetry).
+- **The negotiation response date is its own row (ADR-068).** A follow-up whose stored context is `after_negotiation` — the response date promised in Negotiation — appears under its own kind, labelled **"Check their response" / "التحقق من ردّهم"**, so an answer the person is WAITING for never reads as another call he owes. It is the same FollowUp record: same id, same checkbox, same completion mark, same today-only window, same scope wall. The kind is read from the RECORD's context, never from the lead's current stage, so a Done row keeps its wording after the deal moves on. ByteForce has no negotiation stage and its endpoint refuses the kind outright.
+- **One shared page since ADR-067**, at `/b-systems/todo`, showing whichever company the switch is on. Rows carry `?company=` so a link can be forwarded.
 
 ---
 
 ## 6. App A — ByteForce CRM (full specification)
 
-Navigation: **Home (Dashboard) | Leads | CRM | Clients**. All screens themed ByteForce (§4.2).
+**Amended by ADR-067 — App A is no longer a separate application.** Every screen, rule, guard and field group below is unchanged and still normative; only its ADDRESS and its CHROME moved. The ByteForce CRM is now a MODE of the one merged shell, reached at `/b-systems/…?company=byteforce`, wearing B-Systems chrome, with the company switch shown only to an account that holds both. Old `/byteforce/…` addresses redirect with the company preselected, and the `/api/byteforce/**` namespace — which is where the brand wall actually lives — did not move at all. Read "App A" below as "the ByteForce company".
+
+Navigation: **Home (Dashboard) | Leads | CRM | Clients** — plus To-Do (ADR-041). Screens are themed B-Systems since ADR-067 (§4.1); the ByteForce brand tokens live on in the accounting module.
 
 ### 6.1 Leads section
 - Grid of **sales rep cards**; reps can be added without limit (name required; show lead count per rep on the card). Selecting a rep opens their assigned-leads table.

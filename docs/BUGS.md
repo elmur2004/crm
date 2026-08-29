@@ -252,3 +252,46 @@ the moment a failure is found; close them with a reference to the fixing commit/
   tie-breaking `orderBy` to the two reads, rather than relying on insertion order.
 - Status: **open** — pre-existing, unrelated to the merge, low severity (a test
   ordering assumption, not product behaviour).
+
+## BUG-015 — 2026-08-29 — the merge's anti-hole guard test carried BACKSPACE bytes where it meant `\b`, so it tested nothing
+- Severity: major (a permission guard whose test could not fail; no product
+  behaviour was wrong)
+- Where: `src/lib/crm/page-company-guards.test.ts`, four backspace bytes across
+  exactly **two** regexes, both inside the single check "a page that only
+  resolves the company still narrows its ROLES" — its filter
+  `/\brequireCompanyPage\b/` (line 88) and its assertion `/\bnarrowRoles\b/`
+  (line 93). Each `\b` was a literal U+0008 BACKSPACE character rather than the
+  two characters backslash-b, so each regex carried two of them.
+  (Corrected in review, Run 080: an earlier draft of this entry named
+  `/\brequireBsAdminPage\b/` and `/\brequirePageRole\b/` instead. Those two —
+  in the neighbouring "does not reach for a guard that cannot see the company"
+  check, current lines 73-74 — were CORRECT all along and never broke, and the
+  draft never named `narrowRoles`, which is the half whose failure is the whole
+  point of the bug. `git show 0b2fca8:src/lib/crm/page-company-guards.test.ts |
+  cat -A | grep '\^H'` returns those two lines and no others, and they are
+  precisely the two lines commit `55ffe2a` changed.)
+- Symptom: none visible. The suite reported 51 passing tests. But the check
+  "a page that only resolves the company still narrows its ROLES" opens with
+  `if (!/\brequireCompanyPage\b/.test(src)) continue;` — with a backspace in the
+  pattern that matched no file, so the loop `continue`d over every page and the
+  assertion never ran.
+- Why it matters: that assertion is what keeps ADR-051's add-only data-entry
+  account out of the four screens both companies share. The first draft of
+  ADR-067's section guard let that account into Won Leads, Statements and the
+  board; this test was written to make sure that could not come back — and it
+  had stopped being able to notice.
+- Repro: `python -c "print(open(path,encoding='utf-8').read().count(chr(8)))"` →
+  `4`. `grep -P '[\x00-\x08]'` did NOT find it, which is part of why it survived
+  review. Reading the bytes is what found it.
+- Root cause, worth knowing because it can recur: a tool layer between the agent
+  and the shell collapses `\\` to `\` inside heredocs; Python then reads `\b` in
+  a non-raw string as the backspace escape and writes 0x08 to the file. Any test
+  regex authored that way is suspect. If a pattern "just never matches", check
+  the bytes before checking the logic.
+- Fix: the four bytes replaced with real `\b`, in its own commit ahead of the
+  ADR-068 work, and mutation-checked — renaming `narrowRoles` in
+  `b-systems/(app)/todo/page.tsx` now turns the revived assertion red. The whole
+  repo was then swept for control characters; the only other hits are two
+  DELIBERATE ones (the `"PK\x03\x04"` ZIP magic in `vault.integration.test.ts`,
+  already documented in IMPLEMENTATION).
+- Status: **fixed** (commit `55ffe2a`, Run 079).

@@ -4249,6 +4249,20 @@ the code and the rendered page, and all six were FIXED — none needed refuting.
   MODULE switcher's group label, which was never what that strip did; the modules
   got a new `switchModule` key and this moved. No existing English string
   changed; the new keys carry real Arabic.
+- **Exactly ONE instance of it, at every width (fixed in review, Run 080).** The
+  first draft also passed `CompanySwitch` into `ShellNav`'s `extras`, following
+  the house rule that "every control stays reachable from the burger sheet". That
+  rule is about controls whose HEADER twin is hidden below 820px — the language
+  toggle, the module strip, Log out, each with its own `display:none` in
+  `design-system.css`. The company switch has no header twin: it lives in the
+  page body, above `children`, on screen at every width (`module-bar.spec.ts`
+  pins it under the bar at 390px with the sheet shut). So the sheet copy bought
+  no reachability and cost a real defect — an account holding both companies got
+  TWO live, identically-named `role="group" aria-label="Switch company"` controls
+  and two `.company-switch-current` labels on one phone screen whenever the
+  burger was open. Nothing hid either one. It is dropped from `extras`, and
+  `qa-sweep.spec.ts` now asserts the sheet carries none and the screen carries
+  exactly one — as a COUNT, because the old "is visible" assertion passed on both.
 
 ### 7. ACCESS IS SERVER-SIDE AND NARROWING ONLY
 - **One pure predicate, `src/lib/crm/company.ts`.** `companiesFor(roles)` reads
@@ -4283,6 +4297,22 @@ the code and the rendered page, and all six were FIXED — none needed refuting.
   company-blind `requirePageRole` / `requireBsAdminPage`, or that calls the
   THROWING `bsRoleOf` before its company is pinned. The directory is the
   assertion — ADR-066's pattern, made cheaper (no database needed).
+- **And the NAV table is checked against those same guards** (`nav.test.ts`,
+  added in review, Run 080). Decision 6 says a link that would 404, bounce, or
+  show the other company is never rendered; `nav.ts` claimed in its own header
+  comment to be "unit tested against the guards' own section map", and it was
+  not — the property was covered only by `e2e/company-switch.spec.ts`, which
+  needs a database, a server and a login to say anything, so a maintainer
+  editing `BYTEFORCE_NAV` or `BSYSTEMS_NAV` got no fast answer and a comment
+  that promised one. The test now reads each nav href's page file, extracts the
+  companies and roles the guard there actually admits, and asserts containment
+  in ONE direction: every item `crmNavFor(company, role)` offers is a page that
+  exists, whose guard admits that company, and whose guard admits that role.
+  The converse is deliberately not asserted — a guard wider than the nav is
+  normal (Users admits the four pipeline roles and bounces non-admins itself).
+  Mutation-checked three ways: a B-Systems-only section added to the ByteForce
+  nav, the ADR-051 data-entry account handed the CRM board, and an href with no
+  page behind it each turn it red.
 - **`bsRoleOrNull`**, a total twin of `bsRoleOf`. `bsRoleOf` throws for an account
   with no B-Systems role, which was fine while the B-Systems layout guard bounced
   such accounts first. Admitting `byteforce_staff` made fifteen page call sites
@@ -4416,3 +4446,216 @@ the code and the rendered page, and all six were FIXED — none needed refuting.
   App A, flagged for founder confirmation.
 - Status: Accepted (shell / routing / nav / access). The twelve-hour clock and
   the negotiation To-Do row from the same request are separate workstreams.
+
+## ADR-068 — A twelve-hour clock everywhere, and the negotiation response date as its own To-Do row
+- Context: the remaining two pieces of the same founder request ADR-067 covers.
+  Transcribed verbatim, minutes apart:
+
+  > *"Also, make sure that the response date is made in the to do list as see
+  > their response or check their response or check with them in the
+  > negotiations."*
+
+  > *"Also, use the twelve hour timing, not the twenty four hour timing. And this
+  > is through the entire system."*
+
+  Both are surface changes with no schema behind them, and both are the kind of
+  change that goes quietly wrong in exactly one place: the clock by leaking into
+  storage, the To-Do row by being read off the wrong thing.
+
+### 1. THE CLOCK IS ONE FUNCTION, AND IT IS A DISPLAY FUNCTION
+- **Decision.** `formatCairo` in `src/lib/datetime.ts` renders twelve-hour, and
+  it is the only clock in the product. Nothing else changed to make "the entire
+  system" true — there was nowhere else to change.
+- **Two layers in one file, and they are NOT the same thing.** `datetime.ts` also
+  holds the WIRE layer — `cairoToUtc`, `wallClockParts`, `utcToCairo`,
+  `sameCairoDay`. That layer is arithmetic: it speaks 24-hour `"HH:mm"` because
+  that is what an `<input type="time">` submits, what `groups.ts`'s
+  `/^\d{2}:\d{2}$/` accepts, and what every Cairo-day window, DST re-anchor and
+  meeting sort is computed from. It did not move, and the file now says so at the
+  line where it matters.
+- **That prohibition is not decoration.** `wallClockParts` reads
+  `get("hour") % 24`, which exists to normalise the `"24"` that `hourCycle: h24`
+  emits at midnight. It cannot correct the `"12"` that `hour12: true` emits
+  there. Flipping that one flag would make `cairoToUtc`'s offset solver converge
+  twelve hours wrong for every midnight-hour write — silently, with a clean
+  typecheck, surfacing days later as follow-ups landing on the wrong Cairo day.
+  A round-trip test now pins it (`"00:00"` and `"12:00"` included), so the
+  catastrophic edit fails one obvious assertion instead of corrupting data.
+
+### 2. THE LOCALE IS A REQUIRED ARGUMENT
+- **Decision.** `formatCairo(instant, locale, withTime?)`,
+  `formatCairoDate(instant, locale)` and the new `formatCairoShort(instant,
+  locale)` all take the reader's language as a REQUIRED parameter with no default.
+- **Why no default.** A default of `"en"` would let a forgotten argument compile
+  and print a latin AM/PM inside an Arabic page, on any of two dozen screens, with
+  no test anywhere that would notice. Required turned "find every call site" into
+  48 compiler errors — including the five sites that passed `withTime`
+  positionally, where `boolean` stopped being assignable. This is ADR-066 §8's
+  required-`user`-prop lesson and ADR-067 §10's required-`brand` lesson applied a
+  third time; it is now the house rule for anything a screen can forget.
+
+### 3. ARABIC IS RENDERED IN ARABIC — and that is a bidi decision, not a taste one
+- **Decision.** Arabic formats through `ar-EG-u-nu-latn`: Arabic month name,
+  Arabic comma (U+060C), LATIN digits, and CLDR's own markers — **ص** (from
+  صباحًا) and **م** (from مساءً) — never a latin AM/PM. English keeps `en-GB`, so
+  its DATE is byte-identical to what it printed before and only the clock changed;
+  the marker is upper-cased, because `en-GB` emits `"pm"` and nobody writes that
+  on a screen.
+- **The alternative was to keep the English date and swap only the marker.** It
+  is broken, and not subtly. `"20 Aug 2026, 6:30 م"` is a bidi-mixed string: in
+  an RTL paragraph the Unicode bidi algorithm puts the lone Arabic character to
+  the LEFT of the latin run, so it renders as `م 20 Aug 2026, 6:30` — the marker
+  torn off the time and parked against the date. The usual fix, a CSS isolate at
+  the call site, is unavailable here: the formatted value is routinely
+  concatenated into a longer sentence (`"Next: …"`, `"Due … · Call"`) before it
+  reaches the DOM, so there is no element to wrap. A natively Arabic string has
+  no mixed run to reorder.
+- **The honest cost.** Dates in the Arabic UI now read in Arabic. That is a
+  visible change nobody asked for, and it retires a rule an existing spec comment
+  recorded as deliberate ("the date itself renders through the one en-GB formatter
+  in both locales"). It is flagged for founder confirmation. The alternative was
+  not "leave Arabic alone" — it was a half-Arabic system where the To-Do heading
+  says `29 Aug 2026` and the row underneath says `29 أغسطس 2026، 4:45 م`, which is
+  worse than either consistent answer.
+- **Latin digits, deliberately.** `ar-EG` alone would emit Arabic-Indic `٦:٣٠`.
+  Every other number in the CRM is latin (`money.ts`, `groups.ts`, and
+  `LeadChat`'s own formatter already used `-u-nu-latn`), so Arabic-Indic here
+  would be the only place in the product that used them. Two DATE-only surfaces
+  outside this change still use bare `ar-EG` and so print Arabic-Indic — the
+  B-Systems dashboard's weekday heading and the accounting month label. They carry
+  no clock, so they are out of scope; naming them here so the inconsistency is
+  known rather than discovered.
+
+### 4. THE STRING IS ASSEMBLED FROM PARTS, NOT TAKEN FROM `.format()`
+- **Decision.** The output is built from `formatToParts`, normalising the
+  separator before the day period to a plain U+0020 and upper-casing the English
+  marker.
+- **Why.** ICU ≥ 72 emits U+202F (NARROW NO-BREAK SPACE) before the day period in
+  several locale/version pairs. Taken from `.format()`, a Node or base-image bump
+  would turn every `"2:30 PM"` assertion in the suite red with no code change —
+  and the failure would read like a spacing typo rather than an ICU upgrade. A
+  unit test asserts the codepoint, so the guard is a test rather than a memory.
+
+### 5. THE ONE PLACE A FORMATTED TIME IS STORED
+- **Decision.** The meeting-request notification body in `services/leads.ts` no
+  longer concatenates the raw form values (`"2026-09-20 14:00"`). It reformats
+  from the INSTANT — `formatCairo(cairoToUtc(date, time), "en")` — so the Cairo
+  and DST correctness of `cairoToUtc` is preserved rather than string-munged away.
+- **English, deliberately.** That body never passes through `tFor`; it is a
+  stored English sentence, and it is copied verbatim into the web-push payload.
+- **It is not retroactive, and must not be.** Rows written before this change keep
+  their 24-hour text forever, so the bell will show both shapes side by side while
+  old notifications live. A notification body is a record of what was SENT, not a
+  rendering of current state; a migration that rewrote it would be rewriting
+  history.
+
+### 6. WHAT WAS DELIBERATELY LEFT ALONE
+- **Eleven `<input type="time">` fields.** The browser renders the picker in the
+  viewer's OS locale, not the app's, and always submits `"HH:mm"`. A founder on a
+  24-hour device will therefore type into a 24-hour picker and read a twelve-hour
+  result. Hand-rolling a picker to "fix" that would break native mobile pickers,
+  keyboard entry, autofill and screen readers, and would put a second time parser
+  next to the wire regex. Accepted and recorded.
+- **The wire regex** `/^\d{2}:\d{2}$/` in `services/groups.ts`. Relaxing it to
+  accept `"2:30 PM"` because the UI now shows that would open a DST-ambiguous
+  parsing surface and break `cairoToUtc`'s `split(":")`.
+- **`formatCairoDate`'s date-only output in English**, byte-for-byte — the
+  printable commission statement is entirely date-only and does not change at all
+  in English.
+- **Every `cairoToUtc` / `utcToCairo` argument and expectation in the tests.**
+  Those are the wire, not a rendering. Two of them (`groups.test.ts`,
+  `follow-up-time.integration.test.ts`) assert that a posted `00:30` on Egypt's
+  spring-forward day is STORED as `01:30`; reformatting those to `"1:30 AM"` would
+  have been a category error.
+
+### 7. ONE CLOCK, ENFORCED BY THE DIRECTORY
+- **Decision.** A sweep test (`src/lib/datetime.sweep.test.ts`) walks `src/app`
+  and `src/components` and fails any file that renders a time of its own. The
+  only legal home for a clock is `src/lib/datetime.ts`.
+- **Why it earned its place immediately.** `LeadChat` had been carrying its own
+  formatter, and — having never set `hour12` — printed 24-hour in English and
+  12-hour in Arabic. One component, two answers, for months, with nothing able to
+  notice. It now calls the shared `formatCairoShort`. This is the ADR-066 /
+  ADR-067 sweep pattern a third time: make the directory the assertion, because
+  "we changed it centrally" is only true until somebody adds the next screen.
+- **It is enforced TWICE, because the first draft leaked (review, Run 080).**
+  The original sweep was a single blocklist — "builds `Intl.DateTimeFormat`,
+  `toLocaleTimeString` or `toLocaleString(`" AND "asks for `hour` / `hour12` /
+  `hourCycle`" — and a blocklist of spellings only ever catches the ones its
+  author thought of. Three real clocks walked straight through it, each
+  confirmed by adding a probe component and watching the suite stay green:
+  - `toLocaleDateString(locale, { hour: "numeric" })` — a real clock, and
+    `toLocaleString(` is **not** a substring of `toLocaleDateString(`, so the
+    formatter half never even fired. This is the exact API the codebase already
+    uses at `b-systems/(app)/page.tsx`, so the hole was over the live case.
+  - `{ dateStyle: "medium", timeStyle: "short" }` — renders `20 Aug 2026,
+    14:30`, byte-identical to the 24-hour string the rule exists to keep out,
+    while naming neither `hour` nor `hour12` nor `hourCycle`.
+  - a bare `new Date(x).toLocaleString("en-GB")` — a clock with no options
+    object at all, so no option-name rule can ever see it.
+  Commit `c578558`'s message claimed "a sweep test now fails any screen that
+  builds a clock of its own"; for those three that was false.
+- **The fix is a pattern PLUS an inventory.** The hour rule stays (widened with
+  `toLocaleDateString` and `timeStyle`, and it exempts nobody). Beside it sits
+  an INVENTORY test: the complete set of files under the two roots that touch
+  any date/time locale API must equal a short allowlist, each entry carrying a
+  written reason. A new formatter fails until somebody either routes it through
+  `datetime.ts` or adds itself on purpose — which is the only version of "make
+  the directory the assertion" that survives an API nobody predicted.
+- **What that surfaced.** The allowlist now holds exactly three files, and
+  writing it down is itself the point: the B-Systems dashboard's weekday
+  heading (a date with no clock — `formatCairoDate` offers no weekday — and one
+  of the two bare-`ar-EG` Arabic-Indic surfaces §3 names as known), and two
+  `Number.prototype.toLocaleString` money/counter sites that merely share the
+  method name. The two number entries are pinned by a further assertion — they
+  hold no `Date` at all — so an allowlist slot cannot quietly become a clock.
+  §3's "known inconsistency" is now enforced by the suite instead of remembered
+  by this document.
+
+### 8. THE NEGOTIATION RESPONSE DATE GETS ITS OWN TO-DO KIND
+- **Decision.** `TodoKind` gains `"negotiation_response"`, labelled **"Check their
+  response"** / **"التحقق من ردّهم"**. It is emitted instead of `"follow_up"`
+  when the follow-up record's stored `context` is `after_negotiation`.
+- **No migration, and no new state.** `FollowUp.context` has carried
+  `after_negotiation` since the founder's same-stage request — written by the
+  `negotiation_follow_up` action, trigger `NEG-DUE`. The board already
+  distinguished it ("Response due: …"); only the To-Do did not. The split is a
+  LABEL over an existing record.
+- **The discriminator is the RECORD's context, never the lead's CURRENT stage.**
+  A response date is answered and the deal moves to Won or Lost the same
+  afternoon. Reading the stage would make the Done row rename itself to
+  "Follow-up" as soon as the deal moved — rewriting what the person actually did
+  today. The context does not move, so the row keeps its name. Both the live
+  projection and the Done derivation read it, and each site is independently
+  covered (reverting either one alone turns a test red).
+- **Which of his three phrasings.** He offered "see their response" / "check their
+  response" / "check with them". "Check their response" was chosen as the one that
+  is an instruction and still fits a chip; flagged for his confirmation.
+
+### 9. THE NEW KIND GAINS NOBODY ANYTHING
+- **Decision.** `keyFor` maps `negotiation_response` onto the SAME
+  `{ followUpId }` unique key, and `setTodoDone` routes it through the SAME
+  follow-up branch.
+- **Consequences, all of them deliberate.** The today-window, archived, liveness
+  and brand walls are INHERITED rather than re-implemented, so the new row cannot
+  drift from the rule the projection uses. The checkbox writes the same row, so no
+  second mark can exist for one record, and an older client still posting
+  `"follow_up"` for one of these ticks exactly what it always did. The projection
+  normalises the mark key the same way, so a row that was ticked does not reappear
+  unchecked merely because its label changed.
+- **`requireLeadAccess` is untouched**, so the wall is the wall it always was: an
+  agent is still refused another owner's response row, and a B-Systems admin still
+  cannot reach a ByteForce record through it.
+- **ByteForce's endpoint refuses the word outright.** Its zod enum stays
+  `["follow_up", "meeting"]`. That pipeline has no negotiation stage, so its To-Do
+  can never emit the row — and a two-member enum is a permanent proof of it rather
+  than a comment somebody has to keep true.
+
+- Resolves: completes the founder request whose shell/routing/nav/access half is
+  ADR-067; extends ADR-061 (the today-only window), ADR-062 (the checkbox and the
+  Done section) and ADR-063 (the per-row clock, which is what makes a bare date
+  and a chosen time distinguishable in the first place); applies ADR-066 §8's
+  required-argument rule to the display layer.
+- Status: Accepted. Two items flagged for founder confirmation in PROGRESS Entry
+  064 — Arabic dates now render in Arabic, and the wording chosen for the
+  negotiation row.

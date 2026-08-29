@@ -1,5 +1,105 @@
 # Changelog — user-visible changes per phase/release
 
+## One CRM, one switch — plus a twelve-hour clock and the answer you are waiting for (2026-08-29)
+
+You said: *"I need to completely merge the systems and byte force CRMs, and I
+want the switching to be inside the CRM… I just want the b systems CRM. I can
+have a switch button between b systems and byte force, and the entire boards
+change accordingly. The same thing with the to do… make sure that this is there,
+and there is no confusion in it."*
+
+And, minutes later: *"Also, use the twelve hour timing, not the twenty four hour
+timing. And this is through the entire system."* And: *"Make sure that the
+response date is made in the to do list as see their response or check their
+response or check with them in the negotiations."*
+
+All of it is in.
+
+### 1. There is one CRM now, and a switch inside it
+
+- **The ByteForce app is gone as a separate place to go.** There is one CRM, the
+  B-Systems one, and a **Company** switch inside it that says in words which
+  company you are looking at — **B-Systems** or **ByteForce** — with the current
+  one filled in, never colour alone.
+- **Everything follows the switch.** Not just the board and the To-Do: the Home
+  figures, the Leads screen, the lead pages, the call sheet — every screen shows
+  the company you are switched to.
+- **The screen never changes shape when you switch.** Same header, same colours,
+  same logo, same everything. Only the work changes. That is what you asked for:
+  *"we don't have the entire page for byte force… I don't need that."*
+- **The menu changes with the company**, so you never see a link that leads
+  nowhere. Under ByteForce you get Home, To-Do, Leads, CRM and **Clients**. Under
+  B-Systems you get your full list including **Won Leads**, Partners & Agents,
+  Registrations, Statements and Users. Clients and Won Leads stay two separate
+  screens, because they are two different things — Clients has your collected and
+  to-be-collected money, Won Leads has commissions and milestones.
+- **The company stays with you as you move.** Open the ByteForce board, click
+  Leads, click To-Do, open a lead — still ByteForce. Use the search or a filter
+  and it is still ByteForce; the filter no longer throws you back to the other
+  company, which was the single most likely way this could have confused you.
+- **The address says which company it is**, so a link you send someone opens on
+  the same company you were looking at. Two people at the same address always see
+  the same thing.
+- **Every old ByteForce link still works.** Bookmarks, and the notifications
+  already sitting on your phone, land on the right screen with ByteForce already
+  selected. Nothing 404s.
+- **Filters do NOT follow you across a switch**, on purpose. A B-Systems owner
+  filter means nothing on the ByteForce board, and a board that looks filtered
+  but is not is worse than a clean one.
+
+### 2. Nobody can see anything he could not see yesterday
+
+- **Somebody who only works on ByteForce is simply locked to ByteForce.** He logs
+  into the same one CRM, sees only ByteForce work, and is shown **no switch at
+  all** — not a greyed-out one, not one hidden in a menu.
+- **The same the other way.** Sales, agents, partners and the data-entry account
+  are locked to B-Systems, with no switch.
+- **You see the switch** because you hold both.
+- **Typing the other company into the address bar does not work.** The refusal
+  is on the server, on every screen and every save — not hidden in the buttons.
+  Ask for a company you do not hold and you land back on your own, without an
+  error page and without a stack trace.
+
+### 3. The whole system tells the time the way you read it
+
+- **Every time in the product now reads 2:30 PM instead of 14:30** — the board
+  cards, the To-Do rows, a lead's history, the call sheet, the vault, the
+  registrations list, the lead chat, and the meeting notification that arrives on
+  your phone.
+- **In Arabic it reads properly in Arabic**: **20 أغسطس 2026، 6:30 م**. The
+  morning/evening marker is the Arabic one (ص / م), never a latin AM/PM, and the
+  numbers stay the ones you use everywhere else in the system.
+  - **This also changed the DATE in Arabic** — the month is now written in
+    Arabic. That was forced rather than chosen: an Arabic marker stuck on an
+    English date comes out backwards on a right-to-left page, with the "م"
+    floating off next to the date instead of the time. Tell us if you would
+    rather have it another way.
+- **The time you TYPE has not changed.** The little time picker is your phone's
+  or your computer's, and it keeps working exactly as it did.
+- **Nothing about days moved.** Today is still today, follow-ups still land on
+  the day you chose, and the summer/winter clock change is still handled the same
+  way. Only what you READ changed.
+- **A follow-up with no time is still just a date.** The clock only shows when
+  somebody actually chose one — that has not changed.
+- **Older notifications keep the old text.** A notification sent before today
+  still says 14:00, because it is a record of what was sent. New ones read 2:00
+  PM.
+
+### 4. The answer you are waiting for stops looking like another call
+
+- **The response date you promise in Negotiation now has its own line on the
+  To-Do**, labelled **"Check their response"** — **التحقق من ردّهم** in Arabic —
+  instead of sitting there looking like every other "Follow-up".
+- **One glance separates the two**: the calls you owe, and the answers you are
+  waiting on.
+- **It behaves exactly like every other task.** Tick it off and it moves to Done;
+  untick it and it comes back. It only shows on the day it is due, and only the
+  people who could already see that lead can see or tick it.
+- **It keeps its name after the deal moves.** They answer, you mark the deal Won
+  or Lost the same afternoon — and the Done line still says "Check their
+  response", because that is what today's job actually was.
+- **ByteForce does not have it**, because ByteForce has no negotiation stage.
+
 ## Accounting and the Data Vault can be taken away from one admin at a time (2026-08-26)
 - You said: *"I want to have the ability to block some admins from acsessing
   accounting or data vault."*

@@ -3409,7 +3409,20 @@ comment, and the ADR-013 mechanism note all fixed; .env.example confirmed tracke
   - **The switch** renders in the shell so no screen can forget it, names the
     company in WORDS above the segments (never colour alone), and is not rendered
     at all for an account with one company — asserted negatively, on every nav
-    destination and inside the burger sheet.
+    destination and inside the burger sheet. It renders EXACTLY ONCE at every
+    width: review (Run 080) found the first draft had also pushed it into the
+    burger sheet, following the house rule "every control stays reachable from
+    the sheet" past the condition that makes it true — that rule is for controls
+    whose header twin is hidden below 820px, and this one has no header twin. On
+    a phone with the burger open, an account holding both companies saw two live
+    `Switch company` groups. Dropped from the sheet; both specs now assert
+    COUNTS, because the old `toBeVisible()` passed just as happily with two.
+  - **The nav table is checked against the guards** (`src/lib/crm/nav.test.ts`,
+    27 cases, added in review). `nav.ts` had claimed this in its own header
+    comment while the property was covered only by an e2e. The test now reads
+    each nav href's page file, extracts the companies and roles the guard there
+    admits, and fails the table if it offers a door the server would shut —
+    including the ADR-051 data-entry carve-out, mutation-checked.
   - **The module bar dropped to three cells.** `BYTEFORCE` + `B-SYSTEMS` became
     one `CRM` segment, so the bar asks "which module" and the company switch asks
     "which company". ADR-060's overflow contract improves rather than survives:
@@ -3571,3 +3584,115 @@ comment, and the ADR-013 mechanism note all fixed; .env.example confirmed tracke
 - [x] Filters do not survive a switch; the company does survive every filter form
 - [x] Every B-Systems-only section refuses `company=byteforce` with a 200 and a
       redirect, never a 404 and never a stack trace
+
+## Entry 064 — 2026-08-29 — ONE CRM, part three: a twelve-hour clock everywhere, and the response he is waiting for gets its own row
+- Done — the third and last part of the same founder request (ADR-067 covered the
+  shell, routing, nav and access; Entry 063 covered the screens' data). Three
+  commits, each `npx tsc --noEmit` clean with its own tests:
+  - **`55ffe2a` — a guard test that could not fail.** Found before starting, in
+    the merge's own anti-hole sweep: four literal BACKSPACE bytes where the
+    regex meant `\b`, so its filter matched no file and the "a shared page still
+    narrows its roles" check skipped everything. It read green because it never
+    ran — and it is the assertion that keeps the add-only data-entry account out
+    of the four shared screens. Fixed and mutation-checked. Filed as BUG-015.
+  - **`c578558` — the twelve-hour clock, everywhere.** *"Use the twelve hour
+    timing, not the twenty four hour timing. And this is through the entire
+    system."* One function in one file, because `formatCairo` is the only clock
+    in the product; the locale became a REQUIRED argument, which turned "find
+    every screen" into 48 compiler errors. Arabic renders natively — Arabic month
+    name, latin digits, CLDR's own ص / م — because a latin date with an Arabic
+    marker glued on renders BACKWARDS in an RTL page and no styling at the call
+    site could have fixed it (the value is concatenated into a sentence before it
+    reaches the screen). The lead chat's private formatter, which had been
+    printing 24-hour in English and 12-hour in Arabic for months, is gone; a
+    sweep test fails any screen that builds a clock of its own — that claim was
+    an overstatement when this commit was written and is now true: review found
+    the sweep was a blocklist of option names, and three real clocks walked
+    through it (`toLocaleDateString` with an `hour`, `timeStyle`, and a bare
+    `toLocaleString(locale)` on a Date). It is now a pattern rule PLUS a file
+    INVENTORY, so an API nobody predicted fails until it is routed through
+    `datetime.ts` or allowlisted with a reason (ADR-068 §7, Run 080). The meeting
+    notification body — the one formatted time that is STORED and pushed to his
+    phone — is reformatted from the instant, never by munging the string.
+    Storage did not move: the wire layer keeps `"HH:mm"`, and a round-trip test
+    now pins it at exactly the two hours (`00:00`, `12:00`) where flipping the
+    wrong flag would send a write twelve hours wrong with a clean typecheck.
+  - **`f1318d3` — the negotiation response row.** *"Make sure that the response
+    date is made in the to do list as see their response or check their response
+    or check with them in the negotiations."* Its own To-Do kind, labelled
+    **"Check their response" / "التحقق من ردّهم"**. No migration — the record has
+    carried `after_negotiation` since his same-stage request; only the To-Do was
+    not reading it. Same record, same id, same checkbox, same mark, same
+    today-only window, same walls; an older client posting the old name ticks the
+    very same row. The kind is read from the RECORD's stored context, never the
+    lead's current stage, so a Done row keeps its wording after the deal is
+    answered and moves on the same afternoon. ByteForce's endpoint refuses the
+    word outright — that pipeline has no negotiation stage, and a two-member enum
+    is a permanent proof of it.
+- Documentation: ADR-068 (the clock's two layers and the prohibition on the
+  storage half; the required locale; the Arabic bidi decision; the ICU-drift
+  guard; the stored notification body; the To-Do kind and why it is read from the
+  context); SPEC §2, §4.1, §4.4, §5.8 and §6 amended — §4.1/§4.4/§6 record
+  ADR-067's conflict in the SPEC itself rather than only in an ADR; IMPLEMENTATION
+  gained thirteen traps met in practice; CHANGELOG written in his voice for the
+  whole three-part batch; BUG-015; TESTING Run 079.
+- Brand audit: **PASS.** This batch adds ZERO CSS, zero tokens and zero colours —
+  it touched no file under `src/themes/` or `branding/`, and the hardcoded-value
+  grep over the diff comes back empty. `brand-tokens.test.ts` still green, so
+  `branding/byteforce/tokens.css` remains fully populated in all three scopes even
+  though the CRM no longer stamps `data-brand="byteforce"` — the accounting
+  module still needs it. RTL: no physical left/right CSS added; the Arabic clock
+  is bidi-correct BY CONSTRUCTION (a natively Arabic string), which is precisely
+  why the marker is ص / م rather than a latin PM.
+- Tests: Run 079 — **652 vitest + 126 Playwright, 0 failed**, both full suites on
+  the final tree, Playwright from a temporary config on port 3178 (verified free,
+  deleted after, never committed). Baseline taken first: 609 vitest on the
+  unchanged tree. Seven pinned 24-hour assertions were UPDATED, none deleted —
+  including one negative assertion that would otherwise have kept passing while
+  testing nothing, because a twelve-hour hour is one digit.
+  Then **Run 080**, the review gate over the whole fourteen-commit batch: five
+  findings adjudicated, all five reproduced against the code, none refuted, four
+  distinct fixes — the clock sweep hardened from a blocklist into a pattern rule
+  plus a file inventory (three real clocks had been walking through it), the nav
+  unit test that `nav.ts` claimed actually written, BUG-015's record corrected to
+  name the two regexes that really broke, and the duplicated company switch
+  removed. **682 vitest + 126 Playwright, 0 failed**, both full suites re-run on
+  the final tree, plus an explicit MERGE ACCEPTANCE PASS (every role combination
+  → reachable companies; every retired `/byteforce` address → where it lands;
+  the board, To-Do, Leads, Won Leads/Clients and lead detail each confirmed to
+  switch). All step-1 fixes were folded into the commits that introduced the
+  defects; no follow-up commits were appended.
+- In progress: nothing. The founder's request is complete across ADR-067 and
+  ADR-068.
+- Next steps:
+  - Show him the three parts together and collect the confirmations below.
+  - The `/byteforce/…` redirects are 307 (temporary) on purpose. Promote them to
+    308 only AFTER he confirms the shell retirement — a permanent redirect is
+    cached by browsers forever and forecloses a cheap rollback.
+  - BUG-014 (`prospect-stages-migration` row-order flake) is still open and still
+    unrelated; it did not reappear in any run of this batch.
+- Blockers: none.
+- Needs founder confirmation (carried forward from Entry 062, plus three new):
+  1. **The ByteForce-branded CRM shell is retired.** ByteForce work now wears
+     B-Systems chrome at a `/b-systems/…` address. SPEC §4.4's definition of
+     "branded" is amended to say so. (Entry 062, unresolved.)
+  2. **A ByteForce-only teammate sees the B-Systems shell**, with no company
+     switch. He gains nothing and loses no screen — but the interface he opens is
+     not the one he opened last week. (Entry 062, unresolved.)
+  3. **ByteForce work carries the B-Systems browser-tab icon**, because there is
+     one app now. (Entry 062, unresolved.)
+  4. **NEW — in Arabic, dates now read in Arabic.** `20 أغسطس 2026، 6:30 م`
+     rather than `20 Aug 2026, 18:30`. This was forced by the clock, not chosen
+     for its own sake: an Arabic AM/PM marker on an English date renders
+     backwards in an RTL page, and leaving the date English while the clock went
+     Arabic would have put two date styles on one screen. Digits stay latin, like
+     every other number in the system.
+  5. **NEW — the wording on the negotiation row.** He offered three: *"see their
+     response"*, *"check their response"*, *"check with them"*. **"Check their
+     response"** was chosen as the one that is an instruction and still fits on a
+     chip. One line to change if he prefers another.
+  6. **NEW — the accounting module still defaults to ByteForce** while the merged
+     CRM defaults to B-Systems, and the two `?company=` switches are deliberately
+     NOT wired together. Carrying the company across the module switch looks like
+     an improvement and would silently change what `/accounting` opens on. Worth
+     asking; not done.
