@@ -29,6 +29,14 @@ const MODELS = [
   "userRole",
   "salesRep",
   "portalRep",
+  /* ADR-069 added THREE columns to each of `partnerProspect` and `lead`
+     (whatsappSentAt / whatsappSentById / whatsappSentByLabel). No new entry and
+     NO restore twin, for the ADR-066 reason rather than the ADR-063/064 one: the
+     column DEFAULT — NULL, "nobody has messaged them" — IS the right answer for
+     a pre-ADR-069 payload, because the system had no way to record a WhatsApp
+     message before today. A twin here would be inventing due diligence that
+     never happened. `whatsappSentById` is a User FK, and `user` is already the
+     first entry in this list, so the restore order needs nothing either. */
   "partnerProspect",
   "partner",
   "lead",

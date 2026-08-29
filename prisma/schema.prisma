@@ -59,6 +59,13 @@ model User {
      lead must never delete the lead. */
   createdLeads     Lead[]            @relation("LeadCreator")
   createdProspects PartnerProspect[] @relation("ProspectCreator")
+  /* ADR-069 — the records this person was the FIRST to message on WhatsApp.
+     Declared as relations for the same reason the two above are: a bare userId
+     column is invisible to cascade planning. SET NULL — deleting the messenger
+     must never delete the lead, and the denormalised label keeps the chip's
+     sentence readable afterwards. */
+  whatsappMarkedLeads     Lead[]            @relation("LeadWhatsappSender")
+  whatsappMarkedProspects PartnerProspect[] @relation("ProspectWhatsappSender")
   ownedLeads    Lead[]         @relation("LeadOwner")
   notifications Notification[]
   /* ADR-065 — the DEVICES this person asked to be notified on. Cascade: an
@@ -123,6 +130,25 @@ model Lead {
   noAnswerCount Int       @default(0)
   archived     Boolean    @default(false) // founder: archive (ADR-043) — soft-hide, restorable, no data loss
   archivedAt   DateTime?
+  /* ADR-069 (founder: "when I click on the WhatsApp button, it should turn to be
+     green to signal that I already sent WhatsApp to that prospect or to that
+     lead … it signals not just for my user, for any user that we have contacted
+     this lead through WhatsApp") — the mark lives on the RECORD, so every reader
+     sees it. NULL = nobody has messaged them yet.
+
+     It records the FIRST message and keeps it: a second press never overwrites
+     these three, and there is no unmark. Every press still writes its own
+     ActivityLog row (trigger `whatsapp_sent`), so "who most recently messaged
+     them" is answerable from the history without a second pair of columns that
+     would compete with the chip for meaning.
+
+     The label is denormalised beside the FK — the LeadComment.authorLabel /
+     Statement.closerLabel convention — so the chip still reads "sent by Omar"
+     after that account is permanently deleted and the FK is SET NULL. */
+  whatsappSentAt      DateTime?
+  whatsappSentById    String?
+  whatsappSentByLabel String?
+  whatsappSentBy      User?      @relation("LeadWhatsappSender", fields: [whatsappSentById], references: [id], onDelete: SetNull)
   /* ADR-051 — who TYPED this in, which is never who OWNS it. Set on every
      create path (audit data), and the data-entry role's own list reads it. */
   createdByUserId String?
@@ -147,6 +173,7 @@ model Lead {
   @@index([ownerUserId])
   @@index([partnerId])
   @@index([createdByUserId])
+  @@index([whatsappSentById]) // ADR-069 — a SET NULL FK: indexed like createdByUserId, so deleting an account never scans every lead
 }
 
 model FollowUp {
@@ -283,6 +310,15 @@ model PartnerProspect {
   agentUser           User?        @relation("ProspectAgent", fields: [agentUserId], references: [id])
   createdByUserId     String? // ADR-051 — who typed the card in
   createdBy           User?        @relation("ProspectCreator", fields: [createdByUserId], references: [id])
+  /* ADR-069 — the same WhatsApp mark the Lead carries, for the same reason: the
+     partner/agent card wears the identical chip on the board, on its detail, on
+     the partner directory row and (through `agentUserId`) in the Agents list, so
+     the state has to live on the record they all read. See Lead above for the
+     first-press / denormalised-label reasoning. */
+  whatsappSentAt      DateTime?
+  whatsappSentById    String?
+  whatsappSentByLabel String?
+  whatsappSentBy      User?        @relation("ProspectWhatsappSender", fields: [whatsappSentById], references: [id], onDelete: SetNull)
   followUps           FollowUp[]
   meetings            Meeting[]
   lostInfo            LostInfo[]
@@ -296,6 +332,7 @@ model PartnerProspect {
   @@index([stage])
   @@index([kind])
   @@index([createdByUserId])
+  @@index([whatsappSentById]) // ADR-069 — see Lead
 }
 
 model Partner {
