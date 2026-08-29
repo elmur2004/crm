@@ -86,9 +86,34 @@ export function defaultCompanyFor(roles: Role[]): CrmCompany | null {
   return companiesFor(roles)[0] ?? null;
 }
 
-/** A `?company=` value off the wire, or null when it is absent or junk. */
-export function parseCompany(raw: string | undefined | null): CrmCompany | null {
-  return (CRM_COMPANIES as readonly string[]).includes(raw ?? "") ? (raw as CrmCompany) : null;
+/** A `?company=` value off the wire, or null when it is absent or junk.
+
+    ACCESS AUDIT, Run 081 — it takes `string[]` too, because that is what Next
+    hands a server page for a REPEATED parameter (`?company=x&company=y`) and
+    what `URLSearchParams.getAll` hands the client chrome. A repetition is junk
+    to BOTH halves — one company, or none. It used to be junk to the server
+    only (an array is not one of the two literals, so the page fell back to the
+    account's default) while `params.get("company")` gave the switch, the nav
+    and the bell the FIRST value, and the founder could be shown one company's
+    rows under the other's label. Never an access hole — the fallback is by
+    construction a company the account holds — but exactly the confusion the
+    switch exists to prevent, so both halves now answer the same question
+    through this one function. */
+export function parseCompany(
+  raw: string | readonly string[] | undefined | null,
+): CrmCompany | null {
+  const one = Array.isArray(raw) ? (raw.length === 1 ? raw[0] : null) : (raw as string | null);
+  return (CRM_COMPANIES as readonly string[]).includes(one ?? "") ? (one as CrmCompany) : null;
+}
+
+/** The company a QUERY STRING asks for — the client-side twin of the server's
+    `searchParams.company`, and deliberately the same predicate. `getAll`, not
+    `get`, so a repeated parameter reads as junk here exactly as it does on the
+    server rather than silently becoming its first value. */
+export function companyInParams(params: {
+  getAll(name: string): string[];
+}): CrmCompany | null {
+  return parseCompany(params.getAll("company"));
 }
 
 export type CompanyResolution =
@@ -111,7 +136,10 @@ export type CompanyResolution =
       at either company's books, so a fallback is honest. Here the companies
       are a permission, so a valid-but-unheld value is an access request and is
       answered by the server, not quietly swapped behind the same label. */
-export function resolveCompany(roles: Role[], requested?: string | null): CompanyResolution {
+export function resolveCompany(
+  roles: Role[],
+  requested?: string | readonly string[] | null,
+): CompanyResolution {
   const companies = companiesFor(roles);
   const fallback = companies[0];
   if (!fallback) return { kind: "none" };
@@ -127,7 +155,14 @@ export function crmQuery(company: CrmCompany): string {
   return `?company=${company}`;
 }
 
-/** Append the company to an href that may already carry a query string. */
+/** Put the company on an href that may already carry a query string — and at
+    most ONCE. It used to append unconditionally, so calling it on an href that
+    already named a company produced `?company=a&company=b`: the repeated shape
+    the server discards and the chrome misreads (see `parseCompany`). `set`
+    REPLACES, so the trap cannot be re-entered by the next caller. */
 export function withCompany(href: string, company: CrmCompany): string {
-  return `${href}${href.includes("?") ? "&" : "?"}company=${company}`;
+  const [path, query = ""] = href.split("?");
+  const params = new URLSearchParams(query);
+  params.set("company", company);
+  return `${path}?${params.toString()}`;
 }

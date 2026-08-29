@@ -133,6 +133,97 @@ describe("the checkbox and the Done section stay inside one company", () => {
     expect((await listFor("bsystems")).today.map((i) => i.title)).toEqual(["BS Task"]);
   });
 
+  /* ---- ACCESS AUDIT, Run 081 (BUG-016) ------------------------------------
+
+     The test above only ever exercised `done: true`. `done: false` deleted the
+     mark by RECORD ID ALONE and never read `opts.brand`, so the brand wall both
+     To-Do routes document as living in this service did not exist for half the
+     endpoint. Nothing escalated — the routes' own requireLeadAccess has already
+     proved the caller may touch that lead, and the money kinds are absent from
+     the ByteForce route's enum — but the next caller placed in front of this
+     service would have inherited an unguarded cross-company delete. Both
+     directions of the wall are now asserted, plus the idempotence the uncheck
+     is supposed to keep. */
+
+  it("refuses to UNCHECK the other company's record, by id", async () => {
+    const bs = await makeLead("bsystems", "BS Task", "following_up");
+    const f = await followUp(bs.id);
+    await setTodoDone({
+      brand: "bsystems",
+      kind: "follow_up",
+      recordId: f.id,
+      done: true,
+      actor,
+      now: NOW,
+    });
+    expect(await db.todoDone.count()).toBe(1);
+
+    await expect(
+      setTodoDone({
+        brand: "byteforce",
+        kind: "follow_up",
+        recordId: f.id,
+        done: false,
+        actor,
+        now: NOW,
+      }),
+    ).rejects.toMatchObject({ status: 404 });
+
+    /* the mark SURVIVED — the other company could not clear it */
+    expect(await db.todoDone.count()).toBe(1);
+    expect((await listFor("bsystems")).done.map((i) => i.title)).toEqual(["BS Task"]);
+
+    /* and its own company still unchecks it, as idempotently as ever */
+    await setTodoDone({
+      brand: "bsystems",
+      kind: "follow_up",
+      recordId: f.id,
+      done: false,
+      actor,
+      now: NOW,
+    });
+    await setTodoDone({
+      brand: "bsystems",
+      kind: "follow_up",
+      recordId: f.id,
+      done: false,
+      actor,
+      now: NOW,
+    });
+    expect(await db.todoDone.count()).toBe(0);
+  });
+
+  it("refuses to UNCHECK a MONEY mark under the other company", async () => {
+    const lead = await makeLead("bsystems", "Won One", "won");
+    const won = await db.wonDeal.create({
+      data: { leadId: lead.id, estimatedValue: 100_000_00, totalCommissionPercent: 10_00 },
+    });
+    const ms = await db.milestone.create({
+      data: { wonDealId: won.id, index: 1, label: "M1", value: 100_000_00, expectedEnd: DUE },
+    });
+    await setTodoDone({
+      brand: "bsystems",
+      kind: "milestone",
+      recordId: ms.id,
+      done: true,
+      actor,
+      now: NOW,
+    });
+    expect(await db.todoDone.count()).toBe(1);
+
+    await expect(
+      setTodoDone({
+        brand: "byteforce",
+        kind: "milestone",
+        recordId: ms.id,
+        done: false,
+        actor,
+        now: NOW,
+      }),
+    ).rejects.toMatchObject({ status: 404 });
+    expect(await db.todoDone.count()).toBe(1);
+  });
+
   it("does not ASK for the other company's marks — the read is the contract here", async () => {
     /* The projection used to fetch every mark made today, both companies, and
        filter afterwards. Its OUTPUT was already right, because the lookup is by

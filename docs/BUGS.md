@@ -295,3 +295,155 @@ the moment a failure is found; close them with a reference to the fixing commit/
   DELIBERATE ones (the `"PK\x03\x04"` ZIP magic in `vault.integration.test.ts`,
   already documented in IMPLEMENTATION).
 - Status: **fixed** (commit `55ffe2a`, Run 079).
+
+## BUG-016 — 2026-08-29 — `setTodoDone` ignored its `brand` on the UNCHECK path, so half the To-Do endpoint had no company wall
+- Severity: major (a documented server-side wall that did not exist for
+  `done: false`; no escalation reachable today)
+- Where: `src/lib/services/todo-done.ts`, the early return at the top of
+  `setTodoDone` — `if (!opts.done)` deleted the mark with
+  `db.todoDone.deleteMany({ where: key })` and returned. `key` is
+  `keyFor(kind, recordId)`, a bare `{ followUpId }` / `{ meetingId }` /
+  `{ statementId }` / `{ milestoneId }`, so the mark was deleted by RECORD ID
+  ALONE and `opts.brand` was never read. Every `done: true` path below it does
+  `if (!f?.lead || f.lead.brand !== opts.brand) throw new ApiError(404)`.
+- Symptom: none visible in the product. Proved against real Postgres in the
+  regression test: a mark created with `brand: "bsystems"` was deleted by a
+  `brand: "byteforce"` uncheck of the same record id, and the mirror case
+  deleted a B-Systems MILESTONE mark under `brand: "byteforce"`.
+- Why it matters even though nothing escalated: both To-Do routes lean on this
+  service in their own header comments — `/api/byteforce/todo/done` says
+  "setTodoDone 404s a lead of the other brand — the brand comes from the ROUTE,
+  never from input" — which was true for one half of the endpoint and false for
+  the other. Today the routes' `requireLeadAccess` has already proved the caller
+  may touch that lead (and the ByteForce route's enum carries no money kinds),
+  so there is no reachable cross-company effect. The next caller placed in front
+  of this service would have inherited an unguarded cross-brand delete.
+- Repro (before the fix): check a B-Systems follow-up with
+  `setTodoDone({ brand: "bsystems", kind: "follow_up", done: true })`, giving
+  `todoDone.count()` = 1; then the same record id with `brand: "byteforce"` and
+  `done: false` gave count 0, no error.
+- Fix: the uncheck path now runs the SAME brand wall as the check path before it
+  deletes — money kinds refuse any brand but `bsystems`, lead-backed kinds
+  resolve `lead.brand` through the new `leadBrandOfTodoRecord` and 404 on a
+  mismatch. A record that is simply GONE still deletes nothing and refuses
+  nothing (marks cascade with their record), so the uncheck stays idempotent.
+- Regression test: `src/lib/services/todo-company-scope.integration.test.ts` —
+  "refuses to UNCHECK the other company's record, by id" and "refuses to UNCHECK
+  a MONEY mark under the other company". The pre-existing cross-company case
+  only ever exercised `done: true`, which is why this survived. Mutation-checked:
+  with the wall removed both go red, with it restored both go green.
+- Status: **fixed** (Run 081, the access audit).
+
+## BUG-017 — 2026-08-29 — the merge's anti-hole sweep lied about the walls it checks, twice more (BUG-015's family)
+- Severity: major (a permission sweep that could not pass, and one that could be
+  satisfied by a comment; no product behaviour was wrong)
+- Where: `src/lib/crm/page-company-guards.test.ts` — the same file BUG-015 came
+  out of, from the same batch.
+  1. **The `bsRoleOf` assertion could never pass on this checkout.** It matched a
+     needle carrying a literal line feed (the guard call broken across lines)
+     against bytes read straight off disk. `git config core.autocrlf` is `true`
+     and the repo has no `.gitattributes`, so every merged page is CRLF in the
+     working tree (`agents/page.tsx`: 183 CRLFs) while the committed blob is LF.
+     All ten pages that reach the assertion failed it; because it threw inside a
+     `for` loop it aborted on the first, so the other nine were never examined
+     either. Running that file alone at `4239dfa` on a clean tree gave
+     `Tests 1 failed | 50 passed (51)`. A check that fails identically whether
+     the code is right or wrong gives zero signal, and an always-red suite is a
+     suite people stop reading. It also means Run 080's "682 passed / 0 failed"
+     was recorded from an in-session LF worktree that had not round-tripped
+     through a checkout — Run 081 carries the reproducible numbers.
+  2. **A page could satisfy the sweep by NAMING a guard in a comment.** The
+     per-page check filtered the guard names with a plain `src.includes(...)` on
+     the raw source. A `page.tsx` holding an unguarded `db.lead.findMany` and the
+     prose "see requireCompanySection / narrowRoles in lib/auth/page-guards.ts"
+     passed both per-page assertions AND the `narrowRoles` loop; so did a page
+     that imports a guard and never awaits it. The one mechanical net protecting
+     the merge's central weakness — the company living in a query parameter —
+     could be satisfied without calling a guard at all.
+- Also: the directory walk collected only `page.tsx`, so a `route.ts` dropped
+  into the merged shell's route group would have been a live endpoint the sweep
+  never saw. None exist today.
+- Fix: every read goes through a `codeOf(file)` that normalises CRLF and strips
+  comments; the per-file check matches the CALL shape (an awaited
+  `requireCompanyPage` / `requireCompanySection` / `requireBsAdminCompanyPage`)
+  rather than the name; the `bsRoleOf` check uses a whitespace-insensitive
+  regular expression; both loops COLLECT every offender and assert on the list,
+  so one bad page cannot hide the ones behind it; the walk now collects
+  `route.ts` as well.
+- Mutation-checked — six probes, six reds, each restored afterwards with
+  `git status` confirmed clean: (a) a page with no guard at all; (b) the
+  comment-only page above; (c) a page importing a guard without awaiting it;
+  (d) an unguarded `route.ts`; (e) `narrowRoles` removed from `todo/page.tsx`;
+  (f) the company pin repointed from bsystems to byteforce in `agents/page.tsx`
+  — which is the proof the dead assertion is alive again, since it now passes on
+  the correct code on this same CRLF tree and fails when the pin is dropped.
+- Not done, deliberately: adding `.gitattributes` (`* text=auto eol=lf`) would
+  make every byte-level assertion checkout-proof, but it rewrites the whole
+  working tree on the founder's machine mid-week. Recorded here as the standing
+  recommendation; the honest fix for a test is to stop asserting on bytes.
+- Status: **fixed** (Run 081, the access audit).
+
+## BUG-018 — 2026-08-29 — a tapped notification could land the founder on the other company
+- Severity: major (wrong-company screen from a push; no data exposed that the
+  account does not already hold)
+- Where: `public/sw.js`, the `notificationclick` handler compared
+  `here.pathname` with `target.pathname` before deciding to navigate. When the
+  pathnames matched, the branch was skipped and control fell through to
+  `client.focus()`, which returns without navigating.
+- Why it broke now: before this batch every `deepLinkFor` output had its own
+  pathname (`/byteforce`, `/b-systems`, `/b-systems/registrations`,
+  `/b-systems/crm/lead/<id>`, `/byteforce/leads/lead/<id>`). ADR-067 moved the
+  company into the QUERY STRING, so `src/lib/services/push/payload.ts` now emits
+  `/b-systems?company=byteforce` for a ByteForce mention and `/b-systems` for the
+  fallback — three notification targets collapsed onto one pathname.
+  `public/sw.js` was untouched by the batch, so nothing re-examined it when the
+  URL shape changed underneath it.
+- Symptom: the installed app is sitting on `/b-systems?company=bsystems`; a
+  ByteForce mention push arrives; he taps it; the worker focuses the window he
+  already has and he is reading B-Systems while the notification named ByteForce.
+- Fix: compare `here.pathname + here.search` with
+  `target.pathname + target.search`, so a query-only difference still triggers
+  `client.navigate(target.href)`.
+- Regression test: `src/lib/services/push/sw-deep-link.test.ts` — it loads the
+  REAL `public/sw.js` into a fake `self` and drives the real handler, so nothing
+  is duplicated. Mutation-checked: restoring the pathname-only comparison turns
+  the first case red, while "already on the very address, so just focus" and "no
+  window, so openWindow" stay green either way — which is what proves the fix
+  did not simply make it always navigate.
+- Status: **fixed** (Run 081, the access audit).
+
+## BUG-019 — 2026-08-29 — a repeated `?company=` was read one way by the server and another by the chrome
+- Severity: minor (company CONFUSION, not access — it fails closed)
+- Where: `src/lib/crm/company.ts`. `parseCompany` took `string | undefined | null`,
+  but Next hands a server page `string[]` for a repeated parameter; an array is
+  not one of the two literals, so it read as junk and `resolveCompany` fell back
+  to the account's DEFAULT company. Meanwhile `CompanySwitch.tsx` and the three
+  `params.get("company")` reads in `CrmShellNav.tsx` took the FIRST value. Probed
+  with roles `[bsystems_admin, byteforce_staff]` and a doubled
+  `company=byteforce`: the server said `bsystems`, the chrome said `byteforce`.
+  The page rendered B-Systems rows under a ByteForce nav, a ByteForce
+  "Company · …" label and a bell polling `/api/byteforce`.
+- It is NOT an access hole and never was: the fallback is by construction a
+  company the account holds, so no unheld company can be surfaced. It breaks the
+  invariant `resolveCompany`'s own comment states — "never render the other one's
+  data under the label they asked for" — and the founder's "there is no confusion
+  in it", which is the whole reason the switch exists.
+- Second half, same root: `withCompany(href, company)` appended `company=`
+  unconditionally, so calling it on an href that already named a company
+  manufactured the duplicate itself. It has no production call site today (the
+  one `withCompany` grep hit outside its own tests is an unrelated boolean prop
+  in `components/bsystems/dataEntry.tsx`) — but it is exported, unit-tested and
+  documented as the way to keep the company across a navigation, so the next
+  caller inherits the trap.
+- Fix: `parseCompany` accepts `string | readonly string[]` and treats anything
+  that is not exactly ONE value as junk; a new `companyInParams(params)` wraps
+  `params.getAll("company")` through the same predicate and is what the switch,
+  the nav, the home link and the bell now call; the three page guards are typed
+  `string | readonly string[]`; `withCompany` rebuilds the query through
+  `URLSearchParams`, whose `set` REPLACES an existing `company`.
+- Regression test: `src/lib/crm/company.test.ts` — "a REPEATED `?company=` reads
+  the same on the server and in the chrome" asserts the two halves side by side
+  (junk both ways, identical for every single value), plus "withCompany REPLACES
+  a company already on the href, never doubles it". Mutation-checked: reverting
+  either half of the fix turns three of the four new cases red.
+- Status: **fixed** (Run 081, the access audit).

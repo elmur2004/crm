@@ -3717,3 +3717,188 @@ can reach which company, and where every retired address lands — were walked
 explicitly and are recorded above in full. No permission widened: the only
 product change in this run REMOVES a duplicate control, and the only other
 changes are tests and documentation.
+
+## Run 081 — 2026-08-29 — THE ACCESS AUDIT the merge never got: the third reviewer died mid-run, so this is that review, run after the fact against live code
+- Why this run exists, plainly. Three adversarial reviewers were commissioned for
+  the ADR-067/068 batch. Two ran, and Run 080 adjudicated their five findings.
+  The THIRD — the ACCESS lens, the one asking whether anybody gained reach they
+  did not have — **died on a server error partway through and never reported**.
+  The batch was already merged and pushed to production. So the single
+  highest-risk property of the whole change (two apps became one shell, the
+  company moved into a query parameter, and `/b-systems` started admitting
+  `byteforce_staff` at the edge) shipped with no independent access review. This
+  run is that review, executed against the live tree at `4239dfa`, together with
+  the nine findings three replacement access lenses filed afterwards.
+- Scope: `c98d856..4239dfa` (14 commits), read with `git log` / `git show`, plus
+  every pre-merge file it deleted or moved, read with `git show c98d856:<path>`.
+- Suites/commands, all on the FINAL tree, from `D:/CRM` (capital D):
+  - `npx tsc --noEmit` — clean, run after every edit and on the final tree.
+  - `npx vitest run` (FULL) — **45 files, 691 tests: 691 passed / 0 failed /
+    0 skipped**. Run 080 recorded 44 files / 682 tests; this run adds one file
+    (`src/lib/services/push/sw-deep-link.test.ts`, 3 cases) and 6 more cases in
+    two existing files (`company.test.ts` 44 → 48, `todo-company-scope` 7 → 9).
+  - `npx playwright test` (FULL suite, every spec) — ****126 passed / 0 failed / 2 skipped** of 128 collected, 14.9m. The 2 skips are `e2e/audit.spec.ts` behind `AUDIT=1` — the standing gate since Run 074, not a regression. Collected stayed at 128: no spec added, none deleted, none re-premised**.
+    `test-results/.last-run.json` read directly afterwards: `{"status": "passed", "failedTests": []}` —
+    the summary line AND the file, never an exit code.
+  - Playwright ran from a TEMPORARY copy of `playwright.config.ts` on port
+    **3137**, verified free with `netstat` first, deleted afterwards and never
+    committed; the checked-in config is untouched and port 3100 was left alone
+    in case another workstream claims it.
+- **A correction to Run 080's numbers, which matters.** Run 080 recorded
+  "44 files, 682 tests: 682 passed / 0 failed" for this commit. That is **not
+  reproducible from a fresh checkout on this machine**: at `4239dfa`, on a clean
+  tree, `npx vitest run src/lib/crm/page-company-guards.test.ts` gives
+  `Tests 1 failed | 50 passed (51)`. The green run must have been made on an
+  in-session LF worktree that had never round-tripped through a checkout — see
+  BUG-017. The shipped guard suite was RED at HEAD, and nobody could see it
+  because nobody re-ran it from a fresh tree.
+
+### THE VERDICT: nobody gained access they did not have
+Walked file by file, not assumed:
+- **Every one of the 24 merged pages was diffed against its PRE-MERGE guard.**
+  Every B-Systems page that took the four-role tuple
+  (`bsystems_admin/sales/agent/partner`) now takes `BS_PIPELINE_ROLES`, which is
+  those four; `entry` took five and now takes `BS_CRM_ROLES`, which is those
+  five; the four `requireBsAdminPage` pages now take
+  `requireBsAdminCompanyPage`, which is that guard plus a company check that runs
+  FIRST. Not one role set widened.
+- **The five ByteForce pages were guarded by the deleted `(byteforce)` app
+  layout alone** — a single `requirePageRole("/login", "byteforce_staff")` for
+  all of them. Each now carries
+  `requireCompanySection("byteforce", …, ["byteforce_staff"])` in its own file:
+  the same role, moved from the layout into the page, which the merge required
+  because the shared shell can no longer speak for it.
+- **The "no API route learned about company" claim was VERIFIED, not believed.**
+  `git diff c98d856..4239dfa -- src/app/api/` touches exactly two files, both
+  `todo/done`, and neither reads a company; the only change is ADR-068 adding
+  `negotiation_response` to the B-Systems enum — the same `FollowUp` record, the
+  same `requireLeadAccess` wall, the same unique key. A grep for `company` across
+  `/api/byteforce/**` and `/api/b-systems/**` returns only `companyName`, a lead
+  FIELD. The 45 route files still derive the brand from the ROUTE
+  (`requireBrandStaff(brand)` / `internalCrmHandlers(brand)` / `requireBsAdmin`),
+  and the proxy matcher never covered `/api` in the first place.
+- **Every merged page passes the RESOLVED company into its services** —
+  `listBsLeads`, `listOwnLeads`, `adminHome`, `adminWonLeads`, `closerWonLeads`,
+  `todoFor` — never the raw `?company=` string. Making `brand` a required first
+  positional is what made that checkable at all.
+- **The edge widening is navigation hygiene, per ADR-066's own split.**
+  `/b-systems` now admits `byteforce_staff` in `src/proxy.ts`, and every page
+  behind it refuses per company and per role against the LIVE User row.
+- **`bsystems_data_entry` is still carved out of everything** (ADR-051). It holds
+  only `bsystems`, so `requireCompanySection("byteforce", …)` bounces it before
+  any role check, and `narrowRoles(BS_PIPELINE_ROLES)` bounces it on all four
+  shared pages. The regression the implementer caught mid-flight — an early
+  `requireCompanySection` that took only the company and let this account into
+  Won Leads, Statements, the board and the printable statement document — cannot
+  return silently: the role list is a required non-empty tuple, and the sweep now
+  actually checks it.
+- **Every redirect path was walked for loops and for leaks.** A B-Systems-only
+  account following `/byteforce/anything` is rewritten to
+  `/b-systems?company=byteforce` by the proxy, refused by `resolveCompany`, and
+  redirected once to `/b-systems?company=bsystems`, which renders. A repeated or
+  junk `?company=` never redirects at all — it falls back to a company the
+  account holds. There is no input that produces a company an account does not
+  hold, which is the 64-subset property `company.test.ts` already asserts
+  mechanically for every role combination.
+
+### The nine findings, adjudicated against the code
+Each was reproduced before it was believed, and every fix was mutation-checked.
+Three of the nine are the same defect filed by three different lenses.
+
+1. **The sweep's last assertion is dead on a CRLF checkout — REAL, fixed**
+   (filed three times: the "fails-always" finding, the "permanently red" finding
+   and the "known-failing, skip it" finding are one bug). Reproduced exactly:
+   `Tests 1 failed | 50 passed (51)` at `4239dfa`, naming `agents/page.tsx`,
+   which does pin its company. Cause confirmed byte-level — the working tree is
+   CRLF (183 CRLFs in that file), the blob is LF, `core.autocrlf=true`, no
+   `.gitattributes`. All ten `bsRoleOf` pages fail the literal and all ten pass
+   after normalising. Fixed: BUG-017.
+2. **The sweep can be satisfied by a COMMENT — REAL, fixed.** Reproduced with
+   the reviewer's own probe (an unguarded `page.tsx` whose only mention of a
+   guard is prose) and with a second probe of my own (a page that imports a guard
+   and never awaits it). Both passed the shipped sweep; both fail the fixed one.
+   The related `route.ts` gap is closed in the same change. Fixed: BUG-017.
+3. **`setTodoDone` ignores `brand` on the uncheck path — REAL, fixed.** Confirmed
+   in the code and then against real Postgres: a B-Systems mark deleted under
+   `brand: "byteforce"`, and the mirror for a milestone. Not an escalation today
+   — the routes' `requireLeadAccess` has already proved the caller may touch that
+   lead, and the ByteForce route's enum has no money kinds — but the wall both
+   routes' comments attribute to this service did not exist for half the
+   endpoint. Fixed: BUG-016.
+4. **(Duplicate of 1.)** Same file, same line, same cause, filed independently.
+   Its extra evidence — that the `for` loop aborts on the first file so the other
+   nine are never examined — is real and is fixed by collecting offenders.
+5. **A repeated `?company=` splits the server from the chrome — REAL, fixed.**
+   Confirmed: the guard was typed `string` while Next delivers `string | string[]`,
+   `parseCompany` read an array as junk and fell back, and `params.get` gave the
+   chrome the FIRST value. It fails CLOSED for access — the fallback is by
+   construction a company the account holds — so it is company CONFUSION, not a
+   hole, but it breaks the founder's "no confusion in it". Fixed: BUG-019.
+6. **The push service worker compares PATHNAME only — REAL, fixed.** Confirmed
+   in `public/sw.js` and in `payload.ts`: three notification targets now collide
+   on the single pathname `/b-systems`, so a ByteForce mention tapped from a
+   window sitting on the B-Systems home focuses that window and never navigates.
+   The file was untouched by the batch, which is exactly why nothing caught it.
+   Fixed: BUG-018.
+7. **(Same defect as 5, filed from the client side.)** The `params.get` half.
+   Fixed by the same change — both halves now go through one predicate.
+8. **`withCompany` appends unconditionally — REAL, fixed.** It has no production
+   call site (the only other `withCompany` in the tree is an unrelated boolean
+   prop in `components/bsystems/dataEntry.tsx`), but it is exported, tested and
+   documented as the way to carry the company, so it is the in-repo machine for
+   manufacturing the shape finding 5 describes. Fixed: BUG-019.
+9. **(Duplicate of 1.)** Adds the useful detail that the other four assertions in
+   the file were separately mutation-checked and are sound — which matched my own
+   probes, and is why the fix keeps all four and only changes how they read.
+
+**Nothing was refuted.** All nine are real; six are distinct defects collapsing
+into four fixes. None of them is an access hole, and none of them changes who can
+reach what.
+
+### The tests were written to be able to fail, and were checked that they can
+Every test written or changed here was mutation-checked, broken and restored,
+with `git status` confirmed clean after each probe:
+- The guard sweep, six probes and six reds: a page with no guard; a page naming
+  the guards only in a comment; a page importing a guard without awaiting it; an
+  unguarded `route.ts`; `narrowRoles` removed from a real page (`todo/page.tsx`);
+  the company pin repointed on a real page (`agents/page.tsx`). The last is the
+  one that matters most — it proves the assertion that could never pass now
+  passes on the correct code on this same CRLF tree, and fails when the code is
+  wrong.
+- BUG-016's two new integration cases: with the brand wall removed both go red
+  against real Postgres, with it restored both go green.
+- BUG-018's new file loads the REAL `public/sw.js` into a fake `self` and drives
+  the real `notificationclick` handler — nothing is re-implemented. Restoring the
+  pathname-only comparison turns the first case red while the other two stay
+  green, which is what proves the fix did not simply make it always navigate.
+- BUG-019's four new cases: reverting either half of the fix turns three of them
+  red.
+- Every file written in this run was byte-scanned for control characters
+  (`ord(c) < 32` outside tab/CR/LF) before being trusted — the BUG-015 discipline.
+  All clean.
+
+### Brand and i18n law
+- No component, token or stylesheet was touched. `git diff` adds no hex colour,
+  no `font-family`, and defines no custom property, so the three-scope token law
+  is untouched.
+- No i18n dictionary was touched: no existing English string moved and no new key
+  was added, so no Arabic was owed.
+
+### SPEC coverage touched
+None. No SPEC section changed, no `prisma/` file changed (so no migration proof
+was owed), and the pipeline engine is unmodified — §10's transition tables are
+byte-identical.
+
+### Verdict
+**PASS.** 691 vitest + 126 Playwright = **817** green across both full suites on the final tree, with
+the Playwright verdict read from `test-results/.last-run.json` and not inferred
+from an exit code. Nine findings adjudicated, nine reproduced, none refuted, four
+distinct fixes. And the answer to the question the dead reviewer was hired to
+ask: **no. Nobody gained access they did not have.** The merge's role sets are
+byte-for-byte the pre-merge ones, the API namespaces are untouched and still the
+brand wall, and every widening at the edge is narrowed again by a page guard
+against the live User row. What the audit did find is a class of damage this
+merge was always going to risk and nobody had looked for: the things that were
+not edited but had their meaning changed underneath them — the sweep that checks
+the guards, the service worker that opens the deep links, and the half of an
+endpoint whose twin carried the wall.

@@ -83,7 +83,19 @@ self.addEventListener("notificationclick", (event) => {
         var client = windows[i];
         var here = new URL(client.url);
         if (here.origin !== target.origin) continue;
-        if (here.pathname !== target.pathname && typeof client.navigate === "function") {
+        /* ADR-067 + ACCESS AUDIT, Run 081 — PATH **AND QUERY**. Before the
+           merge every deep link had its own pathname (/byteforce, /b-systems,
+           /b-systems/registrations, ...), so comparing pathnames was enough.
+           The merge moved the COMPANY into the query string, and three
+           notification targets now collide on the single pathname
+           "/b-systems" — a ByteForce mention deep-links to
+           "/b-systems?company=byteforce". With a pathname-only test the worker
+           would FOCUS a window already sitting on "/b-systems?company=bsystems"
+           and never navigate, landing him on the other company from the one the
+           notification told him about. This file was untouched by the merge, so
+           nothing re-examined it when the URL shape changed underneath it. */
+        if (here.pathname + here.search !== target.pathname + target.search &&
+            typeof client.navigate === "function") {
           try {
             var navigated = await client.navigate(target.href);
             if (navigated && typeof navigated.focus === "function") {

@@ -6,7 +6,7 @@ import { useLocale } from "@/components/shared/LocaleProvider";
 import { tFor } from "@/lib/i18n/core";
 import { shell } from "@/lib/i18n/dict/auth";
 import { acctCompanies } from "@/lib/i18n/dict/accounting";
-import { crmQuery, parseCompany, type CrmCompany } from "@/lib/crm/company";
+import { companyInParams, crmQuery, type CrmCompany } from "@/lib/crm/company";
 
 /* ============================================================================
    ADR-067 — THE COMPANY SWITCH.
@@ -62,7 +62,7 @@ export function CompanySwitch({
   const pathname = usePathname();
   const params = useSearchParams();
   if (companies.length < 2) return null;
-  const current = parseCompany(params.get("company")) ?? fallback;
+  const current = companyInParams(params) ?? fallback;
   const currentLabel = t(acctCompanies[current]!);
   return (
     <div className="company-switch">

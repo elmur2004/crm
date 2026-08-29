@@ -43,6 +43,23 @@ export async function leadIdOfTodoRecord(
   return record.leadId;
 }
 
+/** The BRAND behind a lead-backed task record — the same `lead.brand` every
+    check path below asserts on, resolved in one query. `null` when the record
+    or its lead is gone, which is not a refusal: there is nothing to act on. */
+async function leadBrandOfTodoRecord(kind: TodoKind, recordId: string): Promise<string | null> {
+  const record =
+    kind === "meeting"
+      ? await db.meeting.findUnique({
+          where: { id: recordId },
+          select: { lead: { select: { brand: true } } },
+        })
+      : await db.followUp.findUnique({
+          where: { id: recordId },
+          select: { lead: { select: { brand: true } } },
+        });
+  return record?.lead?.brand ?? null;
+}
+
 const NOT_TODAY = "This task is not on today's To-Do";
 
 type UniqueKey =
@@ -119,7 +136,25 @@ export async function setTodoDone(opts: {
     /* The uncheck IS the reversal (no UndoEntry — the comments.ts precedent
        for a lightweight self-reversing action). No liveness gate: deleting a
        mark on a record that auto-resolved is a harmless no-op in the
-       projection, and the route's scope wall has already passed. */
+       projection, and the route's scope wall has already passed.
+
+       ACCESS AUDIT, Run 081 (BUG-016) — but the BRAND is not a liveness gate,
+       and this half of the endpoint used to skip it: the mark was deleted by
+       record id ALONE, so `opts.brand` was never read on the way out. Both
+       To-Do routes' own comments lean on this service for that wall
+       ("setTodoDone 404s a lead of the other brand — the brand comes from the
+       ROUTE, never from input"), which was true only for `done: true`. It is
+       now true for both halves, with the SAME 404 the check path gives. A
+       record that is simply GONE still deletes nothing and refuses nothing
+       (marks cascade with their record, so there is never one left to find),
+       which keeps the uncheck idempotent. */
+    if (opts.kind === "statement" || opts.kind === "milestone") {
+      // money kinds are B-Systems-only, exactly as the check path has them
+      if (opts.brand !== "bsystems") throw new ApiError(404, "Task not found");
+    } else {
+      const brand = await leadBrandOfTodoRecord(opts.kind, opts.recordId);
+      if (brand && brand !== opts.brand) throw new ApiError(404, "Task not found");
+    }
     await db.todoDone.deleteMany({ where: key });
     return;
   }

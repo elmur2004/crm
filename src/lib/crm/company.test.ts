@@ -7,6 +7,7 @@ import {
   companiesFor,
   crmQuery,
   defaultCompanyFor,
+  companyInParams,
   parseCompany,
   resolveCompany,
   withCompany,
@@ -166,5 +167,65 @@ describe("query helpers", () => {
     expect(withCompany("/b-systems/leads/rep/x?view=archived", "byteforce")).toBe(
       "/b-systems/leads/rep/x?view=archived&company=byteforce",
     );
+  });
+  it("withCompany REPLACES a company already on the href, never doubles it", () => {
+    /* ACCESS AUDIT, Run 081 — it used to append unconditionally, so the one
+       helper documented as "keeps the current company when navigating" was the
+       in-repo way to MANUFACTURE the repeated parameter the two halves of the
+       app then read differently. */
+    expect(withCompany("/b-systems/leads?company=bsystems", "byteforce")).toBe(
+      "/b-systems/leads?company=byteforce",
+    );
+    expect(withCompany("/b-systems/leads?view=archived&company=bsystems", "byteforce")).toBe(
+      "/b-systems/leads?view=archived&company=byteforce",
+    );
+  });
+});
+
+describe("a REPEATED ?company= reads the same on the server and in the chrome", () => {
+  /* ACCESS AUDIT, Run 081. Next hands a server page `string[]` for
+     `?company=a&company=b`; the client chrome used `params.get`, which is the
+     FIRST value. So the page could render one company's rows under the other
+     company's nav, label and bell. It never leaked a company the account does
+     not hold — the fallback is by construction one it does — but "there is no
+     confusion in it" was the founder's whole requirement for the switch.
+     One predicate, both halves, asserted side by side. */
+  const REPEATS: string[][] = [
+    ["byteforce", "byteforce"],
+    ["byteforce", "bsystems"],
+    ["bsystems", "byteforce"],
+    ["junk", "byteforce"],
+  ];
+
+  it("treats a repetition as junk on BOTH sides", () => {
+    for (const values of REPEATS) {
+      const server = parseCompany(values); // what Next gives the page guard
+      const client = companyInParams(new URLSearchParams(values.map((v) => ["company", v])));
+      expect(server).toBeNull();
+      expect(client).toBeNull();
+      expect(client).toEqual(server);
+    }
+  });
+
+  it("and a single value still reads identically on BOTH sides", () => {
+    for (const one of ["bsystems", "byteforce", "junk", ""]) {
+      const server = parseCompany(one);
+      const client = companyInParams(new URLSearchParams([["company", one]]));
+      expect(client).toEqual(server);
+    }
+    /* absent everywhere */
+    expect(companyInParams(new URLSearchParams(""))).toBeNull();
+    expect(parseCompany(undefined)).toBeNull();
+  });
+
+  it("so the SWITCHED page falls back to the account's own default, labelled honestly", () => {
+    /* the founder holds both; a doubled ByteForce query is not a ByteForce page */
+    expect(resolveCompany(BOTH, ["byteforce", "byteforce"])).toEqual({
+      kind: "ok",
+      company: "bsystems",
+      companies: ["bsystems", "byteforce"],
+    });
+    /* and the chrome now agrees, instead of printing "Company · ByteForce" */
+    expect(companyInParams(new URLSearchParams("company=byteforce&company=byteforce"))).toBeNull();
   });
 });

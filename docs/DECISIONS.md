@@ -4439,6 +4439,53 @@ the code and the rendered page, and all six were FIXED — none needed refuting.
   never showed the difference and never would have. It is the rare case where the
   read itself is the contract.
 
+### 12. THE ACCESS AUDIT, RUN AFTER THE FACT (Run 081)
+- **Why it exists.** Three adversarial reviewers were commissioned for this
+  batch. Two ran and were adjudicated in Run 080. The THIRD — the ACCESS lens,
+  the one asking whether anybody gained reach they did not have — died on a
+  server error partway through and never reported, so the highest-risk property
+  of the whole merge shipped to production with no independent review. Run 081
+  is that review, run against live code at `4239dfa`, plus the findings three
+  replacement access lenses filed afterwards.
+- **The verdict: NOBODY GAINED ACCESS.** Walked, not assumed:
+  - Every one of the 24 merged pages was diffed against its PRE-MERGE guard
+    (`git show c98d856:<path>`). Every B-Systems page that took the four-role
+    tuple still takes `BS_PIPELINE_ROLES`; `entry` still takes `BS_CRM_ROLES`;
+    the four `requireBsAdminPage` pages now take `requireBsAdminCompanyPage`,
+    which is that guard plus a company. Not one role set widened.
+  - The five ByteForce pages were guarded by the deleted `(byteforce)` app
+    layout alone (`requirePageRole("/login", "byteforce_staff")`). Each now
+    carries `requireCompanySection("byteforce", …, ["byteforce_staff"])` in its
+    own file — the same role, moved from the layout into the page, which is what
+    the merge required since the shell can no longer speak for it.
+  - The API claim was VERIFIED rather than believed: `git diff c98d856..4239dfa
+    -- src/app/api/` touches exactly two files, both `todo/done`, and neither
+    learned about `company` — the only change is ADR-068's enum. A grep for
+    `company` across `/api/byteforce/**` and `/api/b-systems/**` returns only
+    `companyName`, a lead FIELD. The two namespaces are still the brand wall and
+    still derive the brand from the ROUTE.
+  - Every merged page passes the RESOLVED `company` from its guard into the
+    services (`listBsLeads`, `listOwnLeads`, `adminHome`, `adminWonLeads`,
+    `closerWonLeads`, `todoFor`) — never the raw `?company=` string. The service
+    signatures made that checkable by making `brand` a required first positional.
+  - The proxy widening (`/b-systems` now admits `byteforce_staff`) is coarse
+    navigation only, per ADR-066's split, and every page behind it refuses per
+    company against the live User row.
+- **Four real defects were found, none of them an access hole.** They are
+  BUG-016 … BUG-019; three are in this batch and one (`public/sw.js`) is a file
+  the batch did not touch but changed the meaning of underneath. The pattern
+  worth keeping: the merge's dangerous moves were all made carefully, and the
+  damage was in the things nobody re-examined once the URL shape changed — the
+  sweep that checks the guards, the worker that opens the deep links, and the
+  half of an endpoint whose twin had the wall.
+- **The anti-hole sweep is now mutation-proof, and was proved so.** Six probes,
+  six reds, each restored: a page with no guard; a page naming the guards only
+  in a COMMENT; a page importing a guard and never awaiting it; an unguarded
+  `route.ts` under the merged shell; a real page with `narrowRoles` removed; and
+  a real page with `requireCompanySection("bsystems", …)` repointed. The last of
+  those is the assertion that could not pass at all on a Windows checkout —
+  see BUG-017.
+
 - Resolves: supersedes ADR-028's two-app shell arrangement for the CRM only
   (sign-in was already consolidated); extends ADR-054 (the switcher's peers),
   ADR-060 (the phone module bar), ADR-066 (the narrowing-predicate pattern and

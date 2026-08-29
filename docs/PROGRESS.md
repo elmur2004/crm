@@ -3696,3 +3696,58 @@ comment, and the ADR-013 mechanism note all fixed; .env.example confirmed tracke
      NOT wired together. Carrying the company across the module switch looks like
      an improvement and would silently change what `/accounting` opens on. Worth
      asking; not done.
+
+## Entry 065 — 2026-08-29 — the ACCESS audit the merge never got, run after the fact against live code
+- Why: three adversarial reviewers were commissioned for the ADR-067/068 batch.
+  Two ran and Entry 064 / Run 080 adjudicated them. The THIRD — the ACCESS lens,
+  asking whether anybody gained reach they did not have — died on a server error
+  partway through and never reported, and the batch had already been pushed to
+  production. That is the single highest-risk property of the whole change, so
+  it has now been reviewed properly, against `c98d856..4239dfa` as it actually
+  runs.
+- **Verdict: nobody gained access.** Every one of the 24 merged pages was diffed
+  against its pre-merge guard (`git show c98d856:<path>`); every role set is
+  byte-for-byte the one it had. The five ByteForce pages that used to lean on the
+  deleted `(byteforce)` layout each carry their own
+  `requireCompanySection("byteforce", …, ["byteforce_staff"])`. The claim that no
+  API route learned about `company` was verified, not believed: the batch touches
+  exactly two API files, both `todo/done`, and neither reads one — the two
+  namespaces are still the brand wall. `bsystems_data_entry` is still shut out of
+  every pipeline screen. No input can produce a company an account does not hold.
+- Done: four real defects found and fixed, none of them an access hole, each with
+  a regression test that was mutation-checked (broken, watched go red, restored):
+  - **BUG-017** — the merge's own anti-hole guard sweep, twice more (BUG-015's
+    family): one assertion could never pass on a Windows checkout (it compared
+    against a literal LF while the worktree is CRLF), so the shipped suite was
+    RED at HEAD; and a page could satisfy the sweep by NAMING a guard in a
+    comment. Now line-ending agnostic, comment-stripping, call-shape matching,
+    collecting every offender, and covering `route.ts` as well as `page.tsx`.
+  - **BUG-016** — `setTodoDone` never read `brand` on the UNCHECK path, so the
+    company wall both To-Do routes attribute to that service existed for only
+    half the endpoint.
+  - **BUG-018** — `public/sw.js` decided whether to navigate an open window by
+    PATHNAME alone. The merge moved the company into the query string, so a
+    tapped ByteForce notification could focus a window sitting on B-Systems and
+    leave him there. The file was untouched by the batch, which is why nothing
+    caught it.
+  - **BUG-019** — a repeated `?company=` was junk to the server (fall back to the
+    default) and the FIRST value to the client chrome, so the page could render
+    one company's rows under the other's label; `withCompany` was the in-repo
+    helper that manufactured that shape. Both halves now use one predicate.
+- Tests: `npx tsc --noEmit` clean; FULL `npx vitest run` **45 files / 691 tests,
+  691 passed / 0 failed**; FULL `npx playwright test` **126 passed / 0 failed /
+  2 skipped** of 128, with `test-results/.last-run.json` read directly
+  (`{"status":"passed","failedTests":[]}`). Playwright ran from a temporary
+  config copy on port **3137**, verified free first and deleted afterwards; the
+  checked-in config is untouched. Run 081 in TESTING has the full adjudication.
+- Correction carried into the record: Run 080's "682 passed / 0 failed" for this
+  commit is not reproducible from a fresh checkout on this machine — the guard
+  sweep was red. See BUG-017.
+- Blockers: none.
+- Needs founder confirmation: nothing new. The six items carried in Entry 064
+  stand unchanged; this run changed no product behaviour he would notice except
+  that a tapped notification now lands on the company it named.
+- Standing recommendation, not done: add `.gitattributes` (`* text=auto eol=lf`)
+  so no byte-level assertion can ever flip on a checkout again. It rewrites the
+  whole working tree, so it wants a quiet moment rather than the middle of a
+  live-fix week.

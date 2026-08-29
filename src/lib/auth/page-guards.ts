@@ -121,7 +121,14 @@ export interface CompanyPage {
     company again and is satisfied. Absent and junk values do NOT redirect at
     all (the accounting precedent: a page falls back rather than 400s on a bad
     query string), so the ordinary path costs zero extra round trips. */
-export async function requireCompanyPage(requested?: string): Promise<CompanyPage> {
+export async function requireCompanyPage(
+  /* `string | string[]`, because that is what Next actually delivers: a
+     REPEATED `?company=x&company=y` arrives as an array. It was typed `string`
+     and reached `parseCompany` as junk, which fell back safely — but the client
+     chrome read the FIRST value and labelled the page with it. `parseCompany`
+     now answers both shapes identically (ACCESS AUDIT, Run 081). */
+  requested?: string | readonly string[],
+): Promise<CompanyPage> {
   const user = await requirePageRole("/login", ...CRM_ROLES);
   const resolved = resolveCompany(user.roles, requested);
   /* belt: requirePageRole already refused an account holding none of the six
@@ -162,7 +169,7 @@ export function narrowRoles(page: CompanyPage, ...roles: Role[]): CompanyPage {
     byte-for-byte what each of these pages did before the merge. */
 export async function requireCompanySection(
   only: CrmCompany,
-  requested: string | undefined,
+  requested: string | readonly string[] | undefined,
   roles: readonly [Role, ...Role[]],
 ): Promise<CompanyPage> {
   const page = await requireCompanyPage(requested);
@@ -173,7 +180,9 @@ export async function requireCompanySection(
 /** The company-aware `requireBsAdminPage`: B-Systems only, admin only.
     Company first, THEN the role — so the ByteForce-only case never reaches the
     admin bounce (which would send him to a B-Systems board he cannot see). */
-export async function requireBsAdminCompanyPage(requested?: string): Promise<CompanyPage> {
+export async function requireBsAdminCompanyPage(
+  requested?: string | readonly string[],
+): Promise<CompanyPage> {
   const page = await requireCompanySection("bsystems", requested, BS_PIPELINE_ROLES);
   if (!page.user.roles.includes("bsystems_admin")) redirect(`/b-systems/crm${crmQuery("bsystems")}`);
   return page;

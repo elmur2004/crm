@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { ShellNav } from "@/components/shared/ShellNav";
 import { NotificationsBell } from "@/components/bsystems/NotificationsBell";
-import { parseCompany, type CrmCompany } from "@/lib/crm/company";
+import { companyInParams, type CrmCompany } from "@/lib/crm/company";
 
 /* ============================================================================
    ADR-067 — the merged shell's company-aware chrome.
@@ -27,7 +27,7 @@ export type PerCompany<T> = Partial<Record<CrmCompany, T>>;
 
 /** The company the URL asks for, narrowed to one the server actually sent. */
 function pick<T>(map: PerCompany<T>, params: URLSearchParams, fallback: CrmCompany): T | undefined {
-  const asked = parseCompany(params.get("company"));
+  const asked = companyInParams(params);
   return (asked && map[asked]) ?? map[fallback];
 }
 
@@ -42,7 +42,7 @@ export function CrmShellNav({
   extras?: React.ReactNode;
 }) {
   const params = useSearchParams();
-  const asked = parseCompany(params.get("company"));
+  const asked = companyInParams(params);
   const company = (asked && navs[asked] ? asked : fallback) as CrmCompany;
   const items = (navs[company] ?? []).map((item) => ({
     href: `${item.href}?company=${company}`,
@@ -66,7 +66,7 @@ export function CrmHomeLink({
   children: React.ReactNode;
 }) {
   const params = useSearchParams();
-  const asked = parseCompany(params.get("company"));
+  const asked = companyInParams(params);
   const company = (asked && homes[asked] ? asked : fallback) as CrmCompany;
   return (
     <Link
