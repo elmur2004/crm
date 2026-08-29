@@ -74,7 +74,22 @@ async function logFollowUp(page: Page, leadId: string, time?: string) {
   await page.getByRole("button", { name: "Log another follow-up" }).click();
   await page.getByLabel("Follow-up date").fill(cairoDate());
   if (time) await page.getByLabel("Follow-up time (optional)").fill(time);
-  await page.getByRole("button", { name: "Save record" }).click();
+  /* WAIT for the record to be accepted before handing control back. The panel
+     POSTs with `fetch` and then refreshes; returning the instant the click lands
+     let the CALLER's next `page.goto` abort a save still in flight — and the
+     To-Do then showed the PREVIOUS follow-up, with the old row's shape. That is
+     a race in this helper, not a fault in the app: a person cannot navigate in
+     the milliseconds between the click and the response. */
+  await Promise.all([
+    page.waitForResponse(
+      (r) =>
+        r.request().method() === "POST" &&
+        r.url().includes(`/api/b-systems/leads/${leadId}/event`),
+    ),
+    page.getByRole("button", { name: "Save record" }).click(),
+  ]);
+  /* the panel closes only on a 2xx, so this also asserts the save succeeded */
+  await expect(page.getByRole("button", { name: "Save record" })).toHaveCount(0);
 }
 
 test("blank time ⇒ a date, chosen time ⇒ the clock — on History, the board and the To-Do", async ({
