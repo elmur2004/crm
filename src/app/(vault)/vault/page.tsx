@@ -17,6 +17,7 @@ import type { Msg } from "@/lib/i18n/core";
 const ENTITY_LABELS: Record<string, Msg> = {
   vault_employee: vault.entityEmployee,
   vault_form: vault.entityForm,
+  vault_link: vault.entityLink,
   vault_sheet: vault.entitySheet,
   vault_document: vault.entityDocument,
   vault_task: vault.entityTask,
@@ -54,6 +55,7 @@ export default async function VaultOverviewPage({
   const groups = results
     ? ([
         [t(vault.tabForms), results.groups.forms],
+        [t(vault.tabLinks), results.groups.links],
         [t(vault.tabSheets), results.groups.sheets],
         [t(vault.tabDocuments), results.groups.documents],
         [t(vault.tabTasks), results.groups.tasks],
@@ -68,6 +70,10 @@ export default async function VaultOverviewPage({
         <div className="tile">
           <span className="tile-label">{t(vault.liveForms)}</span>
           <span className="tile-value">{data.forms}</span>
+        </div>
+        <div className="tile">
+          <span className="tile-label">{t(vault.liveLinks)}</span>
+          <span className="tile-value">{data.links}</span>
         </div>
         <div className="tile">
           <span className="tile-label">{t(vault.liveSheets)}</span>

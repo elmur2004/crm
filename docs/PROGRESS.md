@@ -3864,3 +3864,116 @@ comment, and the ADR-013 mechanism note all fixed; .env.example confirmed tracke
      form (`signupRep` creates a User + PortalRep and nothing else). Those chips
      stay plain links. Covering them means putting the mark on a third record
      kind — worth doing, not worth guessing.
+
+## Entry 067 — 2026-08-29 — the Vault gets a LINKS section: a saved URL is a Form with two more fields
+- Founder request (Arabic, in substance): *"The Vault is split into sections —
+  Sheets, Forms, Archive and others. I want a new section for saving the
+  important, repeated links we keep needing to find again: a portfolio, a
+  content calendar, a video used over and over, a Google Drive folder or Sheet,
+  a document, an image, a website, a reference, or any other URL. Call it Links,
+  or Resources if that reads clearer. Adding one shows five fields — Link Name,
+  URL, Company, Category (with suggestions AND the ability to type a new one)
+  and Type. After adding it appears as a row: Link Name — Company — Category —
+  Type — Open Link, and I can Edit, Delete and Open. So the Vault is not only a
+  place for Sheets, Forms and Archive, but a central place for the resources we
+  use constantly, instead of hunting for them every time."*
+- Done, in two commits:
+  1. **`4f85015` — the model and the server.** `VaultLink` built in
+     `VaultForm`'s image (company, name, url, notes, archived/archivedAt,
+     timestamps, the same two indexes) plus his two new fields: `category` FREE
+     TEXT and `type` closed at his eight. A real migration
+     (`20260829150000_vault_links`), the Zod schemas (`zHttpUrl` reused —
+     http/https only, server-side), the service with the duplicate-URL handshake
+     and the category folding, three routes behind `requireVault()`, registration
+     in both backups + `resetDb` + the activity-log entity types + the undo and
+     archive delegate maps, and 22 integration cases.
+  2. **The section and the docs** — this entry's own commit, which is why it
+     names no hash. `/vault/links` in its
+     neighbours' image (VaultHead, filter card, table, Edit + Archive), the
+     add/edit modal with a native `<datalist>` of the eight suggestions plus
+     everything he has typed, the row reading Name — Company — Category — Type —
+     Open link with the HOST under the name, search + three filters, Links in the
+     module nav beside Forms, in the Archive tab, in the overview tiles and in
+     the vault-wide search. 9 e2e cases, EN + real Arabic + RTL, tokens only.
+- **The judgement calls, all four recorded in ADR-070:**
+  - **Named LINKS**, not Resources — every row is a URL, so the literal name can
+    never drift; *Resources* would blur the line with Documents/Sheets, which
+    hold files. Renaming is three Msg pairs.
+  - **His "Delete" became the Vault's ARCHIVE** — ADR-053's law, and Archive is
+    one of the sections he listed himself. Said plainly in the CHANGELOG, the
+    commit and below.
+  - **Category is his words and is never translated** — the eight SUGGESTIONS
+    carry Arabic, a STORED category renders verbatim in both languages. The only
+    liberty is near-duplicate folding (case/whitespace adopt the spelling already
+    on file), done in JS because Prisma's `mode: "insensitive"` is ILIKE and a
+    `%` he typed would be a wildcard.
+  - **The URL is untrusted** — http/https only, enforced at the ROUTE (a posted
+    `javascript:` is 400 with nothing written), every link `target="_blank"
+    rel="noopener noreferrer"`, and the host printed under every name so he can
+    see where it goes before he presses it.
+- **Review round, folded back into the same two commits (TESTING Run 085).**
+  Eight reviewer findings, **six distinct** (two pairs were duplicates), each
+  checked against the code and the database before it was believed. All six were
+  real; **none was refuted**, and all six are fixed:
+  1. **A category's spelling was a life sentence** (medium). The fold scan ran
+     unchanged on the update path, where the spelling "already on file" is the
+     edited row's OWN — so re-spelling `investor deck q4` to `Investor Deck Q4`
+     answered 200 and changed nothing, and with archived rows in the scan and no
+     hard deletes there was no state in which a typo could be fixed. The row is
+     now excluded from its own scan, and a deliberate re-spelling renames the
+     whole fold group, archived rows included.
+  2. **Our own eight split into two categories per concept** (medium). The fold
+     compared raw strings, so picking the Arabic `بورتفوليو` with `Portfolio`
+     already on file opened a second category holding half his links — our
+     vocabulary manufacturing the near-duplicate the fold exists to end, one
+     click away on the page that carries the language toggle. The suggestion
+     PAIR is now the identity, in the service and in the datalist.
+  3. **The URL rule was true of the three doors, not of every write path** (low).
+     A vault backup import `createMany`s rows verbatim without re-running the
+     schema. The anchor now renders only for a real `http:`/`https:` address;
+     anything else reads *not openable*. The import gap is module-wide and is
+     recorded as a trap rather than quietly widened here.
+  4. **`mode: "insensitive"` is ILIKE on the read filter too** (low) — and the
+     earlier note had **wrongly** waved this through as "one row too many".
+     Measured against a live cluster: `?category=%` returned **every link in the
+     vault**. The filter value is now escaped to a literal.
+  5. **The category select read "All" while a category filter was applied** (low)
+     — options came from live rows, the value from the query. The applied value
+     is now an option of its own.
+  6. **The Open anchor failed WCAG 2.5.3** (low): the visible *"Open link"* was
+     not in its accessible name, so voice input could not activate it. The name
+     now begins with the visible words.
+- Gate, on the FINAL tree (TESTING Run 085): `npx tsc --noEmit` **clean**; **FULL**
+  `npx vitest run` → **47 files / 735 tests, 735 passed / 0 failed** (links
+  integration now **27 cases**, five added); **FULL** Playwright on a config COPY
+  on port **3147** (3100 verified free but never used — it may belong to another
+  workstream — and the copy deleted) → **142 tests: 140 passed, 2 skipped
+  (`audit.spec.ts`, opt-in), 0 failed**, verdict read from the summary line AND
+  `test-results/.last-run.json` (`{"status":"passed","failedTests":[]}`);
+  brand-audit **PASS** (no hex/rgb/font-family, no new token, scope intact, no
+  physical left/right). Migration **re-proved from scratch** on a throwaway
+  cluster: virgin deploy of 20 migrations, deployed twice, replayed by hand
+  twice, catalogue showing exactly one `VaultLink` with 11 columns and its three
+  indexes plus the primary key, an Arabic name and category round-tripped on a
+  UTF8 cluster, and `migrate diff` → *No difference detected*.
+  (Run 084's earlier per-commit numbers stand as they were recorded.)
+- In progress: nothing mid-flight; the tree is committed and clean.
+- Next steps: if he confirms the two items below, the Delete question is a
+  one-line service change and the rename is three dictionary pairs. The
+  module-wide backup-import gap (no re-validation of URL columns on restore,
+  which touches VaultForm and VaultSheet as well as VaultLink) is written up in
+  IMPLEMENTATION and wants a decision about the backup format, not a patch here.
+- Blockers: none.
+- **Needs founder confirmation (two NEW, on top of the eight carried from Entries
+  064–066):**
+  1. **His "Delete" is the Vault's ARCHIVE.** He wrote Delete; nothing in this
+     module has ever been hard-deleted (ADR-053), and Archive is one of the
+     sections he listed in the same sentence. An archived link leaves every list
+     and count and returns whole from the Archive tab. **If he meant destroyed
+     for good, that is a separate decision** with its own audit question (who
+     destroyed it, and can anyone tell it existed) — deliberately not guessed at
+     in either direction.
+  2. **The section is called Links, not Resources.** He offered both. Links is
+     literal because every row is a URL; Resources is the wider word and would
+     invite files, which Documents and Sheets already hold. One word to change if
+     he prefers the other.

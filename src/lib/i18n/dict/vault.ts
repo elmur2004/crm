@@ -16,6 +16,7 @@ export const vault = {
   /* tabs */
   tabOverview: { en: "Overview", ar: "نظرة عامة" },
   tabForms: { en: "Forms", ar: "النماذج" },
+  tabLinks: { en: "Links", ar: "الروابط" },
   tabSheets: { en: "Sheets", ar: "الجداول" },
   tabDocuments: { en: "Documents", ar: "المستندات" },
   tabTasks: { en: "Tasks", ar: "المهام" },
@@ -29,6 +30,7 @@ export const vault = {
     ar: "السجل الداخلي: نماذج وجداول ومستندات ومهام — تُؤرشف ولا تُحذف أبدًا.",
   },
   liveForms: { en: "Forms", ar: "النماذج" },
+  liveLinks: { en: "Links", ar: "الروابط" },
   liveSheets: { en: "Sheets", ar: "الجداول" },
   liveDocuments: { en: "Documents", ar: "المستندات" },
   openTasks: { en: "Open tasks", ar: "مهام مفتوحة" },
@@ -43,6 +45,7 @@ export const vault = {
      mono text: it embeds names/dates and is provenance, not prose) */
   entityEmployee: { en: "Employee", ar: "موظف" },
   entityForm: { en: "Form", ar: "نموذج" },
+  entityLink: { en: "Link", ar: "رابط" },
   entitySheet: { en: "Sheet", ar: "جدول" },
   entityDocument: { en: "Document", ar: "مستند" },
   entityTask: { en: "Task", ar: "مهمة" },
@@ -125,6 +128,46 @@ export const vault = {
   duplicateConfirm: {
     en: "Save anyway (I know this URL is already filed)",
     ar: "احفظ على أي حال (أعلم أن هذا الرابط مسجل بالفعل)",
+  },
+
+  /* links (ADR-070) — the founder's own name for the section is "Links"; he
+     offered "Resources" as the alternative, recorded in the ADR so a rename is
+     one word. `addLink` is deliberately REUSED from the task result panel: it
+     is the same two words for the same act, and duplicating a string is how
+     two spellings of one button start. */
+  linksTitle: { en: "Links", ar: "الروابط" },
+  linksSub: {
+    en: "The links we keep coming back to — a portfolio, a calendar, a folder, a reference. Saved once, opened from here.",
+    ar: "الروابط التي نعود إليها دائمًا — بورتفوليو أو خطة محتوى أو مجلد أو مرجع. تُحفظ مرة وتُفتح من هنا.",
+  },
+  editLink: { en: "Edit link", ar: "تعديل الرابط" },
+  noLinks: {
+    en: "No links yet. Save the first one — a portfolio, a calendar, a folder.",
+    ar: "لا توجد روابط بعد. احفظ الأول — بورتفوليو أو خطة محتوى أو مجلد.",
+  },
+  noLinksFiltered: {
+    en: "No links match these filters.",
+    ar: "لا توجد روابط مطابقة لهذه التصفية.",
+  },
+  category: { en: "Category", ar: "التصنيف" },
+  categoryHint: {
+    en: "Pick a suggestion or type your own — whatever you type is kept.",
+    ar: "اختر من المقترحات أو اكتب تصنيفك — يُحفظ ما تكتبه كما هو.",
+  },
+  openLink: { en: "Open link", ar: "فتح الرابط" },
+  /* the accessible name of that anchor. It BEGINS with the visible words above,
+     so speech input reaches it by what he can see ("click Open link" — WCAG
+     2.5.3 Label in Name), and then names WHICH link it opens, because a table
+     of them all reading "Open link" tells a screen reader nothing. */
+  openLinkNamed: {
+    en: "Open link — {name} (new tab)",
+    ar: "فتح الرابط — {name} (تبويب جديد)",
+  },
+  /* a row whose address is not http/https — only reachable through a module
+     import, which does not re-run the URL rule (ADR-070 §5) */
+  linkNotOpenable: {
+    en: "Address cannot be opened",
+    ar: "لا يمكن فتح هذا العنوان",
   },
 
   /* sheets */

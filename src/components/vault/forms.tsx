@@ -10,6 +10,8 @@ import {
   VAULT_COMPANY_LABELS,
   VAULT_DOCUMENT_TYPE_LABELS,
   VAULT_DOCUMENT_TYPES,
+  VAULT_LINK_TYPE_LABELS,
+  VAULT_LINK_TYPES,
   VAULT_SHEET_TYPE_LABELS,
   VAULT_SHEET_TYPES,
 } from "@/lib/services/vault/constants";
@@ -254,6 +256,177 @@ export function EditFormButton({ row }: { row: VaultFormRow }) {
         {t(vault.edit)}
       </button>
       {open ? <FormModal row={row} onClose={() => setOpen(false)} /> : null}
+    </>
+  );
+}
+
+/* ---------------------------------------------------------------- links */
+
+/* ADR-070 — the founder's five fields: Link Name, URL, Company, Category and
+   Type. The FormModal above is the shape this follows (same duplicate-URL
+   handshake, same Save), with the two that are new to this section:
+
+   · CATEGORY is a plain text input wearing a <datalist>. That is the native
+     suggestion idiom — and it is already the idiom here (roleForms.tsx and
+     LeadEventPanel.tsx both use one for rep names) — so it needs no bespoke
+     combobox, no keyboard trap and no ARIA of our own: he picks one of the
+     suggestions or types something new, and whatever is in the box is what
+     gets stored.
+   · TYPE is a closed <select> over the eight, re-validated server-side. */
+
+export interface VaultLinkRow {
+  id: string;
+  company: string;
+  name: string;
+  url: string;
+  category: string;
+  type: string;
+  notes: string | null;
+}
+
+function LinkModal({
+  row,
+  categories,
+  onClose,
+}: {
+  row: VaultLinkRow | null;
+  /** categories already on file, merged with our own suggestions by the page */
+  categories: string[];
+  onClose: () => void;
+}) {
+  const t = tFor(useLocale());
+  const { busy, error, status, run } = useAction();
+  const [acknowledge, setAcknowledge] = useState(false);
+
+  const submit = async (fd: FormData) => {
+    const body = {
+      company: str(fd, "company"),
+      name: str(fd, "name"),
+      url: str(fd, "url"),
+      category: str(fd, "category"),
+      type: str(fd, "type"),
+      notes: str(fd, "notes") || undefined,
+      acknowledgeDuplicate: acknowledge,
+    };
+    const ok = row
+      ? await run(`/api/vault/links/${row.id}`, "PATCH", body, onClose)
+      : await run("/api/vault/links", "POST", body, onClose);
+    if (!ok) setAcknowledge(false);
+  };
+
+  return (
+    <VaultModal
+      title={t(row ? vault.editLink : vault.addLink)}
+      onClose={onClose}
+      onSubmit={submit}
+      busy={busy}
+      error={error}
+      submitLabel={t(vault.save)}
+    >
+      <Field label={t(vault.name)} wide>
+        <input
+          className="field-input"
+          name="name"
+          required
+          maxLength={160}
+          defaultValue={row?.name ?? ""}
+        />
+      </Field>
+      <Field label={t(vault.url)} wide>
+        <input
+          className="field-input"
+          name="url"
+          type="url"
+          required
+          defaultValue={row?.url ?? ""}
+          dir="ltr"
+        />
+      </Field>
+      <Field label={t(vault.company)}>
+        <select className="field-input" name="company" defaultValue={row?.company ?? "byteforce"}>
+          <CompanyOptions />
+        </select>
+      </Field>
+      <Field label={t(vault.type)}>
+        <select className="field-input" name="type" defaultValue={row?.type ?? "website"}>
+          {VAULT_LINK_TYPES.map((x) => (
+            <option key={x} value={x}>
+              {t(VAULT_LINK_TYPE_LABELS[x])}
+            </option>
+          ))}
+        </select>
+      </Field>
+      <Field label={t(vault.category)} hint={t(vault.categoryHint)} wide>
+        <input
+          className="field-input"
+          name="category"
+          list="vault-link-categories"
+          required
+          maxLength={80}
+          defaultValue={row?.category ?? ""}
+        />
+        <datalist id="vault-link-categories">
+          {categories.map((c) => (
+            <option key={c} value={c} />
+          ))}
+        </datalist>
+      </Field>
+      <Field label={t(vault.notes)} wide>
+        <textarea
+          className="field-input"
+          name="notes"
+          rows={3}
+          maxLength={5000}
+          defaultValue={row?.notes ?? ""}
+        />
+      </Field>
+      {/* the duplicate-URL handshake: a 409 names the clash; ticking re-files */}
+      {status === 409 ? (
+        <label className="check-row field--wide">
+          <input
+            type="checkbox"
+            checked={acknowledge}
+            onChange={(e) => setAcknowledge(e.target.checked)}
+          />
+          <span>{t(vault.duplicateConfirm)}</span>
+        </label>
+      ) : null}
+    </VaultModal>
+  );
+}
+
+export function AddLinkButton({ categories }: { categories: string[] }) {
+  const t = tFor(useLocale());
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button type="button" className="btn-primary" onClick={() => setOpen(true)}>
+        + {t(vault.addLink)}
+      </button>
+      {open ? (
+        <LinkModal row={null} categories={categories} onClose={() => setOpen(false)} />
+      ) : null}
+    </>
+  );
+}
+
+export function EditLinkButton({
+  row,
+  categories,
+}: {
+  row: VaultLinkRow;
+  categories: string[];
+}) {
+  const t = tFor(useLocale());
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button type="button" className="btn-ghost btn--sm" onClick={() => setOpen(true)}>
+        {t(vault.edit)}
+      </button>
+      {open ? (
+        <LinkModal row={row} categories={categories} onClose={() => setOpen(false)} />
+      ) : null}
     </>
   );
 }

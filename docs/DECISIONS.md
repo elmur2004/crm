@@ -4967,3 +4967,292 @@ the code and the rendered page, and all six were FIXED — none needed refuting.
   same chip through one merged shell) and ADR-068 §7 (the one clock).
 - Status: Accepted. Two items flagged for founder confirmation — no unmark
   exists, and a self-signed-up agent has no record to carry the mark.
+
+## ADR-070 — 2026-08-29 — The Data Vault gains a LINKS section: a saved URL is a Form with two more fields
+
+- Context — the founder, in Arabic, faithfully:
+
+  > The Vault today is split into sections — Sheets, Forms, Archive and others.
+  > I want a NEW section for saving the important, repeated links we keep
+  > needing to find again: a portfolio, a content calendar, a video used over
+  > and over, a Google Drive folder or Sheet, a document, an image, a website, a
+  > reference, or any other URL. Call it **Links**, or **Resources** if that
+  > reads clearer.
+  >
+  > Adding a link shows a simple form with five fields: **Link Name** (a clear
+  > name — "ByteForce Portfolio"), **URL**, **Company** (ByteForce or B
+  > Systems), **Category** — with ready SUGGESTIONS to help me classify it
+  > (Portfolio, Content Calendar, Reference, Social Media, Marketing, Project,
+  > Assets, Other) *and the ability to type a new category when none of the
+  > suggestions fits* — and **Type**: what is behind the link (Video, Image,
+  > Document, Sheet, Form, Folder, Website, Other).
+  >
+  > After adding, the link appears in the section as a card or row reading
+  > something like: Link Name — Company — Category — Type — Open Link, so I can
+  > open it straight from the Vault. I must also be able to **Edit, Delete and
+  > Open**.
+  >
+  > The purpose: so the Vault is not only a place for Sheets, Forms and Archive,
+  > but also a central place to keep any important or repeated resources and
+  > links we use constantly, instead of hunting for them every time.
+
+  Read plainly this is a sixth section on a module that already has five, and
+  most of it is: the shape he describes already exists here. `VaultForm` is a
+  company-tagged named URL with an http/https rule, a duplicate-URL handshake,
+  notes, and archive-not-delete. Four things in the request are NOT already
+  answered, and each gets a section below: the NAME, the word **Delete**, the
+  free-text **Category**, and the fact that a stored URL is untrusted input
+  rendered into a live anchor.
+
+### 1. IT IS NAMED **LINKS**, AND *RESOURCES* IS ONE WORD AWAY
+- **Decision.** The section, the route (`/vault/links`), the API namespace
+  (`/api/vault/links`), the model (`VaultLink`) and the tab all read **Links** /
+  **الروابط**.
+- **Why, of his two.** Both are reasonable and he offered both. *Links* is
+  literal: every row in this table is a URL and nothing else, so the name
+  describes the contents exactly and can never drift. *Resources* is the wider
+  word — it would fit a section that also held uploaded files, which is what
+  Documents and Sheets already are, so choosing it would blur a boundary the
+  module currently keeps sharp.
+- **Renaming is cheap, deliberately.** Every visible string is `vault.tabLinks`
+  / `linksTitle` / `linksSub` in one dictionary; the route and the table name are
+  not visible to him. If he prefers *Resources*, it is an edit to three Msg pairs
+  and nothing else. **Recorded here so the choice is his to reverse.**
+
+### 2. HE WROTE "DELETE". IN THIS MODULE THAT WORD HAS MEANT **ARCHIVE** SINCE ADR-053
+- **Decision.** The row action is **Archive**, identical to the one on Forms and
+  Sheets: it leaves every list and count, keeps every field, appears in the
+  Archive tab under its own **Links** heading, and restores in one click. There
+  is no hard delete for a vault link and there must never be one.
+- **Why this is not us overruling him.** ADR-053's rule is *"nothing in the vault
+  is hard deleted, anywhere"*, and **Archive is one of the sections he himself
+  listed** in the first sentence of this very request. A link that vanished for
+  good would be the only record in the module that could, and the founder who
+  asked for "a central place to keep the things we use constantly" is not well
+  served by a button that destroys one.
+- **It is SAID, not substituted quietly.** The CHANGELOG says it in his words,
+  the commit message says it, and PROGRESS Entry 067 carries it as
+  **Needs founder confirmation**. If he meant destroy-for-good, that is a
+  separate decision with its own audit question (who deleted it, and can anyone
+  tell it ever existed) and it is one line of service code away.
+- **Consequences that came free.** `vault_link` joins `VAULT_ARCHIVE_KINDS`, so
+  it inherits the whole archive apparatus without new code: the shared
+  `setVaultArchived`, the read-only-when-archived rule (ADR-043 hardening), the
+  activity log's archive/restore verbs, and **undo** — archiving a link is
+  undoable exactly like archiving a form, through the same snapshot inverse.
+
+### 3. THE MODEL IS `VaultForm` WITH TWO COLUMNS ADDED, ON PURPOSE
+- **Decision.** `VaultLink` = company, name, url, **category**, **type**, notes,
+  archived + archivedAt, timestamps, and the same two indexes (`[company,
+  archived]`, `[url]`) plus one for the new filter (`[category]`).
+- **Why not something cleverer.** The founder's mental model is "another kind of
+  thing in the Vault", so a Links row must land where a Form row lands: same
+  company filter, same newest-first order, same duplicate-URL warning, same
+  Edit/Archive pair, same guard, same brand behaviour under `?company=`. Copying
+  the neighbour is what makes it feel built-in rather than bolted on, and it is
+  why this ADR is short: almost every question was already answered next door.
+- **The duplicate-URL HANDSHAKE is inherited verbatim** (the reference app's
+  FR-F08): the same URL on another LIVE link answers **409 naming the clash**,
+  and re-submitting with `acknowledgeDuplicate` files it anyway. A warning, never
+  a block — one page legitimately lives under two names ("Portfolio" and "What we
+  send clients"), and an ARCHIVED link never blocks anything.
+- **`notes` is carried over even though it is not one of his five.** Every other
+  vault record has it, the global search reads it, and it is optional — so it
+  costs him nothing and keeps the section's shape identical to its neighbours'.
+
+### 4. **CATEGORY IS HIS WORDS.** THE EIGHT ARE SUGGESTIONS, AND HIS WORDS ARE NEVER TRANSLATED
+- **Decision.** `category` is free TEXT, stored as typed. The eight defaults are
+  offered through a native `<datalist>` — the idiom already used in this codebase
+  (`roleForms.tsx`, `LeadEventPanel.tsx`) — so he picks one or types a new one in
+  the same box, with no bespoke combobox, no keyboard trap and no ARIA of ours.
+- **Why not an enum with an "Other → free text" escape.** That is the shape that
+  looks tidy and answers the wrong question: it makes his own categories
+  second-class, buries them all under one label, and cannot filter by them.
+  He asked for the ability to type a new one in the same breath as the
+  suggestions, which means the typed one has to be a first-class value.
+- **A STORED CATEGORY IS NOT TRANSLATED, IN EITHER DIRECTION.** The eight
+  SUGGESTIONS carry Arabic (they are ours, offered while he chooses), but the
+  moment a value is stored it is HIS text, and it renders **verbatim** in both
+  languages — in the row, in the filter, in the search results. Anything else
+  would be the system putting words in his mouth: we cannot translate "Investor
+  Deck Q4", and a half-translated list is worse than an untranslated one. The
+  corollary is honest and stated: a category he types in Arabic stays Arabic on
+  the English screen. An e2e asserts both halves on one page.
+- **ONE liberty, and only one: near-duplicate FOLDING.** Whitespace is trimmed
+  and inner runs collapsed, and a category that differs from one already on file
+  only by CASE adopts the spelling on file ("portfolio" the week after
+  "Portfolio" is the same category to a human and two rows to a database, and a
+  filter offering both is exactly the hunting this section exists to end). A
+  genuinely new word is stored exactly as typed. The first spelling wins — the
+  scan is ordered by `createdAt`, so the list cannot churn.
+- **The fold is done in JS, NOT with Prisma's `mode: "insensitive"`.** That
+  compiles to `ILIKE` on Postgres, where a `%` or `_` inside a category HE typed
+  would silently become a wildcard and could adopt an unrelated spelling. A
+  read-only FILTER can live with ILIKE; the write path that decides what gets
+  stored cannot.
+- **Archived rows still own their spelling** (the canonicalise scan reads every
+  row) while the OFFERED list reads live rows only — so archiving the last link
+  in a category retires the category, and restoring it later cannot split the
+  word in two.
+
+### 5. THE URL IS UNTRUSTED INPUT, AND THE SERVER IS THE WALL
+- **Decision.** The stored address must be `http:` or `https:`, validated
+  SERVER-SIDE by the module's existing `zHttpUrl` — the same atom Forms, Sheets
+  and task result links already use. `javascript:`, `data:`, `ftp:` and a
+  scheme-relative `//host` are all refused before anything is written.
+- **Why the existing rule and not a new one.** A second URL rule in the same
+  module is a second thing to keep correct; the reference app's BR-01 is already
+  here, already tested, and already the thing every other vault URL passes.
+- **Why it matters MORE here than on Forms.** This section's entire purpose is
+  that he clicks these links, often, from a page he trusts. A `javascript:` URL
+  rendered into an `href` is a cross-site-scripting payload with a click on it.
+  The browser's `type="url"` is a convenience and nothing more — an integration
+  case posts `javascript:alert(1)` straight at the route and asserts 400 with
+  nothing written.
+- **Every rendered link opens in a NEW TAB with `rel="noopener noreferrer"`**, so
+  the opened page can never reach back through `window.opener`.
+- **The HOST is printed under every name**, and the full URL is the anchor's
+  `title`. He should be able to see where a link goes before he presses it —
+  "drive.google.com" under a name he wrote six months ago is the difference
+  between confidence and a leap.
+
+### 6. THE WALL IS THE VAULT'S WALL — ADR-066 INCLUDED, AND PROVED
+- **Decision.** The page sits behind `requireVaultPage()`; all three routes sit
+  behind `requireVault()`. Nothing new was invented.
+- **Which means the per-admin block applies with no extra code**: an admin whose
+  `canAccessVault` is false is redirected from `/vault/links` to
+  `/no-access?module=vault` and gets **403 naming the Data Vault** from all three
+  endpoints, on his very next request, because the flag is read from the live
+  User row (ADR-066).
+- **Two directory sweeps already guard this by construction** — the ADR-066
+  `module-access.integration.test.ts` walks `src/app/api/vault/**` asserting every
+  `route.ts` calls `requireVault()` and none calls `requireBsAdmin`, and walks
+  `src/app/(vault)/**` for the page guard. The three new routes and the new page
+  were covered the moment they were written. On top of that, the wall is proved
+  DIRECTLY: an integration case calls all three routes as a blocked admin, and an
+  e2e makes a blocked admin through the real Add-user form and walks him into it.
+
+### 7. USEFUL AT FIFTY LINKS, WHICH IS THE WHOLE POINT
+- **Decision.** Search (name, category, notes, URL) plus three filters —
+  company, category, type — in the neighbours' filter card, with a Clear that
+  appears only when something is filtered, and two empty states: *"No links
+  yet…"* when the section is empty and *"No links match these filters."* when it
+  is not. An empty section and a filtered-to-nothing section are different facts,
+  and telling him "no links yet" while he holds two filters would be a lie.
+- **The CATEGORY FILTER is built from what is on file**, not from the eight, so
+  it only ever offers categories that will actually return something.
+- **Links join the vault-wide search box and the overview tiles**, so the module's
+  one search reaches them and the landing page counts them. The section is part of
+  the Vault, not a room off the side of it.
+
+### 8. THE MIGRATION
+- One `CREATE TABLE IF NOT EXISTS` and three `CREATE INDEX IF NOT EXISTS`, the
+  re-runnable house shape since ADR-064 (`scripts/start.mjs` retries `migrate
+  deploy`). No backfill and no other table touched: a brand-new table with no
+  legacy shape to repair.
+- **No restore twin in either backup**, the ADR-066/ADR-069 reasoning: a payload
+  taken before today simply has no `vaultLink` key, which the `?? []`
+  missing-table rule already handles. The entry is added to `MODELS` (global) and
+  `VAULT_MODELS` (module) so the table is EXPORTED at all, and to `resetDb`. It
+  has no relations in either direction, so the FK-safe ordering in all three
+  places is indifferent to where it sits.
+- Proved on a THROWAWAY cluster (never `.pgdata/dev`, never the vitest/e2e
+  ones): virgin `migrate deploy`, deployed twice, the file replayed by hand
+  twice, the catalogue then showing exactly one `VaultLink` and its three indexes
+  plus the primary key, an Arabic category round-tripping through a real INSERT,
+  and `prisma migrate diff` reporting **No difference detected**.
+
+- Resolves: the founder request above. Extends ADR-053 (the Vault module and its
+  archive-not-delete law), ADR-054 (the module shell, its nav and its own
+  export/import), ADR-043 (archived records are read-only), ADR-045 (archive is
+  the undoable mutation) and ADR-066 (the per-admin module wall).
+- Status: Accepted. Two items flagged for founder confirmation — his "Delete"
+  became the Vault's Archive, and the section is named Links rather than
+  Resources.
+
+### ADR-070 — Addendum (2026-08-29, review round) — what the fold owed him, and where the URL rule stopped being true
+
+Eight reviewer findings against the two Links commits. Six were real and are
+fixed below; the numbering follows the sections above. Nothing here changes a
+decision — each item is the section's own rule made true in a place it was not.
+
+**§4a — OUR OWN EIGHT ARE ONE CATEGORY IN TWO LANGUAGES, NOT TWO.**
+`canonicalise()` folded by raw string, so the two halves of a suggestion pair
+never met: with `Portfolio` on file, picking the Arabic suggestion `بورتفوليو`
+stored a *second* category, the filter offered both, and each held half his
+links. The language toggle sits on this very page, so this was one click away —
+and it was **our vocabulary** producing the exact near-duplicate the fold exists
+to end, which the commit message had promised it would not. Fixed by matching
+the suggestion **pair**: if the typed value is one of our eight in either
+language, whichever half is already on file is adopted; only when neither is
+does the half he picked get stored. This does **not** touch §4's never-translate
+rule — that rule is about **his** words, which we still cannot translate and
+still fold only within one spelling. These eight are ours, and the honest
+consequence is stated: an Arabic screen may show `Portfolio` on a row filed in
+English, because the alternative is his portfolio links split across two filter
+entries.
+
+**§4b — A CATEGORY'S FIRST SPELLING WAS A LIFE SENTENCE.**
+The fold scan ran identically on create and on update, and on an update the
+spelling "already on file" is **the row's own**. So editing a link to re-spell
+its own category — `investor deck q4` to `Investor Deck Q4` — folded onto the
+old spelling, answered 200, closed the modal, and left the row reading exactly
+what he had just corrected. With archived rows counted in the scan and no hard
+delete in this module, there was **no state in which a typo could ever be
+fixed**. Fixed in two parts: the row being edited is excluded from its own scan,
+and a deliberate re-spelling (same fold key, different spelling, and **not** one
+of our eight) renames the **whole fold group** in the same transaction —
+archived rows included, because a row that kept the old spelling would restore
+months later and split the category in two, which is the bug the fold prevents.
+One category may wear one spelling; a rename is the honest way to change it, and
+`portfolio` typed over `Portfolio` is still normalised to ours because those
+eight are the system's vocabulary and not his.
+
+**§4c — THE ILIKE CAVEAT APPLIES TO THE READ FILTER TOO.**
+§4 said the fold is kept off the write path because `mode: "insensitive"`
+compiles to `ILIKE`, and accepted it on the read filter as "a filter matching one
+row too many". Measured against a real cluster, that concession was too
+generous: Prisma emits `category ILIKE $1`, so `?category=Q4_2026` also returned
+`Q4x2026`, and **`?category=%` returned every link in the vault** while the
+filter box claimed to hold one category. Not one row too many — all of them. The
+filter value is now escaped to a literal (`\`, `%`, `_`), which keeps the
+case-insensitivity that is the point of the mode. Proved both ways in the
+integration suite and on the page.
+
+**§5 — THE URL RULE WAS TRUE OF THE THREE DOORS, NOT OF EVERY WRITE PATH.**
+§5 states the http/https rule absolutely. It holds at all three REST routes —
+but a vault backup **import** `createMany`s the rows of a file verbatim without
+re-running the schema, so a hand-edited export could seat any string in
+`VaultLink.url`, and this is the one page whose entire purpose is that he clicks
+them. React refuses to navigate a `javascript:` href on its own, but the rule is
+ours to keep and not React's. The anchor is now rendered only for an address
+that really is `http:`/`https:`; anything else shows as **not openable** instead
+of offering a link that goes somewhere else. The import gap itself is
+module-wide (VaultForm and VaultSheet URLs have it too) and is recorded as a
+trap rather than fixed here — it is an admin importing a file they chose, and
+narrowing it belongs to a decision about the backup format, not to this section.
+
+**§7 — THE FILTER MUST SHOW WHAT IT IS DOING.**
+The category select was built from live rows while its `defaultValue` came from
+the query, so a filter that is applied but no longer on file — archive the last
+link in a category and the page re-renders on the same URL — left the browser
+falling back to the first option. The page then read **Category: All** over *"No
+links match these filters"*, with only the Clear link to explain it. The applied
+value is now rendered as an option of its own: what the box shows is what the
+query is doing.
+
+**A11y — THE ACCESSIBLE NAME NOW BEGINS WITH THE VISIBLE WORDS.**
+Every Open anchor carried `aria-label="Open {name} in a new tab"` while showing
+*Open link*, so the visible label was not contained in the accessible name and
+"click Open link" activated nothing by voice (WCAG 2.5.3 Label in Name, Level
+A). Recorded at the time only as a Playwright query nuisance. The name now reads
+*"Open link — {name} (new tab)"* / *"فتح الرابط — {name} (تبويب جديد)"*: it opens
+with what he can see and still says which of fifty links it opens.
+
+**Refuted, with the reason.** Nothing was refuted outright — two of the eight
+findings were duplicates of two others (the EN/AR category split and the stale
+filter select were each reported twice), and the ILIKE finding, which the earlier
+notes had accepted as harmless, was checked against a live cluster before it was
+believed.
+
+- Status: Accepted. The two founder-confirmation items above are unchanged.

@@ -4,6 +4,7 @@ import { tFor, type Msg } from "@/lib/i18n/core";
 import { vault } from "@/lib/i18n/dict/vault";
 import { formatCairo } from "@/lib/datetime";
 import { listVaultForms } from "@/lib/services/vault/forms";
+import { listVaultLinks, vaultLinkListParams } from "@/lib/services/vault/links";
 import { listVaultSheets } from "@/lib/services/vault/sheets";
 import { listVaultDocuments } from "@/lib/services/vault/documents";
 import { listVaultTasks } from "@/lib/services/vault/tasks";
@@ -16,7 +17,8 @@ import { VaultHead } from "@/components/vault/VaultHead";
 import { ArchiveButton } from "@/components/shared/ArchiveButton";
 
 /* ADR-053 Phase 5 — the archive: nothing in the vault is deleted, ever.
-   Four per-kind sections, each row restorable in one click. Admin only. */
+   Five per-kind sections since ADR-070 added Links, each row restorable in one
+   click. Admin only. */
 
 export async function generateMetadata() {
   const locale = await getLocale();
@@ -36,8 +38,11 @@ export default async function VaultArchivePage() {
   const locale = await getLocale();
   const t = tFor(locale);
 
-  const [forms, sheets, documents, tasks] = await Promise.all([
+  const [forms, links, sheets, documents, tasks] = await Promise.all([
     listVaultForms({ archived: true }),
+    /* ADR-070 — an archived LINK rests here with everything else: the founder
+       wrote "Delete", and in this module that has always meant this screen. */
+    listVaultLinks(vaultLinkListParams.parse({ archived: "true" })),
     listVaultSheets({ archived: true }),
     listVaultDocuments({ archived: true }),
     listVaultTasks({ archived: true }),
@@ -52,6 +57,16 @@ export default async function VaultArchivePage() {
         company: f.company,
         archivedAt: f.archivedAt,
         restoreUrl: `/api/vault/forms/${f.id}/archive`,
+      })),
+    },
+    {
+      label: vault.tabLinks,
+      rows: links.map((l) => ({
+        id: l.id,
+        name: l.name,
+        company: l.company,
+        archivedAt: l.archivedAt,
+        restoreUrl: `/api/vault/links/${l.id}/archive`,
       })),
     },
     {

@@ -200,6 +200,10 @@ test("every vault route refuses non-admin roles (server-side 403 matrix)", async
     ["POST", "/api/vault/forms"],
     ["PATCH", "/api/vault/forms/x"],
     ["POST", "/api/vault/forms/x/archive"],
+    /* ADR-070 — the Links section's three doors */
+    ["POST", "/api/vault/links"],
+    ["PATCH", "/api/vault/links/x"],
+    ["POST", "/api/vault/links/x/archive"],
     ["POST", "/api/vault/sheets"],
     ["PATCH", "/api/vault/sheets/x"],
     ["POST", "/api/vault/sheets/x/file"],

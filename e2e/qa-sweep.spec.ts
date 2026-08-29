@@ -130,9 +130,9 @@ test("B-Systems admin: accounting screens clean at every width", async ({ page }
   expect(errors).toEqual([]);
 });
 
-/* ADR-053 — the vault's seven screens at every width. */
+/* ADR-053 — the vault's eight screens at every width (ADR-070 added Links). */
 test("B-Systems admin: vault screens clean at every width", async ({ page }) => {
-  test.setTimeout(180_000); // 7 paths × 5 widths, plus dev-mode first-hit compiles
+  test.setTimeout(210_000); // 8 paths × 5 widths, plus dev-mode first-hit compiles
   const errors: string[] = [];
   collectErrors(page, errors);
   await page.goto("/login");
@@ -143,6 +143,7 @@ test("B-Systems admin: vault screens clean at every width", async ({ page }) => 
   await sweep(page, errors, [
     "/vault",
     "/vault/forms",
+    "/vault/links",
     "/vault/sheets",
     "/vault/documents",
     "/vault/tasks",

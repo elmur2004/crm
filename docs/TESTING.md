@@ -4197,3 +4197,245 @@ Playwright tests** with the verdict read from `test-results/.last-run.json`, the
 migration re-proved from scratch on a throwaway cluster and idempotent under both
 a second `migrate deploy` and a hand replay, and the brand audit clean with the
 ADR-069 green still fenced to one class in all three scopes.
+
+## Run 084 — 2026-08-29 — ADR-070: the Vault's Links section — two commits, targeted vitest + Playwright, migration proved
+
+**Scope.** The founder's Links request, shipped in two commits (the model + the
+server; the section + the docs). Per-commit gate: `npx tsc --noEmit` clean and
+the AFFECTED specs green. The FULL suites remain the phase gate's job.
+
+### Commit 1 — the model and the server
+- `npx tsc --noEmit` — **clean**.
+- `npx vitest run src/lib/services/vault src/lib/services/backup.integration.test.ts
+  src/lib/services/module-access.integration.test.ts src/lib/services/undo.integration.test.ts`
+  → **8 files / 110 tests, 110 passed / 0 failed**.
+- The new file is `src/lib/services/vault/links.integration.test.ts`, **22 cases**,
+  real Postgres and the real route modules (only `auth()` mocked, the
+  `module-access.integration.test.ts` pattern):
+  - **the URL rule, server-side.** `http`/`https` accepted; `javascript:`,
+    `JavaScript:` (case), `data:text/html,<script>`, `//evil.example` and `ftp:`
+    all refused — and the ROUTE refuses a posted `javascript:alert(1)` with 400
+    and **nothing written**, which is the assertion that matters, because the
+    browser's `type="url"` is not a wall.
+  - **the closed Type list** — all eight accepted, `podcast` and `""` refused.
+  - **the free-text Category** — a category outside the eight stored verbatim; a
+    re-typed `"  content   calendar "` folded onto the `Content Calendar` already
+    on file; `pORTFOLIO` adopting our suggestion's spelling; an ARCHIVED link
+    still owning its spelling while leaving the offered list; an ARABIC category
+    stored and listed verbatim; empty/whitespace refused.
+  - **the duplicate-URL handshake** — 409 naming the clash, filed on
+    acknowledgement, an archived duplicate not blocking, and an edit not
+    clashing with itself.
+  - **archive-not-delete** — leaves the list, the row survives, read-only while
+    archived, restores intact, **undoable** (a real `performUndo`), and the
+    round trip through the archive ROUTE.
+  - **company scoping and the filters** — company, category, type, the two
+    combining, search over name/category/notes/URL, junk params falling back
+    rather than 400ing, newest-first ordering, and Links joining the vault-wide
+    search and the overview counts.
+  - **the ADR-066 wall** — a blocked admin gets **403 naming the Data Vault** on
+    all three routes with nothing written; an allowed admin gets 201/200 on the
+    same three; a non-admin 403 and an anonymous caller 401.
+- **One RED that mattered on the way** (kept as IMPLEMENTATION trap 4): the first
+  cut posted `vaultLinkSchema.parse(...)` OUTPUT at the route and got 400 —
+  `optionalText` turns an absent `notes` into `null`, which the same
+  `.optional()` then rejects.
+
+### Commit 2 — the section and the docs
+- `npx tsc --noEmit` — **clean**.
+- `npx vitest run src/lib/services/vault src/lib/services/module-access.integration.test.ts
+  src/lib/services/backup.integration.test.ts src/lib/services/undo.integration.test.ts
+  src/lib/crm/page-company-guards.test.ts`
+  → **9 files / 161 tests, 161 passed / 0 failed**. The ADR-066 directory sweeps
+  cover the new page and the three new routes automatically.
+- Playwright, on a COPY of the config on port **3157** (verified free; port 3100
+  may belong to another workstream and was never touched — the copy was deleted
+  afterwards):
+  - `e2e/vault-links.spec.ts` — **9 new tests, all passed**: the section exists
+    and offers the eight suggestions in a real `<datalist>`; a link with a
+    SUGGESTED category reads back as his row (name, company chip, category, type
+    chip, Open link, and the HOST under the name); a category he TYPES is kept in
+    his words and joins both the datalist (9 now) and the filter; the filters cut
+    two rows to one by company, by type, by category and by search, with the
+    filtered-empty state and Clear; **opening** it — `target="_blank"`,
+    `rel="noopener noreferrer"`, a real new tab, the Vault still behind it;
+    editing it, with a re-typed `portfolio` folding rather than splitting;
+    **archiving** it (leaves the list) and finding it in the **Archive** under a
+    Links heading, restored intact; Arabic + RTL with OUR vocabulary translated
+    and HIS category verbatim; and a **blocked admin** made through the real
+    Add-user form reaching neither `/vault/links` (redirected to
+    `/no-access?module=vault`) nor any of the three endpoints (403 naming the
+    Data Vault).
+  - `e2e/vault.spec.ts` (6) + `e2e/module-access.spec.ts` (7) +
+    `e2e/nav-slider.spec.ts` (2) → **15 passed**; the vault 403 matrix now
+    carries the three Links routes and the nav strip still slides with the extra
+    section.
+  - `e2e/qa-sweep.spec.ts -g "vault screens"` → **1 passed** — eight vault
+    screens now, clean at all five widths with no console error.
+  - Every verdict read from the summary line **and** from
+    `test-results/.last-run.json` (`{"status":"passed","failedTests":[]}`).
+- **Two REDs on the way, both in the spec and both kept as traps** (5 and 6): a
+  field hint containing the word "type" made `getByLabel("Type")` ambiguous, and
+  an `aria-label` on the Open anchor means the visible words are not the
+  accessible name.
+
+### The migration
+`prisma/migrations/20260829150000_vault_links` — one `CREATE TABLE IF NOT EXISTS`
+plus three `CREATE INDEX IF NOT EXISTS`. Proved on a **throwaway** cluster
+(`.pgdata/throwaway-adr070`, created fresh and deleted after — never
+`.pgdata/dev`, never the vitest or e2e instances):
+1. virgin `prisma migrate deploy` on an empty cluster — all 20 migrations applied;
+2. `migrate deploy` **again** — *No pending migrations to apply*;
+3. the migration file replayed **by hand twice** against the same cluster — no
+   error either time;
+4. catalogue read back: exactly **one** `VaultLink` table, eleven columns with
+   `archived DEFAULT false` and `createdAt DEFAULT CURRENT_TIMESTAMP`, and
+   exactly the three indexes plus the primary key — no duplicates from the
+   replays;
+5. a real INSERT with an **Arabic** category round-tripped (the UTF8 cluster rule,
+   ADR-044);
+6. `prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma`
+   → **No difference detected**.
+
+### Brand
+No hex, no `rgb()/hsl()`, no `font-family` entered any file this round — scanned
+across the new page, the modal and the dictionary. The section is composed
+entirely from existing design-system classes (`card`, `card--flush0`, `table`,
+`field`, `chip-outline`, `td-mono`, `u-ltr`, `btn-ghost`, `btn-primary`,
+`count-pill`, `empty`) and reuses `ArchiveButton` and the vault `VaultModal`
+verbatim, so no token was added and none needed to exist in three scopes. RTL:
+the host and the date keep `.u-ltr` + `dir="ltr"`; no physical `left`/`right`
+anywhere.
+
+### i18n
+Every EXISTING English string is byte-identical — only new keys were added
+(`tabLinks`, `liveLinks`, `entityLink`, `linksTitle`, `linksSub`, `editLink`,
+`noLinks`, `noLinksFiltered`, `category`, `categoryHint`, `openLink`,
+`openLinkNamed`) plus the eight Type labels and the eight category SUGGESTIONS,
+all with authored Arabic. `addLink` is deliberately REUSED from the task result
+panel rather than duplicated. A stored category is **never** translated, in
+either direction — asserted in both the integration suite and the Arabic e2e.
+
+### Verdict
+**PASS** for both commits at the stated scope. Not yet run at this scope: the
+FULL vitest and Playwright suites (the phase gate's job).
+
+## Run 085 — 2026-08-29 — ADR-070 review round: six findings fixed, then the FULL gate on the final tree
+
+**Scope.** Eight reviewer findings against the two Links commits (`4f85015`,
+`b4f080b`), each verified against the code and the database before it was
+believed; then the whole gate on the finished tree — not the affected specs Run
+084 ran, the **full** suites, plus a migration re-proof from scratch. The
+fixes were folded back into the two commits; no new commit was added for them.
+
+### The findings, adjudicated
+Eight reported, **six distinct** — two pairs were duplicates (the EN/AR category
+split, reported twice; the stale filter select, reported twice). All six real,
+none refuted, all fixed.
+
+| # | Sev | Claim | Verdict |
+|---|-----|-------|---------|
+| 1 | med | a category's spelling is frozen for ever; an edit that re-spells it is silently discarded | **CONFIRMED** — `canonicalise()` scanned every row including the one being edited, so an update folded the row onto **its own** old spelling. Fixed: `exceptId` on the update path **and** a deliberate re-spelling renames the whole fold group (archived rows included, or a restore splits the category later). |
+| 2/5 | med | our own eight split into two categories per concept in a bilingual app | **CONFIRMED** — `fold("Portfolio") !== fold("بورتفوليو")`, so picking the Arabic half of a pair whose English half was on file opened a second, disjoint category. Fixed: match the suggestion **pair**, adopt whichever half is on file; the datalist folds the same way (8 concepts, 8 options, not 9). |
+| 3/6 | low | the category select reads "All" while a category filter is still applied | **CONFIRMED** — options came from live rows, `defaultValue` from the query; the browser silently picks index 0. Fixed: the applied value is rendered as an option of its own. |
+| 4 | low | the http/https rule holds on the three routes but not on every write path into `VaultLink`, and the anchor has no render guard | **CONFIRMED** — `importVault()`/`importBackup()` `createMany` rows verbatim without re-running the schema. Fixed at the render: an address that is not `http:`/`https:` shows as **not openable** instead of becoming an `href`. The import gap is module-wide (Forms and Sheets too) and is recorded as a trap, not silently widened here. |
+| 7 | low | the category filter's `mode: "insensitive"` is ILIKE, so `%` and `_` are wildcards | **CONFIRMED BY MEASUREMENT** — see below. Run 084 and IMPLEMENTATION trap 2 had both accepted this as "a filter matching one row too many"; it is not. Fixed by escaping the pattern. |
+| 8 | low | the Open anchor's accessible name does not contain its visible label (WCAG 2.5.3, Level A) | **CONFIRMED** — visible *"Open link"*, accessible name *"Open {name} in a new tab"*, so "click Open link" activates nothing by voice. Fixed: the name now **begins** with the visible words. |
+
+### Finding 7, measured rather than argued
+A throwaway cluster, four seeded rows, Prisma query logging on. The emitted SQL
+is `WHERE "public"."VaultLink"."category" ILIKE $1`, and:
+
+```
+equals+insensitive "Q4_2026"     -> Q4_2026, Q4x2026            (2 of 4)
+equals+insensitive "%"           -> ALL FOUR ROWS
+after escaping   "Q4_2026"       -> Q4_2026                     (1 of 4)
+after escaping   "%"             -> (none)
+after escaping   "100% Organic"  -> 100% Organic
+after escaping   "portfolio"     -> Portfolio   (case-insensitivity intact)
+```
+
+### `npx tsc --noEmit`
+**Clean** on the final tree.
+
+### FULL vitest
+`npx vitest run` → **47 files / 735 tests, 735 passed / 0 failed** (150.0s).
+`src/lib/services/vault/links.integration.test.ts` is **27 cases** (22 from Run
+084 + **5 new**):
+- our own eight are ONE category in two languages — `بورتفوليو` after `Portfolio`
+  stores `Portfolio` and the list holds one entry; and the reverse, so an
+  Arabic-first vault stays Arabic;
+- he can RE-SPELL his own category by editing it (`investor deck q4` →
+  `Investor Deck Q4`), which the old code discarded;
+- a re-spelling renames the WHOLE category — two live rows and one **archived**
+  row all take the new spelling, so a later restore cannot split it;
+- re-typing one of OUR eight is still normalised to ours, not treated as a
+  re-spelling (`portfolio` over `Portfolio` stays `Portfolio`);
+- the category filter matches EXACTLY — `Q4_2026` finds only itself, `100% Organic`
+  finds only itself, `%` finds **nothing**, and `q4_2026` still finds `Q4_2026`.
+
+One existing case was corrected rather than added to: *"a category typed in Arabic
+is stored verbatim"* used `خطة المحتوى`, which is the Arabic half of **our own**
+Content Calendar suggestion — it now uses `عرض المستثمرين`, genuinely his words,
+so it proves what its name claims.
+
+### FULL Playwright
+`npx playwright test` on a COPY of the config on port **3147** (verified free
+first; **port 3100 was never touched** — it may belong to another workstream —
+and the copy was deleted afterwards) →
+**142 tests: 140 passed, 2 skipped, 0 failed** (14.6m).
+The 2 skipped are `e2e/audit.spec.ts`, opt-in behind `AUDIT=1`, unchanged.
+Verdict read from the summary line **and** from `test-results/.last-run.json`:
+`{"status":"passed","failedTests":[]}`.
+
+`e2e/vault-links.spec.ts` is still **9 cases**, two of them amended:
+- the Arabic case now asserts the corrected accessible name
+  `/^فتح الرابط — .+ \(تبويب جديد\)$/` — it begins with the visible `فتح الرابط`;
+- the filters case gained two assertions: `?category=Retired+Category` keeps the
+  select **showing** that category (not "All") over the filtered-empty state, and
+  `?category=%` matches nothing rather than the whole vault.
+
+### The migration, re-proved from scratch
+`prisma/migrations/20260829150000_vault_links`, unchanged this round, re-proved on
+a **throwaway** cluster (`.pgdata/throwaway-adr070-reproof`, port 5878, created
+fresh and deleted after — never `.pgdata/dev`, never the vitest or e2e instances):
+1. virgin `prisma migrate deploy` on an empty cluster → **20 migrations applied**,
+   *All migrations have been successfully applied.*;
+2. `prisma migrate deploy` **again** → *No pending migrations to apply.*;
+3. the migration file replayed **by hand twice** → no error either pass;
+4. catalogue: exactly **one** `VaultLink` table, **11 columns** (`archived`
+   DEFAULT false, `createdAt` DEFAULT CURRENT_TIMESTAMP, `notes`/`archivedAt`
+   nullable), and exactly **four** indexes — `VaultLink_pkey`,
+   `VaultLink_company_archived_idx`, `VaultLink_url_idx`,
+   `VaultLink_category_idx` — no duplicates from the two replays;
+5. a real INSERT with an **Arabic** name and category round-tripped intact on a
+   `server_encoding: UTF8` cluster (ADR-044);
+6. `prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma`
+   → **No difference detected.**
+
+### Brand
+Re-audited over the changed UI (the page, the modal, the dictionary): **no hex,
+no `rgb()`/`hsl()`, no `font-family`** — the only two hex hits in `src/` are
+`src/app/manifest.ts` (the PWA manifest, which must carry literals) and
+`src/app/api/files/[id]/route.ts` (a standalone download page outside the app
+shell), both pre-existing and untouched. **No token was added**, so the
+three-scope rule has nothing new to satisfy: the one new element reuses `.empty`,
+already token-driven (`--color-border`, `--font-body`, `--color-muted`). Scope
+integrity intact — `(vault)/layout.tsx` stamps `data-brand="neutral"` and
+`ModuleBrandScope` re-stamps per `?company=`; the page declares no scope of its
+own. RTL: no physical `left`/`right`, the host and date keep `.u-ltr` +
+`dir="ltr"`. **PASS.**
+
+### i18n
+Every EXISTING English string is byte-identical. One key **added**
+(`linkNotOpenable`, with authored Arabic) and one key **changed** —
+`openLinkNamed`, from *"Open {name} in a new tab"* to *"Open link — {name} (new
+tab)"* / *"فتح الرابط — {name} (تبويب جديد)"*. That key was introduced by
+`b4f080b` in this same unshipped pair of commits and has never left this machine,
+so no shipped string moved; its only assertion (the Arabic e2e) was updated with
+it.
+
+### Verdict
+**PASS** on the final tree: tsc clean, full vitest 735/735, full Playwright
+140 passed / 2 skipped / 0 failed with `.last-run.json` agreeing, brand PASS, and
+the migration re-proved from a virgin cluster twice over.

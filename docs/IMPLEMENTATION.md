@@ -2473,3 +2473,177 @@ only the UNMARKED chip, so nothing caught it. That surface now COMPOSES the two
 (`restLabel — sentLabel`) instead of swapping them, and prints the sentence in
 visible words under the button as well, because `title` is a hover tooltip and
 the call sheet is the one screen built for a phone, where hover does not exist.
+
+## ADR-070 — the Links section: the traps
+
+### 1. THE REQUEST SAYS "DELETE" AND THE MODULE SAYS "NEVER"
+The literal word in the request is `Delete`. The module's law since ADR-053 is
+that nothing in the Vault is hard deleted, and — the detail that settles it —
+**Archive is one of the sections he lists in the same paragraph**. Building a
+real `delete()` would have made the Links table the only one in the module that
+can lose data, and building Archive silently under his word would have been us
+changing the request without telling him. The rule followed: **implement the
+module's law, then SAY SO in three places** (the ADR, the CHANGELOG in his own
+words, and PROGRESS as *Needs founder confirmation*). Neither half is optional —
+a silent substitution and a silent hard delete are both failures.
+
+### 2. `mode: "insensitive"` IS `ILIKE`, AND A CATEGORY IS USER TEXT — ON BOTH PATHS
+The obvious way to fold "portfolio" onto "Portfolio" is
+`where: { category: { equals: value, mode: "insensitive" } }`. On PostgreSQL that
+compiles to `ILIKE`, where `%` and `_` are WILDCARDS. A founder who types
+`Q4_2026` as a category would then match `Q4x2026` and silently adopt an
+unrelated spelling — on the WRITE path, deciding what gets stored for ever. The
+fold is done in JS instead (`toLocaleLowerCase` after collapsing whitespace) over
+the category column.
+
+**This note first went on to accept the ILIKE on the read-only FILTER, "where the
+worst case is a filter matching one row too many". That was wrong, and it was
+wrong because it was reasoned rather than measured.** Run against a real cluster
+with query logging on, Prisma emits `WHERE "category" ILIKE $1` for
+`equals` + `mode: "insensitive"`, and the observed behaviour is:
+
+```
+equals+insensitive "Q4_2026"  -> Q4_2026, Q4x2026      (the _ is a wildcard)
+equals+insensitive "%"        -> every row in the table (all four of four)
+```
+
+`%` is not bounded to one row — it is the whole vault, returned under a filter
+box claiming to hold one category. The filter value is now escaped to a literal
+before it goes in (`\` first, then `%` and `_`; backslash is Postgres's default
+LIKE escape character), which leaves the case-insensitivity intact:
+`"q4_2026"` still finds `Q4_2026` and nothing else. **The lesson worth keeping is
+the method, not the fix: when a note says "the worst case is X", check X against
+the database before writing it down.**
+
+The `q` SEARCH box still uses `contains` + insensitive unescaped, deliberately:
+a substring search is a search, a `%` in it widens a result set the user is
+already scanning by eye, and every other vault search in the module behaves the
+same way. An EXACT-match filter is the one that must match exactly.
+
+### 3. THE ARCHIVED/LIVE SPLIT IN THE CATEGORY LIST IS DELIBERATE AND ASYMMETRIC
+`listVaultLinkCategories()` (the filter and the datalist) reads **live** rows —
+archiving the last link in a category should retire the category. `canonicalise()`
+reads **every** row including archived ones — restoring an old link months later
+must not resurrect a second spelling of a word already on the list. Getting this
+backwards produces one of two bugs, and both are the near-duplicate problem the
+folding exists to prevent.
+
+### 4. RE-POSTING A PARSED OBJECT 400s ON ITS OWN `optional()`
+`optionalText()` transforms an absent `notes` into `null`. The first cut of the
+integration test built its request bodies from `vaultLinkSchema.parse(...)`
+output and posted them at the route, which 400d: `null` is not `undefined`, so
+`.optional()` rejects the very value the schema had just produced. The test now
+keeps a `raw()` helper for what a BROWSER posts and a `link()` helper for what
+the SERVICE takes, with a comment saying why. Worth knowing before writing the
+next route test in this repo.
+
+### 5. A FIELD HINT CONTAINING A COMMON WORD BREAKS `getByLabel`
+The Category field's hint reads *"Pick a suggestion or type your own"*. Playwright
+computes a field's accessible name from the whole `<label>`, hint included, and
+`getByLabel` matches by SUBSTRING — so `getByLabel("Type")` resolved to two
+elements (the Type select and the Category input) and the spec died in strict
+mode. Fixed in the spec with a role query anchored to the start of the name
+(`getByRole("combobox", { name: /^Type/ })`), not by contorting the copy. The
+same trap is waiting in any vault modal whose hint happens to contain another
+field's label.
+
+### 6. AN `aria-label` REPLACES THE VISIBLE TEXT — AND THAT IS AN A11Y BUG, NOT A QUERY NUISANCE
+Every Open link carries an `aria-label` so fifty identical "Open link" anchors are
+distinguishable to a screen reader. The first version read
+`"Open {name} in a new tab"`, which meant `getByRole("link", { name: "فتح الرابط" })`
+— the VISIBLE words — found nothing: the accessible name is the sentence, not the
+label. **This note first recorded that as a Playwright problem and worked around
+it in the spec. It is a WCAG 2.5.3 (Label in Name, Level A) failure**: when the
+accessible name does not contain the visible label, a speech-input user saying
+"click Open link" activates nothing, and the test query failing is simply the
+first honest symptom of that. The name now begins with the visible words —
+`"Open link — {name} (new tab)"` / `"فتح الرابط — {name} (تبويب جديد)"` — so voice
+reaches it and it still says which of fifty links it opens. **The rule: if a role
+query cannot find an element by the words on it, fix the element before fixing
+the query.**
+
+### 7. THE DIRECTORY SWEEPS COVERED THE NEW ROUTES BEFORE THEY WERE WRITTEN
+ADR-066's `module-access.integration.test.ts` walks `src/app/api/vault/**` and
+fails any `route.ts` that does not call `requireVault()`, and walks
+`src/app/(vault)/**` for `requireVaultPage`. Three new routes and one new page
+arrived already covered — this is what that test was for, and it is why adding a
+section to a walled module needs no new wall. The direct proof (a blocked admin
+calling all three routes) was still written, because a sweep proves the guard is
+CALLED and only a call proves it REFUSES.
+
+### 8. `data.links` DID NOT EXIST YET WHEN THE OVERVIEW WAS SPLIT ACROSS TWO COMMITS
+The service half (commit 1) adds `links` to `VaultOverview`; the page half
+(commit 2) spends it. Splitting a typed projection across two commits is safe
+only in that order — the field is added before it is read, so commit 1
+type-checks alone and commit 2 type-checks alone. The reverse order would have
+left an intermediate commit red.
+
+
+### 9. A FOLD RUN UNCHANGED ON THE UPDATE PATH FOLDS A ROW ONTO ITSELF
+`canonicalise()` adopts "the spelling already on file". On a CREATE that is
+somebody else's row. On an UPDATE the row being edited is *itself* on file, so
+re-spelling its own category — `investor deck q4` → `Investor Deck Q4` — matched
+its own old spelling and wrote that back. The PATCH answered 200, the modal
+closed, and the row read exactly what he had just corrected. **Nothing in the UI
+was wrong; the bug was entirely that the scan included the subject of the edit.**
+Two things make it permanent rather than annoying: the scan counts archived rows
+(deliberately — trap 3), and ADR-053 forbids hard deletes, so once a fold key
+exists its first spelling can never leave the table.
+
+The fix has two halves and both are needed. `exceptId` removes the row from its
+own scan, which frees a single-row category. For a category spread over several
+rows the sibling's old spelling would still win, so a deliberate re-spelling
+(same fold key, different spelling, not one of our own eight) renames the WHOLE
+group in the same transaction, archived rows included. **Any normalise-on-write
+helper in this codebase should be read with the same question: what does it do
+when the value it is comparing against is the row being written?**
+
+### 10. A BILINGUAL SUGGESTION LIST IS A NEAR-DUPLICATE GENERATOR
+The eight category suggestions are `Msg` pairs (`{ en, ar }`), and the picker
+offers whichever half matches the reader's language. The fold compared raw
+strings, so `fold("Portfolio") !== fold("بورتفوليو")` and the two halves of one
+pair never met: with the English one on file, picking the Arabic one opened a
+second category holding half his links. The language toggle is on the same page,
+so it took one click. **The folding was built to stop near-duplicates and our own
+vocabulary was manufacturing them** — free text was never the risk here, the
+translated list was.
+
+Resolve to the PAIR before comparing: if the typed value is one of the eight in
+either language, adopt whichever half is already stored. The same fold is applied
+to the datalist, or eight concepts are offered as nine options with two of them
+the same category. **Anywhere a bilingual `Msg` list can be STORED rather than
+merely displayed, the pair is the identity and the string is not.**
+
+### 11. A `<select>` WITH A `defaultValue` THAT IS NOT AN OPTION SILENTLY READS "ALL"
+The category filter's options come from live rows; its `defaultValue` comes from
+the query string. Archive the last link in a category and `router.refresh()`
+re-renders the SAME url: the query still filters, the option is gone, and the
+browser quietly selects the first option. The page then reads **Category: All**
+above *"No links match these filters."* — two statements that cannot both be
+true, and no error anywhere. **A browser does not report an unmatched
+`defaultValue`; it just picks index 0.** Any select whose options are data and
+whose value is a URL parameter needs the applied value rendered as an option of
+its own.
+
+### 12. A BACKUP RESTORE IS A WRITE PATH THAT SKIPS EVERY ZOD SCHEMA — MODULE-WIDE
+`importVault()` and `importBackup()` validate the *envelope* (app name, version)
+and then `createMany` the payload's rows straight into each table. **No column
+validator runs.** So every invariant this codebase enforces in Zod — the
+http/https URL rule, the closed `type` lists, the link-XOR-file rule on
+`VaultSheet` — is true of the REST doors and not of a restore. `VaultLink` did
+not introduce this; it inherited it the moment it joined `VAULT_MODELS` and
+`MODELS`.
+
+Two things follow, and only the first was done here. **At the point of USE, do
+not trust the column**: the Links page renders an anchor only for an address that
+really parses as `http:`/`https:`, so the page whose whole purpose is clicking
+cannot be turned into a delivery mechanism by an edited export file. React would
+also refuse to navigate a `javascript:` href, but a framework's sanitiser is not
+where a product rule should live. **At the point of IMPORT, nothing was changed**:
+re-validating URL columns on restore is a sensible defence, but it is a decision
+about what a backup file *is* — strictly a snapshot of rows, or a document that
+must re-earn its way in — and it would change the behaviour of restores for
+three models at once. That belongs in its own ADR, not in a section commit.
+
+The general shape is worth carrying: **wherever a table can be written by a bulk
+path, the render is the last wall, and it has to behave like one.**

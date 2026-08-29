@@ -1,5 +1,106 @@
 # Changelog — user-visible changes per phase/release
 
+## The Vault gets a Links section — stop hunting for the same links (2026-08-29)
+
+You said: *"The Vault is split into sections — Sheets, Forms, Archive and
+others. I want a new section for saving the important, repeated links we keep
+needing to find again: a portfolio, a content calendar, a video we use over and
+over, a Google Drive folder or Sheet, a document, an image, a website, a
+reference, or any other URL… so the Vault is not only a place for Sheets, Forms
+and Archive, but also a central place to keep any important or repeated
+resources and links we use constantly, instead of hunting for them every
+time."*
+
+Done. It is in the Vault's menu, right after Forms.
+
+### 1. Saving one takes five boxes
+
+Press **+ Add link** and you get exactly what you asked for:
+
+- **Name** — "ByteForce Portfolio".
+- **URL** — the link itself.
+- **Company** — ByteForce or B-Systems.
+- **Category** — your eight are already in the box as suggestions (Portfolio,
+  Content Calendar, Reference, Social Media, Marketing, Project, Assets,
+  Other). **Click one, or ignore all eight and type your own** — "Investor Deck
+  Q4", anything. What you type is what gets saved, in your words, and it joins
+  the suggestions and the filter from then on.
+  Two small things about categories that should never surprise you. Picking
+  **Portfolio** in English and **بورتفوليو** in Arabic files both links under
+  **one** category, not two — those are our words for the same shelf, and
+  splitting your links across two spellings of it is exactly what we are trying
+  to stop. And **a category can be re-spelled**: if you filed something as
+  "investor deck q4" and want it written properly, edit any link in it and fix
+  the spelling — the whole category follows, including the archived ones.
+- **Type** — what is behind the link: Video, Image, Document, Sheet, Form,
+  Folder, Website, Other.
+
+There is a Notes box too, if you want to leave yourself a sentence about why
+this one matters.
+
+### 2. The row reads the way you wrote it
+
+**Name — Company — Category — Type — Open link.** Press **Open link** and it
+opens in a new tab; the Vault stays exactly where it was behind it.
+
+Under every name there is the site it actually goes to — `drive.google.com`,
+`youtube.com` — so you can see where a link points **before** you press it.
+That matters most for the ones you saved six months ago.
+
+**Edit** is beside every row, so a name or a category can be fixed in place.
+
+### 3. About "Delete" — please read this one
+
+You wrote **Delete**. In the Vault, nothing has ever been deleted: everything is
+**archived** instead, and Archive is one of the sections you listed yourself. So
+the button on a link says **Archive**, and it does what it does everywhere else
+here — the link leaves the list and the counts immediately, and you find it in
+the **Archive** tab under its own **Links** heading, where one click brings it
+back with everything intact. The Undo button also covers it, like every other
+archive.
+
+**If you meant gone for good — really gone, no way back — say the word and we
+will build that separately.** We did not want to destroy anything you saved on
+a guess.
+
+### 4. Fifty links stay usable
+
+The point of the section is that you stop hunting, so it does not just pile up:
+
+- a **search box** that reaches the name, your category, the notes and the
+  address itself
+- filters for **company**, **category** and **type**, which combine — "every
+  B-Systems video", "everything filed under Portfolio"
+- the category filter only ever offers categories you have actually used
+- a **Clear** button that appears the moment something is filtered
+- and when a filter matches nothing it says *"No links match these filters"* —
+  not "no links yet", because those are two different things
+
+Links also show up in the Vault's own search box on the overview, and in the
+counts at the top of it.
+
+### 5. Two things we were careful about
+
+- **Only real web addresses are accepted** — `http` and `https`. A link
+  pretending to be an address but carrying something else is refused by the
+  server, not just by the form, so nothing dangerous can ever be saved and
+  clicked from inside the Vault. Every link opens in its own tab and cannot
+  reach back into the system. And if an address ever *does* get into the table
+  by another road — restoring an old backup file, say — the row shows it as
+  **not openable** rather than handing you something to click.
+- **Your categories are yours.** The eight suggestions are translated when you
+  switch to Arabic, because they are our words. Anything **you** type is printed
+  exactly as you typed it, in both languages — we will not translate "Investor
+  Deck Q4" and we will not guess. A category you write in Arabic stays Arabic on
+  the English screen, which is the honest answer.
+
+### 6. Named "Links"
+
+You offered **Links** or **Resources**. We went with **Links** because every row
+in there is a URL, so the name says exactly what is inside. If **Resources**
+reads better to you, it is a one-word change — say so and it is renamed
+everywhere.
+
 ## The WhatsApp button turns green once we have messaged them (2026-08-29)
 
 You said: *"when I click on the WhatsApp button, it should turn to be green to
