@@ -28,6 +28,7 @@ import { board, common } from "@/lib/i18n/dict/crm";
 import { callSheet } from "@/lib/i18n/dict/call";
 import { CardGrip, useMouseOnlyListeners, type CardDrag } from "@/components/shared/CardGrip";
 import { TodayChip, useTodayFilter } from "@/components/shared/TodayChip";
+import { WhatsappChip } from "@/components/shared/WhatsappChip";
 import {
   ProspectGroupFields,
   prospectGroupPayload,
@@ -74,6 +75,11 @@ export interface ProspectCard {
   /** dial / wa.me links for the card's primary number, precomputed server-side */
   telHref: string | null;
   waHref: string | null;
+  /** ADR-069 — "WhatsApp sent by Omar on 3 Sep 2026", built server-side; null =
+      nobody has messaged this card yet */
+  waSentLabel: string | null;
+  /** ADR-069 — where a press records the mark */
+  waMarkUrl: string;
 }
 
 type Rep = { id: string; name: string };
@@ -129,17 +135,19 @@ function CardBody({ card, drag }: { card: ProspectCard; drag?: CardDrag }) {
             {t(callSheet.navLabel)}
           </a>
         ) : null}
+        {/* ADR-069 — GREEN once anyone has messaged this partner or agent */}
         {card.waHref ? (
-          <a
+          <WhatsappChip
             href={card.waHref}
-            target="_blank"
-            rel="noopener"
+            markUrl={card.waMarkUrl}
+            sentLabel={card.waSentLabel}
+            justSentLabel={t(callSheet.whatsappSentJustNow)}
+            restLabel={t(callSheet.whatsapp)}
             className="card-dial"
-            onClick={(e) => e.stopPropagation()}
-            onPointerDown={(e) => e.stopPropagation()}
+            cardGuards
           >
             {t(callSheet.whatsapp)}
-          </a>
+          </WhatsappChip>
         ) : null}
       </div>
       {card.keyDatum ? (

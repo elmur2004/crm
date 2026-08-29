@@ -29,6 +29,8 @@ import { getLeadDetail, latestProposalValue } from "@/lib/services/leads";
 import { formatEGP } from "@/lib/money";
 import { formatCairo, formatCairoDate } from "@/lib/datetime";
 import { waHref } from "@/lib/phone-dial";
+import { waSentLabel, whatsappMarkOf } from "@/components/shared/whatsappMark";
+import { WhatsappChip } from "@/components/shared/WhatsappChip";
 import { StatCard } from "@/components/shared/StatCard";
 import { AnimatedValue } from "@/components/shared/AnimatedValue";
 import { StageBadge } from "@/components/shared/StageBadge";
@@ -332,11 +334,20 @@ export async function LeadDetailBody({ ctx, leadId }: { ctx: InternalAppCtx; lea
             {t(callSheet.navLabel)}
           </Link>
           {/* founder: "message on WhatsApp" beside every Call — outlined, since
-              dialing stays the page's one primary action */}
+              dialing stays the page's one primary action.
+              ADR-069 — green once anyone has messaged this lead, the same chip
+              and the same sentence as the board card it came from. */}
           {waHref(lead.number) ? (
-            <a href={waHref(lead.number)!} target="_blank" rel="noopener" className="btn-ghost">
+            <WhatsappChip
+              href={waHref(lead.number)!}
+              markUrl={`${ctx.apiBase}/leads/${lead.id}/whatsapp`}
+              sentLabel={waSentLabel(locale, whatsappMarkOf(lead))}
+              justSentLabel={t(callSheet.whatsappSentJustNow)}
+              restLabel={t(callSheet.whatsapp)}
+              className="btn-ghost"
+            >
               {t(callSheet.whatsapp)}
-            </a>
+            </WhatsappChip>
           ) : null}
           <ArchiveButton
             postUrl={`${ctx.apiBase}/leads/${lead.id}/archive`}
@@ -542,6 +553,11 @@ export async function CrmBoardBody({
 
     latestProposalValue: lead.proposals[0]?.estimatedValue ?? null,
     waHref: waHref(lead.number),
+    /* ADR-069 — the chip's green state and the sentence that goes with it,
+       both resolved HERE: the mark is the record's, and the date goes through
+       the one shared formatter rather than a clock on the client */
+    waSentLabel: waSentLabel(locale, whatsappMarkOf(lead)),
+    waMarkUrl: `${ctx.apiBase}/leads/${lead.id}/whatsapp`,
     /* the Today chip's datum (ADR-061) — the same latest follow-up the key
        datum shows, only on Following Up cards */
     followUpDueAt:

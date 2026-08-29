@@ -3902,3 +3902,298 @@ merge was always going to risk and nobody had looked for: the things that were
 not edited but had their meaning changed underneath them — the sweep that checks
 the guards, the service worker that opens the deep links, and the half of an
 endpoint whose twin carried the wall.
+
+## Run 082 — 2026-08-29 — ADR-069: the WhatsApp mark and its green — two commits, full vitest, targeted Playwright
+
+### What was run
+| Suite | Command | Result |
+| --- | --- | --- |
+| Types | `npx tsc --noEmit` | clean, on BOTH commits |
+| Unit + integration | `npx vitest run` (FULL) | **46 files / 706 tests — 706 passed, 0 failed** |
+| E2E (new) | `npx playwright test --config <temp> e2e/whatsapp-sent.spec.ts` | **4 passed, 0 failed** |
+| E2E (the six specs that touch the chip) | `call-sheet`, `partners-agents`, `byteforce-board`, `board-touch`, `data-entry`, `prospect-pipeline` | **19 passed, 0 failed** |
+
+Both Playwright verdicts were read from `test-results/.last-run.json`
+(`{"status":"passed","failedTests":[]}`) rather than inferred from an exit code
+or a tailed log. Playwright ran from a TEMPORARY config copy on port **3143**
+(verified free with `netstat` first, deleted afterwards); the checked-in
+`playwright.config.ts` is untouched, and no other workstream's process was
+signalled. The FULL Playwright suite is the phase gate's job and was not re-run
+in this session.
+
+### The migration proof (throwaway database, never `.pgdata/dev`)
+A single-purpose embedded cluster on its own port and its own data dir
+(`.pgdata/waproof-<pid>`, pruned afterwards):
+1. `prisma migrate deploy` on a VIRGIN database → 19 migrations applied, the new
+   `20260829120000_whatsapp_sent` among them.
+2. `prisma migrate deploy` again → *"No pending migrations to apply."*
+3. The new `migration.sql` replayed BY HAND, twice, straight at the database —
+   both passes OK, and the catalogue afterwards shows the six columns once each,
+   `Lead_whatsappSentById_fkey` and `PartnerProspect_whatsappSentById_fkey` once
+   each, and one index per table. That is what the `IF NOT EXISTS` /
+   `pg_constraint` guards are for: `scripts/start.mjs` retries `migrate deploy`
+   at boot, so a half-applied deploy must be replayable.
+4. `prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma
+   --exit-code` → **"No difference detected"**, exit 0. The shipped SQL and the
+   schema cannot have drifted, so a future `migrate dev` will not manufacture a
+   correction migration.
+
+### What the 13 new integration cases actually pin (commit 1)
+Real route modules, real guards, real service, real Postgres; only the session is
+stubbed (the `todo-done-routes` pattern).
+- **No existence oracle.** An anonymous press is 401 for a REAL lead id and a
+  made-up one alike, with byte-identical error bodies, and writes nothing.
+- **The wall, per role.** `bsystems_sales` marks an internal-bucket lead and is
+  403 on an agent-owned one; an agent reaches only his own; the two brand
+  namespaces refuse each other in BOTH directions (a B-Systems id through
+  `/api/byteforce` is 404 — indistinguishable from "no such lead" — and a
+  ByteForce id through `/api/b-systems` is 403); the prospect endpoint refuses
+  `bsystems_sales` AND `bsystems_data_entry` and admits only admin.
+- **The actor is the session's.** A body naming another user is ignored; the row
+  records the presser.
+- **First-press-wins.** A second press by a different admin leaves who and when
+  untouched, and the response handed to the SECOND presser names the FIRST — so
+  the chip cannot tell him he did the diligence. Two racing presses through the
+  service produce a row whose id and label belong to the same person, with both
+  presses in the ActivityLog.
+- **Archived is still markable** (the message really was sent).
+- **The mark is the record's.** A different account on a different role reads it
+  through `getLeadDetail`, and a whole-table scan finds exactly one marked row —
+  there is no per-viewer second record anywhere.
+- **The sentence outlives the sender.** `deleteUser` releases the FK (SET NULL)
+  and the denormalised label survives, so the chip keeps saying "sent by Leaver".
+- **Backup.** A modern export → wipe → import round-trips the mark on BOTH record
+  kinds; a payload with the three keys STRIPPED (the real shape of a pre-ADR-069
+  export) restores as "never messaged" rather than inventing diligence.
+
+### What the 4 new e2e cases prove (commit 2)
+- A press turns the chip green **instantly, with no reload** — the optimistic
+  path — and the PAINTED `background-color` / `color` are the token pair's own
+  `rgb(230, 244, 236)` / `rgb(27, 122, 68)`. That measurement is the point: a
+  token declared outside its `[data-brand]` block resolves to nothing and paints
+  grey with a perfectly green CI, which is exactly how the accounting green
+  shipped broken (ADR-054 addendum). Measured under BOTH companies.
+- The server render then carries the words: the accessible name matches
+  `/^WhatsApp sent by Elmur on \d{1,2} \w{3} \d{4}$/`, `title` matches too, and
+  the `href`/`target` are unchanged — the chip still opens wa.me in a new tab
+  (the popup's URL is asserted).
+- **A DIFFERENT USER sees it green.** Omar (internal sales, who created the lead)
+  opens the same board in his own browser context and gets the same green and the
+  same "sent by Elmur"; no plain chip is left beside it. Omar pressing it again
+  does not move the credit.
+- One record, one answer: the same green on the board card, the lead detail and
+  the call sheet; and on the partner/agent board card, its detail header AND the
+  inline chip beside its number.
+- Arabic: `أرسل Elmur رسالة WhatsApp في …`, RTL, brand name left in latin exactly
+  as `dict/call` has always kept it.
+- wa.me is stubbed at the browser context, so no test run ever reaches the real
+  service.
+
+### Mutation checks (a test that cannot fail is not a test — BUG-015's discipline)
+- Deleting `--color-contact-made-tint` from `src/themes/neutral.css` turns the new
+  three-scope test RED (and the ADR-065 full-semantic-set test with it). Restored
+  → green.
+- Adding a second consumer (`.probe-illegal-green { color: var(--color-contact-made) }`)
+  to `design-system.css` turns the "spent by `.wa-sent` and nothing else" test
+  RED. Restored → green.
+- The e2e's paint assertions are themselves the mutation check for the token
+  scoping: they compare against literal rgb values, so a token that fails to
+  resolve produces `rgba(0, 0, 0, 0)` and fails.
+
+### Brand and i18n law
+- Two new custom properties, `--color-contact-made` and `--color-contact-made-tint`,
+  declared in ALL THREE scopes (`branding/byteforce`, `branding/b-systems`,
+  `src/themes/neutral.css`), identical in both brands, and spent by exactly one
+  class. No component gained a hex value or a `font-family`; `.wa-sent` resolves
+  everything through `var()`.
+- Contrast #1B7A44 on #E6F4EC = **4.73:1**, AA for the chip's 10px text, and the
+  state is never colour alone (a ✓ plus the accessible name and title).
+- i18n: three NEW keys in `dict/call.ts`, each with real Arabic. **No existing
+  English string was edited, moved or removed** — an unmarked chip's accessible
+  name is byte-identical to what it was before, which is why the existing
+  `call-sheet` and `partners-agents` specs pass unchanged.
+
+### SPEC coverage touched
+None. No SPEC section changed and the pipeline engine is unmodified — §10's
+transition tables are byte-identical. The one schema change is ADR-069's six
+columns, proved above.
+
+### Verdict
+**PASS.** 706 vitest + 23 Playwright green on the final tree, both verdicts read
+rather than inferred, the migration proved on a throwaway cluster and idempotent
+under a hand replay, and the two brand-law tests proved capable of failing before
+they were trusted.
+
+## Run 083 — 2026-08-29 — REVIEW GATE for ADR-069: six findings adjudicated, the FULL suites re-run, the migration re-proved
+
+### Why this run exists
+The two ADR-069 commits came back from review with six findings — one medium,
+five low. Every one was checked against the code and the schema rather than taken
+on trust: five are real and are fixed, and the sixth is the duplicate half of
+another. Run 082 was the build's own gate and ran a TARGETED Playwright
+selection; this one runs the FULL Playwright suite, on the tree that ships.
+
+### What was run
+| Suite | Command | Result |
+| --- | --- | --- |
+| Types | `npx tsc --noEmit` | clean |
+| Unit + integration | `npx vitest run` (FULL) | **46 files / 708 tests — 708 passed, 0 failed** |
+| E2E | `npx playwright test` (FULL, temp config, port 3141) | **131 passed, 0 failed, 2 skipped (14.1m)** |
+| Migration | virgin cluster → `migrate deploy` ×2 → the file replayed ×2 → `migrate diff` | **PASS** |
+| Brand audit | the checklist over every changed UI file | **PASS** |
+
+The Playwright verdict was read from `test-results/.last-run.json`
+(`{"status":"passed","failedTests":[]}`), not inferred from an exit code or a tailed log. Port 3100 was
+verified free with `netstat` and still left alone: the run went through a
+TEMPORARY copy of `playwright.config.ts` on port **3141** (also verified free),
+deleted afterwards — no other workstream's process was signalled.
+
+### The six findings, adjudicated
+**1. `whatsapp.ts` — the mark stamped `updatedAt` (medium). REAL, fixed.**
+Prisma applies `@updatedAt` CLIENT-side, so the conditional `updateMany` bumped
+`updatedAt` on a record whose pipeline state the press never touched. Reproduced
+before fixing, on real Postgres, by two new integration cases: the stamp moved on
+the lead (11:36:30.541Z → .569Z) and on the prospect (.625Z → .637Z). Two things
+ride on that column and both broke:
+- **undo's integrity FINGERPRINT.** Flag a lead "didn't answer", press WhatsApp,
+  and the pending Undo 409s (`CHANGED_SINCE`) — for ever, because `performUndo`
+  consumes the entry inside the transaction that then throws, so the rollback
+  leaves it unconsumed and the pill keeps offering the same dead action until the
+  ten-minute window expires.
+- **the boards' `orderBy: { updatedAt: "desc" }`** — the first press silently
+  re-sorted the card to the top of its column, for a message we sent.
+
+Fixed with a raw conditional `UPDATE` in both service functions: the same
+`WHERE … IS NULL` first-press-wins semantics, without the client-side stamp. That
+is exactly why `normaliseProspectStages` in `backup.ts` is raw, and its comment
+names this hazard in the repo's own words. Deliberately WITHOUT `invalidateUndo`
+(the house answer for a non-undoable mutation): with `updatedAt` untouched the
+pending inverse still applies, the pill names the action it will revert, and no
+`undoLead` branch writes the WhatsApp columns — so undoing leaves the mark
+standing. Retiring the entry would have cost the founder a working Undo as the
+price of opening WhatsApp. The two new cases were RED before the fix, green
+after; a third assertion pins that the raw write still stores UTC (the column is
+`TIMESTAMP(3)` WITHOUT time zone, so a driver binding local time would have
+drifted it by the Cairo offset and no other assertion would have noticed).
+
+**2. `WhatsappChip.tsx` — `fireMark`'s comment overclaimed (low). REAL, fixed
+(comment only).** `sendBeacon` returns true when the request is QUEUED, and the
+`fetch` fallback is deliberately not awaited, so an offline press and a 500 both
+paint green; only a synchronous throw returns false. That IS ADR-069 §4's
+decision — "an offline press opens WhatsApp and records nothing", plus a sticky
+optimistic paint — but the comment claimed a protection the code never gave. The
+comment now says what the boolean means. No behaviour changed, because the
+behaviour was the decided one.
+
+**3 & 5. `CallSheet.tsx` — a marked chip lost its verb and its number (low; one
+defect reported twice). REAL, fixed.** `aria-label={sentLabel ?? restLabel}` reads
+correctly on eight surfaces, where `restLabel` is the bare word "WhatsApp" and the
+sentence already opens with it. On the call sheet `restLabel` is "Message on
+WhatsApp — 01001234567", the only place the action and the number are spoken, so
+marking demoted the button to a state sentence. That surface now COMPOSES
+(`restLabel — sentLabel`) instead of swapping, and the sentence is printed in
+VISIBLE words under the button as well, because `title` is a hover tooltip and the
+call sheet is the one screen built for a phone. Two e2e assertions cover both. No
+i18n key was added or edited — the composition is a template literal over two
+existing strings — so every existing English string is byte-identical, and
+`call-sheet.spec.ts:51`, which asserts the UNMARKED name exactly, still passes.
+
+**4. `WhatsappChip.tsx` — the optimistic green was per-element (low). REAL,
+fixed.** The prospect detail prints the chip more than once for one record (the
+header, and one beside every number), so pressing one left its siblings plain
+until the next server render — §6's confusion reappearing inside §6's component.
+The pressed set moved into a module-level store keyed by `markUrl`, subscribed to
+with `useSyncExternalStore` (`getServerSnapshot` = `false`, or the server render
+throws). A new e2e case presses the header chip and asserts the inline chip is
+green with no reload in between.
+
+**6. `design-system.css` — the `.call-cta--wa` comment contradicted the file
+(low). REAL, fixed.** It said "Neutral on purpose: no WhatsApp-green in the
+palette" 45 lines above the `.wa-sent` rule that paints exactly that button green.
+In a repo where these comments are the normative record of a brand ruling, that is
+a trap for the next reader; it now names the ADR-069 exception.
+
+**Refuted: none.** Findings 3 and 5 are the same defect twice and are answered by
+the same fix. No finding survived checking and turned out to be wrong.
+
+### The migration RE-PROOF (throwaway database, never `.pgdata/dev`)
+A single-purpose embedded cluster on port 5487 with its own data dir
+(`.pgdata/migproof-<pid>`, deleted afterwards):
+1. VIRGIN cluster → `prisma migrate deploy` → *"All migrations have been
+   successfully applied"*; 19 migrations, `20260829120000_whatsapp_sent` last.
+2. `prisma migrate deploy` again → *"No pending migrations to apply."*
+3. The catalogue after two deploys: the **six** columns (every one
+   `is_nullable = YES`; `timestamp without time zone`, `text`, `text` per table),
+   **two** indexes (`Lead_whatsappSentById_idx`,
+   `PartnerProspect_whatsappSentById_idx`) and **two** foreign keys, both with
+   `confdeltype = 'n'` (ON DELETE SET NULL) — one of each per table, no duplicates.
+4. The `migration.sql` replayed BY HAND twice more, straight at the database:
+   still 6 columns / 2 indexes / 2 FKs. That is what the `IF NOT EXISTS` and
+   `pg_constraint` guards are for — `scripts/start.mjs` retries `migrate deploy` at
+   boot, so a half-applied deploy has to be replayable.
+5. `prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma
+   --exit-code` → **"No difference detected"**, exit 0. (Prisma 7 removed
+   `--from-url`; the config datasource reads the throwaway `DATABASE_URL`.)
+
+No schema change was needed for any of this round's fixes: the raw `UPDATE`
+writes the same three columns the migration already ships.
+
+### Brand audit over the changed UI — PASS
+| File | Line | Finding | Rule ref | Severity |
+| --- | --- | --- | --- | --- |
+| — | — | none | — | — |
+- **Hardcoded values:** no hex and no `font-family` in any component of the
+  ADR-069 change set (all 20 files, excluding the two brand token files and
+  `src/themes/`, with the ADR-015 exemption for `brand-tokens.test.ts`).
+- **The green exception, explicitly.** Unchanged by this round, and re-verified
+  rather than assumed: `--color-contact-made` / `--color-contact-made-tint` are
+  declared INSIDE the `[data-brand="byteforce"]`, `[data-brand="bsystems"]` and
+  `[data-brand="neutral"]` blocks of all three scope files, identical values
+  (#1B7A44 / #E6F4EC), spent by exactly one class — `.wa-sent`. Two guard tests
+  pin both facts (the three-scope test and "spent by `.wa-sent` and nothing
+  else"), and the e2e measures the PAINTED colour under both companies, which is
+  the only check that catches a token declared outside its `[data-brand]` block.
+  The review's fixes added no colour at all; the only green-related change is the
+  `.call-cta--wa` comment that used to deny the exception (finding 6).
+- **The one new visible element** — the call sheet's who/when line — reuses the
+  existing `.call-line` and `.u-muted` classes, both fully token-driven.
+- **RTL:** no physical `left`/`right` entered the CSS; `.wa-sent-tick` keeps
+  `margin-inline-end`. The composed accessible name uses the same "—" separator
+  `whatsappAria` has always used, so Arabic reads as it did.
+- **Palettes:** B-Systems and ByteForce rules untouched — no pink surface, no
+  gradient outside a hero, no emoji added to an App A string (the chip's ✓ is a
+  dingbat in text presentation and predates this round).
+
+### What changed in the tests
+- **+2 integration cases** (`whatsapp-mark.integration.test.ts`, now 15): the mark
+  leaves `updatedAt` alone on the lead and a pending Undo still APPLIES afterwards
+  (a real `performUndo`, with the mark surviving it), and the same for the
+  partner/agent card. Both were RED before the service fix — the mutation check
+  came free.
+- **+1 e2e case** (`whatsapp-sent.spec.ts`, now 5): one press greens every chip
+  for the same record, before any reload.
+- **+2 assertions** on the existing e2e's call-sheet leg: the composed accessible
+  name, and the visible who/when line.
+- **1 racy helper fixed** (`follow-up-time.spec.ts`, its own commit): `logFollowUp`
+  clicked "Save record" and returned, so the caller's next `page.goto` could abort
+  a save still in flight. It surfaced in this session's first full Playwright pass
+  — the To-Do row showed the PREVIOUS follow-up ("29 Aug 2026", no clock) — and it
+  is a race in the helper, not a fault in the app: nobody navigates in the
+  milliseconds between the click and the response. The helper now waits for the
+  POST and for the panel to close, which only happens on a 2xx. Nothing in the
+  product changed.
+
+### SPEC coverage touched
+None. No SPEC section changed; the pipeline engine is untouched and §10's
+transition tables are byte-identical. ADR-069 gains three amendments (§2 the raw
+write and why no `invalidateUndo`; §4 the shared optimistic state and the honest
+meaning of the dispatch boolean; §5 the composed name on the call sheet), and
+IMPLEMENTATION gains traps 14–16.
+
+### Verdict
+**PASS.** Every finding is fixed — none needed refuting — and the tree that
+ships is green on the FULL suites: `tsc` clean, **708 vitest tests**, **131
+Playwright tests** with the verdict read from `test-results/.last-run.json`, the
+migration re-proved from scratch on a throwaway cluster and idempotent under both
+a second `migrate deploy` and a hand replay, and the brand audit clean with the
+ADR-069 green still fenced to one class in all three scopes.

@@ -1,5 +1,95 @@
 # Changelog — user-visible changes per phase/release
 
+## The WhatsApp button turns green once we have messaged them (2026-08-29)
+
+You said: *"when I click on the WhatsApp button, it should turn to be green to
+signal that I already sent WhatsApp to that prospect or to that lead, and it
+signals not just for my user, for any user that we have contacted this lead
+through WhatsApp. So it turns green or something. Just change its color. If it's
+not green right now, turn it green to signal that we did our due diligence and
+sent them WhatsApp message."*
+
+Done.
+
+### 1. Press it once, and it is green for everybody
+
+- **The WhatsApp button goes green the moment you press it** — instantly, before
+  anything is saved, so you get the signal at the speed of the press.
+- **It is green for the whole team, not just for you.** Whoever opens that lead
+  next — on another account, on another phone, in the other company — sees the
+  same green. That was the part you asked for twice, so it is the part the
+  system now guarantees.
+- **It stays green.** Moving the card to another column does not clear it,
+  archiving does not clear it, and nothing un-presses it. It is a record that we
+  did the work.
+
+### 2. It says who and when, not just a colour
+
+- Hover it, or read it with a screen reader, and it says **"WhatsApp sent by
+  Omar on 3 Sep 2026"** — the person who first messaged them and the day. In
+  Arabic it says the same thing in Arabic.
+- On the **call sheet** — the page you get when you dial, the one you actually
+  use on your phone — that sentence is **printed under the button in plain
+  words**, because a hover tooltip is not something a phone can show you.
+- There is a **✓** on the button too, so it never depends on you seeing a colour.
+- **The first message is the one that is kept.** If you press it after Omar
+  already did, it still says Omar — you did not take the credit off him by
+  opening the card. Every press is still written into the card's History, so you
+  can always see who has messaged them, and how often.
+
+### 3. Green everywhere the button is
+
+Same button, same green, on every screen it appears:
+
+- the **CRM board cards**, under both companies
+- the **lead page**
+- the **call sheet** you get when you dial
+- the **Partners & Agents board cards** and the **partner/agent page**
+- the **partner directory** and the **Agents list**
+
+Marking a partner on the board shows green on their directory page, and the
+other way round — it is one record, so it is one answer.
+
+### 4. The button still just opens WhatsApp
+
+This is the part that mattered most to get right. **Pressing it never waits for
+anything.** WhatsApp opens exactly as fast as it always did; the green mark is
+saved quietly in the background, and if the connection is bad it is simply not
+saved — you still get your message window, and you never get an error. A missed
+mark you can press again; a WhatsApp button that hesitates would be worse than
+no mark at all.
+
+### 5. Pressing it changes nothing else on the card
+
+- **Your Undo still works.** Flagging a lead as "didn't answer" and then
+  messaging them on WhatsApp used to leave the Undo button pointing at something
+  it could no longer undo. Pressing WhatsApp now leaves the card exactly where it
+  was, so Undo still does what it says.
+- **Your board does not reshuffle.** The card stays in its place in the column
+  instead of jumping to the top because someone opened WhatsApp.
+- On a partner or agent page, where the button appears **more than once** (at the
+  top and beside each number), pressing one turns all of them green at once.
+
+### 6. About the green
+
+Green has been banned everywhere in this system except the accounting screens —
+that was a decision you made earlier, and it is still in force. You asked for
+green here explicitly, so this is now a second, deliberate exception with its own
+name, written down beside the first one, and used by nothing except this button.
+It is the same green the accounting screens use, so the product still has exactly
+one green, and it is dark enough to read cleanly in both companies' colours.
+
+### Two things to tell us
+
+- **There is no way to un-green it.** Removing the mark would quietly erase the
+  proof you asked for, so we did not build a button that does it. If you want one
+  — for a mis-click or a wrong number — say so and we will add it with a record
+  of who removed it.
+- **An agent who signed themselves up through the public form has no card on the
+  Partners & Agents board**, so there is nothing for their WhatsApp button in the
+  Agents list to mark; it stays a plain link. Every agent you added from the board
+  is marked normally. Tell us if you want the sign-ups covered too.
+
 ## One CRM, one switch — plus a twelve-hour clock and the answer you are waiting for (2026-08-29)
 
 You said: *"I need to completely merge the systems and byte force CRMs, and I

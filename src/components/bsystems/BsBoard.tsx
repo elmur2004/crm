@@ -25,6 +25,7 @@ import { callSheet } from "@/lib/i18n/dict/call";
 import { CardGrip, useMouseOnlyListeners, type CardDrag } from "@/components/shared/CardGrip";
 import { TodayChip, useTodayFilter } from "@/components/shared/TodayChip";
 import { NoAnswerBadge } from "@/components/shared/NoAnswerBadge";
+import { WhatsappChip } from "@/components/shared/WhatsappChip";
 import { stageKey } from "./stageColors";
 import {
   GroupFieldsV2,
@@ -54,6 +55,11 @@ export interface BsBoardLead {
   keyDatum: string;
   /** wa.me link, precomputed server-side (null when no confident country code) */
   waHref: string | null;
+  /** ADR-069 — "WhatsApp sent by Omar on 3 Sep 2026", built server-side (the
+      one clock lives in lib/datetime); null = nobody has messaged them yet */
+  waSentLabel: string | null;
+  /** ADR-069 — where a press records the mark */
+  waMarkUrl: string;
   /** ISO instant of the latest follow-up's dueAt — set only on Following Up
       cards; feeds the column's Today chip (ADR-061) */
   followUpDueAt: string | null;
@@ -111,17 +117,19 @@ function LeadCardBody({ lead, drag }: { lead: BsBoardLead; drag?: CardDrag }) {
         </Link>
         {/* founder: "message on WhatsApp" beside every Call — a new tab, same
             guards so it neither drags nor opens the lead */}
+        {/* ADR-069 — and it goes GREEN once anyone has messaged this lead */}
         {lead.waHref ? (
-          <a
+          <WhatsappChip
             href={lead.waHref}
-            target="_blank"
-            rel="noopener"
+            markUrl={lead.waMarkUrl}
+            sentLabel={lead.waSentLabel}
+            justSentLabel={t(callSheet.whatsappSentJustNow)}
+            restLabel={t(callSheet.whatsapp)}
             className="card-dial"
-            onClick={(e) => e.stopPropagation()}
-            onPointerDown={(e) => e.stopPropagation()}
+            cardGuards
           >
             {t(callSheet.whatsapp)}
-          </a>
+          </WhatsappChip>
         ) : null}
       </div>
       {lead.keyDatum || (lead.stage !== "won" && lead.stage !== "lost") ? (

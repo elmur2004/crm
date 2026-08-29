@@ -2307,3 +2307,169 @@ the agent and the shell collapses `\\` to `\` inside heredocs, and Python then
 interprets `\b` as a backspace escape. `grep -P '[\x00-\x1f]'` did not find it;
 reading the file in Python and checking `ord(c) < 32` did. If a regex in a test
 "just doesn't match anything", check the bytes before checking the logic.
+
+## ADR-069 — the WhatsApp mark: the traps
+
+### 1. THE OBVIOUS IMPLEMENTATION IS `localStorage`, AND IT IS THE ONE THING HE RULED OUT
+"Turn the button green after I click it" is a two-line change with a browser
+flag. The sentence immediately after it — *"it signals not just for my user, for
+any user"* — makes that answer wrong: it would tell his team nothing and would
+vanish when he opened the CRM on his phone. Read the whole request before
+sizing it.
+
+### 2. `preventDefault` IS THE TRAP, AND IT IS THE EASY THING TO WRITE
+The natural shape for "do something when a link is clicked, then follow the
+link" is: intercept, `await` the POST, then `window.open`. It is wrong three
+ways here. Popup blockers kill a `window.open` that is not in the direct
+gesture; awaiting puts the network in front of the founder's most-used control;
+and a rejected promise surfaces as an error on a press whose only job was to
+open WhatsApp. The chip never calls `preventDefault` at all — the anchor
+navigates natively — and the mark is fired beside it.
+
+### 3. A PLAIN `fetch` IS ENTITLED TO BE ABANDONED HERE
+This press hands focus to a new tab immediately, which is exactly the lifecycle
+event that lets a browser drop in-flight fetches. `navigator.sendBeacon` hands
+the request to the BROWSER, which delivers it independently of the page — that
+is the whole reason the API exists. `fetch(…, { keepalive: true })` is the
+fallback with the same guarantee, and it is a real fallback rather than
+decoration: `sendBeacon` returns `false` (not throws) when its queue is full.
+
+### 4. sendBeacon SENDS NO BODY, SO THE ENDPOINT MUST NOT PARSE ONE
+`navigator.sendBeacon(url)` posts with a null body and no `Content-Type`. A
+route that opened with `z.object({...}).parse(await req.json())` — the house
+shape for every other POST here — would 400 every single press, and the
+`handleRoute` wrapper would turn it into a clean JSON error nobody ever sees,
+because nothing awaits the response. The three routes deliberately have no Zod
+schema and read nothing but the URL param and the session. That is also what
+makes decision F trivially true: there is no body for a client to lie in.
+
+### 5. `router.refresh()` AFTER THE PRESS IS A RACE, NOT A REFINEMENT
+The board's other controls (`no-answer`, `ready`) `await` their POST and then
+refresh. Copying that here breaks both halves of the request: the await blocks
+the link, and the refresh can return a render taken BEFORE the mark committed,
+which repaints the chip grey a second after it went green. The chip keeps a
+STICKY optimistic flag instead — once true it never goes back to false — and no
+refresh is fired at all. The e2e reflects this honestly: it asserts the instant
+green with no reload, then reloads *in a `toPass` block* for the server truth.
+
+### 6. A CLIENT MODULE CANNOT EXPORT A FUNCTION FOR A SERVER COMPONENT TO CALL
+The first cut put `waSentLabel()` beside the chip in `WhatsappChip.tsx`. Every
+surface except the three boards is a server component, and a plain function
+imported from a `"use client"` module arrives on the server as a client
+reference, not a function. The label builder lives in its own non-client module
+(`components/shared/whatsappMark.ts`), which both sides may import.
+
+### 7. THE DATE MUST BE FORMATTED SERVER-SIDE OR ADR-068's SWEEP CATCHES IT
+`src/lib/datetime.ts` is the only legal home for a rendered clock, enforced by a
+directory sweep over `src/app` and `src/components`. A chip that formatted its
+own "3 Sep 2026" on the client would be the next `LeadChat`. The whole sentence
+is built on the server through `formatCairoDate` and crosses the boundary as a
+finished string; the client component receives no `Date` and no locale.
+
+### 8. GREEN COULD NOT BE BORROWED FROM ACCOUNTING, EVEN THOUGH THE VALUE IS THE SAME
+`--color-acct-positive` is fenced BY NAME: `brand-tokens.test.ts` asserts the
+`--color-acct-*` set is EXACTLY two entries, and the ADR-054 addendum records
+which classes may spend them. Reusing them for a CRM chip would have compiled,
+looked right, and silently retired a rule that is still doing work. A new pair
+with the same values keeps the product to one green while keeping two
+independently-revocable fences. The new pair has its own three-scope test AND a
+"spent by `.wa-sent` and nothing else" test; both were mutation-checked (delete
+the neutral token → red; add a second consumer → red).
+
+### 9. CSS SPECIFICITY DECIDED WHERE THE RULE COULD GO
+`.wa-sent` rides on top of three different base classes, and each has a hover
+rule at the same specificity (one class + one pseudo-class): `.btn-ghost:hover`,
+`.call-cta--wa:hover`, `.card-dial:hover`. So `.wa-sent` and `.wa-sent:hover`
+are declared AFTER all three in `design-system.css` — source order is the only
+thing separating them. Placed earlier, the chip would have gone grey on hover on
+two of the three surfaces, which is the kind of bug nobody screenshots.
+
+### 10. THE SEEDED LEADS HAVE NO WHATSAPP LINK AT ALL
+Every seeded number is `0221000001`-shaped — a Cairo landline — and `waDigits`
+returns null for any 0-leading number that is not an Egyptian mobile, on purpose
+(a landline has no WhatsApp and a foreign trunk prefix is unguessable). So the
+chip does not render on ANY seeded card, and an e2e that reaches for it on demo
+data finds nothing. Every WhatsApp spec has to create its own lead with a real
+mobile number, which the existing `call-sheet` and `partners-agents` specs
+already did.
+
+### 11. `DELETE` DOES NOT EXIST FOR A BYTEFORCE LEAD
+`/api/byteforce/leads/[id]` carries only `PATCH`. A spec that creates a ByteForce
+lead cannot tidy up after itself; `byteforce-board.spec.ts`'s "Parity Deal" set
+that precedent and `whatsapp-sent.spec.ts` follows it, which is safe only
+because the suite is serial and this file sorts near the end. The B-Systems half
+of the spec deletes its lead — through the ADMIN's context, because deleting a
+lead is admin-only and the lead was created by sales.
+
+### 12. THE PROSPECT'S WALL IS NARROWER THAN ITS CREATE PERMISSION
+`requireProspectCreator` (admin + data entry) is the guard on creating a
+partner/agent card, and reaching for it here would have been the natural
+symmetry. It is wrong: ADR-051 gives data entry two Add buttons and no screen
+that displays a card, so admitting it to the mark would let it write to records
+it cannot see. Every surface that shows a prospect sits behind
+`requireBsAdminCompanyPage`, so `requireBsAdmin` is the honest match — the wall
+is the READ wall, not the write wall of a neighbouring action.
+
+### 13. TWO SURFACES REACH THE RECORD INDIRECTLY, AND ONE OF THEM HAS A HOLE
+The partner DIRECTORY shows `Partner.number`, not a prospect; `Partner.prospectId`
+is required and unique, so there is exactly one card behind every directory row
+and the two screens read and write the same mark. The AGENTS LIST shows
+`User.phone` and reaches the card through `User.agentProspect` — which does not
+exist for an agent who came through the public signup form, because `signupRep`
+creates a `User` + `PortalRep` and no card at all. Those chips are plain links
+with `markUrl = null`. That is a real gap, flagged rather than papered over: the
+alternative is a third record kind carrying the same three columns.
+
+### 14. `updateMany` STAMPS `updatedAt`, AND TWO THINGS IN THIS REPO RIDE ON THAT COLUMN
+Prisma applies `@updatedAt` **client-side**, so ANY Prisma write — `update`,
+`updateMany`, however narrow the `data` — bumps `updatedAt`. The first cut of the
+mark used `updateMany`, and the review found what that costs on a record whose
+pipeline state the press never touched:
+
+- **undo's integrity FINGERPRINT is `updatedAt`** (`undo.ts`: `lead.updatedAt
+  .toISOString() !== entry.fingerprint` → 409). Flag a lead "didn't answer", then
+  press WhatsApp on the same card, and the pending Undo pill 409s — for ever.
+  `performUndo` consumes the entry INSIDE the transaction that then throws, so the
+  rollback leaves it unconsumed and the pill keeps offering the same dead action
+  on every press until the ten-minute window runs out.
+- **the boards order by `updatedAt desc`** (`bsystems-admin.ts`, `partners/pages`,
+  `internal/pages`), so the first press silently re-sorted the card to the top of
+  its column — a message we sent, reordering his board.
+
+The fix is `$executeRaw` with the same conditional WHERE, which is exactly why
+`normaliseProspectStages` in `backup.ts` is raw; that comment states the hazard in
+this repo's own words and was written before this feature existed. Read it before
+writing any "small side-effect column".
+
+`invalidateUndo(tx, actor)` — the house answer for a NON-undoable mutation
+(`leads.ts:452`, `milestones`, `statements`, the vault) — is deliberately **not**
+what this uses. That rule exists so the button never offers an inverse that
+cannot apply; with `updatedAt` untouched the inverse still applies perfectly, the
+pill names the action it will revert, and undoing it leaves the mark standing
+(no `undoLead` branch writes the WhatsApp columns). Calling it would have thrown
+away a working Undo as the price of opening WhatsApp. Two integration cases pin
+both halves — `updatedAt` unchanged on lead and prospect, and a real
+`performUndo` applying after a press.
+
+### 15. THE OPTIMISTIC GREEN BELONGS TO THE RECORD, NOT TO THE ELEMENT
+One screen can print the chip more than once for the SAME record: the prospect
+detail has the header chip and another after every number the card carries, all
+with the same `markUrl`. With `useState` inside the chip, pressing one left its
+siblings plain until the next server render — "green in one place and plain in
+another", the exact confusion the one-component decision (§6) exists to remove,
+reappearing INSIDE one component. The pressed set therefore lives in the module,
+keyed by `markUrl`, and every chip subscribes with `useSyncExternalStore` (with a
+`getServerSnapshot` of `false`, or the server render throws). An e2e presses the
+header chip and asserts the inline chip goes green with no reload.
+
+### 16. A STATE SENTENCE THAT *REPLACES* THE ACCESSIBLE NAME COSTS THE CONTROL ITS VERB
+`aria-label={sentLabel ?? restLabel}` reads fine on eight of the nine surfaces,
+where `restLabel` is the bare word "WhatsApp" and the sentence already opens with
+it. On the CALL SHEET `restLabel` is *"Message on WhatsApp — 01001234567"* — the
+only place the action and the number are spoken — so marking the lead silently
+demoted the button to a state sentence: a screen-reader user could no longer tell
+what it does or who it messages. ADR-069 §5's byte-identity guarantee covered
+only the UNMARKED chip, so nothing caught it. That surface now COMPOSES the two
+(`restLabel — sentLabel`) instead of swapping them, and prints the sentence in
+visible words under the button as well, because `title` is a hover tooltip and
+the call sheet is the one screen built for a phone, where hover does not exist.

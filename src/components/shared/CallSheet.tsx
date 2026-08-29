@@ -18,6 +18,8 @@ import { callSheet as m } from "@/lib/i18n/dict/call";
 import { archiveMsgs, common as crmCommon, leadDetail as ld } from "@/lib/i18n/dict/crm";
 import { StageBadge } from "@/components/shared/StageBadge";
 import { NoAnswerBadge } from "@/components/shared/NoAnswerBadge";
+import { WhatsappChip } from "@/components/shared/WhatsappChip";
+import { waSentLabel, whatsappMarkOf } from "@/components/shared/whatsappMark";
 import { LeadChat } from "@/components/shared/LeadChat";
 import { GroupHistory } from "@/components/internal/GroupHistory";
 import { HistoryPanel } from "@/components/internal/HistoryPanel";
@@ -78,6 +80,14 @@ export async function CallSheet({
 
   const dial = telHref(lead.number);
   const wa = waHref(lead.number);
+  /* ADR-069 — on THIS surface the chip's rest label carries what the mark's
+     sentence does not: the verb and the number ("Message on WhatsApp —
+     01001234567"). So the two are COMPOSED rather than swapped: a marked chip
+     still announces that it messages this number, with who and when appended.
+     Everywhere else the rest label is the bare word "WhatsApp", which the
+     sentence already opens with, so those surfaces pass it unchanged. */
+  const waRest = t(formatMsg(m.whatsappAria, { number: lead.number }));
+  const waSent = waSentLabel(locale, whatsappMarkOf(lead));
   const ownerLine = [
     ownerTypeLabel(locale, lead.ownerType),
     lead.owner?.name,
@@ -146,14 +156,19 @@ export async function CallSheet({
         {/* founder: "message on WhatsApp" beside every Call — on the
             phone-first screen that means a second big button, outlined so
             dialing stays the primary act. New tab: coming back from WhatsApp
-            leaves this page exactly as it was. */}
+            leaves this page exactly as it was.
+            ADR-069 — and it comes back GREEN: pressing it records, for
+            everybody, that this lead has been messaged. The mark is dispatched
+            with sendBeacon and nothing is awaited, so the message opens exactly
+            as fast as it always did. */}
         {wa ? (
-          <a
+          <WhatsappChip
             href={wa}
-            target="_blank"
-            rel="noopener"
+            markUrl={`${apiBase}/leads/${lead.id}/whatsapp`}
+            sentLabel={waSent ? `${waRest} — ${waSent}` : null}
+            justSentLabel={`${waRest} — ${t(m.whatsappSentJustNow)}`}
+            restLabel={waRest}
             className="call-cta call-cta--wa"
-            aria-label={t(formatMsg(m.whatsappAria, { number: lead.number }))}
           >
             <svg
               className="call-cta-icon"
@@ -168,8 +183,13 @@ export async function CallSheet({
               <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
             </svg>
             <span className="call-cta-label">{t(m.whatsapp)}</span>
-          </a>
+          </WhatsappChip>
         ) : null}
+        {/* …and the same sentence in VISIBLE words. `title` is a hover tooltip,
+            and this is the one screen built for a phone, where hover does not
+            exist — so who messaged them and when is printed under the button
+            rather than left to a tooltip a touch device never shows. */}
+        {wa && waSent ? <p className="call-line u-muted">{waSent}</p> : null}
         <p className="call-back">
           <Link href={`${leadPath}/${lead.id}${query}`} className="text-brand-link underline underline-offset-2">
             {t(m.backToLead)}

@@ -9,6 +9,7 @@ import { BSYSTEMS_STAGES } from "@/lib/pipeline-engine/constants";
 import { formatCairoDate } from "@/lib/datetime";
 import { StageBadge } from "@/components/shared/StageBadge";
 import { NumberActions } from "@/components/shared/NumberActions";
+import { whatsappMarkOf } from "@/components/shared/whatsappMark";
 import { stageKey } from "@/components/bsystems/stageColors";
 import { tFor } from "@/lib/i18n/core";
 import { getLocale } from "@/lib/i18n/server";
@@ -101,8 +102,23 @@ async function AgentsDetailed() {
               <p className="identity-sub">{a.speciality}</p>
               <p className="u-muted">
                 <span>{t(common.labelPhone)}</span> {a.user.phone ?? "—"}
-                {/* founder: "add call and whatsapp in agents and partners" */}
-                {a.user.phone ? <NumberActions number={a.user.phone} locale={locale} /> : null}
+                {/* founder: "add call and whatsapp in agents and partners".
+                    ADR-069 — the state comes from the agent's pipeline card, so
+                    green here is the same green their card wears on the board. */}
+                {a.user.phone ? (
+                  <NumberActions
+                    number={a.user.phone}
+                    locale={locale}
+                    mark={
+                      a.user.agentProspect ? whatsappMarkOf(a.user.agentProspect) : null
+                    }
+                    markUrl={
+                      a.user.agentProspect
+                        ? `/api/b-systems/partners-pipeline/${a.user.agentProspect.id}/whatsapp`
+                        : null
+                    }
+                  />
+                ) : null}
               </p>
               <p className="u-muted">
                 <span>{t(common.labelAddress)}</span> {a.address}

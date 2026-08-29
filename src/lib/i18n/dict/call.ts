@@ -21,6 +21,27 @@ export const callSheet = {
   whatsapp: { en: "WhatsApp", ar: "WhatsApp" },
   /* "Message on WhatsApp — 01001234567" (accessible name; opens a new tab) */
   whatsappAria: { en: "Message on WhatsApp — {number}", ar: "مراسلة عبر WhatsApp — {number}" },
+  /* ADR-069 (founder: "it should turn to be green to signal that I already sent
+     WhatsApp … it signals not just for my user, for any user that we have
+     contacted this lead through WhatsApp") — the words that go WITH the green,
+     so the state is never carried by colour alone. They become the chip's
+     accessible name and its title once the record is marked.
+     "{when}" arrives already formatted by the ONE clock (lib/datetime), so this
+     sentence never renders a date of its own. */
+  whatsappSentBy: {
+    en: "WhatsApp sent by {who} on {when}",
+    ar: "أرسل {who} رسالة WhatsApp في {when}",
+  },
+  /* the same sentence with nobody to name — a restored row whose sender label
+     never made it, which the UI must survive rather than print "undefined" */
+  whatsappSentOn: {
+    en: "WhatsApp sent on {when}",
+    ar: "تم إرسال رسالة WhatsApp في {when}",
+  },
+  /* what the chip says the instant it is pressed, before any page has reloaded:
+     the mark is fire-and-forget, so who/when only arrive on the next server
+     render — saying so plainly beats guessing at a date */
+  whatsappSentJustNow: { en: "WhatsApp sent", ar: "تم إرسال رسالة WhatsApp" },
   otherContacts: { en: "Other contacts", ar: "وسائل اتصال أخرى" },
   sendEmail: { en: "Send an email", ar: "إرسال بريد إلكتروني" },
   details: { en: "Details", ar: "التفاصيل" },

@@ -147,6 +147,24 @@
      accounting module only, ADR-054 addendum) — never a general success color. */
   --color-acct-positive: #1B7A44;
   --color-acct-positive-tint: #E6F4EC;
+  /* CRM ONLY (founder, ADR-069: "when I click on the WhatsApp button, it should
+     turn to be green … If it's not green right now, turn it green to signal that
+     we did our due diligence and sent them WhatsApp message.") — the SECOND
+     deliberate exception to the R4 no-green ruling, and it is fenced exactly the
+     way the accounting one is: ONE consumer, `.wa-sent`, the WhatsApp chip once
+     somebody has messaged that record. Never a general success colour — that is
+     still --color-success, which is in-palette in every scope.
+     Its own name, NOT the accounting pair: those are fenced BY NAME to the
+     accounting module (ADR-054 addendum, and brand-tokens.test pins that set to
+     exactly two), so spending them here would erase a fence that is doing work.
+     Same VALUES on purpose — the product has exactly one green, now with two
+     fences — and identical in both brands, like the accounting pair, because the
+     chip is the same chip whichever company you are switched to.
+     Contrast: #1B7A44 ink on #E6F4EC tint is 4.73:1 — AA for the chip's 10px
+     text — and the state never rides colour alone (the chip carries a ✓ and says
+     in words who sent it and when). */
+  --color-contact-made: #1B7A44;
+  --color-contact-made-tint: #E6F4EC;
 }
 
 /* Rules encoded as comments (enforced by /brand-audit):

@@ -4706,3 +4706,264 @@ the code and the rendered page, and all six were FIXED — none needed refuting.
 - Status: Accepted. Two items flagged for founder confirmation in PROGRESS Entry
   064 — Arabic dates now render in Arabic, and the wording chosen for the
   negotiation row.
+
+## ADR-069 — 2026-08-29 — The WhatsApp chip goes GREEN, and the mark is the RECORD's
+- Context: the founder, verbatim and in one breath:
+
+  > *"when I click on the WhatsApp button, it should turn to be green to signal
+  > that I already sent WhatsApp to that prospect or to that lead, and it signals
+  > not just for my user, for any user that we have contacted this lead through
+  > WhatsApp. So it turns green or something. Just change its color. If it's not
+  > green right now, turn it green to signal that we did our due diligence and
+  > sent them WhatsApp message."*
+
+  Read plainly this is a colour change. It is not: the sentence "not just for my
+  user, for any user" makes it a shared, persisted fact about the record, and the
+  word "green" collides with a standing brand ruling. Both halves are decided
+  below, and a third question nobody asked but the change forces — what happens
+  to the LINK while the mark is being written.
+
+### 1. THE MARK IS ON THE RECORD, NEVER ON THE VIEWER
+- **Decision.** Three columns on `Lead` and three on `PartnerProspect`:
+  `whatsappSentAt`, `whatsappSentById` (a real `SET NULL` FK to `User`), and
+  `whatsappSentByLabel`. Nothing per-viewer, nothing in `localStorage`, no
+  join table.
+- **Why not browser storage.** It is the fastest possible implementation and it
+  is the one thing the request explicitly rules out: a mark in the founder's
+  browser tells his team nothing, and disappears when he opens the CRM on his
+  phone. "It signals not just for my user" is the requirement, not a nicety.
+- **Why not a join table keyed by (user, record).** That answers "did *I* message
+  them", which is a different question and would leave the chip's colour
+  depending on who is looking — the exact confusion the request exists to remove.
+- **Two record kinds, because two record kinds wear the chip.** The WhatsApp
+  control sits beside every Call control: the CRM board cards (both companies),
+  the lead detail, the phone-first call sheet, the partner/agent board cards and
+  their detail, the partner directory and the Agents list. The first three read a
+  `Lead`; the rest read a `PartnerProspect` (see §7 for the two that reach it
+  indirectly). Those are all the records there are.
+- **The name is stored beside the FK**, the `LeadComment.authorLabel` /
+  `Statement.closerLabel` convention. ADR-049's permanent deletion releases the
+  FK, and without the denormalised copy the chip would degrade from "WhatsApp
+  sent by Omar on 3 Sep 2026" to "WhatsApp sent on 3 Sep 2026" the day Omar
+  leaves — losing exactly the accountability the founder asked for. A test
+  deletes the sender and asserts the words survive.
+
+### 2. THE FIRST MESSAGE IS THE ONE THAT IS KEPT — AND THE WRITE TOUCHES NOTHING ELSE
+- **Decision.** The write is CONDITIONAL — `whatsappSentAt IS NULL` in the WHERE
+  — so a second press changes nothing, and the endpoint returns the FIRST record
+  to whoever pressed second.
+- **It is a RAW `UPDATE`, and that is load-bearing** (review gate, Run 083).
+  Prisma applies `@updatedAt` CLIENT-side, so `updateMany` stamps
+  `updatedAt = now()` on a record whose pipeline state this press never touched,
+  and two things in this repo ride on that column: undo's integrity FINGERPRINT
+  (`undo.ts` refuses an inverse whose `updatedAt` moved, so the founder's pending
+  "Undo — flagged as no answer" would 409 for ever after he opened WhatsApp, and
+  would keep being offered, because `performUndo` consumes inside the transaction
+  that then throws) and the boards' `orderBy: { updatedAt: "desc" }` (the card
+  would jump to the top of its column for a message we sent).
+  `normaliseProspectStages` in `backup.ts` is raw for exactly this reason; this
+  is the same discipline, and its comment states the hazard in the same words.
+- **And therefore NO `invalidateUndo`.** ADR-045's honesty rule — a non-undoable
+  mutation retires the actor's pending entries — exists so the button never
+  offers an inverse that cannot apply. With `updatedAt` untouched the inverse
+  still applies, the pill names the action it will revert, and no `undoLead`
+  branch writes the WhatsApp columns, so undoing leaves the mark standing.
+  Consuming the entry would have thrown away a working Undo as the price of
+  opening WhatsApp. Two integration cases pin it: `updatedAt` unchanged on both
+  record kinds, and a real `performUndo` applying after a press.
+- **Why conditional and not read-then-write.** Two people on the same card, or
+  one person on a phone and a laptop, are an ordinary Tuesday here. A
+  read-modify-write lets the later press overwrite the earlier one, so the card
+  would credit whoever pressed most recently — which is not what "we already
+  sent them WhatsApp" means. The `WHERE … IS NULL` makes the loser match no row
+  at all, which is the same discipline ADR-064 applied to the no-answer tally
+  with `{ increment: 1 }`. A test races two presses and asserts the row is
+  internally consistent (the id and the label belong to the same person) rather
+  than merely non-null.
+- **The most recent press IS tracked — in the ActivityLog, not in a second pair
+  of columns.** Every press writes its own `whatsapp_sent` row with its own actor
+  and instant, so "who messaged them last, and how many times have we" is
+  answerable from the card's own History, which already renders it. Two more
+  columns would have had to argue with the first pair for the chip's one
+  sentence, and the chip has room for one answer. This is the cheaper half of
+  ADR-064's lesson: keep the tally where a tally belongs.
+
+### 3. THERE IS NO UNMARK, AND NO STAGE MOVE CLEARS IT
+- **Decision.** Nothing removes the mark. A stage change does not clear it (the
+  ADR-039 no-answer flag *is* cleared by a stage move; this is deliberately not
+  that kind of flag), archiving does not clear it, and there is no button.
+- **Why.** He asked for a signal that the due diligence was done. A signal that
+  quietly erases itself is worse than no signal, because the team would stop
+  trusting it and start re-messaging people. If an unmark turns out to be needed
+  — a mis-click, a wrong number — it is a separate request with its own audit
+  question ("who un-said it?"). **Flagged for founder confirmation.**
+- **An ARCHIVED lead can still be marked**, which is the one place this departs
+  from the house `assertNotArchived` habit. Archiving soft-hides a CARD; the mark
+  records something that really happened. And the mark is fire-and-forget by
+  design (§4), so refusing it here would be a silent no-op rather than a message
+  to anybody.
+
+### 4. THE LINK IS NEVER BLOCKED — THE MARK IS A SIDE EFFECT
+- **Decision.** `preventDefault` is never called on any path. The anchor
+  navigates natively exactly as it did before. The mark is dispatched with
+  `navigator.sendBeacon`, falling back to `fetch(…, { keepalive: true })`, and
+  every failure is swallowed.
+- **Why sendBeacon and not a plain fetch.** Pressing this chip immediately hands
+  focus to a new tab, and a browser is entitled to abandon an in-flight `fetch`
+  from a page that is losing focus or being frozen. `sendBeacon` hands the
+  request to the BROWSER, which delivers it independently of the page's life —
+  which is the entire reason the API exists. `keepalive` buys the same guarantee
+  where `sendBeacon` is missing, or where it returns `false` because its queue is
+  full.
+- **Nothing is awaited, and no `router.refresh()` fires.** A refresh would put a
+  full server round-trip in the path of every WhatsApp press for a cosmetic gain,
+  and it would RACE the mark: the refreshed render can easily be the pre-press
+  one, which would un-green the chip under his hand. Instead the chip carries a
+  STICKY optimistic state — once green in this tab it never goes back — and the
+  who/when sentence arrives on the next real load.
+- **That optimistic state is the RECORD's, not the element's** (review gate).
+  It lives in a module-level set keyed by `markUrl` that every chip subscribes to
+  (`useSyncExternalStore`), because one screen can print the chip more than once
+  for one record — the prospect detail has the header chip and another beside
+  every number it lists. Per-chip `useState` left the siblings plain until the
+  next server render, which is §6's confusion reappearing inside §6's component.
+- **The paint is OPTIMISTIC, and the code now says so.** `sendBeacon` returns
+  true when the request is QUEUED and the `fetch` fallback is not awaited, so an
+  offline press and a 500 both paint green; only a dispatch that fails
+  SYNCHRONOUSLY leaves the chip plain. That is this section's trade, not a
+  delivery guarantee, and the next real load shows the truth.
+- **The honest cost, stated.** An offline press opens WhatsApp and records
+  nothing. That is the correct trade: a missed mark is recoverable (press it
+  again next time), a WhatsApp button that hesitates or throws an error is the
+  founder's most-used control feeling broken.
+- **A middle-click marks too** (`auxclick`, button 1 only — button 2 is the
+  context menu, which opens nothing and so marks nothing). Without it the chip
+  would "sometimes not turn green" for no reason a user could see.
+
+### 5. GREEN — THE SECOND EXCEPTION TO THE NO-GREEN RULING, WRITTEN DOWN LIKE THE FIRST
+- **The standing rule.** ADR-031-Resolution R4: *"REJECTED — the B-brand 'no
+  green anywhere' rule stands"*; `--color-success` is in-palette in every scope
+  (ByteForce violet, B-Systems indigo, neutral ink). The one exception is the
+  ADR-054 addendum's accounting green, fenced to `.acct-chip--good` and
+  `.row-toggle--acct-settled`.
+- **Decision.** A new, separately-named pair — `--color-contact-made` /
+  `--color-contact-made-tint` — declared in ALL THREE scopes
+  (`branding/byteforce`, `branding/b-systems`, `src/themes/neutral.css`),
+  identical in both brands, spent by exactly ONE class: `.wa-sent`.
+- **Why not simply reuse `--color-acct-positive`.** Because that pair is fenced
+  BY NAME to the accounting module, and the fence is load-bearing: the brand test
+  asserts the `--color-acct-*` set is EXACTLY those two names, and the ADR-054
+  addendum records the scope they may be spent in. Spending them on a CRM chip
+  would quietly retire a rule that is currently doing work, and would tie the CRM
+  chip's colour to any future change to the accounting pills.
+- **Why the SAME VALUES (#1B7A44 / #E6F4EC).** The product should have exactly
+  one green. Two greens would be a design accident nobody chose. So: one green,
+  two fences, each named for its own domain, each independently revocable.
+- **Contrast, in both brands.** #1B7A44 on #E6F4EC is **4.73:1** — AA for normal
+  text, which the chip's 10px mono uppercase is. The pair is identical in both
+  brands, so there is no second number to check; an e2e reads the PAINTED
+  `background-color` and `color` off the live chip in both companies, which is
+  the only check that catches the ADR-054-addendum failure mode (a token declared
+  outside its `[data-brand]` block resolves to nothing and the chip silently
+  stays grey with a green CI).
+- **NEVER COLOUR ALONE**, which is the condition this exception is granted under,
+  the same as the accounting one. The chip additionally: renders a ✓, takes
+  `aria-label` = `title` = *"WhatsApp sent by Omar on 3 Sep 2026"*, and carries
+  `data-wa-sent`. An UNMARKED chip's accessible name is byte-identical to what it
+  was before this change ("WhatsApp" on the cards, "Message on WhatsApp —
+  {number}" on the call sheet), so no existing string or assertion moved.
+- **A MARKED chip COMPOSES where the rest label carries more than the sentence**
+  (review gate). On eight surfaces the rest label is the bare word "WhatsApp",
+  which the sentence already opens with, so the sentence stands alone. On the
+  CALL SHEET the rest label is the only place the verb and the number are spoken
+  — "Message on WhatsApp — 01001234567" — so swapping it for the state sentence
+  told a screen-reader user the state and no longer told them what the button
+  does. That surface names itself `restLabel — sentLabel`, and prints the
+  sentence in VISIBLE words under the button as well: `title` is a hover tooltip,
+  and this is the one screen built to be used on a phone.
+- **The sentence is built SERVER-SIDE**, through `formatCairoDate`. ADR-068 §7's
+  sweep makes `src/lib/datetime.ts` the only legal home for a rendered clock, and
+  a chip that formatted its own date on the client would be the next `LeadChat`.
+  Date only: the chip answers "have we done this yet", and the exact minute of a
+  message sent three weeks ago is noise on a hover — the History has it.
+
+### 6. ONE CHIP COMPONENT, BECAUSE E WAS THE POINT
+- **Decision.** Every surface renders the same `WhatsappChip`; the variants
+  differ only in the `className` they are handed (`card-dial` on the boards and
+  the number rows, `btn-ghost` on the two detail headers, `call-cta call-cta--wa`
+  on the phone-first sheet) and in their children. `.wa-sent` is a colour-only
+  modifier that rides on top of whichever base class, so no card reflows when the
+  mark lands.
+- **Why one component rather than a green class sprinkled per surface.** "A chip
+  that is green in one place and plain in another is exactly the confusion he is
+  trying to remove." Nine call sites with the same three-line beacon dance would
+  drift within a month; one component cannot.
+- **The label builder lives in a separate, NON-client module**
+  (`components/shared/whatsappMark.ts`). A plain function exported from a
+  `"use client"` file cannot be CALLED by a server component — it arrives as a
+  client reference — and every surface but the boards is a server component.
+
+### 7. THE WALL IS THE READ WALL, SERVER-SIDE, DERIVED FROM THE SESSION
+- **Decision.** Three endpoints, each behind exactly the guard that already
+  governs READING that record:
+  `POST /api/b-systems/leads/[id]/whatsapp` → `requireLeadAccess`;
+  `POST /api/byteforce/leads/[id]/whatsapp` → `requireBrandStaff("byteforce")`
+  plus the service's brand-scoped lookup;
+  `POST /api/b-systems/partners-pipeline/[id]/whatsapp` → `requireBsAdmin`.
+- **Why "anyone who can see it may mark it".** The person doing the messaging is
+  the person looking at the card. A narrower rule would mean a sales rep messages
+  a lead and cannot say so, which produces exactly the false "nobody has
+  contacted them" the founder is trying to kill. It is not a widening: an agent
+  still cannot touch another agent's lead, sales still cannot touch an
+  agent-owned one, and `/api/byteforce` still cannot see a B-Systems row.
+- **`requireBsAdmin`, not `requireProspectCreator`, on the prospect.** The
+  data-entry role can CREATE a card but has no screen that displays one (ADR-051
+  gives it two Add buttons and nothing else), so admitting it here would have let
+  it mark records it cannot see — the widening this decision exists to avoid.
+- **The actor comes from the session and the request carries NO BODY at all.**
+  There is therefore nothing for a client to claim, and no Zod schema — an
+  empty-body parse would 400 the very `sendBeacon` shape the endpoint exists to
+  receive. A test posts a body naming somebody else and asserts it is ignored.
+- **The two indirect surfaces, and the one honest gap.** A partner directory row
+  has exactly one card behind it (`Partner.prospectId` is required and unique),
+  so the directory reads and writes that card's mark and the two screens can
+  never disagree. An AGENT in the Agents list is reached through
+  `User.agentProspect` — which exists for every agent minted from a board card
+  (PP-4a) and **does not exist for an agent who signed himself up**, because
+  `signupRep` creates a `User` + `PortalRep` and no card. Those agents' chips
+  stay plain links with nothing to mark, because there is no record anywhere to
+  carry the mark. **Flagged for founder confirmation:** extending the mark to the
+  agent profile itself is the fix, and it is a third record kind.
+
+### 8. THE MIGRATION, AND WHY IT HAS NO BACKFILL
+- Six nullable columns, two indexes over the new FKs (the ADR-051
+  `Lead_createdByUserId_idx` precedent — without them every permanent account
+  deletion sequentially scans both tables), two `SET NULL` foreign keys. Every
+  statement is `IF NOT EXISTS` / catalogue-guarded, the house rule since ADR-064,
+  so `scripts/start.mjs`'s retried `migrate deploy` can replay a half-applied
+  deploy.
+- **No UPDATE, deliberately.** NULL means "nobody has messaged them", which is
+  the honest answer for every row that exists: the system had no way to record a
+  WhatsApp message before today. ADR-063's and ADR-064's migrations both carried
+  backfills because an older column's meaning had to be carried forward; there is
+  no older column here, and a backfill would be inventing due diligence that
+  never happened.
+- **Backup/restore therefore needs NO restore twin** — the ADR-066 reasoning, not
+  the ADR-063/064 one: the column DEFAULT *is* the right answer for a pre-ADR-069
+  payload. Both cases are pinned by tests (a modern round-trip preserves the
+  mark; a payload with the keys stripped restores as "never messaged"). No entry
+  is added to `MODELS` or `resetDb` because no TABLE is added; `whatsappSentById`
+  is a `User` FK and `user` is already the first entry in the restore order.
+- Proved on a THROWAWAY database (never `.pgdata/dev`): applied to a virgin
+  cluster, `migrate deploy` run twice, the migration file itself replayed by hand
+  twice with the catalogue then showing exactly one FK and one index per table,
+  and `prisma migrate diff` reporting **No difference detected** against the
+  schema.
+
+- Resolves: the founder request above. Extends ADR-054's addendum (the green
+  exception pattern, now applied a second time), ADR-049/ADR-051 (FK + label
+  survival), ADR-064 (atomic writes over read-modify-write), ADR-066 (default-is-
+  the-answer, so no restore twin), ADR-067 (both companies' boards render the
+  same chip through one merged shell) and ADR-068 §7 (the one clock).
+- Status: Accepted. Two items flagged for founder confirmation — no unmark
+  exists, and a self-signed-up agent has no record to carry the mark.

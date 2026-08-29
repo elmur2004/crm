@@ -830,6 +830,10 @@ export async function getPartnerDetail(partnerId: string) {
         orderBy: { createdAt: "desc" },
         include: { salesRep: { select: { name: true } } },
       },
+      /* ADR-069 — the directory row's WhatsApp state IS its pipeline card's:
+         `prospectId` is required and unique, so there is exactly one card
+         behind every directory partner, and the two screens must agree. */
+      prospect: { select: { id: true, whatsappSentAt: true, whatsappSentByLabel: true } },
     },
   });
   if (!partner) throw new ApiError(404, "Partner not found");

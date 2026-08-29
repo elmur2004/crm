@@ -50,6 +50,16 @@ export function listAgentsDetailed() {
           phone: true,
           active: true,
           createdAt: true,
+          /* ADR-069 — the WhatsApp mark this agent's number carries in the
+             list is the mark on their PIPELINE CARD, because that is the
+             record the chip exists on everywhere else (the board, the prospect
+             detail). An agent who signed HIMSELF up has no card at all
+             (signupRep creates a User + PortalRep and nothing else), so there
+             is no record to mark and the chip stays a plain link — flagged for
+             founder confirmation in PROGRESS. */
+          agentProspect: {
+            select: { id: true, whatsappSentAt: true, whatsappSentByLabel: true },
+          },
           ownedLeads: {
             orderBy: { createdAt: "desc" },
             select: { id: true, name: true, number: true, stage: true, createdAt: true },

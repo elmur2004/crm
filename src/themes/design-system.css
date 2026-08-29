@@ -1303,8 +1303,11 @@ label:has(input[required]) .dropzone-title::after {
 .call-cta:active { transform: scale(.98); }
 /* the WhatsApp sibling (founder: "message on WhatsApp" beside every Call) —
    outlined in link ink like the boards' dial chip, so the filled primary
-   button stays the sheet's one true action. Neutral on purpose: no
-   WhatsApp-green in the palette; the label is identification enough. */
+   button stays the sheet's one true action. Neutral UNTIL MARKED: there is no
+   WhatsApp-green in the palette and the label is identification enough — but
+   once somebody has messaged this lead, `.wa-sent` (below) repaints exactly
+   this button in the ADR-069 exception green. That is the one green this rule
+   yields to, and it is a colour-only modifier: the geometry here still stands. */
 .call-cta--wa {
   background: transparent; color: var(--color-link);
   border: 1px solid var(--color-border);
@@ -1333,6 +1336,37 @@ label:has(input[required]) .dropzone-title::after {
   border: 1px solid var(--color-border);
 }
 .card-dial:hover { border-color: var(--color-link); background: var(--color-surface); }
+/* ADR-069 — the WhatsApp chip once SOMEBODY has messaged this record.
+   Founder: "If it's not green right now, turn it green to signal that we did our
+   due diligence and sent them WhatsApp message."
+
+   ONE modifier, worn by all three WhatsApp variants (the boards' and the number
+   rows' `.card-dial`, the two lead/prospect headers' `.btn-ghost`, the call
+   sheet's big `.call-cta--wa`), so the state cannot be green on one screen and
+   plain on another. It changes COLOUR ONLY — no size, no padding, no border
+   width — so a card never reflows when the mark lands.
+
+   Declared AFTER `.btn-ghost:hover`, `.call-cta--wa:hover` and `.card-dial:hover`
+   on purpose: those are all one class plus one pseudo-class, exactly the
+   specificity of the pair below, so source order is what decides.
+
+   The green is the ADR-069 exception pair, spent through a bare var() with no
+   fallback — a scope that fails to declare it paints no green at all rather than
+   a wrong one, which is the ADR-054-addendum discipline. And it is never the
+   only channel: the chip also carries a ✓ and its accessible name says who sent
+   the message and when. */
+.wa-sent {
+  background: var(--color-contact-made-tint);
+  color: var(--color-contact-made);
+  border-color: color-mix(in srgb, var(--color-contact-made) 38%, transparent);
+}
+.wa-sent:hover {
+  background: var(--color-contact-made-tint);
+  border-color: var(--color-contact-made);
+}
+/* the non-colour half of the signal, sized off the chip's own text so it reads
+   at 10px on a board card and at 16px on the call sheet's button */
+.wa-sent-tick { margin-inline-end: .35em; font-weight: 700; line-height: 1; }
 @media (max-width: 560px) {
   .call-top { padding: 12px 13px 14px; }
   .call-name { font-size: 21px; }

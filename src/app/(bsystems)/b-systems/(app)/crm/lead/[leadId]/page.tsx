@@ -8,6 +8,8 @@ import { getLeadDetail } from "@/lib/services/leads";
 import { listBsOwnerReps } from "@/lib/services/sales-reps";
 import { formatCairo } from "@/lib/datetime";
 import { waHref } from "@/lib/phone-dial";
+import { WhatsappChip } from "@/components/shared/WhatsappChip";
+import { waSentLabel, whatsappMarkOf } from "@/components/shared/whatsappMark";
 import { tFor, type Msg } from "@/lib/i18n/core";
 import { getLocale } from "@/lib/i18n/server";
 import { leadTypeLabel, ownerTypeLabel } from "@/lib/i18n/dict/labels";
@@ -126,11 +128,19 @@ export default async function BsLeadDetailPage({
             {t(callSheet.navLabel)}
           </Link>
           {/* founder: "message on WhatsApp" beside every Call — outlined, since
-              dialing stays the page's one primary action */}
+              dialing stays the page's one primary action.
+              ADR-069 — green once anyone has messaged this lead. */}
           {waHref(lead.number) ? (
-            <a href={waHref(lead.number)!} target="_blank" rel="noopener" className="btn-ghost">
+            <WhatsappChip
+              href={waHref(lead.number)!}
+              markUrl={`/api/b-systems/leads/${lead.id}/whatsapp`}
+              sentLabel={waSentLabel(locale, whatsappMarkOf(lead))}
+              justSentLabel={t(callSheet.whatsappSentJustNow)}
+              restLabel={t(callSheet.whatsapp)}
+              className="btn-ghost"
+            >
               {t(callSheet.whatsapp)}
-            </a>
+            </WhatsappChip>
           ) : null}
           <CopyLeadButton lead={editable} />
           {access.isAdmin && !lead.archived ? (

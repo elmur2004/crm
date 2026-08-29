@@ -3751,3 +3751,116 @@ comment, and the ADR-013 mechanism note all fixed; .env.example confirmed tracke
   so no byte-level assertion can ever flip on a checkout again. It rewrites the
   whole working tree, so it wants a quiet moment rather than the middle of a
   live-fix week.
+
+## Entry 066 — 2026-08-29 — the WhatsApp chip turns green, and the green belongs to the record
+- Why: one founder request, transcribed verbatim in ADR-069 — *"when I click on
+  the WhatsApp button, it should turn to be green … it signals not just for my
+  user, for any user that we have contacted this lead through WhatsApp."* It
+  reads like a colour change and is not: the "not just for my user" clause makes
+  it shared persisted state, and the word "green" collides with the standing
+  no-green ruling (ADR-031-Resolution R4).
+- Done, in two commits:
+  1. **The shared mark.** Three columns on `Lead` and three on `PartnerProspect`
+     (`whatsappSentAt` / `whatsappSentById` / `whatsappSentByLabel`), a real
+     Prisma migration, one service, three guarded endpoints, and 13 integration
+     cases. The write is CONDITIONAL (`whatsappSentAt: null` in the WHERE), so
+     the FIRST message is the one that is kept however many people press; every
+     press still writes its own `whatsapp_sent` ActivityLog row, which is where
+     "who messaged them most recently" is answered from instead of a second pair
+     of columns arguing with the first.
+  2. **The green everywhere, plus the docs.** One `WhatsappChip` component on
+     every surface that shows the control — both companies' board cards, the lead
+     detail, the call sheet, the partner/agent board and detail, the partner
+     directory and the Agents list — a new fenced token pair, and four e2e cases.
+- The wall: each endpoint carries exactly the guard that already governs READING
+  that record (`requireLeadAccess` / `requireBrandStaff("byteforce")` /
+  `requireBsAdmin`). Nobody can mark what they cannot see, and the actor is the
+  session's — the request carries no body at all, so there is nothing to claim.
+  `requireProspectCreator` was deliberately NOT used: data entry can create a
+  card but has no screen that shows one, so it would have gained reach.
+- The link is never blocked: `preventDefault` is never called, the mark goes out
+  through `navigator.sendBeacon` (with `fetch(…, {keepalive:true})` as the
+  fallback), nothing is awaited, no `router.refresh()` fires, and every failure is
+  swallowed. The chip's optimistic green is STICKY so a stale re-render cannot
+  un-green it under his hand.
+- Brand: green outside accounting needed its own recorded exception, so it has
+  one — `--color-contact-made` / `--color-contact-made-tint`, declared in all
+  three scopes, identical in both brands, spent by exactly one class (`.wa-sent`).
+  Same VALUES as the accounting pair on purpose (the product keeps exactly one
+  green) but its own NAME, because `--color-acct-*` is fenced by name and that
+  fence is doing work. Two new brand tests, both mutation-checked. Contrast
+  4.73:1, and an e2e reads the PAINTED colour off the live chip in both companies
+  — the only check that catches a token declared outside its `[data-brand]` block.
+- Migration: proved on a THROWAWAY cluster (never `.pgdata/dev`) — virgin apply,
+  `migrate deploy` twice, the file replayed by hand twice with the catalogue then
+  showing exactly one FK and one index per table, and `prisma migrate diff`
+  reporting **No difference detected** against the schema.
+- Tests: `npx tsc --noEmit` clean on both commits. FULL `npx vitest run` **46
+  files / 706 tests, 706 passed / 0 failed**. Playwright: the new
+  `whatsapp-sent.spec.ts` (4 passed) plus the six specs that touch the chip
+  (`call-sheet`, `partners-agents`, `byteforce-board`, `board-touch`,
+  `data-entry`, `prospect-pipeline` — 19 passed), each verdict read from
+  `test-results/.last-run.json` (`{"status":"passed","failedTests":[]}`) and not
+  inferred from an exit code. Run 082 in TESTING. The FULL Playwright suite is
+  the phase gate's job and has not been re-run here.
+- **Review gate, same day (Run 083).** Six reviewer findings adjudicated against
+  the code, five fixed and one refuted, then the whole tree re-gated:
+  - **The mark bumped `updatedAt` (medium, fixed).** Prisma applies `@updatedAt`
+    client-side, so the conditional `updateMany` stamped it on a record whose
+    pipeline state the press never touched — which broke undo's integrity
+    fingerprint (flag "didn't answer", press WhatsApp, and the Undo pill 409s for
+    ever) and re-sorted the card to the top of a board that orders by
+    `updatedAt desc`. Both halves are gone: the write is now a raw conditional
+    `UPDATE`, the `normaliseProspectStages` precedent. Deliberately WITHOUT
+    `invalidateUndo` — with `updatedAt` untouched the pending inverse still
+    applies, so retiring it would have cost him a working Undo for opening
+    WhatsApp. Two integration cases pin it (they failed before the fix).
+  - **The marked call-sheet button lost its verb and its number** from its
+    accessible name (fixed): that surface now composes `restLabel — sentLabel`
+    instead of swapping, and prints the sentence in visible words under the
+    button, because `title` never appears on the touch device that screen exists
+    for.
+  - **The optimistic green was per-element** (fixed): the prospect detail prints
+    the chip more than once for one record, so pressing one left its siblings
+    plain. The pressed set moved into a module store keyed by `markUrl`, with a
+    new e2e case asserting the sibling greens with no reload.
+  - **`fireMark`'s comment overclaimed** (fixed, comment only): the boolean means
+    DISPATCHED, not delivered — the paint is optimistic, which is what ADR-069 §4
+    decided and now what the code says.
+  - **`.call-cta--wa`'s CSS comment still said "no green here"** 45 lines above
+    the rule that makes it green (fixed).
+  - **Refuted:** nothing — the sixth finding was the duplicate half of the call
+    sheet one and is answered by the same fix.
+- **Final gate on the shipped tree.** `npx tsc --noEmit` clean. FULL
+  `npx vitest run` **46 files / 708 tests, 708 passed / 0 failed**. FULL
+  Playwright suite **131 passed / 0 failed / 2 skipped**, the verdict read from
+  `test-results/.last-run.json` (`{"status":"passed","failedTests":[]}`) and not
+  inferred from an exit code — on a temporary config copy on port 3141, so no
+  other workstream's server was touched.
+  Migration RE-PROVED on a fresh throwaway cluster (virgin `migrate deploy`,
+  deployed twice, the file replayed by hand twice, `migrate diff` → *No
+  difference detected*). Brand audit over the changed UI: **PASS** — no hex or
+  `font-family` entered any component, the ADR-069 green stayed exactly one
+  fenced pair (`--color-contact-made` / `-tint`) in all three scopes spent by
+  `.wa-sent` alone, and the one new visible element reuses `.call-line`/`.u-muted`.
+- **One unrelated flake fixed on the way, in its own commit.** The first full
+  Playwright pass failed on `follow-up-time.spec.ts`: its `logFollowUp` helper
+  clicked "Save record" and returned, so the caller's next `page.goto` could abort
+  a save still in flight and the To-Do then showed the PREVIOUS follow-up. A race
+  in the helper, not in the app — nobody navigates in the milliseconds between the
+  click and the response. The helper now waits for the POST and for the panel to
+  close (which only happens on a 2xx). No product code changed, and the re-run was
+  green.
+- Blockers: none.
+- Needs founder confirmation (two NEW, on top of the six carried from Entry 064):
+  1. **There is no unmark.** Nothing removes the green — not a stage move, not
+     archiving, not a button. Erasing the signal quietly would defeat the point
+     of asking for it, so removing it was left unbuilt rather than guessed at. If
+     he wants one (mis-click, wrong number) it needs its own audit answer: who
+     un-said it, and when.
+  2. **A self-signed-up agent has no record to carry the mark.** The Agents list
+     reads the agent's PIPELINE CARD, which exists for every agent minted from
+     the board (PP-4a) and not at all for one who came through the public signup
+     form (`signupRep` creates a User + PortalRep and nothing else). Those chips
+     stay plain links. Covering them means putting the mark on a third record
+     kind — worth doing, not worth guessing.

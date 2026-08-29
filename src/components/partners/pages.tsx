@@ -11,6 +11,7 @@ import {
   prospectTitle,
 } from "@/lib/services/partners";
 import { telHref, waHref } from "@/lib/phone-dial";
+import { waSentLabel, whatsappMarkOf } from "@/components/shared/whatsappMark";
 import { listBsOwnerReps } from "@/lib/services/sales-reps";
 import { partnersConfigFor } from "@/lib/pipeline-engine/configs/partners";
 import { orderMeetingColumn } from "@/lib/board-order";
@@ -35,6 +36,7 @@ import {
 } from "./manage";
 import { FilterPanel } from "@/components/shared/FilterPanel";
 import { NumberActions } from "@/components/shared/NumberActions";
+import { WhatsappChip } from "@/components/shared/WhatsappChip";
 import { ApiError } from "@/lib/api-error";
 import { tFor } from "@/lib/i18n/core";
 import { getLocale } from "@/lib/i18n/server";
@@ -163,6 +165,10 @@ export async function PartnersPipelineBody({
     cardNumbers: [p.number, ...parseNumbers(p.alternativeNumbers)],
     telHref: telHref(p.number),
     waHref: waHref(p.number),
+    /* ADR-069 — the same green the lead boards wear, on the card that carries
+       the same chip */
+    waSentLabel: waSentLabel(locale, whatsappMarkOf(p)),
+    waMarkUrl: `/api/b-systems/partners-pipeline/${p.id}/whatsapp`,
   }));
   /* founder (ADR-064): the Meeting Setting column runs soonest-meeting-first,
      always — server-side, where the list is built. Every other column keeps its
@@ -300,15 +306,18 @@ export async function ProspectDetailBody({ prospectId }: { prospectId: string })
               {t(callSheet.navLabel)}
             </a>
           ) : null}
+          {/* ADR-069 — green once anyone has messaged this partner or agent */}
           {waHref(prospect.number) ? (
-            <a
+            <WhatsappChip
               href={waHref(prospect.number)!}
-              target="_blank"
-              rel="noopener"
+              markUrl={`/api/b-systems/partners-pipeline/${prospect.id}/whatsapp`}
+              sentLabel={waSentLabel(locale, whatsappMarkOf(prospect))}
+              justSentLabel={t(callSheet.whatsappSentJustNow)}
+              restLabel={t(callSheet.whatsapp)}
               className="btn-ghost"
             >
               {t(callSheet.whatsapp)}
-            </a>
+            </WhatsappChip>
           ) : null}
           {/* §7.2b — the one place a Qualified card can still carry an action:
               the panel is replaced by the terminal sentence, so this lives in
@@ -359,7 +368,14 @@ export async function ProspectDetailBody({ prospectId }: { prospectId: string })
                 <p className="fields-value">
                   <span className="fields-label block mb-1.5">{t(pProspect.numberField)}</span>{" "}
                   <span className="u-ltr">{prospect.number}</span>
-                  <NumberActions number={prospect.number} locale={locale} />
+                  {/* ADR-069 — the mark is the CARD's, so every number printed
+                      on it wears the same state */}
+                  <NumberActions
+                    number={prospect.number}
+                    locale={locale}
+                    mark={whatsappMarkOf(prospect)}
+                    markUrl={`/api/b-systems/partners-pipeline/${prospect.id}/whatsapp`}
+                  />
                 </p>
               </div>
               {parseNumbers(prospect.nonAnsweringNumbers).length > 0 ? (
@@ -387,7 +403,12 @@ export async function ProspectDetailBody({ prospectId }: { prospectId: string })
                       <span key={n}>
                         {i > 0 ? " · " : ""}
                         <span className="u-ltr">{n}</span>
-                        <NumberActions number={n} locale={locale} />
+                        <NumberActions
+                          number={n}
+                          locale={locale}
+                          mark={whatsappMarkOf(prospect)}
+                          markUrl={`/api/b-systems/partners-pipeline/${prospect.id}/whatsapp`}
+                        />
                       </span>
                     ))}
                   </p>
@@ -678,7 +699,15 @@ export async function PartnerDetailBody({ partnerId }: { partnerId: string }) {
               <span className="u-ltr">{partner.number}</span>
               {/* founder: "add call and whatsapp in agents and partners" —
                   the directory partner's number gets the same chip pair */}
-              <NumberActions number={partner.number} locale={locale} />
+              {/* ADR-069 — a directory row IS a qualified card (Partner.prospectId
+                  is required and unique), so it reads and writes that card's
+                  mark: green here means green on the board, and vice versa */}
+              <NumberActions
+                number={partner.number}
+                locale={locale}
+                mark={whatsappMarkOf(partner.prospect)}
+                markUrl={`/api/b-systems/partners-pipeline/${partner.prospect.id}/whatsapp`}
+              />
             </p>
           </div>
           <div className="fields-cell">

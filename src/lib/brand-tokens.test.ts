@@ -163,6 +163,57 @@ describe("stage tokens exist in ALL THREE brand scopes (ADR-057)", () => {
     }
   });
 
+  /* ADR-069 — the SECOND green exception, held to the same law as the first.
+     Founder: "If it's not green right now, turn it green to signal that we did
+     our due diligence and sent them WhatsApp message." Green is banned outside
+     accounting by the ADR-031-Resolution R4 ruling, so this pair is its own
+     named, fenced exception rather than a reuse of `--color-acct-*` — those are
+     fenced BY NAME to the accounting module (the test above pins that set to
+     exactly two entries, so a third `--color-acct-*` token would fail it, and
+     spending them on a CRM chip would erase a fence that is doing work).
+
+     Same VALUES as the accounting pair on purpose: the product has exactly ONE
+     green, now with two fences. `.wa-sent` spends them through a bare var()
+     with no fallback, so a scope that fails to declare them paints no green at
+     all — which is why all three scopes are checked, not just the two brands. */
+  it("the ADR-069 contact-made green is declared in ALL THREE brand SCOPES", () => {
+    const contactNames = (css: string, selector: string) => {
+      const names = new Set<string>();
+      for (const m of scopeBody(css, selector).matchAll(/(--color-contact-made[\w-]*)\s*:/g)) {
+        names.add(m[1]!);
+      }
+      return [...names].sort();
+    };
+    const bf = contactNames(read("branding/byteforce/tokens.css"), '[data-brand="byteforce"]');
+    const bs = contactNames(read("branding/b-systems/tokens.css"), '[data-brand="bsystems"]');
+    const neutral = contactNames(read("src/themes/neutral.css"), '[data-brand="neutral"]');
+    expect(bf).toEqual(["--color-contact-made", "--color-contact-made-tint"]);
+    expect(bs).toEqual(bf);
+    expect(neutral).toEqual(bf);
+    /* identical in both brands — the chip is the same chip whichever company
+       the switch is pointed at */
+    for (const hex of ["#1B7A44", "#E6F4EC"]) {
+      expect(scopeBody(read("branding/byteforce/tokens.css"), '[data-brand="byteforce"]')).toContain(hex);
+      expect(scopeBody(read("branding/b-systems/tokens.css"), '[data-brand="bsystems"]')).toContain(hex);
+      expect(scopeBody(read("src/themes/neutral.css"), '[data-brand="neutral"]')).toContain(hex);
+    }
+  });
+
+  /* And the one consumer, by name: the exception is granted to `.wa-sent` and
+     nothing else, exactly as ADR-054's was granted to `.acct-chip--good` and
+     `.row-toggle--acct-settled`. If a second consumer ever appears, this fails
+     and whoever added it has to argue for it in an ADR rather than in a diff. */
+  it("the contact-made green is spent by .wa-sent and by nothing else", () => {
+    const design = read("src/themes/design-system.css").replace(/\/\*[\s\S]*?\*\//g, "");
+    const rules = [...design.matchAll(/([^{}]+)\{([^{}]*)\}/g)].filter((m) =>
+      /var\(--color-contact-made/.test(m[2]!),
+    );
+    expect(rules.length).toBeGreaterThan(0);
+    for (const rule of rules) {
+      expect(rule[1]!.trim().startsWith(".wa-sent")).toBe(true);
+    }
+  });
+
   /* ADR-065 (brand audit) — the law says ALL THREE scopes, and until now only
      the two BRAND files were checked for the full semantic set: neutral was
      machine-checked for the stage tokens and the accounting pair, and trusted

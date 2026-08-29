@@ -14,6 +14,7 @@ import { orderMeetingColumn } from "@/lib/board-order";
 import { formatCairo } from "@/lib/datetime";
 import { formatEGP } from "@/lib/money";
 import { waHref } from "@/lib/phone-dial";
+import { waSentLabel, whatsappMarkOf } from "@/components/shared/whatsappMark";
 import { tFor, type Locale, type Msg } from "@/lib/i18n/core";
 import { getLocale } from "@/lib/i18n/server";
 import { leadTypeLabel, ownerTypeLabel } from "@/lib/i18n/dict/labels";
@@ -169,6 +170,11 @@ export default async function BsCrmPage({
     noAnswerCount: l.noAnswerCount, // ADR-064 — the card says how many tries
     keyDatum: keyDatum(locale, l),
     waHref: waHref(l.number),
+    /* ADR-069 — the chip's green state and the sentence that goes with it,
+       both resolved HERE: the mark is the record's, and the date goes through
+       the one shared formatter rather than a clock on the client */
+    waSentLabel: waSentLabel(locale, whatsappMarkOf(l)),
+    waMarkUrl: `/api/b-systems/leads/${l.id}/whatsapp`,
     /* the Today chip's datum (ADR-061) — the same latest follow-up the key
        datum shows, only on Following Up cards */
     followUpDueAt:
