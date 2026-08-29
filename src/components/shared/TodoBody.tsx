@@ -22,6 +22,10 @@ import type { TodoDoneItem, TodoItem, TodoKind, TodoLists } from "@/lib/services
 
 const KIND_LABEL: Record<TodoKind, Msg> = {
   follow_up: m.kindFollowUp,
+  /* ADR-068 — the negotiation response date, in his own words. Same row, same
+     checkbox, same Done section; only the chip tells him it is an answer he is
+     waiting on. */
+  negotiation_response: m.kindNegotiationResponse,
   meeting: m.kindMeeting,
   statement: m.kindStatement,
   milestone: m.kindMilestone,

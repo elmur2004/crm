@@ -26,16 +26,16 @@ import { configForBrand, followUpStagesFor } from "@/lib/pipeline-engine/configs
     (partnerProspectId set, leadId null) — ADR-061 took the partners funnel off
     the To-Do, so no completion may exist for it. */
 export async function leadIdOfTodoRecord(
-  kind: "follow_up" | "meeting",
+  kind: LeadBackedKind,
   recordId: string,
 ): Promise<string> {
   const record =
-    kind === "follow_up"
-      ? await db.followUp.findUnique({
+    kind === "meeting"
+      ? await db.meeting.findUnique({
           where: { id: recordId },
           select: { leadId: true },
         })
-      : await db.meeting.findUnique({
+      : await db.followUp.findUnique({
           where: { id: recordId },
           select: { leadId: true },
         });
@@ -51,9 +51,19 @@ type UniqueKey =
   | { statementId: string }
   | { milestoneId: string };
 
+/* ADR-068 — the kinds that hang off a LEAD, so the routes know which ones need
+   requireLeadAccess rather than the admin-only money wall. */
+export type LeadBackedKind = "follow_up" | "negotiation_response" | "meeting";
+
 function keyFor(kind: TodoKind, recordId: string): UniqueKey {
   switch (kind) {
+    /* ADR-068 — the negotiation response row is a FollowUp like any other, so
+       it marks the SAME row through the SAME unique key. The split is a LABEL,
+       never a second piece of state: a client that still posts "follow_up" for
+       one of these ticks exactly the row it always did, and no second mark can
+       exist for the same record. */
     case "follow_up":
+    case "negotiation_response":
       return { followUpId: recordId };
     case "meeting":
       return { meetingId: recordId };
@@ -118,7 +128,12 @@ export async function setTodoDone(opts: {
   const { start, end } = cairoDayWindow(now);
   let dueAt: Date;
 
-  if (opts.kind === "follow_up") {
+  if (opts.kind === "follow_up" || opts.kind === "negotiation_response") {
+    /* ADR-068 — ONE branch for both follow-up kinds, deliberately. The
+       today-window, archived, liveness and brand walls are INHERITED rather
+       than re-implemented, so the new row cannot drift away from the rule the
+       projection uses. The stored context decides the label; it decides
+       nothing about who may tick the box. */
     const f = await db.followUp.findUnique({
       where: { id: opts.recordId },
       include: {

@@ -14,6 +14,11 @@ export const todoPage = {
   today: { en: "Today", ar: "اليوم" },
   empty: { en: "Nothing due today.", ar: "لا توجد مهام مستحقة اليوم." },
   kindFollowUp: { en: "Follow-up", ar: "متابعة" },
+  /* Founder (ADR-068) — "make sure that the response date is made in the to do
+     list as see their response or check their response or check with them in
+     the negotiations." Its own words, so the row reads as an answer he is
+     WAITING FOR rather than another call he has to make. */
+  kindNegotiationResponse: { en: "Check their response", ar: "التحقق من ردّهم" },
   kindMeeting: { en: "Meeting", ar: "اجتماع" },
   /* UNREFERENCED since ADR-061 (founder: partner tasks left the To-Do) — kept
      per the same convention. (They labeled partner AND agent cards alike.) */

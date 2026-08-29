@@ -15,19 +15,26 @@ import { leadIdOfTodoRecord, setTodoDone } from "@/lib/services/todo-done";
    database: an anonymous POST always gets 401, never a 404/401 split that
    would tell it whether a record id exists. */
 
+/* ADR-068 — "negotiation_response" joins the lead-backed kinds. It is the same
+   FollowUp record under its own name, so it passes the SAME requireLeadAccess
+   wall and marks the SAME row; nothing here learns a new permission. */
+const LEAD_BACKED = ["follow_up", "negotiation_response", "meeting"] as const;
+
 const bodySchema = z.object({
-  kind: z.enum(["follow_up", "meeting", "statement", "milestone"]),
+  kind: z.enum([...LEAD_BACKED, "statement", "milestone"]),
   recordId: z.string().min(1),
   done: z.boolean(),
 });
 
+const isLeadBacked = (k: z.infer<typeof bodySchema>["kind"]): k is (typeof LEAD_BACKED)[number] =>
+  (LEAD_BACKED as readonly string[]).includes(k);
+
 export const POST = handleRoute(async (req: Request) => {
   const body = bodySchema.parse(await req.json());
   const user = await requireUser(); // auth first — before any lookup on input
-  const actor =
-    body.kind === "follow_up" || body.kind === "meeting"
-      ? (await requireLeadAccess(await leadIdOfTodoRecord(body.kind, body.recordId), user)).user
-      : assertRole(user, "bsystems_admin"); // the money kinds, admin-only
+  const actor = isLeadBacked(body.kind)
+    ? (await requireLeadAccess(await leadIdOfTodoRecord(body.kind, body.recordId), user)).user
+    : assertRole(user, "bsystems_admin"); // the money kinds, admin-only
   await setTodoDone({
     brand: "bsystems",
     kind: body.kind,

@@ -5,6 +5,7 @@ import { cairoToUtc } from "@/lib/datetime";
 import { applyLeadEvent, createLead } from "./leads";
 import { applyProspectEvent, createProspect } from "./partners";
 import { todoFor } from "./todo";
+import { setTodoDone } from "./todo-done";
 import { pendingUndoFor, performUndo } from "./undo";
 import type { Actor } from "./activity";
 
@@ -241,6 +242,10 @@ describe("(b) the negotiation's own follow-up — the promised response date", (
     const after = await todoFor({ brand: "bsystems", scope: { kind: "all" }, now: NOW });
     expect(after.today.map((i) => i.title)).toEqual(["Negotiating Corp"]);
     expect(after.today[0]!.at.getTime()).toBe(cairoToUtc("2026-08-20", "14:00").getTime());
+    /* Founder (ADR-068) — "check their response": the row arrives under its OWN
+       kind, so the To-Do says at a glance that this one is an answer he is
+       waiting for rather than another call he owes. */
+    expect(after.today[0]!.kind).toBe("negotiation_response");
     expect((await pendingUndoFor(actor.id!))?.label).toBe(
       "Recorded the response date on Negotiating Corp",
     );
@@ -326,5 +331,145 @@ describe("same-stage actions are stage-scoped", () => {
     await expect(
       move(lead.id, "reschedule_meeting", meeting("2026-08-20", "10:00"), actor),
     ).rejects.toThrow(/not available/);
+  });
+});
+
+/* ============================================================================
+   ADR-068 — the negotiation response date has its OWN To-Do row.
+
+   Founder: "make sure that the response date is made in the to do list as see
+   their response or check their response or check with them in the
+   negotiations." The split is a LABEL over the same FollowUp record — so most
+   of what follows is about what did NOT change: the same id, the same mark,
+   the same walls, the same Done section.
+   ========================================================================== */
+describe("(b2) the negotiation response row is its own kind, and nothing else moved", () => {
+  async function leadAwaitingResponse(actor: Actor, name = "Awaiting Reply Co") {
+    const lead = await makeLead(actor, name);
+    await move(lead.id, "following_up", followUp("2026-08-15"), actor);
+    await move(lead.id, "negotiation", { group: "negotiation", data: { note: "Terms" } }, actor);
+    await move(lead.id, "negotiation_follow_up", followUp("2026-08-20", "14:00"), actor);
+    return lead;
+  }
+
+  it("an ordinary Following Up row stays a plain follow-up — the two are told apart", async () => {
+    const actor = await makeActor();
+    const plain = await makeLead(actor, "Plain Follow Co");
+    await move(plain.id, "following_up", followUp("2026-08-20", "11:00"), actor);
+    await leadAwaitingResponse(actor);
+
+    const lists = await todoFor({ brand: "bsystems", scope: { kind: "all" }, now: NOW });
+    expect(Object.fromEntries(lists.today.map((i) => [i.title, i.kind]))).toEqual({
+      "Plain Follow Co": "follow_up",
+      "Awaiting Reply Co": "negotiation_response",
+    });
+  });
+
+  it("the discriminator is the RECORD's context, not the lead's current stage", async () => {
+    /* The deal is answered and moves to Lost the same afternoon. The Done row
+       must keep its own wording: it records what today's task WAS, and renaming
+       it "Follow-up" after the fact would rewrite that. */
+    const actor = await makeActor();
+    const lead = await leadAwaitingResponse(actor, "Answered Today Co");
+    await move(lead.id, "lost", { group: "lost", data: { reason: "Chose a rival" } }, actor);
+
+    const lists = await todoFor({ brand: "bsystems", scope: { kind: "all" }, now: NOW });
+    expect(lists.today).toEqual([]);
+    expect(lists.done.map((i) => [i.title, i.kind])).toEqual([
+      ["Answered Today Co", "negotiation_response"],
+    ]);
+    expect(lists.done[0]!.done).toEqual({ by: "auto", reason: "moved", stage: "lost" });
+  });
+
+  it("the checkbox still works, marks the SAME row, and restores — ADR-062 behaviour intact", async () => {
+    const actor = await makeActor();
+    await leadAwaitingResponse(actor, "Tickable Reply Co");
+    const before = await todoFor({ brand: "bsystems", scope: { kind: "all" }, now: NOW });
+    const row = before.today[0]!;
+    expect(row.kind).toBe("negotiation_response");
+
+    await setTodoDone({
+      brand: "bsystems",
+      kind: "negotiation_response",
+      recordId: row.recordId,
+      done: true,
+      actor,
+      now: NOW,
+    });
+    const marks = await db.todoDone.findMany();
+    expect(marks).toHaveLength(1);
+    expect(marks[0]!.followUpId).toBe(row.recordId);
+
+    const after = await todoFor({ brand: "bsystems", scope: { kind: "all" }, now: NOW });
+    expect(after.today).toEqual([]);
+    expect(after.done.map((i) => [i.kind, i.done])).toEqual([
+      ["negotiation_response", { by: "manual", name: actor.label }],
+    ]);
+
+    /* unchecking restores it to Today, still under its own name */
+    await setTodoDone({
+      brand: "bsystems",
+      kind: "negotiation_response",
+      recordId: row.recordId,
+      done: false,
+      actor,
+      now: NOW,
+    });
+    const restored = await todoFor({ brand: "bsystems", scope: { kind: "all" }, now: NOW });
+    expect(restored.today.map((i) => i.kind)).toEqual(["negotiation_response"]);
+    expect(restored.done).toEqual([]);
+  });
+
+  it("an older client still posting the plain kind ticks the SAME row — the split is a label", async () => {
+    const actor = await makeActor();
+    await leadAwaitingResponse(actor, "Old Client Co");
+    const row = (await todoFor({ brand: "bsystems", scope: { kind: "all" }, now: NOW })).today[0]!;
+
+    await setTodoDone({
+      brand: "bsystems",
+      kind: "follow_up",
+      recordId: row.recordId,
+      done: true,
+      actor,
+      now: NOW,
+    });
+    /* ONE mark, on the follow-up id — never a second piece of state */
+    expect(await db.todoDone.count()).toBe(1);
+    const lists = await todoFor({ brand: "bsystems", scope: { kind: "all" }, now: NOW });
+    expect(lists.today).toEqual([]);
+    expect(lists.done.map((i) => i.kind)).toEqual(["negotiation_response"]);
+  });
+
+  it("keeps the today-only window: a response due tomorrow is not on today's list", async () => {
+    const actor = await makeActor();
+    const lead = await makeLead(actor, "Tomorrow Reply Co");
+    await move(lead.id, "following_up", followUp("2026-08-15"), actor);
+    await move(lead.id, "negotiation", { group: "negotiation", data: { note: "Terms" } }, actor);
+    await move(lead.id, "negotiation_follow_up", followUp("2026-08-21", "10:00"), actor);
+
+    const lists = await todoFor({ brand: "bsystems", scope: { kind: "all" }, now: NOW });
+    expect(lists.today).toEqual([]);
+    expect(lists.done).toEqual([]);
+  });
+
+  it("keeps the scope wall: a sales rep never sees an agent-owned response row", async () => {
+    const actor = await makeActor();
+    const owner = await db.user.create({
+      data: { name: "Agent Owner", phone: `+2010777900${seq++}`, passwordHash: "x" },
+    });
+    const lead = await leadAwaitingResponse(actor, "Agent Owned Reply Co");
+    await db.lead.update({
+      where: { id: lead.id },
+      data: { ownerType: "agent", ownerUserId: owner.id },
+    });
+
+    const asSales = await todoFor({ brand: "bsystems", scope: { kind: "internal" }, now: NOW });
+    expect(asSales.today).toEqual([]);
+    const asOwner = await todoFor({
+      brand: "bsystems",
+      scope: { kind: "own", userId: owner.id },
+      now: NOW,
+    });
+    expect(asOwner.today.map((i) => i.kind)).toEqual(["negotiation_response"]);
   });
 });

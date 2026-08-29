@@ -11,6 +11,10 @@ import { leadIdOfTodoRecord, setTodoDone } from "@/lib/services/todo-done";
    `leadIdOfTodoRecord`, so an anonymous POST is refused with 401 without any
    database work and learns nothing about which record ids exist. */
 
+/* ADR-068 — and "negotiation_response" is deliberately NOT here either.
+   ByteForce's pipeline has no negotiation stage, so its To-Do can never emit
+   that row; leaving the enum at two members is a free, permanent proof of it
+   rather than a comment somebody has to keep true. */
 const bodySchema = z.object({
   kind: z.enum(["follow_up", "meeting"]),
   recordId: z.string().min(1),

@@ -41,8 +41,29 @@ export type TodoScope =
   | { kind: "own"; userId: string }; // agent / partner — own leads only
 
 /* ADR-061 dropped "prospect_follow_up" / "prospect_meeting": the partners
-   funnel no longer projects onto the To-Do at all. */
-export type TodoKind = "follow_up" | "meeting" | "statement" | "milestone";
+   funnel no longer projects onto the To-Do at all.
+
+   ADR-068 added "negotiation_response". Founder: "make sure that the response
+   date is made in the to do list as see their response or check their response
+   or check with them in the negotiations." It is the SAME FollowUp record a
+   plain follow-up is — same table, same id, same checkbox, same mark — read
+   under its own name, because the two are different jobs: one is a call HE
+   has to make, the other is an answer HE is waiting for. */
+export type TodoKind =
+  | "follow_up"
+  | "negotiation_response"
+  | "meeting"
+  | "statement"
+  | "milestone";
+
+/* ADR-068 — the discriminator is the RECORD's stored context, never the lead's
+   CURRENT stage. A negotiation response date belongs to the moment it was
+   promised: the deal moves to Won or Lost the same afternoon it is answered,
+   and a Done row that renamed itself "Follow-up" as the lead left negotiation
+   would be rewriting what the person actually did today. */
+function kindOfFollowUp(context: string | null): TodoKind {
+  return context === "after_negotiation" ? "negotiation_response" : "follow_up";
+}
 
 export interface TodoItem {
   kind: TodoKind;
@@ -328,7 +349,7 @@ export async function todoFor(opts: {
     );
     if (followUpStages.includes(lead.stage) && f && f.createdAt.getTime() === newest) {
       items.push({
-        kind: "follow_up",
+        kind: kindOfFollowUp(f.context),
         recordId: f.id,
         at: f.dueAt,
         /* ADR-063: PER ROW now, not a constant — the clock shows only when the
@@ -409,7 +430,13 @@ export async function todoFor(opts: {
 
   /* ---------------------------------------------- ADR-062: the Done section */
 
+  /* ADR-068 — a mark is stored against the FOLLOW-UP ID, so both follow-up
+     kinds look their mark up under the same key. Splitting the key by kind
+     would make a negotiation row that was ticked yesterday's shape reappear
+     unchecked the moment the label changed. */
   const markByKey = new Map<string, (typeof marks)[number]>();
+  const markKey = (kind: TodoKind, recordId: string) =>
+    `${kind === "negotiation_response" ? "follow_up" : kind}:${recordId}`;
   for (const mk of marks) {
     if (mk.followUpId) markByKey.set(`follow_up:${mk.followUpId}`, mk);
     else if (mk.meetingId) markByKey.set(`meeting:${mk.meetingId}`, mk);
@@ -426,8 +453,8 @@ export async function todoFor(opts: {
   const done: TodoDoneItem[] = [];
   const liveKeys = new Set<string>();
   for (const item of live) {
-    liveKeys.add(`${item.kind}:${item.recordId}`);
-    const mark = markByKey.get(`${item.kind}:${item.recordId}`);
+    liveKeys.add(markKey(item.kind, item.recordId));
+    const mark = markByKey.get(markKey(item.kind, item.recordId));
     if (mark && mark.dueAt.getTime() === item.at.getTime()) {
       done.push({ ...item, done: { by: "manual", name: mark.completedByLabel } });
     } else {
@@ -443,7 +470,7 @@ export async function todoFor(opts: {
     if (!f.lead || liveKeys.has(`follow_up:${f.id}`)) continue;
     const stageMatches = followUpStages.includes(f.lead.stage);
     done.push({
-      kind: "follow_up",
+      kind: kindOfFollowUp(f.context),
       recordId: f.id,
       at: f.dueAt,
       withTime: f.dueTimeSet, // ADR-063 — the Done row reads like its Today twin

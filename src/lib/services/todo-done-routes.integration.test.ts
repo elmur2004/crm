@@ -343,3 +343,91 @@ describe("POST /todo/done — the liveness wall reaches the guarded caller too",
     expect(await db.todoDone.count()).toBe(0);
   });
 });
+
+/* ============================================================================
+   ADR-068 — the negotiation response kind at the WALL.
+
+   Founder: "check their response". The row is new; the permission is not. These
+   assertions exist to prove exactly that — the same requireLeadAccess wall, the
+   same record, and NO new reach for anybody.
+   ========================================================================== */
+describe("POST /todo/done — the negotiation response kind gains nobody anything", () => {
+  const responseDueToday = (leadId: string) =>
+    db.followUp.create({
+      data: { leadId, context: "after_negotiation", dueAt: dueToday(), method: "call" },
+    });
+
+  it("the admin ticks it, and it marks the SAME follow-up row a plain kind would", async () => {
+    const admin = await makeUser("Neg Admin", "bsystems_admin");
+    const lead = await makeLead({ name: "Neg Wall Co", stage: "negotiation" });
+    const f = await responseDueToday(lead.id);
+
+    const res = await post("b-systems", admin, {
+      kind: "negotiation_response",
+      recordId: f.id,
+      done: true,
+    });
+    expect(res.status).toBe(200);
+    const marks = await db.todoDone.findMany();
+    expect(marks).toHaveLength(1);
+    expect(marks[0]!.followUpId).toBe(f.id);
+    expect(marks[0]!.meetingId).toBeNull();
+  });
+
+  it("an agent is refused another owner's response row — the wall did not move", async () => {
+    const owner = await makeUser("Neg Owner", "bsystems_agent");
+    const other = await makeUser("Neg Other", "bsystems_agent");
+    const lead = await makeLead({
+      name: "Neg Owned Co",
+      stage: "negotiation",
+      ownerType: "agent",
+      ownerUserId: owner.id,
+    });
+    const f = await responseDueToday(lead.id);
+
+    expect(
+      (await post("b-systems", other, { kind: "negotiation_response", recordId: f.id, done: true }))
+        .status,
+    ).toBe(403);
+    expect(
+      (await post("b-systems", owner, { kind: "negotiation_response", recordId: f.id, done: true }))
+        .status,
+    ).toBe(200);
+    /* and the uncheck is walled the same way */
+    expect(
+      (await post("b-systems", other, { kind: "negotiation_response", recordId: f.id, done: false }))
+        .status,
+    ).toBe(403);
+    expect(await db.todoDone.count()).toBe(1);
+  });
+
+  it("the ByteForce route refuses the kind outright — that pipeline has no negotiation stage", async () => {
+    const staff = await makeUser("Neg BF Staff", "byteforce_staff");
+    const lead = await makeLead({ name: "BF Neg Co", brand: "byteforce" });
+    const f = await responseDueToday(lead.id);
+
+    /* not a permission refusal — the kind is not in the schema at all, which is
+       what makes "ByteForce has no negotiation" a fact the code enforces */
+    const res = await post("byteforce", staff, {
+      kind: "negotiation_response",
+      recordId: f.id,
+      done: true,
+    });
+    expect(res.status).toBe(400);
+    expect(await db.todoDone.count()).toBe(0);
+  });
+
+  it("a B-Systems admin still cannot reach a ByteForce record through the new kind", async () => {
+    const admin = await makeUser("Neg Cross Admin", "bsystems_admin");
+    const lead = await makeLead({ name: "Cross Neg Co", brand: "byteforce" });
+    const f = await responseDueToday(lead.id);
+
+    const res = await post("b-systems", admin, {
+      kind: "negotiation_response",
+      recordId: f.id,
+      done: true,
+    });
+    expect(res.status).toBe(403);
+    expect(await db.todoDone.count()).toBe(0);
+  });
+});

@@ -153,7 +153,6 @@ test("the To-Do and the board read a twelve-hour clock — AM, PM, and no 24-hou
   await expect(page.locator('[data-deal-card="Evening Clock Lead"]')).toContainText("8:15 م");
   await expect(page.locator('[data-deal-card="Evening Clock Lead"]')).not.toContainText("PM");
   await expect(page.getByText(/\b(1[3-9]|2[0-3]):[0-5][0-9]\b/)).toHaveCount(0);
-  await page.getByRole("button", { name: "EN" }).click();
 
   for (const id of [morning, evening]) {
     expect((await page.request.delete(`/api/b-systems/leads/${id}`)).ok()).toBe(true);
