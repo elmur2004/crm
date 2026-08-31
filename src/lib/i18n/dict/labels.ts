@@ -24,9 +24,24 @@ export const stageMsgs: Record<string, Msg> = {
   contacted: { en: "Contacted", ar: "تم التواصل" },
   waiting: { en: "Waiting", ar: "قيد الانتظار" },
   qualified: { en: "Qualified", ar: "مؤهَّل" },
+  /* ADR-072 — the founder's own column name, kept whole in both languages. */
+  postponed: { en: "Postpone / Not answering", ar: "تأجيل / لا يرد" },
   won: { en: "Won", ar: "مكسب" },
   lost: { en: "Lost", ar: "خسارة" },
 };
+
+/* ADR-072 — the three reasons he dictated, plus Other. */
+export const postponeReasonMsgs: Record<string, Msg> = {
+  not_answering: { en: "Not answering at all", ar: "لا يرد نهائيًا" },
+  no_show: { en: "No show at the meeting", ar: "لم يحضر الاجتماع" },
+  not_interested_now: { en: "Not interested right now", ar: "غير مهتم حاليًا" },
+  other: { en: "Other", ar: "سبب آخر" },
+};
+
+export function postponeReasonLabel(locale: Locale, reason: string): string {
+  const m = postponeReasonMsgs[reason];
+  return m ? m[locale] : reason;
+}
 
 export const leadTypeMsgs: Record<LeadType, Msg> = {
   cold_call: { en: "Cold call", ar: "اتصال مباشر" },

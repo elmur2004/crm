@@ -92,16 +92,22 @@ test("every ByteForce screen has a home in the merged shell, and shows ITS OWN c
 test("the two boards stay two pipelines: Negotiation is B-Systems' alone", async ({ page }) => {
   await loginFounder(page);
 
-  /* B-Systems: seven stages, negotiation among them. */
+  /* B-Systems: EIGHT stages since ADR-072 added Postpone, negotiation among
+     them. The counts moved by exactly one on each side — the new column is a
+     stage BOTH internal pipelines carry, so it can never be the thing that
+     tells the two boards apart. Negotiation still is, and that is what this
+     case is actually about. */
   await page.goto("/b-systems/crm?company=bsystems");
-  await expect(page.locator(".board [data-stage]")).toHaveCount(7);
+  await expect(page.locator(".board [data-stage]")).toHaveCount(8);
   await expect(page.locator('[data-stage="negotiation"]')).toHaveCount(1);
+  await expect(page.locator('[data-stage="postponed"]')).toHaveCount(1);
 
   /* switch — and the COLUMNS change, not just the cards standing in them. */
   await switcher(page).getByRole("link", { name: "ByteForce" }).click();
   await page.waitForURL(/\/b-systems\/crm\?company=byteforce$/);
-  await expect(page.locator(".board [data-stage]")).toHaveCount(6);
+  await expect(page.locator(".board [data-stage]")).toHaveCount(7);
   await expect(page.locator('[data-stage="negotiation"]')).toHaveCount(0);
+  await expect(page.locator('[data-stage="postponed"]')).toHaveCount(1);
 });
 
 test("a filter does not follow you across the switch, looking applied when it is not", async ({

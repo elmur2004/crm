@@ -4629,3 +4629,188 @@ FULL npx playwright test   →  146 passed, 2 failed, 2 skipped
 FULL npx playwright test   →  148 passed, 0 failed, 2 skipped
    (audit.spec.ts, opt-in, is the pair that skips)
 ```
+
+## Run 087 — 2026-08-31 — ADR-072: the Postpone / Not answering column — full vitest, a new e2e spec, migration proved
+
+**Scope.** One feature in one working tree: a new stage on both internal
+pipelines, its field group and table, the shared popup, the colour bindings, and
+one carve-out in an existing rule (the didn't-answer reset). The gate is the FULL
+vitest suite, the FULL Playwright suite, a production `next build`, and the
+migration read back from a live catalogue.
+
+### Unit + integration
+
+```
+npx tsc --noEmit          clean (source)
+npx vitest run            50 files / 786 tests — 786 passed, 0 failed
+npx next build            compiled successfully
+```
+
+**New coverage — 19 cases across three files:**
+
+| File | Cases | What it pins |
+|---|---|---|
+| `transition.test.ts` (+8) | 8 | reachable from every active stage on both internal CRMs and always opening the popup; **NOT terminal** — a parked lead leaves to every active stage, with `initial` follow-up context; a no-show landing there straight from the cancelled outcome; an ATTENDED meeting never landing there; the partners funnel never gaining it, in both directions; and the ORDERING property (`postponed` precedes every terminal stage) asserted as a property rather than an index; and a DRAG into the column being the same move as the action, in and back out — on boards where dragging is the usual gesture, a drop the engine did not validate identically would be a silent park with no reason |
+| `postpone.integration.test.ts` (new) | 10 | the reason row written and read back; all three named reasons plus Other with its words; a bare move REFUSED and nothing written; Other rejected empty and whitespace-only; a bad reason rejected; the round trip out to Following Up with the reason surviving as history; **accumulation** — parked twice keeps both, in order; and the didn't-answer counter surviving the park |
+| `brand-tokens.test.ts` (+1) | 1 | `postponed` has its OWN stage key, tint and accent — never Lost's |
+
+### The bug the tests found, which no reading would have
+`stageKey`'s default branch returns **`"lost"`**. A new stage with no case in it
+does not fail, does not warn, and does not render untinted — it renders in the
+**Lost ramp**, painting a lead that is merely paused in the colour of a lead that
+is gone. That is the precise confusion the column was built to end, and it would
+have shipped looking plausible.
+
+Three switches needed the case (`stageKey`, `stageTint`, `stageAccent`) and they
+fail **differently**: the first paints the wrong colour while the other two fall
+through to `bg-brand-surface-tint` / `bg-brand-border`, so a stage can be
+half-bound and look almost right. `brand-tokens.test.ts` caught all three at
+once. A named per-stage guard now exists for `postponed`, matching the one
+ADR-059 added for `waiting` — the generic "resolves to a real key" assertion is
+satisfied by aliasing and cannot protect anything on its own.
+
+The same file also caught the **third brand scope**: `src/themes/neutral.css`,
+alongside the two `branding/*` files. Two files' worth of tokens fails
+"identical stage token set across ALL THREE scopes", which is exactly what that
+assertion is for.
+
+### The regression net moved, on purpose, and says so
+Two existing cases in `transition.test.ts` asserted arrays this change widens:
+
+- `cancelled-meeting destinations are still Following Up or Lost` — now
+  `[following_up, postponed, lost]` on both internal configs, because a no-show
+  is recorded as a cancelled meeting and "no show in the meeting" is one of the
+  founder's three reasons. Renamed to say so, with the original pair still
+  first.
+- `their next actions … are the exact arrays they were` — `postponed` inserted
+  between the funnel and the terminal pair, in the board's own column order.
+
+Both were **updated rather than deleted**: a regression net that is edited with a
+reason recorded is still a net; one that is removed is not.
+
+### The migration, proved rather than assumed
+`20260831160000_postpone_stage` applied to dev with `migrate deploy`, then read
+back from the live catalogue:
+
+```
+PostponeInfo.id                 (nullable=NO)
+PostponeInfo.leadId             (nullable=YES)
+PostponeInfo.partnerProspectId  (nullable=YES)
+PostponeInfo.reason             (nullable=NO)
+PostponeInfo.note               (nullable=YES)   ← conditional in Zod, not here
+PostponeInfo.createdAt          (nullable=NO)
+indexes: PostponeInfo_leadId_idx, PostponeInfo_pkey
+```
+
+`note` is nullable in the database on purpose: "required when the reason is
+`other`" is a conditional a column cannot express, so it lives in the Zod
+`.refine` where every caller meets it. The STAGE itself needed no migration at
+all — `Lead.stage` has always been plain TEXT held by a union and Zod (ADR-002).
+
+Every statement is `IF NOT EXISTS` / `EXCEPTION WHEN duplicate_object`, and the
+integration suite deploys the file from zero into a virgin embedded Postgres on
+every run — which is what proves it re-runnable rather than merely applied once.
+
+### Brand
+Tokens only. The stage's four values are built on the **functional amber** both
+brands already share for "on hold" (`--color-warning`), not on either palette —
+the meaning is brand-neutral in the same way the functional red is (SPEC §4 R2).
+All three scopes carry them. No hex, no `rgb(`, no `font-family` in any new
+component; the popup uses the existing `.field-*` classes and logical properties
+throughout.
+
+### E2E
+**New spec — `e2e/postpone.spec.ts`, 6 cases, all green:** the column carrying
+his own name on BOTH internal boards; its own colour key rather than Lost's; the
+popup showing his three options plus Other, and saying out loud that this is not
+Lost; **Other required, the three named reasons not** — asserted on the live
+`required` attribute as the radio changes, then saved and read back; the card
+landing in the column, coming back OUT to Following Up, and the reason surviving
+as history; and Arabic, with the column and all four options in Arabic under
+`dir="rtl"`.
+
+### Two board-width regressions the new column caused, and what they actually were
+Adding a column made the B-Systems board **eight** wide and ByteForce **seven**.
+Two drag-driven journeys failed, and neither was the feature:
+
+- `company-inventory.spec.ts` asserted the board column COUNTS (7 / 6). Updated
+  to 8 / 7 — and given an extra assertion that `postponed` is present on BOTH,
+  because the case's real subject is that Negotiation is what tells the two
+  boards apart, and the new column must never be mistaken for that.
+- `journey4` and `journey5` drag a card to **Won**, which the new column pushed
+  further right — past the fold. `page.mouse` speaks VIEWPORT coordinates, so an
+  aim at an off-screen column is clamped at the edge and the card is dropped on
+  whatever sits there. **The drop succeeds, on the wrong column**, which is why
+  the failures surfaced as "the win form never opened" rather than as a drag
+  error.
+
+`prospect-pipeline.spec.ts` had already solved this when ADR-059 widened ITS
+board — *"seven columns are taller and wider than six: scroll BOTH ends into
+view before measuring, or page.mouse grabs air"* — so the fix is the repo's own
+precedent, applied to the three helpers that lacked it (`journey4`,
+`journey5`, `byteforce-board`). There are **five copies of `dragTo` and all five
+differ**; that duplication is pre-existing and is now the thing most likely to
+bite the next person who adds a column.
+
+**Two wrong turns worth recording**, because between them they cost three runs:
+
+1. prospect-pipeline also compensates the aim for the grab offset, because ITS
+   board scores collisions on the dragged card's rect. Copying that here
+   overshot by a whole column and dropped a win into **Lost** — this board
+   follows the POINTER. The aim had always been right; only the scrolling was
+   missing. `journey5`'s comment now says which board does which.
+2. `scrollIntoViewIfNeeded` scrolls the MINIMUM distance, which parks the target
+   against the viewport edge — **exactly where dnd-kit's auto-scroll keeps
+   firing**. The board therefore went on moving between the last pointer move
+   and the mouse-up, and the card was released over the next column. It passed
+   in isolation and failed in the suite, which is the signature of this class of
+   bug: with the shared seeded database the board is busier and starts scrolled
+   differently. Fixed by CENTRING the column
+   (`scrollIntoView({ inline: "center" })`) so auto-scroll never engages, and by
+   **converging** — re-aiming at the column's live box until it stops moving
+   between two readings, bounded so a stuck board times out rather than loops.
+
+The five journeys were then run **in sequence** rather than individually, since
+that is the state the suite actually creates, before the full run was trusted.
+
+### And one failure that was not ours at all: the calendar turned over
+The run after the drag fixes came back with **two new failures in
+`whatsapp-sent.spec.ts`**, a spec that had passed in every previous run and that
+this change does not touch. The clock had rolled past midnight into **1
+September**, and the spec anchors on
+
+```
+/^WhatsApp sent by Elmur on \d{1,2} \w{3} \d{4}$/
+```
+
+en-GB abbreviates September as **"Sept"** — four letters — so the anchored
+three-letter month cannot match. Confirmed directly:
+
+```
+Intl.DateTimeFormat("en-GB", { timeZone: "Africa/Cairo", day:"numeric",
+  month:"short", year:"numeric" }).format(new Date())   →  "1 Sept 2026"
+```
+
+**This would have failed on `main` today with no change at all** — a
+date-dependent test that passes eleven months of the year. `same-stage.spec.ts`
+had already met the same ICU hazard and writes it `Sept?` with a comment; both
+regexes here are now `\w{3,4}` with the reason recorded. A sweep found no other
+three-letter month pattern left in the e2e suite.
+
+Worth separating carefully, because the timing invited the wrong conclusion: two
+fresh failures immediately after a change look like the change. They were not.
+
+```
+FULL npx playwright test   →  152 passed, 2 failed, 2 skipped   (both drag)
+   3 drag helpers fixed; journeys re-run IN SEQUENCE            →  6/6 green
+FULL npx playwright test   →  152 passed, 2 failed, 2 skipped   (both the
+   September regex, pre-existing and unrelated)
+   regexes widened; whatsapp-sent re-run                        →  5/5 green
+FULL npx playwright test   →  153 passed, 1 failed, 2 skipped   (ECONNRESET —
+   self-inflicted: the unit suite was run CONCURRENTLY and starved the box)
+FULL npx playwright test, nothing else running
+                           →  154 passed, 0 failed, 2 skipped
+   verdict read from the summary AND test-results/.last-run.json
+   ({"status":"passed","failedTests":[]}); audit.spec.ts, opt-in, is the pair
+   that skips
+```

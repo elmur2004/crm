@@ -18,18 +18,57 @@ async function dragTo(page: Page, card: Locator, column: Locator) {
      a busy column is laid out below its own column's visible box. Bring it into
      view first — exactly what a person does before grabbing it — which scrolls
      the COLUMN, not the page, so the drop target below stays where it is. */
+  /* ADR-072 — the board is EIGHT columns wide now, and that broke this drag in
+     the two ways prospect-pipeline.spec already documented when ADR-059 widened
+     ITS board:
+
+     1. Scroll BOTH ends into view before measuring, or `page.mouse` — which
+        speaks VIEWPORT coordinates — aims at a column past the fold, gets
+        clamped at the edge, and drops on whatever sits there. Column first,
+        then the card (whose own scroll moves the COLUMN's internal scroller,
+        not the page, so it cannot undo the horizontal one).
+
+     2. Re-aim at the column's LIVE box each time, because the travel itself
+        auto-scrolls the board — measuring once at the start aims at where the
+        column WAS.
+
+     What this deliberately does NOT do is compensate for the grab offset the
+     way prospect-pipeline.spec does. That spec's board scores collisions on the
+     dragged card's rect; this one follows the POINTER, so shifting the aim by
+     half a card width to match the middle-right grab overshoots by a whole
+     column — tried, and it dropped a win into Lost. The pointer goes at the
+     column's centre, exactly as it always did; only the scrolling was missing. */
+  /* CENTRE the target, do not merely reveal it. `scrollIntoViewIfNeeded`
+     scrolls the MINIMUM distance, which parks the column against the viewport
+     edge — precisely where dnd-kit's auto-scroll keeps firing, so the board goes
+     on moving between the last pointer move and the mouse-up and the card is
+     released over the NEXT column. That is how a win landed in Lost. */
+  await column.evaluate((el) => el.scrollIntoView({ inline: "center", block: "nearest" }));
   await card.scrollIntoViewIfNeeded();
-  const from = (await card.boundingBox())!;
-  const to = (await column.boundingBox())!;
+  const cardBox = (await card.boundingBox())!;
   /* grab middle-right — clear of the link and the ready-to-close button */
-  await page.mouse.move(from.x + from.width - 10, from.y + from.height / 2);
+  const gripX = cardBox.x + cardBox.width - 10;
+  const gripY = cardBox.y + cardBox.height / 2;
+  const aim = async () => {
+    const to = (await column.boundingBox())!;
+    return { x: to.x + to.width / 2, y: to.y + 60 };
+  };
+  await page.mouse.move(gripX, gripY);
   await page.mouse.down();
-  await page.mouse.move(from.x + from.width - 10, from.y + from.height / 2 + 12, { steps: 4 });
-  await page.mouse.move(to.x + to.width / 2, to.y + 60, { steps: 14 });
-  /* the travel can auto-scroll the board — land on the column's LIVE box so
-     the drop cannot drift into a neighbour */
-  const settled = (await column.boundingBox())!;
-  await page.mouse.move(settled.x + settled.width / 2, settled.y + 60, { steps: 2 });
+  await page.mouse.move(gripX, gripY + 12, { steps: 4 });
+  const first = await aim();
+  await page.mouse.move(first.x, first.y, { steps: 14 });
+  /* CONVERGE. The travel itself auto-scrolls, so one re-measure is not enough:
+     keep re-aiming at the column's LIVE box until it stops moving between two
+     readings, and only then release. Bounded, so a genuinely stuck board fails
+     as a timeout rather than looping. */
+  let previousX = Number.NaN;
+  for (let i = 0; i < 8; i++) {
+    const box = (await column.boundingBox())!;
+    if (Math.abs(box.x - previousX) < 1) break;
+    previousX = box.x;
+    await page.mouse.move(box.x + box.width / 2, box.y + 60, { steps: 2 });
+  }
   await page.mouse.up();
 }
 

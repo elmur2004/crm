@@ -4111,3 +4111,105 @@ comment, and the ADR-013 mechanism note all fixed; .env.example confirmed tracke
   4. **"Added through the portal" was read as the merged CRM shell**, not App C.
      Agents and partners get the calendar where they already work; a second
      surface under `/portal` is a separate route, guard and e2e set.
+
+## Entry 069 — 2026-08-31 — POSTPONE / NOT ANSWERING: a holding column a lead comes back OUT of, and a popup that always asks why
+- Founder request, verbatim: *"We need to add a column in the CRM called
+  postpone slash not answering for all the leads that are filling out or falling
+  out of the CRM, not answering, not attending the meeting, we are no showing.
+  All of that will be there. When we move the lead there, the pop up will be as
+  he not answering at all, or is he no show in the meeting? Or is he not
+  interested right now at all? these will be the three options and will be the
+  the option as other will be written with the user, but these will be the three
+  main options. And, of course, edit in the CRM across the entire system."*
+- **Three decisions were put to him first**, because SPEC §10's transition
+  tables are normative and each answer changes what gets built rather than how
+  it looks. He took the recommended option on all three: an ORDINARY ACTIVE
+  stage (reversible, not a second Lost) · KEEP BOTH the didn't-answer counter
+  and the new column · BOTH internal CRMs, leaving the partners funnel and the
+  portal alone. They are ADR-072 §§1–3.
+- Done, in one working tree:
+  - **The stage.** `postponed` added to `INTERNAL_STAGES` and `BSYSTEMS_STAGES`,
+    immediately before the terminal pair — structural, not aesthetic: every
+    active stage precedes `won`/`lost`, and the array IS the board's column
+    order. **Reversibility cost one thing: leaving it out of `terminalStages`**,
+    because the core already offers every active action from any non-terminal
+    stage. `postponeStage` is a config SLOT, absent where the stage does not
+    exist, exactly as `negotiationStage` and `didntAnswerStage` are.
+  - **The popup**, in one shared component used by BOTH boards
+    (`components/shared/PostponeFields`): his three named reasons and Other, as
+    radios rather than a select — four options is under the threshold where a
+    dropdown earns its collapse, and this is the one form whose whole purpose is
+    choosing between them. **Other makes you write something; the three named
+    reasons do not** (a no-show is fully described by its name, and forcing a
+    sentence is how `asd` gets typed). The rule is one Zod `.refine`, so it holds
+    for the form, the API and anything else that ever posts the group.
+  - **`PostponeInfo`** (`20260831160000_postpone_stage`) — built in `LostInfo`'s
+    image, one column wider. A TABLE, so it ACCUMULATES (§5.2): a lead parked,
+    revived and parked again keeps both rows. Deliberately NOT merged into
+    `LostInfo` — one row says "not now", the other says "never", and a shared
+    table would reduce that to reading the lead's current stage.
+  - **No move without a reason:** `requiredGroupForTarget` returns
+    `{ group: "postpone" }` for the stage, so a bare transition is refused by the
+    engine before anything is written. He described the popup before he described
+    the column.
+  - **A no-show reaches it from the meeting outcome:** `cancelledDestinations`
+    grew from `[following_up, lost]` to `[following_up, postponed, lost]` on both
+    internal configs. An ATTENDED meeting still cannot land there.
+  - Registered everywhere a field group has to be: the backup model list, the
+    UNDO delete map, `resetDb`, `getLeadDetail`, and the lead-history renderer on
+    all three detail surfaces.
+- **The conflict this uncovered, and the carve-out it needed.** ADR-039's
+  addendum says ANY stage move clears the didn't-answer marker and ADR-064's
+  tally — *"any stage move signals the client was reached"*. That is right for
+  every destination the product had and **precisely backwards for this one**,
+  whose first named reason IS "not answering at all": clearing there would erase
+  *"we tried him five times"* at the exact moment that number becomes the reason
+  for the move, destroying what ADR-064 exists to record. `applyLeadEvent` now
+  carves out exactly that one destination and nothing else. Nothing in the code
+  could have flagged it — the rule reads as a general truth and its comment
+  argues for it well. It surfaced only because an integration case was written to
+  assert HIS stated intent ("keep both") rather than to assert what the code did.
+- **What came free, and what did not.** The boards and both dashboards iterate
+  the stage arrays, so **the column and its per-stage counts appeared with no UI
+  change at all** — the pipeline engine paying out. The COLOUR did not: `stageKey`'s
+  default branch is `"lost"`, so a stage with no case renders in the Lost ramp —
+  no error, no warning — painting a paused lead in the colour of a dead one, the
+  exact confusion the column exists to end. Three switches had to be extended and
+  they fail differently; `brand-tokens.test.ts` caught all three, and a named
+  anti-aliasing test now guards `postponed` the way ADR-059's already guards
+  `waiting`. There is also a THIRD brand scope — `src/themes/neutral.css` —
+  which the token test enforces and which two files' worth of tokens would have
+  missed.
+- Gate, on the FINAL tree: `npx tsc --noEmit` **clean**. **FULL** `npx vitest
+  run` → **50 files / 784 tests, 784 passed / 0 failed**, including 7 new engine
+  cases, 10 new integration cases and 1 new brand-token guard. **FULL**
+  `npx playwright test` → **154 passed, 0 failed, 2 skipped** (`audit.spec.ts`,
+  opt-in), verdict read from the summary AND `test-results/.last-run.json`
+  (`{"status":"passed","failedTests":[]}`), with 6 new cases in
+  `e2e/postpone.spec.ts`. `next build` succeeds. Migration applied to dev and
+  read back column-by-column from the live catalogue (6 columns, 2 indexes); the
+  integration suite deploys it from zero into a virgin cluster on every run.
+- **Three test-fixture failures worth naming, none of them the feature:** the
+  e2e helper omitted `companyName`, which the B-Systems create route makes
+  MANDATORY (a 400 that reads as "the feature is broken"); a `data-stage-key`
+  assertion was written as a descendant when both attributes sit on the same
+  column element; and Playwright's `webServer` build outran its 300s timeout on a
+  cold `.next`, fixed by warming the build once first. All four traps are in
+  IMPLEMENTATION.
+- In progress: nothing mid-flight.
+- Next steps: the three confirmations below.
+- Blockers: none.
+- **Needs founder confirmation (three NEW, on top of the fourteen carried from
+  Entries 064–068):**
+  1. **A no-show reaches the column through the CANCELLED meeting outcome** —
+     the product records a no-show as a cancelled meeting, so that destination
+     list grew by one. Attended still cannot land there.
+  2. **The column sits BEFORE Won and Lost**, not after them. Reasoned from the
+     "every active stage precedes the terminals" property, but it is the one
+     choice here that is purely about where his eye lands — one array entry to
+     move if he wants it at the end.
+  3. **A postponed lead still projects nothing onto the To-Do** (free — the
+     projection requires the matching stage) **but its arranged meetings still
+     appear on the calendar**, because a meeting keeps its slot until it is given
+     an outcome. If parking a lead should also clear its diary, that is a separate
+     rule.

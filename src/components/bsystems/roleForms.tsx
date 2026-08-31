@@ -7,6 +7,7 @@ import { inputCls, labelCls } from "@/components/portal/groupForms";
 import { tFor } from "@/lib/i18n/core";
 import { useLocale } from "@/components/shared/LocaleProvider";
 import { MeetingAlsoBlocks, type MeetingPerson } from "@/components/shared/MeetingAlsoBlocks";
+import { PostponeFields, postponePayload } from "@/components/shared/PostponeFields";
 import { common, stageForm as msg } from "@/lib/i18n/dict/crm";
 import { optionalLabel } from "@/lib/i18n/dict/labels";
 
@@ -391,6 +392,7 @@ export function buildGroupPayload(
   if (target === "negotiation")
     return { group: "negotiation" as const, data: { note: String(fd.get("note")) } };
   if (target === "lost") return { group: "lost" as const, data: { reason: String(fd.get("reason")) } };
+  if (target === "postponed") return postponePayload(fd); // ADR-072
   if (target === "won") return wonDealPayload(fd, opts.milestoneCount);
   return undefined; // intake
 }
@@ -435,6 +437,7 @@ export function GroupFieldsV2({
   if (target === "sending_proposal") return <ProposalFieldsV2 />;
   if (target === "negotiation") return <NegotiationFields />;
   if (target === "lost") return <LostFieldsV2 />;
+  if (target === "postponed") return <PostponeFields />; // ADR-072
   if (target === "won") return <WonDealTab count={milestoneCount} setCount={setMilestoneCount} />;
   if (target === "new")
     return <p className="u-muted">{t(msg.backToNew)}</p>;

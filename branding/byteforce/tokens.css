@@ -120,6 +120,13 @@
   --color-stage-won-accent: #F15C24;
   --color-stage-won-chip: #F8D5C4;
   --color-stage-won-chip-ink: #8E3210;
+  /* ADR-072 — Postpone / Not answering. The same functional amber the
+     B-Systems tokens use for it, warmed to sit beside the ByteForce palette:
+     the meaning (on hold) is brand-neutral, exactly as the functional red is. */
+  --color-stage-postponed: #FBF2E2;
+  --color-stage-postponed-accent: #B8860B;
+  --color-stage-postponed-chip: #F3E4C0;
+  --color-stage-postponed-chip-ink: #77550A;
   --color-stage-lost: #F0EEEB;
   --color-stage-lost-accent: #8A8285;
   --color-stage-lost-chip: #E2DDD8;

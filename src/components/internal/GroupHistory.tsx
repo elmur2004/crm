@@ -2,8 +2,9 @@ import { formatCairo } from "@/lib/datetime";
 import { formatEGP } from "@/lib/money";
 import { tFor, type Locale } from "@/lib/i18n/core";
 import { getLocale } from "@/lib/i18n/server";
-import { stageLabel } from "@/lib/i18n/dict/labels";
+import { postponeReasonLabel, stageLabel } from "@/lib/i18n/dict/labels";
 import { common, records } from "@/lib/i18n/dict/internal";
+import { postponeMsgs } from "@/lib/i18n/dict/postpone";
 
 /* §5.2 — field groups are additive history, shown chronologically. Accepts the
    lead/prospect/deal detail's included child records (superset shape, all optional). */
@@ -69,12 +70,17 @@ export async function GroupHistory({
   meetings = [],
   proposals = [],
   lostInfo = [],
+  postponeInfos = [],
   won,
 }: {
   followUps?: FollowUpRow[];
   meetings?: MeetingRow[];
   proposals?: ProposalRow[];
   lostInfo?: LostRow[];
+  /* ADR-072 — every time this lead was parked, with the reason. It ACCUMULATES
+     like every other group (§5.2), so a lead that went quiet twice before it
+     bought reads that way in its own history. */
+  postponeInfos?: Array<{ id: string; reason: string; note: string | null; createdAt: Date }>;
   won?: {
     estimatedValue: number;
     technicalOwner: string;
@@ -202,6 +208,22 @@ export async function GroupHistory({
           at={l.createdAt}
         >
           <p>{l.reason}</p>
+        </Section>
+      ),
+    });
+  }
+  for (const p of postponeInfos) {
+    items.push({
+      at: p.createdAt,
+      node: (
+        <Section
+          key={`p${p.id}`}
+          locale={locale}
+          title={t(postponeMsgs.historyTitle)}
+          at={p.createdAt}
+        >
+          <p>{postponeReasonLabel(locale, p.reason)}</p>
+          {p.note ? <p>{p.note}</p> : null}
         </Section>
       ),
     });

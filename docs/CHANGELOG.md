@@ -1,5 +1,75 @@
 # Changelog — user-visible changes per phase/release
 
+## Postpone / Not answering — a shelf for the leads that go quiet (2026-08-31)
+
+You said: *"We need a column in the CRM called Postpone / Not answering, for all
+the leads that are falling out of the CRM — not answering, not attending the
+meeting, no showing. When we move the lead there, the popup will be: is he not
+answering at all, or is he no show in the meeting, or is he not interested right
+now at all? Those are the three options, and there is Other, written by the
+user."*
+
+Done. It is on **both** boards — B-Systems and ByteForce — sitting just before
+Won and Lost.
+
+### 1. Moving a lead there always asks why
+
+Pick **Postpone / Not answering** as the next action, or drag the card into the
+column, and you get exactly the popup you described:
+
+- **Not answering at all**
+- **No show at the meeting**
+- **Not interested right now**
+- **Other** — and this one makes you write the reason. The other three don't;
+  a no-show is already said by its name. You can still add a note to any of them
+  if you want to.
+
+You can't move a lead there without answering. That's on purpose — a column you
+can drop leads into without saying why is a place leads disappear, not a list you
+can work back through.
+
+### 2. It is a shelf, not a graveyard
+
+This is the important part, and it is what makes it different from Lost. **A
+postponed lead is still live.** It comes straight back out to Following Up, or
+Meeting Setting, or anywhere else — same as any other column. Nothing is
+archived, nothing is closed.
+
+And the reason it was parked **stays on the record**. Bring a lead back and the
+history still shows "Postponed — Not answering at all", with the date. Park it
+again six weeks later and you get both, in order. So "he went quiet twice before
+he bought" is a thing you can actually see.
+
+### 3. The "Didn't answer" counter is untouched
+
+You already have the button that counts how many times you tried. It still
+counts, and — this is the bit worth knowing — **parking a lead no longer wipes
+it.**
+
+Everywhere else in the system, moving a card means you reached the client, so
+the counter resets. Moving a card into *Not answering* obviously means the
+opposite. If you tried five times and then shelved him, the board still says
+five. The two answer different questions: the counter is how many times you
+tried, the column is where he went when you stopped for now.
+
+### 4. Reaching it from a meeting that didn't happen
+
+Since "no show" is one of your three reasons, the meeting outcome now offers it
+directly: mark a meeting **Cancelled** and *Postpone / Not answering* is one of
+the places you can send the lead, next to Following Up and Lost. Marking a
+meeting **Attended** does not offer it — attending is the opposite of what the
+column means.
+
+### 5. Everywhere else
+
+The column has its own colour — a hold amber, not the grey of Lost, so a paused
+lead never reads as a dead one at a glance. It counts on the dashboard's
+per-stage numbers like every other column. It reads in Arabic (**تأجيل / لا
+يرد**) and mirrors right-to-left. And a postponed lead drops off your To-Do,
+because there is nothing you owe it today.
+
+---
+
 ## The Calendar — every meeting, and everyone's own time, on one month (2026-08-31)
 
 You said: *"The calendar is a new page which takes all the meetings from the

@@ -137,6 +137,15 @@
   --color-stage-won-accent: #FF4F87;
   --color-stage-won-chip: #FFDCE7;
   --color-stage-won-chip-ink: #B01E51;
+  /* ADR-072 — Postpone / Not answering. Built on the FUNCTIONAL amber both
+     brands already share for "on hold" (--color-warning, #B8860B), not on a
+     palette hue: the column means paused, which is the same meaning the amber
+     already carries on a receivable, and a lead parked here must not read as
+     lost (grey) or as a live stage (indigo). */
+  --color-stage-postponed: #FBF3E4;
+  --color-stage-postponed-accent: #B8860B;
+  --color-stage-postponed-chip: #F5E6C4;
+  --color-stage-postponed-chip-ink: #7A5807;
   --color-stage-lost: #F1F1F6;
   --color-stage-lost-accent: #6B6F94;
   --color-stage-lost-chip: #E3E3EC;

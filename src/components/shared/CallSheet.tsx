@@ -274,6 +274,7 @@ export async function CallSheet({
           meetings={lead.meetings}
           proposals={lead.proposals}
           lostInfo={lead.lostInfo}
+          postponeInfos={lead.postponeInfos}
           won={lead.wonInfo}
         />
       </div>

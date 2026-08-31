@@ -446,6 +446,7 @@ export async function LeadDetailBody({ ctx, leadId }: { ctx: InternalAppCtx; lea
               meetings={lead.meetings}
               proposals={lead.proposals}
               lostInfo={lead.lostInfo}
+              postponeInfos={lead.postponeInfos}
               won={lead.wonInfo}
             />
           </div>

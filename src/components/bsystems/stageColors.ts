@@ -18,6 +18,11 @@ export function stageKey(stage: string): string {
       return "negotiation";
     case "didnt_answer":
       return "didnt-answer";
+    /* ADR-072 — its OWN key. Aliasing it onto "lost" would satisfy every guard
+       and paint a lead that is merely paused in the colour of a lead that is
+       gone, which is the exact confusion the column exists to end. */
+    case "postponed":
+      return "postponed";
     /* prospect pipeline (ADR-057, widened by ADR-059) — its own three keys.
        Without these the fallback below would paint Contacted, Waiting and
        Qualified — the prospect's win — in Lost. Never alias one of them onto
@@ -50,6 +55,8 @@ export function stageTint(stage: string): string {
       return "bg-stage-negotiation";
     case "didnt_answer":
       return "bg-stage-didnt-answer";
+    case "postponed":
+      return "bg-stage-postponed"; // ADR-072
     case "contacted":
       return "bg-stage-contacted";
     case "waiting":
@@ -80,6 +87,8 @@ export function stageAccent(stage: string): string {
       return "bg-stage-negotiation-accent";
     case "didnt_answer":
       return "bg-stage-didnt-answer-accent";
+    case "postponed":
+      return "bg-stage-postponed-accent"; // ADR-072
     case "contacted":
       return "bg-stage-contacted-accent";
     case "waiting":

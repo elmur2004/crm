@@ -9,6 +9,14 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
 const PDF = Buffer.concat([Buffer.from("%PDF-1.7 journey"), Buffer.alloc(1024, 4)]);
 
 async function dragTo(page: Page, card: Locator, column: Locator) {
+  /* ADR-072 widened this board by a column, and a wider board is exactly what
+     ADR-059 taught prospect-pipeline.spec: scroll BOTH ends into view before
+     measuring, or `page.mouse` — which speaks VIEWPORT coordinates — aims at a
+     column that is past the fold, gets clamped at the edge, and drops the card
+     on whichever column happens to sit there. That failure is silent: the drop
+     succeeds, on the wrong column. */
+  await column.scrollIntoViewIfNeeded();
+  await card.scrollIntoViewIfNeeded();
   const from = (await card.boundingBox())!;
   const to = (await column.boundingBox())!;
   /* grab the card's middle-right edge — clear of the top-left link AND the

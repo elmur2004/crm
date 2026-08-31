@@ -2792,3 +2792,150 @@ The arithmetic is deliberately on the WALL CLOCK — `Date.UTC` used as
 minutes-since-epoch over the typed digits, never as an instant. The Cairo
 conversion happens once, server-side, in `eventWindow`. **A second timezone
 opinion inside a component is how a clock drifts.**
+
+## ADR-072 — the postpone column: the traps
+
+### 1. `stageKey`'s DEFAULT BRANCH IS `"lost"`, AND A NEW STAGE FALLS INTO IT SILENTLY
+`stageColors.ts` maps a stage id to the `data-stage-key` that binds its four
+per-stage custom properties, and its `default:` returns **`"lost"`**. So a new
+stage added to `INTERNAL_STAGES` with no case in that switch does not fail, does
+not warn, and does not render untinted — it renders in **the Lost ramp**. For a
+column whose entire purpose is distinguishing "paused" from "gone", that is the
+worst possible silent default.
+
+Worse, there are THREE switches (`stageKey`, `stageTint`, `stageAccent`) and
+they fail differently: the first paints the wrong colour, while the other two
+fall through to `bg-brand-surface-tint` / `bg-brand-border` — so a stage can be
+half-bound and look almost right. `brand-tokens.test.ts` catches all three,
+which is the only reason this was found; a reviewer reading the board would have
+seen a plausible grey column.
+
+The guard already existed in the right shape for ADR-059's `waiting` ("has its
+OWN stage key — never aliased onto another column"). **A named case per stage,
+plus a named test per stage, is the pattern** — the generic "resolves to a real
+key" assertion is satisfied by aliasing and cannot protect you on its own.
+
+### 2. THERE ARE THREE BRAND SCOPES, NOT TWO
+Stage tokens live in `branding/byteforce/tokens.css`, `branding/b-systems/
+tokens.css` **and `src/themes/neutral.css`** — the last is the unbranded scope
+the module shells fall back to. Adding a stage to the two brand files and
+stopping there fails `brand-tokens.test.ts`'s "identical stage token set across
+ALL THREE scopes", which is exactly what it is for. The neutral scope binds
+every stage to `--color-surface-tint`/`--color-border`, so the addition is
+mechanical — but it has to be made.
+
+### 3. A RULE THAT IS RIGHT EVERYWHERE CAN BE BACKWARDS IN ONE NEW PLACE
+ADR-039's addendum — "ANY stage move signals the client was reached, so the
+didn't-answer marker and its tally clear themselves with the move" — is correct
+for every destination the product had. It is precisely inverted for a column
+whose first named reason is *"not answering at all"*: it erases "we tried him
+five times" at the exact moment that number becomes the reason for the move.
+
+Nothing in the code could have flagged this; the rule reads as a general truth
+and its comment argues for it convincingly. It surfaced only because an
+integration case was written to assert the founder's stated intent ("keep both")
+rather than to assert what the code did. **When a new destination inverts the
+PREMISE of an existing rule, the rule needs a carve-out, and the carve-out
+belongs next to the original reasoning** — not in the new feature's own module,
+where the next reader of ADR-039 will never find it.
+
+### 4. THE B-SYSTEMS LEAD-CREATE API IS NOT THE SHARED SCHEMA
+`api/b-systems/leads` extends `createLeadSchema` with a **mandatory
+`companyName`** (founder's rule), while the shared schema and the ByteForce
+route keep it optional. An e2e helper copied from another spec without that
+field answers **400** on creation — long before the spec's actual subject is
+reached, and the failure reads as "my new feature is broken" rather than "my
+fixture is wrong". Worth checking the route's own schema, not just the service's,
+whenever a test seeds a B-Systems lead.
+
+### 5. `data-stage` AND `data-stage-key` ARE THE SAME ELEMENT
+The board column carries both attributes on one node. A test written as
+`[data-stage="x"] [data-stage-key="x"]` (descendant) matches nothing — and on an
+EMPTY column it matches nothing either way, so the mistake is invisible until
+the column has cards. Assert the attribute on the column itself.
+
+### 6. THE PLAYWRIGHT `webServer` BUILD CAN OUTRUN ITS 300s TIMEOUT ON A COLD CACHE
+`webServer.command` is `npm run build && npx next start`, with
+`timeout: 300_000`. On a cold `.next` this build took ~67s to compile plus type
+checking and static generation, and the whole run died with `Timed out waiting
+300000ms from config.webServer` before a single test executed. Running
+`npx next build` once beforehand warms the cache and the same run then starts in
+well under the budget. (Cheaper than raising the timeout, and it keeps the
+timeout meaningful as a signal that something is actually wrong.)
+
+### 7. `scrollIntoViewIfNeeded` PARKS A DRAG TARGET WHERE AUTO-SCROLL IS STILL FIRING
+Adding a column pushed **Won** past the fold on an eight-wide board, and two
+drag journeys started dropping cards on the wrong column. `page.mouse` speaks
+VIEWPORT coordinates, so an aim at an off-screen column is clamped at the edge
+and the card is released over whatever sits there — **the drop succeeds, on the
+wrong column**, which is why it surfaced as "the win form never opened" rather
+than as a drag error.
+
+Scrolling the column in fixed most of it. It did not fix all of it, and the
+reason is worth keeping: **`scrollIntoViewIfNeeded` scrolls the MINIMUM
+distance**, leaving the target flush against the viewport edge — which is
+exactly the zone where dnd-kit's auto-scroll keeps running. The board then moved
+between the last pointer move and the mouse-up, and the card landed a column
+further on. Two things fix it together:
+
+- `column.evaluate(el => el.scrollIntoView({ inline: "center" }))` — **centre**
+  the target so auto-scroll never engages;
+- **converge** before releasing: re-aim at the column's live box until it stops
+  moving between two readings (bounded, so a stuck board times out rather than
+  looping).
+
+**The tell for this whole class: it passed in isolation and failed in the
+suite.** The journeys share a seeded database, so in a full run the board is
+busier and starts scrolled differently. Any drag fix has to be verified by
+running the journeys **in sequence**, never one at a time.
+
+And the trap behind the trap: there are **five copies of `dragTo` across the e2e
+specs and all five differ**. `prospect-pipeline.spec.ts` had already learned the
+scrolling lesson when ADR-059 widened its board and wrote it down in its own
+comment; three of the other four had not, because nothing shares the helper.
+That duplication is now the single most likely thing to break the next time a
+column is added.
+
+### 8. ONE BOARD SCORES COLLISIONS ON THE CARD, ANOTHER ON THE POINTER
+`prospect-pipeline.spec.ts` deliberately offsets its aim so the dragged CARD
+lands centred on the target, because dnd-kit scores that board's collisions on
+the card's rect. Copying that compensation into `journey5` overshot by a whole
+column and dropped a win into Lost — that board resolves on the POINTER.
+
+The two are a page apart and look like the same helper. **Before copying drag
+geometry between specs, check which collision strategy the board under test
+uses**; the failure is silent and lands on a plausible neighbour.
+
+### 9. A DATE-DEPENDENT TEST THAT PASSES ELEVEN MONTHS OF THE YEAR
+`whatsapp-sent.spec.ts` anchored a chip's accessible name on
+`/^WhatsApp sent by Elmur on \d{1,2} \w{3} \d{4}$/`. **en-GB abbreviates
+September as "Sept" — four letters** — so that regex cannot match for the whole
+of September, and matches fine the rest of the year:
+
+```
+Intl.DateTimeFormat("en-GB", { timeZone: "Africa/Cairo",
+  day: "numeric", month: "short", year: "numeric" }).format(new Date())
+  →  "1 Sept 2026"
+```
+
+It surfaced when a long session's full run crossed midnight into 1 September:
+two specs that had passed in every earlier run of the same session suddenly
+failed, immediately after an unrelated change — which is exactly the shape that
+invites blaming the change. **It would have failed on `main`, untouched, on the
+same day.**
+
+`same-stage.spec.ts` had already met this and writes `Sept?` with a comment; the
+general rule is `\w{3,4}` (or an explicit `Sept?`) for any en-GB short month.
+The tell that a failure is calendrical rather than causal: it appears in a spec
+the change does not touch, and the change has no path to it.
+
+### 10. DO NOT RUN THE UNIT SUITE ALONGSIDE PLAYWRIGHT EITHER
+ADR-071 trap 3 says never run `next build` during a Playwright run. The same
+applies to `npx vitest run`: it starts its own embedded Postgres and saturates
+the machine, and a full e2e run alongside it came back with
+`apiRequestContext.post: read ECONNRESET` against the test server — an
+infrastructure failure that reads exactly like a broken endpoint.
+
+The tell is the shape of the error, not its content: **ECONNRESET / socket
+hang-up in ONE test, with the rest of the suite green**, is starvation, not a
+regression. Re-run it with nothing else going before spending any time on it.

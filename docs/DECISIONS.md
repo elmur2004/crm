@@ -5449,3 +5449,150 @@ stale name in a picker is the wrong trade.
      and partners get the calendar inside the merged shell, which is where they
      already work; a second surface under `/portal` is a separate route, guard
      and e2e set.
+
+---
+
+## ADR-072 — 2026-08-31 — POSTPONE / NOT ANSWERING: a holding column a lead can come back OUT of, and a popup that always asks why
+
+- Context — the founder, verbatim:
+
+  > We need to add a column in the CRM called postpone slash not answering for
+  > all the leads that are filling out or falling out of the CRM, not answering,
+  > not attending the meeting, we are no showing. All of that will be there.
+  > When we move the lead there, the pop up will be as he not answering at all,
+  > or is he no show in the meeting? Or is he not interested right now at all?
+  > these will be the three options and will be the the option as other will be
+  > written with the user, but these will be the three main options. And, of
+  > course, edit in the CRM across the entire system.
+
+  Three decisions were put to him before a line was written, because each one
+  changes what gets built rather than how it looks. He took the recommended
+  option on all three.
+
+### 1. It is an ORDINARY ACTIVE STAGE, not a second Lost
+
+A lead parks there and comes back out. That single choice is what the whole
+implementation turns on, and it costs almost nothing to express: `postponed` is
+simply **absent from `terminalStages`**, and the core already offers every
+active action from any non-terminal stage. Reversibility is not a feature here —
+it is the absence of a carve-out.
+
+It matters because the alternative was available and would have been simpler.
+"Postpone" that you cannot leave is Lost wearing a different name, and the
+product would have grown a second dead-end column while the founder believed he
+had a shelf. The engine test that earns its place is therefore the one asserting
+the way OUT, not the way in.
+
+**Where it sits in the column order:** immediately before `won` and `lost`, on
+both internal pipelines. That is structural, not aesthetic — every active stage
+precedes the terminal pair in these arrays, the array IS the board's column
+order, and putting an active stage after the terminals would be the only place
+in the file where that is true. (A `transition.test.ts` case asserts the
+ordering property directly rather than the literal index, so the next stage
+anybody adds inherits the rule.)
+
+### 2. The "Didn't answer" COUNTER stays, and the column does not eat it
+
+ADR-039 gave cards a "didn't answer" marker; ADR-064 made it a **tally** —
+"make the didn't answer button a counter so we can know how many times we
+tried". The two look like the same idea and are not: the counter says how many
+times we tried, the column says where the lead went once we stopped trying for
+now. He was asked and chose to keep both.
+
+That decision exposed a real conflict, and it is the most interesting thing in
+this ADR. ADR-039's addendum says **any stage move clears the marker and its
+tally** — "any stage move signals the client was reached". That reasoning is
+sound for every destination the product had until today, and it is exactly
+backwards for this one: the first of the founder's three reasons IS *"not
+answering at all"*. Clearing the tally on the way in would erase *"we tried him
+five times"* at the precise moment that number becomes the reason the lead is
+being parked — destroying what ADR-064 exists to record, silently, on the only
+path where it matters most.
+
+So `applyLeadEvent` carves out exactly one destination:
+
+```ts
+const stillUnreached = config.postponeStage && result.toStage === config.postponeStage;
+const clearNoAnswer = fresh.noAnswer && !stillUnreached;
+```
+
+Every other destination behaves exactly as it did. An integration case pins it
+by parking a lead with `noAnswerCount = 3` and asserting the 3 survives.
+
+### 3. Both internal CRMs; the partners funnel and the portal do not get it
+
+`postponeStage` is a config SLOT, absent on the pipelines that do not have it —
+the same shape `negotiationStage` and `didntAnswerStage` already are. The
+partners/agents board already carries **Didn't Answer** and **Waiting**; a third
+near-neighbour there is a column somebody has to explain. A test asserts the
+funnel never gains it, in both directions (not in `stages`, not in
+`nextActions`).
+
+### The popup, and the one rule inside it
+
+`PostponeInfo` is built in `LostInfo`'s image, one column wider: a closed
+`reason` (his three, plus `other`) and the free text `other` carries.
+
+**The note is REQUIRED when the reason is `other`, and optional otherwise.**
+The requirement lives in Zod — one `.refine`, so it holds for the form, the API
+and anything else that ever posts this group; the database column is plain
+nullable, because a conditional requirement is not something a column can
+express. An "Other" carrying nothing records only that somebody pressed a
+button, on the one column whose entire purpose is being able to work back
+through it. The three named reasons are left free: a no-show is fully described
+by its name, and forcing a sentence there is how `asd` ends up in the record.
+
+**A move into the column can never happen without it.** `requiredGroupForTarget`
+returns `{ group: "postpone" }` for the stage, so a bare transition is refused
+by the engine before anything is written — the founder described the popup
+before he described the column, and a park with no reason would make it a place
+leads vanish into.
+
+**It is a TABLE, not two columns on `Lead`**, for the reason SPEC §5.2 gives for
+every field group: history accumulates. A lead parked, revived and parked again
+keeps both rows, so *"he went quiet twice before he bought"* stays answerable.
+And it is **not merged into `LostInfo`**: postponed is active and lost is
+terminal — one row says "not now", the other says "never" — and a shared table
+would reduce that distinction to reading the lead's current stage.
+
+### What came for free, and what did not
+
+The boards and both dashboards iterate the stage arrays (`INTERNAL_STAGES`,
+`BSYSTEMS_STAGES`), so **the column and its per-stage counts appeared with no
+UI change at all**. That is the pipeline engine's design paying out.
+
+What did NOT come free was the colour, and the way it failed is worth recording:
+`stageKey`'s default branch is **`"lost"`**. A new stage with no case simply
+resolves there — no error, no warning — and paints a lead that is merely paused
+in the colour of a lead that is gone, which is the exact confusion the column
+exists to end. `brand-tokens.test.ts` already guarded this shape for ADR-059's
+`waiting`; the same guard now names `postponed`, and it is the only kind of test
+that could have caught it.
+
+The stage's own tokens are built on the **functional amber** both brands already
+share for "on hold" (`--color-warning`), not on either palette — the meaning is
+brand-neutral in exactly the way the functional red is (SPEC §4 R2). All three
+scopes carry them, including `neutral`, which the token test enforces.
+
+- Consequences: one new table, one new stage on two pipelines, one new field
+  group, one carve-out in an existing rule (§2 above), and a new column that no
+  role gains or loses access to — a parked lead is scoped exactly as it was.
+  No SPEC §10 row changes meaning; two rows WIDEN by one destination each
+  (T-8's cancelled pair), which is recorded in the regression net by name.
+
+- Status: Accepted. **Needs founder confirmation (three):**
+  1. **A no-show reaches the column through the CANCELLED meeting outcome.** He
+     named "no show in the meeting" as a reason, and the product records a
+     no-show as a cancelled meeting — so `cancelledDestinations` grew from
+     `[following_up, lost]` to `[following_up, postponed, lost]`. An ATTENDED
+     meeting still cannot land in Postpone, because attending is the opposite of
+     what the column means.
+  2. **The column sits before Won and Lost**, not after them. Reasoned above,
+     but it is the one choice here that is purely about where his eye lands, and
+     it is one array entry to move.
+  3. **A postponed lead still projects nothing onto the To-Do** and its arranged
+     meetings still appear on the calendar. The To-Do falls out for free (it
+     requires the lead to be in the matching stage); the calendar is deliberate —
+     a meeting keeps its slot until it is given an outcome, whatever the lead's
+     stage. If parking a lead should also clear its diary, that is a separate
+     rule and a separate decision.

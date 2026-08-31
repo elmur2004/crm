@@ -291,4 +291,24 @@ describe("stage tokens exist in ALL THREE brand scopes (ADR-057)", () => {
       expect(stageKey("waiting")).not.toBe(other);
     }
   });
+
+  /* ADR-072 — the same shortcut, closed by name for the postpone column. It is
+     the likeliest one to be aliased, because `lost` is the helper's DEFAULT: a
+     `postponed` case simply left out resolves to "lost" silently and paints a
+     lead that is merely paused in the colour of a lead that is gone — the exact
+     confusion the column exists to end. */
+  it("postponed has its OWN stage key and its own tint — never Lost's", () => {
+    expect(stageKey("postponed")).toBe("postponed");
+    expect(stageTint("postponed")).toBe("bg-stage-postponed");
+    expect(stageAccent("postponed")).toBe("bg-stage-postponed-accent");
+    for (const other of ["lost", "won", "waiting", "didnt-answer", "following"]) {
+      expect(stageKey("postponed")).not.toBe(other);
+    }
+    /* and it is a stage BOTH internal pipelines carry, on neither of which it
+       may be terminal — a column nobody can leave is Lost under another name */
+    for (const stages of [INTERNAL_STAGES, BSYSTEMS_STAGES]) {
+      expect(stages as readonly string[]).toContain("postponed");
+    }
+    expect(PROSPECT_STAGES as readonly string[]).not.toContain("postponed");
+  });
 });

@@ -89,6 +89,10 @@
   --color-stage-won-accent: var(--color-stage-won-accent);
   --color-stage-won-chip: var(--color-stage-won-chip);
   --color-stage-won-chip-ink: var(--color-stage-won-chip-ink);
+  --color-stage-postponed: var(--color-stage-postponed);
+  --color-stage-postponed-accent: var(--color-stage-postponed-accent);
+  --color-stage-postponed-chip: var(--color-stage-postponed-chip);
+  --color-stage-postponed-chip-ink: var(--color-stage-postponed-chip-ink);
   --color-stage-lost: var(--color-stage-lost);
   --color-stage-lost-accent: var(--color-stage-lost-accent);
   --color-stage-lost-chip: var(--color-stage-lost-chip);

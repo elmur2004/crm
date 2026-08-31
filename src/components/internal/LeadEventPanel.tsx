@@ -14,6 +14,7 @@ import { tFor } from "@/lib/i18n/core";
 import { useLocale } from "@/components/shared/LocaleProvider";
 import { optionalLabel, sameStageActionLabel, stageLabel } from "@/lib/i18n/dict/labels";
 import { common, events } from "@/lib/i18n/dict/internal";
+import { PostponeFields, postponePayload } from "@/components/shared/PostponeFields";
 
 /* §6.1/§6.2 — selecting a Next Action opens exactly that stage's field group right
    here; submitting fires ONE mutation (event + group payload). Cancel = nothing
@@ -314,6 +315,7 @@ export function LeadEventPanel({
     if (target === "meeting_setting") return meetingFromForm(fd, arranged);
     if (target === "sending_proposal") return proposalFromForm(fd);
     if (target === "lost") return { group: "lost" as const, data: { reason: String(fd.get("reason")) } };
+    if (target === "postponed") return postponePayload(fd); // ADR-072
     if (target === "won") return wonFromForm(fd);
     return undefined;
   }
@@ -324,6 +326,7 @@ export function LeadEventPanel({
       return <MeetingFields arranged={arranged} setArranged={setArranged} reps={reps} />;
     if (target === "sending_proposal") return <ProposalFields />;
     if (target === "lost") return <LostFields />;
+    if (target === "postponed") return <PostponeFields />; // ADR-072
     if (target === "won") return <WonFields prefillValue={latestProposalValue} />;
     return null;
   }

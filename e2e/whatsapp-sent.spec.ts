@@ -123,7 +123,11 @@ test("a press turns the chip green on the B-Systems board, and a DIFFERENT user 
   /* the server render carries who and when, and the words say it too — the
      state is never colour alone */
   await expectGreenAfterReload(adminPage, () =>
-    adminCard.getByRole("link", { name: /^WhatsApp sent by Elmur on \d{1,2} \w{3} \d{4}$/ }),
+    /* `\w{3,4}`, not `\w{3}`: en-GB abbreviates September as "Sept" — FOUR
+       letters — so an anchored three-letter month made this spec fail for the
+       whole of September and pass the rest of the year. same-stage.spec.ts hit
+       the same ICU hazard and writes it `Sept?`; this is the same rule. */
+    adminCard.getByRole("link", { name: /^WhatsApp sent by Elmur on \d{1,2} \w{3,4} \d{4}$/ }),
   );
   const named = adminCard.getByRole("link", { name: /^WhatsApp sent by Elmur on / });
   await expect(named).toHaveAttribute("title", /^WhatsApp sent by Elmur on /);
@@ -205,7 +209,7 @@ test("the ByteForce board's chip goes green too, and Sara sees it", async ({ pag
   await saraPage.goto("/b-systems/crm?company=byteforce");
   const saraChip = saraPage
     .locator('[data-deal-card="Green Signal BF"]')
-    .getByRole("link", { name: /^WhatsApp sent by Elmur on \d{1,2} \w{3} \d{4}$/ });
+    .getByRole("link", { name: /^WhatsApp sent by Elmur on \d{1,2} \w{3,4} \d{4}$/ });
   await expect(saraChip).toHaveClass(/wa-sent/);
   await saraCtx.close();
   /* ByteForce leads have no delete endpoint (only PATCH), so this card stays —
