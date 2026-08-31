@@ -44,6 +44,7 @@ const MODELS = [
   "meeting",
   "proposal",
   "lostInfo",
+  "postponeInfo", // ADR-072 — a Lead child, so it sits with the other groups
   "wonInfo",
   "client",
   "wonDeal",

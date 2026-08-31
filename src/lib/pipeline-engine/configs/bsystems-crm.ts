@@ -34,12 +34,20 @@ export const bsystemsCrmConfig: PipelineConfig = {
   meetingStage: "meeting_setting",
   proposalStage: "sending_proposal",
   negotiationStage: "negotiation",
+  postponeStage: "postponed", // ADR-072
   didntAnswerStage: null,
   wonStage: "won",
   lostStage: "lost",
   nextActions(stage, role) {
     if (stage === "won" || stage === "lost") return [];
-    const base = ["following_up", "meeting_setting", "sending_proposal", "negotiation", "lost"];
+    const base = [
+      "following_up",
+      "meeting_setting",
+      "sending_proposal",
+      "negotiation",
+      "postponed", // ADR-072 — offered from every active stage, and FROM postponed
+      "lost",
+    ];
     const all = WON_ROLES.includes(role as (typeof WON_ROLES)[number]) ? [...base, "won"] : base;
     return [...all, ...sameStageExtras(stage)];
   },
@@ -48,10 +56,10 @@ export const bsystemsCrmConfig: PipelineConfig = {
     return WON_ROLES.includes(role as (typeof WON_ROLES)[number]) ? [...base, "won"] : base;
   },
   cancelledDestinations() {
-    /* T-8 / A-3, unchanged: the pair the core used to hardcode as
-       [followUpStage, lostStage]. It is a config SLOT since ADR-059 because the
-       prospect pipeline has no follow-up stage to compose it from. */
-    return ["following_up", "lost"];
+    /* T-8 / A-3, plus ADR-072 — a no-show is recorded as a cancelled meeting,
+       and "no show in the meeting" is one of the founder's three reasons to
+       park a lead, so Postpone has to be reachable from here. */
+    return ["following_up", "postponed", "lost"];
   },
   dragEnabled: true, // V2 §3 — all roles drag; drop opens the stage form
   wonRoles: WON_ROLES,

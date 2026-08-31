@@ -32,11 +32,22 @@ export type Brand = (typeof BRANDS)[number];
 
 /* ---------------- stages per pipeline (SPEC §6.3, §7.2, §8.2) ---------------- */
 
+/* ADR-072 — `postponed` is the founder's "Postpone / Not answering" column:
+   "a column for all the leads that are falling out of the CRM — not answering,
+   not attending the meeting, no showing."
+
+   It sits BEFORE the terminal pair, and that position is structural rather than
+   aesthetic: every ACTIVE stage precedes `won`/`lost` in these arrays, the array
+   IS the board's column order, and postponed is an ordinary active stage (his
+   decision) — a lead parks there and comes back out. Putting it after the
+   terminals would be the only place in this file where an active stage follows
+   a terminal one. */
 export const INTERNAL_STAGES = [
   "new",
   "following_up",
   "meeting_setting",
   "sending_proposal",
+  "postponed",
   "won",
   "lost",
 ] as const;
@@ -75,6 +86,7 @@ export const BSYSTEMS_STAGES = [
   "meeting_setting",
   "sending_proposal",
   "negotiation",
+  "postponed", // ADR-072 — see the note on INTERNAL_STAGES for the position
   "won",
   "lost",
 ] as const;
@@ -92,8 +104,37 @@ export const STAGE_LABELS: Record<string, string> = {
   contacted: "Contacted",
   waiting: "Waiting",
   qualified: "Qualified",
+  /* ADR-072 — his own words for the column, kept whole. "Postpone" alone would
+     not say what it is for, and "Not answering" alone would exclude the no-show
+     and the not-interested-right-now that share it. */
+  postponed: "Postpone / Not answering",
   won: "Won",
   lost: "Lost",
+};
+
+/* ADR-072 — why a lead was parked. Founder: "the pop up will be as he not
+   answering at all, or is he no show in the meeting? Or is he not interested
+   right now at all? these will be the three options and will be the the option
+   as other will be written with the user."
+
+   Three named reasons and an OTHER that carries free text — the same shape the
+   product already uses for a closed list beside a typed value (VaultLink.type
+   beside its free-text category, ADR-070). The note is REQUIRED when the reason
+   is `other`: an "Other" with nothing written is a row that records that
+   somebody clicked a button. */
+export const POSTPONE_REASONS = [
+  "not_answering",
+  "no_show",
+  "not_interested_now",
+  "other",
+] as const;
+export type PostponeReason = (typeof POSTPONE_REASONS)[number];
+
+export const POSTPONE_REASON_LABELS: Record<PostponeReason, string> = {
+  not_answering: "Not answering at all",
+  no_show: "No show at the meeting",
+  not_interested_now: "Not interested right now",
+  other: "Other",
 };
 
 /* ---------------- field enums (SPEC §6.1, §6.2, §7.2) ---------------- */

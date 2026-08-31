@@ -15,6 +15,7 @@ export type RequiredGroup =
   | { group: "meeting_reschedule" } // T-7: new date & time on the existing meeting
   | { group: "proposal" }
   | { group: "lost" }
+  | { group: "postpone" } // ADR-072 — the three reasons + Other
   | { group: "won" } // internal Won fields (§6.2)
   | { group: "won_partner" } // §7.2 completeness gate fields
   | { group: "won_deal" } // V2 §4: milestone tab (percent + dated milestones)
@@ -84,6 +85,13 @@ export interface PipelineConfig {
   meetingStage: string;
   proposalStage: string | null; // partners has none (§7.2, ADR-010)
   negotiationStage?: string | null; // bsystems only (V2)
+  /* ADR-072 — the founder's "Postpone / Not answering" holding column. A SLOT,
+     absent on the pipelines that do not have it (the partners funnel, the
+     portal), exactly as `negotiationStage` and `didntAnswerStage` are. It is an
+     ORDINARY ACTIVE stage: it is deliberately NOT in `terminalStages`, which is
+     the whole of what "a lead can come back out of it" costs — the core already
+     offers every active action from any non-terminal stage. */
+  postponeStage?: string | null;
   didntAnswerStage: string | null; // partners only
   wonStage: string;
   lostStage: string;

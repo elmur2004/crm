@@ -721,10 +721,24 @@ describe("Prospect pipeline (§10.2) — one stage set, both kinds", () => {
 /* The prospect pipeline gained a `cancelledDestinations` SLOT. The three lead
    pipelines must answer exactly what the core used to compose for them. */
 describe("The lead pipelines are unchanged (§10.1 / V2 regression net)", () => {
-  it("cancelled-meeting destinations are still Following Up or Lost", () => {
+  it("cancelled-meeting destinations are Following Up, Postpone or Lost (ADR-072 added the middle one)", () => {
     for (const config of [internal, bsystems]) {
-      expect(config.cancelledDestinations("bsystems_admin")).toEqual(["following_up", "lost"]);
-      expect(config.cancelledDestinations("bsystems_agent")).toEqual(["following_up", "lost"]);
+      /* ADR-072 widened this pair by exactly one member, at the founder's
+         instruction: "no show in the meeting" is one of his three reasons to
+         park a lead, and a no-show is recorded as a CANCELLED meeting — so
+         Postpone has to be reachable from the outcome that records it. The
+         original two are untouched and still first, so every stored history
+         and every existing path keeps its meaning. */
+      expect(config.cancelledDestinations("bsystems_admin")).toEqual([
+        "following_up",
+        "postponed",
+        "lost",
+      ]);
+      expect(config.cancelledDestinations("bsystems_agent")).toEqual([
+        "following_up",
+        "postponed",
+        "lost",
+      ]);
       expect(config.followUpStage).toBe("following_up");
     }
     const cancelled = expectOk(
@@ -748,10 +762,13 @@ describe("The lead pipelines are unchanged (§10.1 / V2 regression net)", () => 
   });
 
   it("their next actions and attended destinations are the exact arrays they were", () => {
+    /* ADR-072 inserted `postponed` between the funnel and the terminal pair —
+       the only change to this array, and in the board's own column order. */
     expect(internal.nextActions("new", staff.role)).toEqual([
       "following_up",
       "meeting_setting",
       "sending_proposal",
+      "postponed",
       "won",
       "lost",
     ]);
@@ -921,5 +938,155 @@ describe("Same-stage records (founder)", () => {
 
     expect(bsystems.nextActions("won", admin.role)).toEqual([]);
     expect(bsystems.nextActions("lost", admin.role)).toEqual([]);
+  });
+});
+
+/* ============================================================================
+   ADR-072 — the "Postpone / Not answering" column.
+
+   Founder: "a column for all the leads that are falling out of the CRM — not
+   answering, not attending the meeting, no showing. When we move the lead
+   there, the pop up will be: is he not answering at all, or is he no show in
+   the meeting, or is he not interested right now at all?"
+
+   His decision on the shape of it: an ORDINARY ACTIVE stage, reversible. So the
+   assertions that matter are the ones about coming BACK OUT — a stage nobody
+   can leave is Lost wearing a different name.
+   ========================================================================== */
+describe("Postpone / Not answering (ADR-072)", () => {
+  it("is reachable from every active stage on both internal CRMs, and always asks why", () => {
+    for (const [config, ctx, stages] of [
+      [internal, staff, ["new", "following_up", "meeting_setting", "sending_proposal"]],
+      [
+        bsystems,
+        admin,
+        ["new", "following_up", "meeting_setting", "sending_proposal", "negotiation"],
+      ],
+    ] as const) {
+      for (const from of stages) {
+        expect(config.nextActions(from, ctx.role)).toContain("postponed");
+        const moved = expectOk(
+          transition(config, { stage: from }, { type: "next_action", action: "postponed" }, ctx),
+        );
+        expect(moved.toStage).toBe("postponed");
+        /* the popup is not optional: a park with no reason makes the column a
+           place leads vanish into rather than a list you can work back through */
+        expect(moved.requiredGroup).toEqual({ group: "postpone" });
+      }
+    }
+  });
+
+  it("IS NOT TERMINAL — a parked lead comes back out to every active stage", () => {
+    for (const [config, ctx] of [
+      [internal, staff],
+      [bsystems, admin],
+    ] as const) {
+      expect(config.terminalStages).not.toContain("postponed");
+      const out = config.nextActions("postponed", ctx.role);
+      expect(out).toContain("following_up");
+      expect(out).toContain("meeting_setting");
+      expect(out).toContain("lost");
+
+      const revived = expectOk(
+        transition(
+          config,
+          { stage: "postponed" },
+          { type: "next_action", action: "following_up" },
+          ctx,
+        ),
+      );
+      expect(revived.toStage).toBe("following_up");
+      /* the context is `initial`: the lead is not coming out of a meeting or a
+         proposal, it is coming off the shelf */
+      expect(revived.requiredGroup).toEqual({ group: "follow_up", context: "initial" });
+    }
+  });
+
+  it("a NO-SHOW parks the lead straight from the cancelled meeting outcome", () => {
+    for (const [config, ctx] of [
+      [internal, staff],
+      [bsystems, admin],
+    ] as const) {
+      const noShow = expectOk(
+        transition(
+          config,
+          { stage: "meeting_setting" },
+          { type: "meeting_outcome", outcome: "cancelled", destination: "postponed" },
+          ctx,
+        ),
+      );
+      expect(noShow.toStage).toBe("postponed");
+      expect(noShow.requiredGroup).toEqual({ group: "postpone" });
+    }
+  });
+
+  it("an ATTENDED meeting can never land in Postpone — that is what the outcome means", () => {
+    for (const [config, ctx] of [
+      [internal, staff],
+      [bsystems, admin],
+    ] as const) {
+      expect(config.attendedDestinations(ctx.role)).not.toContain("postponed");
+      expect(
+        transition(
+          config,
+          { stage: "meeting_setting" },
+          { type: "meeting_outcome", outcome: "attended", destination: "postponed" },
+          ctx,
+        ).ok,
+      ).toBe(false);
+    }
+  });
+
+  it("the partners funnel and the portal never gain it", () => {
+    /* the founder scoped this to the two internal CRMs; a stage that appears on
+       a board nobody asked for is a column somebody has to explain */
+    for (const config of [partners, agents]) {
+      expect(config.postponeStage ?? null).toBeNull();
+      expect(config.stages).not.toContain("postponed");
+      expect(config.nextActions("lead", admin.role)).not.toContain("postponed");
+    }
+  });
+
+  it("it sits before the terminal pair, so every active stage still precedes Won and Lost", () => {
+    for (const config of [internal, bsystems]) {
+      const order = [...config.stages];
+      expect(order).toContain("postponed");
+      for (const terminal of config.terminalStages) {
+        expect(order.indexOf("postponed")).toBeLessThan(order.indexOf(terminal));
+      }
+    }
+  });
+
+  it("a DRAG into the column is the same move as the action — the popup opens either way", () => {
+    /* "when we move the lead there, the pop up will be…" — and on these boards
+       moving is usually dragging. Both internal pipelines have dragEnabled, so
+       the drop has to be validated exactly like the next action, or the founder
+       gets the column he asked for and a silent park with no reason. */
+    for (const [config, ctx] of [
+      [internal, staff],
+      [bsystems, admin],
+    ] as const) {
+      const dropped = expectOk(
+        transition(config, { stage: "following_up" }, { type: "drag", to: "postponed" }, ctx),
+      );
+      expect(dropped.toStage).toBe("postponed");
+      expect(dropped.requiredGroup).toEqual({ group: "postpone" });
+
+      /* and back out again by drag, which is how a lead leaves the shelf */
+      const dragBack = expectOk(
+        transition(config, { stage: "postponed" }, { type: "drag", to: "meeting_setting" }, ctx),
+      );
+      expect(dragBack.toStage).toBe("meeting_setting");
+      expect(dragBack.requiredGroup).toEqual({ group: "meeting" });
+    }
+  });
+
+  it("requiredGroupForTarget answers `postpone` for the stage and nothing else does", () => {
+    for (const config of [internal, bsystems]) {
+      expect(requiredGroupForTarget(config, "following_up", "postponed")).toEqual({
+        group: "postpone",
+      });
+      expect(requiredGroupForTarget(config, "postponed", "lost")).toEqual({ group: "lost" });
+    }
   });
 });

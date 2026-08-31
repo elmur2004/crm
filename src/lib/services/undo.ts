@@ -42,6 +42,7 @@ export type CreatedRef =
   | { model: "meeting"; id: string }
   | { model: "proposal"; id: string }
   | { model: "lostInfo"; id: string }
+  | { model: "postponeInfo"; id: string } // ADR-072
   | { model: "wonInfo"; id: string }
   | { model: "negotiationNote"; id: string };
 
@@ -418,6 +419,12 @@ async function deleteCreated(tx: Prisma.TransactionClient, created: CreatedRef[]
         break;
       case "lostInfo":
         await tx.lostInfo.deleteMany({ where: { id: ref.id } });
+        break;
+      /* ADR-072 — undoing a park removes its reason row too, or the lead comes
+         back to Following Up carrying a record of a postponement that no longer
+         happened. */
+      case "postponeInfo":
+        await tx.postponeInfo.deleteMany({ where: { id: ref.id } });
         break;
       case "wonInfo":
         await tx.wonInfo.deleteMany({ where: { id: ref.id } });

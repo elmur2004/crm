@@ -3,6 +3,7 @@ import {
   FOLLOW_UP_METHODS,
   IMPORTANCE_LEVELS,
   MEETING_MODES,
+  POSTPONE_REASONS,
 } from "@/lib/pipeline-engine/constants";
 import { cairoToUtc, utcToCairo } from "@/lib/datetime";
 import { MAX_PIASTERS } from "@/lib/money";
@@ -99,6 +100,25 @@ export const proposalSchema = z.object({
   sent: z.boolean().default(false),
 });
 export type ProposalInput = z.infer<typeof proposalSchema>;
+
+/* ADR-072 — the popup the founder described, in Zod.
+
+   Three named reasons and `other`, with the free text REQUIRED when `other` is
+   chosen: an "Other" carrying nothing records only that somebody pressed a
+   button, and the whole point of the column is that you can work back through
+   it. The note is optional on the three named reasons — a no-show is already
+   fully described by its name, and forcing a sentence would get "asd" typed
+   into it. */
+export const postponeSchema = z
+  .object({
+    reason: z.enum(POSTPONE_REASONS),
+    note: z.string().trim().max(1000).optional(),
+  })
+  .refine((v) => v.reason !== "other" || Boolean(v.note), {
+    message: "Say what the reason is",
+    path: ["note"],
+  });
+export type PostponeInput = z.infer<typeof postponeSchema>;
 
 export const lostSchema = z.object({
   reason: z.string().min(1, "A reason is required").max(1000),
@@ -270,6 +290,7 @@ export const groupPayloadSchema = z.discriminatedUnion("group", [
   z.object({ group: z.literal("meeting_reschedule"), data: meetingRescheduleSchema }),
   z.object({ group: z.literal("proposal"), data: proposalSchema }),
   z.object({ group: z.literal("lost"), data: lostSchema }),
+  z.object({ group: z.literal("postpone"), data: postponeSchema }), // ADR-072
   z.object({ group: z.literal("won"), data: wonSchema }),
   z.object({ group: z.literal("won_partner"), data: wonPartnerSchema }),
   z.object({ group: z.literal("won_deal"), data: wonDealSchema }),

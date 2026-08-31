@@ -165,6 +165,7 @@ model Lead {
   meetings     Meeting[]
   proposals    Proposal[]
   lostInfo     LostInfo[]
+  postponeInfos PostponeInfo[] // ADR-072
   negotiationNotes NegotiationNote[]
   wonInfo      WonInfo?
   client       Client?
@@ -302,6 +303,31 @@ model LostInfo {
   createdAt         DateTime         @default(now())
 }
 
+/* ADR-072 — why a lead was PARKED in "Postpone / Not answering".
+
+   Built in LostInfo's image, one column wider: a closed `reason` (his three,
+   plus `other`) and the free text `other` carries. Like every other field group
+   it ACCUMULATES (§5.2) — a lead parked, revived and parked again keeps both
+   rows, so "he went quiet twice before he bought" is answerable.
+
+   Not a column on Lead, for the reason §5.2 gives for all of them: history is
+   the point. And not merged into LostInfo, because postponed is an ACTIVE stage
+   and lost is terminal — one row says "not now", the other says "never", and a
+   shared table would make the distinction a matter of reading the lead's
+   current stage. */
+model PostponeInfo {
+  id                String           @id @default(cuid())
+  leadId            String?
+  partnerProspectId String?
+  reason            String // not_answering | no_show | not_interested_now | other
+  note              String? // required by Zod when reason = other
+  lead              Lead?            @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  prospect          PartnerProspect? @relation(fields: [partnerProspectId], references: [id], onDelete: Cascade)
+  createdAt         DateTime         @default(now())
+
+  @@index([leadId])
+}
+
 model NegotiationNote {
   // V2 §1 — the negotiation stage's group (note per entry, accumulates)
   id        String   @id @default(cuid())
@@ -382,6 +408,7 @@ model PartnerProspect {
   followUps           FollowUp[]
   meetings            Meeting[]
   lostInfo            LostInfo[]
+  postponeInfos PostponeInfo[] // ADR-072 (relation only; the funnel has no such stage)
   // every Attachment hanging off this card: cold-call recordings AND, for an
   // agent card, the CV collected at creation (queries filter by `kind`)
   recordings          Attachment[]

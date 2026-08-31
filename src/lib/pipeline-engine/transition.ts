@@ -71,6 +71,11 @@ export function requiredGroupForTarget(
   if (toStage === config.meetingStage) return { group: "meeting" };
   if (config.proposalStage && toStage === config.proposalStage) return { group: "proposal" };
   if (toStage === config.lostStage) return { group: "lost" };
+  /* ADR-072 — parking a lead ASKS WHY, every time. The founder described the
+     popup before he described the column, and a move that recorded no reason
+     would make the column a place leads vanish into rather than a list you can
+     work back through. */
+  if (config.postponeStage && toStage === config.postponeStage) return { group: "postpone" };
   if (config.negotiationStage && toStage === config.negotiationStage) {
     return { group: "negotiation" }; // V2 — a note entry
   }

@@ -34,6 +34,7 @@ export async function resetDb(): Promise<void> {
   await db.meeting.deleteMany();
   await db.proposal.deleteMany();
   await db.lostInfo.deleteMany();
+  await db.postponeInfo.deleteMany(); // ADR-072
   await db.wonInfo.deleteMany();
   await db.client.deleteMany();
   await db.notification.deleteMany();

@@ -549,6 +549,7 @@ export async function getLeadDetail(brand: Brand, leadId: string) {
       meetings: { orderBy: { createdAt: "asc" } },
       proposals: { orderBy: { createdAt: "asc" } },
       lostInfo: { orderBy: { createdAt: "asc" } },
+      postponeInfos: { orderBy: { createdAt: "asc" } }, // ADR-072
       wonInfo: true,
       client: true,
     },
@@ -709,15 +710,26 @@ export async function applyLeadEvent(opts: {
          reached — the "didn't answer" marker clears itself with the move.
          The cleared row is logged only when the flag was actually set.
          ADR-064: the TALLY goes with it — the story moved on, so the next
-         attempt count starts fresh. Undo puts the old number back. */
+         attempt count starts fresh. Undo puts the old number back.
+
+         ADR-072 — WITH ONE EXCEPTION, and it is the founder's own: a move into
+         "Postpone / Not answering" signals the exact OPPOSITE of being reached.
+         Its first named reason IS "not answering at all", so clearing the tally
+         here would erase "we tried him five times" at the precise moment that
+         number becomes the reason the lead is being parked — destroying what
+         ADR-064 exists to record ("so we can know how many times we tried").
+         He was asked and chose to keep both: the counter counts the attempts,
+         the column parks the lead. Every other destination is untouched. */
+      const stillUnreached = config.postponeStage && result.toStage === config.postponeStage;
+      const clearNoAnswer = fresh.noAnswer && !stillUnreached;
       await tx.lead.update({
         where: { id: lead.id },
         data: {
           stage: result.toStage,
-          ...(fresh.noAnswer ? { noAnswer: false, noAnswerCount: 0 } : {}),
+          ...(clearNoAnswer ? { noAnswer: false, noAnswerCount: 0 } : {}),
         },
       });
-      if (fresh.noAnswer) {
+      if (clearNoAnswer) {
         await writeLog(tx, {
           entityType: "lead",
           entityId: lead.id,
@@ -936,6 +948,14 @@ export async function persistGroup(
       },
     });
     writes.created.push({ model: "meeting", id: row.id });
+  } else if (payload.group === "postpone" && group === "postpone") {
+    /* ADR-072 — the reason a lead was parked, kept as a ROW so it accumulates
+       (§5.2). A lead parked twice keeps both, which is the whole reason the
+       column is worth having rather than a flag. */
+    const row = await tx.postponeInfo.create({
+      data: { ...parent, reason: payload.data.reason, note: payload.data.note || null },
+    });
+    writes.created.push({ model: "postponeInfo", id: row.id });
   } else if (payload.group === "meeting_reschedule" && group === "meeting_reschedule") {
     const key = parent.leadId
       ? { leadId: parent.leadId }
