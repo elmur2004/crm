@@ -40,6 +40,7 @@ import { undoLabels } from "@/lib/i18n/dict/undo";
    this whole module in to get it. Re-exported here so existing importers and the
    engine's own tests keep their address. */
 import { configForBrand } from "@/lib/pipeline-engine/configs/for-brand";
+import { rolesForCompany } from "./calendar";
 export { configForBrand };
 
 /* Lead lifecycle for Apps A & B (§6.1–§6.4, §10.1). applyLeadEvent is the single
@@ -892,6 +893,31 @@ export async function persistGroup(
     });
     writes.created.push({ model: "followUp", id: row.id });
   } else if (payload.group === "meeting" && group === "meeting") {
+    /* ADR-071 — "Also blocks". The submitted ids are NARROWED here, in the same
+       transaction that writes the meeting: only ACTIVE accounts that actually
+       hold a role in this record's company may be marked, so a stale tab or a
+       hand-rolled payload cannot make a B-Systems meeting occupy a
+       ByteForce-only account and surface it on the other company's grid.
+       Unknown ids are dropped rather than rejected — the meeting itself is the
+       thing being saved, and refusing the whole stage transition over one stale
+       name in a picker would be the wrong trade. */
+    const askedAttendees = [...new Set(payload.data.attendeeUserIds ?? [])];
+    let attendeeIds: string[] = [];
+    if (askedAttendees.length > 0 && parent.leadId) {
+      const lead = await tx.lead.findUnique({
+        where: { id: parent.leadId },
+        select: { brand: true },
+      });
+      /* the SAME predicate the calendar's roster is built from — imported,
+         not retyped, so "who is in this company" cannot drift between the form
+         that offers the names and the grid that draws their time */
+      const roles = rolesForCompany((lead?.brand ?? "bsystems") as Brand);
+      const allowed = await tx.user.findMany({
+        where: { id: { in: askedAttendees }, active: true, roles: { some: { role: { in: roles } } } },
+        select: { id: true },
+      });
+      attendeeIds = allowed.map((u) => u.id);
+    }
     const row = await tx.meeting.create({
       data: {
         ...parent,
@@ -903,6 +929,10 @@ export async function persistGroup(
         mode: payload.data.mode ?? null,
         withAttendees: payload.data.withAttendees ?? null,
         technicalSupport: payload.data.technicalSupport ?? null,
+        attendees:
+          attendeeIds.length > 0
+            ? { create: attendeeIds.map((userId) => ({ userId })) }
+            : undefined,
       },
     });
     writes.created.push({ model: "meeting", id: row.id });

@@ -30,6 +30,7 @@ export async function resetDb(): Promise<void> {
   await db.milestone.deleteMany();
   await db.wonDeal.deleteMany();
   await db.followUp.deleteMany();
+  await db.meetingAttendee.deleteMany(); // ADR-071 — references Meeting + User, before both
   await db.meeting.deleteMany();
   await db.proposal.deleteMany();
   await db.lostInfo.deleteMany();
@@ -44,6 +45,7 @@ export async function resetDb(): Promise<void> {
   await db.partnerProspect.deleteMany();
   await db.portalRep.deleteMany();
   await db.salesRep.deleteMany();
+  await db.calendarEvent.deleteMany(); // ADR-071 — references User, before it
   await db.userRole.deleteMany();
   await db.user.deleteMany();
 }

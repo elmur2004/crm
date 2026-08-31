@@ -74,6 +74,11 @@ model User {
   pushSubscriptions PushSubscription[]
   leadComments  LeadComment[]  @relation("CommentAuthor")
   todoCompletions TodoDone[]   @relation("TodoCompleter") // ADR-062 — marks this user checked
+  /* ADR-071 — the calendar. `calendarEvents` are the person's OWN entries;
+     `meetingAttendance` are the CRM meetings that were marked as needing them.
+     Both cascade: a deleted account occupies nobody's time. */
+  calendarEvents    CalendarEvent[]   @relation("CalendarOwner")
+  meetingAttendance MeetingAttendee[] @relation("MeetingAttendee")
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
 }
@@ -216,7 +221,62 @@ model Meeting {
   lead               Lead?            @relation(fields: [leadId], references: [id], onDelete: Cascade)
   prospect           PartnerProspect? @relation(fields: [partnerProspectId], references: [id], onDelete: Cascade)
   todoDone           TodoDone? // ADR-062 — manual To-Do completion mark
+  /* ADR-071 — WHOSE TIME this meeting occupies, beyond the lead's owner.
+     Founder: "let's say whenever X is setting a meeting and Y has to be in
+     this meeting". Without this the calendar can only ever show the OWNER as
+     busy, so the one case he described — checking whether the colleague he
+     needs is free — is the one case it could not answer. */
+  attendees          MeetingAttendee[]
   createdAt          DateTime         @default(now())
+}
+
+/* ADR-071 — the join that makes a meeting occupy a PERSON.
+
+   Deliberately a table and not a string column: `technicalSupport` beside it is
+   free text, and the calendar's whole job is to answer "is this ACCOUNT busy",
+   which a typed name cannot do. Cascade on both sides — a deleted meeting has
+   no attendees, and a deleted account must stop occupying anyone's calendar. */
+model MeetingAttendee {
+  meetingId String
+  userId    String
+  meeting   Meeting  @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  user      User     @relation("MeetingAttendee", fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@id([meetingId, userId])
+  @@index([userId])
+}
+
+/* ADR-071 — a PERSONAL entry on the calendar.
+
+   Founder: "the ability for every single user to add their own schedule on the
+   calendar... it's a personal stuff, another offline meeting or something."
+   It belongs to a PERSON, not to a company: a dentist appointment is not a
+   B-Systems record, and scoping it by company would make the same hour read
+   free under one label and busy under the other. So there is no `brand` column
+   here on purpose — the company decides WHOSE entries you are shown (the
+   roster of the company you are switched to), never whose time is real.
+
+   `shared` is the founder's per-event visibility, and it is FALSE by default:
+   a colleague reads "Busy · Ahmed" unless the owner deliberately ticks the box
+   that names it. Default-private is the only default that cannot leak by
+   accident, and it is the one decision here that a wrong guess makes
+   embarrassing rather than merely wrong. */
+model CalendarEvent {
+  id        String   @id @default(cuid())
+  userId    String
+  title     String
+  note      String?
+  startsAt  DateTime
+  endsAt    DateTime
+  allDay    Boolean  @default(false)
+  shared    Boolean  @default(false)
+  user      User     @relation("CalendarOwner", fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, startsAt])
+  @@index([startsAt])
 }
 
 model Proposal {

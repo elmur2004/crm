@@ -69,6 +69,23 @@ export function utcToCairo(instant: Date): { date: string; time: string } {
   return { date: `${y}-${pad(m)}-${pad(d)}`, time: `${pad(hh)}:${pad(mm)}` };
 }
 
+/** The first UTC instant that falls on a given Cairo calendar date.
+
+    Egypt's spring-forward jumps AT midnight, so 00:00 may not exist on the
+    transition day — the solver then lands on 23:00 of the EVE, silently
+    stealing the eve's last hour into the next day's window. Clamp to the first
+    instant that actually falls on the requested date (the post-jump 01:00; DST
+    jumps are one hour).
+
+    Lived privately in services/todo.ts until ADR-071 needed the identical clamp
+    for the calendar's month window. One copy, so a second reader cannot drift
+    from the first. */
+export function startOfCairoDay(date: string): Date {
+  let start = cairoToUtc(date, "00:00");
+  if (utcToCairo(start).date !== date) start = new Date(start.getTime() + 60 * 60 * 1000);
+  return start;
+}
+
 /** Do two UTC instants fall on the same CAIRO calendar day? The comparison
     goes through utcToCairo — never a local-timezone Date part — so it stays
     right on the machine of a viewer anywhere in the world and across Egypt's
@@ -166,6 +183,20 @@ export function formatCairo(
     render through here, and must never grow a "2:00 AM" out of a UTC midnight. */
 export function formatCairoDate(instant: Date | null | undefined, locale: Locale): string {
   return formatCairo(instant, locale, false);
+}
+
+/** The clock ALONE — "2:30 PM" / "2:30 م". The calendar's chips (ADR-071) sit
+    in a cell that already states its date, so repeating it would spend the only
+    horizontal room the chip has on something the reader can see above it.
+    Routed through the same `render`, so it is the same twelve-hour clock as
+    every other time in the product rather than a second one. */
+export function formatCairoTime(instant: Date, locale: Locale): string {
+  return render(displayFmt(locale, TIME_OPTS, "t"), instant, locale);
+}
+
+/** Month and year — "August 2026" / "أغسطس 2026". The calendar's title. */
+export function formatCairoMonth(instant: Date, locale: Locale): string {
+  return render(displayFmt(locale, { month: "long", year: "numeric" }, "my"), instant, locale);
 }
 
 /** The short stamp the lead chat wants — day, month, clock; no year. Lives here

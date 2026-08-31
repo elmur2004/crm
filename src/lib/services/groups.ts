@@ -72,6 +72,15 @@ export const meetingSchema = z
     withAttendees: z.string().max(300).optional(),
     technicalSupport: z.string().max(200).optional(),
     needsTechnical: z.boolean().optional(), // V2 §3 agent question
+    /* ADR-071 — "Also blocks": the ACCOUNTS this meeting occupies, beyond the
+       lead's owner. Founder: "whenever X is setting a meeting and Y has to be
+       in this meeting, X will look at the calendar and see if Y has any other
+       meetings." Optional and defaulting to nothing, so every existing caller,
+       test and stored payload stays valid byte-for-byte; `withAttendees` and
+       `technicalSupport` above are untouched free text and keep meaning exactly
+       what they meant. The ids are narrowed to the company's own roster where
+       they are written (persistGroup), never trusted from the wire. */
+    attendeeUserIds: z.array(z.string().min(1)).max(20).optional(),
   })
   .refine((m) => !m.arranged || (m.date && m.time && m.mode), {
     message: "An arranged meeting needs date, time and mode",

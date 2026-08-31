@@ -5,7 +5,7 @@ import {
   datedStagesFor,
   followUpStagesFor,
 } from "@/lib/pipeline-engine/configs/for-brand";
-import { cairoToUtc, utcToCairo } from "@/lib/datetime";
+import { startOfCairoDay, utcToCairo } from "@/lib/datetime";
 
 /* Founder (ADR-041) — the To-Do page: "the actual date of today with the
    entire tasks of today... just a way of representing what I have to do today,
@@ -120,16 +120,10 @@ export interface TodoLists {
   done: TodoDoneItem[];
 }
 
-/* Hardening (review): Egypt's spring-forward jumps AT midnight, so 00:00 may
-   not exist on the transition day — the datetime solver then lands on 23:00 of
-   the EVE, silently stealing the eve's last hour into the next day's window.
-   Clamp to the first instant that actually falls on the requested date (the
-   post-jump 01:00; DST jumps are one hour). */
-function startOfCairoDay(date: string): Date {
-  let start = cairoToUtc(date, "00:00");
-  if (utcToCairo(start).date !== date) start = new Date(start.getTime() + 60 * 60 * 1000);
-  return start;
-}
+/* The midnight-DST clamp this file introduced moved to lib/datetime (ADR-071),
+   because the calendar's month window needs the identical one and two copies
+   of a DST correction is two chances to fix only one of them. Behaviour is
+   unchanged — same body, same call sites. */
 
 /** [start, end) of the Cairo calendar day containing `now`, as UTC instants. */
 export function cairoDayWindow(now: Date): { start: Date; end: Date } {
