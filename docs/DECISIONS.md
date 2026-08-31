@@ -5256,3 +5256,196 @@ notes had accepted as harmless, was checked against a live cluster before it was
 believed.
 
 - Status: Accepted. The two founder-confirmation items above are unchanged.
+
+---
+
+## ADR-071 — 2026-08-31 — THE CALENDAR: the CRM's meetings and each person's own time on one grid, where everybody else's hours read only as BUSY
+
+- Context — the founder, verbatim:
+
+  > The calendar is a page, a new page, which takes all the meetings that is
+  > from the meeting settings in the CRM and put it in a calendar, with the
+  > ability for every single user to add their own schedule on the calendar.
+  > So let's say whenever X is sitting a meeting and Y has to be with in this
+  > meeting, the X will look at the calendar and see if Y has any other
+  > meetings other than the CRM. It's a personal stuff. It's another offline
+  > meeting or something. So all of these meetings could be added individually
+  > through the portal or through the calendar, and it is automatically getting
+  > every single meeting from the meeting setting column in the CRM.
+
+  And, on the look of it:
+
+  > Sample calendar UI, using also the brand and everything, but nothing crazy.
+  > Just the sample UI, good looking, creatively sound, but not that crazy. And
+  > of course it has to be functional with the buttons and everything.
+
+  The ask contains a collision the CRM has never had to answer. **SPEC §3 is a
+  hard, server-side rule** — an agent or partner may never read another's leads,
+  and the To-Do, the boards and every list have enforced it since v1. A calendar
+  that put every meeting on one screen would repeal that rule on one page while
+  every other page still kept it. But refusing to show a colleague's time would
+  refuse the founder the one thing he actually asked for: *is Y free at three?*
+
+  Four decisions were put to him before a line was written. He took the
+  recommended option on all four.
+
+### 1. What X sees of Y's day: BUSY BLOCKS, never detail he does not already hold
+
+Every entry carries a **detail level**, decided in `services/calendar.ts` and
+never in a component:
+
+- **`full`** — the viewer's EXISTING scope already reaches this record. The same
+  wall as `requireLeadAccess` and the To-Do's `leadWhere`, not a second one:
+  admin all, sales the internal bucket, agent/partner their own, ByteForce staff
+  every ByteForce lead.
+- **`busy`** — a time and a name. No title, no href, no note, no lead id, no
+  mode, no outcome.
+
+A busy entry is **built**, not stripped: `busyMeeting` and `busyPersonal`
+construct the object with those fields null, so a field that has to be REMOVED —
+the kind that survives the day somebody adds a new call site — does not exist
+here. `calendar.integration.test.ts` asserts the negative directly, and every
+case seeds somebody ELSE's record first: a test that seeded only the viewer's
+own rows would pass just as happily against a service with no scope predicate at
+all, which is exactly the bug worth catching.
+
+**Nobody gains a byte.** The calendar reads the same records under the same
+wall and answers a narrower question about the ones it may not show. Same shape
+of argument as ADR-067's `companiesFor` ("NARROWING ONLY — never a grant") and
+ADR-066's `canUseModule`: the interesting property is what the function CANNOT
+return.
+
+### 2. A personal entry is PRIVATE by default, with a per-entry toggle
+
+`CalendarEvent.shared` defaults to **false**. A colleague reads *"Busy ·
+Ahmed"* until Ahmed deliberately ticks *"Let the team see what this is"*, which
+names the entry — and only names it. **The note is never published**: the
+founder described the toggle as saying what an entry is, not as opening the memo
+inside it, so `note` comes back only to its owner.
+
+Default-private is the only default whose wrong guess is merely unhelpful. The
+other direction publishes a doctor's appointment to the whole company and cannot
+be taken back.
+
+The flag round-trips to the owner's edit form (`shared: boolean | null` — the
+value for an entry you own, null for everybody else's). Without that, a form
+that could not read the current value would re-submit the default and quietly
+un-share an entry every time its owner fixed a typo in it.
+
+### 3. Who may open it: every CRM role EXCEPT data entry, company-scoped
+
+`CALENDAR_ROLES` is declared once and imported by BOTH the page guard and the
+API routes, so the screen and the endpoint cannot drift into disagreeing about
+who is allowed in. ADR-051 gave `bsystems_data_entry` exactly one destination,
+and a capability it never had must not arrive through the side door of a new
+page.
+
+The page follows ADR-067 exactly: one address, `/b-systems/calendar`, the
+company on the URL as `?company=`, and — because `nav.test.ts` reads this file
+and would catch its absence — an explicit `company === "byteforce"` branch, so a
+ByteForce teammate is never dropped into the B-Systems role narrowing that does
+not include him.
+
+**The month is a URL too** (`?y=&m=`), not client state: a month is
+bookmarkable and forwardable, and the server re-queries rather than the grid
+holding a second copy of the calendar. Only the selected day and the person
+filter are client state — both are ways of looking at data already on the page,
+and a round trip for either would make the grid feel broken.
+
+### 4. "ALSO BLOCKS" — the half that makes X and Y actually work
+
+Until this existed a meeting could only ever occupy its **lead's owner**, so the
+one case the founder described — checking the colleague he needs — was the one
+case the calendar could not answer. `technicalSupport`, sitting on the same
+form, cannot be it: it is free text, and a typed name is not an account.
+
+So `MeetingAttendee` is a table, and the Meeting Setting form grows an optional
+picker under Technical support. Deliberately **checkboxes, not a
+`<select multiple>`**: a native multi-select needs a ctrl-click to add a second
+name and silently drops the first without it, which on a form that submits once
+is a mistake you discover on the day of the meeting.
+
+`attendeeUserIds` is **optional** in `meetingSchema` and sent as `undefined` when
+empty, so every existing caller, test and stored payload stays valid
+byte-for-byte. The ids are **narrowed where they are written**, inside the same
+transaction as the meeting: only active accounts holding a role in that
+record's company survive, so a stale tab cannot make a B-Systems meeting occupy
+a ByteForce-only account. Unknown ids are dropped rather than rejected — the
+meeting is the thing being saved, and failing a whole stage transition over one
+stale name in a picker is the wrong trade.
+
+### What the calendar deliberately does NOT show
+
+- **Unarranged meetings.** SPEC §6.2's line between an agreed meeting and the
+  agent flow's merely proposed slot. A proposal is not yet anybody's commitment
+  and must not make a person look busy.
+- **The partner/agent funnel.** ADR-061's exclusion, inherited rather than
+  re-litigated: prospect meetings project onto neither the To-Do nor this grid.
+- **Archived leads**, and **the other company's meetings**.
+- **An out-of-scope meeting that occupies nobody.** A hatched block against no
+  name tells the viewer nothing and would leak only that the company had a
+  meeting at all.
+
+### Smaller decisions, recorded so they are not re-guessed
+
+- **`CalendarEvent` has no company column.** A dentist appointment is not a
+  B-Systems record, and a company-scoped personal entry would make the same hour
+  read free under one label and busy under the other. The company decides WHOSE
+  entries you are shown — the roster of the company you are switched to — never
+  whose time is real.
+- **A personal entry is HARD-deleted**, the one place this codebase parts
+  company with ADR-053's "nothing is ever deleted". There is no audit question
+  about somebody's private appointment, and an entry its owner removed must stop
+  occupying their time on everybody else's screen — which a soft-hidden row
+  would keep doing unless every reader remembered the flag.
+- **A meeting has no duration**, so the grid draws every one as the same nominal
+  hour (`MEETING_BLOCK_MINUTES`). Nothing reads it back. Inventing a column SPEC
+  §6.2 never asked for would put a field on his form he has to fill for no
+  reason.
+- **Editing or deleting somebody else's entry answers 404, not 403.** A 403
+  confirms the id exists and tells an enumerating caller which of its guesses
+  were real. There is **no admin override**: an admin may see that a colleague is
+  busy — that is the calendar's whole job — but may not rewrite or delete private
+  time.
+- **The week starts on SUNDAY.** Egypt works Sunday–Thursday, so a Sunday-first
+  grid puts the five working days first and the weekend in the last two columns.
+  (`ar-EG`'s CLDR first-day is Saturday — that is the civil week, not the working
+  one, and it splits the weekend across both edges of the row.)
+- **The month cells are buttons; the chips inside them are inert spans.** An
+  anchor inside a button is invalid HTML and traps keyboard users, so every link
+  and action lives in the day panel below — which is also the only place with
+  room to say what a thing is.
+- **`startOfCairoDay` moved from `services/todo.ts` to `lib/datetime.ts`.** The
+  month window needs the identical midnight-DST clamp, and two copies of a DST
+  correction is two chances to fix only one of them. Same body, same behaviour,
+  same call sites.
+- **`/api/calendar/**` is its own namespace**, not `/api/b-systems` or
+  `/api/byteforce`. Those two exist to refuse a caller from the other company —
+  the wall is the ROUTE, never a parameter — but a personal entry has no company,
+  and a company-namespaced endpoint would have forced an answer to a question
+  this record does not ask. The owner is taken from the session inside the
+  service; there is no `userId` on the wire for a caller to set.
+
+- Consequences: one new page, two new tables, three new endpoints and one new
+  optional field on an existing group schema. No transition row in SPEC §10
+  changes, no existing string changes, and no role gains access to anything it
+  did not already hold.
+
+- Status: Accepted. **Needs founder confirmation (four):**
+  1. **Availability does not cross the company switch.** Someone holding BOTH
+     companies (today: the founder and any dual-role admin) reads free under one
+     label while busy under the other. Showing busy blocks across both would leak
+     only "this person is occupied at this hour" and nothing about either
+     company's data — but it IS new information crossing a wall this codebase
+     treats as a permission, so it was not taken without him.
+  2. **Partner/agent pipeline meetings are absent**, inheriting ADR-061. Those
+     are real commitments for availability purposes even though they are not
+     To-Do rows, and including them is a one-line change to the projection.
+  3. **The picker is on the B-Systems meeting forms only.** The ByteForce
+     internal form (`components/internal/LeadEventPanel`) and the portal/agent
+     form still submit no `attendeeUserIds` — valid, since the field is optional,
+     but a ByteForce meeting can therefore only ever occupy its lead's owner.
+  4. **"Added through the portal"** was read as the CRM shell, not App C. Agents
+     and partners get the calendar inside the merged shell, which is where they
+     already work; a second surface under `/portal` is a separate route, guard
+     and e2e set.

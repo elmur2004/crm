@@ -4439,3 +4439,193 @@ it.
 **PASS** on the final tree: tsc clean, full vitest 735/735, full Playwright
 140 passed / 2 skipped / 0 failed with `.last-run.json` agreeing, brand PASS, and
 the migration re-proved from a virgin cluster twice over.
+
+## Run 086 — 2026-08-31 — ADR-071: the CALENDAR — full vitest on the final tree, a new e2e spec, migration proved
+
+**Scope.** One feature in one working tree: the calendar page, the two new
+tables, the three endpoints, the "Also blocks" picker on the B-Systems meeting
+form, and one refactor (`startOfCairoDay` moved into `lib/datetime`). The gate
+is the FULL vitest suite, a production `next build`, a new Playwright spec, and
+the migration proved against a live catalogue.
+
+### The session opened with a false alarm, worth recording
+The first `npx tsc --noEmit` of the session printed a page of errors —
+`whatsappSentAt` missing from a dozen component prop types, `implicitly has an
+'any' type` across two vault pages. **None was real and none was mine.** The
+working copy had just been pulled 20 commits forward and the generated Prisma
+client was still the pre-pull one; `prisma generate` cleared every one of them.
+
+Worth writing down because the failure mode is indistinguishable from a genuine
+breakage at a glance, and the reflex — start "fixing" the reported files — would
+have corrupted eight healthy files. **After a pull that carries migrations,
+regenerate before believing the typechecker.**
+
+### Unit + integration — the FULL suite on the final tree
+
+```
+npx tsc --noEmit          clean (source)
+npx vitest run            49 files / 767 tests — 767 passed, 0 failed
+npx next build            compiled successfully; 4 new routes registered
+```
+
+The `.next/**` type errors that survived `tsc` were **stale build artifacts**
+naming `src/app/(byteforce)/…`, a route group the pulled ADR-067 merge deleted.
+Removing `.next/dev` and `.next/types` cleared them and the build regenerated
+both.
+
+**New coverage — 30 cases in two files:**
+
+| File | Cases | What it pins |
+|---|---|---|
+| `calendar-grid.test.ts` | 12 | whole weeks Sunday-first across all twelve months; in-month marking; leap and common February; the half-open `[from, to)` window; no gap and no repeat across Egypt's DST month; month/year rollover in both directions; `parseMonth` refusing junk, out-of-range values, a repeated `?y=` parameter and a fuzzed `99999999` |
+| `calendar.integration.test.ts` | 18 | the privacy wall, from the negative side |
+
+**Every case in the integration file seeds somebody ELSE's record first.** A
+test that seeded only the viewer's own rows would pass just as happily against a
+service with no scope predicate at all — which is the bug worth catching, so the
+assertions that matter are about what is ABSENT:
+
+```
+expectTellsNothing(entry):
+  detail === "busy"
+  title  === null      href    === null      note === null
+  leadId === null      mode    === null      outcome === null
+  shared === null      mine    === false
+  people.length > 0        ← what it DOES carry: whose time it is
+```
+
+Proved through it: an agent reads another agent's meeting as busy and their own
+in full; the admin reads both in full while internal sales reads an agent-owned
+lead as busy; an unarranged meeting, an archived lead's meeting, the other
+company's meetings and an out-of-scope meeting occupying nobody all project
+nothing; a colleague's private entry withholds its title, a shared one gives its
+title but never its note and never how the owner set the toggle; an all-day
+entry's half-open end covers the 9th and not the 10th; a person outside the
+company's roster is invisible; "Also blocks" puts a meeting on a non-owner's
+calendar without ever widening what a stranger can read; owner + attendee never
+double-list; editing or deleting somebody else's entry answers **404**, and a
+backwards window answers 400.
+
+### One real failure, caught by the suite rather than by reading
+`nav.test.ts` reads each nav href's page file and requires a literal
+`company === "byteforce"` branch. The first draft of the calendar page branched
+on `"bsystems"` instead — functionally identical, and the test's reasoning is
+sound: without the explicit branch a shared page would fall through to the
+B-Systems role narrowing and bounce every ByteForce teammate off the nav item he
+was just handed. The page now handles ByteForce explicitly. **767/767 after.**
+
+### Four bugs caught before any of them could ship — three by re-reading, one by the e2e
+
+1. **The edit form would have silently un-shared an entry.** The service did not
+   return `shared`, so re-saving an entry to fix a typo posted the form's default
+   (`false`) and quietly made a shared entry private again. Fixed: `shared` comes
+   back as `boolean` for an entry the viewer OWNS and `null` for everybody
+   else's — a round trip that also refuses to tell anyone how a colleague set
+   their own toggle. Pinned by two integration cases.
+2. **Paging months would have stranded the day panel.** `selected` was
+   `useState`-initialised, and moving to another month is a server navigation
+   with the *same* component — so React keeps the state and the initial value is
+   never re-applied. September's grid would have sat above a panel reading
+   "Nothing on this day" over an August date. Fixed with React's documented
+   adjust-state-during-render reset, keyed on a `monthKey` prop; deliberately not
+   a component `key`, which would remount and throw away the person filter too.
+3. **The title named the wrong month.** `monthGrid` pads to whole weeks, so
+   `grid.from` is the first CELL, not the first of the month — August 2026 opens
+   on a Saturday, so its grid starts on 26 July and the page printed **"July
+   2026"** over an August calendar. Found by re-reading; the month-navigation
+   e2e could not have caught it, because it compared labels *changing*, which
+   they did, correctly, while both were wrong. Now taken from the first of the
+   month and pinned by a case naming two months whose grids start in the
+   previous one.
+4. **The end time did not follow the start** — the only one the e2e found, and
+   it found it by doing what a person does. The dialog opens 09:00–10:00;
+   setting the start to 11:30 left the end at 10:00, so the entry ended ninety
+   minutes before it began and the server refused it (`400 — It has to end after
+   it starts`). The refusal was correct; the form had made the mistake. The end
+   now carries with the start, keeping the duration already chosen, floored at
+   fifteen minutes. The arithmetic is on the WALL CLOCK — `Date.UTC` over the
+   typed digits, never an instant — so the Cairo conversion stays in
+   `eventWindow` and no component holds a second timezone opinion.
+
+**One more, of a different kind: the busy contract leaked through the DOM.** The
+first draft honoured "a time and a name" in every rendered string, then wrote
+`data-kind="meeting"` on the chip and put a **Meeting / Personal** chip on the
+day-panel row. *"Y is in a client meeting"* and *"Y has a personal
+appointment"* are two different facts and the contract promises neither. The
+service's own test passed throughout, because `kind` is structural there. Busy
+chips now carry `data-kind="busy"` and busy rows carry no kind chip, asserted in
+the e2e. **A privacy rule enforced only over rendered text is enforced only
+against people who do not open the inspector.**
+
+### The migration, proved rather than assumed
+`20260831120000_calendar` applied to dev with `migrate deploy` (alongside the two
+that arrived with the pull and had never been applied), then read back from the
+live catalogue column by column:
+
+```
+CalendarEvent    id userId title note startsAt endsAt allDay shared createdAt updatedAt
+MeetingAttendee  meetingId userId createdAt
+```
+
+It is additionally deployed from **zero** into a virgin embedded Postgres on
+every integration run, which is what proves it re-runnable rather than merely
+applied once. Every statement is `IF NOT EXISTS` / `EXCEPTION WHEN
+duplicate_object`, the house rule since ADR-064, so `scripts/start.mjs` may retry
+it at boot.
+
+### Brand
+Tokens only: no hex, no `rgb(`, no `font-family` in any new component; the 175
+new lines of `design-system.css` are `var(--color-*)` and `color-mix()` over
+them, with **no physical left/right** — `margin-inline-start`, `border-inline-end`
+and `padding-block-start` throughout, so the grid mirrors in Arabic. Signal Pink
+appears once, as the today marker: a cue, never a surface and never body text
+(B-Systems R1). One dead rule (`a.cal-chip:hover`, left over from a draft where
+chips were links) was removed rather than left to mislead.
+
+### E2E
+**The suite could not run at all at first, and it did not say so.** Two full
+Playwright runs reported `1 passed, 2 skipped, 14 did not run` with **exit code
+0** while `.last-run.json` listed ~135 failed ids. The cause was not the app:
+`browserType.launch: Executable doesn't exist at
+…/chromium_headless_shell-1234` — Playwright's browser binary was not installed
+on this machine. The tell was that the one passing test was `health.spec.ts`,
+which uses the `request` fixture and never opens a browser. `npx playwright
+install chromium` fixed it. (Recorded as IMPLEMENTATION trap 9, together with
+the reason it took two runs to see: the output had been piped through
+`tail -70`, which keeps the summary and throws away the error section.)
+
+**New spec — `e2e/calendar.spec.ts`, 8 cases, all green:** the nav item and a
+grid of whole weeks with exactly one today marker; prev/next/Today moving in
+both directions with the month on the URL; the title naming the MONTH rather
+than the grid's first cell; the day panel following a month change; add → grid
+→ day panel → edit (pre-filled from what is stored) → delete; **the privacy wall
+through a real browser** — a second account reads `Busy · Elmur`, the private
+title is absent from the entire DOM, the shared entry is readable by name and
+still carries no Delete for the person who does not own it; the data-entry
+account bounced to its one destination; and Arabic with `dir="rtl"` and a
+translated weekday strip.
+
+**Two failures in the first green-browser full run, both real, both fixed:**
+
+1. `company-switch.spec.ts` asserted the ByteForce nav has **exactly five**
+   links. It has six now — the calendar is a section both companies carry. The
+   count is updated and the case additionally names the Calendar link, so the
+   assertion says what it means rather than only how many.
+2. `qa-sweep.spec.ts`'s eleven-section sweep timed out at 1.1m. **Not an
+   assertion — a budget.** That case had always run on the DEFAULT 60s while
+   its two siblings carry explicit 240s and 210s for strictly less work; it
+   passed only because those pages are quicker, and one more header nav item
+   tipped it. Its budget is now stated like theirs (`test.setTimeout(300_000)`),
+   and the ByteForce sweep got one too.
+
+The calendar was **added to both sweeps** rather than merely fixed around: a
+seven-column grid is the likeliest page in the product to push the body
+sideways, and it now proves clean console + zero horizontal overflow at
+1440/1024/768/601/560/390 for both companies.
+
+```
+FULL npx playwright test   →  146 passed, 2 failed, 2 skipped
+   both failures fixed; the 3 affected specs re-run  →  25 passed, 0 failed
+FULL npx playwright test   →  148 passed, 0 failed, 2 skipped
+   (audit.spec.ts, opt-in, is the pair that skips)
+```

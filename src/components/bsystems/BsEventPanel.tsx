@@ -26,6 +26,7 @@ export function BsEventPanel({
   stage,
   role,
   reps,
+  people = [],
   hasUnsentProposal,
   pendingMeeting,
   readyToClose,
@@ -34,6 +35,8 @@ export function BsEventPanel({
   stage: string;
   role: BsFormRole;
   reps: Array<{ id: string; name: string }>;
+  /** ADR-071 — the company roster for the meeting form's "Also blocks". */
+  people?: Array<{ id: string; name: string }>;
   hasUnsentProposal: boolean;
   pendingMeeting: boolean;
   readyToClose: boolean;
@@ -239,6 +242,7 @@ export function BsEventPanel({
                   className="space-y-3"
                 >
                   <GroupFieldsV2
+                    people={people}
                     target={destination}
                     role={role}
                     reps={reps}
@@ -317,6 +321,7 @@ export function BsEventPanel({
                   : stageLabel(locale, action)}
             </p>
             <GroupFieldsV2
+              people={people}
               target={formTarget(action)}
               role={role}
               reps={reps}

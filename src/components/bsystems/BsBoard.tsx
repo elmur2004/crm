@@ -329,10 +329,15 @@ export function BsBoard({
   leads,
   role,
   reps,
+  people = [],
 }: {
   leads: BsBoardLead[];
   role: BsFormRole;
   reps: Array<{ id: string; name: string }>;
+  /** ADR-071 — the company roster, threaded to the meeting form's "Also
+      blocks" picker. Optional: a caller that omits it simply does not offer
+      the field, which is what every screen did before the calendar existed. */
+  people?: Array<{ id: string; name: string }>;
 }) {
   const locale = useLocale();
   const t = tFor(locale);
@@ -527,6 +532,7 @@ export function BsBoard({
                   setAgreed={formState.setAgreed}
                   milestoneCount={formState.milestoneCount}
                   setMilestoneCount={formState.setMilestoneCount}
+                  people={people}
                 />
               </div>
               <div className="modal-foot">

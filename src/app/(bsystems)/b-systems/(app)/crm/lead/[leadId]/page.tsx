@@ -6,6 +6,7 @@ import { BS_PIPELINE_ROLES } from "@/lib/crm/company";
 import { requireLeadAccess } from "@/lib/auth/guards";
 import { getLeadDetail } from "@/lib/services/leads";
 import { listBsOwnerReps } from "@/lib/services/sales-reps";
+import { listCalendarPeople } from "@/lib/services/calendar";
 import { formatCairo } from "@/lib/datetime";
 import { waHref } from "@/lib/phone-dial";
 import { WhatsappChip } from "@/components/shared/WhatsappChip";
@@ -84,6 +85,10 @@ export default async function BsLeadDetailPage({
     role === "admin" || role === "sales"
       ? (await listBsOwnerReps()).map((r) => ({ id: r.id, name: r.name }))
       : [];
+  /* ADR-071 — the roster behind the meeting form's "Also blocks" picker: the
+     same accounts the calendar draws, so a person marked as needed here is a
+     person whose time the calendar can actually show as taken. */
+  const calendarPeople = await listCalendarPeople("bsystems");
   /* founder: only the admin hands a lead to someone — labels resolved here so
      the client component stays string-free (V5 bilingual rule) */
   const roleLabels: Record<string, Msg> = roleMsgs;
@@ -247,6 +252,7 @@ export default async function BsLeadDetailPage({
                   stage={lead.stage}
                   role={role}
                   reps={reps}
+                  people={calendarPeople}
                   hasUnsentProposal={lead.proposals.some((p) => !p.sent)}
                   pendingMeeting={Boolean(
                     latestMeeting && latestMeeting.outcome === null && latestMeeting.arranged,

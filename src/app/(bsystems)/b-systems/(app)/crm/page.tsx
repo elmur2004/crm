@@ -8,6 +8,7 @@ import { CrmBoardBody } from "@/components/internal/pages";
 import { BYTEFORCE_CTX } from "../ctx";
 import { listBsLeads, listOwnLeads } from "@/lib/services/bsystems-admin";
 import { listBsOwnerReps } from "@/lib/services/sales-reps";
+import { listCalendarPeople } from "@/lib/services/calendar";
 import { LEAD_TYPES } from "@/lib/pipeline-engine/constants";
 import { bsystemsCrmConfig } from "@/lib/pipeline-engine/configs/bsystems-crm";
 import { orderMeetingColumn } from "@/lib/board-order";
@@ -191,6 +192,11 @@ export default async function BsCrmPage({
       ? (await listBsOwnerReps()).map((r) => ({ id: r.id, name: r.name }))
       : [];
 
+  /* ADR-071 — the roster behind the meeting form's "Also blocks" picker. It is
+     the same list the calendar draws its columns from, so a person you can mark
+     as needed is a person whose time the calendar can actually show. */
+  const calendarPeople = await listCalendarPeople("bsystems");
+
   return (
     <div className="space-y-6">
       <div className="page-head">
@@ -256,7 +262,7 @@ export default async function BsCrmPage({
       {orderedLeads.length === 0 && activeCount > 0 ? (
         <p className="empty">{t(m.noMatches)}</p>
       ) : (
-        <BsBoard leads={orderedLeads} role={role} reps={reps} />
+        <BsBoard leads={orderedLeads} role={role} reps={reps} people={calendarPeople} />
       )}
     </div>
   );

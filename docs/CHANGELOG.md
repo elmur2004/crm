@@ -1,5 +1,81 @@
 # Changelog — user-visible changes per phase/release
 
+## The Calendar — every meeting, and everyone's own time, on one month (2026-08-31)
+
+You said: *"The calendar is a new page which takes all the meetings from the
+meeting settings in the CRM and puts them in a calendar, with the ability for
+every single user to add their own schedule on it. So whenever X is setting a
+meeting and Y has to be in this meeting, X will look at the calendar and see if
+Y has any other meetings other than the CRM — personal stuff, another offline
+meeting or something."*
+
+Done. **Calendar** is in the menu, right after To-Do, for both companies.
+
+### 1. The CRM's meetings arrive on their own
+
+Every meeting you have marked **arranged** in Meeting Setting is already on the
+grid — you do not add it, copy it, or keep it in step. Change the date on the
+board and the calendar has changed. It shows the client's name, the time, and
+whether it is online or in person, and clicking it opens the lead.
+
+A meeting that is only a *proposed* slot (arranged not ticked) stays off: it is
+not yet a commitment, and it should not make anybody look busy.
+
+### 2. Your own time goes on it too
+
+**Add to my calendar** takes a name, a day, a time — or tick **All day** — an
+optional end, and a note. A supplier meeting, a trip, a doctor's appointment.
+Yours to edit and yours to delete, from the day panel under the grid.
+
+### 3. What everybody else sees — and this is the part to read
+
+Your entries are **private by default**. A colleague looking at your day sees a
+grey hatched block that says **Busy · your name** and the time. Not what it is.
+Not the client. Nothing.
+
+That is deliberate, and it is what makes the whole page safe to open to
+everyone: **the calendar shows you nothing you could not already see.** The
+meetings you can read in full are exactly the ones you can already open in the
+CRM — your own, if you are an agent or a partner; the internal ones, if you are
+sales; all of them, if you are an admin. Everything else, from either company's
+side of the wall, is just a busy block. An agent still cannot read another
+agent's client list, on this page or any other.
+
+So when you check whether Y is free on Thursday, you get the answer — *he is
+taken from two to three* — and only the answer.
+
+If you WANT the team to know what something is, tick **"Let the team see what
+this is"** on that entry. Then they read the name — *"Supplier visit —
+Alexandria"* — and still not your private note, which never leaves your own
+screen.
+
+### 4. "Also blocks" — so Y really shows as busy
+
+This is the piece that makes your example work. When you set a meeting, the
+Meeting Setting form now has **Also blocks**: tick whoever has to be in it.
+Their calendar shows the time as taken from that moment, even though the lead is
+yours and not theirs.
+
+Without it a meeting could only ever block the lead's owner — so the one person
+you actually needed to check on would have looked free.
+
+### 5. Moving around it
+
+- **‹ Today ›** — one month back, one forward, or straight back to this month.
+  The month is in the address, so you can bookmark a month or send someone a
+  link to it.
+- **Everyone / one person** — narrow the grid to one person's time. It matches
+  on *whose time it is*, so a meeting you booked that blocks Y appears under Y.
+- **Click any day** to open it underneath, listing everything on it with the
+  full times, who is on it, and the way through to the lead.
+- Today is marked. Friday and Saturday are tinted as the weekend, and the week
+  starts on Sunday, the way the working week runs here.
+
+Everything is in both languages and reads right-to-left in Arabic, and the
+twelve-hour clock is the same one as the rest of the system.
+
+---
+
 ## The Vault gets a Links section — stop hunting for the same links (2026-08-29)
 
 You said: *"The Vault is split into sections — Sheets, Forms, Archive and

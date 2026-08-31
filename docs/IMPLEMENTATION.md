@@ -2647,3 +2647,148 @@ three models at once. That belongs in its own ADR, not in a section commit.
 
 The general shape is worth carrying: **wherever a table can be written by a bulk
 path, the render is the last wall, and it has to behave like one.**
+
+## ADR-071 — the calendar: the traps
+
+### 1. A PULL THAT CARRIES MIGRATIONS MAKES THE TYPECHECKER LIE
+The session opened by pulling 20 commits. The first `npx tsc --noEmit` printed a
+page of errors in files nobody had touched — `whatsappSentAt` missing from a
+dozen component prop types, `implicitly has an 'any' type` across two vault
+pages. Every one was a phantom: the pulled migrations had never been applied and
+the **generated Prisma client was still the pre-pull one**, so the types the
+components were checked against did not have the columns the code now reads.
+`prisma generate` cleared all of them at once.
+
+This matters because the failure is indistinguishable from a real breakage, and
+the obvious reflex — open the named files and start "fixing" them — corrupts
+eight healthy files before anyone notices. **After a pull that touches
+`prisma/`, run `prisma generate` before believing a single type error.** The tell
+is that the errors name a column the migration you just pulled added.
+
+### 2. `.next` OUTLIVES A DELETED ROUTE GROUP, AND `next build` TYPE-CHECKS ITS OWN CACHE
+`tsc` and `next build` both reported `Cannot find module
+'../../src/app/(byteforce)/…/page.js'` — for a route group ADR-067's merge
+deleted. The errors are in `.next/types/validator.ts` and `.next/dev/types/…`,
+files Next GENERATES by walking the route directory, and they had been generated
+before the merge. They fail the build's type-check step even though the source
+compiles, so the build reads as broken when nothing is.
+
+Deleting `.next/dev` and `.next/types` regenerates both. Worth knowing that
+**`next build` type-checks generated files that can be stale from a previous
+tree shape**, so a route-group rename or deletion needs the cache cleared before
+the next build is believed.
+
+### 3. NEVER RUN `next build` WHILE PLAYWRIGHT IS RUNNING
+The e2e config's `webServer` is `npm run build && npx next start -p 3100` — it
+builds into the **same `.next`** the developer builds into. Running a production
+build (or, worse, deleting `.next/types`) while a Playwright run is in flight
+gives a run that reports `1 passed, 2 skipped, 14 did not run` with **exit code
+0** — no error, no failed assertion, just a mostly-empty result that reads like
+a pass at a glance. The first full run of this feature was thrown away for
+exactly this and re-run clean.
+
+And its sequel: **a killed Playwright run leaks its server.** `TaskStop` on the
+test process does not stop the `next start -p 3100` child, so the next run dies
+on `http://localhost:3100 is already used` — again with **exit code 0**. Find it
+with `netstat -ano | grep :3100` and `taskkill //PID <pid> //F`.
+
+Two lessons, both about the same thing: **in this repo an e2e "pass" must be
+read from the counts, never from the exit code.**
+
+### 4. A `useState` INITIALISER DOES NOT RE-RUN WHEN A SERVER COMPONENT RE-RENDERS
+The month is a URL parameter, so paging months is a server navigation — but it
+renders the *same* client component, so React keeps its state and
+`useState(props.initialSelected)` is never re-applied. The grid would redraw as
+September while the day panel below it stayed on an August date, reading
+"Nothing on this day".
+
+Fixed with React's documented adjust-state-during-render pattern (compare a
+`monthKey` prop against state, reset during render, which re-renders before
+paint so nothing wrong is ever shown) rather than a `key` on the component: a
+key remounts, which would also throw away the person filter — and "show me Y's
+month, then the next one" is precisely what somebody checking availability does.
+
+**The general shape: any client state derived from a prop that a server
+navigation can change needs an explicit reset.** There is no warning for this;
+it renders perfectly and is simply wrong.
+
+### 5. A MONTH GRID'S FIRST CELL IS USUALLY NOT IN THAT MONTH
+`monthGrid` pads out to whole weeks, so `grid.from` — the instant the query
+window opens — is the first *cell*, not the first of the month. August 2026
+opens on a Saturday, so its Sunday-first grid starts on **26 July**, and
+formatting `grid.from` printed **"July 2026"** as the title of an August
+calendar. Caught by re-reading, not by a test: the month-navigation e2e compared
+labels *changing*, which they did, correctly, while both were wrong.
+
+The window and the label are two different questions and must be answered from
+two different instants. Pinned now by an e2e case naming two months whose grids
+start in the previous one.
+
+### 6. A "BUSY" BLOCK LEAKS THROUGH ITS DOM ATTRIBUTES IF YOU LET IT
+The privacy contract is "a time and a name". The first draft honoured that in
+every rendered string — and then wrote `data-kind="meeting"` on the chip and put
+a **Meeting / Personal** chip on the day-panel row. *"Y is in a client
+meeting"* and *"Y has a personal appointment"* are two different facts, and the
+contract promises neither. The service's own test passed throughout, because it
+asserts on the service's fields and `kind` is structural there.
+
+Busy chips now carry `data-kind="busy"` and busy rows carry no kind chip at all,
+asserted in the e2e. **A privacy rule enforced only over rendered text is
+enforced only against people who do not open the inspector.**
+
+### 7. THE THING THAT MAKES THE FEATURE WORK IS NOT THE PAGE
+The obvious build is the grid. But a meeting is reachable only through its
+lead's owner, so a calendar built from the existing schema answers *"is Y
+free?"* only when Y happens to own the lead — which, in the founder's own
+example (X sets the meeting, Y must attend), is exactly when Y does not. The
+page would have looked finished and answered the one question it was built for
+incorrectly, silently, for every meeting.
+
+`technicalSupport` sits on the same form and cannot be pressed into service: it
+is free text, and a typed name is not an account. So the load-bearing part of
+this feature is a two-column join table and a row of checkboxes — and worth
+finding before the page is built, not after.
+
+### 8. A "FILL THE ROSTER" QUERY WANTS ONE OWNER, NOT TWO
+The narrowing in `persistGroup` (which accounts may be marked on a meeting) and
+`listCalendarPeople` (whose time the grid draws) are the same question. The
+first draft answered it twice — a literal role array inline in `leads.ts` beside
+`rolesForCompany` in the calendar service — which is the drift the rest of this
+codebase spends its comments preventing. Deduped to one exported predicate: a
+person the form can offer is exactly a person whose time the grid can show.
+
+### 9. A MISSING PLAYWRIGHT BROWSER LOOKS EXACTLY LIKE A BROKEN APPLICATION
+Two full e2e runs reported `1 passed, 2 skipped, 14 did not run` with **exit
+code 0**, and `test-results/.last-run.json` listed ~135 failed ids. It reads as
+a catastrophic regression — every screen broken at once. The real cause was
+`browserType.launch: Executable doesn't exist at …/chromium_headless_shell-1234`:
+Playwright's browser binary was simply not installed on the machine (a version
+bump moves the expected build number, so a previously working checkout stops
+working with no code change at all).
+
+The tell is that the ONE test that passed was `health.spec.ts`, which uses the
+`request` fixture and never opens a browser. **When everything fails but the
+API-only spec, suspect the browser, not the app.** `npx playwright install
+chromium` fixes it.
+
+And the trap inside the trap: this only became visible after the run's output
+was captured in full. Piping a Playwright run through `tail -70` throws away the
+error section and keeps the summary — which is how two runs in a row were read
+as "interference" and re-run instead of diagnosed. **Capture the whole log to a
+file; read the counts, never the exit code.**
+
+### 10. AN END TIME THAT DOES NOT FOLLOW ITS START IS A BUG IN THE FORM, NOT IN THE USER
+The dialog opened at 09:00–10:00. Setting the start to 11:30 left the end at
+10:00, so the entry ended ninety minutes before it began, and the server did
+exactly what it should: `400 — It has to end after it starts`. The person is
+then looking at an error message for a mistake the form made on their behalf.
+
+The e2e caught it only because the test happened to change the start and not the
+end — which is precisely what a person does. Fixed by carrying the end with the
+start and keeping the duration already chosen (floored at fifteen minutes, so an
+inverted entry comes back valid rather than staying inverted).
+
+The arithmetic is deliberately on the WALL CLOCK — `Date.UTC` used as
+minutes-since-epoch over the typed digits, never as an instant. The Cairo
+conversion happens once, server-side, in `eventWindow`. **A second timezone
+opinion inside a component is how a clock drifts.**

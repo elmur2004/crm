@@ -6,6 +6,7 @@ import { toPiasters } from "@/lib/money";
 import { inputCls, labelCls } from "@/components/portal/groupForms";
 import { tFor } from "@/lib/i18n/core";
 import { useLocale } from "@/components/shared/LocaleProvider";
+import { MeetingAlsoBlocks, type MeetingPerson } from "@/components/shared/MeetingAlsoBlocks";
 import { common, stageForm as msg } from "@/lib/i18n/dict/crm";
 import { optionalLabel } from "@/lib/i18n/dict/labels";
 
@@ -94,6 +95,7 @@ export function MeetingFieldsV2({
   agreed,
   setAgreed,
   lockArranged = false,
+  people = [],
 }: {
   light: boolean;
   reps: Rep[];
@@ -101,6 +103,8 @@ export function MeetingFieldsV2({
   setAgreed: (v: boolean) => void;
   /** founder reschedule: the new slot IS agreed — the question is not asked */
   lockArranged?: boolean;
+  /** ADR-071 — the company roster for "Also blocks". Absent ⇒ not offered. */
+  people?: MeetingPerson[];
 }) {
   const t = tFor(useLocale());
   return (
@@ -153,6 +157,11 @@ export function MeetingFieldsV2({
               ))}
             </datalist>
           </label>
+          {/* ADR-071 — who ELSE this meeting occupies. It sits under Technical
+              support on purpose: that field is the free text naming a person,
+              and this is the same question asked of ACCOUNTS, which is the only
+              form of it the calendar can answer. */}
+          <MeetingAlsoBlocks people={people} />
         </>
       )}
     </>
@@ -170,8 +179,18 @@ export function meetingPayload(fd: FormData, light: boolean, agreed: boolean) {
       withAttendees: light ? undefined : String(fd.get("withAttendees") || "") || undefined,
       technicalSupport: light ? undefined : String(fd.get("technicalSupport") || "") || undefined,
       needsTechnical: light ? fd.get("needsTechnical") === "on" : undefined,
+      /* ADR-071 — "Also blocks". `getAll` returns [] when the picker was not
+         rendered at all, and an empty list is sent as undefined so the wire
+         shape is byte-identical to what every existing caller sends. */
+      attendeeUserIds: attendeeIdsFromForm(fd),
     },
   };
+}
+
+/** The ticked "Also blocks" boxes, or undefined when there were none. */
+export function attendeeIdsFromForm(fd: FormData): string[] | undefined {
+  const ids = fd.getAll("attendeeUserIds").map(String).filter(Boolean);
+  return ids.length > 0 ? ids : undefined;
 }
 
 export function ProposalFieldsV2() {
@@ -386,6 +405,7 @@ export function GroupFieldsV2({
   lockArranged = false,
   milestoneCount,
   setMilestoneCount,
+  people = [],
 }: {
   target: string;
   role: BsFormRole;
@@ -395,6 +415,8 @@ export function GroupFieldsV2({
   lockArranged?: boolean;
   milestoneCount: number;
   setMilestoneCount: (n: number) => void;
+  /** ADR-071 — threaded to the meeting group, and nowhere else. */
+  people?: MeetingPerson[];
 }) {
   const t = tFor(useLocale());
   const light = isLight(role);
@@ -407,6 +429,7 @@ export function GroupFieldsV2({
         agreed={agreed}
         setAgreed={setAgreed}
         lockArranged={lockArranged}
+        people={people}
       />
     );
   if (target === "sending_proposal") return <ProposalFieldsV2 />;

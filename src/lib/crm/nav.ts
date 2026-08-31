@@ -4,6 +4,7 @@ import type { Role } from "@/lib/pipeline-engine/constants";
 import { nav as bsNav } from "@/lib/i18n/dict/crm";
 import { nav as bfNav } from "@/lib/i18n/dict/internal";
 import { todoPage } from "@/lib/i18n/dict/todo";
+import { calendarPage } from "@/lib/i18n/dict/calendar";
 
 /* ============================================================================
    ADR-067 — the nav ADAPTS to the company you are switched to.
@@ -37,6 +38,7 @@ export interface CrmNavItem {
 const BYTEFORCE_NAV: CrmNavItem[] = [
   { href: "/b-systems", label: bfNav.home },
   { href: "/b-systems/todo", label: todoPage.navItem },
+  { href: "/b-systems/calendar", label: calendarPage.navItem },
   { href: "/b-systems/leads", label: bfNav.leads },
   { href: "/b-systems/crm", label: bfNav.crm },
   { href: "/b-systems/clients", label: bfNav.clients },
@@ -47,6 +49,7 @@ const BSYSTEMS_NAV: Record<string, CrmNavItem[]> = {
   bsystems_admin: [
     { href: "/b-systems", label: bsNav.home },
     { href: "/b-systems/todo", label: todoPage.navItem },
+    { href: "/b-systems/calendar", label: calendarPage.navItem },
     { href: "/b-systems/leads", label: bsNav.leads },
     { href: "/b-systems/crm", label: bsNav.crm },
     { href: "/b-systems/won-leads", label: bsNav.wonLeads },
@@ -62,11 +65,13 @@ const BSYSTEMS_NAV: Record<string, CrmNavItem[]> = {
   bsystems_sales: [
     { href: "/b-systems/crm", label: bsNav.crm },
     { href: "/b-systems/todo", label: todoPage.navItem },
+    { href: "/b-systems/calendar", label: calendarPage.navItem },
     { href: "/b-systems/won-leads", label: bsNav.wonLeads },
   ],
   bsystems_agent: [
     { href: "/b-systems/crm", label: bsNav.crm },
     { href: "/b-systems/todo", label: todoPage.navItem },
+    { href: "/b-systems/calendar", label: calendarPage.navItem },
     { href: "/b-systems/won-leads", label: bsNav.wonLeads },
     { href: "/b-systems/payments", label: bsNav.payments },
     { href: "/b-systems/profile", label: bsNav.profile },
@@ -74,6 +79,7 @@ const BSYSTEMS_NAV: Record<string, CrmNavItem[]> = {
   bsystems_partner: [
     { href: "/b-systems/crm", label: bsNav.crm },
     { href: "/b-systems/todo", label: todoPage.navItem },
+    { href: "/b-systems/calendar", label: calendarPage.navItem },
     { href: "/b-systems/won-leads", label: bsNav.wonLeads },
     { href: "/b-systems/payments", label: bsNav.payments },
     { href: "/b-systems/profile", label: bsNav.profile },

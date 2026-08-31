@@ -3977,3 +3977,137 @@ comment, and the ADR-013 mechanism note all fixed; .env.example confirmed tracke
      literal because every row is a URL; Resources is the wider word and would
      invite files, which Documents and Sheets already hold. One word to change if
      he prefers the other.
+
+## Entry 068 — 2026-08-31 — the CALENDAR: the CRM's meetings and each person's own time on one grid, and everybody else's hours read only as BUSY
+- Session opened by pulling `main` — the working copy was **20 commits behind**
+  (the ADR-067 merge, the twelve-hour clock, the WhatsApp mark, the Vault's
+  Links). Two pulled migrations were unapplied and the Prisma client was stale,
+  which is why `tsc` opened the session with a page of `whatsappSentAt` errors
+  that had nothing to do with this work. `prisma generate` + `migrate deploy`
+  cleared them.
+- He then asked whether a calendar he had started in an earlier session survived
+  it. **It did not** — no branch, no stash, no untracked file, no commit in
+  either repo's full history, nothing in the two published artifacts, and the
+  only local transcript is this session's. Searched and reported before
+  proposing to rebuild, rather than quietly starting over.
+- Founder request, verbatim: *"The calendar is a page, a new page, which takes
+  all the meetings that is from the meeting settings in the CRM and put it in a
+  calendar, with the ability for every single user to add their own schedule on
+  the calendar. So let's say whenever X is sitting a meeting and Y has to be
+  with in this meeting, the X will look at the calendar and see if Y has any
+  other meetings other than the CRM. It's a personal stuff. It's another offline
+  meeting or something."* And on the look: *"Sample calendar UI, using also the
+  brand and everything, but nothing crazy… good looking, creatively sound, but
+  not that crazy. And of course it has to be functional with the buttons and
+  everything."*
+- **Four decisions were put to him before a line was written**, because the ask
+  contains a collision the product has never had to answer: SPEC §3's hard rule
+  (an agent may never read another's leads) against *"X will look and see if Y
+  has any other meetings"*. He took the recommended option on all four. They are
+  ADR-071 §§1–4.
+- Done, in one working tree:
+  - **The wall, in one file.** `services/calendar.ts` gives every entry a
+    **detail level** — `full` where the viewer's EXISTING scope already reaches
+    (the To-Do's `leadWhere`, not a second wall) and `busy` otherwise: a time and
+    a name, with title, href, note, leadId, mode and outcome all null. Busy
+    entries are BUILT that way, never stripped, so the fields a leak would need
+    do not exist on the object.
+  - **Two tables** (`20260831120000_calendar`): `CalendarEvent` — a person's own
+    time, deliberately with **no company column** — and `MeetingAttendee`, the
+    "Also blocks" join that lets a meeting occupy somebody other than the lead's
+    owner. The CRM half of the grid stays a **projection** over the Meeting rows
+    that already exist (ADR-041's philosophy), so nothing can drift from the
+    board.
+  - **The page** at `/b-systems/calendar`, one address for both companies with
+    `?company=` and `?y=&m=` on the URL — a month is bookmarkable and
+    forwardable, and only the selected day and the person filter are client
+    state. `requireCompanyPage` + an explicit `company === "byteforce"` branch,
+    then the four B-Systems pipeline roles with ADR-051's data-entry account
+    still carved out.
+  - **The grid**, in tokens only: month cells with chips, a day panel with the
+    links and actions, prev/Today/next, a person filter that matches on WHOSE
+    time it is, a legend that states the busy rule on the page, and the add/edit
+    modal. Sunday-first (Egypt works Sun–Thu; Fri/Sat tinted as the weekend),
+    logical properties throughout, EN + real Arabic.
+  - **"Also blocks"** on the B-Systems Meeting Setting form — checkboxes, not a
+    `<select multiple>`, and `attendeeUserIds` optional in `meetingSchema` so
+    every existing caller, test and stored payload stays byte-identical. The ids
+    are narrowed to the company's active roster **inside the same transaction**
+    that writes the meeting.
+  - **Three endpoints** under their own `/api/calendar/**` namespace — a personal
+    entry has no company, so a company-namespaced route would have forced an
+    answer to a question the record does not ask. The owner comes from the
+    session; there is no `userId` on the wire.
+  - **One refactor, on purpose:** `startOfCairoDay` moved from `services/todo.ts`
+    to `lib/datetime.ts`, because the month window needs the identical
+    midnight-DST clamp and two copies of a DST correction is two chances to fix
+    only one of them. Same body, same behaviour.
+- Gate, on the FINAL tree: `npx tsc --noEmit` **clean** (source; the `.next`
+  errors that remained were stale artifacts naming the retired `(byteforce)`
+  route group and cleared on a rebuild). **FULL** `npx vitest run` → **49 files
+  / 767 tests, 767 passed / 0 failed**, including 12 new grid cases and 18 new
+  calendar-scope cases. **FULL** `npx playwright test` → **148 passed, 0 failed,
+  2 skipped** (`audit.spec.ts`, opt-in), verdict read from the summary AND
+  `test-results/.last-run.json` (`{"status":"passed","failedTests":[]}`), with 8
+  new calendar cases and the calendar added to both QA sweeps (clean console and
+  zero horizontal overflow at 1440/1024/768/601/560/390, both companies).
+  `next build` **succeeds**, with all four new routes registered. Migration
+  applied to dev and verified column-by-column against the live catalogue; the
+  integration suite deploys it from zero into a virgin cluster on every run.
+
+  **The e2e suite could not run at all at first and did not say so** — two runs
+  reported `1 passed … 14 did not run` with exit code 0 because Playwright's
+  Chromium binary was not installed on this machine (`npx playwright install
+  chromium` fixed it). The tell was that the only passing test was the one that
+  never opens a browser. Written up as IMPLEMENTATION trap 9.
+- **One real failure, found and fixed by the suite, not by reading:**
+  `nav.test.ts` reads each nav href's page file and demands a literal
+  `company === "byteforce"` branch. The first draft branched on `"bsystems"`
+  instead — functionally identical, but the test's reasoning is sound and the
+  page now handles ByteForce explicitly.
+- **Five more bugs caught before any of them shipped** — four by re-reading the
+  code, one by the browser:
+  1. **The edit form would have silently un-shared an entry.** It had no way to
+     read the stored `shared` value, so fixing a typo re-posted the default. The
+     service now returns it for an entry the viewer OWNS and `null` for
+     everybody else's — a round trip that also refuses to tell anyone how a
+     colleague set their own toggle.
+  2. **Paging months would have stranded the day panel** — `useState` is not
+     re-initialised by a server navigation, so September's grid would have sat
+     above a panel reading "Nothing on this day" over an August date.
+  3. **The title named the wrong month.** `grid.from` is the grid's first CELL,
+     and August 2026's grid starts on 26 July — so the page printed "July 2026"
+     over an August calendar.
+  4. **The busy contract leaked through the DOM.** Every rendered string obeyed
+     "a time and a name", and then `data-kind="meeting"` and a Meeting/Personal
+     chip said whether a colleague's blocked hour was work or private. Busy
+     entries are now kind-agnostic in the markup, asserted in the e2e.
+  5. **The end time did not follow the start** — the only one the browser
+     found, by doing what a person does. Pushing a 09:00–10:00 entry to 11:30
+     left the end at 10:00; the server refused it correctly, and the person was
+     left reading an error for a mistake the form had made. The end now carries
+     the duration already chosen.
+- In progress: nothing mid-flight; the tree is committed and clean.
+- Next steps: the four confirmations below. Each is a small change if he wants
+  it — the cross-company busy view is a predicate, the partner-funnel meetings
+  are one line of the projection, and the ByteForce meeting form needs the same
+  three-line wiring the B-Systems one got.
+- Blockers: none.
+- **Needs founder confirmation (four NEW, on top of the ten carried from Entries
+  064–067):**
+  1. **Availability does not cross the company switch.** An account holding both
+     companies reads free under one label while busy under the other. A busy
+     block carries no company information at all, so showing them across both
+     would leak only "this person is occupied at this hour" — but that is still
+     new information crossing a wall this codebase treats as a permission, so it
+     was not taken without him.
+  2. **Partner and agent pipeline meetings are absent**, inheriting ADR-061's
+     To-Do exclusion. They are real commitments for availability purposes even
+     though they are not To-Do rows.
+  3. **"Also blocks" is on the B-Systems meeting forms only.** The ByteForce
+     internal form and the portal/agent form submit no attendees — valid, since
+     the field is optional, but a ByteForce meeting can therefore only ever
+     occupy its lead's owner.
+  4. **"Added through the portal" was read as the merged CRM shell**, not App C.
+     Agents and partners get the calendar where they already work; a second
+     surface under `/portal` is a separate route, guard and e2e set.
