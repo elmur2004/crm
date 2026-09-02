@@ -1,5 +1,64 @@
 # Changelog — user-visible changes per phase/release
 
+## Mindoo — a third company, on the same switch (2026-09-01)
+
+You said: *"We need to add a third CRM called Mindoo with the exact same switch
+mechanic and the exact same info and details."*
+
+Done. **Mindoo** is now the third segment on the company switch, beside
+B-Systems and ByteForce. Click it and every board, list and number changes to
+Mindoo's — same as switching to ByteForce always has.
+
+### 1. It is a copy of B-Systems
+
+You chose B-Systems as the one to copy, so Mindoo has **the same eight columns**
+— New, Following Up, Meeting Setting, Sending Proposals, **Negotiation**,
+Postpone / Not answering, Won, Lost — the same forms behind each of them, the
+same follow-up and meeting records, and the same win: the milestone tab with the
+value, the commission percentage and dated milestones, feeding **Won Leads**.
+
+ByteForce is unchanged and still has no Negotiation column. The two pipelines
+stay two pipelines; Mindoo simply runs the same one B-Systems does.
+
+### 2. Its sections
+
+**Home · To-Do · Calendar · Leads · CRM · Won Leads.** The To-Do shows Mindoo's
+own dated work; the Calendar shows Mindoo's meetings and its people's time,
+under exactly the same busy-block rule as the others.
+
+What Mindoo does **not** have is the Partners & Agents side — Partners, Agents,
+Registrations, Statements, Payments. Those exist for external agents and
+partners, and you asked for Mindoo to have one staff role rather than the agent
+network. Say the word if that changes and it becomes its own piece of work.
+
+### 3. Who gets in
+
+There is one Mindoo role. Anyone holding it sees every Mindoo lead and can do
+everything inside Mindoo — including closing a deal.
+
+**Your account holds all three companies**, so you get a three-way switch. A
+Mindoo-only teammate gets **no switch at all** and cannot reach B-Systems or
+ByteForce, in either direction — exactly the rule that has always applied
+between the first two.
+
+Seeded for you: **mona@mindoo.example / mindoo123** is a Mindoo-only teammate,
+and there are five Mindoo leads spread across the pipeline (one of them sitting
+in Negotiation) so the board, the counts and the To-Do have something real in
+them.
+
+### 4. What it looks like
+
+Nothing changes. Your own rule from the merge — *"I don't need the entire
+interface to change"* — still holds: the shell stays exactly as it is whichever
+company you switch to. Mindoo needs no logo or colours to work. If you want it
+to have its own later, drop the guidelines in and they'll be wired the way the
+other two were.
+
+Mindoo keeps no books and no vault records for now, so Accounting and the Data
+Vault still show two companies.
+
+---
+
 ## Postpone / Not answering — a shelf for the leads that go quiet (2026-08-31)
 
 You said: *"We need a column in the CRM called Postpone / Not answering, for all

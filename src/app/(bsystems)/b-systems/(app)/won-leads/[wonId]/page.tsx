@@ -2,8 +2,8 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { requireCompanySection } from "@/lib/auth/page-guards";
-import { BS_PIPELINE_ROLES } from "@/lib/crm/company";
-import { bsRoleOf } from "@/lib/api/bsystems";
+import { BS_PIPELINE_ROLES, MINDOO_ROLES, crmQuery } from "@/lib/crm/company";
+import { crmEngineRole } from "@/lib/api/bsystems";
 import { formatEGP } from "@/lib/money";
 import { formatCairoDate } from "@/lib/datetime";
 import { MilestoneCheckbox, WonDocumentUpload } from "@/components/bsystems/wonLeads";
@@ -28,15 +28,25 @@ export default async function WonLeadDetailPage({
 }) {
   /* ADR-067 — a B-Systems-ONLY section: refused under company=byteforce, and
      refused BEFORE the role narrowing below, so a ByteForce-only teammate is
-     redirected rather than falling into bsRoleOf and turning into a 500.
-     Past this line bsRoleOf is TOTAL: holding "bsystems" is exactly holding one
-     of the five B-Systems roles, so it can no longer throw. */
-  const { user } = await requireCompanySection(
-    "bsystems",
+     redirected rather than falling into a role lookup and turning into a 500.
+     ADR-073 — the company here is B-Systems or Mindoo, and `crmEngineRole` is
+     total for both. */
+  const { user, company } = await requireCompanySection(
+    /* ADR-073 — B-Systems AND Mindoo: Mindoo runs the same pipeline, so it wins
+       the same way and needs the same screen. ByteForce is still refused, and
+       rightly — its win writes a Client, not a Won Deal, so this page would
+       have nothing to show it. The role list is the union of both companies'
+       staff, which is safe because the COMPANY is resolved and refused first. */
+    ["bsystems", "mindoo"],
     (await searchParams).company,
-    BS_PIPELINE_ROLES,
+    [...BS_PIPELINE_ROLES, ...MINDOO_ROLES],
   );
-  if (bsRoleOf(user) !== "bsystems_admin") redirect("/b-systems/won-leads");
+  /* ADR-073 — the company's own administrator, whoever that is: B-Systems' admin
+     or Mindoo's single staff role. `bsRoleOf` cannot be asked here any more —
+     it throws for a Mindoo account, which would be a 500 on a page that account
+     is entitled to. */
+  const role = crmEngineRole(company, user);
+  if (role !== "bsystems_admin" && role !== "mindoo_staff") redirect("/b-systems/won-leads");
 
   const { wonId } = await params;
   const w = await db.wonDeal.findUnique({
@@ -53,7 +63,11 @@ export default async function WonLeadDetailPage({
       attachments: true,
     },
   });
-  if (!w || w.lead.brand !== "bsystems") notFound();
+  /* ADR-073 — the deal must belong to the company on screen, whichever it is.
+     Pinned to the literal, every Mindoo won deal 404'd on the page its own
+     staff reached it from — and, read the other way, this is also the wall that
+     stops one company opening another's deal by id. */
+  if (!w || w.lead.brand !== company) notFound();
 
   const locale = await getLocale();
   const t = tFor(locale);
@@ -122,7 +136,8 @@ export default async function WonLeadDetailPage({
             </div>
             <p className="panel-hint">
               <Link
-                href={`/b-systems/crm/lead/${w.leadId}`}
+                /* ADR-073 — the company rides the link; see the list page. */
+                href={`/b-systems/crm/lead/${w.leadId}${crmQuery(company)}`}
                 className="text-brand-link underline underline-offset-2"
               >
                 {t(wonLeads.openLeadRecord)}

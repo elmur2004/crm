@@ -7,6 +7,8 @@ import {
   BS_PIPELINE_ROLES,
   CRM_COMPANIES,
   CRM_ROLES,
+  MINDOO_ROLES,
+  crmRolesFor,
   type CrmCompany,
 } from "./company";
 import { ROLES, type Role } from "@/lib/pipeline-engine/constants";
@@ -69,23 +71,37 @@ function callArgs(src: string, fn: string): string | null {
 
 const isRole = (s: string): s is Role => (ROLES as readonly string[]).includes(s);
 
-/** The role set an argument list names — a shared constant, or literals. */
+/** The role set an argument list names — shared constants and/or literals.
+
+    ADR-073 — it ACCUMULATES now instead of returning on the first constant it
+    recognises. A guard can name more than one: Won Leads is
+    `[...BS_PIPELINE_ROLES, ...MINDOO_ROLES]`, and a first-match reading of that
+    reported only Mindoo's role and declared the page shut to every B-Systems
+    role that has always had it. The union is what the spread actually means. */
 function rolesFrom(args: string): Role[] {
-  if (/\bBS_PIPELINE_ROLES\b/.test(args)) return [...BS_PIPELINE_ROLES];
-  if (/\bBS_CRM_ROLES\b/.test(args)) return [...BS_CRM_ROLES];
-  if (/\bCRM_ROLES\b/.test(args)) return [...CRM_ROLES];
+  const found: Role[] = [];
+  if (/\bBS_PIPELINE_ROLES\b/.test(args)) found.push(...BS_PIPELINE_ROLES);
+  if (/\bBS_CRM_ROLES\b/.test(args)) found.push(...BS_CRM_ROLES);
+  if (/\bCRM_ROLES\b/.test(args)) found.push(...CRM_ROLES);
+  if (/\bMINDOO_ROLES\b/.test(args)) found.push(...MINDOO_ROLES);
   /* the company argument of requireCompanySection is a string literal too —
      it is filtered out here because "bsystems" is not a Role, "bsystems_admin" is */
-  return [...args.matchAll(/"([a-z_]+)"/g)].map((m) => m[1]!).filter(isRole);
+  found.push(...[...args.matchAll(/"([a-z_]+)"/g)].map((m) => m[1]!).filter(isRole));
+  return [...new Set(found)];
 }
 
 /** Which companies this page's guard admits. */
 function companiesAdmitted(src: string): CrmCompany[] {
   if (/\brequireBsAdminCompanyPage\b/.test(src)) return ["bsystems"];
   const args = callArgs(src, "requireCompanySection");
-  const pinned = args?.match(/"(bsystems|byteforce)"/);
-  if (pinned) return [pinned[1] as CrmCompany];
-  /* requireCompanyPage — a SHARED address, both companies */
+  /* ADR-073 — a section can be pinned to SEVERAL companies now (Won Leads is
+     B-Systems AND Mindoo), so collect every company literal in the argument
+     list rather than only the first. */
+  const pinned = [...(args ?? "").matchAll(/"(bsystems|byteforce|mindoo)"/g)].map(
+    (m) => m[1] as CrmCompany,
+  );
+  if (pinned.length > 0) return [...new Set(pinned)];
+  /* requireCompanyPage — a SHARED address, every company */
   return [...CRM_COMPANIES];
 }
 
@@ -94,11 +110,19 @@ function rolesAdmitted(src: string, company: CrmCompany): Role[] {
   if (/\brequireBsAdminCompanyPage\b/.test(src)) return ["bsystems_admin"];
   const section = callArgs(src, "requireCompanySection");
   if (section) return rolesFrom(section);
-  /* A shared page under ByteForce: the company itself proves byteforce_staff
-     (companiesFor only ever reports a company a role already carries), and the
-     page returns from its ByteForce branch BEFORE the B-Systems narrowing. */
-  if (company === "byteforce") return ["byteforce_staff"];
   const narrow = callArgs(src, "narrowRoles");
+  /* ADR-073 — the shared pages narrow through `crmRolesFor(company)`. Rather
+     than parse a branch out of the source, ASK THE FUNCTION the page calls: it
+     is the same object under test, so the two cannot drift. Strictly stronger
+     than what stood here, which hand-special-cased ByteForce and assumed
+     exactly one narrowRoles call per file — an assumption a third company with
+     its own branch immediately broke. */
+  if (narrow && /crmRolesFor/.test(narrow)) return [...crmRolesFor(company)];
+  /* a shared page that still narrows by hand: under a single-staff-role company
+     the company itself proves the role (companiesFor only ever reports a
+     company a role already carries) */
+  if (company === "byteforce") return ["byteforce_staff"];
+  if (company === "mindoo") return [...MINDOO_ROLES];
   return narrow ? rolesFrom(narrow) : [...CRM_ROLES];
 }
 
@@ -107,11 +131,14 @@ function rolesAdmitted(src: string, company: CrmCompany): Role[] {
 const CASES: Array<{ company: CrmCompany; role: Role | null; as: Role }> = [
   { company: "byteforce", role: null, as: "byteforce_staff" },
   ...BS_CRM_ROLES.map((role) => ({ company: "bsystems" as const, role, as: role })),
+  /* ADR-073 — Mindoo, like ByteForce, has one staff role and therefore one nav;
+     `bsRole` is null there, exactly as crmNavFor expects. */
+  { company: "mindoo", role: null, as: "mindoo_staff" },
 ];
 
 describe("ADR-067 — the nav table never offers a door the guards would shut", () => {
   it("the sweep has real cases (a silent zero would prove nothing)", () => {
-    expect(CASES.length).toBe(6);
+    expect(CASES.length).toBe(7); // ADR-073 added Mindoo
     expect(CASES.every((c) => crmNavFor(c.company, c.role).length > 0)).toBe(true);
   });
 

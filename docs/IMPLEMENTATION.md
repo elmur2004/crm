@@ -2939,3 +2939,153 @@ infrastructure failure that reads exactly like a broken endpoint.
 The tell is the shape of the error, not its content: **ECONNRESET / socket
 hang-up in ONE test, with the rest of the suite green**, is starvation, not a
 regression. Re-run it with nothing else going before spending any time on it.
+
+## ADR-073 — the third company: the traps
+
+### 1. `\b` IN A NON-RAW PYTHON STRING IS A BACKSPACE, AND IT SURVIVES INTO THE FILE
+Patching a test through a Python heredoc, I wrote a JS regex literal
+`/\bcrmRolesFor\b/` inside an ordinary `'''…'''` string. Python read `\b` as the
+**backspace escape**, so what landed on disk was
+`/<0x08>crmRolesFor<0x08>/` — a regex that matches literal backspace characters
+and therefore never matched anything.
+
+The failure was maximally confusing: the branch silently did not fire, execution
+fell through to a parser that found no known constant, and the test reported
+`guard admits only ` — an EMPTY role list — for a page whose guard was plainly
+correct. Three rounds of instrumentation went into the wrong half of the problem
+because the source *looked* right in an editor: a backspace is invisible.
+
+Two habits that would have cost nothing:
+- **Use raw strings (`r'''…'''`) for any patch text containing a backslash**, or
+  double every backslash and check.
+- **`grep -P "\x08"` the tree** after script-driven edits. It found nothing else,
+  which is the only reason this was a twenty-minute detour rather than a
+  landmine.
+
+### 2. A TERNARY ON A TWO-VALUE UNION IS A TRAPDOOR THE DAY THERE ARE THREE
+`brand === "byteforce" ? a : b` is total while `Brand` has two members. Widening
+the union does not break it, does not warn, and hands the new member the `else`
+branch. Four of these existed (`configForBrand`, `staffRolesForBrand`,
+`rolesForCompany`, `mentionableUsersFor`), and all four would have given Mindoo
+B-Systems' answer.
+
+`Record<Brand, T>` is the fix and the reason is mechanical rather than stylistic:
+**an exhaustive map fails to compile when the union grows**, which is exactly the
+moment somebody needs to be asked the question. Prefer it to a ternary or a
+`switch` with a `default` anywhere the union is a set of tenants, brands or
+companies.
+
+The nastiest instance was `configForBrand`, because the fall-through was *nearly*
+right — Mindoo really does copy B-Systems' pipeline — and the one thing it got
+wrong was the role gate, so the board would have rendered perfectly and offered
+no way to close a deal.
+
+### 3. A FIRST-MATCH PARSER MISREADS A UNION
+`nav.test.ts`'s `rolesFrom` returned on the first shared constant it recognised
+in a guard's argument list. That was correct while every guard named exactly one.
+`[...BS_PIPELINE_ROLES, ...MINDOO_ROLES]` broke it into an active lie: the test
+reported the page admits *only* `mindoo_staff` and declared Won Leads shut to
+every B-Systems role that has always had it.
+
+It accumulates now. **Any parser that reads a spread should union, not
+short-circuit** — the spread means "and", and a first match reads it as "or".
+
+### 4. ADDING A TENANT CAN INVALIDATE AN OLD WALL, NOT JUST DEMAND A NEW ONE
+`checkMilestone(id)` looked a milestone up by id alone. Perfectly safe with one
+company that had milestones — the route's `requireBsAdmin` was the whole test,
+and the comment said so. Mindoo wins the same way, so it has milestones too, and
+that reasoning silently stopped holding: a B-Systems admin could reach a Mindoo
+milestone and vice versa.
+
+**When adding a tenant, re-read the justification of every existing guard, not
+only the list of places that mention the tenant dimension.** The dangerous ones
+say "admin only" and mean "there is only one admin worth worrying about". The
+fix answers 404 rather than 403, so one company cannot enumerate another's ids.
+
+### 5. A COMPONENT THAT IMPORTS A CONFIG HAS A TENANT BAKED IN
+`BsBoard` and `BsEventPanel` imported `bsystemsCrmConfig` at module scope —
+invisible in every call site, and impossible to vary. Both take the company as a
+**required** prop now. Required rather than defaulted, for the ADR-066 §8 reason:
+a default lets the next call site inherit the wrong pipeline silently, which is
+the whole failure the prop exists to prevent.
+
+### 6. A DEEP LINK INTO A *SHARED* SCREEN MUST CARRY THE COMPANY
+The B-Systems board pushed `/b-systems/crm/lead/<id>` with **no `?company=`**.
+That was correct for as long as the lead detail served one company: the page
+falls back to the reader's DEFAULT company, which was always the right one.
+
+The moment Mindoo shared that address, the same link became a 500 — the page
+resolved `bsystems`, `getLeadDetail("bsystems", mindooLeadId)` threw
+`404 Lead not found`, and because that call sits outside the page's try/catch it
+surfaced as **"This page couldn't load"** on a lead the reader is entitled to.
+
+ByteForce never exposed it because ByteForce leads live on a *different* route
+(`/b-systems/leads/lead/…`), so the two-company era gave no warning at all. Four
+links were affected — the card title, the card's call sheet, the card's click
+handler, and the Leads table row — and each one is invisible in review because a
+missing query parameter looks like nothing.
+
+**Rule: the moment a route serves more than one tenant, every link to it carries
+the tenant.** Grep for the route string, not for the bug.
+
+### 7. AND THE PAGE ITSELF MUST USE THE RESOLVED COMPANY, NOT A LITERAL
+The same page then called `getLeadDetail("bsystems", leadId)`. A sweep of the
+shared and dual-company pages for `"bsystems"` string literals found three more
+of exactly this kind:
+
+- `listCalendarPeople("bsystems")` on the board **and** the lead detail — the
+  "Also blocks" roster, which would have offered B-Systems' people on a Mindoo
+  meeting and put a Mindoo meeting on the wrong company's calendar;
+- `w.lead.brand !== "bsystems"` on the Won Deal detail — every Mindoo won deal
+  would have 404'd, and read the other way this is the wall that stops one
+  company opening another's deal by id.
+
+None of these is reachable by reading the diff of the feature: they are
+pre-existing lines that were *true* and silently stopped being so. **After
+widening a page from one tenant to several, grep that page for the old tenant's
+literal.** It takes a minute and it found four bugs here.
+
+### 8. A THIRD SEGMENT OVERFLOWS A CONTROL THAT FIT TWO
+`.switcher` is `flex: none`, which was fine while the company switch held two
+mono, letter-spaced labels. A third pushed **43px of horizontal page overflow**
+at the narrow end — caught only because `module-bar.spec.ts` asserts the page
+never scrolls sideways at 320px and 240px.
+
+ADR-060 had already solved this for the module bar (equal `1fr` grid cells that
+cannot overflow any viewport at any zoom); the company switch simply had not
+needed it yet. **A fixed-width control is a latent overflow bug waiting for its
+next item** — and the assertion that caught it is a page-level one, not a
+component-level one, which is why it was worth having.
+
+### 9. ZOMBIE POSTGRES SOCKETS MAKE REPROS LIE
+After a long session the machine held **nine** orphaned embedded-Postgres
+listeners in the 5500–5999 band — sockets still marked LISTENING whose PIDs no
+longer exist, so `taskkill` reports "process not found" and they persist until
+reboot. Both `vitest.config.ts` and `playwright.config.ts` already derive their
+port from the process PID precisely to dodge this ("a crashed run can leave a
+Windows zombie socket on a fixed port"), but a new PID can still collide with
+one, and then the run dies at startup with
+`could not bind … FATAL: could not create any TCP/IP sockets` and a bare
+`undefined` where the test summary should be.
+
+Two of three attempts to reproduce an unrelated flake died this way. **If a run
+ends with `undefined` and no test counts, read the top of the log for a bind
+failure before believing anything about the code** — and re-run rather than
+theorise, because a new process usually draws a free port.
+
+### 10. "PASSES ALONE, FAILS IN THE SUITE" IS A BUDGET SYMPTOM AS OFTEN AS A STATE ONE
+`impersonation.spec.ts` failed three full runs in a row and passed alone, in a
+three-spec batch, and in a five-spec batch — the classic signature of leaked
+state. Pairing it with the spec that precedes it alphabetically reproduced the
+failure **once** and then passed on a second identical run, which is what ruled
+state out: an ordering dependency does not come and go.
+
+It is the only case in the suite performing three server-side auth round trips
+(sign in → mint an impersonation session → snap back), and it always failed the
+same way: a sign-in POST returning to `/login`, the test spending its entire 60s
+on one `waitForURL`. The fix is the budget, not the assertions.
+
+Worth checking first, and cheaply, was whether the change under review had moved
+the landing this test waits for — a four-line script calling `landingFor` with
+the old and new role sets proved it had not, which is what made "flake" an
+honest conclusion rather than a convenient one.

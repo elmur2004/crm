@@ -1,5 +1,12 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
+/* ADR-073 — take the id from the PATHNAME, not the raw href. Card links carry
+   `?company=` now that the lead detail is shared between companies, and a bare
+   `split("/").pop()` returns "<id>?company=bsystems" — which then swallows the
+   rest of every URL built from it (`/leads/<id>?company=bsystems/event` is a
+   POST to the COLLECTION route, answering 405 where the test expected 403). */
+const idFromHref = (href: string) => new URL(href, "http://x").pathname.split("/").pop()!;
+
 /* V2 journey 4 — Agent cycle on the UNIFIED B-Systems board (the portal is gone):
    sign up with CV → land on /b-systems/crm → sees only own leads → add a lead →
    drag through stages with the LIGHT forms (day-only follow-up, no owner/with) →
@@ -144,7 +151,7 @@ test("journey 4: agent requests to join, admin approves, agent works the board w
     .locator('[data-stage="following_up"]')
     .getByRole("link", { name: "Nadia Prospect" })
     .getAttribute("href");
-  const leadId = dealHref!.split("/").pop()!;
+  const leadId = idFromHref(dealHref!);
   const apiResponse = await page.request.post(`/api/b-systems/leads/${leadId}/event`, {
     data: { event: { type: "drag", to: "won" } },
   });

@@ -1,5 +1,5 @@
 import { requireCompanySection } from "@/lib/auth/page-guards";
-import { BS_PIPELINE_ROLES } from "@/lib/crm/company";
+import { BS_PIPELINE_ROLES, MINDOO_ROLES } from "@/lib/crm/company";
 import { CallSheet } from "@/components/shared/CallSheet";
 import { tFor } from "@/lib/i18n/core";
 import { getLocale } from "@/lib/i18n/server";
@@ -22,11 +22,19 @@ export default async function BsCallSheetPage({
   searchParams: Promise<{ company?: string }>;
 }) {
   /* ADR-067 — B-Systems only; ByteForce's call sheet is its own route. */
-  await requireCompanySection("bsystems", (await searchParams).company, BS_PIPELINE_ROLES);
+  /* ADR-073 — shared with Mindoo, whose leads live on this same detail route.
+     The brand handed to the sheet is the RESOLVED company, never the literal:
+     a Mindoo call sheet reading "bsystems" would query the wrong company's
+     lead and 404 on a record that exists. */
+  const { company } = await requireCompanySection(
+    ["bsystems", "mindoo"],
+    (await searchParams).company,
+    [...BS_PIPELINE_ROLES, ...MINDOO_ROLES],
+  );
   const { leadId } = await params;
   return (
     <CallSheet
-      brand="bsystems"
+      brand={company}
       leadId={leadId}
       leadPath="/b-systems/crm/lead"
       apiBase="/api/b-systems"

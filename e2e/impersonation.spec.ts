@@ -4,6 +4,17 @@ import { expect, test } from "@playwright/test";
    sees a persistent bar, and one click returns to the admin session. */
 
 test("admin impersonates an agent, sees their app, and snaps back to admin", async ({ page }) => {
+  /* ADR-073 — the budget, not the assertions.
+
+     This is the only case in the suite that performs THREE server-side auth
+     round trips in one test: sign in as the admin, mint an impersonation
+     session, then snap back. On the default 60s it began tipping as the suite
+     grew — always the same way, a sign-in POST returning to /login and the test
+     spending its whole budget on one `waitForURL`. It passes alone, in batches,
+     and in the same pair that reproduced it once; only a loaded machine tips
+     it. The same accommodation qa-sweep's sweeps already carry, and for the
+     same reason: the clock was never the thing under test. */
+  test.setTimeout(180_000);
   await page.goto("/login");
   await page.getByLabel("Email or phone").fill("admin@byteforce.com");
   await page.getByLabel("Password").fill("password123");

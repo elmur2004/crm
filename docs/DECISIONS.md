@@ -5596,3 +5596,156 @@ scopes carry them, including `neutral`, which the token test enforces.
      a meeting keeps its slot until it is given an outcome, whatever the lead's
      stage. If parking a lead should also clear its diary, that is a separate
      rule and a separate decision.
+
+---
+
+## ADR-073 — 2026-09-01 — MINDOO: a THIRD company, and what a third value breaks that a second one never did
+
+- Context — the founder: *"we need to add a third CRM called Mindoo with the
+  exact same switch mechanic and the exact same info and details."*
+
+  Four decisions were put to him first, because "the same as the other two" is
+  not a specification — the two are not the same as each other. He chose: **a
+  copy of B-SYSTEMS** (its pipeline, not ByteForce's) · **one staff role**,
+  `mindoo_staff`, the shape `byteforce_staff` has · **CRM only**, no Accounting
+  and no Data Vault · **no brand of its own**.
+
+### 0. What the architecture already got right, and what it did not
+
+`company` is spread across 114 files, and the honest expectation was a long
+grind. It was not: only **seven** places branched on the company as a binary,
+because ADR-067 had made the rest table-driven. The switch itself needed **no
+change at all** — `CompanySwitch` already renders `companies.map(...)`, so a
+third segment appeared for free. The boards and both dashboards iterate the
+stage arrays, so Mindoo's columns and counts appeared for free too.
+
+What did NOT survive is the shape of those seven branches, and this is the
+lesson of the ADR: **`a === "x" ? p : q` is total with two values and a trapdoor
+with three.** Every one of them would have compiled, and every one would have
+silently given Mindoo B-Systems' answer:
+
+| Branch | What falling through would have done |
+|---|---|
+| `configForBrand` | Mindoo runs the B-Systems config — *nearly right*, and therefore the worst kind of wrong (see §1) |
+| `staffRolesForBrand` | Mindoo's API namespace admits B-Systems staff and refuses Mindoo's own |
+| `rolesForCompany` (calendar) | every B-Systems agent appears on Mindoo's calendar; Mindoo's staff does not |
+| `mentionableUsersFor` | a Mindoo lead's chat offers B-Systems' admins and agents |
+
+All four are now `Record<Brand, …>` tables, so the **compiler demands an answer
+for every company that exists** and the fourth company is noticed rather than
+inherited.
+
+### 1. The silent hole a faithful copy would have shipped
+
+The B-Systems pipeline config is **role-aware**: Won is reserved for
+`bsystems_admin` and `bsystems_sales`, because agents and partners must never
+close a deal themselves (SPEC §3). Mindoo copies that pipeline — so the obvious
+implementation is to point `configForBrand("mindoo")` at `bsystemsCrmConfig` and
+be done.
+
+That produces a board with the right eight columns, the right field groups and
+**no way to win anything**. `mindoo_staff` is in neither reserved list, so the
+Won action is simply not offered — no error, no empty state, just an option
+missing from a dropdown in the middle of a pipeline that otherwise looks
+complete. `mindooCrmConfig` therefore exists, and the one thing it changes is
+the role gate.
+
+The reservation had nothing to protect in Mindoo: it exists to keep external
+agents from closing deals, and Mindoo has no external agents. **A copied
+permission is only faithful if the thing it was protecting against also came
+along.**
+
+### 2. Three things a third value made newly necessary
+
+- **`requireCompanySection` takes one company OR several.** Won Leads belongs to
+  B-Systems *and* Mindoo (both win the same way and write a Won Deal) while
+  ByteForce must still be refused (its win writes a Client, so the page would
+  have nothing to show it). A section belongs to the companies it belongs to,
+  which is not always exactly one and is never all of them — that last case is
+  what `requireCompanyPage` is for.
+
+- **`crmEngineRole(company, user)`.** The engine's configs are role-aware, so
+  handing one "the account's role" stopped being well-defined once an account
+  can hold roles in several companies. A person who is a B-Systems admin *and*
+  Mindoo staff, looking at Mindoo, must be judged as Mindoo staff — otherwise
+  Mindoo's config sees `bsystems_admin`, finds it in neither list, and offers no
+  way to win a deal that person is fully entitled to close. It translates only;
+  the company has already been resolved and refused by the page guard, so it can
+  never grant.
+
+- **`crmRolesFor(company)`.** The five shared pages each narrow to a different
+  role set per company. With two companies that was an `if` and an implicit
+  else; with three it is a table — and a table is the only shape `nav.test.ts`
+  can check without parsing branches out of source. The test now **calls the
+  function the pages call**, which is strictly stronger than the hand-written
+  ByteForce special case it replaces.
+
+### 3. A cross-company hole that ADDING a company opened
+
+`checkMilestone` / `uncheckMilestone` looked a milestone up **by id and nothing
+else**. That was safe while exactly one company had milestones: the route's
+`requireBsAdmin` was the whole test. Mindoo wins the same way, so it has
+milestones too — and an id stopped being proof of anything. A B-Systems admin
+could have checked a **Mindoo** milestone through `/api/b-systems`, and Mindoo's
+staff a B-Systems one through its own namespace.
+
+Neither route could have caught it; only the record's own company can. Both
+functions now take a required `brand` and answer **404** — not 403 — on a
+foreign company's milestone, so one company cannot enumerate another's records.
+`brand` is required rather than optional because an optional wall is a wall the
+next call site forgets, and the compiler naming both existing callers is the
+cheapest audit available.
+
+**This is the general hazard worth remembering: adding a tenant does not only
+require new walls, it can invalidate the reasoning behind old ones.** The
+comment on those functions said "ADMIN ONLY at the API layer", which was true
+and had quietly stopped being sufficient.
+
+### 4. Two components had a pipeline baked in
+
+`BsBoard` and `BsEventPanel` imported `bsystemsCrmConfig` directly — true while
+that board served one company. Both now take a required `company: Brand` and
+resolve through `configForBrand`. Required, not optional-defaulting-to-B-Systems:
+an optional prop lets a new call site inherit the wrong pipeline silently, which
+is the entire failure the prop exists to prevent (the ADR-066 §8 precedent).
+
+### What Mindoo deliberately does NOT get
+
+The **partner/agent subsystem** — Partners & Agents, Partners, Agents,
+Registrations, Statements, Payments, Profile, and the data-entry page. Every one
+of them exists *for external agents and partners*, and Mindoo has a single
+internal staff role by the founder's own decision. Offered, they would be doors
+onto screens that can never hold anything.
+
+Its **Home and Leads are B-Systems'**, not ByteForce's, because Mindoo runs that
+pipeline and that win shape. Its agent and partner figures read zero — a true
+statement about Mindoo rather than a gap.
+
+Its **assign-owner control is withheld**: that roster is B-Systems' agents,
+partners and internal sales, and a Mindoo lead must never be handed to one of
+them. `isAdmin` is nevertheless TRUE for Mindoo's staff, because they are the
+nearest thing that company has to an administrator and editing their own leads
+is theirs to do.
+
+**No brand.** Since ADR-067 the chrome does not change when you switch company
+("I don't need the entire interface to change"), so a Mindoo lead is read inside
+the same shell as the others. `BRAND_ASSETS.mindoo` carries two nulls and a
+wordmark — the documented typographic-fallback state that map was built to
+express, not a gap.
+
+- Consequences: one role, one brand literal, one pipeline config, one API
+  namespace, six nav items, and four ternaries turned into tables. No existing
+  company's behaviour changes; no account gains a company it did not hold; the
+  company property test grew from 64 subsets to 128.
+
+- Status: Accepted. **Needs founder confirmation (three):**
+  1. **The partner/agent subsystem is excluded**, per the reasoning above. If
+     Mindoo really is to have external agents, that is a second role set and a
+     much larger piece of work — say so and it becomes its own ADR.
+  2. **Mindoo keeps no books and no vault records.** `ACCT_COMPANIES` and
+     `VAULT_COMPANIES` are untouched, so Accounting and the Data Vault still
+     show two companies. Adding a third there needs Mindoo brand colours, because
+     both modules re-skin to the selected company.
+  3. **Users are administered from B-Systems.** Accounts are platform-wide, so
+     there is no Mindoo Users page; a Mindoo teammate is created by the
+     B-Systems admin.

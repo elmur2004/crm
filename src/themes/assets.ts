@@ -28,4 +28,17 @@ export const BRAND_ASSETS: Record<Brand, BrandAssets> = {
     wordmark: "SYSTEMS",
     tagline: "COMPLETE YOUR PROCESS",
   },
+  /* ADR-073 — Mindoo has no brand yet, and does not need one: the founder's
+     rule since ADR-067 is that the CHROME never changes when you switch company
+     ("I don't need the entire interface to change"), so a Mindoo lead is read
+     inside the B-Systems shell exactly as a ByteForce one is. Both slots are
+     null, which is the documented "typographic fallback" state this map was
+     built to express — not a gap. The wordmark is the only thing anybody sees,
+     and it is his own name for the company. */
+  mindoo: {
+    logoHorizontal: null,
+    logoMark: null,
+    wordmark: "MINDOO",
+    tagline: "",
+  },
 };

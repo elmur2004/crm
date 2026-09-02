@@ -153,6 +153,12 @@ test.describe("ADR-072 — Postpone / Not answering", () => {
       .selectOption({ label: "Following Up" });
     await page.getByLabel(/Follow-up date/).fill("2026-10-05");
     await page.getByRole("button", { name: "Save & move" }).click();
+    /* WAIT FOR THE WRITE TO LAND before navigating away. The panel posts and
+       then refreshes; navigating straight to the board raced that round trip
+       and read the lead still parked — a fault in the test, not the move. The
+       follow-up record appearing in the lead's own history is the first thing
+       that can only be true once the server has committed it. */
+    await expect(page.getByText(/Due 5 Oct 2026/)).toBeVisible();
 
     await page.goto("/b-systems/crm?company=bsystems");
     await expect(

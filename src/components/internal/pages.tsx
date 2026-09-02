@@ -80,6 +80,7 @@ export interface InternalAppCtx {
 const BRAND_EYEBROW: Record<Brand, string> = {
   byteforce: "BYTEFORCE",
   bsystems: "B-SYSTEMS",
+  mindoo: "MINDOO", // ADR-073
 };
 
 /* Decorative initials for entity-card marks (aria-hidden, spec §2.4). */

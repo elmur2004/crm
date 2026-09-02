@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { requireCompanySection } from "@/lib/auth/page-guards";
-import { BS_PIPELINE_ROLES } from "@/lib/crm/company";
+import { BS_PIPELINE_ROLES, MINDOO_ROLES, crmQuery } from "@/lib/crm/company";
 import { requireLeadAccess } from "@/lib/auth/guards";
 import { getLeadDetail } from "@/lib/services/leads";
 import { listBsOwnerReps } from "@/lib/services/sales-reps";
@@ -50,8 +50,19 @@ export default async function BsLeadDetailPage({
   searchParams: Promise<{ company?: string }>;
 }) {
   /* ADR-067 — the B-Systems lead detail. ByteForce's is a different screen at
-     /b-systems/leads/lead/[leadId]; this address is B-Systems only. */
-  await requireCompanySection("bsystems", (await searchParams).company, BS_PIPELINE_ROLES);
+     /b-systems/leads/lead/[leadId].
+
+     ADR-073 — and Mindoo's is THIS one: Mindoo copies the B-Systems pipeline,
+     so its leads carry the same field groups, the same stages and the same
+     win. The role list is the union of both companies' staff, which is safe
+     because `requireCompanySection` resolves and refuses the COMPANY first —
+     an account is never offered a company it does not hold, so a B-Systems role
+     can never satisfy this narrowing on a Mindoo page or the other way round. */
+  const { company } = await requireCompanySection(
+    ["bsystems", "mindoo"],
+    (await searchParams).company,
+    [...BS_PIPELINE_ROLES, ...MINDOO_ROLES],
+  );
   const locale = await getLocale();
   const t = tFor(locale);
   const { leadId } = await params;
@@ -62,8 +73,11 @@ export default async function BsLeadDetailPage({
   } catch {
     notFound();
   }
+  /* ADR-073 — Mindoo's single staff role takes the FULL form set. The light
+     forms exist to keep external agents out of fields that are not theirs;
+     Mindoo has no external agents, and this person is its whole staff. */
   const role: BsFormRole =
-    access.role === "bsystems_admin"
+    access.role === "bsystems_admin" || access.role === "mindoo_staff"
       ? "admin"
       : access.role === "bsystems_sales"
         ? "sales"
@@ -72,7 +86,12 @@ export default async function BsLeadDetailPage({
           : "partner";
 
   const [{ lead, history }, negotiationNotes, wonDeal, comments, mentionables] = await Promise.all([
-    getLeadDetail("bsystems", leadId),
+    /* ADR-073 — the RESOLVED company, never the literal. `getLeadDetail` throws
+       404 when the lead's brand does not match, so a hardcoded "bsystems" here
+       turned every Mindoo lead into a 500 on a page its own staff is entitled
+       to. The literal was correct while this screen served one company and
+       became a landmine the moment it served two. */
+    getLeadDetail(company, leadId),
     db.negotiationNote.findMany({ where: { leadId }, orderBy: { createdAt: "desc" } }),
     db.wonDeal.findUnique({
       where: { leadId },
@@ -88,11 +107,17 @@ export default async function BsLeadDetailPage({
   /* ADR-071 — the roster behind the meeting form's "Also blocks" picker: the
      same accounts the calendar draws, so a person marked as needed here is a
      person whose time the calendar can actually show as taken. */
-  const calendarPeople = await listCalendarPeople("bsystems");
+  /* ADR-073 — the RESOLVED company. The roster feeds the meeting form's "Also
+     blocks" picker, so a literal here would offer B-Systems' people on a Mindoo
+     meeting and make a Mindoo meeting occupy the wrong company's calendar. */
+  const calendarPeople = await listCalendarPeople(company);
   /* founder: only the admin hands a lead to someone — labels resolved here so
      the client component stays string-free (V5 bilingual rule) */
   const roleLabels: Record<string, Msg> = roleMsgs;
-  const assignableOwners: AssignableOwner[] = access.isAdmin
+  /* ADR-073 — the roster is B-SYSTEMS' agents, partners and internal sales.
+     A Mindoo lead must never be assignable to one of them, so the control is
+     withheld outside B-Systems regardless of `isAdmin`. */
+  const assignableOwners: AssignableOwner[] = access.isAdmin && company === "bsystems"
     ? (await listAssignableOwners()).map((o) => ({
         id: o.id,
         name: o.name,
@@ -129,7 +154,13 @@ export default async function BsLeadDetailPage({
           {/* founder: the dial entry point — opens the phone-first call sheet.
               PRIMARY, not accent: calling the lead is the page's one true
               action, and accent is already the Ready-to-close cue here. */}
-          <Link href={`/b-systems/crm/lead/${lead.id}/call`} className="btn-primary">
+          <Link
+            /* ADR-073 — carry the company: the call sheet is a SHARED address
+               (B-Systems and Mindoo), so a link without it resolves the
+               reader's default company and 404s the other one's lead. */
+            href={`/b-systems/crm/lead/${lead.id}/call${crmQuery(company)}`}
+            className="btn-primary"
+          >
             {t(callSheet.navLabel)}
           </Link>
           {/* founder: "message on WhatsApp" beside every Call — outlined, since
@@ -252,6 +283,7 @@ export default async function BsLeadDetailPage({
                   stage={lead.stage}
                   role={role}
                   reps={reps}
+                  company={company}
                   people={calendarPeople}
                   hasUnsentProposal={lead.proposals.some((p) => !p.sent)}
                   pendingMeeting={Boolean(

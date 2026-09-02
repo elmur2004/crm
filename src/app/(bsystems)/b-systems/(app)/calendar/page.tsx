@@ -1,5 +1,5 @@
 import { narrowRoles, requireCompanyPage } from "@/lib/auth/page-guards";
-import { BS_PIPELINE_ROLES } from "@/lib/crm/company";
+import { crmRolesFor } from "@/lib/crm/company";
 import { bsRoleOrNull } from "@/lib/api/bsystems";
 import {
   calendarFor,
@@ -52,13 +52,20 @@ export default async function CalendarPage({
      no role narrowing applies. Falling through to the B-Systems narrowing
      instead would bounce every ByteForce teammate off the nav item he was just
      handed, which is the regression nav.test.ts reads this file to prevent. */
+  /* ADR-073 — one company-aware narrowing, before the branches (see
+     crmRolesFor). */
+  narrowRoles(page, ...crmRolesFor(company));
+
   let scope: CalendarScope;
   if (company === "byteforce") {
     scope = { kind: "all" };
+  } else if (company === "mindoo") {
+    /* ADR-073 — the ByteForce shape again: one staff role, the whole company in
+       scope. The privacy wall is unchanged and needs no special case — the
+       roster (rolesForCompany) already answers "whose time does Mindoo show",
+       and everybody outside it is a busy block exactly as before. */
+    scope = { kind: "all" };
   } else {
-    /* ADR-051 — the same four pipeline roles the To-Do accepts, with the
-       data-entry account still carved out and sent to its one destination. */
-    narrowRoles(page, ...BS_PIPELINE_ROLES);
     const role = bsRoleOrNull(user);
     scope =
       role === "bsystems_admin"

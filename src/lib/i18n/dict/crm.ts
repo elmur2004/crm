@@ -37,6 +37,11 @@ export const roles = {
   bsystems_agent: { en: "Agent", ar: "وكيل" },
   bsystems_partner: { en: "Partner", ar: "شريك" },
   bsystems_data_entry: { en: "Data entry", ar: "إدخال بيانات" },
+  /* ADR-073 — Mindoo's one role. Named here so the shell's role line and the
+     Users table print words rather than the raw id; both have a fallback, so
+     this is legibility rather than a fix. (`byteforce_staff` has never been in
+     this map — its label comes from the ByteForce dictionary.) */
+  mindoo_staff: { en: "Mindoo staff", ar: "فريق ميندو" },
 } satisfies Record<string, Msg>;
 
 /* ---- shared bits across the surface ---- */

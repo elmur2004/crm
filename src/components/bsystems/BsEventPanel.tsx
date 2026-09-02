@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { bsystemsCrmConfig } from "@/lib/pipeline-engine/configs/bsystems-crm";
+import { configForBrand } from "@/lib/pipeline-engine/configs/for-brand";
+import type { Brand, Role } from "@/lib/pipeline-engine/constants";
 import { SAME_STAGE_FORM_TARGET, isSameStageAction } from "@/lib/pipeline-engine/constants";
 import { btnGhost, btnPrimary, inputCls, labelCls } from "@/components/portal/groupForms";
 import { tFor } from "@/lib/i18n/core";
@@ -26,6 +27,7 @@ export function BsEventPanel({
   stage,
   role,
   reps,
+  company,
   people = [],
   hasUnsentProposal,
   pendingMeeting,
@@ -35,6 +37,11 @@ export function BsEventPanel({
   stage: string;
   role: BsFormRole;
   reps: Array<{ id: string; name: string }>;
+  /* ADR-073 — WHICH pipeline this lead runs on. Required, like BsBoard's: the
+     panel decides which next actions and which meeting-outcome destinations to
+     offer, and both are ROLE-GATED per company. Hardcoded to B-Systems it
+     offered Mindoo's staff no way to win their own deals. */
+  company: Brand;
   /** ADR-071 — the company roster for the meeting form's "Also blocks". */
   people?: Array<{ id: string; name: string }>;
   hasUnsentProposal: boolean;
@@ -44,14 +51,27 @@ export function BsEventPanel({
   const locale = useLocale();
   const t = tFor(locale);
   const router = useRouter();
-  const engineRole =
-    role === "admin"
-      ? ("bsystems_admin" as const)
-      : role === "sales"
-        ? ("bsystems_sales" as const)
-        : role === "agent"
-          ? ("bsystems_agent" as const)
-          : ("bsystems_partner" as const);
+  /* ADR-073 — the ENGINE role comes from the COMPANY, not from the form role.
+
+     `BsFormRole` describes the FORM SHAPE (full or light), and it is a lossy
+     four-value summary of a role: mapping a role into it and back out again
+     necessarily lands on a B-Systems role, because those are the only four it
+     can name. For Mindoo that round trip produced `bsystems_admin`, which is in
+     neither of Mindoo's config lists — so the Won action vanished and the panel
+     looked complete with no way to close a deal. The company is the only thing
+     that can answer this. */
+  const engineRole: Role =
+    company === "mindoo"
+      ? "mindoo_staff"
+      : company === "byteforce"
+        ? "byteforce_staff"
+        : role === "admin"
+          ? "bsystems_admin"
+          : role === "sales"
+            ? "bsystems_sales"
+            : role === "agent"
+              ? "bsystems_agent"
+              : "bsystems_partner";
   const light = isLight(role);
   const [action, setAction] = useState("");
   const [outcome, setOutcome] = useState("");
@@ -61,15 +81,16 @@ export function BsEventPanel({
   const [meetingSent, setMeetingSent] = useState(false);
   const formState = useGroupFormState();
 
-  const terminal = bsystemsCrmConfig.terminalStages.includes(stage);
-  const nextActions = bsystemsCrmConfig.nextActions(stage, engineRole);
+  const config = configForBrand(company);
+  const terminal = config.terminalStages.includes(stage);
+  const nextActions = config.nextActions(stage, engineRole);
   /* founder: the same-stage records are BUTTONS, not options in a "where does
      this go next" select — nothing moves when you press them. */
   const sameStageActions = nextActions.filter(isSameStageAction);
   const stageActions = nextActions.filter((a) => !isSameStageAction(a));
-  const attendedDestinations = bsystemsCrmConfig.attendedDestinations(engineRole);
+  const attendedDestinations = config.attendedDestinations(engineRole);
   /* ADR-059: read the slot, never compose the pair (see internal panel). */
-  const cancelledDestinations = bsystemsCrmConfig.cancelledDestinations(engineRole);
+  const cancelledDestinations = config.cancelledDestinations(engineRole);
   /* a same-stage action reuses its stage's own field group (V2 §3 role-aware) */
   const formTarget = (a: string) => (isSameStageAction(a) ? SAME_STAGE_FORM_TARGET[a] : a);
 

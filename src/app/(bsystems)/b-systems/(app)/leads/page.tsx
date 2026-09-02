@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { narrowRoles, requireCompanyPage } from "@/lib/auth/page-guards";
-import { bsRoleOrNull } from "@/lib/api/bsystems";
+import { crmEngineRole } from "@/lib/api/bsystems";
 import { crmHomeFor } from "@/lib/crm/nav";
-import { BS_PIPELINE_ROLES, crmQuery } from "@/lib/crm/company";
+import { crmQuery, crmRolesFor } from "@/lib/crm/company";
 import { LeadsBody } from "@/components/internal/pages";
 import { BYTEFORCE_CTX } from "../ctx";
 import { listBsLeads } from "@/lib/services/bsystems-admin";
@@ -82,10 +82,19 @@ export default async function BsLeadsPage({
      `byteforce_staff` (companiesFor only reports a company a role carries), so
      the role narrowing below applies to the B-SYSTEMS branch: the same four
      pipeline roles this page always accepted, with the data-entry account still
-     carved out of it and sent to its one destination. */
-  narrowRoles({ user, company, companies }, ...BS_PIPELINE_ROLES);
-  const role = bsRoleOrNull(user);
-  if (role !== "bsystems_admin") redirect(`${crmHomeFor("bsystems", role)}${crmQuery("bsystems")}`);
+     carved out of it and sent to its one destination.
+
+     ADR-073 — and to MINDOO, which shares this screen because it runs the same
+     pipeline and the same win. Its agent and partner figures read zero, and
+     that is a true statement about Mindoo rather than a gap: it has neither.
+     Only the company's own staff gets here; everybody else is bounced to their
+     own first destination, which by construction accepts that company and that
+     role, so the bounce cannot ping-pong. */
+  narrowRoles({ user, company, companies }, ...crmRolesFor(company));
+  const role = crmEngineRole(company, user);
+  const runsThisCompany = company === "mindoo" ? role === "mindoo_staff" : role === "bsystems_admin";
+  if (!runsThisCompany) redirect(`${crmHomeFor(company, role)}${crmQuery(company)}`);
+
 
   const locale = await getLocale();
   const t = tFor(locale);
@@ -235,7 +244,14 @@ export default async function BsLeadsPage({
                     {leads.map((lead) => (
                       <tr key={lead.id}>
                         <td>
-                          <Link href={`/b-systems/crm/lead/${lead.id}`} className="td-title">
+                          <Link
+                            /* ADR-073 — carry the company: the lead detail is a
+                               SHARED address (B-Systems and Mindoo), so a link
+                               without it falls back to the reader's default
+                               company and 404s a lead that plainly exists. */
+                            href={`/b-systems/crm/lead/${lead.id}${crmQuery(company)}`}
+                            className="td-title"
+                          >
                             {lead.name}
                           </Link>
                         </td>

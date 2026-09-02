@@ -146,7 +146,12 @@ test("journey 5: admin confirms a win with milestones; statement reaches the age
   await agent.getByLabel("Email or phone").fill("01001234567");
   await agent.getByLabel("Password").fill("partner123");
   await agent.getByRole("button", { name: "Sign in" }).click();
-  await expect(agent).toHaveURL(/\/b-systems\/crm$/);
+  /* `waitForURL`, not a 5s `toHaveURL`: this is a NAVIGATION after a server
+     round trip, and every other sign-in in the suite waits for it that way. The
+     assertion is identical — the landing must be the agent's board — but the
+     expect timeout was never the right clock for it, and it started tipping as
+     the suite grew. */
+  await agent.waitForURL(/\/b-systems\/crm$/);
   await agent.goto("/b-systems/payments");
   const paymentRow = agent.getByRole("row", { name: /ST-0001/ });
   await expect(paymentRow.getByText("Pending")).toBeVisible();

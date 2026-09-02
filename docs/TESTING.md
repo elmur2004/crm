@@ -4814,3 +4814,143 @@ FULL npx playwright test, nothing else running
    ({"status":"passed","failedTests":[]}); audit.spec.ts, opt-in, is the pair
    that skips
 ```
+
+## Run 088 — 2026-09-01 — ADR-073: MINDOO, the third company — full vitest, a new e2e spec, and six bugs the suites found
+
+**Scope.** A third company across the CRM: a role, a brand literal, a pipeline
+config, an API namespace, six nav items, four ternaries turned into exhaustive
+tables, and two contract tests widened. **No migration** — `Lead.brand` has
+always been plain TEXT held by a union and Zod (ADR-002), so a third company
+needs no schema change at all.
+
+### Unit + integration
+
+```
+npx tsc --noEmit          clean (source)
+npx vitest run            50 files / 792 tests — 792 passed, 0 failed
+npx next build            compiled successfully; 11 new /api/mindoo routes
+```
+
+**Two contract tests were EXTENDED, never weakened:**
+
+- `company.test.ts` — the property sweep went from **64 subsets to 128**
+  (`mindoo_staff` joins the role set) and now asks for `"mindoo"` alongside the
+  other values. A proof that ran over the OLD roles only would have gone on
+  passing while saying nothing about the new company. Added: the all-three
+  account, the Mindoo-only account, and the case that a dual account is
+  **refused** the third company — the previous version iterated
+  `CRM_COMPANIES` and would have quietly asserted the opposite the moment a
+  company was added.
+- `nav.test.ts` — the shared pages' role set is now resolved by **calling
+  `crmRolesFor`**, the same function the pages call, instead of parsing a branch
+  out of source. Strictly stronger than the hand-written ByteForce special case
+  it replaces, which also assumed exactly one `narrowRoles` call per file — an
+  assumption a per-company branch broke immediately.
+
+### The bug class this feature is really about
+Four ternaries (`configForBrand`, `staffRolesForBrand`, the calendar roster,
+lead-chat mentions) were **total with two values and trapdoors with three**.
+Every one compiled, warned about nothing, and would have handed Mindoo
+B-Systems' answer. The worst was `configForBrand`, because falling through was
+*nearly* right — Mindoo really does copy that pipeline — and the single thing it
+got wrong was the role gate, so the board would have rendered perfectly with **no
+way to close a deal**. All four are `Record<Brand, …>` now, which fails to
+compile when the union grows.
+
+### Six bugs the suites found, in the order they surfaced
+
+1. **`rolesFrom` misread a union.** `[...BS_PIPELINE_ROLES, ...MINDOO_ROLES]`
+   read as "only Mindoo's role", so the nav contract declared Won Leads shut to
+   every B-Systems role that has always had it. It accumulates now: a spread
+   means "and", and a first-match parser reads it as "or".
+2. **The engine role round-tripped through a lossy summary.** `BsFormRole` can
+   only name four B-Systems roles, so `Role → BsFormRole → Role` necessarily
+   landed on `bsystems_admin` for Mindoo — in neither of Mindoo's lists, so the
+   Won option vanished. The panel derives the engine role from the **company**
+   now.
+3. **A deep link into a shared screen dropped the company.** The board pushed
+   `/b-systems/crm/lead/<id>` with no `?company=`; the page fell back to the
+   reader's default and `getLeadDetail` threw `404 Lead not found` **outside the
+   try/catch**, so a Mindoo lead rendered *"This page couldn't load"*. Four links
+   were affected. ByteForce never exposed it because its leads live on a
+   different route.
+4. **Three surviving `"bsystems"` literals** on now-shared pages, found by
+   grepping the widened pages for the old tenant's name: `getLeadDetail`,
+   `listCalendarPeople` (twice — the "Also blocks" roster would have offered the
+   wrong company's people), and the Won Deal's brand check (every Mindoo won deal
+   would have 404'd).
+5. **A third switch segment overflowed the page by 43px** at the narrow end —
+   caught by `module-bar.spec.ts`'s page-level "never scrolls sideways"
+   assertion, not by anything about the switch itself. Fixed with the equal-`1fr`
+   grid ADR-060 already used for the module bar, which cannot overflow any
+   viewport however many companies exist.
+6. **A cross-company hole that adding a company OPENED.** `checkMilestone` looked
+   a milestone up by id alone — safe while one company had milestones. Both
+   functions take a required `brand` now and answer **404**, not 403, so neither
+   company can enumerate the other's ids. See ADR-073 §3.
+
+### One self-inflicted detour, recorded because it cost three rounds
+A JS regex written through a **non-raw Python string** turned `\b` into a literal
+**backspace** (`\x08`) on disk. The branch silently never fired, and a correct
+guard reported an empty role list — invisible in an editor, found only by
+dumping the line with `repr`. A `grep -P "\x08"` sweep of the tree found nothing
+else. IMPLEMENTATION trap 1.
+
+### E2E
+**New spec — `e2e/mindoo.spec.ts`, 6 cases, all green:** the switch offering
+three segments and Mindoo landing on its own leads; the B-SYSTEMS pipeline with
+eight columns including Negotiation (and ByteForce still having none); **Mindoo's
+own staff able to win a Mindoo deal**; a Mindoo-only teammate with no switch at
+all and refused both other companies; the nav carrying the lead sections and not
+the partner subsystem, with every rendered href a real 200; and Arabic.
+
+### The links, which is where a shared route actually bites
+Adding Mindoo made the lead detail, the call sheet and Won Leads **shared**
+addresses. Seven links into them carried no `?company=`, which was correct while
+each served one company and silently wrong the moment it served two — the page
+falls back to the reader's DEFAULT company and `getLeadDetail` throws
+`404 Lead not found` **outside the page's try/catch**, so a lead the reader owns
+renders *"This page couldn't load"*.
+
+ByteForce never exposed any of it, because ByteForce leads live on a different
+route. Found by grepping the route string rather than by reading diffs: the board
+card's title, its Call chip, its click handler, the Leads table row, the lead
+header's Call button, and both Won Leads links.
+
+### Three test fixtures broke on the same change, and each was the test's fault
+- `href.split("/").pop()` returned `"<id>?company=bsystems"`, so every URL built
+  from it swallowed its own path — `/leads/<id>?company=…/event` is a POST to the
+  COLLECTION route, which answers **405** where the test expected 403. Two specs;
+  both take the id from `new URL(href).pathname` now.
+- `call-sheet.spec.ts` waited on a URL with no query. Rewritten as a **predicate**
+  rather than a regex, because escaping `?` inside a template literal is its own
+  trap: `\?` there collapses to a bare `?`, which quietly makes the preceding
+  character optional instead of matching a query string.
+- `journey5` asserted a post-sign-in landing with a 5-second `toHaveURL` where
+  every other sign-in in the suite uses `waitForURL`. Same assertion, correct
+  clock.
+
+```
+FULL npx playwright test  →  155 passed, 5 failed, 2 skipped
+   (1 product bug — the header's Call link; 3 test fixtures; 1 overflow)
+   the 5 affected specs re-run                        →  green
+FULL npx playwright test  →  160 passed, 0 failed, 2 skipped
+   verdict from the summary AND test-results/.last-run.json
+   ({"status":"passed","failedTests":[]})
+```
+
+### Two more the gate turned up on the way, both fixed
+- `postpone.spec.ts` navigated to the board IMMEDIATELY after clicking
+  "Save & move", racing the write it was about to assert. It had passed before
+  only because the app was quicker; the fix waits for the follow-up record to
+  appear in the lead's own history — the first thing that can only be true once
+  the server has committed.
+- `impersonation.spec.ts` failed three full runs at exactly its 60s budget while
+  passing alone, in a 3-spec batch and in a 5-spec batch. Pairing it with the
+  spec before it reproduced the failure ONCE and then passed on an identical
+  re-run, which is what ruled state out — an ordering dependency does not come
+  and go. It is the only case doing three server-side auth round trips in one
+  test; its budget is now stated. Checked FIRST, and cheaply, that this change
+  had not moved the landing it waits for: a four-line script calling
+  `landingFor` with the old and new role sets proved it had not, which is what
+  makes "flake" an honest conclusion rather than a convenient one.

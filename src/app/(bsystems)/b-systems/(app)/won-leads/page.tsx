@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { requireCompanySection } from "@/lib/auth/page-guards";
-import { BS_PIPELINE_ROLES } from "@/lib/crm/company";
-import { bsRoleOf } from "@/lib/api/bsystems";
+import { BS_PIPELINE_ROLES, MINDOO_ROLES, crmQuery } from "@/lib/crm/company";
+import { crmEngineRole } from "@/lib/api/bsystems";
 import { adminWonLeads, closerWonLeads, salesWonLeads } from "@/lib/services/won-leads";
 import { DeleteLeadButton } from "@/components/bsystems/leadActions";
 import { formatEGP } from "@/lib/money";
@@ -57,19 +57,30 @@ export default async function WonLeadsPage({
 }) {
   /* ADR-067 — a B-Systems-ONLY section: refused under company=byteforce, and
      refused BEFORE the role narrowing below, so a ByteForce-only teammate is
-     redirected rather than falling into bsRoleOf and turning into a 500.
-     Past this line bsRoleOf is TOTAL: holding "bsystems" is exactly holding one
-     of the five B-Systems roles, so it can no longer throw. */
+     redirected rather than falling into a role lookup and turning into a 500.
+     ADR-073 — past this line the company is known to be B-Systems or Mindoo,
+     and `crmEngineRole` is TOTAL for both: holding either company is exactly
+     holding one of its roles, so it cannot return null here. */
   const { user, company } = await requireCompanySection(
-    "bsystems",
+    /* ADR-073 — B-Systems AND Mindoo: Mindoo runs the same pipeline, so it wins
+       the same way and needs the same screen. ByteForce is still refused, and
+       rightly — its win writes a Client, not a Won Deal, so this page would
+       have nothing to show it. The role list is the union of both companies'
+       staff, which is safe because the COMPANY is resolved and refused first. */
+    ["bsystems", "mindoo"],
     (await searchParams).company,
-    BS_PIPELINE_ROLES,
+    [...BS_PIPELINE_ROLES, ...MINDOO_ROLES],
   );
-  const role = bsRoleOf(user);
+  /* ADR-073 — `bsRoleOf` THROWS for an account with no B-Systems role, which is
+     every Mindoo account, so it can no longer be called unconditionally here.
+     `crmEngineRole` answers for the company on screen instead; Mindoo's staff
+     reads the admin view, because it is the whole of its company's staff and
+     there is no narrower audience to show it. */
+  const role = crmEngineRole(company, user);
   const locale = await getLocale();
   const t = tFor(locale);
 
-  if (role === "bsystems_admin") {
+  if (role === "bsystems_admin" || role === "mindoo_staff") {
     const deals = await adminWonLeads(company);
     return (
       <div className="space-y-6">
@@ -109,7 +120,13 @@ export default async function WonLeadsPage({
                 </Link>
                 {/* founder V4: edit + delete straight from this interface */}
                 <div className="ecard-footer flex items-center gap-2 flex-wrap">
-                  <Link href={`/b-systems/crm/lead/${w.lead.id}`} className="btn-ghost btn--sm">
+                  <Link
+                    /* ADR-073 — Won Leads is shared with Mindoo, so the link
+                       into the lead detail must name the company or it resolves
+                       the reader's default and 404s. */
+                    href={`/b-systems/crm/lead/${w.lead.id}${crmQuery(company)}`}
+                    className="btn-ghost btn--sm"
+                  >
                     {t(wonLeads.editLead)}
                   </Link>
                   <DeleteLeadButton leadId={w.lead.id} redirectTo="/b-systems/won-leads" />

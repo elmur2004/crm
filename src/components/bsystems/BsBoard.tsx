@@ -14,8 +14,9 @@ import {
   type DragEndEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
-import { BSYSTEMS_STAGES } from "@/lib/pipeline-engine/constants";
-import { bsystemsCrmConfig } from "@/lib/pipeline-engine/configs/bsystems-crm";
+import type { Brand } from "@/lib/pipeline-engine/constants";
+import { configForBrand } from "@/lib/pipeline-engine/configs/for-brand";
+import { crmQuery } from "@/lib/crm/company";
 import { btnGhost, btnPrimary } from "@/components/portal/groupForms";
 import { tFor } from "@/lib/i18n/core";
 import { useLocale } from "@/components/shared/LocaleProvider";
@@ -78,7 +79,19 @@ const MEETING_AT = (lead: BsBoardLead) => lead.meetingAt;
    DragOverlay clone. Founder: columns cap their height and scroll inside now,
    so the dragged visual must ride an overlay — a transformed card inside a
    scrolling, clipping column would vanish under its neighbours. */
-function LeadCardBody({ lead, drag }: { lead: BsBoardLead; drag?: CardDrag }) {
+function LeadCardBody({
+  lead,
+  drag,
+  leadQuery,
+}: {
+  lead: BsBoardLead;
+  drag?: CardDrag;
+  /* ADR-073 — `?company=…`. The lead DETAIL is a shared address now (B-Systems
+     and Mindoo both use it), so a link that drops the company falls back to the
+     account's DEFAULT company and 404s a lead that plainly exists. ByteForce
+     never exposed this because its leads live on a different route. */
+  leadQuery: string;
+}) {
   const locale = useLocale();
   const t = tFor(locale);
   const router = useRouter();
@@ -91,7 +104,7 @@ function LeadCardBody({ lead, drag }: { lead: BsBoardLead; drag?: CardDrag }) {
       {lead.readyToClose ? <span className="bcard-badge">{t(common.readyToClose)}</span> : null}
       <div className="bcard-name-row">
         <Link
-          href={`/b-systems/crm/lead/${lead.id}`}
+          href={`/b-systems/crm/lead/${lead.id}${leadQuery}`}
           className="bcard-name"
           onClick={(e) => e.stopPropagation()}
         >
@@ -108,7 +121,7 @@ function LeadCardBody({ lead, drag }: { lead: BsBoardLead; drag?: CardDrag }) {
             click and the pointer-down so it neither drags the card nor
             triggers the whole-card navigation. */}
         <Link
-          href={`/b-systems/crm/lead/${lead.id}/call`}
+          href={`/b-systems/crm/lead/${lead.id}/call${leadQuery}`}
           className="card-dial"
           onClick={(e) => e.stopPropagation()}
           onPointerDown={(e) => e.stopPropagation()}
@@ -217,10 +230,12 @@ function LeadCard({
   lead,
   dragging,
   suppressClickRef,
+  leadQuery,
 }: {
   lead: BsBoardLead;
   dragging: boolean;
   suppressClickRef: { current: boolean };
+  leadQuery: string;
 }) {
   const router = useRouter();
   const { attributes, listeners, setActivatorNodeRef, setNodeRef, isDragging } = useDraggable({
@@ -239,17 +254,23 @@ function LeadCard({
         /* founder: the whole card opens the lead — but never right after a
            drag (the browser fires a click on drop; the guard swallows it) */
         if (suppressClickRef.current) return;
-        router.push(`/b-systems/crm/lead/${lead.id}`);
+        router.push(`/b-systems/crm/lead/${lead.id}${leadQuery}`);
       }}
       className={`bcard ${isDragging || dragging ? "bcard--ghost" : ""}`}
     >
-      <LeadCardBody lead={lead} drag={{ attributes, listeners, setActivatorNodeRef }} />
+      <LeadCardBody
+        lead={lead}
+        drag={{ attributes, listeners, setActivatorNodeRef }}
+        leadQuery={leadQuery}
+      />
     </div>
   );
 }
 
 function Column({
   stage,
+  meetingStage,
+  leadQuery,
   leads,
   wonBlocked,
   draggingId,
@@ -257,6 +278,12 @@ function Column({
   landedHere,
 }: {
   stage: string;
+  /* ADR-073 — passed in rather than read from a module-level config: the Today
+     chip hangs off the MEETING column, and which stage that is belongs to the
+     pipeline the board is drawing. */
+  meetingStage: string;
+  /** ADR-073 — `?company=…`, carried onto every card's links. */
+  leadQuery: string;
   leads: BsBoardLead[];
   wonBlocked: boolean;
   draggingId: string | null;
@@ -277,7 +304,7 @@ function Column({
      drops. Each column filters on its OWN instant, and says so when the filter
      empties it. */
   const isFollowUpCol = stage === "following_up";
-  const isMeetingCol = stage === bsystemsCrmConfig.meetingStage;
+  const isMeetingCol = stage === meetingStage;
   const { todayOnly, toggle, todayCount, visible } = useTodayFilter(
     leads,
     isMeetingCol ? MEETING_AT : isFollowUpCol ? FOLLOW_UP_AT : null,
@@ -305,6 +332,7 @@ function Column({
           <LeadCard
             key={l.id}
             lead={l}
+            leadQuery={leadQuery}
             dragging={draggingId === l.id}
             suppressClickRef={suppressClickRef}
           />
@@ -329,16 +357,27 @@ export function BsBoard({
   leads,
   role,
   reps,
+  company,
   people = [],
 }: {
   leads: BsBoardLead[];
   role: BsFormRole;
   reps: Array<{ id: string; name: string }>;
+  /* ADR-073 — WHICH pipeline this board is drawing. It used to import
+     `bsystemsCrmConfig` directly, which was true while this board served one
+     company. Mindoo runs the same SHAPE of pipeline under a different role gate
+     (its staff closes its own deals), so a hardcoded config would have drawn
+     Mindoo's board with B-Systems' rules and offered its staff no way to win.
+     REQUIRED, deliberately: an optional prop defaulting to B-Systems would let
+     a new call site inherit the wrong pipeline silently, which is the whole
+     failure this prop exists to prevent. */
+  company: Brand;
   /** ADR-071 — the company roster, threaded to the meeting form's "Also
       blocks" picker. Optional: a caller that omits it simply does not offer
       the field, which is what every screen did before the calendar existed. */
   people?: Array<{ id: string; name: string }>;
 }) {
+  const config = configForBrand(company);
   const locale = useLocale();
   const t = tFor(locale);
   const router = useRouter();
@@ -406,7 +445,7 @@ export function BsBoard({
     if (!to) return;
     const lead = leads.find((l) => l.id === leadId);
     if (!lead || lead.stage === to) return;
-    if (bsystemsCrmConfig.terminalStages.includes(lead.stage)) {
+    if (config.terminalStages.includes(lead.stage)) {
       setMessage(t(msg.terminalMove));
       return;
     }
@@ -438,10 +477,12 @@ export function BsBoard({
 
       <DndContext id="bs-board" sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd}>
         <div className="board" data-cols="6plus">
-          {BSYSTEMS_STAGES.map((stage) => (
+          {config.stages.map((stage) => (
             <Column
               key={stage}
               stage={stage}
+              meetingStage={config.meetingStage}
+              leadQuery={crmQuery(company)}
               leads={leads.filter((l) => l.stage === stage)}
               wonBlocked={!canWin}
               draggingId={draggingId}
@@ -462,7 +503,7 @@ export function BsBoard({
               const l = leads.find((x) => x.id === draggingId);
               return l ? (
                 <div className="bcard bcard--lift" aria-hidden>
-                  <LeadCardBody lead={l} />
+                  <LeadCardBody lead={l} leadQuery={crmQuery(company)} />
                 </div>
               ) : null;
             })()

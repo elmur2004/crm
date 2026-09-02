@@ -1,5 +1,12 @@
 import { expect, test, type Page } from "@playwright/test";
 
+/* ADR-073 — take the id from the PATHNAME, not the raw href. Card links carry
+   `?company=` now that the lead detail is shared between companies, and a bare
+   `split("/").pop()` returns "<id>?company=bsystems" — which then swallows the
+   rest of every URL built from it (`/leads/<id>?company=bsystems/event` is a
+   POST to the COLLECTION route, answering 405 where the test expected 403). */
+const idFromHref = (href: string) => new URL(href, "http://x").pathname.split("/").pop()!;
+
 /* §15 Global DoD security proofs at the API level, V2 edition:
    - agents cannot touch admin surfaces (milestones, statements, users, documents)
    - an agent cannot mutate another agent's lead
@@ -106,7 +113,7 @@ test("an agent cannot mutate another agent's lead (403, nothing changes)", async
   const href = await pageA
     .getByRole("link", { name: "Follow-up Deal" })
     .getAttribute("href");
-  const leadId = href!.split("/").pop()!;
+  const leadId = idFromHref(href!);
 
   /* Agent B attacks A's lead: field edit + stage event + ready-flag all rejected. */
   const patch = await pageB.request.patch(`/api/b-systems/leads/${leadId}`, {
@@ -154,7 +161,7 @@ test("internal sales: internal bucket only, no admin APIs; brands stay partition
   const href = await agentPage
     .getByRole("link", { name: "Follow-up Deal" })
     .getAttribute("href");
-  const agentLeadId = href!.split("/").pop()!;
+  const agentLeadId = idFromHref(href!);
 
   /* Internal sales (omar): agent-bucket lead mutations are rejected. */
   const sales = await browser.newContext();

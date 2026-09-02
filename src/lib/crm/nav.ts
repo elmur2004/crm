@@ -89,12 +89,40 @@ const BSYSTEMS_NAV: Record<string, CrmNavItem[]> = {
   bsystems_data_entry: [{ href: "/b-systems/entry", label: bsNav.dataEntry }],
 };
 
+/* ADR-073 — MINDOO's nav.
+
+   Founder: "a third CRM called Mindoo with the exact same switch mechanic and
+   the exact same info and details", and, asked which of the two it copies,
+   B-Systems. So it carries the B-Systems LEAD sections and their labels: Home,
+   the To-Do, the Calendar, Leads, the board, and Won Leads — the last because a
+   Mindoo win opens the same milestone tab and writes the same Won Deal.
+
+   WHAT IT DELIBERATELY DOES NOT CARRY is the partner/agent subsystem — Partners
+   & Agents, Partners, Agents, Registrations, Statements, Payments, Profile and
+   the data-entry page. Every one of those exists FOR external agents and
+   partners, and Mindoo has a single internal staff role by the founder's own
+   decision; offered here they would be doors onto screens that can never hold
+   anything. Flagged for his confirmation rather than guessed at silently — see
+   ADR-073.
+
+   Users is absent for a different reason: accounts are platform-wide and are
+   administered from B-Systems, not per company. */
+const MINDOO_NAV: CrmNavItem[] = [
+  { href: "/b-systems", label: bsNav.home },
+  { href: "/b-systems/todo", label: todoPage.navItem },
+  { href: "/b-systems/calendar", label: calendarPage.navItem },
+  { href: "/b-systems/leads", label: bsNav.leads },
+  { href: "/b-systems/crm", label: bsNav.crm },
+  { href: "/b-systems/won-leads", label: bsNav.wonLeads },
+];
+
 /** The nav for one company. `bsRole` is the account's single B-Systems role
-    (bsRoleOrNull), and is irrelevant under ByteForce — ByteForce has one staff
-    role and one nav. An account with no role for this company gets NO items,
-    never a borrowed set. */
+    (bsRoleOrNull), and is irrelevant under ByteForce and Mindoo — each has one
+    staff role and therefore one nav. An account with no role for this company
+    gets NO items, never a borrowed set. */
 export function crmNavFor(company: CrmCompany, bsRole: Role | null): CrmNavItem[] {
   if (company === "byteforce") return BYTEFORCE_NAV;
+  if (company === "mindoo") return MINDOO_NAV; // ADR-073
   return (bsRole && BSYSTEMS_NAV[bsRole]) ?? [];
 }
 

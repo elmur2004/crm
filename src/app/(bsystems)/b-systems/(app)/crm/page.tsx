@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { narrowRoles, requireCompanyPage } from "@/lib/auth/page-guards";
-import { bsRoleOrNull } from "@/lib/api/bsystems";
+import { crmEngineRole } from "@/lib/api/bsystems";
 import { crmHomeFor } from "@/lib/crm/nav";
-import { BS_PIPELINE_ROLES, crmQuery } from "@/lib/crm/company";
+import { crmQuery, crmRolesFor } from "@/lib/crm/company";
 import { CrmBoardBody } from "@/components/internal/pages";
 import { BYTEFORCE_CTX } from "../ctx";
 import { listBsLeads, listOwnLeads } from "@/lib/services/bsystems-admin";
@@ -118,11 +118,16 @@ export default async function BsCrmPage({
      the role narrowing below applies to the B-SYSTEMS branch: the same four
      pipeline roles this page always accepted, with the data-entry account still
      carved out of it and sent to its one destination. */
-  narrowRoles({ user, company, companies }, ...BS_PIPELINE_ROLES);
-  const engineRole = bsRoleOrNull(user);
-  if (!engineRole) redirect(`/b-systems${crmQuery("bsystems")}`);
+  /* ADR-073 — Mindoo runs the same board on the same pipeline SHAPE, so it
+     falls through to everything below; only the role wall and the engine role
+     differ. Its staff gets the FULL form set ("admin"), not the light agent
+     one: it is the company's whole staff, and the light forms exist to keep
+     external agents out of fields that are not theirs. */
+  narrowRoles({ user, company, companies }, ...crmRolesFor(company));
+  const engineRole = crmEngineRole(company, user);
+  if (!engineRole) redirect(`/b-systems${crmQuery(company)}`);
   const role: BsFormRole =
-    engineRole === "bsystems_admin"
+    engineRole === "bsystems_admin" || engineRole === "mindoo_staff"
       ? "admin"
       : engineRole === "bsystems_sales"
         ? "sales"
@@ -195,7 +200,10 @@ export default async function BsCrmPage({
   /* ADR-071 — the roster behind the meeting form's "Also blocks" picker. It is
      the same list the calendar draws its columns from, so a person you can mark
      as needed is a person whose time the calendar can actually show. */
-  const calendarPeople = await listCalendarPeople("bsystems");
+  /* ADR-073 — the RESOLVED company. The roster feeds the meeting form's "Also
+     blocks" picker, so a literal here would offer B-Systems' people on a Mindoo
+     meeting and make a Mindoo meeting occupy the wrong company's calendar. */
+  const calendarPeople = await listCalendarPeople(company);
 
   return (
     <div className="space-y-6">
@@ -262,7 +270,7 @@ export default async function BsCrmPage({
       {orderedLeads.length === 0 && activeCount > 0 ? (
         <p className="empty">{t(m.noMatches)}</p>
       ) : (
-        <BsBoard leads={orderedLeads} role={role} reps={reps} people={calendarPeople} />
+        <BsBoard leads={orderedLeads} role={role} reps={reps} company={company} people={calendarPeople} />
       )}
     </div>
   );

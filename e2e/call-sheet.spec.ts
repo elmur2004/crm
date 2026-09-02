@@ -40,7 +40,15 @@ test("dial from the board card opens the call sheet with a dialable tel: link", 
   await expect(cardWa).toHaveAttribute("href", "https://wa.me/201001234567");
   await expect(cardWa).toHaveAttribute("target", "_blank");
   await card.getByRole("link", { name: "Call", exact: true }).click();
-  await page.waitForURL(new RegExp(`/b-systems/crm/lead/${id}/call$`));
+  /* ADR-073 — the call sheet is a SHARED address now (B-Systems and Mindoo),
+     so its links carry `?company=`; without it the page would resolve the
+     reader's default company and 404 the other one's lead. A PREDICATE rather
+     than a regex: escaping `?` inside a template literal is a trap — `\?` there
+     collapses to a bare `?`, which quietly makes the previous character
+     optional instead of matching a query string. */
+  await page.waitForURL(
+    (u) => u.pathname === `/b-systems/crm/lead/${id}/call` && u.searchParams.get("company") === "bsystems",
+  );
 
   /* the big dial button: labelled for screen readers, sanitised in the href */
   const dial = page.getByRole("link", { name: "Call now — +20 100 123-4567" });
@@ -83,7 +91,15 @@ test("dial from the board card opens the call sheet with a dialable tel: link", 
   /* the lead detail header carries the same entry point */
   await page.goto(`/b-systems/crm/lead/${id}`);
   await page.getByRole("link", { name: "Call", exact: true }).click();
-  await page.waitForURL(new RegExp(`/b-systems/crm/lead/${id}/call$`));
+  /* ADR-073 — the call sheet is a SHARED address now (B-Systems and Mindoo),
+     so its links carry `?company=`; without it the page would resolve the
+     reader's default company and 404 the other one's lead. A PREDICATE rather
+     than a regex: escaping `?` inside a template literal is a trap — `\?` there
+     collapses to a bare `?`, which quietly makes the previous character
+     optional instead of matching a query string. */
+  await page.waitForURL(
+    (u) => u.pathname === `/b-systems/crm/lead/${id}/call` && u.searchParams.get("company") === "bsystems",
+  );
 
   expect((await page.request.delete(`/api/b-systems/leads/${id}`)).ok()).toBe(true);
 });

@@ -452,4 +452,11 @@ export const acct = {
 export const acctCompanies: Record<string, Msg> = {
   byteforce: { en: "ByteForce", ar: "ByteForce" },
   bsystems: { en: "B-Systems", ar: "B-Systems" },
+  /* ADR-073 — Mindoo is a CRM company only; it keeps no books and holds no
+     vault records, so it never appears in an ACCOUNTING filter. It is listed
+     here because this map is also the platform's company-NAME dictionary — the
+     CRM's own company switch reads it — and a company whose name the switch
+     cannot print is a company you cannot switch to. Brand names stay
+     untranslated, the convention this map already sets. */
+  mindoo: { en: "Mindoo", ar: "Mindoo" },
 };

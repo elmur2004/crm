@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { narrowRoles, requireCompanyPage } from "@/lib/auth/page-guards";
-import { BS_PIPELINE_ROLES } from "@/lib/crm/company";
+import { crmRolesFor } from "@/lib/crm/company";
 import { bsRoleOrNull } from "@/lib/api/bsystems";
 import { todoFor, type TodoItem, type TodoScope } from "@/lib/services/todo";
 import { TodoBody } from "@/components/shared/TodoBody";
@@ -28,9 +28,26 @@ export default async function BsTodoPage({
      ByteForce staff have always seen: every ByteForce lead, and NO admin row
      actions — assigning an owner is a B-Systems admin subsystem (its roster
      and its endpoint are B-Systems-locked), so it is not offered here. */
+  /* ADR-073 — ONE narrowing, company-aware, before any branch. Each company's
+     own role list lives in crmRolesFor; under ByteForce and Mindoo the company
+     itself already proves the single staff role, so this is a no-op there and
+     the real wall for B-Systems' five. */
+  narrowRoles({ user, company, companies }, ...crmRolesFor(company));
+
   if (company === "byteforce") {
     const lists = await todoFor({ brand: "byteforce", scope: { kind: "all" } });
     return <TodoBody lists={lists} apiBase="/api/byteforce" />;
+  }
+
+  /* ADR-073 — Mindoo, and it takes the ByteForce shape rather than the
+     B-Systems one: a single staff role that sees the whole company, so the
+     scope is "all" and there are no admin row actions. Assigning a task to
+     somebody is a B-Systems subsystem — its roster and its endpoint are
+     B-Systems-locked — so it is not offered here, exactly as it is not offered
+     to ByteForce. */
+  if (company === "mindoo") {
+    const lists = await todoFor({ brand: "mindoo", scope: { kind: "all" } });
+    return <TodoBody lists={lists} apiBase="/api/mindoo" />;
   }
 
   /* ADR-051 + ADR-067 — under ByteForce the company itself proves
@@ -38,7 +55,6 @@ export default async function BsTodoPage({
      the role narrowing below applies to the B-SYSTEMS branch: the same four
      pipeline roles this page always accepted, with the data-entry account still
      carved out of it and sent to its one destination. */
-  narrowRoles({ user, company, companies }, ...BS_PIPELINE_ROLES);
   const role = bsRoleOrNull(user);
   const scope: TodoScope =
     role === "bsystems_admin"
