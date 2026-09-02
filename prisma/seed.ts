@@ -507,7 +507,12 @@ export async function seed() {
      B-Systems pipeline, so `negotiation` is among them — a stage ByteForce does
      not have, which makes this seed the demo of the difference as well. All are
      internal and unowned: Mindoo has one staff role and no owner buckets. */
-  if (seedDemo) {
+  /* Idempotence: the same sentinel idiom the B-Systems demo block uses above —
+     skip the whole block when its first lead is already on file, so re-running
+     the seed on a live dev database tops up roles and accounts (which upsert)
+     without duplicating rows (which do not). */
+  const mindooSentinel = await db.lead.findFirst({ where: { brand: "mindoo", name: "Nile Freight" } });
+  if (seedDemo && !mindooSentinel) {
     const mindooLeads: Array<[string, string, string]> = [
       ["Nile Freight", "Logistics", "new"],
       ["Delta Foods", "FMCG", "following_up"],
