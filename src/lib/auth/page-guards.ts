@@ -88,7 +88,7 @@ export async function requireVaultPage(): Promise<CurrentUser> {
    as ADR-066 made it for the two module namespaces.
 
    NOBODY GAINS ACCESS. `resolveCompany` narrows only (see lib/crm/company.ts,
-   and the 64-subset property test beside it), and the API namespaces were not
+   and the 128-subset property test beside it — 64 until ADR-073 added a third company's role), and the API namespaces were not
    touched at all: /api/byteforce/** still refuses a B-Systems-only caller and
    /api/b-systems/** still refuses a ByteForce-only one, from the ROUTE, never
    from a parameter. A `company` query on an API route would be the one way to
@@ -168,12 +168,19 @@ export function narrowRoles(page: CompanyPage, ...roles: Role[]): CompanyPage {
     passes it and is bounced by the role check (to its one destination), which is
     byte-for-byte what each of these pages did before the merge. */
 export async function requireCompanySection(
-  only: CrmCompany,
+  /* ADR-073 — one company, or SEVERAL. Won Leads is the case that forced it:
+     Mindoo copies the B-Systems pipeline, so it wins the same way and needs the
+     same screen, while ByteForce (whose win writes a Client, not a Won Deal)
+     still must not reach it. A section is pinned to the companies it belongs
+     to, which is not always exactly one and is never all of them — that is what
+     `requireCompanyPage` is for. */
+  only: CrmCompany | readonly CrmCompany[],
   requested: string | readonly string[] | undefined,
   roles: readonly [Role, ...Role[]],
 ): Promise<CompanyPage> {
   const page = await requireCompanyPage(requested);
-  if (page.company !== only) redirect(`/b-systems${crmQuery(page.company)}`);
+  const allowed = typeof only === "string" ? [only] : only;
+  if (!allowed.includes(page.company)) redirect(`/b-systems${crmQuery(page.company)}`);
   return narrowRoles(page, ...roles);
 }
 

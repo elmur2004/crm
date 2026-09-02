@@ -140,7 +140,7 @@ describe("Confirm-win → milestone tab (V2 §4, trigger B-9)", () => {
       where: { leadId: lead.id },
       include: { milestones: { orderBy: { index: "asc" } } },
     });
-    await checkMilestone(won.milestones[0]!.id, admin);
+    await checkMilestone(won.milestones[0]!.id, "bsystems", admin);
     const waiting = await waitingToBePaidOut();
     await createStatement(
       {
@@ -448,7 +448,7 @@ describe("Statements end-to-end (V2 §7)", () => {
       where: { leadId: lead.id },
       include: { milestones: { orderBy: { index: "asc" } } },
     });
-    await checkMilestone(won.milestones[0]!.id, admin);
+    await checkMilestone(won.milestones[0]!.id, "bsystems", admin);
     return { agent, lead, won };
   }
 
@@ -456,11 +456,11 @@ describe("Statements end-to-end (V2 §7)", () => {
     const { agent, won } = await wonWithCheckedM1();
 
     /* Sequential rule: with M1 checked, M2 unlocks; uncheck M2 to keep only M1. */
-    await checkMilestone(won.milestones[1]!.id, admin);
+    await checkMilestone(won.milestones[1]!.id, "bsystems", admin);
     expect(
       (await db.milestone.findUniqueOrThrow({ where: { id: won.milestones[1]!.id } })).completed,
     ).toBe(true);
-    await uncheckMilestone(won.milestones[1]!.id, admin);
+    await uncheckMilestone(won.milestones[1]!.id, "bsystems", admin);
 
     const waiting = await waitingToBePaidOut();
     expect(waiting).toHaveLength(1);

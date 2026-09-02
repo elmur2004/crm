@@ -1,5 +1,6 @@
 import type { CurrentUser } from "@/lib/auth/guards";
 import type { OwnerType, Role } from "@/lib/pipeline-engine/constants";
+import type { CrmCompany } from "@/lib/crm/company";
 import { ApiError } from "@/lib/api-error";
 
 /* V2 role helpers for the B-Systems API surface. */
@@ -31,6 +32,25 @@ export function bsRoleOf(user: CurrentUser): Role {
   if (user.roles.includes("bsystems_partner")) return "bsystems_partner";
   if (user.roles.includes("bsystems_data_entry")) return "bsystems_data_entry";
   throw new ApiError(403, "No B-Systems access");
+}
+
+/* ADR-073 — THE ROLE THE PIPELINE SHOULD JUDGE THIS PERSON BY, for the company
+   on screen.
+
+   The engine's configs are role-aware: each one names the roles that may close
+   a deal. So handing a config "the account's role" is not enough once an
+   account can hold roles in SEVERAL companies — a person who is a B-Systems
+   admin AND Mindoo staff, looking at Mindoo, must be judged as Mindoo staff, or
+   Mindoo's config sees `bsystems_admin`, finds it in neither of its lists, and
+   silently offers no way to win a deal the person is fully entitled to close.
+
+   The company has already been resolved and checked by the page guard, so this
+   only ever translates; it can never grant. Null means the account holds no
+   role for this company at all — the caller redirects. */
+export function crmEngineRole(company: CrmCompany, user: CurrentUser): Role | null {
+  if (company === "byteforce") return user.roles.includes("byteforce_staff") ? "byteforce_staff" : null;
+  if (company === "mindoo") return user.roles.includes("mindoo_staff") ? "mindoo_staff" : null;
+  return bsRoleOrNull(user);
 }
 
 /** The owner bucket a creator's new lead lands in (V2 §2.2). */

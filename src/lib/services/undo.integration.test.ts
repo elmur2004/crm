@@ -296,7 +296,7 @@ describe("Undo — the guards", () => {
       include: { milestones: true },
     });
     await setNoAnswer("bsystems", lead.id, true, actor).catch(() => undefined);
-    await checkMilestone(won.milestones[0]!.id, actor);
+    await checkMilestone(won.milestones[0]!.id, "bsystems", actor);
     expect(await pendingUndoFor(actor.id!)).toBeNull();
 
     /* deletion is not undoable and leaves nothing behind to offer */

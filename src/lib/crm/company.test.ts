@@ -23,6 +23,9 @@ import {
 const BF: Role[] = ["byteforce_staff"];
 const ADMIN: Role[] = ["bsystems_admin"];
 const BOTH: Role[] = ["bsystems_admin", "byteforce_staff"]; // the seeded founder
+/* ADR-073 — and the founder once Mindoo exists: all three companies at once. */
+const MINDOO: Role[] = ["mindoo_staff"];
+const ALL_THREE: Role[] = ["bsystems_admin", "byteforce_staff", "mindoo_staff"];
 
 describe("companiesFor — narrowing only", () => {
   it("a ByteForce-only account holds ByteForce and nothing else", () => {
@@ -71,12 +74,24 @@ describe("defaultCompanyFor — a pure function of the ROLES, never of a session
 });
 
 describe("parseCompany", () => {
-  it("accepts exactly the two literals", () => {
+  it("accepts exactly the three literals", () => {
     expect(parseCompany("bsystems")).toBe("bsystems");
     expect(parseCompany("byteforce")).toBe("byteforce");
+    expect(parseCompany("mindoo")).toBe("mindoo"); // ADR-073
   });
   it("rejects everything else, including near misses", () => {
-    for (const junk of [undefined, null, "", "BYTEFORCE", "b-systems", "byteforce ", "1", "all"]) {
+    for (const junk of [
+      undefined,
+      null,
+      "",
+      "BYTEFORCE",
+      "b-systems",
+      "byteforce ",
+      "1",
+      "all",
+      "Mindoo", // ADR-073 — the literal is lowercase; a near miss stays a miss
+      "mindo",
+    ]) {
       expect(parseCompany(junk)).toBeNull();
     }
   });
@@ -119,8 +134,8 @@ describe("resolveCompany — the whole matrix", () => {
     });
   });
 
-  it("a dual account may ask for either, and gets neither refused", () => {
-    for (const c of CRM_COMPANIES) {
+  it("a dual account may ask for either company it HOLDS, and gets neither refused", () => {
+    for (const c of ["bsystems", "byteforce"] as const) {
       expect(resolveCompany(BOTH, c)).toEqual({
         kind: "ok",
         company: c,
@@ -128,6 +143,37 @@ describe("resolveCompany — the whole matrix", () => {
       });
     }
     expect(resolveCompany(BOTH, undefined)).toMatchObject({ company: "bsystems" });
+    /* ADR-073 — and the third company is REFUSED to it, which is the whole
+       point: holding two of three is not holding all three. Iterating
+       CRM_COMPANIES here (as this case used to) quietly asserted the opposite
+       the moment a company was added. */
+    expect(resolveCompany(BOTH, "mindoo")).toMatchObject({ kind: "refused", company: "bsystems" });
+  });
+
+  it("ADR-073 — an account holding ALL THREE may ask for any of them", () => {
+    for (const c of CRM_COMPANIES) {
+      expect(resolveCompany(ALL_THREE, c)).toEqual({
+        kind: "ok",
+        company: c,
+        companies: ["bsystems", "byteforce", "mindoo"],
+      });
+    }
+    /* default-first order is unchanged by the addition: the founder's own
+       "I just want the b systems CRM" still wins */
+    expect(resolveCompany(ALL_THREE, undefined)).toMatchObject({ company: "bsystems" });
+  });
+
+  it("ADR-073 — a Mindoo-only account holds Mindoo, and is refused the other two", () => {
+    expect(companiesFor(MINDOO)).toEqual(["mindoo"]);
+    expect(canSwitchCompany(MINDOO)).toBe(false);
+    expect(defaultCompanyFor(MINDOO)).toBe("mindoo");
+    for (const other of ["bsystems", "byteforce"] as const) {
+      expect(resolveCompany(MINDOO, other)).toEqual({
+        kind: "refused",
+        company: "mindoo",
+        companies: ["mindoo"],
+      });
+    }
   });
 
   it("an account with no CRM role resolves to nothing, whatever it asks for", () => {
@@ -141,11 +187,15 @@ describe("resolveCompany — the whole matrix", () => {
      "nobody gains access they do not have today" mechanical rather than a
      promise — it holds for every role subset, not just the seeded ones. */
   it("NEVER returns a company outside companiesFor(roles) — for every subset", () => {
-    const all: Role[] = [...BS_CRM_ROLES, "byteforce_staff"];
+    /* ADR-073 — mindoo_staff joins the sweep, so this is 128 subsets rather than
+       64. The property is the point and it must widen with the role set: a
+       proof that ran over the OLD roles only would go on passing while saying
+       nothing about the new company. */
+    const all: Role[] = [...BS_CRM_ROLES, "byteforce_staff", "mindoo_staff"];
     for (let mask = 0; mask < 1 << all.length; mask++) {
       const roles = all.filter((_, i) => mask & (1 << i));
       const held = companiesFor(roles);
-      for (const asked of [undefined, "bsystems", "byteforce", "junk", ""]) {
+      for (const asked of [undefined, "bsystems", "byteforce", "mindoo", "junk", ""]) {
         const r = resolveCompany(roles, asked);
         if (r.kind === "none") {
           expect(held).toEqual([]);

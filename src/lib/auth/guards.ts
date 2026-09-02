@@ -70,7 +70,15 @@ export async function requireRole(...roles: Role[]): Promise<CurrentUser> {
 /** Brand-partitioned API namespaces derive the brand from the ROUTE, never input.
     V2 (ADR-030): B-Systems "staff-level" = admin + internal sales. */
 export function staffRolesForBrand(brand: Brand): Role[] {
-  return brand === "byteforce" ? ["byteforce_staff"] : ["bsystems_admin", "bsystems_sales"];
+  /* ADR-073 — a table for the same reason configForBrand became one: a third
+     company must not inherit a second company's staff by falling off the end of
+     a ternary. Mindoo's staff is its one role. */
+  const byBrand: Record<Brand, Role[]> = {
+    byteforce: ["byteforce_staff"],
+    bsystems: ["bsystems_admin", "bsystems_sales"],
+    mindoo: ["mindoo_staff"],
+  };
+  return byBrand[brand];
 }
 
 export async function requireBrandStaff(brand: Brand): Promise<CurrentUser> {
@@ -165,6 +173,22 @@ export async function requireLeadAccess(
   if (lead.brand === "byteforce") {
     if (!user.roles.includes("byteforce_staff")) throw new ApiError(403, "No access");
     return { user, isAdmin: false, role: "byteforce_staff" };
+  }
+  /* ADR-073 — Mindoo. One staff role, which IS the company's whole staff, so it
+     reaches every Mindoo lead; and `isAdmin` is TRUE because that person is the
+     nearest thing Mindoo has to an administrator — editing and deleting their
+     own company's leads is theirs to do, exactly as it is a B-Systems admin's.
+
+     What `isAdmin` must NOT be read to mean here is "may assign this lead to
+     somebody": the assignable roster is B-Systems' agents, partners and
+     internal sales, and a Mindoo lead must never be handed to one of them. The
+     lead detail withholds that control unless the company is B-Systems, and the
+     assign ENDPOINT is unreachable anyway — it lives in /api/b-systems/**,
+     which refuses a caller without a B-Systems role, and this branch refuses a
+     B-Systems caller a Mindoo lead. */
+  if (lead.brand === "mindoo") {
+    if (!user.roles.includes("mindoo_staff")) throw new ApiError(403, "No access");
+    return { user, isAdmin: true, role: "mindoo_staff" };
   }
   if (user.roles.includes("bsystems_admin")) {
     return { user, isAdmin: true, role: "bsystems_admin" };

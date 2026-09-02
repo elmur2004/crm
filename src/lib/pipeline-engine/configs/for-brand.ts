@@ -1,5 +1,6 @@
 import { internalCrmConfig } from "./internal-crm";
 import { bsystemsCrmConfig } from "./bsystems-crm";
+import { mindooCrmConfig } from "./mindoo-crm";
 import type { Brand } from "../constants";
 import type { PipelineConfig } from "../types";
 
@@ -14,8 +15,23 @@ import type { PipelineConfig } from "../types";
    learn the name of a stage. `partnersConfigFor` already lives here; this is
    its twin, in the same place, so the engine stays the one owner of the answer.
    leads.ts re-exports it, so every existing importer is undisturbed. */
+/* ADR-073 — a TABLE, not the ternary this used to be.
+
+   With two companies `brand === "byteforce" ? a : b` was total. With three it
+   is a trapdoor: Mindoo would have fallen into the B-Systems config silently,
+   which is nearly right — Mindoo copies that pipeline — and therefore the worst
+   kind of wrong, because it would have run on B-SYSTEMS' role gate, where
+   `mindoo_staff` is not a Won role and nobody could ever close a Mindoo deal.
+   `Record<Brand, …>` makes the compiler demand an answer for every company that
+   exists, which is how the next one gets noticed instead of inheriting. */
+const CONFIGS: Record<Brand, PipelineConfig> = {
+  byteforce: internalCrmConfig,
+  bsystems: bsystemsCrmConfig,
+  mindoo: mindooCrmConfig,
+};
+
 export function configForBrand(brand: Brand): PipelineConfig {
-  return brand === "byteforce" ? internalCrmConfig : bsystemsCrmConfig;
+  return CONFIGS[brand];
 }
 
 /** The stages whose cards carry a DATED record that the To-Do projects: the

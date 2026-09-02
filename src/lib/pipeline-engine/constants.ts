@@ -14,6 +14,15 @@ export const ROLES = [
      what they add." A least-privilege role: two create actions and nothing
      else — no stage moves, no edits, no admin sections, no ownership. */
   "bsystems_data_entry",
+  /* ADR-073 — the THIRD company. Founder: "we need to add a third CRM called
+     Mindoo with the exact same switch mechanic and the exact same info and
+     details."
+
+     ONE staff role, deliberately, and it is the shape `byteforce_staff` has:
+     it sees every Mindoo lead, owns no bucket, and answers no owner question.
+     Mindoo has no external agents or partners, so the five-role B-Systems set
+     would be four roles that could never be handed to anybody. */
+  "mindoo_staff",
 ] as const;
 export type Role = (typeof ROLES)[number];
 
@@ -27,7 +36,12 @@ export const OWNER_TYPE_LABELS: Record<OwnerType, string> = {
   admin: "Admins",
 };
 
-export const BRANDS = ["byteforce", "bsystems"] as const;
+/* ADR-073 — three companies now. This array is the pipeline engine's notion of
+   a brand AND (through the `satisfies` line in lib/crm/company.ts) the CRM's
+   notion of a company: the two must stay the same set, which is exactly why
+   that assertion exists. Order is load-bearing there too — see
+   `defaultCompanyFor`. */
+export const BRANDS = ["byteforce", "bsystems", "mindoo"] as const;
 export type Brand = (typeof BRANDS)[number];
 
 /* ---------------- stages per pipeline (SPEC §6.3, §7.2, §8.2) ---------------- */

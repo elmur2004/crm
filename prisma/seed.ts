@@ -73,7 +73,9 @@ export async function seed() {
     name: "Elmur",
     email: "admin@byteforce.com",
     password: "password123",
-    roles: ["bsystems_admin", "byteforce_staff"],
+    /* ADR-073 — the founder holds all THREE companies, so the switch he asked
+       for actually has three segments to offer him. */
+    roles: ["bsystems_admin", "byteforce_staff", "mindoo_staff"],
   });
 
   /* ---- demo data — never on production (SEED_DEMO=1 overrides) ---- */
@@ -88,6 +90,16 @@ export async function seed() {
     email: "sara@byteforce.example",
     password: "byteforce123",
     roles: ["byteforce_staff"],
+  });
+
+  /* ADR-073 — a MINDOO-ONLY teammate, the twin of Sara on ByteForce. She exists
+     so the single-company case is real in the demo data: no switch is rendered
+     for her, and every other company's screens refuse her. */
+  await upsertUser({
+    name: "Mona Adel",
+    email: "mona@mindoo.example",
+    password: "mindoo123",
+    roles: ["mindoo_staff"],
   });
 
   // A-8 default: one B-Systems account may carry both roles
@@ -487,6 +499,70 @@ export async function seed() {
     });
     await log("won_deal", wonDeal.id, "create", "B-9");
     await log("won_deal", wonDeal.id, "milestone_check", "P-8");
+  }
+
+  /* ---- ADR-073: MINDOO, the third company -------------------------------- */
+  /* A handful of leads spread across its pipeline, so the board, the dashboard
+     counts and the To-Do all have something real to draw. Mindoo runs the
+     B-Systems pipeline, so `negotiation` is among them — a stage ByteForce does
+     not have, which makes this seed the demo of the difference as well. All are
+     internal and unowned: Mindoo has one staff role and no owner buckets. */
+  if (seedDemo) {
+    const mindooLeads: Array<[string, string, string]> = [
+      ["Nile Freight", "Logistics", "new"],
+      ["Delta Foods", "FMCG", "following_up"],
+      ["Cairo Tech Park", "Real estate", "meeting_setting"],
+      ["Horizon Clinics", "Healthcare", "sending_proposal"],
+      ["Red Sea Resorts", "Hospitality", "negotiation"],
+    ];
+    let n = 0;
+    for (const [name, industry, stage] of mindooLeads) {
+      n += 1;
+      const lead = await db.lead.create({
+        data: {
+          brand: "mindoo",
+          ownerType: "internal",
+          name,
+          number: `0105000${String(100 + n)}`,
+          type: "cold_call",
+          companyName: name,
+          industry,
+          stage,
+        },
+      });
+      /* `log` is scoped to the block above; the row is written directly here
+         so every seeded lead still carries its creation entry (§5.6). */
+      await db.activityLog.create({
+        data: {
+          entityType: "lead",
+          entityId: lead.id,
+          actorLabel: "Seed",
+          action: "create",
+          trigger: "T-0",
+        },
+      });
+      if (stage === "following_up") {
+        await db.followUp.create({
+          data: {
+            leadId: lead.id,
+            context: "initial",
+            dueAt: new Date("2026-09-03T07:00:00Z"),
+            dueTimeSet: true,
+            method: "call",
+          },
+        });
+      }
+      if (stage === "meeting_setting") {
+        await db.meeting.create({
+          data: {
+            leadId: lead.id,
+            arranged: true,
+            datetime: new Date("2026-09-04T11:00:00Z"),
+            mode: "online",
+          },
+        });
+      }
+    }
   }
 
   console.log("Seed complete.");

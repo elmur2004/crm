@@ -10,6 +10,11 @@ export const LANDING_PRIORITY: Array<[Role, string]> = [
   /* ADR-067 — the merged shell. ByteForce work lives at the B-Systems address
      now, with the company spelled out; /byteforce redirects here (proxy.ts). */
   ["byteforce_staff", "/b-systems?company=byteforce"],
+  /* ADR-073 — Mindoo lands on its own company home, the same address ByteForce
+     uses with its own `?company=`. It sits BELOW the two existing companies so
+     that an account holding several keeps landing exactly where it landed
+     before Mindoo existed. */
+  ["mindoo_staff", "/b-systems?company=mindoo"],
   ["bsystems_sales", "/b-systems/crm"],
   ["bsystems_agent", "/b-systems/crm"],
   ["bsystems_partner", "/b-systems/crm"],

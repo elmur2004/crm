@@ -28,8 +28,12 @@ import { BRANDS, type Brand, type Role } from "@/lib/pipeline-engine/constants";
    `canUseModule` in ../auth/roles.ts.)
    ========================================================================== */
 
-/** The two companies, in DEFAULT-FIRST order — see `defaultCompanyFor`. */
-export const CRM_COMPANIES = ["bsystems", "byteforce"] as const;
+/** The companies, in DEFAULT-FIRST order — see `defaultCompanyFor`. ADR-073
+    added Mindoo LAST, which is not arbitrary: this order decides which company
+    an account holding several lands on, and the founder's "I just want the b
+    systems CRM" has to keep winning. Appending can never change where anybody
+    already lands. */
+export const CRM_COMPANIES = ["bsystems", "byteforce", "mindoo"] as const;
 export type CrmCompany = (typeof CRM_COMPANIES)[number];
 
 /* CrmCompany is deliberately the SAME pair of literals as the pipeline
@@ -57,8 +61,35 @@ export const BS_CRM_ROLES: readonly [Role, ...Role[]] = [
   "bsystems_data_entry",
 ];
 
-/** Every role that may enter the merged shell at all (either company). */
-export const CRM_ROLES: readonly [Role, ...Role[]] = [...BS_CRM_ROLES, "byteforce_staff"];
+/** ADR-073 — Mindoo's whole staff, as a list for symmetry with the two above.
+    One role today; a list because every caller here already speaks in lists,
+    and a lone literal would be the one place that has to change shape if Mindoo
+    ever grows a second role. */
+export const MINDOO_ROLES: readonly [Role, ...Role[]] = ["mindoo_staff"];
+
+/** Every role that may enter the merged shell at all (any company). */
+export const CRM_ROLES: readonly [Role, ...Role[]] = [
+  ...BS_CRM_ROLES,
+  "byteforce_staff",
+  ...MINDOO_ROLES,
+];
+
+/** ADR-073 — the roles that may work inside ONE company's shared screens.
+
+    The five shared pages (Home, To-Do, Calendar, Leads, the board) each narrow
+    to a different set depending on the company they are rendering. With two
+    companies that was an `if` and an implicit else; with three it becomes a
+    table, and a table is the only shape `nav.test.ts` can check without
+    parsing branches out of source — it imports THIS and asks it, so the nav
+    contract is tested against the function the pages actually call.
+
+    Note what it is NOT: a grant. The company has already been resolved against
+    the account's live roles before any page calls this. */
+export function crmRolesFor(company: CrmCompany): readonly [Role, ...Role[]] {
+  if (company === "byteforce") return ["byteforce_staff"];
+  if (company === "mindoo") return MINDOO_ROLES;
+  return BS_PIPELINE_ROLES;
+}
 
 /** Which companies these roles can see. NARROWING ONLY — never a grant. */
 export function companiesFor(roles: Role[]): CrmCompany[] {
@@ -69,6 +100,9 @@ export function companiesFor(roles: Role[]): CrmCompany[] {
      already gives bsystems_admin over byteforce_staff. */
   if (roles.some((r) => BS_CRM_ROLES.includes(r))) held.push("bsystems");
   if (roles.includes("byteforce_staff")) held.push("byteforce");
+  /* ADR-073 — same narrowing, same shape: a company is held only because a role
+     already carries it. Adding a third widens nobody's access. */
+  if (roles.some((r) => MINDOO_ROLES.includes(r))) held.push("mindoo");
   return held;
 }
 

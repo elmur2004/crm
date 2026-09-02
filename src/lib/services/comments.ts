@@ -25,9 +25,20 @@ export async function mentionableUsersFor(leadId: string): Promise<Mention[]> {
   });
   if (!lead) throw new ApiError(404, "Lead not found");
 
+  /* ADR-073 — the two SINGLE-ROLE companies answer this identically: everybody
+     who holds the company's one staff role can open every one of its leads, so
+     everybody is mentionable. Only B-Systems has owner buckets to narrow by,
+     which is why it is the one branch with an OR in it. Naming Mindoo here
+     rather than letting it fall through matters: the fall-through would have
+     offered B-Systems' admins and agents on a Mindoo lead's chat. */
+  const singleStaffRole: Partial<Record<string, string>> = {
+    byteforce: "byteforce_staff",
+    mindoo: "mindoo_staff",
+  };
+  const soleRole = singleStaffRole[lead.brand];
   const where =
-    lead.brand === "byteforce"
-      ? { roles: { some: { role: "byteforce_staff" } } }
+    soleRole !== undefined
+      ? { roles: { some: { role: soleRole } } }
       : {
           OR: [
             { roles: { some: { role: "bsystems_admin" } } },

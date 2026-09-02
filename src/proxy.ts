@@ -64,7 +64,8 @@ function allowed(pathname: string, roles: Role[]): boolean {
       roles.includes("bsystems_agent") ||
       roles.includes("bsystems_partner") ||
       roles.includes("bsystems_data_entry") ||
-      roles.includes("byteforce_staff")
+      roles.includes("byteforce_staff") ||
+      roles.includes("mindoo_staff") // ADR-073 — the third company lives here too
     );
   }
   return true; // /portal keeps only its public landing/signup pages

@@ -10,8 +10,10 @@ export const PATCH = handleRoute(
     const user = await requireBsAdmin();
     const { id } = await ctx.params;
     const { completed } = bodySchema.parse(await req.json());
-    if (completed) await checkMilestone(id, { id: user.id, label: user.name });
-    else await uncheckMilestone(id, { id: user.id, label: user.name });
+    /* ADR-073 — the company is named by the ROUTE, never by input: this
+       namespace is B-Systems', so a Mindoo milestone is invisible through it. */
+    if (completed) await checkMilestone(id, "bsystems", { id: user.id, label: user.name });
+    else await uncheckMilestone(id, "bsystems", { id: user.id, label: user.name });
     return Response.json({ ok: true });
   },
 );
