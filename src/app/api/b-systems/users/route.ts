@@ -6,6 +6,6 @@ import { createUser, createUserSchema } from "@/lib/services/users";
 export const POST = handleRoute(async (req: Request) => {
   const user = await requireBsAdmin();
   const input = createUserSchema.parse(await req.json());
-  const created = await createUser(input, { id: user.id, label: user.name });
+  const created = await createUser(input, "bsystems", { id: user.id, label: user.name });
   return Response.json({ id: created.id }, { status: 201 });
 });

@@ -110,11 +110,15 @@ const BSYSTEMS_NAV: Record<string, CrmNavItem[]> = {
    agents or their crm at all". Every one of those exists FOR external agents
    and partners, and Mindoo has a single internal staff role.
 
-   Users is absent for a different reason: accounts are platform-wide and are
-   administered from B-Systems, not per company. Accounting and the Data Vault
-   are absent from THIS list for a third reason — they are MODULES on the
-   EntitySwitch, peers of the CRM (ADR-054), and Mindoo reaches them there
-   exactly as B-Systems does. */
+   USERS IS HERE (ADR-075), and it was not in ADR-074. That entry said accounts
+   are platform-wide and administered from B-Systems — ADR-073's decision,
+   carried forward and flagged for the founder. He answered: "mindoo user should
+   appear in mindoo system not in bsystems systems separate their users." So
+   Mindoo administers its own people, and B-Systems no longer sees them.
+
+   Accounting and the Data Vault are absent from this list for a different
+   reason — they are MODULES on the EntitySwitch, peers of the CRM (ADR-054),
+   and Mindoo reaches them there exactly as B-Systems does. */
 export const MINDOO_NAV: CrmNavItem[] = [
   { href: "/mindoo", label: bsNav.home },
   { href: "/mindoo/todo", label: todoPage.navItem },
@@ -122,6 +126,7 @@ export const MINDOO_NAV: CrmNavItem[] = [
   { href: "/mindoo/leads", label: bsNav.leads },
   { href: "/mindoo/crm", label: bsNav.crm },
   { href: "/mindoo/won-leads", label: bsNav.wonLeads },
+  { href: "/mindoo/users", label: bsNav.users }, // ADR-075
 ];
 
 /** Mindoo's whole nav. A function, not the bare constant, so its ONE call site

@@ -47,6 +47,12 @@ export const roles = {
 /* ---- shared bits across the surface ---- */
 
 export const common = {
+  /* ADR-075 — the footnote on another company's lead, so "why can I not edit
+     this" is answered on the page rather than guessed at. */
+  readOnlyForeignLead: {
+    en: "This lead belongs to {company}. You can see it here; it is edited in {company}'s own system.",
+    ar: "هذا العميل يخص {company}. يمكنك الاطلاع عليه هنا، ويتم تعديله في نظام {company} الخاص.",
+  },
   name: { en: "Name", ar: "الاسم" },
   number: { en: "Number", ar: "الرقم" },
   email: { en: "Email", ar: "البريد الإلكتروني" },

@@ -3240,3 +3240,31 @@ The cheapest durable lesson: **when a component fetches, assert the REQUEST.**
 Three of the eighteen (and the read-only bug ADR-073 shipped) were invisible on
 screen because the failure is on the far side of a fetch. `page.waitForRequest`
 plus a status check is three lines and would have caught all four.
+
+
+### 8. A label map is a type hole, and `t()` has no floor
+
+`assignableRoleLabels`, `roleBadges` and `regRoleBadges` are
+`Record<string, Msg>` keyed by ROLE. Every other dictionary lookup in this
+codebase is a literal the compiler checks; these three are indexed by a string
+it cannot, so they are the one place a missing translation is a RUNTIME event.
+
+And `tFor` is `(locale) => (m) => m[locale]` with no fallback — right, on
+purpose, because a half-translated product is worse than a loud failure. The
+consequence is that a missing entry is not a blank label, it is
+`undefined[locale]`: a TypeError that unmounts the screen.
+
+ADR-074 added `mindoo_staff` to the create-user checkbox list and put its label
+in `regRoleBadges`, a few lines above `assignableRoleLabels`. Same commit, same
+file, wrong object — and the B-Systems Users page crashed on render. I dismissed
+the founder's report twice on the reasoning that both changes shipped together,
+which was true and irrelevant.
+
+**Two lessons, and the second is the general one:**
+
+· When a map is keyed by something the compiler cannot check, write the test
+  that walks the keys. It is five lines and it is the only thing standing there.
+· "Both changes are in the same commit" is not evidence that they agree. It
+  answers a question about SEQUENCING when the failure was about PLACEMENT.
+  Verify the thing itself — I had the file open and did not grep for which
+  object the line had landed in.

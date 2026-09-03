@@ -20,6 +20,7 @@ const admin: Actor = { id: null, label: "Elmur" };
 async function makeEntryUser(email = "entry@example.com") {
   const user = await createUser(
     { name: "Hala Nabil", email, password: "entry12345", roles: ["bsystems_data_entry"] },
+    "bsystems",
     admin,
   );
   return user;
@@ -74,6 +75,7 @@ describe("Data entry adds, and owns nothing", () => {
     /* a lead with an owner must NOT show up in that queue — build one */
     const rep = await createUser(
       { name: "Karim Adel", phone: "01009998877", password: "agent12345", roles: ["bsystems_agent"] },
+      "bsystems",
       admin,
     );
     const owned = await createLead(
@@ -101,6 +103,7 @@ describe("Data entry adds, and owns nothing", () => {
     const entry = await makeEntryUser();
     await createUser(
       { name: "Karim Adel", phone: "01009998877", password: "agent12345", roles: ["bsystems_agent"] },
+      "bsystems",
       admin,
     );
     const owners = await listAssignableOwners();
@@ -153,6 +156,7 @@ describe("Correcting an entry: only their own, only while untouched", () => {
     const lead = await enterLead(entry, "Nile Foods");
     const rep = await createUser(
       { name: "Karim Adel", phone: "01009998877", password: "agent12345", roles: ["bsystems_agent"] },
+      "bsystems",
       admin,
     );
     await assignLeadOwner(lead.id, rep.id, admin);

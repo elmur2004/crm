@@ -312,7 +312,7 @@ describe("the mark is the RECORD's, not the presser's", () => {
     const lead = await makeLead({ name: "Sender Deleted" });
     expect((await press("bs-lead", leaver, lead.id)).status).toBe(200);
 
-    await deleteUser(leaver.id, { id: admin.id, label: admin.name });
+    await deleteUser(leaver.id, "bsystems", { id: admin.id, label: admin.name });
 
     const mark = await markOf(lead.id);
     expect(mark.whatsappSentById).toBeNull(); // the FK released (SET NULL)

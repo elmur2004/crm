@@ -218,14 +218,15 @@ describe("no self-lockout", () => {
   it("an admin cannot take Accounting or the Vault from his OWN account", async () => {
     const me = await createUser(
       { name: "Elmur", email: "self@example.com", password: "password123", roles: ["bsystems_admin"] },
+      "bsystems",
       actor,
     );
     const asMyself = { id: me.id, label: me.name };
 
     await expect(
-      updateUser(me.id, { canAccessAccounting: false }, asMyself),
+      updateUser(me.id, { canAccessAccounting: false }, "bsystems", asMyself),
     ).rejects.toThrow(/your own access to Accounting/i);
-    await expect(updateUser(me.id, { canAccessVault: false }, asMyself)).rejects.toThrow(
+    await expect(updateUser(me.id, { canAccessVault: false }, "bsystems", asMyself)).rejects.toThrow(
       /your own access to the Data Vault/i,
     );
 
@@ -240,20 +241,22 @@ describe("no self-lockout", () => {
   it("but ANOTHER admin may take it from him, and may give it back", async () => {
     const target = await createUser(
       { name: "Nour", email: "nour@example.com", password: "password123", roles: ["bsystems_admin"] },
+      "bsystems",
       actor,
     );
     const other = await createUser(
       { name: "Other", email: "other@example.com", password: "password123", roles: ["bsystems_admin"] },
+      "bsystems",
       actor,
     );
     const asOther = { id: other.id, label: other.name };
 
-    await updateUser(target.id, { canAccessVault: false }, asOther);
+    await updateUser(target.id, { canAccessVault: false }, "bsystems", asOther);
     expect((await call("vault", target)).status).toBe(403);
     /* the other admin's own access is untouched */
     expect((await call("vault", other)).status).toBe(200);
 
-    await updateUser(target.id, { canAccessVault: true }, asOther);
+    await updateUser(target.id, { canAccessVault: true }, "bsystems", asOther);
     expect((await call("vault", target)).status).toBe(200);
   });
 
@@ -262,16 +265,18 @@ describe("no self-lockout", () => {
        always posts both flags for an admin) must not start failing */
     const me = await createUser(
       { name: "Elmur", email: "noop@example.com", password: "password123", roles: ["bsystems_admin"] },
+      "bsystems",
       actor,
     );
     await expect(
-      updateUser(me.id, { canAccessAccounting: true, canAccessVault: true }, { id: me.id, label: me.name }),
+      updateUser(me.id, { canAccessAccounting: true, canAccessVault: true }, "bsystems", { id: me.id, label: me.name }),
     ).resolves.toBeTruthy();
   });
 
   it("a new admin is born holding both modules; one can be withheld at creation", async () => {
     const full = await createUser(
       { name: "Full", email: "full@example.com", password: "password123", roles: ["bsystems_admin"] },
+      "bsystems",
       actor,
     );
     expect(full.canAccessAccounting).toBe(true);
@@ -285,6 +290,7 @@ describe("no self-lockout", () => {
         roles: ["bsystems_admin"],
         canAccessVault: false,
       },
+      "bsystems",
       actor,
     );
     expect(partial.canAccessAccounting).toBe(true);

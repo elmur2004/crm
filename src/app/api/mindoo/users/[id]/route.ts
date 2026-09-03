@@ -1,36 +1,36 @@
 import { z } from "zod";
-import { handleRoute, requireBsAdmin } from "@/lib/auth/guards";
+import { handleRoute, requireRole } from "@/lib/auth/guards";
 import { deleteUser, setUserActive, updateUser, updateUserSchema } from "@/lib/services/users";
 
 const bodySchema = z.object({ active: z.boolean().optional() }).and(updateUserSchema);
 
-/* V2 §2.10 + founder V4 — deactivate/reactivate AND full admin edit
-   (name / email / phone / roles / password). */
+/* ADR-075 — edit / deactivate / delete ONE Mindoo account. The service checks
+   the account is Mindoo's before it touches anything (assertUserInScope) and
+   404s otherwise, so a guessed id from another company is not confirmed to
+   exist. The B-Systems twin is the same file with the other literal. */
+
 export const PATCH = handleRoute(
   async (req: Request, ctx: { params: Promise<{ id: string }> }) => {
-    const user = await requireBsAdmin();
+    const user = await requireRole("mindoo_staff");
     const { id } = await ctx.params;
     const input = bodySchema.parse(await req.json());
     const actor = { id: user.id, label: user.name };
     const { active, ...edit } = input;
     if (Object.values(edit).some((v) => v !== undefined)) {
-      await updateUser(id, edit, "bsystems", actor);
+      await updateUser(id, edit, "mindoo", actor);
     }
     if (active !== undefined) {
-      await setUserActive(id, active, "bsystems", actor);
+      await setUserActive(id, active, "mindoo", actor);
     }
     return Response.json({ ok: true });
   },
 );
 
-/* Founder (ADR-049) — "completely delete a user, not just deactivate it".
-   Admin only; the service owns the guards (never yourself, never the pinned
-   bootstrap admin) and the fate of every reference. */
 export const DELETE = handleRoute(
   async (_req: Request, ctx: { params: Promise<{ id: string }> }) => {
-    const user = await requireBsAdmin();
+    const user = await requireRole("mindoo_staff");
     const { id } = await ctx.params;
-    await deleteUser(id, "bsystems", { id: user.id, label: user.name });
+    await deleteUser(id, "mindoo", { id: user.id, label: user.name });
     return Response.json({ ok: true });
   },
 );

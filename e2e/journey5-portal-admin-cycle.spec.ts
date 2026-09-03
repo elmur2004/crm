@@ -49,25 +49,58 @@ async function dragTo(page: Page, card: Locator, column: Locator) {
   /* grab middle-right — clear of the link and the ready-to-close button */
   const gripX = cardBox.x + cardBox.width - 10;
   const gripY = cardBox.y + cardBox.height / 2;
+  /* AIM THE CARD, NOT THE CURSOR.
+
+     `BsBoard` gives DndContext no `collisionDetection`, so dnd-kit uses its
+     default `rectIntersection` — which scores the DRAGGED ITEM'S RECT against
+     each droppable, and pays no attention at all to where the pointer is. We
+     grab at the card's middle-RIGHT (clear of the name link and the buttons),
+     so the card hangs almost a full width to the LEFT of the cursor. Putting
+     the cursor on the column's centre therefore puts the CARD over the column
+     before it — which is exactly how this landed on Postpone, one short of Won.
+
+     The old comment here said compensating "by half a card width" overshot into
+     Lost; it did, because half a card width is not the offset. The offset is
+     the one we actually grabbed at, and it is measurable: place the card's LEFT
+     EDGE so the card is centred on the column, then put the cursor back at the
+     same point within the card that it grabbed.
+
+     This is why the fix is a formula rather than a nudge — a tuned pixel would
+     drift again the next time the board changes, and ADR-075 changing it is
+     what surfaced this. */
+  const grabOffsetX = gripX - cardBox.x;
   const aim = async () => {
     const to = (await column.boundingBox())!;
-    return { x: to.x + to.width / 2, y: to.y + 60 };
+    const cardLeft = to.x + to.width / 2 - cardBox.width / 2;
+    return { x: cardLeft + grabOffsetX, y: to.y + 60 };
   };
   await page.mouse.move(gripX, gripY);
   await page.mouse.down();
   await page.mouse.move(gripX, gripY + 12, { steps: 4 });
   const first = await aim();
   await page.mouse.move(first.x, first.y, { steps: 14 });
-  /* CONVERGE. The travel itself auto-scrolls, so one re-measure is not enough:
-     keep re-aiming at the column's LIVE box until it stops moving between two
-     readings, and only then release. Bounded, so a genuinely stuck board fails
-     as a timeout rather than looping. */
-  let previousX = Number.NaN;
-  for (let i = 0; i < 8; i++) {
-    const box = (await column.boundingBox())!;
-    if (Math.abs(box.x - previousX) < 1) break;
-    previousX = box.x;
-    await page.mouse.move(box.x + box.width / 2, box.y + 60, { steps: 2 });
+  /* CONVERGE, and RELEASE ON A BOARD THAT DID NOT MOVE UNDER THE LAST MOVE.
+
+     The old loop compared the box before each move and broke when two READINGS
+     matched — so its final action was always a move aimed at a box measured
+     BEFORE that move. If that last move triggered one more auto-scroll, the
+     release happened at a stale point, one column to the left of the target.
+
+     ADR-075 is what exposed it: the admin's board now also carries Mindoo's
+     leads (the founder asked for them), the columns got taller and busier, and
+     the drop landed on Postpone — the column immediately before Won. The
+     product is unaffected, because a person drags with the target column
+     highlighted and lets go when it is right; this is a scripted pointer with
+     no eyes, so it has to check.
+
+     The invariant is now the honest one: move, then confirm the board did not
+     shift as a RESULT of that move, and only then let go. */
+  for (let i = 0; i < 10; i++) {
+    const before = (await column.boundingBox())!;
+    const at = await aim();
+    await page.mouse.move(at.x, at.y, { steps: 2 });
+    const after = (await column.boundingBox())!;
+    if (Math.abs(after.x - before.x) < 1) break;
   }
   await page.mouse.up();
 }

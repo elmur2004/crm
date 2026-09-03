@@ -44,6 +44,11 @@ export interface BsBoardLead {
   id: string;
   name: string;
   companyName: string | null;
+  /* ADR-075 — set ONLY on a card from another company. Founder: "mindoo leads
+     should appear in bsystems crm with a label called mindoo and the card being
+     a light purple color". Absent on your own cards, so every existing card is
+     untouched and the marker cannot be turned on by accident. */
+  foreignCompany?: { label: string; href: string };
   stage: string;
   ownerType: string;
   ownerLabel: string;
@@ -108,12 +113,18 @@ function LeadCardBody({
       {lead.readyToClose ? <span className="bcard-badge">{t(common.readyToClose)}</span> : null}
       <div className="bcard-name-row">
         <Link
-          href={`${leadPathBase}/${lead.id}${leadQuery}`}
+          /* ADR-075 — a foreign card links to its own READ-ONLY view, never to
+             this board's editable detail: that page reads under THIS company's
+             brand and would 404 the lead. */
+          href={lead.foreignCompany ? lead.foreignCompany.href : `${leadPathBase}/${lead.id}${leadQuery}`}
           className="bcard-name"
           onClick={(e) => e.stopPropagation()}
         >
           {lead.name}
         </Link>
+        {lead.foreignCompany ? (
+          <span className="bcard-company">{lead.foreignCompany.label}</span>
+        ) : null}
         {lead.companyName ? <span className="bcard-rep">{lead.companyName}</span> : null}
       </div>
       <div className="bcard-chips">
@@ -121,9 +132,14 @@ function LeadCardBody({
           {lead.ownerLabel}
         </span>
         <NoAnswerBadge locale={locale} count={lead.noAnswerCount} />
-        {/* founder: dial straight from the card. stopPropagation on BOTH the
-            click and the pointer-down so it neither drags the card nor
-            triggers the whole-card navigation. */}
+        {/* ADR-075 — a foreign card carries NO ACTIONS. Every one of them below
+            writes to THIS board's namespace (the call sheet, the WhatsApp mark,
+            Ready to close, the didn't-answer tally), and the brand wall refuses
+            another company's lead there. Offering a button that always fails is
+            worse than not offering it — that was the ADR-073 bug, and this is
+            the same mistake one screen along. It is a window, not a workspace. */}
+        {lead.foreignCompany ? null : (
+          <>
         <Link
           href={`${leadPathBase}/${lead.id}/call${leadQuery}`}
           className="card-dial"
@@ -148,13 +164,18 @@ function LeadCardBody({
             {t(callSheet.whatsapp)}
           </WhatsappChip>
         ) : null}
+          </>
+        )}
       </div>
       {lead.keyDatum || (lead.stage !== "won" && lead.stage !== "lost") ? (
         <div className="bcard-meta">
           <span className="bcard-meta-dot" aria-hidden />
           <span className="min-w-0">
             {lead.keyDatum}
-            {!lead.readyToClose && lead.stage !== "won" && lead.stage !== "lost" ? (
+            {!lead.foreignCompany &&
+            !lead.readyToClose &&
+            lead.stage !== "won" &&
+            lead.stage !== "lost" ? (
               <button
                 type="button"
                 disabled={busy}
@@ -171,7 +192,7 @@ function LeadCardBody({
                 {t(common.markReadyToClose)}
               </button>
             ) : null}
-            {lead.stage !== "won" && lead.stage !== "lost" ? (
+            {!lead.foreignCompany && lead.stage !== "won" && lead.stage !== "lost" ? (
               /* founder (ADR-039): "didn't answer" — a marker "just so we
                  know"; never a stage move. Same click guards as the RTC button
                  so it neither drags nor opens the lead.
@@ -252,23 +273,32 @@ function LeadCard({
   /* a MOUSE still drags the whole card; a finger scrolls it and drags by the
      grip instead (see components/shared/CardGrip) */
   const mouseDrag = useMouseOnlyListeners(listeners);
+  /* ADR-075 — a foreign card cannot be dragged. This board posts every drop to
+     ITS OWN namespace, and the brand wall refuses another company's lead there,
+     so a draggable foreign card is an action that always fails. */
+  const dragProps = lead.foreignCompany ? {} : mouseDrag;
   return (
     <div
       ref={setNodeRef}
-      {...mouseDrag}
+      {...dragProps}
       data-deal-card={lead.name}
       data-stage-key={stageKey(lead.stage)}
+      /* ADR-075 — the CSS hook for the whole-card purple, and the flag every
+         interaction below reads. Absent on your own cards. */
+      data-foreign-company={lead.foreignCompany ? lead.foreignCompany.label : undefined}
       onClick={() => {
         /* founder: the whole card opens the lead — but never right after a
            drag (the browser fires a click on drop; the guard swallows it) */
         if (suppressClickRef.current) return;
-        router.push(`${leadPathBase}/${lead.id}${leadQuery}`);
+        router.push(
+          lead.foreignCompany ? lead.foreignCompany.href : `${leadPathBase}/${lead.id}${leadQuery}`,
+        );
       }}
       className={`bcard ${isDragging || dragging ? "bcard--ghost" : ""}`}
     >
       <LeadCardBody
         lead={lead}
-        drag={{ attributes, listeners, setActivatorNodeRef }}
+        drag={lead.foreignCompany ? undefined : { attributes, listeners, setActivatorNodeRef }}
         apiBase={apiBase}
         leadPathBase={leadPathBase}
         leadQuery={leadQuery}

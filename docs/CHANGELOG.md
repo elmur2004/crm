@@ -1,5 +1,52 @@
 # Changelog — user-visible changes per phase/release
 
+## Mindoo's own users, and its leads on your B-Systems board (2026-09-03)
+
+You said two things: *"mindoo user should appear in mindoo system not in
+bsystems systems separate their users"* and *"mindoo leads should appear in
+bsystems crm with a label called mindoo and the card being a light purple color
+for the whole card to identify it."*
+
+Both are done, and together they draw a clear line: **each company manages its
+own people; you decide what you can see.**
+
+### 1. Mindoo has a Users tab
+
+**Mindoo → Users.** Add, edit, deactivate and delete Mindoo's people from inside
+Mindoo. The only role it offers is Mindoo staff.
+
+Your B-Systems Users list no longer shows a single Mindoo account, and Mindoo's
+list shows none of yours. Neither side can edit, deactivate, delete — or sign in
+as — the other's people. That last one matters most: "Open account" hands you a
+live session as that person, so it stops at your own company's door.
+
+Mindoo's Users page has no "Open account" button at all. It has one role, so
+there is nobody to open.
+
+### 2. Mindoo's leads are on your B-Systems board
+
+Open **B-Systems → CRM** and Mindoo's leads sit in the columns beside yours,
+**the whole card in Mindoo's purple with a MINDOO label** so you can tell them
+apart at a glance.
+
+Click one and it opens **read-only** — everything about the lead, nothing you
+can change. That is on purpose: those leads are edited in Mindoo's own system,
+and a button here that looked live but silently failed would be worse than no
+button. So a Mindoo card has no drag handle, no Call, no WhatsApp, no "Ready to
+close" — it is a window, not a workspace.
+
+**Only you see them.** Internal sales, agents and partners see their own leads
+exactly as before; another company's pipeline never appears for them.
+
+### 3. The bug you reported
+
+*"I can't add any users in bsystems right now"* — you were right, and it was
+mine. When I added the Mindoo role to the user form the day before, its label
+went into the wrong list, and a missing label does not show a blank box in this
+app, it crashes the page. Adding users works again, and there is now a test that
+checks every role on every form has a label, so this exact failure cannot come
+back.
+
 ## Mindoo is its own system now (2026-09-02)
 
 You said: *"I need to have the system for mindoo completly identical to

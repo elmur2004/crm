@@ -659,6 +659,35 @@
      board's horizontal pan. */
   touch-action: manipulation;
 }
+
+/* ADR-075 — A CARD FROM ANOTHER COMPANY, on the B-Systems board.
+
+   Founder: "mindoo leads should appear in bsystems crm with a label called
+   mindoo and the card being a light purple color for the whole card to identify
+   it." THE WHOLE CARD, not a stripe or a corner badge — so the ground, the
+   border and the grip rail all move, and it reads as a different kind of thing
+   at a glance rather than as a B-Systems card with a decoration on it.
+
+   It is also NOT DRAGGABLE and says so with the cursor: this board writes to
+   /api/b-systems, and the brand wall would refuse a Mindoo lead on arrival. The
+   card is a window, not a handle — clicking opens the read-only view. */
+.bcard[data-foreign-company] {
+  background: var(--color-company-mindoo-tint);
+  border-color: color-mix(in srgb, var(--color-company-mindoo) 28%, transparent);
+  cursor: pointer;
+}
+.bcard[data-foreign-company] .bcard-name { color: var(--color-company-mindoo-ink); }
+.bcard[data-foreign-company] .card-grip { display: none; }
+
+/* the label he asked for, in the company's own purple */
+.bcard-company {
+  display: inline-flex; align-items: center;
+  font-family: var(--font-mono); font-size: 10px; font-weight: 700;
+  letter-spacing: .08em; text-transform: uppercase;
+  padding: 2px 7px; border-radius: 999px;
+  background: var(--color-company-mindoo); color: #FFFFFF;
+}
+
 /* the rail's gutter, only on cards that HAVE one — the agents page renders a
    read-only .bcard with no grip and must not gain a dead 34px margin */
 .bcard:has(> .bcard-grip) { padding-inline-end: 34px; }

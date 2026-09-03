@@ -67,8 +67,11 @@ test.describe("ADR-074 — Mindoo", () => {
     for (const label of ["Home", "To-Do", "Calendar", "Leads", "CRM", "Won Leads"]) {
       await expect(nav.getByRole("link", { name: label, exact: true })).toBeVisible();
     }
-    /* founder: "no partners or regestrations or agents or their crm at all" */
-    for (const absent of ["Partners", "Agents", "Registrations", "Statements", "Users"]) {
+    /* founder: "no partners or regestrations or agents or their crm at all" —
+       Users is NOT among them any more: ADR-075 gave Mindoo its own, because he
+       then asked for "mindoo user should appear in mindoo system". */
+    await expect(nav.getByRole("link", { name: "Users", exact: true })).toBeVisible();
+    for (const absent of ["Partners", "Agents", "Registrations", "Statements"]) {
       await expect(nav.getByRole("link", { name: absent, exact: true })).toHaveCount(0);
     }
 
@@ -151,10 +154,18 @@ test.describe("ADR-074 — Mindoo", () => {
     }
     await expect(switcher.getByRole("link", { name: "Mindoo" })).toHaveCount(0);
 
-    /* and the old address does not resolve to Mindoo any more — a junk company
-       falls back to the reader's own, it is never obeyed */
+    /* and the old address does not SWITCH you to Mindoo any more — a junk
+       company falls back to the reader's own company, never obeyed. The board
+       that renders is B-Systems', which is why its own cards are here… */
     await page.goto("/b-systems/crm?company=mindoo");
-    await expect(page.locator('[data-deal-card="Nile Freight"]')).toHaveCount(0);
+    await expect(page.locator(".company-switch-current")).toHaveText("B-Systems");
+    /* …and any Mindoo lead on it is a FOREIGN card (ADR-075), never a native
+       one you could drag or edit. Seeing it is the founder's own instruction;
+       being switched into Mindoo is what stays impossible. */
+    const foreign = page.locator('[data-deal-card="Nile Freight"]');
+    if ((await foreign.count()) > 0) {
+      await expect(foreign).toHaveAttribute("data-foreign-company", "Mindoo");
+    }
   });
 
   test("...and nothing inside Mindoo goes to B-Systems", async ({ page }) => {
@@ -282,6 +293,76 @@ test.describe("ADR-074 — Mindoo", () => {
     await loginAsFounder(page);
     const refused = await page.request.get(href);
     expect(refused.status(), "another company's id is not a key").toBe(404);
+  });
+
+
+  test("ADR-075 — Mindoo administers its OWN people, and B-Systems no longer sees them", async ({
+    page,
+  }) => {
+    /* founder: "mindoo user should appear in mindoo system not in bsystems
+       systems separate their users" */
+    await loginAsMindoo(page);
+    await page.goto("/mindoo/users");
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+    /* its own account is here… */
+    await expect(page.getByText("admin@mindoo.com")).toBeVisible();
+    /* …and nobody else's */
+    await expect(page.getByText("admin@byteforce.com")).toHaveCount(0);
+    /* the role boxes offer Mindoo's role and no B-Systems one */
+    await page.getByRole("button", { name: /Add user/i }).click();
+    await expect(page.getByText("Mindoo staff")).toBeVisible();
+    for (const absent of ["B-Systems admin", "ByteForce staff", "B-Systems agent"]) {
+      await expect(page.getByText(absent, { exact: true })).toHaveCount(0);
+    }
+  });
+
+  test("ADR-075 — and B-Systems' Users list holds none of Mindoo's", async ({ page }) => {
+    await loginAsFounder(page);
+    await page.goto("/b-systems/users?company=bsystems");
+    await expect(page.getByText("admin@byteforce.com")).toBeVisible();
+    await expect(page.getByText("admin@mindoo.com")).toHaveCount(0);
+    await expect(page.getByText("mona@mindoo.example")).toHaveCount(0);
+  });
+
+  test("ADR-075 — Mindoo's leads show on the B-Systems board, labelled and inert", async ({
+    page,
+  }) => {
+    /* founder: "mindoo leads should appear in bsystems crm with a label called
+       mindoo and the card being a light purple color for the whole card" */
+    await loginAsFounder(page);
+    await page.goto("/b-systems/crm?company=bsystems");
+    const card = page.locator('[data-deal-card="Nile Freight"]');
+    await expect(card).toBeVisible();
+    await expect(card).toHaveAttribute("data-foreign-company", "Mindoo");
+    await expect(card.getByText("Mindoo", { exact: true })).toBeVisible();
+
+    /* the whole card is purple, not a corner badge */
+    const bg = await card.evaluate((el) => getComputedStyle(el).backgroundColor);
+    expect(bg, "the card ground carries the foreign-company tint").not.toBe("rgb(255, 255, 255)");
+
+    /* INERT: no grip to drag by, and none of the actions that would post to
+       B-Systems' namespace and be refused there */
+    await expect(card.locator(".card-grip")).toHaveCount(0);
+    await expect(card.getByRole("button", { name: /Mark ready to close/i })).toHaveCount(0);
+    await expect(card.getByRole("link", { name: /Call/i })).toHaveCount(0);
+
+    /* clicking opens the READ-ONLY view */
+    await card.click();
+    await page.waitForURL(/\/b-systems\/crm\/company-lead\//);
+    await expect(page.getByRole("heading", { name: "Nile Freight" })).toBeVisible();
+    /* which has no control that writes */
+    await expect(page.getByRole("button", { name: /Edit|Archive|Delete|Assign/i })).toHaveCount(0);
+  });
+
+  test("ADR-075 — a non-admin never sees another company's leads", async ({ page }) => {
+    /* the narrowing that keeps the window from becoming a leak: internal sales,
+       agents and partners see their own pipeline and nobody else's */
+    await login(page, "omar@b-systems.example", "bsystems123", /\/b-systems\/crm/);
+    await expect(page.locator("[data-foreign-company]")).toHaveCount(0);
+    await expect(page.locator('[data-deal-card="Nile Freight"]')).toHaveCount(0);
+    /* and the read-only route refuses him outright */
+    const res = await page.goto("/b-systems/crm/company-lead/anything");
+    expect(res?.status()).toBe(404);
   });
 
   test("Arabic: Mindoo keeps its name and the shell mirrors", async ({ page }) => {

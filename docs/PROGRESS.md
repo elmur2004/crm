@@ -4397,3 +4397,60 @@ comment, and the ADR-013 mechanism note all fixed; .env.example confirmed tracke
      about Mindoo, so it gets the module's default and the section is there. Say
      the word and `mediaHidden` gains one company.
 
+
+---
+
+## Entry 072 — 2026-09-03 — Mindoo administers its own people, and its leads become visible (labelled) on the B-Systems board
+
+- Phase: post-V2 founder work (ADR-075).
+- Done:
+  - **Users are separated.** Founder: "mindoo user should appear in mindoo
+    system not in bsystems systems separate their users." ADR-073 had decided
+    the opposite and flagged it; this reverses it. Mindoo has its own Users page
+    at /mindoo/users with its own API namespace, and B-Systems' list no longer
+    contains a single Mindoo account.
+  - **Four walls, all in the service** (`user-tenancy.ts`), so the API, the form
+    and any future caller inherit them: the LIST is scoped; a role neither
+    administrator may grant is refused; edit/deactivate/delete 404 on somebody
+    else's account; and so does IMPERSONATION — the sharpest of the four, since
+    it hands the caller a session as the target and an unscoped mint would let a
+    B-Systems admin walk into Mindoo wearing its staff's face.
+  - **The rule is one line**: an account holding `mindoo_staff` is Mindoo's,
+    every other account is B-Systems'. Not "only Mindoo roles" — that would give
+    a dual-role account two owners, either of whom could deactivate the other's
+    staff.
+  - **Mindoo's leads now show on the B-Systems board**, labelled "Mindoo", the
+    whole card in Mindoo's purple, clickable to a READ-ONLY view. Founder's own
+    instruction, and confirmed in the same round: admin only, board only,
+    read-only. A foreign card has no grip and none of the inline actions — not
+    disabled, absent — because every one of them posts to /api/b-systems where a
+    Mindoo lead is refused, and a button that always fails is the exact bug
+    ADR-073 shipped.
+  - **THE CRASH THE FOUNDER FOUND.** He reported "I can't add any users in
+    bsystems right now" and I reasoned it away: the role and its label went in
+    together, so how could they disagree? They did — the label landed in
+    `regRoleBadges` instead of `assignableRoleLabels`, a few lines above the
+    object it needed. `tFor` has no fallback, so `t(undefined)` is a TypeError
+    that takes the whole Users page down. He was right; my reasoning was the
+    wrong kind of confident.
+  - **And the class is closed**: `admin-labels.test.ts` walks both
+    administrators' grantable roles and every value of `ROLES` against all three
+    label maps, failing with the role and the map named. These maps are
+    `Record<string, Msg>` keyed by a string the compiler cannot check, so
+    nothing else was ever going to catch it.
+- Verified: `docs/TESTING.md` Run 090 — 56 vitest files / **957 tests**, `tsc`
+  clean, `next build` clean with the new routes registered, and
+  `e2e/mindoo.spec.ts` at **21 cases**, four of them new: Mindoo administers its
+  own people, B-Systems' list holds none of them, the foreign card is labelled
+  and inert and opens read-only, and a non-admin sees no foreign card at all.
+- In progress: nothing mid-flight.
+- Next steps: the two confirmations below.
+- Blockers: none.
+- **Needs founder confirmation (two NEW):**
+  1. **Mindoo's Users page has no impersonation.** B-Systems has it because it
+     has agents and partners whose accounts an admin may need to stand in;
+     Mindoo has one staff role and therefore nobody to impersonate. Say the word
+     if that changes.
+  2. **The window is one-way.** Mindoo does not see B-Systems' leads on its own
+     board — you asked for the B-Systems direction only, and the reverse would
+     put your B-Systems clients in front of Mindoo's staff.

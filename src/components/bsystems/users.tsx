@@ -21,14 +21,30 @@ import { assignableRoleLabels, common, usersAdmin as d } from "@/lib/i18n/dict/a
    It stays in the B-Systems admin's screen deliberately. Mindoo has no Users
    page of its own — accounts are the platform's, not a company's — and that is
    the ADR-073 decision ADR-074 did not change. */
-const ASSIGNABLE_ROLES = [
+/* ADR-075 — apiBase + roles come from the SURFACE that renders this.
+
+   Both companies administer their own people now, on the same screen at two
+   addresses: /b-systems/users and /mindoo/users. Duplicating the editor would
+   make every future fix land twice, so what varies is passed in — the namespace
+   the writes go to (the brand is derived from the ROUTE on the server, so the
+   namespace IS the company being acted on) and the roles this administrator may
+   grant. Both required: a default would silently act on B-Systems from Mindoo's
+   own screen. The SERVICE refuses a crossing either way (assertGrantable,
+   assertUserInScope); these props are the courtesy. */
+export const BSYSTEMS_ASSIGNABLE_ROLES = [
   "bsystems_admin",
   "bsystems_sales",
   "bsystems_agent",
   "bsystems_partner",
   "bsystems_data_entry", // ADR-051 — add-only
   "byteforce_staff",
-  "mindoo_staff", // ADR-074
+  /* ADR-075 — `mindoo_staff` was here for one commit and is deliberately gone
+     again. ADR-074 added it because ADR-073 had decided a Mindoo teammate is
+     created BY the B-Systems admin; the founder then said the opposite —
+     "mindoo user should appear in mindoo system not in bsystems systems
+     separate their users" — so Mindoo administers its own people at
+     /mindoo/users, and this form cannot mint them. The SERVICE refuses it
+     either way (assertGrantable); this list is the courtesy. */
 ];
 
 /* ADR-066 (founder: "block some admins from acsessing accounting or data
@@ -87,9 +103,13 @@ function ModuleAccessFieldset({
    the password (visible in the Password column once set). */
 export function EditUserButton({
   user,
+  apiBase,
+  assignableRoles,
   isBootstrapAdmin,
   isSelf,
 }: {
+  apiBase: string;
+  assignableRoles: readonly string[];
   user: {
     id: string;
     name: string;
@@ -150,7 +170,7 @@ export function EditUserButton({
             const password = String(fd.get("password") || "");
             setBusy(true);
             setError(null);
-            const res = await fetch(`/api/b-systems/users/${user.id}`, {
+            const res = await fetch(`${apiBase}/users/${user.id}`, {
               method: "PATCH",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
@@ -218,7 +238,7 @@ export function EditUserButton({
             <fieldset>
               <legend className={labelCls}>{t(d.accessLegend)}</legend>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
-                {ASSIGNABLE_ROLES.map((r) => (
+                {assignableRoles.map((r) => (
                   <label key={r} className="flex items-center gap-2 text-sm">
                     <input
                       type="checkbox"
@@ -261,7 +281,13 @@ export function EditUserButton({
   );
 }
 
-export function CreateUserForm() {
+export function CreateUserForm({
+  apiBase,
+  assignableRoles,
+}: {
+  apiBase: string;
+  assignableRoles: readonly string[];
+}) {
   const router = useRouter();
   const t = tFor(useLocale());
   const [open, setOpen] = useState(false);
@@ -283,10 +309,10 @@ export function CreateUserForm() {
       onSubmit={async (e) => {
         e.preventDefault();
         const fd = new FormData(e.currentTarget);
-        const roles = ASSIGNABLE_ROLES.filter((r) => fd.get(`role-${r}`) === "on");
+        const roles = assignableRoles.filter((r) => fd.get(`role-${r}`) === "on");
         setBusy(true);
         setError(null);
-        const res = await fetch("/api/b-systems/users", {
+        const res = await fetch(`${apiBase}/users`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -334,7 +360,7 @@ export function CreateUserForm() {
       <fieldset>
         <legend className={labelCls}>{t(d.accessLegend)}</legend>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
-          {ASSIGNABLE_ROLES.map((r) => (
+          {assignableRoles.map((r) => (
             <label key={r} className="flex items-center gap-2 text-sm">
               <input
                 type="checkbox"
@@ -372,7 +398,15 @@ export function CreateUserForm() {
    Distinct from Remove/Reactivate beside it, so a permanent deletion can never
    be mistaken for the reversible one: it takes TWO deliberate steps and the
    second one names the person out loud. The server owns the real guards. */
-export function DeleteUserButton({ userId, name }: { userId: string; name: string }) {
+export function DeleteUserButton({
+  userId,
+  name,
+  apiBase,
+}: {
+  userId: string;
+  name: string;
+  apiBase: string;
+}) {
   const router = useRouter();
   const t = tFor(useLocale());
   const [confirming, setConfirming] = useState(false);
@@ -426,7 +460,7 @@ export function DeleteUserButton({ userId, name }: { userId: string; name: strin
               onClick={async () => {
                 setBusy(true);
                 setError(null);
-                const res = await fetch(`/api/b-systems/users/${userId}`, { method: "DELETE" });
+                const res = await fetch(`${apiBase}/users/${userId}`, { method: "DELETE" });
                 setBusy(false);
                 if (!res.ok) {
                   const data = (await res.json().catch(() => null)) as { error?: string } | null;
@@ -447,7 +481,15 @@ export function DeleteUserButton({ userId, name }: { userId: string; name: strin
   );
 }
 
-export function ActiveToggle({ userId, active }: { userId: string; active: boolean }) {
+export function ActiveToggle({
+  userId,
+  active,
+  apiBase,
+}: {
+  userId: string;
+  active: boolean;
+  apiBase: string;
+}) {
   const router = useRouter();
   const t = tFor(useLocale());
   const [busy, setBusy] = useState(false);
@@ -457,7 +499,7 @@ export function ActiveToggle({ userId, active }: { userId: string; active: boole
       disabled={busy}
       onClick={async () => {
         setBusy(true);
-        await fetch(`/api/b-systems/users/${userId}`, {
+        await fetch(`${apiBase}/users/${userId}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ active: !active }),

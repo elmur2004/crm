@@ -2,6 +2,12 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { ApiError } from "@/lib/api-error";
+import {
+  assertGrantable,
+  assertUserInScope,
+  userScopeWhere,
+  type UserScope,
+} from "./user-tenancy";
 import { hashPassword } from "@/lib/auth/hash";
 import { isValidPhone, normalizePhone } from "@/lib/auth/phone";
 import { ROLES, type Role } from "@/lib/pipeline-engine/constants";
@@ -15,8 +21,13 @@ import { invalidateUndo } from "./undo";
    (signed with AUTH_SECRET) consumed by the dedicated credentials provider; every
    impersonation is activity-logged. */
 
-export function listUsers() {
+export function listUsers(
+  /* ADR-075 — WHOSE people. Required, never defaulted: a default would be "the
+     whole platform", which is the leak this argument exists to close. */
+  scope: UserScope,
+) {
   return db.user.findMany({
+    where: userScopeWhere(scope),
     include: {
       roles: true,
       portalRep: { select: { firstName: true, lastName: true, speciality: true } },
@@ -77,7 +88,13 @@ export const createUserSchema = z
     path: ["phone"],
   });
 
-export async function createUser(input: z.infer<typeof createUserSchema>, actor: Actor) {
+export async function createUser(
+  input: z.infer<typeof createUserSchema>,
+  scope: UserScope,
+  actor: Actor,
+) {
+  /* ADR-075 — an administrator mints only his own company's accounts. */
+  assertGrantable(scope, input.roles as Role[]);
   const email = input.email?.trim().toLowerCase();
   const phone = input.phone ? normalizePhone(input.phone) : undefined;
   if (email && (await db.user.findUnique({ where: { email } }))) {
@@ -140,8 +157,14 @@ export const updateUserSchema = z
 export async function updateUser(
   userId: string,
   input: z.infer<typeof updateUserSchema>,
+  scope: UserScope,
   actor: Actor,
 ) {
+  /* ADR-075 — his own people, and only roles he may grant. Both walls, because
+     editing an account you may not see and re-roling one you may is the same
+     hole from two directions. */
+  await assertUserInScope(scope, userId);
+  if (input.roles) assertGrantable(scope, input.roles as Role[]);
   const user = await db.user.findUnique({ where: { id: userId }, include: { roles: true } });
   if (!user) throw new ApiError(404, "User not found");
 
@@ -214,7 +237,14 @@ export async function updateUser(
   });
 }
 
-export async function setUserActive(userId: string, active: boolean, actor: Actor) {
+export async function setUserActive(
+  userId: string,
+  active: boolean,
+  scope: UserScope,
+  actor: Actor,
+) {
+  /* ADR-075 — deactivating somebody is administering them. */
+  await assertUserInScope(scope, userId);
   const user = await db.user.findUnique({ where: { id: userId } });
   if (!user) throw new ApiError(404, "User not found");
   return db.$transaction(async (tx) => {
@@ -270,7 +300,9 @@ export async function setUserActive(userId: string, active: boolean, actor: Acto
 /** The pinned, self-healing admin (bootstrap.ts) — deleting it is meaningless. */
 const BOOTSTRAP_ADMIN_EMAIL = "admin@byteforce.com";
 
-export async function deleteUser(userId: string, actor: Actor) {
+export async function deleteUser(userId: string, scope: UserScope, actor: Actor) {
+  /* ADR-075 — and so is deleting them, permanently and with their history. */
+  await assertUserInScope(scope, userId);
   const user = await db.user.findUnique({
     where: { id: userId },
     include: { portalRep: { include: { cv: true } }, partner: { select: { id: true } } },
@@ -378,9 +410,15 @@ function sign(payload: string): string {
     impersonating — that's what powers the "Back to admin" snap-back. */
 export async function mintImpersonationToken(
   targetUserId: string,
+  scope: UserScope,
   actor: Actor,
   opts?: { impersonatorId?: string; trigger?: string },
 ): Promise<string> {
+  /* ADR-075 — IMPERSONATION IS THE SHARPEST ONE. It hands the caller a session
+     AS the target, so an unscoped mint would let a B-Systems admin walk into
+     Mindoo wearing its staff's face — every wall this project built, opened by
+     one button. His own people only. */
+  await assertUserInScope(scope, targetUserId);
   const target = await db.user.findUnique({ where: { id: targetUserId } });
   if (!target) throw new ApiError(404, "User not found");
   if (!target.active) throw new ApiError(400, "Account is deactivated");

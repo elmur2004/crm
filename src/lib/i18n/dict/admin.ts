@@ -244,6 +244,9 @@ export const roleBadges: Record<string, Msg> = {
   bsystems_partner: { en: "Partner", ar: "شريك" },
   bsystems_data_entry: { en: "Data entry", ar: "إدخال بيانات" },
   byteforce_staff: { en: "ByteForce", ar: "ByteForce" },
+  /* ADR-075 — Mindoo's staff, on Mindoo's own Users table. Without it the row
+     fell through to the raw `mindoo_staff` id beside it. */
+  mindoo_staff: { en: "Mindoo", ar: "Mindoo" },
 };
 
 /** Role labels on the Registrations page (byteforce differs: "ByteForce staff"). */
@@ -258,7 +261,15 @@ export const regRoleBadges: Record<string, Msg> = {
   mindoo_staff: { en: "Mindoo staff", ar: "فريق Mindoo" },
 };
 
-/** Assignable-role checkbox labels in the user create/edit forms. */
+/** Assignable-role checkbox labels in the user create/edit forms.
+
+    ADR-075 — EVERY GRANTABLE ROLE MUST BE HERE. `tFor` is `m => m[locale]`, so
+    a missing entry is `undefined[locale]` — a TypeError that takes the whole
+    FORM down, not a blank label. That is exactly what ADR-074 shipped: the role
+    was added to the checkbox list and its label went into `regRoleBadges` a few
+    lines above by mistake, and the founder reported "I can't add any users in
+    bsystems right now". `admin-labels.test.ts` walks `grantableRoles` for both
+    administrators and fails naming any role that has no entry here. */
 export const assignableRoleLabels: Record<string, Msg> = {
   bsystems_admin: { en: "B-Systems admin", ar: "مدير B-Systems" },
   bsystems_sales: { en: "B-Systems internal sales", ar: "مبيعات B-Systems الداخلية" },
@@ -266,6 +277,7 @@ export const assignableRoleLabels: Record<string, Msg> = {
   bsystems_partner: { en: "B-Systems partner", ar: "شريك B-Systems" },
   bsystems_data_entry: { en: "B-Systems data entry", ar: "إدخال بيانات B-Systems" },
   byteforce_staff: { en: "ByteForce staff", ar: "فريق ByteForce" },
+  mindoo_staff: { en: "Mindoo staff", ar: "فريق Mindoo" },
 };
 
 export const registrations = {

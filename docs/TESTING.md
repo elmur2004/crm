@@ -5136,3 +5136,97 @@ down beside both links rather than left to be re-discovered.
 changes a URL is not a refactor.** The two failures were the only ones in 168
 e2e cases, and they were entirely mine.
 
+
+---
+
+## Run 090 — 2026-09-03 — ADR-075: separate users, and one named window in the wall
+
+- Scope: `user-tenancy.ts` and the four walls it puts on the user service;
+  Mindoo's Users page and API namespace; the shared `UsersBody`; Mindoo's leads
+  on the B-Systems board (label, colour, inert card, read-only route); the
+  cross-brand marker token; and the label-completeness test.
+
+| Command | Result |
+| --- | --- |
+| `npx tsc --noEmit` | clean |
+| `npx vitest run` | **56 files, 957 tests, all passing** |
+| `npx next build` | clean; `/mindoo/users`, `/api/mindoo/users`, `/api/mindoo/users/[id]` and `/b-systems/crm/company-lead/[leadId]` all registered |
+| `npx playwright test e2e/mindoo.spec.ts` | **21 passed** (17 → 21) |
+| `npx playwright test` (full) | first run 177: 174 passed, 2 skipped (the opt-in audit spec), **1 failed — journey 5**, diagnosed below. Final run after the fix: **175 passed, 0 failed**, 2 skipped |
+
+### New coverage
+
+- **`src/lib/i18n/admin-labels.test.ts` (23 cases)** — the one that matters
+  most, because it closes the class of bug the founder found by hand. The three
+  role-label maps are `Record<string, Msg>` keyed by a string the compiler
+  cannot check, and `tFor` has no fallback, so a role in a list without a label
+  is `undefined[locale]` — a TypeError that takes the whole screen down. It
+  walks both administrators' `grantableRoles` and every value of `ROLES`, and
+  fails naming the role AND the map.
+- **`users-create.integration.test.ts` grew to 14** — every role the form
+  offers actually creates an account, plus the two directions of the new wall
+  (a B-Systems admin cannot mint a Mindoo account; a Mindoo admin cannot mint a
+  B-Systems one) and the two lists never containing each other's people.
+- **Four new e2e cases** — Mindoo administers its own people and sees only its
+  own role in the checkboxes; B-Systems' list holds none of Mindoo's; the
+  foreign card is labelled, purple, has no grip and no actions, and opens the
+  read-only view; and a non-admin sees no foreign card and 404s on the route.
+
+### The three failures on the first run, all mine, all honest
+
+1. **`nav is the lead sections only`** asserted `Users` was ABSENT from Mindoo's
+   nav — true under ADR-074 and deliberately false under ADR-075. Updated to
+   assert it is PRESENT, with the partner subsystem still absent.
+2. **`the switch is back to two`** asserted no Mindoo card appears at
+   `/b-systems/crm?company=mindoo`. The founder has now asked for exactly that
+   card. Re-aimed at what the case was really protecting: `?company=mindoo` must
+   not SWITCH you into Mindoo — the switch still reads B-Systems, and any Mindoo
+   lead on that board is a FOREIGN card, never a native one.
+3. **`Mindoo administers its OWN people`** could not find the "Mindoo staff"
+   checkbox — because the label was in the wrong map. That was not a stale
+   assertion; it was **the founder's bug reproducing in CI**, and the reason it
+   is worth writing down: the e2e found in one run what I had talked myself out
+   of twice.
+
+### The one full-suite failure, and why it was worth an hour
+
+`journey5-portal-admin-cycle` drags a lead to Won and got **Postpone** — the
+column immediately before it. The board's own live region said so in the
+saved page snapshot, which is the whole reason it took minutes rather than
+guesswork: *"Draggable item … was dropped over droppable area postponed."*
+
+It is a TEST fault, not a product one, and the distinction matters. `BsBoard`
+gives `DndContext` no `collisionDetection`, so dnd-kit uses its default
+`rectIntersection` — which scores **the dragged card's rect** against each
+droppable and ignores the pointer entirely. The helper grabs a card at its
+middle-right (deliberately, to clear the name link and the buttons), so the card
+hangs almost a full width to the LEFT of the cursor; aiming the cursor at the
+Won column therefore put the CARD over Postpone. A person never hits this: they
+drag with the target column highlighted and let go when it looks right.
+
+It had been latent for as long as the helper existed, and ADR-075 is what tipped
+it — the admin's board now also carries Mindoo's leads, so the columns are
+busier and the balance that used to fall the right way stopped doing so. The
+helper's own comment recorded an earlier round of the same fight ("shifting the
+aim by half a card width… dropped a win into Lost"), which is the tell: half a
+card width was a GUESS, and a guess drifts every time the board changes.
+
+The fix is a formula, not a nudge. The grab offset is measurable, so the aim
+places the card's left edge at `columnCentre − cardWidth/2` and puts the cursor
+back at the same point inside the card that it grabbed. It is now correct for
+any card width, any column width and any board.
+
+**The lesson: when a test fights coordinates, find the thing the code actually
+measures.** Two prior rounds tuned pixels against a collision strategy nobody
+had looked up.
+
+### The wall test learned a distinction
+
+`mindoo-app.test.ts` asserted the merged shell never says "mindoo". ADR-075
+opens one deliberate window, so blanket-forbidding the word would have meant
+either weakening the test or refusing the founder's instruction. It now asserts
+the two things separately: the ADDRESS wall stays absolute (nothing links to
+`/mindoo` or posts to `/api/mindoo` — those log a B-Systems reader out), and the
+BRAND is allow-listed to the single file ADR-075 names, with its reason, so a
+third file cannot join quietly.
+

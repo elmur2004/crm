@@ -114,17 +114,60 @@ describe("ADR-074 — nothing inside Mindoo goes to B-Systems", () => {
   });
 });
 
-describe("ADR-074 — and nothing inside B-Systems goes to Mindoo", () => {
+describe("ADR-074/075 — and nothing inside B-Systems goes to Mindoo", () => {
   const files = filesUnder(MERGED_APP, (n) => /\.(ts|tsx)$/.test(n));
 
-  it.each(files.map((p) => [rel(p), p] as const))("%s names no Mindoo address", (_r, file) => {
-    const src = codeOf(file);
+  /* ADR-075 — THE ONE WINDOW, and it is named.
+
+     Founder: "mindoo leads should appear in bsystems crm with a label called
+     mindoo and the card being a light purple color for the whole card to
+     identify it… clickable, opens the lead read-only."
+
+     So the wall is no longer "the merged shell never says Mindoo" — it is the
+     stricter and more useful pair of claims below. The ADDRESS wall is
+     unchanged and absolute: nothing here links into /mindoo or posts to
+     /api/mindoo, because those are refused for a B-Systems account and a link
+     that logs you out is the bug this file was written for. What ADR-075 allows
+     is READING Mindoo's rows under a B-Systems address, in the two files that
+     do it, listed here so a third cannot join them quietly. */
+  const READS_MINDOO: Array<{ file: string; why: string }> = [
+    {
+      file: "src/app/(bsystems)/b-systems/(app)/crm/company-lead/[leadId]/page.tsx",
+      why: "ADR-075 — the read-only window on a Mindoo lead: admin only, brand pinned in code, no control that writes",
+    },
+  ];
+
+  it.each(files.map((p) => [rel(p), p] as const))(
+    "%s links to no Mindoo ADDRESS",
+    (_r, file) => {
+      const src = codeOf(file);
+      expect(
+        /["'`]\/mindoo|\/api\/mindoo|company=mindoo/.test(src),
+        `${rel(file)} names a Mindoo ADDRESS. A B-Systems account cannot open ` +
+          "/mindoo — the proxy refuses it — so a link there logs the reader out, " +
+          "and /api/mindoo refuses its writes (ADR-074).",
+      ).toBe(false);
+    },
+  );
+
+  it("only the listed files read Mindoo's rows at all", () => {
+    const allowed = new Set(READS_MINDOO.map((a) => a.file));
+    const offenders = files
+      .filter((f) => /"mindoo"|'mindoo'/.test(codeOf(f)))
+      .map(rel)
+      .filter((f) => !allowed.has(f));
     expect(
-      /["'`]\/mindoo|\/api\/mindoo|company=mindoo|"mindoo"/.test(src),
-      `${rel(file)} names Mindoo. The merged shell serves B-Systems and ` +
-        "ByteForce and must not link into, post to, or branch on a third app " +
-        "(ADR-074)",
-    ).toBe(false);
+      offenders,
+      "these files name the Mindoo BRAND. Reading another company's rows from " +
+        "the merged shell is allowed only where ADR-075 says so — add the file " +
+        "to READS_MINDOO with a reason, or take the reference out.",
+    ).toEqual([]);
+  });
+
+  it("every listed file still exists (a stale allowlist is a lie)", () => {
+    for (const a of READS_MINDOO) {
+      expect(files.map(rel), `${a.file} is allow-listed but not in the tree`).toContain(a.file);
+    }
   });
 
   it("the shell's own company list does not contain it", () => {
@@ -149,7 +192,9 @@ describe("ADR-074 — Mindoo's nav is a set of doors that open", () => {
   });
 
   it("carries the lead sections and NOT the partner/agent subsystem", () => {
-    /* founder: "no partners or regestrations or agents or their crm at all" */
+    /* founder: "no partners or regestrations or agents or their crm at all" —
+       and ADR-075 added Users, because he then asked for Mindoo's people to be
+       administered inside Mindoo rather than from B-Systems. */
     const hrefs = MINDOO_NAV.map((i) => i.href);
     expect(hrefs).toEqual([
       "/mindoo",
@@ -158,7 +203,12 @@ describe("ADR-074 — Mindoo's nav is a set of doors that open", () => {
       "/mindoo/leads",
       "/mindoo/crm",
       "/mindoo/won-leads",
+      "/mindoo/users",
     ]);
+    /* the partner/agent subsystem stays out, whatever else is added */
+    for (const absent of ["partners", "agents", "registrations", "statements", "payments"]) {
+      expect(hrefs.some((h) => h.includes(absent))).toBe(false);
+    }
   });
 
   it("sign-in lands a Mindoo account in Mindoo, on a page that exists", () => {

@@ -121,7 +121,7 @@ describe("Permanently deleting a user (ADR-049)", () => {
       },
     });
 
-    await deleteUser(agent.id, admin);
+    await deleteUser(agent.id, "bsystems", admin);
 
     /* the account, its roles, its profile and its notifications are gone */
     expect(await db.user.findUnique({ where: { id: agent.id } })).toBeNull();
@@ -199,7 +199,7 @@ describe("Permanently deleting a user (ADR-049)", () => {
       { attribution: { partnerId: partner.id } },
     );
 
-    await deleteUser(partnerUser.id, admin);
+    await deleteUser(partnerUser.id, "bsystems", admin);
 
     const fresh = await db.partner.findUniqueOrThrow({ where: { id: partner.id } });
     expect(fresh.userId).toBeNull();
@@ -216,9 +216,9 @@ describe("Permanently deleting a user (ADR-049)", () => {
       data: { name: "Elmur", email: "admin@byteforce.com", passwordHash: "x" },
     });
 
-    await expect(deleteUser(admin.id!, admin)).rejects.toThrow(/your own account/);
-    await expect(deleteUser(bootstrap.id, admin)).rejects.toThrow(/main admin account/);
-    await expect(deleteUser("no-such-user", admin)).rejects.toThrow(/not found/);
+    await expect(deleteUser(admin.id!, "bsystems", admin)).rejects.toThrow(/your own account/);
+    await expect(deleteUser(bootstrap.id, "bsystems", admin)).rejects.toThrow(/main admin account/);
+    await expect(deleteUser("no-such-user", "bsystems", admin)).rejects.toThrow(/not found/);
 
     expect(await db.user.findUnique({ where: { id: admin.id! } })).not.toBeNull();
     expect(await db.user.findUnique({ where: { id: bootstrap.id } })).not.toBeNull();
@@ -235,7 +235,7 @@ describe("Permanently deleting a user (ADR-049)", () => {
     await setNoAnswer("bsystems", lead.id, true, admin);
     expect(await pendingUndoFor(admin.id!)).not.toBeNull();
 
-    await deleteUser(victim.id, admin);
+    await deleteUser(victim.id, "bsystems", admin);
     expect(await pendingUndoFor(admin.id!)).toBeNull();
   });
 
@@ -249,7 +249,7 @@ describe("Permanently deleting a user (ADR-049)", () => {
       { ownerType: "agent", ownerUserId: agent.id },
     );
 
-    await setUserActive(agent.id, false, admin);
+    await setUserActive(agent.id, false, "bsystems", admin);
 
     const fresh = await db.lead.findUniqueOrThrow({ where: { id: lead.id } });
     expect(fresh.ownerUserId).toBe(agent.id); // still theirs

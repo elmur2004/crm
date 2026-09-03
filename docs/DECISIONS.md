@@ -5981,3 +5981,130 @@ in the other company first, and assert what is NOT returned.
   2. **Mindoo's logo.** The guideline's mark is vector with no exportable asset,
      so the header wears the typographic "MINDOO" fallback. A PNG/SVG drops
      straight into `BRAND_ASSETS.mindoo` with no code change.
+
+---
+
+## ADR-075 — 2026-09-03 — EACH COMPANY ADMINISTERS ITS OWN PEOPLE, and one named window opens in the wall
+
+- Status: Accepted
+- Context: two founder instructions, minutes apart, pulling in opposite
+  directions — and both are right:
+
+  > "mindoo user should appear in mindoo system not in bsystems systems separate
+  > their users"
+
+  > "also mindoo leads should appear in bsystems crm with a label called mindoo
+  > and the card being a light purple color for the whole card to identify it"
+
+  The first TIGHTENS the ADR-074 wall (accounts were still shared). The second
+  OPENS it (Mindoo's pipeline becomes visible from B-Systems). Read together
+  they are not a contradiction, they are a distinction: **administration is
+  separate; visibility is the founder's to grant.** He owns both companies and
+  wants one place to see the whole pipeline; he does not want two administrators
+  able to touch each other's staff.
+
+  Confirmed in the same round: admin only, board only, and the card opens the
+  lead READ-ONLY.
+
+### 1. Users: ADR-073's decision, reversed
+
+ADR-073 wrote "accounts are platform-wide… a Mindoo teammate is created by the
+B-Systems admin" and flagged it for confirmation. This is that confirmation, and
+it goes the other way.
+
+`src/lib/services/user-tenancy.ts` holds the rule in one line: **an account
+holding `mindoo_staff` is Mindoo's; every other account is B-Systems'.** Not
+"an account with only Mindoo roles" — that would make a dual-role account belong
+to both, and each administrator could then deactivate somebody the other
+depends on. One owner per account, decided by the role that names a company.
+
+Four walls, all in the SERVICE so the API, the form and any future caller
+inherit them:
+
+· `listUsers(scope)` — neither list contains the other's accounts.
+· `assertGrantable` — a B-Systems admin cannot mint a Mindoo account and a
+  Mindoo admin cannot mint a B-Systems one. Reading separately and writing
+  freely is the half-wall this codebase keeps rediscovering.
+· `assertUserInScope` on edit, deactivate and delete — **404, not 403**, because
+  403 on an email address answers "does this person have an account here".
+· And on IMPERSONATION, which is the sharpest of the four: it hands the caller a
+  session AS the target, so an unscoped mint would let a B-Systems admin walk
+  into Mindoo wearing its staff's face — every wall in the project opened by one
+  button.
+
+Mindoo's Users page shares the B-Systems screen rather than copying it
+(`UsersBody`), with the scope, the API base and the grantable roles passed in.
+It renders **no impersonation**: B-Systems has had it since V2 §2.10 because it
+has agents and partners whose accounts an admin may need to stand in; Mindoo has
+one staff role and therefore nobody to impersonate, and the sharpest tool in the
+product is not offered where it has no use.
+
+### 2. Leads: one window, and it is named
+
+The founder asked for Mindoo's leads on the B-Systems board. That is a real hole
+in ADR-074's wall, so it is cut precisely rather than widened generally:
+
+· **The B-Systems board only**, never Mindoo's own — the reverse direction would
+  put B-Systems' clients in front of Mindoo.
+· **The admin only.** Internal sales sees the internal bucket; agents and
+  partners see their own leads. Showing them another company's pipeline would be
+  a plain disclosure, and nothing in the request asked for it.
+· **Read-only, by construction rather than by hope.** A foreign card has no
+  grip, no Call, no WhatsApp, no Ready-to-close, no didn't-answer counter — not
+  disabled versions of them, ABSENT. Every one of those posts to
+  `/api/b-systems`, where a Mindoo lead is refused by the brand wall, and a
+  button that always fails is the exact bug ADR-073 shipped.
+· **A separate route** (`/b-systems/crm/company-lead/[leadId]`) rather than a
+  read-only MODE on the editable detail. A boolean that decides whether a screen
+  can write is the kind of thing a later edit inverts; two files cannot be
+  confused. The company is a literal in that file, never a `?company=`.
+
+The colour is `--color-company-mindoo*`, declared identically in all four brand
+scopes — like the danger red and the accounting green, and for the same reason:
+it does not mean "this brand", it means "this is not yours", and a marker that
+changed with the reader's brand would stop being one.
+
+### 3. The wall test learned the difference between an address and a name
+
+`mindoo-app.test.ts` asserted that no file in the merged shell says "mindoo".
+That was right for ADR-074 and is too blunt for ADR-075, so it now asserts the
+two things that actually matter, separately:
+
+· **The ADDRESS wall, absolute:** nothing in the merged shell links to `/mindoo`
+  or posts to `/api/mindoo`. Those are refused for a B-Systems account, so such
+  a link logs the reader out — the bug that file was written for.
+· **The BRAND, allow-listed:** reading Mindoo's rows under a B-Systems address
+  is permitted in the one file ADR-075 names, with its reason, and a third file
+  cannot join quietly.
+
+### 4. The crash the founder found, and why nothing caught it
+
+He reported "I can't add any users in bsystems right now" and I reasoned it
+away — the role and its label were in the same commit, so how could they
+disagree? They could, and did: the label went into `regRoleBadges` (the
+Registrations map) instead of `assignableRoleLabels` (the form's), a few lines
+above the object it needed.
+
+`tFor` is `(locale) => (m) => m[locale]`, with no fallback — deliberately, since
+a half-translated product is worse than a loud failure. So a missing entry is
+`undefined[locale]`: a TypeError that takes the whole Users page down. It took a
+browser to find because nothing in the suite connected a ROLE LIST to a LABEL
+MAP — these maps are `Record<string, Msg>` keyed by a string the compiler cannot
+check.
+
+`src/lib/i18n/admin-labels.test.ts` is that connection now: it walks
+`grantableRoles` for both administrators and every value of `ROLES`, and fails
+naming the role and the map. Cheap, pure, and it would have caught this the
+moment it was written.
+
+- Consequences: one new page, two new API routes, one shared body, one tenancy
+  module with four walls, one read-only route, one cross-brand token in four
+  scopes, and one label-completeness test. No existing account changes hands: a
+  B-Systems admin keeps every ability over his own people and loses sight of
+  somebody else's.
+- Status: Accepted. **Needs founder confirmation (two):**
+  1. **Mindoo's Users page has no impersonation.** One staff role means nobody
+     to impersonate; say the word if Mindoo grows a second role and wants it.
+  2. **The window is one-way.** Mindoo does not see B-Systems' leads on its own
+     board — you asked for the B-Systems direction only, and the reverse would
+     put your B-Systems clients in front of Mindoo's staff.

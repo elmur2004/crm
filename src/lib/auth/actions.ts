@@ -64,8 +64,12 @@ export async function impersonate(targetUserId: string): Promise<void> {
   const { requireRole } = await import("@/lib/auth/guards");
   const { mintImpersonationToken } = await import("@/lib/services/users");
   const adminUser = await requireRole("bsystems_admin");
+  /* ADR-075 — a B-Systems admin impersonates B-SYSTEMS' people. The service
+     404s a Mindoo account, which is the whole point: impersonation hands you a
+     session as the target, so an unscoped mint is every wall opened at once. */
   const token = await mintImpersonationToken(
     targetUserId,
+    "bsystems",
     { id: adminUser.id, label: adminUser.name },
     { impersonatorId: adminUser.id },
   );
@@ -98,8 +102,11 @@ export async function endImpersonation(): Promise<void> {
   if (!admin || !admin.active || !admin.roles.some((r) => r.role === "bsystems_admin")) {
     redirect("/login");
   }
+  /* snapping BACK to the admin: the target is the B-Systems admin himself,
+     already re-checked above, so his own scope is the right one to mint under */
   const token = await mintImpersonationToken(
     admin.id,
+    "bsystems",
     { id: admin.id, label: admin.name },
     { trigger: "impersonation_return" }, // no impersonatorId — a clean admin session
   );

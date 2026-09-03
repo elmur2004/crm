@@ -172,6 +172,20 @@
      in words who sent it and when). */
   --color-contact-made: #1B7A44;
   --color-contact-made-tint: #E6F4EC;
+
+  /* ADR-075 — THE FOREIGN-COMPANY MARKER. Founder: "mindoo leads should appear
+     in bsystems crm with a label called mindoo and the card being a light
+     purple color for the whole card to identify it."
+
+     A card on the B-Systems board that belongs to ANOTHER company wears this,
+     and it is Mindoo's own Bright Purple at card-tint strength. Identical in
+     every scope on purpose, exactly like the danger red and the accounting
+     green: it does not mean "this brand", it means "this is not yours", and a
+     marker that changed colour with the reader's brand would stop being one.
+     Fenced by name to `.bcard[data-foreign-company]`. */
+  --color-company-mindoo: #9044CA;
+  --color-company-mindoo-tint: #F3E9FC;
+  --color-company-mindoo-ink: #521E90;
 }
 
 /* Rules encoded as comments (enforced by /brand-audit):
