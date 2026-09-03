@@ -39,16 +39,25 @@ the email + password the admin fills into the Won gate.
 | Account | Identifier | Password | Lands in |
 |---|---|---|---|
 | **Admin (both entities)** | admin@byteforce.com | password123 | /b-systems |
+| **Mindoo admin** | admin@mindoo.com | password123 | /mindoo |
 | ByteForce staff | sara@byteforce.example | byteforce123 | /byteforce |
 | B-Systems internal sales | omar@b-systems.example | bsystems123 | /b-systems/crm |
 | B-Systems agent | 01001234567 | partner123 | /b-systems/crm |
 
-The admin account is guaranteed in EVERY environment (local or production):
-the app creates/repairs it before each sign-in attempt and PINS its password
-to `ADMIN_PASSWORD` (env var; default `password123`) — name "Elmur", both
-entities. To rotate the admin password in production, set `ADMIN_PASSWORD`. The other rows are demo data and
-never seed on production (`NODE_ENV=production` skips them; force with
-`SEED_DEMO=1`).
+**Both admin accounts are guaranteed in EVERY environment** (local or
+production): the app creates/repairs them before each sign-in attempt and PINS
+each password to its own env var — `ADMIN_PASSWORD` for admin@byteforce.com
+(name "Elmur", both entities) and `MINDOO_ADMIN_PASSWORD` for admin@mindoo.com
+(ADR-074), each defaulting to `password123`. Per-account on purpose: rotating
+one company's administrator must not silently change another company's. The two
+never overlap — the bootstrap revokes the other app's role, because an account
+holding both would land in whichever one `landingFor` names.
+
+This matters because the production launcher (`npm run start`) runs
+`prisma migrate deploy` and NEVER `prisma db seed`: an account that exists only
+in the seed reaches a freshly seeded local database and nowhere else. The other
+rows below ARE seed-only demo data and never seed on production
+(`NODE_ENV=production` skips them; force with `SEED_DEMO=1`).
 
 ### B-Systems sections per role (V2 §2)
 
