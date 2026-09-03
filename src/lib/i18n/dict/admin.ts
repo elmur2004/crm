@@ -254,6 +254,8 @@ export const regRoleBadges: Record<string, Msg> = {
   bsystems_partner: { en: "Partner", ar: "شريك" },
   bsystems_data_entry: { en: "Data entry", ar: "إدخال بيانات" },
   byteforce_staff: { en: "ByteForce staff", ar: "فريق ByteForce" },
+  /* ADR-074 — Mindoo's single staff role. Brand names stay untranslated. */
+  mindoo_staff: { en: "Mindoo staff", ar: "فريق Mindoo" },
 };
 
 /** Assignable-role checkbox labels in the user create/edit forms. */

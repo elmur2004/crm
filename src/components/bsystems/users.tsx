@@ -9,6 +9,18 @@ import { assignableRoleLabels, common, usersAdmin as d } from "@/lib/i18n/dict/a
 
 /* V2 §2.10 — admin user management widgets. */
 
+/* ADR-074 — `mindoo_staff` was MISSING, and its absence broke a path this
+   project had already written down. ADR-073 decided that accounts are
+   platform-wide and "a Mindoo teammate is created by the B-Systems admin" —
+   but the admin's own create-user form never offered the role, so the
+   documented way to make one did not exist. The SERVER has accepted it all
+   along (createUserSchema takes z.enum(ROLES)); only this list said otherwise,
+   which is the worst version of the bug: no error anywhere, just an option
+   nobody could pick.
+
+   It stays in the B-Systems admin's screen deliberately. Mindoo has no Users
+   page of its own — accounts are the platform's, not a company's — and that is
+   the ADR-073 decision ADR-074 did not change. */
 const ASSIGNABLE_ROLES = [
   "bsystems_admin",
   "bsystems_sales",
@@ -16,6 +28,7 @@ const ASSIGNABLE_ROLES = [
   "bsystems_partner",
   "bsystems_data_entry", // ADR-051 — add-only
   "byteforce_staff",
+  "mindoo_staff", // ADR-074
 ];
 
 /* ADR-066 (founder: "block some admins from acsessing accounting or data
