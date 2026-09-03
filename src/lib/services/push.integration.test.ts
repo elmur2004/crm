@@ -325,7 +325,7 @@ describe("EVERY notification type reaches the phone (the one central hook)", () 
       "registration",
       "needs_owner",
     ] as const) {
-      await notifyAdmins({ type, title: `${type} title`, body: `${type} body` });
+      await notifyAdmins({ brand: "bsystems", type, title: `${type} title`, body: `${type} body` });
     }
     /* the addressed one */
     await db.$transaction(async (tx) => {
@@ -376,7 +376,7 @@ describe("EVERY notification type reaches the phone (the one central hook)", () 
     await saveSubscription(admin.id, sub("https://push.example/inert"));
     const sent = fakeSender();
 
-    await notifyAdmins({ type: "ready_to_close", title: "Quiet", body: "No phone rings" });
+    await notifyAdmins({ brand: "bsystems", type: "ready_to_close", title: "Quiet", body: "No phone rings" });
     await db.$transaction(async (tx) => {
       await notifyUser(tx, {
         userId: admin.id,
@@ -408,7 +408,7 @@ describe("EVERY notification type reaches the phone (the one central hook)", () 
 
     /* schedulePush is fire-and-forget: the notification must still be written
        and the caller must never see the failure */
-    await notifyAdmins({ type: "ready_to_close", title: "Survives", body: "the explosion" });
+    await notifyAdmins({ brand: "bsystems", type: "ready_to_close", title: "Survives", body: "the explosion" });
     await expect(pushDeliveriesSettled()).resolves.toBeDefined();
     expect(await db.notification.count()).toBe(1);
     expect(await db.pushSubscription.count()).toBe(1); // a crash is not a goodbye

@@ -13,6 +13,7 @@ import { VaultDataPanel } from "@/components/vault/data-panel";
    the module's recent activity (append-only, newest first). Admin only. */
 
 import type { Msg } from "@/lib/i18n/core";
+import { vaultCompaniesOf } from "@/lib/services/vault/tenancy";
 
 const ENTITY_LABELS: Record<string, Msg> = {
   vault_employee: vault.entityEmployee,
@@ -43,13 +44,15 @@ export default async function VaultOverviewPage({
 }: {
   searchParams: Promise<{ q?: string }>;
 }) {
-  await requireVaultPage();
+  const user = await requireVaultPage();
+  /* ADR-074 — the companies this account may see (services/vault/tenancy). */
+  const visible = vaultCompaniesOf(user);
   const locale = await getLocale();
   const t = tFor(locale);
   const { q } = await searchParams;
   const [data, results] = await Promise.all([
-    vaultOverview(),
-    q ? searchVault(q) : Promise.resolve(null),
+    vaultOverview(visible),
+    q ? searchVault(q, visible) : Promise.resolve(null),
   ]);
 
   const groups = results

@@ -11,6 +11,7 @@ import {
 } from "@/lib/services/vault/constants";
 import { VaultHead } from "@/components/vault/VaultHead";
 import { AddEmployeeButton, EmployeeActions } from "@/components/vault/forms";
+import { vaultCompaniesOf } from "@/lib/services/vault/tenancy";
 
 /* ADR-053 Phase 5 — employee CARDS: assignees, not accounts (founder §7.3).
    Deactivate-never-delete; a deactivated card keeps its history. Admin only. */
@@ -34,12 +35,14 @@ export default async function VaultEmployeesPage({
 }: {
   searchParams: Promise<{ inactive?: string }>;
 }) {
-  await requireVaultPage();
+  const user = await requireVaultPage();
+  /* ADR-074 — the companies this account may see (services/vault/tenancy). */
+  const visible = vaultCompaniesOf(user);
   const locale = await getLocale();
   const t = tFor(locale);
   const { inactive } = await searchParams;
   const showInactive = inactive === "true";
-  const cards = await listVaultEmployeeCards({ includeInactive: showInactive });
+  const cards = await listVaultEmployeeCards(visible, { includeInactive: showInactive });
   const companyLabel = (c: string | null) =>
     c === null
       ? t(vault.companyBoth)

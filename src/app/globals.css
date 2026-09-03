@@ -7,6 +7,10 @@
    The two branding files are the ONLY place brand values may live (SPEC §4.1). */
 @import "../../branding/byteforce/tokens.css";
 @import "../../branding/b-systems/tokens.css";
+/* ADR-074 — Mindoo's own scope. Imported here with the other two so the
+   [data-brand="mindoo"] block is available to every root layout that imports
+   this file; the Mindoo shell stamps the attribute, nothing else changes. */
+@import "../../branding/mindoo/tokens.css";
 
 @import "tailwindcss";
 

@@ -7,6 +7,7 @@ import { loadBooks } from "@/lib/accounting/books";
 import { addMonths, liveTreasury, netIn, treasuryThrough } from "@/lib/accounting/engine";
 import { cairoMonth } from "@/lib/accounting/now";
 import { acctView } from "@/lib/accounting/params";
+import { moduleCompaniesFor } from "@/lib/module-companies";
 import { monthLabel } from "@/lib/accounting/format";
 import { AcctChip, AcctHead, AcctTile } from "@/components/accounting/AcctHead";
 import { AddMoveButton, MoveActions, OpeningButton } from "@/components/accounting/forms";
@@ -24,10 +25,10 @@ export default async function AcctTreasuryPage({
 }: {
   searchParams: Promise<{ company?: string; month?: string }>;
 }) {
-  await requireAccountingPage();
+  const user = await requireAccountingPage();
   const locale = await getLocale();
   const t = tFor(locale);
-  const view = acctView(await searchParams);
+  const view = acctView(await searchParams, moduleCompaniesFor(user.roles));
   const books = await loadBooks(view.company);
   const opening = treasuryThrough(books, addMonths(view.month, -1));
   const net = netIn(books, view.month);

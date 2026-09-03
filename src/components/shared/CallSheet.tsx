@@ -23,6 +23,7 @@ import { waSentLabel, whatsappMarkOf } from "@/components/shared/whatsappMark";
 import { LeadChat } from "@/components/shared/LeadChat";
 import { GroupHistory } from "@/components/internal/GroupHistory";
 import { HistoryPanel } from "@/components/internal/HistoryPanel";
+import { configForBrand } from "@/lib/pipeline-engine/configs/for-brand";
 
 /* Founder — the call sheet: "whenever you dial, it opens the page where all the
    information of the lead is displayed — his name, his industry, the last
@@ -73,7 +74,12 @@ export async function CallSheet({
   const [comments, mentionables, negotiationNotes] = await Promise.all([
     listLeadComments(leadId),
     mentionableUsersFor(leadId),
-    brand === "bsystems"
+    /* ADR-074 — asked of the PIPELINE, not of a brand literal. Negotiation
+       notes exist for any company whose pipeline has a negotiation stage, and
+       Mindoo's does (it runs B-Systems' shape) — pinned to "bsystems" this
+       hid, on Mindoo's call sheet, the notes its own staff had just written.
+       ByteForce has no such stage, so it still gets none. */
+    configForBrand(brand).stages.includes("negotiation")
       ? db.negotiationNote.findMany({ where: { leadId }, orderBy: { createdAt: "desc" } })
       : Promise.resolve([]),
   ]);

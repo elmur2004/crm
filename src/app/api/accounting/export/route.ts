@@ -8,7 +8,8 @@ import {
   exportCompanyDoc,
   exportFilename,
 } from "@/lib/accounting/export";
-import { ACCT_COMPANIES, type AcctCompany } from "@/lib/accounting/constants";
+import { type AcctCompany } from "@/lib/accounting/constants";
+import { acctCompaniesOf, acctCompanyOf } from "@/lib/accounting/tenancy";
 
 /* ADR-054, founder directives B + C — the books export. ADMIN ONLY.
    GET ?company=byteforce|bsystems → that company's books in the ORIGINAL
@@ -25,13 +26,16 @@ export const GET = handleRoute(async (req: Request) => {
   let filename: string;
   let entityId: string;
   if (all === "1" || all === "true") {
-    payload = await exportAllDoc();
+    /* ADR-074 — this account's companies, from the live roles. */
+    payload = await exportAllDoc(acctCompaniesOf(user));
     filename = exportAllFilename();
     entityId = "all";
-  } else if (rawCompany && (ACCT_COMPANIES as readonly string[]).includes(rawCompany)) {
-    payload = await exportCompanyDoc(rawCompany as AcctCompany);
-    filename = exportFilename(rawCompany as AcctCompany);
-    entityId = rawCompany;
+  } else if (rawCompany) {
+    /* 404s a company this account does not hold — see lib/accounting/tenancy */
+    const company: AcctCompany = acctCompanyOf(user, rawCompany);
+    payload = await exportCompanyDoc(company);
+    filename = exportFilename(company);
+    entityId = company;
   } else {
     throw new ApiError(400, "Choose a company to export, or export all companies");
   }

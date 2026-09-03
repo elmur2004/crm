@@ -277,12 +277,32 @@ export interface ImportSummary {
   companies: ImportCompanySummary[];
 }
 
+/* ADR-074 — `allowed` is the tenancy wall for a file's CONTENTS.
+
+   A single-company upload is already checked at the route (the `company` form
+   field goes through `acctCompanyOf`). A WRAPPER file names its own companies
+   INSIDE, and this function replaces every one of them wholesale — so an
+   uploaded file was, until this argument existed, a way to delete and rewrite
+   another company's entire books without ever naming it in the request. Every
+   company the parser finds must be one the caller holds; one that is not aborts
+   the whole import rather than silently importing the rest, because a partial
+   import of a file the user believed was whole is worse than a refusal. */
 export async function importAccounting(
   raw: unknown,
   company: AcctCompany | null,
+  allowed: readonly AcctCompany[],
   actor: Actor,
 ): Promise<ImportSummary> {
   const parsed = parseExportFile(raw, company);
+  const foreign = parsed.companies.filter((c) => !allowed.includes(c.company));
+  if (foreign.length > 0) {
+    throw new ApiError(
+      400,
+      `This file contains books for a company you do not have: ${foreign
+        .map((c) => c.company)
+        .join(", ")}`,
+    );
+  }
   const summaries: ImportCompanySummary[] = [];
   const month = cairoMonth();
 

@@ -1,25 +1,29 @@
 import { expect, test, type Page } from "@playwright/test";
 
 /* ============================================================================
-   ADR-073 — MINDOO, the third company, end to end.
+   ADR-074 — MINDOO IS ITS OWN SYSTEM, end to end.
 
-   Founder: "we need to add a third CRM called Mindoo with the exact same switch
-   mechanic and the exact same info and details."
+   Founder, verbatim: "I need to have the system for mindoo completly identical
+   to byteforce but with no partners or regestrations or agents or their crm at
+   all / I enter the creditials : admin@mindoo.com and password123 / the system
+   opens with [the] mindoo branding / having vault and accounting and the crm
+   and to do and calender all the other things / the system log in page should
+   stay exactly the same don't mention mindoo their / also remove the switcher
+   from bsystems system seperate them entirly nothing inside bsystems goes to
+   mindoo and vice versa."
 
-   Three things are proved here, and the third is the one that would have
-   shipped broken:
+   Every sentence of that is a test below, in his order. Two of them are the
+   ones that would otherwise ship broken:
 
-   1. THE SWITCH REALLY HAS THREE SEGMENTS, and each one lands on its own data.
+   · THE WALL RUNS BOTH WAYS. It is easy to check that Mindoo cannot reach
+     B-Systems and forget the other direction, which is half of what he asked
+     for. Both are here.
 
-   2. THE WALL STILL NARROWS. A Mindoo-only teammate gets no switch at all and
-      is refused both other companies — the ADR-067 property, which adding a
-      company must not weaken.
-
-   3. MINDOO'S STAFF CAN WIN ITS OWN DEALS. The B-Systems pipeline reserves Won
-      for two named B-Systems roles; copied verbatim, `mindoo_staff` would be in
-      neither list and the Won action would simply not be offered — a silent,
-      plausible-looking hole in the middle of the pipeline the founder asked to
-      have copied. This is the case that catches it.
+   · MINDOO CAN WRITE. ADR-073 gave Mindoo the B-Systems board and lead detail
+     and left every fetch in them pointing at `/api/b-systems`, so a Mindoo card
+     rendered perfectly and every action on it was refused by the brand wall.
+     The board LOOKED complete and could not be used. "Mark ready to close" is
+     the cheapest proof that the writes now land.
    ========================================================================== */
 
 async function login(page: Page, identifier: string, password: string, landing: RegExp) {
@@ -30,127 +34,262 @@ async function login(page: Page, identifier: string, password: string, landing: 
   await page.waitForURL(landing);
 }
 
+/** The founder's Mindoo credentials, exactly as he gave them. */
+const loginAsMindoo = (page: Page) => login(page, "admin@mindoo.com", "password123", /\/mindoo$/);
+
 const loginAsFounder = (page: Page) =>
   login(page, "admin@byteforce.com", "password123", /\/b-systems$/);
 
-/** Mindoo's own teammate — one company, no switch. */
-const loginAsMindoo = (page: Page) =>
-  login(page, "mona@mindoo.example", "mindoo123", /\/b-systems/);
-
-const switcher = (page: Page) => page.locator(".company-switch");
-
-test.describe("ADR-073 — Mindoo", () => {
-  test("the switch offers all three companies, and Mindoo lands on its own data", async ({
-    page,
-  }) => {
-    await loginAsFounder(page);
-    await expect(switcher(page).getByRole("link")).toHaveCount(3);
-    for (const name of ["B-Systems", "ByteForce", "Mindoo"]) {
-      await expect(switcher(page).getByRole("link", { name })).toBeVisible();
-    }
-
-    await switcher(page).getByRole("link", { name: "Mindoo" }).click();
-    await page.waitForURL(/company=mindoo/);
-    await expect(page.locator(".company-switch-current")).toHaveText("Mindoo");
-
-    /* its OWN leads, not another company's */
-    await page.goto("/b-systems/crm?company=mindoo");
-    await expect(page.locator('[data-deal-card="Nile Freight"]')).toBeVisible();
-    await expect(page.locator('[data-deal-card="Delta Foods"]')).toBeVisible();
+test.describe("ADR-074 — Mindoo", () => {
+  test("the sign-in page is unchanged and never mentions Mindoo", async ({ page }) => {
+    /* founder: "the system log in page should stay exactly the same don't
+       mention mindoo their". One consolidated door (ADR-028); which company you
+       land in is decided by your roles on the other side of it. */
+    await page.goto("/login");
+    await expect(page.locator("body")).not.toContainText(/mindoo/i);
+    await expect(page.locator("html")).not.toHaveAttribute("data-brand", "mindoo");
   });
 
-  test("it runs the B-SYSTEMS pipeline — eight columns, Negotiation among them", async ({
+  test("admin@mindoo.com opens Mindoo, wearing Mindoo's brand", async ({ page }) => {
+    await loginAsMindoo(page);
+    await expect(page).toHaveURL(/\/mindoo$/);
+    /* the branding instruction, in one attribute: data-brand activates
+       branding/mindoo/tokens.css for the whole document */
+    await expect(page.locator("html")).toHaveAttribute("data-brand", "mindoo");
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+  });
+
+  test("its nav is the lead sections only — no partners, agents or registrations", async ({
     page,
   }) => {
-    await loginAsFounder(page);
-    await page.goto("/b-systems/crm?company=mindoo");
-    /* the founder asked for a copy of B-Systems, and this is what that means in
-       columns: the same eight, including the Negotiation stage ByteForce has no
-       equivalent of. */
+    await loginAsMindoo(page);
+    const nav = page.locator(".app-nav");
+    for (const label of ["Home", "To-Do", "Calendar", "Leads", "CRM", "Won Leads"]) {
+      await expect(nav.getByRole("link", { name: label, exact: true })).toBeVisible();
+    }
+    /* founder: "no partners or regestrations or agents or their crm at all" */
+    for (const absent of ["Partners", "Agents", "Registrations", "Statements", "Users"]) {
+      await expect(nav.getByRole("link", { name: absent, exact: true })).toHaveCount(0);
+    }
+
+    /* every link is a real Mindoo screen, at a Mindoo address, with no company
+       on it — /mindoo answers that question by being /mindoo */
+    const hrefs = await nav
+      .getByRole("link")
+      .evaluateAll((els) => els.map((el) => (el as HTMLAnchorElement).getAttribute("href")!));
+    for (const href of hrefs) {
+      expect(href, "every nav href is a Mindoo address").toMatch(/^\/mindoo/);
+      expect(href, "and carries no company parameter").not.toContain("company=");
+      const res = await page.goto(href);
+      expect(res?.status(), `${href} must be a real screen`).toBe(200);
+      await expect(page.locator("h1")).toBeVisible();
+    }
+  });
+
+  test("there is NO company switch anywhere in the Mindoo app", async ({ page }) => {
+    /* founder: "remove the switcher from bsystems system seperate them entirly" */
+    await loginAsMindoo(page);
+    for (const path of ["/mindoo", "/mindoo/crm", "/mindoo/leads", "/mindoo/won-leads"]) {
+      await page.goto(path);
+      await expect(page.locator(".company-switch")).toHaveCount(0);
+      await expect(page.locator("body")).not.toContainText("B-Systems");
+    }
+  });
+
+  test("it runs the B-Systems pipeline — eight columns, Negotiation among them", async ({
+    page,
+  }) => {
+    await loginAsMindoo(page);
+    await page.goto("/mindoo/crm");
     await expect(page.locator(".board [data-stage]")).toHaveCount(8);
     await expect(page.locator('[data-stage="negotiation"]')).toHaveCount(1);
     await expect(page.locator('[data-stage="postponed"]')).toHaveCount(1);
     await expect(
       page.locator('[data-stage="negotiation"] [data-deal-card="Red Sea Resorts"]'),
     ).toBeVisible();
-
-    /* and ByteForce still does NOT have it — the two boards stay two pipelines */
-    await page.goto("/b-systems/crm?company=byteforce");
-    await expect(page.locator('[data-stage="negotiation"]')).toHaveCount(0);
+    /* its OWN leads and nobody else's */
+    await expect(page.locator('[data-deal-card="Nile Freight"]')).toBeVisible();
   });
 
-  test("Mindoo's own staff CAN win a Mindoo deal", async ({ page }) => {
-    await loginAsFounder(page);
-    await page.goto("/b-systems/crm?company=mindoo");
+  test("Mindoo's staff CAN win a Mindoo deal", async ({ page }) => {
+    await loginAsMindoo(page);
+    await page.goto("/mindoo/crm");
     await page.locator('[data-deal-card="Horizon Clinics"]').click();
-    await page.waitForURL(/\/b-systems\/crm\/lead\//);
+    await page.waitForURL(/\/mindoo\/crm\/lead\//);
 
-    /* THE assertion: Won is offered. The B-Systems config gates it on two named
-       B-Systems roles, so a Mindoo config that copied it verbatim would leave
-       this option absent — the board would look complete and quietly have no
-       way to close anything. */
+    /* the B-Systems config gates Won on two named B-Systems roles; a Mindoo
+       config that copied it verbatim would leave this option absent and the
+       board would look complete with no way to close anything (ADR-073) */
     const next = page.getByLabel(/Next action|Choose a next action/i);
     await expect(next.locator('option[value="won"]')).toHaveCount(1);
-    /* and Negotiation, which is the other half of "the same pipeline" */
     await expect(next.locator('option[value="negotiation"]')).toHaveCount(1);
   });
 
-  test("a Mindoo-only teammate is locked to Mindoo: no switch, no other company", async ({
-    page,
-  }) => {
+  test("and its WRITES land — the action posts to Mindoo's own namespace", async ({ page }) => {
+    /* ADR-074's own bug fix. Every write on these screens used to go to
+       /api/b-systems, where the brand wall refused it. */
     await loginAsMindoo(page);
-    /* below two companies the switch renders nothing at all — the ADR-067 rule,
-       unchanged by there being a third company in the world */
-    await expect(switcher(page)).toHaveCount(0);
+    await page.goto("/mindoo/crm");
+    const card = page.locator('[data-deal-card="Delta Foods"]');
+    const request = page.waitForRequest(
+      (r) => r.url().includes("/api/mindoo/leads/") && r.method() === "POST",
+    );
+    await card.getByRole("button", { name: /Mark ready to close/i }).click();
+    const posted = await request;
+    expect(posted.url(), "the write goes to Mindoo's namespace").toContain("/api/mindoo/");
+    const response = await posted.response();
+    expect(response?.status(), "and is accepted, not refused by the brand wall").toBeLessThan(400);
+    await expect(card.getByText(/Ready to close/i)).toBeVisible();
+  });
 
+  test("nothing inside B-Systems goes to Mindoo: the switch is back to two", async ({ page }) => {
+    await loginAsFounder(page);
+    const switcher = page.locator(".company-switch");
+    await expect(switcher.getByRole("link")).toHaveCount(2);
+    for (const name of ["B-Systems", "ByteForce"]) {
+      await expect(switcher.getByRole("link", { name })).toBeVisible();
+    }
+    await expect(switcher.getByRole("link", { name: "Mindoo" })).toHaveCount(0);
+
+    /* and the old address does not resolve to Mindoo any more — a junk company
+       falls back to the reader's own, it is never obeyed */
     await page.goto("/b-systems/crm?company=mindoo");
-    await expect(page.locator('[data-deal-card="Nile Freight"]')).toBeVisible();
+    await expect(page.locator('[data-deal-card="Nile Freight"]')).toHaveCount(0);
+  });
 
-    /* Asking for a company she does not hold is REFUSED and sent to HER OWN
-       company's home — `/b-systems?company=mindoo`, not back to the board she
-       asked for. That is `resolveCompany`'s documented behaviour and the point
-       of it: she is never answered with another company's rows under Mindoo's
-       label, and never left on an address that would 404 or bounce again. */
-    for (const other of ["bsystems", "byteforce"]) {
-      await page.goto(`/b-systems/crm?company=${other}`);
-      await expect(page).toHaveURL(/\/b-systems\?company=mindoo$/);
-      await expect(page.getByRole("heading", { name: "Home", level: 1 })).toBeVisible();
+  test("...and nothing inside Mindoo goes to B-Systems", async ({ page }) => {
+    await loginAsMindoo(page);
+    /* the edge refuses the whole prefix; the page guard would refuse it again */
+    for (const path of ["/b-systems", "/b-systems/crm", "/b-systems/users"]) {
+      await page.goto(path);
+      await expect(page).toHaveURL(/\/login/);
     }
   });
 
-  test("its nav is the B-Systems lead sections, without the partner subsystem", async ({
+  test("a B-Systems account cannot open Mindoo either — the wall runs both ways", async ({
     page,
   }) => {
     await loginAsFounder(page);
-    await page.goto("/b-systems?company=mindoo");
-    const nav = page.locator(".app-nav");
-    for (const label of ["Home", "To-Do", "Calendar", "Leads", "CRM", "Won Leads"]) {
-      await expect(nav.getByRole("link", { name: label, exact: true })).toBeVisible();
+    for (const path of ["/mindoo", "/mindoo/crm", "/mindoo/won-leads"]) {
+      await page.goto(path);
+      await expect(page).toHaveURL(/\/login/);
     }
-    /* the agent/partner sections are absent: Mindoo has one internal staff role
-       by the founder's decision, so those screens could never hold anything */
-    for (const absent of ["Partners", "Agents", "Registrations", "Statements", "Clients"]) {
-      await expect(nav.getByRole("link", { name: absent, exact: true })).toHaveCount(0);
-    }
+  });
 
-    /* every link the Mindoo nav renders is a real Mindoo screen */
-    const hrefs = await nav
-      .getByRole("link")
-      .evaluateAll((els) => els.map((el) => (el as HTMLAnchorElement).getAttribute("href")!));
-    for (const href of hrefs) {
-      const res = await page.goto(href);
-      expect(res?.status(), `${href} must be a real screen`).toBe(200);
-      await expect(page, href).toHaveURL(/company=mindoo/);
-      await expect(page.locator("h1")).toBeVisible();
+  test("Accounting opens for Mindoo, scoped to Mindoo alone", async ({ page }) => {
+    /* founder: "having vault and accounting and the crm and to do and calender" */
+    await loginAsMindoo(page);
+    await page.goto("/accounting");
+    await expect(page).toHaveURL(/\/accounting/);
+    /* ONE company tab, and it is Mindoo — the module wears its brand */
+    const companies = page.locator('[aria-label="Company"] .switcher-seg');
+    await expect(companies).toHaveCount(1);
+    await expect(companies.first()).toHaveText("Mindoo");
+    await expect(page.locator('[data-brand="mindoo"]').first()).toBeVisible();
+  });
+
+  test("the Data Vault opens for Mindoo, and offers only Mindoo", async ({ page }) => {
+    await loginAsMindoo(page);
+    await page.goto("/vault/documents");
+    await expect(page).toHaveURL(/\/vault\/documents/);
+    const options = page.locator('select[name="company"] option');
+    const values = await options.evaluateAll((els) =>
+      els.map((el) => (el as HTMLOptionElement).value).filter(Boolean),
+    );
+    expect(values).toEqual(["mindoo"]);
+  });
+
+  test("and the B-Systems admin's own modules are untouched by all of it", async ({ page }) => {
+    /* the regression that would be easiest to ship: adding a company must not
+       add a tab to the books somebody has been reading for months */
+    await loginAsFounder(page);
+    await page.goto("/accounting");
+    const companies = page.locator('[aria-label="Company"] .switcher-seg');
+    await expect(companies).toHaveCount(2);
+    await expect(companies.nth(0)).toHaveText("ByteForce");
+    await expect(companies.nth(1)).toHaveText("B-Systems");
+
+    await page.goto("/vault/documents");
+    const values = await page
+      .locator('select[name="company"] option')
+      .evaluateAll((els) => els.map((el) => (el as HTMLOptionElement).value).filter(Boolean));
+    expect(values).toEqual(["byteforce", "bsystems"]);
+  });
+
+
+  test("its To-Do and Calendar link INTO Mindoo, never into B-Systems", async ({ page }) => {
+    /* the sharpest bug an adversarial review found in this change: the To-Do
+       and calendar projections built lead links with a two-value ternary, so
+       every MINDOO row pointed at /b-systems — an address the proxy refuses for
+       this account. Clicking your own To-Do logged you out. */
+    await loginAsMindoo(page);
+    for (const path of ["/mindoo/todo", "/mindoo/calendar"]) {
+      await page.goto(path);
+      const hrefs = await page
+        .locator("main a[href]")
+        .evaluateAll((els) => els.map((el) => (el as HTMLAnchorElement).getAttribute("href")!));
+      for (const href of hrefs) {
+        expect(href, `${path} must not link into B-Systems`).not.toContain("/b-systems");
+      }
     }
+  });
+
+  test("a Mindoo lead can be DELETED — the button has an endpoint behind it", async ({ page }) => {
+    /* ADR-073 rendered Delete on two Mindoo screens and never added the route:
+       the button confirmed and then answered 405. */
+    await loginAsMindoo(page);
+    const created = await page.request.post("/api/mindoo/leads", {
+      data: { name: "Doomed Mindoo Lead", number: "0107779001", type: "cold_call" },
+    });
+    expect(created.status()).toBe(201);
+    const { id } = (await created.json()) as { id: string };
+    const deleted = await page.request.delete(`/api/mindoo/leads/${id}`);
+    expect(deleted.status(), "DELETE must exist in Mindoo's namespace").toBe(200);
+  });
+
+  test("a Mindoo won-deal document can be read back by the account that uploaded it", async ({
+    page,
+  }) => {
+    /* the file route sorted attachments by the bsystems_admin role, so Mindoo
+       uploaded a contract and then 403'd on the link beside it. */
+    await loginAsMindoo(page);
+    await page.goto("/mindoo/won-leads");
+    /* the seed gives Mindoo one won deal with a milestone tab — Won Leads is a
+       real screen for it, so an empty one would prove nothing */
+    await expect(page.getByText("Alexandria Marine")).toBeVisible();
+    await page.getByText("Alexandria Marine").first().click();
+    await page.waitForURL(/\/mindoo\/won-leads\//);
+
+    /* upload a contract, then read the bytes back through /api/files. Before
+       ADR-074 the second half 403'd: the file route sorted attachments by the
+       bsystems_admin role, so Mindoo could write a document and not read it. */
+    const kind = page.getByLabel(/Document/i);
+    await kind.selectOption("contract");
+    await page.locator('input[type="file"]').setInputFiles({
+      name: "mindoo-contract.pdf",
+      mimeType: "application/pdf",
+      buffer: Buffer.concat([Buffer.from("%PDF-1.7"), Buffer.alloc(512, 7)]),
+    });
+    await page.getByRole("button", { name: /Upload/i }).click();
+
+    const link = page.locator('a[href^="/api/files/"]').first();
+    await expect(link).toBeVisible();
+    const href = (await link.getAttribute("href"))!;
+    const res = await page.request.get(href);
+    expect(res.status(), `${href} must be readable by its own company`).toBe(200);
+
+    /* and the other company cannot read the same bytes by id */
+    await loginAsFounder(page);
+    const refused = await page.request.get(href);
+    expect(refused.status(), "another company's id is not a key").toBe(404);
   });
 
   test("Arabic: Mindoo keeps its name and the shell mirrors", async ({ page }) => {
-    await loginAsFounder(page);
-    await page.goto("/b-systems/crm?company=mindoo");
+    await loginAsMindoo(page);
+    await page.goto("/mindoo/crm");
     await page.getByRole("button", { name: "عربي" }).click();
     await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
-    /* brand names stay untranslated — the dictionary's own convention */
-    await expect(page.locator(".company-switch-current")).toHaveText("Mindoo");
+    /* the brand scope survives the locale switch */
+    await expect(page.locator("html")).toHaveAttribute("data-brand", "mindoo");
   });
 });

@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { requireRole, requireUser, type CurrentUser } from "./guards";
 import { landingFor } from "./landing";
-import { canUseModule, type ModuleKey } from "./roles";
+import { MODULE_ADMIN_ROLES, canUseModule, type ModuleKey } from "./roles";
 import {
   BS_PIPELINE_ROLES,
   CRM_ROLES,
@@ -53,12 +53,23 @@ export async function requireBsAdminPage(): Promise<CurrentUser> {
 
    No loop is possible: /no-access lives in the brand-neutral (home) group, is
    outside the proxy matcher and outside both module route groups, and asks only
-   for a signed-in account. A user who is not an admin at ALL never reaches this
-   line — `requireBsAdminPage` above has already sent him to his own board, which
-   is the behaviour that shipped with ADR-054 and must not change. */
+   for a signed-in account. A user who is not an administrator at ALL never
+   reaches this line — `requirePageRole` has already sent him to his own landing
+   (ADR-051's rule; before ADR-074 it was `requireBsAdminPage`, which sent every
+   non-admin to /b-systems/crm and would have sent Mindoo's administrator to an
+   app he cannot open). */
 
 export async function requireModulePage(module: ModuleKey): Promise<CurrentUser> {
-  const user = await requireBsAdminPage();
+  /* ADR-074 — it used to be `requireBsAdminPage()`, which bounces anything but
+     a B-Systems role to /b-systems/crm. For Mindoo's administrator that was a
+     bounce out of the module he is entitled to AND into an app he cannot open
+     — two wrongs from one literal. The floor is the module administrators
+     (MODULE_ADMIN_ROLES); everybody else lands on their OWN home, which is the
+     ADR-051 behaviour and cannot ping-pong.
+
+     Company scoping is a separate question, answered inside the module by
+     `moduleCompaniesFor` — nobody sees a company their roles do not carry. */
+  const user = await requirePageRole("/login", ...MODULE_ADMIN_ROLES);
   if (!canUseModule(user, module)) redirect(`/no-access?module=${module}`);
   return user;
 }

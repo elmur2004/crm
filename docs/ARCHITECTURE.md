@@ -54,9 +54,22 @@ src/app/(home)/layout.tsx + page.tsx     →  /            neutral <html>, no da
 src/app/(byteforce)/layout.tsx           →  <html data-brand="byteforce">
 src/app/(byteforce)/byteforce/…          →  /byteforce/*
 src/app/(bsystems)/layout.tsx            →  <html data-brand="bsystems">
-src/app/(bsystems)/b-systems/…           →  /b-systems/*
+src/app/(bsystems)/b-systems/…           →  /b-systems/*  (+ ?company=byteforce — ADR-067)
 src/app/(bsystems)/portal/…              →  /portal/*  (+ /portal/admin)
+src/app/(mindoo)/layout.tsx              →  <html data-brand="mindoo">        ADR-074
+src/app/(mindoo)/mindoo/…                →  /mindoo/*   NO company parameter
 ```
+
+ADR-074 — MINDOO is a route group of its own, and the absence of a `?company=`
+on it is the point. The merged shell serves two companies from one address, so
+which one you are looking at has to ride the URL; /mindoo serves exactly one, so
+the route already answers the question and a parameter there would be a second,
+contradictory answer to it. Its guard is correspondingly the simplest in the
+codebase (`requireMindooPage` — one role, no resolution, nothing to narrow), and
+`CrmCompany` no longer contains "mindoo", so a link from the merged shell into
+this group does not typecheck. The pipeline SCREENS are shared, not copied: the
+B-Systems bodies live in `src/components/bsystems/pages/` and render at both
+addresses under a `CrmSurface` (`src/lib/crm/surface.ts`).
 
 Every root layout imports `src/app/globals.css`. Apps B and C share the `(bsystems)`
 root layout (same brand, same fonts). Navigating across groups is a full document

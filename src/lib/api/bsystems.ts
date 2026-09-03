@@ -49,7 +49,9 @@ export function bsRoleOf(user: CurrentUser): Role {
    role for this company at all — the caller redirects. */
 export function crmEngineRole(company: CrmCompany, user: CurrentUser): Role | null {
   if (company === "byteforce") return user.roles.includes("byteforce_staff") ? "byteforce_staff" : null;
-  if (company === "mindoo") return user.roles.includes("mindoo_staff") ? "mindoo_staff" : null;
+  /* ADR-074 — Mindoo is not a case here and cannot be: `CrmCompany` is the
+     MERGED SHELL's two companies now, and Mindoo has its own app whose pages
+     know their engine role without asking (there is one). */
   return bsRoleOrNull(user);
 }
 

@@ -19,6 +19,7 @@ import {
   ReopenTaskButton,
 } from "@/components/vault/forms";
 import { ArchiveButton } from "@/components/shared/ArchiveButton";
+import { vaultCompaniesOf } from "@/lib/services/vault/tenancy";
 
 /* ADR-053 Phase 5 — the tasks screen: assignee cards (open/overdue/completed,
    overdue highlighted) over the task table (open first, deadline ascending).
@@ -44,14 +45,16 @@ export default async function VaultTasksPage({
 }: {
   searchParams: Promise<Record<string, string | undefined>>;
 }) {
-  await requireVaultPage();
+  const user = await requireVaultPage();
+  /* ADR-074 — the companies this account may see (services/vault/tenancy). */
+  const visible = vaultCompaniesOf(user);
   const locale = await getLocale();
   const t = tFor(locale);
   const raw = await searchParams;
   const params = vaultTaskListParams.parse(raw);
   const [rows, cards] = await Promise.all([
-    listVaultTasks({ ...params, employeeId: raw.employee ?? params.employeeId }),
-    listVaultEmployeeCards(),
+    listVaultTasks({ ...params, employeeId: raw.employee ?? params.employeeId }, visible),
+    listVaultEmployeeCards(visible),
   ]);
   const employeeFilter = raw.employee ?? "";
   const companyLabel = (c: string | null) =>
@@ -129,7 +132,10 @@ export default async function VaultTasksPage({
           <span className="field-label">{t(vault.company)}</span>
           <select className="field-input" name="company" defaultValue={params.company ?? ""}>
             <option value="">{t(vault.all)}</option>
-            {VAULT_COMPANIES.map((c) => (
+            {/* ADR-074 — this account's companies, not the platform's:
+                offering a company the list cannot return is a filter that
+                always comes back empty. */}
+            {visible.map((c) => (
               <option key={c} value={c}>
                 {t(VAULT_COMPANY_LABELS[c])}
               </option>

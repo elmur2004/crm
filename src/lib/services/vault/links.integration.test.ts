@@ -44,6 +44,13 @@ import { vaultOverview } from "./overview";
 import { POST as postLink } from "@/app/api/vault/links/route";
 import { PATCH as patchLink } from "@/app/api/vault/links/[id]/route";
 import { POST as archiveLink } from "@/app/api/vault/links/[id]/archive/route";
+import { VAULT_COMPANIES } from "./constants";
+
+/* ADR-074 — these tests exercise the SERVICES, not the tenancy wall: they
+   pass the whole platform so every assertion here keeps meaning exactly what
+   it meant before the wall existed. The wall itself is proved separately, in
+   src/lib/module-companies.test.ts and vault-tenancy.integration.test.ts. */
+const ALL_COMPANIES = VAULT_COMPANIES;
 
 const actor: Actor = { id: "vault-admin", label: "Admin" };
 const other: Actor = { id: "someone-else", label: "Else" };
@@ -133,34 +140,36 @@ describe("Type is a CLOSED list of the founder's eight", () => {
 
 describe("Category is FREE TEXT with suggestions, not a closed list", () => {
   it("stores a category that is not one of the eight, exactly as typed", async () => {
-    const row = await createVaultLink(link({ category: "Investor Deck Q4" }), actor);
+    const row = await createVaultLink(link({ category: "Investor Deck Q4" }), ALL_COMPANIES, actor);
     expect(row.category).toBe("Investor Deck Q4");
   });
 
   it("folds case and stray whitespace onto the spelling already on file", async () => {
-    await createVaultLink(link({ category: "Content Calendar" }), actor);
+    await createVaultLink(link({ category: "Content Calendar" }), ALL_COMPANIES, actor);
     const second = await createVaultLink(
       link({ url: "https://x.example/2", category: "  content   calendar " }),
+      ALL_COMPANIES,
       actor,
     );
     /* his second typing is the SAME category to a human — the list must not
        grow a near-duplicate for a shift key */
     expect(second.category).toBe("Content Calendar");
-    expect(await listVaultLinkCategories()).toEqual(["Content Calendar"]);
+    expect(await listVaultLinkCategories(ALL_COMPANIES)).toEqual(["Content Calendar"]);
   });
 
   it("a category that only matches one of OUR suggestions takes the suggestion's spelling", async () => {
-    const row = await createVaultLink(link({ category: "pORTFOLIO" }), actor);
+    const row = await createVaultLink(link({ category: "pORTFOLIO" }), ALL_COMPANIES, actor);
     expect(row.category).toBe("Portfolio");
   });
 
   it("an ARCHIVED link still owns its spelling, but leaves the offered list", async () => {
-    const first = await createVaultLink(link({ category: "Brand Kit" }), actor);
+    const first = await createVaultLink(link({ category: "Brand Kit" }), ALL_COMPANIES, actor);
     await archiveVaultLink(first.id, actor);
-    expect(await listVaultLinkCategories()).toEqual([]); // nothing live carries it
+    expect(await listVaultLinkCategories(ALL_COMPANIES)).toEqual([]); // nothing live carries it
 
     const second = await createVaultLink(
       link({ url: "https://x.example/3", category: "brand kit" }),
+      ALL_COMPANIES,
       actor,
     );
     expect(second.category).toBe("Brand Kit"); // restoring the first cannot split the word
@@ -169,9 +178,9 @@ describe("Category is FREE TEXT with suggestions, not a closed list", () => {
   it("a category typed in Arabic is stored verbatim — his words are never translated", async () => {
     /* deliberately NOT one of our eight: his own Arabic words, which we could
        not translate even if we wanted to (ADR-070 §4) */
-    const row = await createVaultLink(link({ category: "عرض المستثمرين" }), actor);
+    const row = await createVaultLink(link({ category: "عرض المستثمرين" }), ALL_COMPANIES, actor);
     expect(row.category).toBe("عرض المستثمرين");
-    expect(await listVaultLinkCategories()).toEqual(["عرض المستثمرين"]);
+    expect(await listVaultLinkCategories(ALL_COMPANIES)).toEqual(["عرض المستثمرين"]);
   });
 
   it("OUR OWN eight are ONE category in two languages, not two categories", async () => {
@@ -179,55 +188,59 @@ describe("Category is FREE TEXT with suggestions, not a closed list", () => {
        suggestion whose English half is already on file must not open a second,
        disjoint category holding half his links — that is our vocabulary
        producing the exact near-duplicate the fold exists to end. */
-    await createVaultLink(link({ category: "Portfolio" }), actor);
+    await createVaultLink(link({ category: "Portfolio" }), ALL_COMPANIES, actor);
     const arabic = await createVaultLink(
       link({ url: "https://x.example/ar", category: "بورتفوليو" }),
+      ALL_COMPANIES,
       actor,
     );
     expect(arabic.category).toBe("Portfolio");
-    expect(await listVaultLinkCategories()).toEqual(["Portfolio"]);
+    expect(await listVaultLinkCategories(ALL_COMPANIES)).toEqual(["Portfolio"]);
 
     /* and the other way round: with nothing on file the half he picked is what
        is stored, so an Arabic-first vault is Arabic */
     await resetDb();
-    const first = await createVaultLink(link({ category: "بورتفوليو" }), actor);
+    const first = await createVaultLink(link({ category: "بورتفوليو" }), ALL_COMPANIES, actor);
     expect(first.category).toBe("بورتفوليو");
     const english = await createVaultLink(
       link({ url: "https://x.example/en", category: "Portfolio" }),
+      ALL_COMPANIES,
       actor,
     );
     expect(english.category).toBe("بورتفوليو");
-    expect(await listVaultLinkCategories()).toEqual(["بورتفوليو"]);
+    expect(await listVaultLinkCategories(ALL_COMPANIES)).toEqual(["بورتفوليو"]);
   });
 
   it("he can RE-SPELL his own category by editing it — the first spelling is not a life sentence", async () => {
-    const row = await createVaultLink(link({ category: "investor deck q4" }), actor);
+    const row = await createVaultLink(link({ category: "investor deck q4" }), ALL_COMPANIES, actor);
     /* without excluding the row itself from the scan, its own old spelling is
        "already on file" and the correction is silently discarded */
-    const fixed = await updateVaultLink(row.id, link({ category: "Investor Deck Q4" }), actor);
+    const fixed = await updateVaultLink(row.id, link({ category: "Investor Deck Q4" }), ALL_COMPANIES, actor);
     expect(fixed.category).toBe("Investor Deck Q4");
-    expect(await listVaultLinkCategories()).toEqual(["Investor Deck Q4"]);
+    expect(await listVaultLinkCategories(ALL_COMPANIES)).toEqual(["Investor Deck Q4"]);
   });
 
   it("a re-spelling renames the WHOLE category, archived rows included — one word, one spelling", async () => {
-    const a = await createVaultLink(link({ category: "investor deck q4" }), actor);
+    const a = await createVaultLink(link({ category: "investor deck q4" }), ALL_COMPANIES, actor);
     const b = await createVaultLink(
       link({ url: "https://x.example/b", category: "INVESTOR DECK Q4" }),
+      ALL_COMPANIES,
       actor,
     );
     const c = await createVaultLink(
       link({ url: "https://x.example/c", category: "investor deck q4" }),
+      ALL_COMPANIES,
       actor,
     );
     expect(b.category).toBe("investor deck q4"); // folded on the way in
     await archiveVaultLink(c.id, actor);
 
-    await updateVaultLink(a.id, link({ category: "Investor Deck Q4" }), actor);
+    await updateVaultLink(a.id, link({ category: "Investor Deck Q4" }), ALL_COMPANIES, actor);
 
     /* every live row wears his correction… */
-    const live = await listVaultLinks(vaultLinkListParams.parse({}));
+    const live = await listVaultLinks(vaultLinkListParams.parse({}), ALL_COMPANIES);
     expect(live.map((r) => r.category)).toEqual(["Investor Deck Q4", "Investor Deck Q4"]);
-    expect(await listVaultLinkCategories()).toEqual(["Investor Deck Q4"]);
+    expect(await listVaultLinkCategories(ALL_COMPANIES)).toEqual(["Investor Deck Q4"]);
     /* …and so does the ARCHIVED one, or restoring it later would split the
        category back into two spellings */
     expect((await db.vaultLink.findUnique({ where: { id: c.id } }))!.category).toBe(
@@ -236,8 +249,8 @@ describe("Category is FREE TEXT with suggestions, not a closed list", () => {
   });
 
   it("re-typing one of OUR eight is still normalised to ours, not treated as a re-spelling", async () => {
-    const row = await createVaultLink(link({ category: "Portfolio" }), actor);
-    const edited = await updateVaultLink(row.id, link({ category: "portfolio" }), actor);
+    const row = await createVaultLink(link({ category: "Portfolio" }), ALL_COMPANIES, actor);
+    const edited = await updateVaultLink(row.id, link({ category: "portfolio" }), ALL_COMPANIES, actor);
     expect(edited.category).toBe("Portfolio"); // the system's vocabulary, spelled ours
   });
 
@@ -251,10 +264,10 @@ describe("Category is FREE TEXT with suggestions, not a closed list", () => {
 
 describe("the duplicate-URL handshake — the Forms rule, verbatim", () => {
   it("warns (409) naming the clash, and files it when acknowledged", async () => {
-    await createVaultLink(link({ name: "ByteForce Portfolio" }), actor);
+    await createVaultLink(link({ name: "ByteForce Portfolio" }), ALL_COMPANIES, actor);
 
     await expect(
-      createVaultLink(link({ name: "Same page, other name" }), actor),
+      createVaultLink(link({ name: "Same page, other name" }), ALL_COMPANIES, actor),
     ).rejects.toMatchObject({
       status: 409,
       message: expect.stringContaining("ByteForce Portfolio"),
@@ -262,20 +275,21 @@ describe("the duplicate-URL handshake — the Forms rule, verbatim", () => {
 
     const second = await createVaultLink(
       link({ name: "Same page, other name", acknowledgeDuplicate: true }),
+      ALL_COMPANIES,
       actor,
     );
     expect(second.id).toBeTruthy();
-    expect(await listVaultLinks(vaultLinkListParams.parse({}))).toHaveLength(2);
+    expect(await listVaultLinks(vaultLinkListParams.parse({}), ALL_COMPANIES)).toHaveLength(2);
   });
 
   it("an ARCHIVED link does not block re-filing its URL, and editing ignores self", async () => {
-    const first = await createVaultLink(link(), actor);
+    const first = await createVaultLink(link(), ALL_COMPANIES, actor);
     await archiveVaultLink(first.id, actor);
-    const again = await createVaultLink(link({ name: "Filed again" }), actor);
+    const again = await createVaultLink(link({ name: "Filed again" }), ALL_COMPANIES, actor);
     expect(again.id).toBeTruthy();
 
     /* saving a link without changing its URL must not clash with itself */
-    const saved = await updateVaultLink(again.id, link({ name: "Renamed" }), actor);
+    const saved = await updateVaultLink(again.id, link({ name: "Renamed" }), ALL_COMPANIES, actor);
     expect(saved.name).toBe("Renamed");
   });
 });
@@ -284,17 +298,17 @@ describe("the duplicate-URL handshake — the Forms rule, verbatim", () => {
 
 describe("removal is the vault's ARCHIVE, never a delete", () => {
   it("archiving leaves the list and the row survives, restorable and intact", async () => {
-    const row = await createVaultLink(link({ notes: "the one we send clients" }), actor);
+    const row = await createVaultLink(link({ notes: "the one we send clients" }), ALL_COMPANIES, actor);
     await archiveVaultLink(row.id, actor);
 
-    expect(await listVaultLinks(vaultLinkListParams.parse({}))).toHaveLength(0);
-    const archived = await listVaultLinks(vaultLinkListParams.parse({ archived: "true" }));
+    expect(await listVaultLinks(vaultLinkListParams.parse({}), ALL_COMPANIES)).toHaveLength(0);
+    const archived = await listVaultLinks(vaultLinkListParams.parse({ archived: "true" }), ALL_COMPANIES);
     expect(archived).toHaveLength(1);
     expect(archived[0]!.archivedAt).not.toBeNull();
     expect(await db.vaultLink.count()).toBe(1); // nothing was destroyed
 
     /* an archived record is read-only except restore (the ADR-043 hardening) */
-    await expect(updateVaultLink(row.id, link({ name: "Renamed" }), actor)).rejects.toMatchObject({
+    await expect(updateVaultLink(row.id, link({ name: "Renamed" }), ALL_COMPANIES, actor)).rejects.toMatchObject({
       status: 400,
     });
 
@@ -308,7 +322,7 @@ describe("removal is the vault's ARCHIVE, never a delete", () => {
   });
 
   it("archiving a link is UNDOABLE, like every other vault archive", async () => {
-    const row = await createVaultLink(link({ name: "Undo me" }), actor);
+    const row = await createVaultLink(link({ name: "Undo me" }), ALL_COMPANIES, actor);
     await archiveVaultLink(row.id, actor);
 
     expect((await pendingUndoFor(actor.id!))?.label).toContain("Undo me");
@@ -324,7 +338,7 @@ describe("removal is the vault's ARCHIVE, never a delete", () => {
   it("the archive round trip goes through the ROUTE as well", async () => {
     const admin = await makeAdmin("Route admin");
     authMock.mockResolvedValue({ user: { id: admin.id } });
-    const row = await createVaultLink(link(), actor);
+    const row = await createVaultLink(link(), ALL_COMPANIES, actor);
 
     const archived = await archiveLink(jsonReq({ value: true }), { params: idOf(row.id) });
     expect(archived.status).toBe(200);
@@ -342,6 +356,7 @@ describe("company scoping and the filters that keep fifty links usable", () => {
   const seed = async () => {
     await createVaultLink(
       link({ name: "BF portfolio", company: "byteforce", category: "Portfolio", type: "website" }),
+      ALL_COMPANIES,
       actor,
     );
     await createVaultLink(
@@ -352,6 +367,7 @@ describe("company scoping and the filters that keep fifty links usable", () => {
         category: "Content Calendar",
         type: "sheet",
       }),
+      ALL_COMPANIES,
       actor,
     );
     await createVaultLink(
@@ -362,40 +378,41 @@ describe("company scoping and the filters that keep fifty links usable", () => {
         category: "Marketing",
         type: "video",
       }),
+      ALL_COMPANIES,
       actor,
     );
   };
 
   it("filters by company exactly the way a Form or a Sheet does", async () => {
     await seed();
-    const bf = await listVaultLinks(vaultLinkListParams.parse({ company: "byteforce" }));
+    const bf = await listVaultLinks(vaultLinkListParams.parse({ company: "byteforce" }), ALL_COMPANIES);
     expect(bf.map((r) => r.name)).toEqual(["BF portfolio"]);
-    const bs = await listVaultLinks(vaultLinkListParams.parse({ company: "bsystems" }));
+    const bs = await listVaultLinks(vaultLinkListParams.parse({ company: "bsystems" }), ALL_COMPANIES);
     expect(bs.map((r) => r.name).sort()).toEqual(["BS content calendar", "BS showreel"]);
     /* no filter = every company, the module's convention */
-    expect(await listVaultLinks(vaultLinkListParams.parse({}))).toHaveLength(3);
+    expect(await listVaultLinks(vaultLinkListParams.parse({}), ALL_COMPANIES)).toHaveLength(3);
   });
 
   it("filters by category and by type, and searches name, category, notes and URL", async () => {
     await seed();
     expect(
-      (await listVaultLinks(vaultLinkListParams.parse({ category: "Marketing" }))).map(
+      (await listVaultLinks(vaultLinkListParams.parse({ category: "Marketing" }), ALL_COMPANIES)).map(
         (r) => r.name,
       ),
     ).toEqual(["BS showreel"]);
     expect(
-      (await listVaultLinks(vaultLinkListParams.parse({ type: "sheet" }))).map((r) => r.name),
+      (await listVaultLinks(vaultLinkListParams.parse({ type: "sheet" }), ALL_COMPANIES)).map((r) => r.name),
     ).toEqual(["BS content calendar"]);
     /* two filters compose */
     expect(
-      await listVaultLinks(vaultLinkListParams.parse({ company: "byteforce", type: "sheet" })),
+      await listVaultLinks(vaultLinkListParams.parse({ company: "byteforce", type: "sheet" }), ALL_COMPANIES),
     ).toHaveLength(0);
     /* the category he typed is a search term, because it is his word for it */
     expect(
-      (await listVaultLinks(vaultLinkListParams.parse({ q: "calendar" }))).map((r) => r.name),
+      (await listVaultLinks(vaultLinkListParams.parse({ q: "calendar" }), ALL_COMPANIES)).map((r) => r.name),
     ).toEqual(["BS content calendar"]);
     expect(
-      (await listVaultLinks(vaultLinkListParams.parse({ q: "video.example" }))).map((r) => r.name),
+      (await listVaultLinks(vaultLinkListParams.parse({ q: "video.example" }), ALL_COMPANIES)).map((r) => r.name),
     ).toEqual(["BS showreel"]);
   });
 
@@ -404,25 +421,25 @@ describe("company scoping and the filters that keep fifty links usable", () => {
        Postgres (verified against a real cluster), and ILIKE reads % and _ in
        the value as wildcards. Unescaped, `?category=%` would return the whole
        vault while the filter box claimed to hold one category. */
-    await createVaultLink(link({ category: "Q4_2026" }), actor);
-    await createVaultLink(link({ url: "https://x.example/2", category: "Q4x2026" }), actor);
-    await createVaultLink(link({ url: "https://x.example/3", category: "100% Organic" }), actor);
+    await createVaultLink(link({ category: "Q4_2026" }), ALL_COMPANIES, actor);
+    await createVaultLink(link({ url: "https://x.example/2", category: "Q4x2026" }), ALL_COMPANIES, actor);
+    await createVaultLink(link({ url: "https://x.example/3", category: "100% Organic" }), ALL_COMPANIES, actor);
 
     expect(
-      (await listVaultLinks(vaultLinkListParams.parse({ category: "Q4_2026" }))).map(
+      (await listVaultLinks(vaultLinkListParams.parse({ category: "Q4_2026" }), ALL_COMPANIES)).map(
         (r) => r.category,
       ),
     ).toEqual(["Q4_2026"]);
     expect(
-      (await listVaultLinks(vaultLinkListParams.parse({ category: "100% Organic" }))).map(
+      (await listVaultLinks(vaultLinkListParams.parse({ category: "100% Organic" }), ALL_COMPANIES)).map(
         (r) => r.category,
       ),
     ).toEqual(["100% Organic"]);
     /* the one that used to return everything */
-    expect(await listVaultLinks(vaultLinkListParams.parse({ category: "%" }))).toHaveLength(0);
+    expect(await listVaultLinks(vaultLinkListParams.parse({ category: "%" }), ALL_COMPANIES)).toHaveLength(0);
     /* case-insensitivity, the point of the mode, still works */
     expect(
-      await listVaultLinks(vaultLinkListParams.parse({ category: "q4_2026" })),
+      await listVaultLinks(vaultLinkListParams.parse({ category: "q4_2026" }), ALL_COMPANIES),
     ).toHaveLength(1);
   });
 
@@ -433,28 +450,28 @@ describe("company scoping and the filters that keep fifty links usable", () => {
   });
 
   it("newest first, the Forms ordering", async () => {
-    await createVaultLink(link({ name: "First" }), actor);
-    await createVaultLink(link({ name: "Second", url: "https://x.example/2" }), actor);
-    expect((await listVaultLinks(vaultLinkListParams.parse({}))).map((r) => r.name)).toEqual([
+    await createVaultLink(link({ name: "First" }), ALL_COMPANIES, actor);
+    await createVaultLink(link({ name: "Second", url: "https://x.example/2" }), ALL_COMPANIES, actor);
+    expect((await listVaultLinks(vaultLinkListParams.parse({}), ALL_COMPANIES)).map((r) => r.name)).toEqual([
       "Second",
       "First",
     ]);
   });
 
   it("links join the vault-wide search and the overview counts", async () => {
-    const row = await createVaultLink(link({ category: "Portfolio" }), actor);
-    const hits = await searchVault("portfolio");
+    const row = await createVaultLink(link({ category: "Portfolio" }), ALL_COMPANIES, actor);
+    const hits = await searchVault("portfolio", ALL_COMPANIES);
     expect(hits.groups.links.map((h) => h.title)).toEqual(["ByteForce Portfolio"]);
     expect(hits.groups.links[0]!.subtitle).toBe("Portfolio");
     expect(hits.total).toBeGreaterThan(0);
 
-    expect((await vaultOverview()).links).toBe(1);
+    expect((await vaultOverview(ALL_COMPANIES)).links).toBe(1);
     await archiveVaultLink(row.id, actor);
-    const after = await vaultOverview();
+    const after = await vaultOverview(ALL_COMPANIES);
     expect(after.links).toBe(0);
     expect(after.archived).toBe(1); // it moved, it did not vanish
     /* an archived record never surfaces in search (the module's rule) */
-    expect((await searchVault("portfolio")).groups.links).toHaveLength(0);
+    expect((await searchVault("portfolio", ALL_COMPANIES)).groups.links).toHaveLength(0);
   });
 });
 
@@ -463,7 +480,7 @@ describe("company scoping and the filters that keep fifty links usable", () => {
 describe("the wall is the VAULT's wall — ADR-066 included", () => {
   it("an admin BLOCKED from the Data Vault reaches none of the three routes", async () => {
     const blocked = await makeAdmin("Blocked admin", { canAccessVault: false });
-    const row = await createVaultLink(link(), actor);
+    const row = await createVaultLink(link(), ALL_COMPANIES, actor);
     authMock.mockResolvedValue({ user: { id: blocked.id } });
 
     const calls: Array<[string, Promise<Response>]> = [

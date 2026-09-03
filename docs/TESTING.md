@@ -4954,3 +4954,185 @@ FULL npx playwright test  →  160 passed, 0 failed, 2 skipped
   had not moved the landing it waits for: a four-line script calling
   `landingFor` with the old and new role sets proved it had not, which is what
   makes "flake" an honest conclusion rather than a convenient one.
+
+---
+
+## Run 089 — 2026-09-02 — ADR-074: MINDOO as its own system — full vitest, a rewritten e2e spec, and the read-only bug ADR-073 shipped
+
+- Scope: the whole ADR-074 tree — the `(mindoo)` route group, the six extracted
+  page bodies, the `CrmSurface` seam, the `CrmCompany`/`Brand` decoupling, the
+  module tenancy in Accounting and the Data Vault, the brand scope, the seed,
+  the proxy and the two new API routes.
+
+### Commands and results
+
+| Command | Result |
+| --- | --- |
+| `npx tsc --noEmit` | clean |
+| `npx vitest run` | **54 files, 908 tests, all passing** (after the review round below; 53/886 before it) |
+| `npx next build` | clean; all nine `/mindoo/**` routes registered |
+| `npx playwright test e2e/mindoo.spec.ts` | **17 passed** (14, plus 3 added for the review findings) |
+| `npx playwright test` (full) | first run 170: **166 passed, 2 failed** (both mine, in `leads-filters.spec.ts`), 2 skipped. Final run after every fix: **171 passed, 0 failed**, 2 skipped — and the two skips are `audit.spec.ts`, which is opt-in (`AUDIT=1`) and was skipping before this change |
+
+### What is new in the suite
+
+- **`src/lib/crm/mindoo-app.test.ts` (63 cases)** — the separation as a property
+  of the SOURCE TREE, the sibling of `page-company-guards.test.ts`. Every Mindoo
+  page awaits `requireMindooPage`; no file under `(mindoo)` contains a
+  `/b-systems` address; no file under `(bsystems)` names Mindoo at all; every
+  nav href resolves to a real page under Mindoo's own group; sign-in lands on
+  one; the proxy admits `mindoo_staff` at /mindoo and nowhere else and no longer
+  admits it at /b-systems. Comments are stripped and line endings normalised
+  before every check — the two ways this kind of sweep has lied before (ACCESS
+  AUDIT, Run 081).
+- **`src/lib/module-companies.test.ts` (20 cases)** — the module tenancy
+  predicate, `canUseModule`'s widened floor, `acctView`'s per-account default,
+  and the vault's two `where` clauses. Includes the 128-subset sweep that no
+  role combination can produce a company outside the platform's brands, and the
+  case that matters most in practice: **a B-Systems admin's companies are
+  exactly the two he has always had**.
+- **`src/lib/services/mindoo-separation.integration.test.ts` (14 cases)** — the
+  same claims against a database holding BOTH companies, because a wall that is
+  computed correctly and then not passed to the `where` is no wall at all (the
+  ADR-067 `closerWonLeads` shape). Every case seeds a TWIN in the other company
+  first, and the assertion that matters is always the one about what is ABSENT.
+- **`e2e/mindoo.spec.ts` rewritten, 6 cases → 14.** It follows the founder's own
+  sentences in his order: the sign-in page never says Mindoo; `admin@mindoo.com`
+  opens /mindoo wearing `data-brand="mindoo"`; the nav is the six lead sections
+  and no partner subsystem; there is no company switch anywhere in the app; the
+  eight-column B-Systems pipeline with Negotiation; Won is offered; **the writes
+  land**; the switch in B-Systems is back to two; the wall refuses in BOTH
+  directions; Accounting and the Vault open for Mindoo with one company tab
+  each; and the B-Systems admin's own modules still show exactly two.
+
+### The two findings the suites caught
+
+1. **Mindoo was read-only (ADR-073, shipped).** Every write on the shared
+   screens posted to a hardcoded `/api/b-systems`, so the board rendered
+   perfectly and every action on it was refused by the brand wall. Nothing about
+   it is visible on screen — the failure is on the far side of a fetch — and the
+   ADR-073 e2e proved the board's SHAPE without ever pressing anything. The new
+   e2e asserts the request URL and its response status:
+
+   ```
+   ok 7 › and its WRITES land — the action posts to Mindoo's own namespace
+   ```
+
+2. **The accounting module opened Mindoo's books under ByteForce's colours.**
+   `moduleBrand` was `company === "bsystems" ? "bsystems" : "byteforce"`, so with
+   no `?company=` on the URL a Mindoo administrator's dashboard wore another
+   company's brand — the module telling him he is looking at somebody else's
+   money. Caught by e2e case 11, which failed on the first run and passes on the
+   second. `moduleBrand` is now a table plus a server-supplied fallback.
+
+### Regression check on the existing suites
+
+`vitest` needed no weakening anywhere. Three files changed and every change made
+them STRONGER or kept them exactly as strong:
+
+- `company.test.ts` — the Mindoo cases now assert **absence** (`companiesFor` on
+  `mindoo_staff` returns `[]`; `parseCompany("mindoo")` is null; a company that
+  is junk falls back rather than being refused, because this shell must not say
+  "that company exists and is not yours" about an app it has nothing to do
+  with). The 128-subset property sweep keeps `mindoo_staff` in it precisely
+  because the role now grants nothing here.
+- `nav.test.ts` — back to six (company, role) cases. Mindoo's nav is swept by
+  its own file against its own guard.
+- `datetime.sweep.test.ts` — one new allowlist entry, with its reason, for
+  Mindoo's Home date heading. Listed separately from the B-Systems one rather
+  than folded in, so removing the heading from one screen cannot silently
+  license it on the other.
+
+The accounting and vault integration suites gained an explicit "the whole
+platform" argument where the signatures changed, with a comment saying why: they
+exercise the SERVICES, and the wall itself is proved in the two new files.
+
+### The adversarial review round, and the eighteen defects it found
+
+After the suites were green I ran a six-dimension review over the whole diff —
+72 agents, each finding refuted by two independent lenses before it counted.
+**28 findings survived; deduplicated, eighteen distinct defects, and every one
+of them reproduced in the source when I checked it myself.** They are grouped
+here by the SHAPE of the mistake, because the shapes repeat and the list is the
+useful artefact:
+
+**A ternary that fell through (4 defects).** ADR-073 recorded four of these and
+ADR-074 found four more, all in code that is not a page and therefore could not
+take a surface: `calendar.ts` and `todo.ts` built lead links as `brand ===
+"bsystems" ? … : …`, so every MINDOO meeting and every Mindoo To-Do row pointed
+at a B-Systems address — which `proxy.ts` now refuses for `mindoo_staff`.
+**Clicking your own To-Do logged you out.** `deepLinkFor` did the same for
+pushes. `moduleBrand` did it for the module chrome. Fixed with one table,
+`leadHref` in `lib/crm/surface.ts`, total over `Brand`; pinned by
+`lead-address.test.ts`, which walks `BRANDS` and checks each address resolves to
+a page that exists.
+
+**A wall on the list and not on the thing beside it (7 defects).** The vault's
+lists were scoped and its **Recent Activity feed** was not — the loudest thing
+on the landing, and the one that leaks a sentence rather than a number
+("Mona archived Q4 Contract"). Employee CARDS were scoped and their open/overdue
+COUNTS were not. Link ROWS were scoped and the category LIST built from them was
+not. The duplicate-URL handshake on both Forms and Links was an existence oracle
+that returned another company's record NAME in its 409. `/api/files/[id]` sorted
+vault bytes by the `bsystems_admin` role, so Mindoo could not read a document it
+had just uploaded and a B-Systems admin could read Mindoo's.
+
+**A read that was scoped and a WRITE that was not (2 defects).** Re-spelling a
+link category ran an `updateMany` over every row folding to the same key — across
+companies: one tenant typing "Portfolio" silently edited another tenant's
+records. `createVaultTask` / `updateVaultTask` resolved the assignee by id
+alone, so a task could be handed to a person its own company cannot see.
+
+**A control with no endpoint behind it (2 defects).** `/api/mindoo/leads/[id]`
+had no DELETE, and Delete is rendered on two Mindoo screens: it confirmed, then
+answered 405. Mindoo's board offered B-SYSTEMS' sales reps in the assign-a-rep
+select, and the lead detail rendered an Assign button whose roster is
+deliberately empty on Mindoo and whose endpoint does not exist there.
+
+**A broadcast with the wrong audience (1 defect).** `notifyAdmins` writes
+`userId: null`, and only `/api/b-systems/notifications` reads that feed. So
+"Ready to close: <Mindoo lead>" went into every B-Systems admin's bell **and
+phone**, with the lead's name in it, and no Mindoo account could see it at all.
+`brand` is now a required argument and a non-B-Systems brand writes nothing.
+
+**Two smaller ones.** The call sheet hid negotiation notes on Mindoo because it
+asked `brand === "bsystems"` rather than asking the PIPELINE whether it has a
+negotiation stage — so notes Mindoo's own staff had just written were invisible
+to them. And the vault header pinned the B-Systems mark for every reader, which
+was the founder's instruction about HIS vault and became wrong the moment the
+module admitted a second company's administrator.
+
+**And one the SEED could not do.** `upsertUser` only ever ADDED roles, so
+removing `mindoo_staff` from `admin@byteforce.com` was a no-op on any database
+that already existed — leaving a `bsystems_admin` who could still open /mindoo.
+It now revokes any role it does not grant, which is what its own doc comment
+("seeded accounts are always in the documented state") had been promising.
+
+**What this says about the suites.** All 886 tests were green when the review
+started, and the review found eighteen real defects. Nine of them are *absences*
+— a query with no clause, a route that does not exist, a broadcast with no
+reader — and a test suite grown alongside the code tends not to assert absences.
+Six new integration cases and three new e2e cases now do, gathered under a
+heading that says so in
+`mindoo-separation.integration.test.ts`: "the holes an adversarial review found,
+each closed and each pinned".
+
+### The regression I introduced, and the test that caught it
+
+Extracting the Leads and board bodies, I made **Clear filters** carry the
+surface's query — `/b-systems/leads?company=bsystems` where it had always been
+`/b-systems/leads`. It looked like a small consistency improvement and it was an
+unrequested change to a shipped URL. `leads-filters.spec.ts` waits on
+`/\/b-systems\/leads$/` and failed on both of its cases.
+
+The link is back to the bare address, which is right on BOTH surfaces and for
+the same reason each time: under Mindoo there is no company parameter at all,
+and under B-Systems the bare address resolves to B-Systems because it is the
+default of every account that holds it (`companiesFor`'s order). ByteForce's own
+body DOES carry it — it is nobody's default — and that asymmetry is now written
+down beside both links rather than left to be re-discovered.
+
+**The lesson worth keeping: an extraction is a refactor, and a refactor that
+changes a URL is not a refactor.** The two failures were the only ones in 168
+e2e cases, and they were entirely mine.
+

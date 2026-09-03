@@ -169,6 +169,7 @@ export async function markReadyToClose(brand: Brand, leadId: string, actor: Acto
     return fresh;
   });
   await notifyAdmins({
+    brand,
     type: "ready_to_close",
     title: `Ready to close: ${lead.name}`,
     body: `${actor.label} marked "${lead.name}" as ready to close (stage: ${lead.stage}).`,
@@ -857,6 +858,7 @@ export async function applyLeadEvent(opts: {
         ? formatCairo(cairoToUtc(notifyMeeting.date, notifyMeeting.time), "en")
         : "no slot chosen";
     await notifyAdmins({
+      brand: opts.brand,
       type: "meeting_request",
       title: `Meeting request: ${lead.name}`,
       body:

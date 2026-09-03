@@ -8,6 +8,7 @@ import { dashboard } from "@/lib/accounting/engine";
 import { cairoMonth } from "@/lib/accounting/now";
 import Link from "next/link";
 import { acctQuery, acctView } from "@/lib/accounting/params";
+import { moduleCompaniesFor } from "@/lib/module-companies";
 import { monthLabel } from "@/lib/accounting/format";
 import { AcctHead, AcctKpi } from "@/components/accounting/AcctHead";
 
@@ -28,10 +29,10 @@ export default async function AcctDashboardPage({
 }: {
   searchParams: Promise<{ company?: string; month?: string }>;
 }) {
-  await requireAccountingPage();
+  const user = await requireAccountingPage();
   const locale = await getLocale();
   const t = tFor(locale);
-  const view = acctView(await searchParams);
+  const view = acctView(await searchParams, moduleCompaniesFor(user.roles));
   const books = await loadBooks(view.company);
   const d = dashboard(books, view.month, cairoMonth());
   const pct = d.target && d.target.goal > 0 ? Math.min(100, (d.target.collected / d.target.goal) * 100) : 0;

@@ -1,0 +1,175 @@
+/* =========================================================================
+   MINDOO brand tokens — CANONICAL for the Mindoo app (ADR-074).
+   Source: "mindoo brandguidline new 6.pdf" (Brand Identity, 16pp), page 15
+   "Color Palette" and pages 8–9 "Our Typography". Do not hardcode these
+   values anywhere else.
+
+   THE PALETTE IS FOUR COLOURS, and that is all the guideline gives:
+
+     #521E90  Deep Purple   — the anchor
+     #9044CA  Bright Purple — the cue / the air
+     #000000  Black         — headings and the dramatic canvas
+     #FAFAEE  Cream         — the default canvas
+
+   Everything else here is DERIVED, and says so. That is the same position the
+   other two brand files are in — B-Systems' guideline gives three colours and
+   its greys (#6A6E8F, #E3E3F0 …) are derivations too — but it is worth stating
+   plainly: the muted greys, the borders, the tints and the whole stage ramp
+   below are chosen to sit on Mindoo's cream and walk its purple axis. They are
+   not in the PDF. If the founder supplies a fuller sheet, this file is the one
+   place they change.
+
+   The CONTRACT (ADR-019, enforced by src/lib/brand-tokens.test.ts): every brand
+   scope declares the IDENTICAL semantic token set, so a shared component can
+   never hit an unset variable in one brand and render blank. Mindoo is the
+   fourth scope to satisfy it, beside byteforce, bsystems and neutral.
+   ========================================================================= */
+
+[data-brand="mindoo"] {
+  /* The brand palette, verbatim from page 15 */
+  --md-purple:      #9044CA;  /* Bright Purple — RGB 144,68,202 */
+  --md-purple-deep: #521E90;  /* Deep Purple   — RGB 82,30,144  */
+  --md-black:       #000000;  /* RGB 0,0,0 */
+  --md-cream:       #FAFAEE;  /* RGB 250,250,238 */
+
+  /* Derived supporting values (NOT in the guideline — see the header) */
+  --md-purple-mist: #F0E6FA;  /* lightest purple, for callout surfaces */
+  --md-ink:         #1A1420;  /* body ink: black warmed toward the purple axis */
+  --md-grad-mid:    #6E2FAE;  /* the one gradient mid-stop, deep→bright */
+
+  /* ---- Semantic tokens (what components actually consume) ---- */
+  --color-primary: var(--md-purple-deep);
+  --color-on-primary: #FFFFFF;
+  --color-secondary: var(--md-purple);
+  --color-on-secondary: #FFFFFF;
+  /* Bright Purple is the CUE — CTAs, badges, single-word emphasis. It is the
+     lighter of the two on purpose: the anchor carries the chrome, the cue
+     carries attention, exactly the division B-Systems draws between Indigo and
+     Signal Pink. */
+  --color-accent: var(--md-purple);
+  --color-on-accent: #FFFFFF;
+  --color-heading: var(--md-black);   /* the palette's own black */
+  --color-link: var(--md-purple-deep);
+  --color-ink: var(--md-ink);
+  --color-ink-soft: var(--md-ink);
+  --color-muted: #6B6275;
+  --color-faint: #6B6275;
+  --color-surface: var(--md-cream);
+  --color-surface-card: #FFFFFF;      /* cards float white on the cream canvas */
+  --color-surface-tint: var(--md-purple-mist);
+  --color-surface-dark: var(--md-black);
+  --color-border: #E6E0EC;
+  --color-hairline: #F2EDF6;
+
+  /* Functional colours are UNIFORM ACROSS BRANDS (SPEC §4 R2): a destructive
+     action must not change meaning when you change company. Copied byte for
+     byte from the other two scopes rather than re-derived on the purple axis. */
+  --color-danger: #C0392B;
+  --color-on-danger: #FFFFFF;
+  --color-danger-tint: #FBEDEB;
+  --color-danger-border: #E8C4BE;
+  --color-danger-border-strong: #E0A79E;
+  --color-danger-ink: #8E2C20;
+  /* founder ruling R4 — NO green anywhere: success stays in-palette */
+  --color-success: var(--md-purple-deep);
+  --color-on-success: #FFFFFF;
+  --color-warning: #B8860B;           /* functional amber — on hold / receivable */
+
+  --color-primary-tint: #EDE6F7;
+  --color-primary-tint-ink: #521E90;
+  --color-secondary-tint: #F0E4FB;
+  --color-secondary-tint-ink: #521E90;
+  --color-toast-surface: #1A191C;
+  --color-toast-ink: #FFFFFF;
+  --color-board-card-border: rgba(0, 0, 0, 0.07);
+
+  /* Signature gradient — hero surfaces ONLY, never behind body text */
+  --gradient-hero: linear-gradient(135deg,
+    var(--md-purple-deep) 0%,
+    var(--md-grad-mid) 52%,
+    var(--md-purple) 100%);
+
+  /* ---- Typography (pages 8–9) ----
+     MONOTALIC is the display face and MONTSERRAT the text face. The Monotalic
+     files have not been supplied, so the display stack NAMES it first and falls
+     through to Montserrat: the day the .woff2 lands in this folder and is
+     served, every heading changes with no code edit. That is the arrangement
+     ByteForce's Lama Sans already has (A-13) — the token is the seam. */
+  --font-display: "Monotalic", "Montserrat", ui-sans-serif, system-ui, sans-serif;
+  --font-body:    "Montserrat", ui-sans-serif, system-ui, sans-serif;
+  --font-mono:    "JetBrains Mono", ui-monospace, monospace;
+
+  --radius-card: 14px;
+  --radius-control: 10px;
+  --shadow-card: 0 1px 2px rgba(26, 20, 32, 0.04), 0 8px 24px rgba(26, 20, 32, 0.06);
+  --shadow-lift: 0 8px 20px rgba(26, 20, 32, 0.10);
+  --shadow-modal: 0 24px 64px rgba(26, 20, 32, 0.22);
+  --shadow-toast: 0 18px 44px rgba(0, 0, 0, 0.45);
+
+  /* Per-stage board colours. The columns walk Mindoo's own axis — deep purple
+     at intake through to the bright purple cue at Won — mirroring how the other
+     two brands ramp their own palettes across the board order. Wells are ~8%
+     tints, chips ~14%, each with an AA foreground. Lost is the one neutral in
+     every brand; Postpone is the shared functional amber (ADR-072). */
+  --color-stage-intake: #EFEBF5;
+  --color-stage-intake-accent: #521E90;
+  --color-stage-intake-chip: #E1DAEE;
+  --color-stage-intake-chip-ink: #45197A;
+  --color-stage-following: #F0E9F8;
+  --color-stage-following-accent: #5C2A9E;
+  --color-stage-following-chip: #E4D8F3;
+  --color-stage-following-chip-ink: #4A2183;
+  --color-stage-meeting: #F2E9FA;
+  --color-stage-meeting-accent: #6B32AD;
+  --color-stage-meeting-chip: #E8D9F6;
+  --color-stage-meeting-chip-ink: #55258D;
+  --color-stage-proposal: #F4EAFB;
+  --color-stage-proposal-accent: #7A3ABB;
+  --color-stage-proposal-chip: #ECDCF8;
+  --color-stage-proposal-chip-ink: #602B9B;
+  --color-stage-negotiation: #F6ECFC;
+  --color-stage-negotiation-accent: #853FC3;
+  --color-stage-negotiation-chip: #EFE0FA;
+  --color-stage-negotiation-chip-ink: #6A2FA4;
+  --color-stage-didnt-answer: #F1EEF4;
+  --color-stage-didnt-answer-accent: #7A6E88;
+  --color-stage-didnt-answer-chip: #E5E0EB;
+  --color-stage-didnt-answer-chip-ink: #574C63;
+  --color-stage-contacted: #EFEAF7;
+  --color-stage-contacted-accent: #63309F;
+  --color-stage-contacted-chip: #E3D9F2;
+  --color-stage-contacted-chip-ink: #4E2382;
+  --color-stage-qualified: #F5EBFB;
+  --color-stage-qualified-accent: #8B41C6;
+  --color-stage-qualified-chip: #EDDEF8;
+  --color-stage-qualified-chip-ink: #6E2FA6;
+  --color-stage-waiting: #F3EDF8;
+  --color-stage-waiting-accent: #74499E;
+  --color-stage-waiting-chip: #E9DFF3;
+  --color-stage-waiting-chip-ink: #5C3782;
+  /* Won wears the CUE — the brightest purple in the palette */
+  --color-stage-won: #F7EDFD;
+  --color-stage-won-accent: #9044CA;
+  --color-stage-won-chip: #F0E0FB;
+  --color-stage-won-chip-ink: #74309F;
+  /* Postpone — the shared functional amber, brand-neutral like the red */
+  --color-stage-postponed: #FBF3E4;
+  --color-stage-postponed-accent: #B8860B;
+  --color-stage-postponed-chip: #F5E6C4;
+  --color-stage-postponed-chip-ink: #7A5807;
+  --color-stage-lost: #F1F0EE;
+  --color-stage-lost-accent: #7C7A75;
+  --color-stage-lost-chip: #E4E2DD;
+  --color-stage-lost-chip-ink: #55534E;
+
+  /* accounting-module ONLY — the founder's green status pills for
+     Collected/Paid/Settled. Fenced by name to `.acct-chip--good` and
+     `.row-toggle--acct-settled` (ADR-054 addendum); identical values in every
+     scope, because the pill means the same thing in every company. */
+  --color-acct-positive: #1B7A44;
+  --color-acct-positive-tint: #E6F4EC;
+  /* CRM ONLY — the WhatsApp chip once somebody has messaged that record
+     (ADR-069). The second fenced exception to R4, one consumer: `.wa-sent`. */
+  --color-contact-made: #1B7A44;
+  --color-contact-made-tint: #E6F4EC;
+}

@@ -9,6 +9,7 @@ import { departments } from "@/lib/accounting/engine";
 import { cairoMonth } from "@/lib/accounting/now";
 import { ACCT_DEPT_LABELS, ACCT_DEPTS, mediaHidden, type AcctDept } from "@/lib/accounting/constants";
 import { acctQuery, acctView } from "@/lib/accounting/params";
+import { moduleCompaniesFor } from "@/lib/module-companies";
 import { monthLabel } from "@/lib/accounting/format";
 import { AcctHead } from "@/components/accounting/AcctHead";
 
@@ -25,11 +26,11 @@ export default async function AcctDepartmentsPage({
 }: {
   searchParams: Promise<{ company?: string; month?: string; scope?: string }>;
 }) {
-  await requireAccountingPage();
+  const user = await requireAccountingPage();
   const locale = await getLocale();
   const t = tFor(locale);
   const params = await searchParams;
-  const view = acctView(params);
+  const view = acctView(params, moduleCompaniesFor(user.roles));
   const scope = params.scope === "all" ? "all" : "month";
   const books = await loadBooks(view.company);
   const deptIds = ACCT_DEPTS.filter((d) => d !== "media_fee" || !mediaHidden(view.company));

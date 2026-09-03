@@ -213,6 +213,7 @@ describe("ADR-058 — deduction and bonus on the expense write path", () => {
         payrollPaid: {},
       },
       "byteforce",
+      ["byteforce", "bsystems"],
       actor,
     );
     const imported = await db.acctExpense.findFirstOrThrow({ where: { name: "Contract QA" } });

@@ -84,6 +84,8 @@ export async function signupRep(
       return user.id;
     });
     await notifyAdmins({
+      /* the partner/agent portal is B-Systems' alone (ADR-074). */
+      brand: "bsystems",
       type: "registration",
       title: `New agent registration: ${name}`,
       body: `${name} (${email} · ${phone}) requested to join — review it on Registrations.`,

@@ -46,6 +46,8 @@ describe("brand token files (SPEC §4)", () => {
     path.join(brandingDir, "b-systems/tokens.css"),
     "utf8",
   );
+  /* ADR-074 — the fourth scope. */
+  const mindoo = readFileSync(path.join(brandingDir, "mindoo/tokens.css"), "utf8");
 
   it("ByteForce tokens carry the official palette", () => {
     for (const hex of ["#F15C24", "#53449B", "#231F20", "#E6E7E8", "#F4F1EA"]) {
@@ -78,7 +80,23 @@ describe("brand token files (SPEC §4)", () => {
     expect(bsystems).toContain('[data-brand="bsystems"]');
   });
 
-  it("both brands define the identical semantic token set (ADR-019)", () => {
+  it("Mindoo tokens carry the four colours of its guideline (ADR-074)", () => {
+    /* "mindoo brandguidline new 6.pdf", page 15 — the whole palette. */
+    for (const hex of ["#9044CA", "#521E90", "#000000", "#FAFAEE"]) {
+      expect(mindoo.toUpperCase()).toContain(hex);
+    }
+    expect(mindoo).toContain('[data-brand="mindoo"]');
+    /* pages 8–9 — Monotalic is the display face, Montserrat the text face.
+       The Monotalic files are not supplied yet, so the display stack must NAME
+       it first and fall through: that fallback is the seam the font files drop
+       into later, and a test is the only thing that keeps it from being
+       "simplified" away. */
+    const withoutComments = mindoo.replace(/\/\*[\s\S]*?\*\//g, "");
+    expect(withoutComments).toMatch(/--font-display:\s*"Monotalic",\s*"Montserrat"/);
+    expect(withoutComments).toMatch(/--font-body:\s*"Montserrat"/);
+  });
+
+  it("all THREE brand files define the identical semantic token set (ADR-019)", () => {
     // Semantic = the names components consume; raw palette vars (--bf-*, --bs-*)
     // are brand-internal and excluded. Read from INSIDE the [data-brand] block
     // only: a token declared in a component rule further down the file (this is
@@ -95,8 +113,13 @@ describe("brand token files (SPEC §4)", () => {
     };
     const bf = semanticNames(byteforce, '[data-brand="byteforce"]');
     const bs = semanticNames(bsystems, '[data-brand="bsystems"]');
+    const md = semanticNames(mindoo, '[data-brand="mindoo"]');
     expect(bf.size).toBeGreaterThan(50);
     expect([...bf].sort()).toEqual([...bs].sort());
+    /* ADR-074 — Mindoo joins the contract. A brand that declares 95 of 96
+       tokens renders one component blank in one company only, which is exactly
+       the class of bug this assertion exists to make impossible. */
+    expect([...md].sort()).toEqual([...bf].sort());
   });
 });
 
@@ -105,7 +128,7 @@ describe("brand token files (SPEC §4)", () => {
    under [data-brand="byteforce"|"bsystems"] and resolves to NOTHING under
    [data-brand="neutral"] (the `(home)` and `(vault)` shells). CI was green the
    last time that happened and production was not. */
-describe("stage tokens exist in ALL THREE brand scopes (ADR-057)", () => {
+describe("stage tokens exist in ALL FOUR brand scopes (ADR-057, widened by ADR-074)", () => {
   /* SCOPE, not file (reviewer, Run 061): a stage token declared OUTSIDE its
      `[data-brand]` block resolves to nothing under that brand, and a file-wide
      scan reads it as present — exactly how `--color-acct-positive` shipped
@@ -120,12 +143,14 @@ describe("stage tokens exist in ALL THREE brand scopes (ADR-057)", () => {
   };
   const read = (p: string) => readFileSync(path.resolve(__dirname, "../..", p), "utf8");
 
-  it("byteforce, b-systems and neutral declare the identical stage token set", () => {
+  it("byteforce, b-systems, mindoo and neutral declare the identical stage token set", () => {
     const bf = stageNames(read("branding/byteforce/tokens.css"), '[data-brand="byteforce"]');
     const bs = stageNames(read("branding/b-systems/tokens.css"), '[data-brand="bsystems"]');
+    const md = stageNames(read("branding/mindoo/tokens.css"), '[data-brand="mindoo"]');
     const neutral = stageNames(read("src/themes/neutral.css"), '[data-brand="neutral"]');
     expect(bf.length).toBeGreaterThan(0);
     expect(bs).toEqual(bf);
+    expect(md).toEqual(bf); // ADR-074
     expect(neutral).toEqual(bf);
     /* and the new families are actually among them */
     for (const family of ["contacted", "waiting", "qualified"]) {
@@ -142,7 +167,7 @@ describe("stage tokens exist in ALL THREE brand scopes (ADR-057)", () => {
      no green at all. The b-systems file declared it inside `.bs-mesh` from the
      day it landed and every guard was blind to it, because they all scanned the
      file rather than the SCOPE — hence scopeBody() here too. */
-  it("the accounting green pair is declared in ALL THREE brand SCOPES", () => {
+  it("the accounting green pair is declared in ALL FOUR brand SCOPES", () => {
     const acctNames = (css: string, selector: string) => {
       const names = new Set<string>();
       for (const m of scopeBody(css, selector).matchAll(/(--color-acct-[\w-]+)\s*:/g)) {
@@ -152,14 +177,18 @@ describe("stage tokens exist in ALL THREE brand scopes (ADR-057)", () => {
     };
     const bf = acctNames(read("branding/byteforce/tokens.css"), '[data-brand="byteforce"]');
     const bs = acctNames(read("branding/b-systems/tokens.css"), '[data-brand="bsystems"]');
+    const md = acctNames(read("branding/mindoo/tokens.css"), '[data-brand="mindoo"]'); // ADR-074
     const neutral = acctNames(read("src/themes/neutral.css"), '[data-brand="neutral"]');
     expect(bf).toEqual(["--color-acct-positive", "--color-acct-positive-tint"]);
     expect(bs).toEqual(bf);
+    expect(md).toEqual(bf); // ADR-074
     expect(neutral).toEqual(bf);
-    /* and identically valued in both brands (the module swaps brand per company) */
+    /* and identically VALUED in every brand: the module re-skins per company,
+       and a pill that means "settled" must not change colour when it does */
     for (const hex of ["#1B7A44", "#E6F4EC"]) {
       expect(scopeBody(read("branding/byteforce/tokens.css"), '[data-brand="byteforce"]')).toContain(hex);
       expect(scopeBody(read("branding/b-systems/tokens.css"), '[data-brand="bsystems"]')).toContain(hex);
+      expect(scopeBody(read("branding/mindoo/tokens.css"), '[data-brand="mindoo"]')).toContain(hex);
     }
   });
 

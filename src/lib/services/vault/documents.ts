@@ -7,7 +7,8 @@ import { writeLog, type Actor } from "../activity";
 import { invalidateUndo } from "../undo";
 import { assertNotArchived, setVaultArchived } from "./archive";
 import { optionalText, vaultListParams, zVaultCompany } from "./common";
-import { VAULT_DOCUMENT_TYPES } from "./constants";
+import { VAULT_DOCUMENT_TYPES, type VaultCompany } from "./constants";
+import { vaultCompanyWhere } from "./tenancy";
 
 /* ADR-053 — vault documents (the reference SPEC §8.2): a typed, company-tagged
    file. The file is REQUIRED (a document without a file is a name), stored as
@@ -27,10 +28,16 @@ export const vaultDocumentListParams = vaultListParams.extend({
 });
 export type VaultDocumentListParams = z.infer<typeof vaultDocumentListParams>;
 
-export async function listVaultDocuments(params: VaultDocumentListParams) {
+export async function listVaultDocuments(
+  params: VaultDocumentListParams,
+  /* ADR-074 — `visible` is the tenancy wall (services/vault/tenancy.ts).
+     REQUIRED, never defaulted: a default would be "the whole platform", which
+     is exactly the leak this argument exists to close. */
+  visible: readonly VaultCompany[],
+) {
   const where: Prisma.VaultDocumentWhereInput = {
     archived: params.archived,
-    ...(params.company ? { company: params.company } : {}),
+    ...vaultCompanyWhere(visible, params.company),
     ...(params.type ? { type: params.type } : {}),
     ...(params.q
       ? {

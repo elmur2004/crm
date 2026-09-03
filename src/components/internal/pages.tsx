@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import type { Brand } from "@/lib/pipeline-engine/constants";
+import type { CrmSurface } from "@/lib/crm/surface";
 import { INTERNAL_STAGES, LEAD_TYPES } from "@/lib/pipeline-engine/constants";
 import { internalCrmConfig } from "@/lib/pipeline-engine/configs/internal-crm";
 import { orderMeetingColumn } from "@/lib/board-order";
@@ -62,19 +63,12 @@ import { ApiError } from "@/lib/api-error";
    derivation exactly where it was. All data access is brand-scoped through the
    services. */
 
-export interface InternalAppCtx {
-  brand: Brand;
-  basePath: string; // "/b-systems" — the merged shell
-  apiBase: string; // "/api/byteforce" | "/api/b-systems" — the brand wall
-  /* ADR-067 — "?company=byteforce". EVERY href these bodies emit carries it, or
-     the founder loses his company the moment he clicks anything. */
-  query: string;
-  /* the same value as a bare literal, for the hidden input that keeps a plain
-     method="get" filter form from REPLACING the whole query string on submit —
-     the highest-probability confusion bug in the merge: apply a filter on the
-     ByteForce board and you would be silently thrown back to B-Systems. */
-  company: Brand;
-}
+/* ADR-074 — these bodies take the SAME surface object the B-Systems bodies do
+   (lib/crm/surface.ts). It was a second, near-identical interface declared
+   here; two shapes describing one idea is how the two halves of the app drift
+   apart, and the alias keeps every existing `InternalAppCtx` annotation in the
+   file reading exactly as it did. */
+export type InternalAppCtx = CrmSurface;
 
 /* Mono eyebrow context line per brand (design spec §2.2 — additive, not a reword). */
 const BRAND_EYEBROW: Record<Brand, string> = {
@@ -597,7 +591,9 @@ export async function CrmBoardBody({
               filter on the ByteForce board would drop ?company= and bounce the
               founder back to B-Systems, which reads as data loss rather than a
               nav bug. */}
-          <input type="hidden" name="company" value={ctx.company} />
+          {ctx.companyParam ? (
+            <input type="hidden" name="company" value={ctx.companyParam} />
+          ) : null}
           <label className="filter-section">
             <span className="filter-section-label">{t(leadsFilters.search)}</span>
             <input

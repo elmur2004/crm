@@ -3089,3 +3089,154 @@ Worth checking first, and cheaply, was whether the change under review had moved
 the landing this test waits for — a four-line script calling `landingFor` with
 the old and new role sets proved it had not, which is what made "flake" an
 honest conclusion rather than a convenient one.
+
+---
+
+## ADR-074 — MINDOO as its own system: five traps, four of them latent for months
+
+### 1. A hardcoded API base is invisible until somebody presses the button
+
+Every write on the shared B-Systems screens posted to a literal
+`/api/b-systems`. Under ADR-073's `?company=mindoo` the board rendered
+**perfectly** — same columns, same cards, same Won option — and every action on
+it was refused by the brand wall the moment it arrived. Mindoo shipped
+read-only, and the e2e that was supposed to cover it proved the SHAPE of the
+board without ever clicking anything.
+
+The general form: **a URL literal inside a client component is a company
+decision made at the wrong layer**, and its failure lives on the far side of a
+fetch where no amount of looking at the screen will find it. `apiBase` is now a
+required prop on `BsBoard`, `BsEventPanel`, `MilestoneCheckbox`,
+`WonDocumentUpload`, `BsAddLeadForm`, `EditLeadForm`, `DeleteLeadButton` and
+`AssignLeadButton` — required rather than defaulted, because a default lets the
+next call site inherit the wrong company silently, which is the whole failure
+the prop exists to prevent.
+
+**When a component fetches, assert the REQUEST, not the render.**
+`page.waitForRequest` plus the response status is three lines and would have
+caught this the day ADR-073 shipped.
+
+### 2. "This parameter is a filter, not a tenant" has an expiry date
+
+ADR-054 says it in as many words, and it was TRUE: a `?company=` on an
+accounting route could not name anything the caller was not already entitled to,
+because every account that could open the module held both companies. Adding
+Mindoo makes the sentence false **and changes no code**, so nothing fails, no
+test goes red, and the comment that documented the reasoning now documents a
+hole.
+
+The same shape appeared three more times in one afternoon:
+`addWonDocument(wonDealId, …)` found a deal by id alone; every
+`/api/vault/<kind>/[id]` route acted on a record found by id alone; and
+`exportAllDoc()` iterated the platform's companies rather than the caller's.
+
+**Grep for the reasoning, not just the code.** When a tenant is added, the
+dangerous files are the ones whose comments say "this is safe BECAUSE
+<something that is about to stop being true>".
+
+### 3. The nullable column that meant "both"
+
+`VaultTask.company` and `VaultEmployee.company` are nullable, and the schema
+comment says `null = both`. With two companies that is unambiguous. With three
+it is a question nobody has answered, and the two available answers are opposite
+leaks: show untagged rows to everybody and Mindoo sees the founder's private
+B-Systems tasks on day one; hide them from everybody and the accounts that
+created them lose their own records.
+
+The ruling: **an untagged row belongs to whoever holds the module's DEFAULT
+company** (ByteForce, the SPA's default tenant since ADR-052). It keeps every
+existing account's vault byte-for-byte and gives Mindoo exactly what is tagged
+Mindoo. Written down in `services/vault/tenancy.ts` rather than inferred,
+because the next person will have to make the same call for the next column.
+
+### 4. Spreading a second `OR` into a Prisma `where` silently replaces the first
+
+The vault's list queries already build an `OR` for the search box. A tenancy
+clause spread in as `{ OR: [...] }` would have dropped either the search or the
+wall depending on key order — no error, no type complaint, just one of two
+filters quietly gone. Every clause rides `AND`, which collides with nothing
+today and would be a compile error if it ever did.
+
+Related, and the reason there are TWO helper functions rather than one with a
+flag: `company` is a required String on forms/links/sheets/documents and
+nullable on tasks/employees, so only the second may emit `company: null`. A
+single helper returning a union has to be cast at every call site, and the cast
+is exactly what stops the compiler noticing the day one of those columns
+changes.
+
+### 5. A ternary with a default is a trapdoor, again — and the third one had a colour
+
+ADR-073 recorded four ternaries that had to become tables. ADR-074 found the
+fifth, and it is the most misleading of the set:
+
+```ts
+// moduleBrand, before
+return company === "bsystems" ? "bsystems" : "byteforce";
+```
+
+Mindoo's administrator opening `/accounting` with no `?company=` read **his own
+books under ByteForce's colours**. Nothing is wrong with the numbers; the module
+is simply telling him he is looking at somebody else's money, which is worse
+than a rendering bug and completely invisible to a typechecker.
+
+The fix has two halves and both matter: a TABLE (so a fourth company must be
+answered), and a **server-supplied fallback** (so "no company on the URL" means
+"this account's own default" rather than a literal). The first half alone would
+still have shown ByteForce.
+
+### 6. A note on the sweep tests
+
+`page-company-guards.test.ts` scopes itself to `src/app/(bsystems)`, which is
+correct and was silently insufficient the moment a second app group existed.
+`mindoo-app.test.ts` is its sibling rather than an extension of it — the two
+groups have different guards, and a single parameterised sweep would have to
+know which guard belongs to which group, which is the thing worth stating
+plainly in two files.
+
+Both strip comments and normalise line endings before matching. That is not
+defensive politeness: this project has no `.gitattributes`, so a Windows
+checkout is CRLF on disk, and a needle containing a literal newline made an
+earlier sweep RED for every file it touched — failing identically whether the
+code was right or wrong (BUG-015, ACCESS AUDIT Run 081).
+
+
+### 7. What an adversarial review of the finished diff found, and the pattern in it
+
+The suites were green — 886 tests, a clean typecheck, a clean build, 14 new e2e
+cases — and a six-dimension review of the diff found **eighteen real defects**.
+Every one reproduced in the source. That is worth writing down as a method note
+rather than a list of bugs, because the defects sort into four shapes and the
+shapes are what generalise:
+
+**Nine of the eighteen were ABSENCES.** A query with no company clause. A route
+that does not exist behind a button that does. A broadcast with no reader in the
+company it is about. A test suite grown alongside its code asserts what the code
+DOES; almost nothing in it asserts what is missing, and a tenancy wall is
+precisely a claim about absence. The fix is not more tests of the same kind — it
+is tests written from the other direction, which is the rule
+`company-scope.integration.test.ts` already stated for ADR-067 and which this
+round had to re-learn: **seed a TWIN in the other company first, and assert what
+is NOT returned.**
+
+**The wall stops at the edge of whatever you were editing.** Every one of these
+had a correctly-walled sibling three lines away: the vault's lists were scoped
+and the activity feed beside them was not; employee CARDS were scoped and their
+COUNTS were not; link ROWS were scoped and the category list BUILT FROM THEM was
+not; the row was scoped and the FILE behind it was not. When you add a tenant,
+the unit of work is not "the query" — it is "everything the screen renders",
+including the numbers, the labels, the suggestions and the bytes.
+
+**A read scoped is not a write scoped.** Re-spelling a link category ran an
+`updateMany` across companies. Assigning a task resolved the assignee by id
+alone. Both sat directly beneath reads that had been walled correctly in the
+same session.
+
+**And the seed could not express the change.** `upsertUser` only ADDED roles, so
+"admin@byteforce.com no longer holds mindoo_staff" was a no-op on every database
+that already existed. A seed that cannot revoke cannot describe a state; its own
+doc comment had been promising that it could.
+
+The cheapest durable lesson: **when a component fetches, assert the REQUEST.**
+Three of the eighteen (and the read-only bug ADR-073 shipped) were invisible on
+screen because the failure is on the far side of a fetch. `page.waitForRequest`
+plus a status check is three lines and would have caught all four.

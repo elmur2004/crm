@@ -12,6 +12,16 @@ import { todoPage } from "@/lib/i18n/dict/todo";
 
 /* V2 §2.2 — admin lead actions: edit any field, copy the lead's data, delete. */
 
+/* ADR-074 — every WRITE below takes its `apiBase` from the caller.
+
+   The brand is derived from the ROUTE on the server (there is no `?company=`
+   on any API path, by design), so the namespace a button posts to IS the
+   company it acts on. These were `/api/b-systems` literals, which was true
+   while these controls served one company; ADR-073 put the same controls on
+   Mindoo's screens and every one of them was refused by the brand wall the
+   moment it fired. Required props, not defaulted ones: a default would let the
+   next screen silently act on B-Systems' data from another company's page. */
+
 export interface EditableLead {
   id: string;
   name: string;
@@ -55,7 +65,16 @@ export function CopyLeadButton({ lead }: { lead: EditableLead }) {
   );
 }
 
-export function DeleteLeadButton({ leadId, redirectTo = "/b-systems/crm" }: { leadId: string; redirectTo?: string }) {
+export function DeleteLeadButton({
+  leadId,
+  apiBase,
+  redirectTo,
+}: {
+  leadId: string;
+  apiBase: string;
+  /** where to land once the lead is gone — this surface's own board or list */
+  redirectTo: string;
+}) {
   const t = tFor(useLocale());
   const router = useRouter();
   const [confirming, setConfirming] = useState(false);
@@ -81,7 +100,7 @@ export function DeleteLeadButton({ leadId, redirectTo = "/b-systems/crm" }: { le
         onClick={async () => {
           setBusy(true);
           setError(null);
-          const res = await fetch(`/api/b-systems/leads/${leadId}`, { method: "DELETE" });
+          const res = await fetch(`${apiBase}/leads/${leadId}`, { method: "DELETE" });
           setBusy(false);
           if (!res.ok) {
             const data = (await res.json().catch(() => null)) as { error?: string } | null;
@@ -117,11 +136,13 @@ export interface AssignableOwner {
 
 export function AssignLeadButton({
   leadId,
+  apiBase,
   owners,
   currentOwnerUserId,
   small,
 }: {
   leadId: string;
+  apiBase: string;
   owners: AssignableOwner[];
   currentOwnerUserId: string | null;
   /** To-Do rows wear the compact button (design-system btn--sm) */
@@ -167,7 +188,7 @@ export function AssignLeadButton({
             e.preventDefault();
             setBusy(true);
             setError(null);
-            const res = await fetch(`/api/b-systems/leads/${leadId}/assign`, {
+            const res = await fetch(`${apiBase}/leads/${leadId}/assign`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ userId }),
@@ -242,7 +263,11 @@ export function TakeLeadButton({ leadId, selfUserId }: { leadId: string; selfUse
         onClick={async () => {
           setBusy(true);
           setError(null);
-          const res = await fetch(`/api/b-systems/leads/${leadId}/assign`, {
+          const res = /* ADR-074 — the literal is deliberate. "Take it" lives on the admin
+             To-Do row, which is a B-SYSTEMS-only screen (its roster and its
+             endpoint are both B-Systems-locked), so there is no other
+             namespace this could honestly point at. */
+          await fetch(`/api/b-systems/leads/${leadId}/assign`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ userId: selfUserId }),
@@ -265,7 +290,7 @@ export function TakeLeadButton({ leadId, selfUserId }: { leadId: string; selfUse
 
 /* V2 — every role adds leads from the board; the API buckets by role
    (admin→admin bucket, agent/partner→their own, sales→internal). */
-export function BsAddLeadForm() {
+export function BsAddLeadForm({ apiBase }: { apiBase: string }) {
   const locale = useLocale();
   const t = tFor(locale);
   const router = useRouter();
@@ -287,7 +312,7 @@ export function BsAddLeadForm() {
           const fd = new FormData(e.currentTarget);
           setBusy(true);
           setError(null);
-          const res = await fetch("/api/b-systems/leads", {
+          const res = await fetch(`${apiBase}/leads`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -376,7 +401,7 @@ export function BsAddLeadForm() {
   );
 }
 
-export function EditLeadForm({ lead }: { lead: EditableLead }) {
+export function EditLeadForm({ lead, apiBase }: { lead: EditableLead; apiBase: string }) {
   const locale = useLocale();
   const t = tFor(locale);
   const router = useRouter();
@@ -397,7 +422,7 @@ export function EditLeadForm({ lead }: { lead: EditableLead }) {
         const fd = new FormData(e.currentTarget);
         setBusy(true);
         setError(null);
-        const res = await fetch(`/api/b-systems/leads/${lead.id}`, {
+        const res = await fetch(`${apiBase}/leads/${lead.id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({

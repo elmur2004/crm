@@ -1,7 +1,21 @@
 import { ApiError } from "@/lib/api-error";
+import { canUseModule } from "@/lib/auth/roles";
+import { moduleCompaniesFor } from "@/lib/module-companies";
+import { vaultCompaniesOf, visibleCompany } from "@/lib/services/vault/tenancy";
+import type { Brand } from "@/lib/pipeline-engine/constants";
+
 import { handleRoute, requireUser } from "@/lib/auth/guards";
 import { db } from "@/lib/db";
 import { storage } from "@/lib/storage";
+
+/* ADR-074 — the Attachment.kind values the DATA VAULT owns. Listed rather than
+   inferred: a kind added tomorrow falls into the won-deal branch below, which
+   is the stricter of the two, and that is the right way round to be wrong. */
+const VAULT_ATTACHMENT_KINDS: readonly string[] = [
+  "vault_document",
+  "vault_sheet",
+  "vault_attachment",
+];
 
 /* Authenticated file serving (ARCHITECTURE §8): recordings → B-Systems staff;
    CVs → the owning rep or portal admin (or B-Systems staff per A-8 pairing).
@@ -63,7 +77,17 @@ export const GET = handleRoute(
     const { id } = await ctx.params;
     const attachment = await db.attachment.findUnique({
       where: { id },
-      include: { rep: { select: { userId: true } } },
+      include: {
+        rep: { select: { userId: true } },
+        /* ADR-074 — the two kinds a THIRD COMPANY can own: a won-deal document
+           (its lead carries the brand) and a vault record (its own company
+           column). Both are needed to answer "may this account read these
+           bytes", and neither was asked before. */
+        wonDeal: { select: { lead: { select: { brand: true } } } },
+        vaultDocument: { select: { company: true } },
+        vaultSheet: { select: { company: true } },
+        vaultTask: { select: { company: true } },
+      },
     });
     if (!attachment) throw new ApiError(404, "File not found");
 
@@ -81,9 +105,30 @@ export const GET = handleRoute(
           : null;
         if (statement?.closerUserId !== user.id) throw new ApiError(403, "No access");
       }
+    } else if (VAULT_ATTACHMENT_KINDS.includes(attachment.kind)) {
+      /* ADR-074 — VAULT BYTES follow the vault's own tenancy, not the
+         B-Systems admin role. Two things were wrong at once here: Mindoo's
+         administrator got 403 on a file HE had just uploaded (the vault is his
+         module too), and a B-Systems admin could fetch Mindoo's vault bytes by
+         id — the row list was walled and the file behind it was not. */
+      if (!canUseModule(user, "vault")) throw new ApiError(404, "File not found");
+      const company =
+        attachment.vaultDocument?.company ??
+        attachment.vaultSheet?.company ??
+        attachment.vaultTask?.company ??
+        null;
+      if (!visibleCompany(vaultCompaniesOf(user), company)) {
+        throw new ApiError(404, "File not found");
+      }
     } else {
-      // proposal/contract PDFs on won leads — admin only (V2 §5)
-      if (!isAdmin) throw new ApiError(403, "No access");
+      /* proposal/contract PDFs on won leads (V2 §5) — the COMPANY'S OWN
+         administrator, whoever that is. ADR-074: Mindoo wins the same way
+         B-Systems does, so it uploads these and must be able to read them
+         back; and a B-Systems admin must not read Mindoo's by id. 404 rather
+         than 403, as everywhere else a company boundary is crossed. */
+      const brand = attachment.wonDeal?.lead.brand ?? null;
+      const mine = brand === null ? isAdmin : moduleCompaniesFor(user.roles).includes(brand as Brand);
+      if (!mine) throw new ApiError(404, "File not found");
     }
 
     const total = await storage.size(attachment.storageKey).catch(() => null);

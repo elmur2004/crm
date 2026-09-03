@@ -35,6 +35,11 @@ export function TodoRowActions({ item, assign }: { item: TodoItem; assign: TodoA
     <span className="ms-auto inline-flex items-center gap-2">
       <span className="text-xs text-brand-muted">{todoOwnerLabel(assign.locale, item)}</span>
       <AssignLeadButton
+        /* ADR-074 — the To-Do row actions are B-SYSTEMS ONLY: the roster they
+           assign from is B-Systems' agents, partners and internal sales, and
+           the endpoint is B-Systems-locked. The literal is the honest answer
+           here, not an oversight. */
+        apiBase="/api/b-systems"
         leadId={item.leadId}
         owners={assign.owners}
         currentOwnerUserId={item.ownerUserId ?? null}

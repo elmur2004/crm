@@ -181,9 +181,12 @@ beforeEach(async () => {
   await resetDb();
 });
 
+/* ADR-074 — `importAccounting` takes the caller's COMPANIES: a wrapper file
+   may only replace books the account holds. These tests pass the original
+   pair, so every assertion below means exactly what it meant before. */
 describe("accounting export — the SPA's own shape, round-tripping in both directions", () => {
   it("export emits the migrate() state shape with EGP numbers and in-file link integrity", async () => {
-    await importAccounting(allCompaniesFile, null, actor);
+    await importAccounting(allCompaniesFile, null, ["byteforce", "bsystems"], actor);
     const doc = (await exportCompanyDoc("byteforce")) as unknown as Record<string, unknown>;
 
     /* the SPA state's exact key set — nothing extra, nothing missing */
@@ -224,8 +227,8 @@ describe("accounting export — the SPA's own shape, round-tripping in both dire
   });
 
   it("old file → import → export: every derived total identical, every month (both companies)", async () => {
-    await importAccounting(allCompaniesFile, null, actor);
-    const exported = await exportAllDoc();
+    await importAccounting(allCompaniesFile, null, ["byteforce", "bsystems"], actor);
+    const exported = await exportAllDoc(["byteforce", "bsystems"]);
 
     for (const company of ["byteforce", "bsystems"] as const) {
       expect(totalsOf(exported, company)).toEqual(totalsOf(allCompaniesFile, company));
@@ -238,12 +241,12 @@ describe("accounting export — the SPA's own shape, round-tripping in both dire
   });
 
   it("export → import → export is a fixpoint (totals and counts stable)", async () => {
-    await importAccounting(allCompaniesFile, null, actor);
-    const first = await exportAllDoc();
+    await importAccounting(allCompaniesFile, null, ["byteforce", "bsystems"], actor);
+    const first = await exportAllDoc(["byteforce", "bsystems"]);
 
     await resetDb();
-    await importAccounting(first as unknown, null, actor);
-    const second = await exportAllDoc();
+    await importAccounting(first as unknown, null, ["byteforce", "bsystems"], actor);
+    const second = await exportAllDoc(["byteforce", "bsystems"]);
 
     for (const company of ["byteforce", "bsystems"] as const) {
       expect(totalsOf(second, company)).toEqual(totalsOf(first, company));
@@ -252,7 +255,7 @@ describe("accounting export — the SPA's own shape, round-tripping in both dire
   });
 
   it("ADR-060 — the new ids survive the round trip verbatim, no mapping, no fallback", async () => {
-    await importAccounting(allCompaniesFile, null, actor);
+    await importAccounting(allCompaniesFile, null, ["byteforce", "bsystems"], actor);
     const doc = (await exportCompanyDoc("byteforce")) as unknown as Record<string, unknown>;
     const expenses = doc["expenses"] as Array<{ type: string; serviceLine: string; name: string }>;
     const camp = expenses.find((e) => e.name === "Health campaign")!;
@@ -279,8 +282,8 @@ describe("accounting export — the SPA's own shape, round-tripping in both dire
     "the founder's REAL export round-trips with identical totals",
     async () => {
       const raw = JSON.parse(readFileSync(realFile, "utf8")) as Record<string, unknown>;
-      await importAccounting(raw, null, actor);
-      const exported = await exportAllDoc();
+      await importAccounting(raw, null, ["byteforce", "bsystems"], actor);
+      const exported = await exportAllDoc(["byteforce", "bsystems"]);
       for (const company of ["byteforce", "bsystems"] as const) {
         if (!(company in raw)) continue;
         expect(totalsOf(exported, company)).toEqual(totalsOf(raw, company));

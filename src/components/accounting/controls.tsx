@@ -4,7 +4,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { tFor } from "@/lib/i18n/core";
 import { useLocale } from "@/components/shared/LocaleProvider";
 import { acct, acctCompanies } from "@/lib/i18n/dict/accounting";
-import { ACCT_COMPANIES, type AcctCompany } from "@/lib/accounting/constants";
+import { type AcctCompany } from "@/lib/accounting/constants";
 import { addMonths } from "@/lib/accounting/engine";
 import { monthLabel } from "@/lib/accounting/format";
 
@@ -25,10 +25,17 @@ function useSetParam() {
 
 export function AcctControls({
   company,
+  companies,
   month,
   showMonth = true,
 }: {
   company: AcctCompany;
+  /* ADR-074 — the companies THIS ACCOUNT may switch between, resolved on the
+     server from its live roles. It was the module-level ACCT_COMPANIES, which
+     is the whole platform: with a third company on it that constant would have
+     offered a B-Systems admin a Mindoo tab and Mindoo's staff two tabs that are
+     not its business. The switch can only ever offer what the server sent. */
+  companies: readonly AcctCompany[];
   month: string;
   showMonth?: boolean;
 }) {
@@ -38,7 +45,7 @@ export function AcctControls({
   return (
     <div className="page-actions">
       <div className="switcher" role="group" aria-label={t(acct.company)}>
-        {ACCT_COMPANIES.map((c) => (
+        {companies.map((c) => (
           <button
             key={c}
             type="button"

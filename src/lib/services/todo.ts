@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { leadHref } from "@/lib/crm/surface";
 import type { Brand } from "@/lib/pipeline-engine/constants";
 import {
   configForBrand,
@@ -188,11 +189,11 @@ export async function todoFor(opts: {
      account that can see a B-Systems screen has bsystems as its default — but
      the ByteForce rows genuinely need the parameter, and a To-Do row that
      states its company is a row you can forward to somebody. */
-  const leadBase =
-    opts.brand === "bsystems"
-      ? "/b-systems/crm/lead"
-      : "/b-systems/leads/lead";
-  const leadQuery = `?company=${opts.brand}`;
+  /* ADR-074 — the ONE lead-address table (lib/crm/surface.ts). The ternary
+     here sent every MINDOO row to ByteForce's screen inside the B-Systems
+     shell, which the proxy refuses for mindoo_staff: every row on Mindoo's
+     To-Do logged the reader out. */
+  const leadLink = (leadId: string) => leadHref(opts.brand, leadId);
   /* Statements and milestones are admin-owned subsystems. (The partnership
      CRM used to join here too — ADR-061 took its rows off the To-Do.) */
   const adminExtras = opts.brand === "bsystems" && opts.scope.kind === "all";
@@ -351,7 +352,7 @@ export async function todoFor(opts: {
            (the ADR-061 norm) stay a bare date. */
         withTime: f.dueTimeSet,
         title: lead.name,
-        href: `${leadBase}/${lead.id}${leadQuery}`,
+        href: leadLink(lead.id),
         leadId: lead.id,
         ownerUserId: lead.ownerUserId,
         ownerName: ownerNameOf(lead),
@@ -372,7 +373,7 @@ export async function todoFor(opts: {
         at: m.datetime,
         withTime: true,
         title: lead.name,
-        href: `${leadBase}/${lead.id}${leadQuery}`,
+        href: leadLink(lead.id),
         leadId: lead.id,
         ownerUserId: lead.ownerUserId,
         ownerName: ownerNameOf(lead),
@@ -469,7 +470,7 @@ export async function todoFor(opts: {
       at: f.dueAt,
       withTime: f.dueTimeSet, // ADR-063 — the Done row reads like its Today twin
       title: f.lead.name,
-      href: `${leadBase}/${f.lead.id}${leadQuery}`,
+      href: leadLink(f.lead.id),
       leadId: f.lead.id,
       ownerUserId: f.lead.ownerUserId,
       ownerName: ownerNameOf(f.lead),
@@ -487,7 +488,7 @@ export async function todoFor(opts: {
       at: m.datetime,
       withTime: true,
       title: m.lead.name,
-      href: `${leadBase}/${m.lead.id}${leadQuery}`,
+      href: leadLink(m.lead.id),
       leadId: m.lead.id,
       ownerUserId: m.lead.ownerUserId,
       ownerName: ownerNameOf(m.lead),

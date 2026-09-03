@@ -1,5 +1,118 @@
 # Changelog — user-visible changes per phase/release
 
+## Mindoo is its own system now (2026-09-02)
+
+You said: *"I need to have the system for mindoo completly identical to
+byteforce but with no partners or regestrations or agents or their crm at all…
+I enter the creditials : admin@mindoo.com and password123… also remove the
+switcher from bsystems system seperate them entirly nothing inside bsystems
+goes to mindoo and vice versa."*
+
+Done. Mindoo is no longer a segment on the B-Systems switch. It is a separate
+system with its own address, its own colours and its own way in.
+
+### 1. How you get in
+
+**admin@mindoo.com / password123.**
+
+The sign-in page is exactly as it was — it does not mention Mindoo, and it did
+not need to: sign in with those credentials and the system opens on **Mindoo**,
+in purple, with the Mindoo name on it. Sign in with your B-Systems account and
+you get B-Systems, exactly as before. One door, two buildings.
+
+### 2. The branding
+
+Mindoo wears its own brand guideline throughout: **Deep Purple** as the anchor,
+**Bright Purple** as the highlight, black headings and the cream page. Every
+board column, badge, button and chart follows it. The Won column wears the
+bright purple.
+
+Two things are still waiting on you, and both are one file each:
+
+- **The Monotalic font.** Headings are set in Montserrat for now, with Monotalic
+  already named first in the stack. Send the font files and every heading in the
+  system changes to it — nothing to rebuild.
+- **The Mindoo logo.** The guideline's mark is a drawing rather than an image
+  file, so the header currently shows the word **MINDOO** set in the brand font.
+  Send a PNG or SVG and it drops straight in.
+
+### 3. What is in it
+
+**Home · To-Do · Calendar · Leads · CRM · Won Leads** — plus **Accounting** and
+**the Data Vault** on the module switcher, exactly as B-Systems has them.
+
+The CRM is the B-Systems one, as you chose: the same eight columns — New,
+Following Up, Meeting Setting, Sending Proposals, Negotiation, Postpone / Not
+answering, Won, Lost — the same forms behind each, and the same win with the
+milestone tab feeding Won Leads.
+
+The Home is the B-Systems dashboard **without the agent and partner figures**,
+because Mindoo has neither and a panel that always reads zero is not a panel.
+
+### 4. What is deliberately not in it
+
+**Partners, Agents, Registrations, Statements, Payments** and the data-entry
+page. Every one of those exists for external agents and partners. Mindoo has one
+internal staff role, so those screens could never hold anything.
+
+### 5. The two systems do not touch
+
+- **The B-Systems switch is back to two:** B-Systems and ByteForce. Mindoo is
+  not on it.
+- **Your Mindoo login cannot open B-Systems**, and your B-Systems login cannot
+  open Mindoo. Both are refused at the door, not hidden in the menu.
+- **Accounting shows Mindoo one company: Mindoo.** Your B-Systems accounting
+  still shows exactly the two tabs it always did — ByteForce and B-Systems — and
+  never Mindoo. Neither can see the other's income, expenses, treasury, loans,
+  payroll or targets.
+- **The Data Vault is the same.** Mindoo's forms, links, sheets, documents,
+  tasks and employees are Mindoo's; everything already in the vault stays with
+  B-Systems and ByteForce, including the records that were never tagged with a
+  company.
+- **Your export files are unchanged.** "Export all companies" from your
+  B-Systems accounting gives you the same two-company file it always has.
+
+### 6. Things that were broken and are now fixed
+
+When Mindoo was a segment on the switch, its board looked complete but **nothing
+you did on it saved** — dragging a card, marking a lead ready to close, the
+didn't-answer counter, adding or editing a lead, ticking a milestone, uploading
+a contract. Every one of those was quietly being sent to B-Systems' side of the
+system and refused there. All of it works now, and there is a test that presses
+the button and checks the answer rather than just looking at the screen.
+
+I then had the whole change reviewed line by line before calling it done, and
+that turned up more. The ones you would have noticed:
+
+- **Mindoo's To-Do and Calendar rows would have logged you out.** Every row
+  linked into the B-Systems side, which your Mindoo login is not allowed to
+  open — so clicking your own work signed you out. Fixed, and there is now one
+  place in the code that decides where a lead lives, so it cannot happen again
+  for a fourth company.
+- **Delete on a Mindoo lead did nothing.** The button was there, asked you to
+  confirm, and then failed silently. It works.
+- **A contract you uploaded to a Mindoo won deal could not be opened again.**
+  Upload succeeded; the link beside it was refused. Fixed — and the same file
+  is now correctly refused to the B-Systems side.
+- **"Ready to close" on a Mindoo lead sent a phone notification to B-Systems.**
+  The lead's name went to every B-Systems admin's bell and phone, and no Mindoo
+  account could see it at all. That notification is Mindoo's business only, so
+  it is no longer sent outside it.
+- **The Data Vault's "Recent activity" list showed everyone everything.** Every
+  other list on that page was already separated by company; that one was not, so
+  it printed lines like "Mona archived Q4 Contract" to a company that cannot see
+  the record. Separated.
+- **Renaming a link category renamed other companies' links too.** Typing
+  "Portfolio" over "portfolio" in one company silently re-spelled the same word
+  on the other company's records. It now stops at your own.
+- **Accounting could show one company's money under another company's logo.**
+  Reachable by editing the address bar: the figures were right and the colours
+  and the mark on top of them were somebody else's. Fixed.
+- **Mindoo's board offered B-Systems' sales reps** in the "assign a rep" list,
+  and the call sheet hid negotiation notes that Mindoo's own staff had written.
+  Both corrected.
+
+
 ## Mindoo — a third company, on the same switch (2026-09-01)
 
 You said: *"We need to add a third CRM called Mindoo with the exact same switch

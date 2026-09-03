@@ -8,6 +8,7 @@ import { formatEGP } from "@/lib/money";
 import { useSearchParams } from "next/navigation";
 import { acct, acctCompanies } from "@/lib/i18n/dict/accounting";
 import { acctView } from "@/lib/accounting/params";
+import type { Brand } from "@/lib/pipeline-engine/constants";
 
 /* ADR-052, founder decision 4 — the one-time import screen. Upload the old
    app's own JSON export; the server replaces that company's books and returns
@@ -30,14 +31,17 @@ interface CompanySummary {
   };
 }
 
-export function ImportPanel() {
+export function ImportPanel({ companies }: { companies: Brand[] }) {
   const t = tFor(useLocale());
   const router = useRouter();
   const params = useSearchParams();
-  const view = acctView({
-    company: params.get("company") ?? undefined,
-    month: params.get("month") ?? undefined,
-  });
+  const view = acctView(
+    {
+      company: params.get("company") ?? undefined,
+      month: params.get("month") ?? undefined,
+    },
+    companies,
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<CompanySummary[] | null>(null);

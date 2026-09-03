@@ -1,4 +1,6 @@
 import { db } from "@/lib/db";
+import type { VaultCompany } from "./constants";
+import { vaultCompanyWhere, vaultCompanyWhereNullable } from "./tenancy";
 
 /* ADR-053 — vault global search (the reference SPEC §10.1/AC-17): one box that
    searches every section (ADR-070 added Links) and returns grouped hits. Metadata only — names,
@@ -26,7 +28,13 @@ export type VaultSearchResults = {
 
 const PER_GROUP = 5;
 
-export async function searchVault(term: string, perGroup = PER_GROUP): Promise<VaultSearchResults> {
+export async function searchVault(
+  term: string,
+  /* ADR-074 — the companies this account may see; see services/vault/tenancy.
+     REQUIRED, never defaulted, because the default would be the platform. */
+  visible: readonly VaultCompany[],
+  perGroup = PER_GROUP,
+): Promise<VaultSearchResults> {
   const q = term.trim();
   if (q.length < 2) {
     return {
@@ -37,7 +45,12 @@ export async function searchVault(term: string, perGroup = PER_GROUP): Promise<V
   }
 
   const like = { contains: q, mode: "insensitive" as const };
-  const live = { archived: false };
+  /* ADR-074 — `live` now carries the tenancy wall as well as the archive rule,
+     so a group that forgets it fails to compile rather than searching the whole
+     platform. It rides AND because every group below already uses OR for the
+     term itself (see tenancy.ts). */
+  const live = { archived: false, ...vaultCompanyWhere(visible, undefined) };
+  const liveNullable = { archived: false, ...vaultCompanyWhereNullable(visible, undefined) };
 
   const [forms, links, sheets, documents, tasks] = await Promise.all([
     db.vaultForm.findMany({
@@ -68,7 +81,7 @@ export async function searchVault(term: string, perGroup = PER_GROUP): Promise<V
       orderBy: { updatedAt: "desc" },
     }),
     db.vaultTask.findMany({
-      where: { ...live, OR: [{ name: like }, { description: like }] },
+      where: { ...liveNullable, OR: [{ name: like }, { description: like }] },
       select: { id: true, name: true, employee: { select: { name: true } } },
       take: perGroup,
       orderBy: { updatedAt: "desc" },

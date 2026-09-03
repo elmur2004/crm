@@ -51,6 +51,23 @@ async function upsertUser(opts: {
       create: { userId: user.id, role },
     });
   }
+  /* ADR-074 — THE SEED CAN NOW TAKE A ROLE AWAY, and it has to be able to.
+
+     This loop only ever ADDED, so `roles` was a floor rather than the state:
+     re-seeding a live dev database left every role the account had ever been
+     given. ADR-074 removes `mindoo_staff` from admin@byteforce.com — the whole
+     point being that no account holds both apps — and on an upgraded database
+     that revocation was silently a no-op, leaving a bsystems_admin who could
+     still open /mindoo and whose module switcher crossed the wall.
+
+     The doc comment above already promises "seeded accounts are always in the
+     documented state"; this makes the ROLES keep that promise too. Scoped to
+     the roles this seed manages, so a role granted by hand in the admin UI on a
+     non-seeded account is untouched — only the accounts this file names are
+     re-asserted, and for those the file IS the documented state. */
+  await db.userRole.deleteMany({
+    where: { userId: user.id, role: { notIn: opts.roles } },
+  });
   return user;
 }
 
@@ -73,9 +90,30 @@ export async function seed() {
     name: "Elmur",
     email: "admin@byteforce.com",
     password: "password123",
-    /* ADR-073 — the founder holds all THREE companies, so the switch he asked
-       for actually has three segments to offer him. */
-    roles: ["bsystems_admin", "byteforce_staff", "mindoo_staff"],
+    /* ADR-074 — the founder's B-Systems account holds the TWO companies of the
+       merged shell, and no longer `mindoo_staff`. Mindoo has its own app and
+       its own credentials now (below), by his own instruction: "I enter the
+       creditials : admin@mindoo.com and password123 / the system opens with
+       [the] mindoo branding". Holding both roles on one account would have put
+       him in whichever app `landingFor` picked and given him a module switcher
+       that crosses the wall the rest of ADR-074 builds. */
+    roles: ["bsystems_admin", "byteforce_staff"],
+  });
+
+  /* ADR-074 — MINDOO'S OWN ADMINISTRATOR, verbatim from the founder:
+     "I enter the creditials : admin@mindoo.com and password123".
+
+     It is seeded beside the B-Systems admin and BEFORE the demo-data gate, so
+     it exists on a production seed too — it is the way into the Mindoo app, not
+     a fixture. One role, which is Mindoo's whole staff; the two module flags
+     default true on the User row, so this account opens Accounting and the Data
+     Vault as well (founder: "having vault and accounting and the crm and to do
+     and calender"), scoped to Mindoo alone by `moduleCompaniesFor`. */
+  await upsertUser({
+    name: "Mindoo Admin",
+    email: "admin@mindoo.com",
+    password: "password123",
+    roles: ["mindoo_staff"],
   });
 
   /* ---- demo data — never on production (SEED_DEMO=1 overrides) ---- */
@@ -92,9 +130,9 @@ export async function seed() {
     roles: ["byteforce_staff"],
   });
 
-  /* ADR-073 — a MINDOO-ONLY teammate, the twin of Sara on ByteForce. She exists
-     so the single-company case is real in the demo data: no switch is rendered
-     for her, and every other company's screens refuse her. */
+  /* ADR-073/074 — a second MINDOO account, so the demo data proves that Mindoo
+     is a company with staff rather than one login: she reaches the same app as
+     admin@mindoo.com and is refused by /b-systems exactly as he is. */
   await upsertUser({
     name: "Mona Adel",
     email: "mona@mindoo.example",
@@ -568,6 +606,64 @@ export async function seed() {
         });
       }
     }
+
+    /* ADR-074 — a WON Mindoo deal, with its milestone tab.
+
+       Mindoo wins the B-Systems way (the founder's own choice), so Won Leads
+       and the won-deal detail are real screens for it — and a demo database
+       where they are both empty is a demo of nothing. It is also what lets the
+       e2e prove the file wall on a Mindoo document instead of skipping it. */
+    const mindooWon = await db.lead.create({
+      data: {
+        brand: "mindoo",
+        ownerType: "internal",
+        name: "Alexandria Marine",
+        number: "0105000200",
+        type: "referral",
+        companyName: "Alexandria Marine",
+        industry: "Shipping",
+        stage: "won",
+      },
+    });
+    await db.activityLog.create({
+      data: {
+        entityType: "lead",
+        entityId: mindooWon.id,
+        actorLabel: "Seed",
+        action: "create",
+        trigger: "T-0",
+      },
+    });
+    const mindooDeal = await db.wonDeal.create({
+      data: {
+        leadId: mindooWon.id,
+        estimatedValue: 450_000_00,
+        totalCommissionPercent: 8_00, // 8.00%
+        contractDate: new Date("2026-08-15T00:00:00Z"),
+      },
+    });
+    await db.milestone.create({
+      data: {
+        wonDealId: mindooDeal.id,
+        index: 1,
+        label: "Kickoff",
+        value: 250_000_00,
+        expectedStart: new Date("2026-08-20T00:00:00Z"),
+        expectedEnd: new Date("2026-09-20T00:00:00Z"),
+        completed: true,
+        completedAt: new Date("2026-08-22T09:00:00Z"),
+      },
+    });
+    await db.milestone.create({
+      data: {
+        wonDealId: mindooDeal.id,
+        index: 2,
+        label: "Delivery",
+        value: 200_000_00,
+        expectedStart: new Date("2026-09-21T00:00:00Z"),
+        expectedEnd: new Date("2026-10-21T00:00:00Z"),
+      },
+    });
   }
 
   console.log("Seed complete.");

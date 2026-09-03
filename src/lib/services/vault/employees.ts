@@ -5,6 +5,8 @@ import { writeLog, type Actor } from "../activity";
 import { invalidateUndo } from "../undo";
 import { isOverdue } from "./lateness";
 import { optionalText, zVaultCompany } from "./common";
+import type { VaultCompany } from "./constants";
+import { vaultCompanyWhereNullable } from "./tenancy";
 
 /* ADR-053 — vault employees are assignee CARDS: name / title / company.
    No userId, no email, no invitations, no logins (founder decision §7.3 —
@@ -91,18 +93,36 @@ export type VaultEmployeeCard = {
  * overdue highlighted when above zero. Archived tasks are out of every count.
  * "Overdue" is the LIVE flag (today past deadline), never the frozen wasLate.
  */
-export async function listVaultEmployeeCards(opts?: {
-  includeInactive?: boolean;
-  now?: Date;
-}): Promise<VaultEmployeeCard[]> {
+export async function listVaultEmployeeCards(
+  /* ADR-074 — the companies this account may see; see services/vault/tenancy.
+     REQUIRED, never defaulted, because the default would be the platform. */
+  visible: readonly VaultCompany[],
+  opts?: {
+    includeInactive?: boolean;
+    now?: Date;
+  },
+): Promise<VaultEmployeeCard[]> {
   const employees = await db.vaultEmployee.findMany({
-    where: opts?.includeInactive ? {} : { active: true },
+    where: {
+      ...(opts?.includeInactive ? {} : { active: true }),
+      /* ADR-074 — an employee card is company-tagged (nullable: null has always
+         meant "not tagged", and those cards belong to the original pair). */
+      ...vaultCompanyWhereNullable(visible, undefined),
+    },
     orderBy: { name: "asc" },
   });
   if (employees.length === 0) return [];
 
+  /* ADR-074 — the COUNTS are scoped too. The cards were narrowed and their
+     open/overdue/completed figures were not, so a shared employee card read
+     "7 open, 2 overdue" to a company that could see none of the seven — a
+     number about work it is not entitled to know exists. */
   const tasks = await db.vaultTask.findMany({
-    where: { archived: false, employeeId: { in: employees.map((e) => e.id) } },
+    where: {
+      archived: false,
+      employeeId: { in: employees.map((e) => e.id) },
+      ...vaultCompanyWhereNullable(visible, undefined),
+    },
     select: { employeeId: true, status: true, deadline: true },
   });
 

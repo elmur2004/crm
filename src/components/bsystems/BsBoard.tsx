@@ -16,7 +16,6 @@ import {
 } from "@dnd-kit/core";
 import type { Brand } from "@/lib/pipeline-engine/constants";
 import { configForBrand } from "@/lib/pipeline-engine/configs/for-brand";
-import { crmQuery } from "@/lib/crm/company";
 import { btnGhost, btnPrimary } from "@/components/portal/groupForms";
 import { tFor } from "@/lib/i18n/core";
 import { useLocale } from "@/components/shared/LocaleProvider";
@@ -82,10 +81,15 @@ const MEETING_AT = (lead: BsBoardLead) => lead.meetingAt;
 function LeadCardBody({
   lead,
   drag,
+  apiBase,
+  leadPathBase,
   leadQuery,
 }: {
   lead: BsBoardLead;
   drag?: CardDrag;
+  /** ADR-074 — this surface's API namespace and lead address (see BsBoard). */
+  apiBase: string;
+  leadPathBase: string;
   /* ADR-073 — `?company=…`. The lead DETAIL is a shared address now (B-Systems
      and Mindoo both use it), so a link that drops the company falls back to the
      account's DEFAULT company and 404s a lead that plainly exists. ByteForce
@@ -104,7 +108,7 @@ function LeadCardBody({
       {lead.readyToClose ? <span className="bcard-badge">{t(common.readyToClose)}</span> : null}
       <div className="bcard-name-row">
         <Link
-          href={`/b-systems/crm/lead/${lead.id}${leadQuery}`}
+          href={`${leadPathBase}/${lead.id}${leadQuery}`}
           className="bcard-name"
           onClick={(e) => e.stopPropagation()}
         >
@@ -121,7 +125,7 @@ function LeadCardBody({
             click and the pointer-down so it neither drags the card nor
             triggers the whole-card navigation. */}
         <Link
-          href={`/b-systems/crm/lead/${lead.id}/call${leadQuery}`}
+          href={`${leadPathBase}/${lead.id}/call${leadQuery}`}
           className="card-dial"
           onClick={(e) => e.stopPropagation()}
           onPointerDown={(e) => e.stopPropagation()}
@@ -157,7 +161,7 @@ function LeadCardBody({
                 onClick={async (e) => {
                   e.stopPropagation();
                   setBusy(true);
-                  await fetch(`/api/b-systems/leads/${lead.id}/ready`, { method: "POST" });
+                  await fetch(`${apiBase}/leads/${lead.id}/ready`, { method: "POST" });
                   setBusy(false);
                   router.refresh();
                 }}
@@ -183,7 +187,7 @@ function LeadCardBody({
                   onClick={async (e) => {
                     e.stopPropagation();
                     setBusy(true);
-                    await fetch(`/api/b-systems/leads/${lead.id}/no-answer`, {
+                    await fetch(`${apiBase}/leads/${lead.id}/no-answer`, {
                       method: "POST",
                       headers: { "Content-Type": "application/json" },
                       body: JSON.stringify({ value: true }),
@@ -203,7 +207,7 @@ function LeadCardBody({
                     onClick={async (e) => {
                       e.stopPropagation();
                       setBusy(true);
-                      await fetch(`/api/b-systems/leads/${lead.id}/no-answer`, {
+                      await fetch(`${apiBase}/leads/${lead.id}/no-answer`, {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({ value: false }),
@@ -230,11 +234,15 @@ function LeadCard({
   lead,
   dragging,
   suppressClickRef,
+  apiBase,
+  leadPathBase,
   leadQuery,
 }: {
   lead: BsBoardLead;
   dragging: boolean;
   suppressClickRef: { current: boolean };
+  apiBase: string;
+  leadPathBase: string;
   leadQuery: string;
 }) {
   const router = useRouter();
@@ -254,13 +262,15 @@ function LeadCard({
         /* founder: the whole card opens the lead — but never right after a
            drag (the browser fires a click on drop; the guard swallows it) */
         if (suppressClickRef.current) return;
-        router.push(`/b-systems/crm/lead/${lead.id}${leadQuery}`);
+        router.push(`${leadPathBase}/${lead.id}${leadQuery}`);
       }}
       className={`bcard ${isDragging || dragging ? "bcard--ghost" : ""}`}
     >
       <LeadCardBody
         lead={lead}
         drag={{ attributes, listeners, setActivatorNodeRef }}
+        apiBase={apiBase}
+        leadPathBase={leadPathBase}
         leadQuery={leadQuery}
       />
     </div>
@@ -270,6 +280,8 @@ function LeadCard({
 function Column({
   stage,
   meetingStage,
+  apiBase,
+  leadPathBase,
   leadQuery,
   leads,
   wonBlocked,
@@ -282,7 +294,10 @@ function Column({
      chip hangs off the MEETING column, and which stage that is belongs to the
      pipeline the board is drawing. */
   meetingStage: string;
-  /** ADR-073 — `?company=…`, carried onto every card's links. */
+  apiBase: string;
+  leadPathBase: string;
+  /** ADR-073/074 — the query string carried onto every card's link:
+      "?company=bsystems" under the merged shell, EMPTY under Mindoo. */
   leadQuery: string;
   leads: BsBoardLead[];
   wonBlocked: boolean;
@@ -332,6 +347,8 @@ function Column({
           <LeadCard
             key={l.id}
             lead={l}
+            apiBase={apiBase}
+            leadPathBase={leadPathBase}
             leadQuery={leadQuery}
             dragging={draggingId === l.id}
             suppressClickRef={suppressClickRef}
@@ -358,6 +375,9 @@ export function BsBoard({
   role,
   reps,
   company,
+  apiBase,
+  leadPathBase,
+  leadQuery,
   people = [],
 }: {
   leads: BsBoardLead[];
@@ -372,6 +392,21 @@ export function BsBoard({
      a new call site inherit the wrong pipeline silently, which is the whole
      failure this prop exists to prevent. */
   company: Brand;
+  /* ADR-074 — apiBase + leadPathBase, threaded from the SURFACE.
+
+     These were literals (`/api/b-systems`, `/b-systems/crm/lead`) and that was
+     true while this board served one company. ADR-073 gave Mindoo the same
+     board under `?company=mindoo` and left the literals alone, so every WRITE
+     from a Mindoo card — the drop, "Mark ready to close", the didn't-answer
+     counter — was posted to B-Systems' namespace and refused by the brand wall
+     the moment it arrived: the board LOOKED complete and could not be used.
+     ADR-074 gives Mindoo its own address, and the seam is here. Required
+     props, so a new call site must answer rather than inherit a company. */
+  apiBase: string;
+  leadPathBase: string;
+  /** the query string every card link carries — "?company=bsystems" under the
+      merged shell, EMPTY under Mindoo, which has no company parameter. */
+  leadQuery: string;
   /** ADR-071 — the company roster, threaded to the meeting form's "Also
       blocks" picker. Optional: a caller that omits it simply does not offer
       the field, which is what every screen did before the calendar existed. */
@@ -409,7 +444,7 @@ export function BsBoard({
   ) {
     setBusy(true);
     setError(null);
-    const res = await fetch(`/api/b-systems/leads/${leadId}/event`, {
+    const res = await fetch(`${apiBase}/leads/${leadId}/event`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
@@ -482,7 +517,9 @@ export function BsBoard({
               key={stage}
               stage={stage}
               meetingStage={config.meetingStage}
-              leadQuery={crmQuery(company)}
+              apiBase={apiBase}
+              leadPathBase={leadPathBase}
+              leadQuery={leadQuery}
               leads={leads.filter((l) => l.stage === stage)}
               wonBlocked={!canWin}
               draggingId={draggingId}
@@ -503,7 +540,12 @@ export function BsBoard({
               const l = leads.find((x) => x.id === draggingId);
               return l ? (
                 <div className="bcard bcard--lift" aria-hidden>
-                  <LeadCardBody lead={l} leadQuery={crmQuery(company)} />
+                  <LeadCardBody
+                    lead={l}
+                    apiBase={apiBase}
+                    leadPathBase={leadPathBase}
+                    leadQuery={leadQuery}
+                  />
                 </div>
               ) : null;
             })()

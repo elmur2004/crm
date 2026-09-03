@@ -6,7 +6,8 @@ import { writeLog, type Actor } from "../activity";
 import { invalidateUndo } from "../undo";
 import { assertNotArchived, setVaultArchived } from "./archive";
 import { optionalText, vaultListParams, zHttpUrl, zVaultCompany } from "./common";
-import { VAULT_LINK_CATEGORY_SUGGESTIONS, VAULT_LINK_TYPES } from "./constants";
+import { VAULT_LINK_CATEGORY_SUGGESTIONS, VAULT_LINK_TYPES, type VaultCompany } from "./constants";
+import { vaultCompanyWhere } from "./tenancy";
 
 /* ADR-070 — the vault LINKS section (founder: "so the Vault is not only a place
    for Sheets, Forms and Archive, but also a central place to keep any important
@@ -80,8 +81,18 @@ function dedupe(spellings: string[]): string[] {
 
 /** The categories offered in the filter and in the datalist — LIVE rows only,
     so archiving the last link in a category retires that category too. */
-export async function listVaultLinkCategories(): Promise<string[]> {
-  return dedupe(await storedSpellings({ archived: false })).sort((a, b) => a.localeCompare(b));
+export async function listVaultLinkCategories(
+  /* ADR-074 — the tenancy wall (services/vault/tenancy.ts). REQUIRED. */
+  visible: readonly VaultCompany[],
+): Promise<string[]> {
+  /* ADR-074 — the category list is BUILT FROM DATA, so an unscoped one hands
+     every tenant the other tenants' own words: "Portfolio", a client's name, a
+     campaign nobody outside that company has heard of. It appears in the filter
+     select and in the datalist behind the Add form, so it is read on every
+     visit rather than on a deliberate action. */
+  return dedupe(
+    await storedSpellings({ archived: false, ...vaultCompanyWhere(visible, undefined) }),
+  ).sort((a, b) => a.localeCompare(b));
 }
 
 /** The suggestion PAIR a folded key belongs to, if the key is one of OUR eight
@@ -111,9 +122,20 @@ export function vaultLinkSuggestionPair(key: string) {
    `exceptId` is the row being EDITED. Without it a row's own spelling is on
    file, so it always folds onto itself and a category's spelling could never be
    corrected — see updateVaultLink for the other half of that. */
-async function canonicalise(category: string, exceptId?: string): Promise<string> {
+async function canonicalise(
+  category: string,
+  visible: readonly VaultCompany[],
+  exceptId?: string,
+): Promise<string> {
+  /* ADR-074 — SCOPED. Adopting "whichever half is already on file" across
+     companies would silently spell one tenant's category the way another tenant
+     spells it — and, read the other way, tell that tenant a word exists on rows
+     it cannot see. A company's vocabulary is its own. */
   const key = fold(category);
-  const stored = await storedSpellings(exceptId ? { id: { not: exceptId } } : {});
+  const stored = await storedSpellings({
+    ...vaultCompanyWhere(visible, undefined),
+    ...(exceptId ? { id: { not: exceptId } } : {}),
+  });
   const onFile = stored.find((s) => fold(s) === key);
   if (onFile) return onFile;
   const pair = vaultLinkSuggestionPair(key);
@@ -133,8 +155,17 @@ async function canonicalise(category: string, exceptId?: string): Promise<string
 /** Every row — LIVE and ARCHIVED — whose category folds to this key: one
     category, however it happens to be spelled on each row. Folded in JS, never
     with ILIKE, for the reason above. */
-async function foldGroupIds(key: string): Promise<string[]> {
-  const rows = await db.vaultLink.findMany({ select: { id: true, category: true } });
+/* ADR-074 — SCOPED, and this one is a cross-tenant WRITE rather than a read.
+   Re-spelling a category renames every link that folds to the same key, and
+   unscoped that `updateMany` rewrote the category column on OTHER COMPANIES'
+   rows: one tenant typing "portfolio" as "Portfolio" silently edited another
+   tenant's records. The rename follows the word only inside the company that
+   owns the link being edited. */
+async function foldGroupIds(key: string, visible: readonly VaultCompany[]): Promise<string[]> {
+  const rows = await db.vaultLink.findMany({
+    where: vaultCompanyWhere(visible, undefined),
+    select: { id: true, category: true },
+  });
   return rows.filter((r) => fold(r.category) === key).map((r) => r.id);
 }
 
@@ -150,10 +181,16 @@ async function foldGroupIds(key: string): Promise<string[]> {
    first keeps a backslash in his text literal too. */
 const likeLiteral = (s: string) => s.replace(/[\\%_]/g, (c) => `\\${c}`);
 
-export async function listVaultLinks(params: VaultLinkListParams) {
+export async function listVaultLinks(
+  params: VaultLinkListParams,
+  /* ADR-074 — `visible` is the tenancy wall (services/vault/tenancy.ts).
+     REQUIRED, never defaulted: a default would be "the whole platform", which
+     is exactly the leak this argument exists to close. */
+  visible: readonly VaultCompany[],
+) {
   const where: Prisma.VaultLinkWhereInput = {
     archived: params.archived,
-    ...(params.company ? { company: params.company } : {}),
+    ...vaultCompanyWhere(visible, params.company),
     ...(params.category
       ? { category: { equals: likeLiteral(params.category), mode: "insensitive" } }
       : {}),
@@ -175,16 +212,32 @@ export async function listVaultLinks(params: VaultLinkListParams) {
 /* ---------------------------------------------- the duplicate-URL handshake */
 
 /** Live (non-archived) links only, excluding self — the Forms rule verbatim. */
-export async function findDuplicateLinkUrl(url: string, exceptId?: string) {
+/* ADR-074 — SCOPED, like the Forms twin: the 409 body names the clashing
+   record, so unscoped this was an existence oracle with a label on it. */
+export async function findDuplicateLinkUrl(
+  url: string,
+  /* ADR-074 — the tenancy wall (services/vault/tenancy.ts). REQUIRED. */
+  visible: readonly VaultCompany[],
+  exceptId?: string,
+) {
   return db.vaultLink.findFirst({
-    where: { url, archived: false, ...(exceptId ? { id: { not: exceptId } } : {}) },
+    where: {
+      url,
+      archived: false,
+      ...vaultCompanyWhere(visible, undefined),
+      ...(exceptId ? { id: { not: exceptId } } : {}),
+    },
     select: { id: true, name: true },
   });
 }
 
-async function assertUrlAcknowledged(input: VaultLinkInput, exceptId?: string) {
+async function assertUrlAcknowledged(
+  input: VaultLinkInput,
+  visible: readonly VaultCompany[],
+  exceptId?: string,
+) {
   if (input.acknowledgeDuplicate) return;
-  const clash = await findDuplicateLinkUrl(input.url, exceptId);
+  const clash = await findDuplicateLinkUrl(input.url, visible, exceptId);
   if (clash) {
     /* 409 = the handshake: the client shows the clash and may re-submit with
        acknowledgeDuplicate=true. Warn, never block (the Forms rule). */
@@ -194,9 +247,14 @@ async function assertUrlAcknowledged(input: VaultLinkInput, exceptId?: string) {
 
 /* ------------------------------------------------------------- the writes */
 
-export async function createVaultLink(input: VaultLinkInput, actor: Actor) {
-  await assertUrlAcknowledged(input);
-  const category = await canonicalise(input.category);
+export async function createVaultLink(
+  input: VaultLinkInput,
+  /* ADR-074 — the tenancy wall (services/vault/tenancy.ts). REQUIRED. */
+  visible: readonly VaultCompany[],
+  actor: Actor,
+) {
+  await assertUrlAcknowledged(input, visible);
+  const category = await canonicalise(input.category, visible);
   return db.$transaction(async (tx) => {
     const link = await tx.vaultLink.create({
       data: {
@@ -220,11 +278,17 @@ export async function createVaultLink(input: VaultLinkInput, actor: Actor) {
   });
 }
 
-export async function updateVaultLink(id: string, input: VaultLinkInput, actor: Actor) {
+export async function updateVaultLink(
+  id: string,
+  input: VaultLinkInput,
+  /* ADR-074 — the tenancy wall (services/vault/tenancy.ts). REQUIRED. */
+  visible: readonly VaultCompany[],
+  actor: Actor,
+) {
   const before = await db.vaultLink.findUnique({ where: { id } });
   if (!before) throw new ApiError(404, "Link not found");
   assertNotArchived(before);
-  await assertUrlAcknowledged(input, id);
+  await assertUrlAcknowledged(input, visible, id);
 
   /* A deliberate RE-SPELLING of HIS OWN category. He left the row in the
      category it was already in and changed only how that category is written —
@@ -249,8 +313,8 @@ export async function updateVaultLink(id: string, input: VaultLinkInput, actor: 
     key === fold(before.category) &&
     input.category !== before.category &&
     !vaultLinkSuggestionPair(key);
-  const category = respelling ? input.category : await canonicalise(input.category, id);
-  const groupIds = respelling ? await foldGroupIds(key) : [];
+  const category = respelling ? input.category : await canonicalise(input.category, visible, id);
+  const groupIds = respelling ? await foldGroupIds(key, visible) : [];
 
   return db.$transaction(async (tx) => {
     if (groupIds.length > 0) {

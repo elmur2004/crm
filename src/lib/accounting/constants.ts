@@ -11,7 +11,17 @@
 
 import type { Msg } from "@/lib/i18n/core";
 
-export const ACCT_COMPANIES = ["byteforce", "bsystems"] as const;
+/* ADR-074 — MINDOO joins the books. Accounting is a MODULE with a company
+   FILTER (ADR-052/054), not one app per company, so a third company is a third
+   value here and nothing else — one query layer, one importer, one export
+   format. WHICH of these an account may point the module at is a separate
+   question with a separate answer: `moduleCompaniesFor` in lib/module-companies
+   .ts, which gives a B-Systems admin exactly the two he has always had.
+
+   The order matters: ByteForce stays first because it is the SPA's default
+   tenant (directive D) and the "Export ALL companies" wrapper is written in
+   this order. Appending cannot move anybody's default. */
+export const ACCT_COMPANIES = ["byteforce", "bsystems", "mindoo"] as const;
 export type AcctCompany = (typeof ACCT_COMPANIES)[number];
 
 /* service lines (departments) */
@@ -98,6 +108,12 @@ export type AcctMediaEntryType = (typeof ACCT_MEDIA_ENTRY_TYPES)[number];
    the media screen, the media expense type and the media_fee dept/income type
    never surface under company=bsystems. */
 export function mediaHidden(company: AcctCompany): boolean {
+  /* ADR-074 — MINDOO SHOWS IT, and that is a decision rather than a fall-through.
+     Media Buying is hidden for B-Systems by the founder's decision 5, because
+     B-Systems does not buy media; nothing has been said about Mindoo, and the
+     honest default for a company with no ruling is the module's own default —
+     the section exists, and an empty one costs nothing while a missing one is a
+     door that was never offered. Flagged in PROGRESS for his confirmation. */
   return company === "bsystems";
 }
 

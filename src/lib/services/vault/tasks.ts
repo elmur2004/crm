@@ -16,7 +16,8 @@ import {
   zVaultDate,
   type ResultLink,
 } from "./common";
-import { VAULT_TASK_STATUSES } from "./constants";
+import { VAULT_TASK_STATUSES, type VaultCompany } from "./constants";
+import { vaultCompanyWhereNullable, visibleCompany } from "./tenancy";
 
 /* ADR-053 — vault tasks: the reason the reference app exists (its SPEC §9).
    The rules that must never be traded away, each enforced HERE, server-side:
@@ -59,12 +60,19 @@ export const vaultTaskListParams = vaultListParams.extend({
 });
 export type VaultTaskListParams = z.infer<typeof vaultTaskListParams>;
 
-export async function listVaultTasks(params: VaultTaskListParams, now = new Date()) {
+export async function listVaultTasks(
+  params: VaultTaskListParams,
+  /* ADR-074 — `visible` is the tenancy wall (services/vault/tenancy.ts).
+     REQUIRED, never defaulted: a default would be "the whole platform", which
+     is exactly the leak this argument exists to close. */
+  visible: readonly VaultCompany[],
+  now = new Date(),
+) {
   const where: Prisma.VaultTaskWhereInput = {
     archived: params.archived,
     ...(params.employeeId ? { employeeId: params.employeeId } : {}),
     ...(params.status ? { status: params.status } : {}),
-    ...(params.company ? { company: params.company } : {}),
+    ...vaultCompanyWhereNullable(visible, params.company),
     ...(params.q
       ? {
           OR: [
@@ -108,9 +116,23 @@ export async function getVaultTask(id: string) {
   return { ...task, links: parseResultLinks(task.resultLinks) };
 }
 
-export async function createVaultTask(input: VaultTaskInput, actor: Actor) {
-  const employee = await db.vaultEmployee.findUnique({ where: { id: input.employeeId } });
-  if (!employee) throw new ApiError(404, "Employee not found");
+export async function createVaultTask(
+  input: VaultTaskInput,
+  /* ADR-074 — the tenancy wall (services/vault/tenancy.ts). REQUIRED. */
+  visible: readonly VaultCompany[],
+  actor: Actor,
+) {
+  /* ADR-074 — the ASSIGNEE is resolved by id, which was proof of nothing once
+     employee cards became company-tagged: a guessed id assigned work to another
+     company's person, and the task then appeared on a card its own company
+     cannot see. The card must be one this account can see. */
+  const employee = await db.vaultEmployee.findUnique({
+    where: { id: input.employeeId },
+    select: { id: true, name: true, active: true, company: true },
+  });
+  if (!employee || !visibleCompany(visible, employee.company)) {
+    throw new ApiError(404, "Employee not found");
+  }
   if (!employee.active) throw new ApiError(400, "This employee card is deactivated");
 
   return db.$transaction(async (tx) => {
@@ -140,7 +162,21 @@ export async function createVaultTask(input: VaultTaskInput, actor: Actor) {
  * recompute call — editing the deadline of a completed task must not touch its
  * stored lateness, so wasLate/daysLate/completedAt are absent from the update.
  */
-export async function updateVaultTask(id: string, input: VaultTaskInput, actor: Actor) {
+export async function updateVaultTask(
+  id: string,
+  input: VaultTaskInput,
+  /* ADR-074 — the tenancy wall (services/vault/tenancy.ts). REQUIRED. */
+  visible: readonly VaultCompany[],
+  actor: Actor,
+) {
+  /* ADR-074 — REASSIGNMENT is the same wall as creation (see createVaultTask). */
+  const assignee = await db.vaultEmployee.findUnique({
+    where: { id: input.employeeId },
+    select: { company: true },
+  });
+  if (!assignee || !visibleCompany(visible, assignee.company)) {
+    throw new ApiError(404, "Employee not found");
+  }
   const before = await db.vaultTask.findUnique({ where: { id } });
   if (!before) throw new ApiError(404, "Task not found");
   assertNotArchived(before);

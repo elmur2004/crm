@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import type { Prisma } from "../../../generated/prisma/client";
-import { ACCT_COMPANIES, type AcctCompany } from "./constants";
+import { type AcctCompany } from "./constants";
 import { payrollKey } from "./engine";
 import { cairoToday } from "./now";
 
@@ -158,9 +158,14 @@ export async function exportCompanyDoc(
 }
 
 /** the SPA's "Export ALL companies (JSON)" wrapper */
-export async function exportAllDoc(): Promise<Record<AcctCompany, SpaExportDoc>> {
+/* ADR-074 — the wrapper is written over the companies the CALLER holds, not
+   over the platform's. It was `ACCT_COMPANIES`, which was the same thing while
+   every account that could export held both; with Mindoo on the platform it
+   would have put another company's entire books inside a B-Systems admin's
+   download. Required argument, so a new call site has to answer. */
+export async function exportAllDoc(companies: readonly AcctCompany[]): Promise<Record<AcctCompany, SpaExportDoc>> {
   const out = {} as Record<AcctCompany, SpaExportDoc>;
-  for (const c of ACCT_COMPANIES) out[c] = await exportCompanyDoc(c);
+  for (const c of companies) out[c] = await exportCompanyDoc(c);
   return out;
 }
 

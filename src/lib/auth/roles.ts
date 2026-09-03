@@ -39,8 +39,24 @@ export type ModuleAccessBearer = {
   canAccessVault: boolean;
 };
 
+/* ADR-074 — the roles that are their COMPANY'S ADMINISTRATOR, and therefore
+   the floor for both modules. Founder: Mindoo has "vault and accounting and the
+   crm and to do and calender". `mindoo_staff` is Mindoo's whole staff and its
+   own administrator, so it clears the same floor `bsystems_admin` does.
+
+   This widens WHO may open the modules; it does not widen WHAT they see. Which
+   company's books and which company's vault rows are a separate question,
+   answered by `moduleCompaniesFor` in lib/module-companies.ts — and answered
+   there ALONE, so a Mindoo account opening Accounting sees Mindoo and a
+   B-Systems admin sees the two companies he always saw. Neither is offered the
+   other's tab at all. */
+export const MODULE_ADMIN_ROLES: readonly [Role, ...Role[]] = [
+  "bsystems_admin",
+  "mindoo_staff",
+];
+
 export function canUseModule(user: ModuleAccessBearer, module: ModuleKey): boolean {
-  /* the role is the FLOOR — no flag ever lifts a non-admin over it */
-  if (!user.roles.includes("bsystems_admin")) return false;
+  /* the role is the FLOOR — no flag ever lifts a non-administrator over it */
+  if (!user.roles.some((r) => (MODULE_ADMIN_ROLES as readonly Role[]).includes(r))) return false;
   return module === "accounting" ? user.canAccessAccounting : user.canAccessVault;
 }

@@ -150,14 +150,24 @@ export async function salesWonLeads(brand: Brand) {
 }
 
 /** V2 §5 — proposal/contract PDF uploads on a won lead (admin). */
+/* ADR-074 — `brand` is REQUIRED, and it is the same lesson ADR-073 learned on
+   `checkMilestone`: this used to look a deal up by id ALONE, which was proof of
+   ownership while one company had won deals and proof of nothing the moment two
+   did. A B-Systems admin who guessed a Mindoo deal's id could have attached a
+   contract to it. 404, never 403 — an id the caller may not touch must not be
+   confirmed to exist. */
 export async function addWonDocument(
   wonDealId: string,
+  brand: Brand,
   kind: "proposal" | "contract",
   file: File,
   actor: Actor,
 ) {
-  const wonDeal = await db.wonDeal.findUnique({ where: { id: wonDealId } });
-  if (!wonDeal) throw new ApiError(404, "Won lead not found");
+  const wonDeal = await db.wonDeal.findUnique({
+    where: { id: wonDealId },
+    include: { lead: { select: { brand: true } } },
+  });
+  if (!wonDeal || wonDeal.lead.brand !== brand) throw new ApiError(404, "Won lead not found");
   const stored = await validateAndStore("cv", file); // pdf/doc rules fit contracts too
   return db.$transaction(async (tx) => {
     const attachment = await tx.attachment.create({

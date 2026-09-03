@@ -1,4 +1,4 @@
-import { BRANDS, type Brand, type Role } from "@/lib/pipeline-engine/constants";
+import type { Brand, Role } from "@/lib/pipeline-engine/constants";
 
 /* ============================================================================
    ADR-067 — ONE merged CRM, and the COMPANY lives in the URL.
@@ -28,20 +28,34 @@ import { BRANDS, type Brand, type Role } from "@/lib/pipeline-engine/constants";
    `canUseModule` in ../auth/roles.ts.)
    ========================================================================== */
 
-/** The companies, in DEFAULT-FIRST order — see `defaultCompanyFor`. ADR-073
-    added Mindoo LAST, which is not arbitrary: this order decides which company
-    an account holding several lands on, and the founder's "I just want the b
-    systems CRM" has to keep winning. Appending can never change where anybody
-    already lands. */
-export const CRM_COMPANIES = ["bsystems", "byteforce", "mindoo"] as const;
+/** The companies THIS SHELL switches between, in DEFAULT-FIRST order — see
+    `defaultCompanyFor`. The order decides where an account holding both lands,
+    and the founder's "I just want the b systems CRM" has to keep winning.
+
+    ADR-074 — MINDOO IS NOT HERE, and that is the whole point of it. Founder:
+    "remove the switcher from bsystems system, separate them entirely — nothing
+    inside bsystems goes to mindoo and vice versa." Mindoo is its own app at
+    /mindoo with its own shell and its own brand; it is not a segment of this
+    one. A company that cannot be switched to from here must not be in the list
+    this shell's switch, guards and nav are all built from. */
+export const CRM_COMPANIES = ["bsystems", "byteforce"] as const;
 export type CrmCompany = (typeof CRM_COMPANIES)[number];
 
-/* CrmCompany is deliberately the SAME pair of literals as the pipeline
-   engine's Brand: the company on screen IS the brand the services scope by,
-   so there is no mapping table to get wrong. This line fails to compile the
-   day the two drift apart. */
-const _brandsMatch: readonly CrmCompany[] = BRANDS satisfies readonly Brand[];
-void _brandsMatch;
+/* ADR-074 — CrmCompany is now a SUBSET of Brand, not a copy of it, and the two
+   dimensions are genuinely different questions:
+
+     Brand       WHOSE DATA a row belongs to. Three values, and Mindoo is one:
+                 Lead.brand, the accounting books, the vault records.
+     CrmCompany  WHICH COMPANY THIS SHELL IS SHOWING. Two values, because this
+                 shell serves two.
+
+   They were identical while every company lived in one shell, and the old
+   `satisfies` line pinned that. It cannot survive a company with its own app,
+   so it is replaced by the weaker relationship that is actually true — every
+   CrmCompany IS a Brand — which still fails to compile if somebody renames one
+   of them or adds a shell company the engine has never heard of. */
+const _crmCompaniesAreBrands: readonly Brand[] = CRM_COMPANIES satisfies readonly Brand[];
+void _crmCompaniesAreBrands;
 
 /** The four B-Systems roles that live in the PIPELINE app — Home, the board,
     Leads, the To-Do, Won Leads and the rest. ADR-051 carved `bsystems_data_entry`
@@ -67,12 +81,10 @@ export const BS_CRM_ROLES: readonly [Role, ...Role[]] = [
     ever grows a second role. */
 export const MINDOO_ROLES: readonly [Role, ...Role[]] = ["mindoo_staff"];
 
-/** Every role that may enter the merged shell at all (any company). */
-export const CRM_ROLES: readonly [Role, ...Role[]] = [
-  ...BS_CRM_ROLES,
-  "byteforce_staff",
-  ...MINDOO_ROLES,
-];
+/** Every role that may enter the merged shell at all (either of ITS companies).
+    ADR-074 — `mindoo_staff` is not among them: it opens Mindoo's own app and
+    nothing here. */
+export const CRM_ROLES: readonly [Role, ...Role[]] = [...BS_CRM_ROLES, "byteforce_staff"];
 
 /** ADR-073 — the roles that may work inside ONE company's shared screens.
 
@@ -87,7 +99,6 @@ export const CRM_ROLES: readonly [Role, ...Role[]] = [
     the account's live roles before any page calls this. */
 export function crmRolesFor(company: CrmCompany): readonly [Role, ...Role[]] {
   if (company === "byteforce") return ["byteforce_staff"];
-  if (company === "mindoo") return MINDOO_ROLES;
   return BS_PIPELINE_ROLES;
 }
 
@@ -100,9 +111,11 @@ export function companiesFor(roles: Role[]): CrmCompany[] {
      already gives bsystems_admin over byteforce_staff. */
   if (roles.some((r) => BS_CRM_ROLES.includes(r))) held.push("bsystems");
   if (roles.includes("byteforce_staff")) held.push("byteforce");
-  /* ADR-073 — same narrowing, same shape: a company is held only because a role
-     already carries it. Adding a third widens nobody's access. */
-  if (roles.some((r) => MINDOO_ROLES.includes(r))) held.push("mindoo");
+  /* ADR-074 — Mindoo is deliberately absent. `mindoo_staff` grants no company
+     HERE, because this function answers "which companies may this account see
+     in the merged shell", and Mindoo is not in that shell. Its own app asks its
+     own question (requireMindoo), and an account holding only mindoo_staff is
+     refused this shell entirely rather than shown an empty switch. */
   return held;
 }
 

@@ -1,4 +1,5 @@
 import type { Brand } from "@/lib/pipeline-engine/constants";
+import { appHomeFor, leadHref } from "@/lib/crm/surface";
 
 /* ADR-065 — what a phone actually receives, and where tapping it goes.
 
@@ -51,13 +52,17 @@ export function deepLinkFor(
      company spelled out; pushes ALREADY DELIVERED still carry /byteforce/...
      and reach the same screen through the redirect map in lib/crm/legacy-routes
      (which is why that map is permanent furniture, not a transition). */
-  if (n.leadId && leadBrand === "bsystems") {
-    return `/b-systems/crm/lead/${n.leadId}?company=bsystems`;
+  /* ADR-074 — the ONE lead-address table (lib/crm/surface.ts). These were two
+     `if`s with an implicit else, so a MINDOO mention push fell past both and
+     opened the B-Systems shell — an address the proxy refuses for that account.
+     A push that logs you out is worse than no push. */
+  if (n.leadId && leadBrand) return leadHref(leadBrand, n.leadId);
+  if (n.leadId === null && n.type === "mention") {
+    /* the mention whose lead this account may not read: its own app's home,
+       never another company's (comments.ts nulls the id per brand for exactly
+       this reason) */
+    return leadBrand ? appHomeFor(leadBrand) : "/b-systems?company=byteforce";
   }
-  if (n.leadId && leadBrand === "byteforce") {
-    return `/b-systems/leads/lead/${n.leadId}?company=byteforce`;
-  }
-  if (n.leadId === null && n.type === "mention") return "/b-systems?company=byteforce";
   if (n.type === "registration") return "/b-systems/registrations";
   return "/b-systems";
 }

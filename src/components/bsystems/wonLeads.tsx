@@ -11,11 +11,14 @@ import { common, wonLeads as d } from "@/lib/i18n/dict/admin";
 
 export function MilestoneCheckbox({
   milestoneId,
+  apiBase,
   completed,
   disabled,
   label,
 }: {
   milestoneId: string;
+  /** ADR-074 — this surface's API namespace; see BsBoard. */
+  apiBase: string;
   completed: boolean;
   disabled: boolean;
   label: string;
@@ -34,7 +37,7 @@ export function MilestoneCheckbox({
         onChange={async (e) => {
           setBusy(true);
           setError(null);
-          const res = await fetch(`/api/b-systems/milestones/${milestoneId}`, {
+          const res = await fetch(`${apiBase}/milestones/${milestoneId}`, {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ completed: e.target.checked }),
@@ -53,7 +56,14 @@ export function MilestoneCheckbox({
   );
 }
 
-export function WonDocumentUpload({ wonDealId }: { wonDealId: string }) {
+export function WonDocumentUpload({
+  wonDealId,
+  apiBase,
+}: {
+  wonDealId: string;
+  /** ADR-074 — this surface's API namespace; see BsBoard. */
+  apiBase: string;
+}) {
   const router = useRouter();
   const t = tFor(useLocale());
   const fileRef = useRef<HTMLInputElement>(null);
@@ -71,7 +81,7 @@ export function WonDocumentUpload({ wonDealId }: { wonDealId: string }) {
         fd.append("kind", kind);
         setBusy(true);
         setError(null);
-        const res = await fetch(`/api/b-systems/won-leads/${wonDealId}/documents`, {
+        const res = await fetch(`${apiBase}/won-leads/${wonDealId}/documents`, {
           method: "POST",
           body: fd,
         });

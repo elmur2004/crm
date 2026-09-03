@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { leadHref } from "@/lib/crm/surface";
 import type { Brand, Role } from "@/lib/pipeline-engine/constants";
 import { BS_CRM_ROLES, BS_PIPELINE_ROLES, MINDOO_ROLES } from "@/lib/crm/company";
 
@@ -250,7 +251,6 @@ export async function calendarFor(opts: {
   ]);
 
   const inCompany = new Set(people.map((p) => p.id));
-  const leadBase = brand === "bsystems" ? "/b-systems/crm/lead" : "/b-systems/leads/lead";
   const out: CalendarEntry[] = [];
 
   for (const meeting of meetings) {
@@ -283,7 +283,11 @@ export async function calendarFor(opts: {
         allDay: false,
         detail: "full",
         title: lead.name,
-        href: `${leadBase}/${lead.id}?company=${brand}`,
+        /* ADR-074 — the ONE lead-address table (lib/crm/surface.ts). This was a
+           ternary that sent every MINDOO meeting to ByteForce's screen inside
+           the B-Systems shell — an address the proxy refuses for mindoo_staff,
+           so the founder's own calendar logged him out on a click. */
+        href: leadHref(brand, lead.id),
         note: null,
         mode: meeting.mode,
         outcome: meeting.outcome,

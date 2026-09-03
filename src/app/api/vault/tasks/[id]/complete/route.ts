@@ -1,4 +1,5 @@
 import { handleRoute, requireVault } from "@/lib/auth/guards";
+import { assertVaultRowVisible } from "@/lib/services/vault/tenancy";
 import { completeVaultTask, vaultResultSchema } from "@/lib/services/vault/tasks";
 import { fieldFiles, fieldJson, fieldStr } from "@/lib/services/vault/multipart";
 
@@ -10,6 +11,9 @@ export const POST = handleRoute(
   async (req: Request, ctx: { params: Promise<{ id: string }> }) => {
     const user = await requireVault();
     const { id } = await ctx.params;
+    /* ADR-074 — this record must belong to a company this account can
+       see; an id alone is no longer proof of that. */
+    await assertVaultRowVisible(user, "task", id);
     const form = await req.formData();
     /* an EMPTY textarea means "leave the stored text alone" (undefined), never
        "erase it" — a result saved earlier must still satisfy the gate here */

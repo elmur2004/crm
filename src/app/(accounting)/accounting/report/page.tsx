@@ -12,6 +12,7 @@ import {
   type AcctIncomeType,
 } from "@/lib/accounting/constants";
 import { acctView } from "@/lib/accounting/params";
+import { moduleCompaniesFor } from "@/lib/module-companies";
 import { monthLabel } from "@/lib/accounting/format";
 import { AcctHead } from "@/components/accounting/AcctHead";
 
@@ -29,10 +30,10 @@ export default async function AcctReportPage({
 }: {
   searchParams: Promise<{ company?: string; month?: string }>;
 }) {
-  await requireAccountingPage();
+  const user = await requireAccountingPage();
   const locale = await getLocale();
   const t = tFor(locale);
-  const view = acctView(await searchParams);
+  const view = acctView(await searchParams, moduleCompaniesFor(user.roles));
   const books = await loadBooks(view.company);
   const p = pnl(books, view.month);
   const points = trend(books, view.month);

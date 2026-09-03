@@ -1,4 +1,5 @@
 import { handleRoute, requireVault } from "@/lib/auth/guards";
+import { assertVaultCompany, vaultCompaniesOf } from "@/lib/services/vault/tenancy";
 import { createVaultLink, vaultLinkSchema } from "@/lib/services/vault/links";
 
 /* ADR-070 — the vault LINKS section. Behind requireVault(), the same wall as
@@ -14,6 +15,9 @@ import { createVaultLink, vaultLinkSchema } from "@/lib/services/vault/links";
 export const POST = handleRoute(async (req: Request) => {
   const user = await requireVault();
   const input = vaultLinkSchema.parse(await req.json());
-  const row = await createVaultLink(input, { id: user.id, label: user.name });
+  /* ADR-074 — the payload names a company; it must be one this
+     account holds (services/vault/tenancy.ts). */
+  assertVaultCompany(user, input.company);
+  const row = await createVaultLink(input, vaultCompaniesOf(user), { id: user.id, label: user.name });
   return Response.json(row, { status: 201 });
 });

@@ -5749,3 +5749,235 @@ express, not a gap.
   3. **Users are administered from B-Systems.** Accounts are platform-wide, so
      there is no Mindoo Users page; a Mindoo teammate is created by the
      B-Systems admin.
+
+---
+
+## ADR-074 — 2026-09-02 — MINDOO BECOMES ITS OWN SYSTEM: one brand, one app, one wall that runs both ways
+
+- Status: Accepted
+- Context: ADR-073 shipped Mindoo as a THIRD SEGMENT of the merged shell — a
+  `?company=mindoo` on B-Systems' own addresses, under B-Systems' chrome. The
+  founder read it and asked for something different, verbatim:
+
+  > "I need to have the system for mindoo completly identical to byteforce but
+  > with no partners or regestrations or agents or their crm at all / the process
+  > should be the following / I enter the creditials : admin@mindoo.com and
+  > password123 / the system opens with @mindoo brandguidline new 6.pdf branding
+  > / having vault and accounting and the crm and to do and calender alll the
+  > other things excluding of course the partner or agents dillema / the system
+  > log in page should stay exactly the same don't mention mindoo their / also
+  > remove the switcher from bsystems system seperate them entirly nothing
+  > inside bsystems goes to mindoo and vice versa"
+
+  Four confirmed answers shaped what follows: Mindoo is its **own app at
+  /mindoo**; it keeps the **B-Systems-shaped pipeline** (eight stages, milestone
+  Won, Won Leads) despite the "identical to byteforce" phrasing; it gets its
+  **own Accounting and Vault, scoped to Mindoo only**, while the existing ones
+  keep their ByteForce/B-Systems filter and never show Mindoo; and **Montserrat
+  now, Monotalic reserved** in the display stack.
+
+### 1. The decision, in one sentence
+
+Mindoo stops being a company you SWITCH TO and becomes an application you SIGN
+IN TO — its own route group, its own `<html data-brand>`, its own nav, its own
+API namespace, and no door between it and the merged shell in either direction
+— while the pipeline SCREENS behind it stay one implementation each.
+
+That last clause is the whole engineering content. "Separate them entirely" is a
+statement about **addresses, brands, sessions and data**, not about source code:
+duplicating the Leads table, the board, the lead detail, the call sheet and Won
+Leads would have made the separation real and made every future fix land twice.
+So the five B-Systems bodies moved into `src/components/bsystems/pages/`, the
+calendar body into `src/components/shared/CalendarPageBody.tsx`, and each is
+rendered at two addresses under a SURFACE object.
+
+### 2. `CrmSurface` — the difference between two addresses, and the whole of it
+
+`src/lib/crm/surface.ts` carries `{ brand, basePath, apiBase, query,
+companyParam }`. A body that reaches for a literal `/b-systems`,
+`/api/b-systems` or `?company=` instead of asking the surface is the one way a
+Mindoo screen can link a reader back into B-Systems, so the literals live only
+there.
+
+`query` is the seam that matters most. Under B-Systems it is `?company=bsystems`,
+because that shell serves two companies; under Mindoo it is the **empty string**,
+because /mindoo serves one and a company parameter there would be a second,
+contradictory answer to a question the route has already settled. Nothing
+appends it conditionally — every href ends with `ctx.query`, which is either the
+parameter or nothing at all. That single choice retires the entire class of
+"the link dropped the company and 404'd a lead that plainly exists" bug ADR-073
+had to chase through seven call sites.
+
+### 3. `CrmCompany` decoupled from `Brand`
+
+The pair had been pinned identical by a `satisfies` assertion since ADR-067. It
+cannot survive a company with its own app, so it is now a SUBSET relationship,
+and the two are genuinely different questions:
+
+- **`Brand`** — whose DATA a row is. Three values, Mindoo among them.
+- **`CrmCompany`** — which company THIS SHELL is showing. Two, because it serves
+  two.
+
+The weaker assertion still fails to compile if somebody renames one or adds a
+shell company the engine has never heard of. And it buys a real guarantee: a
+Mindoo branch inside the merged shell's own functions **does not typecheck**.
+`crmNavFor`, `crmRolesFor`, `crmEngineRole` and `companiesFor` all lost their
+Mindoo cases to the compiler rather than to a code review.
+
+### 4. THE BUG ADR-073 SHIPPED, and why it was invisible
+
+Every write on the shared screens posted to a hardcoded `/api/b-systems`: the
+drop, "Mark ready to close", the didn't-answer counter, add/edit/delete lead,
+the milestone checkbox, the won-deal upload. Under `?company=mindoo` the board
+rendered **perfectly** and every action on it was refused by the brand wall the
+moment it arrived. Mindoo was, in practice, read-only.
+
+It was invisible because the failure is on the far side of a fetch: nothing
+renders differently, and the ADR-073 e2e proved the SHAPE of the board (eight
+columns, Won offered) without ever pressing anything. `apiBase` is now a
+REQUIRED prop on `BsBoard`, `BsEventPanel`, `MilestoneCheckbox`,
+`WonDocumentUpload` and four of the lead actions — required, so a new call site
+must answer rather than inherit a company — and `e2e/mindoo.spec.ts` now asserts
+the request URL and its status, not just the pixels.
+
+`TakeLeadButton` keeps its literal on purpose: "Take it" lives on the admin
+To-Do row, whose roster and endpoint are both B-Systems-locked.
+
+### 5. The modules: `company` stopped being a filter and became a tenant
+
+ADR-054 says, in as many words, "company is a FILTER, not a tenant". That was
+true while every account that could open Accounting or the Vault held both
+companies — a `company` parameter could not name anything the caller was not
+already entitled to. **Adding Mindoo makes that sentence false**, and it makes it
+false silently, because none of the surrounding code changes.
+
+So `src/lib/module-companies.ts` answers "which companies may this account see in
+a module" (bsystems_admin → ByteForce + B-Systems, exactly as before;
+mindoo_staff → Mindoo), and two tenancy files enforce it:
+
+- `src/lib/accounting/tenancy.ts` — every company off the wire, whether from a
+  query string or from inside a validated payload, checked against the LIVE
+  roles. **404, not 403**: a company this account may not see must not be
+  confirmed to exist (ADR-073's ruling, applied again).
+- `src/lib/services/vault/tenancy.ts` — the same, plus a clause every list ANDs
+  onto its filters, plus a per-RECORD wall, because every `/api/vault/<kind>/[id]`
+  route acted on a record found **by id alone** — proof of ownership with one
+  tenant and proof of nothing with three.
+
+Three consequences worth naming:
+
+1. **The vault's UNTAGGED row.** `VaultTask.company` and `VaultEmployee.company`
+   are nullable, and null has always meant "both". Those rows were created by
+   accounts of the original pair and mean "either of OUR two", not "every company
+   that will ever exist on this platform". So an untagged row is visible to an
+   account that holds the module's default company (ByteForce). Showing them to
+   everybody would have leaked the founder's own untagged B-Systems tasks into
+   Mindoo on day one.
+2. **"Export ALL companies" now means all of THIS ACCOUNT'S companies**, and
+   `importAccounting` refuses a wrapper file naming a company the caller does not
+   hold — otherwise an upload was a way to delete and rewrite another company's
+   entire books without ever naming it in the request.
+3. **The vault's whole-module backup stays with the module's owner.** It exports
+   and replaces every row of every company at once; there is no per-company shape
+   for it, and inventing one would be a file format nobody asked for.
+
+`canUseModule`'s floor widened from the `bsystems_admin` literal to
+MODULE_ADMIN_ROLES — who may OPEN a module, not one row of what they see. The
+page guard had to move off `requireBsAdminPage` for the same reason: it bounces
+anything but a B-Systems role to /b-systems/crm, which for Mindoo's own
+administrator was a bounce out of a module he is entitled to AND into an app he
+cannot open.
+
+### 6. The brand
+
+`branding/mindoo/tokens.css` is the fourth scope, satisfying ADR-019's contract
+exactly (96 semantic tokens, none missing, none extra — enforced by
+`brand-tokens.test.ts`). The palette is the guideline's four colours verbatim
+(#521E90 Deep Purple, #9044CA Bright Purple, #000000 Black, #FAFAEE Cream);
+everything else is derived and says so in the file. Functional colours — danger,
+the accounting green, the WhatsApp chip, the Postpone amber — are copied byte for
+byte from the other scopes, because a destructive action must not change meaning
+when you change company (SPEC §4 R2).
+
+Typography: **Montserrat** is self-hosted; **Monotalic** is named FIRST in
+`--font-display` and falls through, so the day the .woff2 lands every heading
+changes with no code edit — the arrangement ByteForce's Lama Sans has had since
+A-13. The logo is a vector "m with eyes" in the PDF with no exportable file, so
+`BRAND_ASSETS.mindoo` carries the documented typographic fallback.
+
+`moduleBrand` became a table AND gained a server-supplied FALLBACK, which is the
+subtle half: it was `company === "bsystems" ? "bsystems" : "byteforce"`, so
+Mindoo's administrator opening /accounting with no query read his own books under
+**another company's colours** — the module telling him he is looking at somebody
+else's money. Caught by the e2e, not by review.
+
+### 7. The sign-in page is untouched
+
+Founder: "the system log in page should stay exactly the same don't mention
+mindoo their." One consolidated door (ADR-028); which app you land in is decided
+by your roles on the other side of it, in `landingFor` — `mindoo_staff` →
+/mindoo. `admin@mindoo.com` / `password123` is seeded BEFORE the demo-data gate,
+because it is the way into the app rather than a fixture. The founder's
+B-Systems account **lost** `mindoo_staff`: holding both would have put him in
+whichever app `landingFor` picked and given him a module switcher that crosses
+the wall the rest of this ADR builds.
+
+### 8. The separation is a test, not a promise
+
+`src/lib/crm/mindoo-app.test.ts` reads the tree: every Mindoo page awaits
+`requireMindooPage`; no file under `(mindoo)` contains a `/b-systems` address; no
+file under `(bsystems)` names Mindoo at all; every nav href resolves to a real
+page; the proxy admits `mindoo_staff` at /mindoo and nowhere else, and no longer
+admits it at /b-systems. The type system covers much of direction (3) — but a
+bare string in an href typechecks perfectly, and a bare string is exactly how
+ADR-073 wrote those links.
+
+### 9. Addendum — the review round, and the one general lesson in it
+
+The suites were green when this ADR was first written. A six-dimension
+adversarial review of the finished diff then found **eighteen real defects**, all
+reproduced in source (the breakdown is in TESTING Run 089, the method note in
+IMPLEMENTATION §7). Three of them belong in the ADR because they change what it
+DECIDES rather than merely what it got wrong:
+
+· **`leadHref` (lib/crm/surface.ts) is now the one place a lead's address is
+  built.** Three SERVICES link to a lead from outside any page — the calendar
+  projection, the To-Do projection and the push deep-link — and none of them can
+  take a `CrmSurface` (the same projection feeds two shells; push has no request
+  at all). All three were brand ternaries, all three sent Mindoo into
+  /b-systems, and the proxy refuses that for `mindoo_staff`: **clicking your own
+  To-Do row logged you out.** The table is total over `Brand`, so a fourth
+  company is a compile error.
+
+· **`notifyAdmins` takes a required `brand`, and a non-B-Systems brand writes
+  nothing.** `userId: null` means "the admin broadcast feed", and only
+  /api/b-systems/notifications reads it. A broadcast about a Mindoo lead
+  therefore had exactly one audience — outside its own company — and put that
+  lead's name in every B-Systems admin's bell and phone. A broadcast is chrome,
+  and chrome belongs to the app that renders it.
+
+· **The vault's UNTAGGED rule needed a scalar twin.** `visibleCompany` answers
+  the same question as the two `where` builders for a row already in hand (an
+  assignee card, a record reached by id, an attachment). Three of the eighteen
+  were places that had a row and no way to ask about it.
+
+**The general lesson, which is the one worth carrying to the next tenant:** nine
+of the eighteen were ABSENCES — a query with no clause, a route that does not
+exist behind a button that does, a broadcast with no reader. A suite grown
+alongside its code asserts what the code does; a tenancy wall is a claim about
+what it does not. The tests added here are written from the other direction, the
+way `company-scope.integration.test.ts` already said to for ADR-067: seed a TWIN
+in the other company first, and assert what is NOT returned.
+
+- Consequences: one new route group (9 pages), six extracted bodies, one surface
+  object, two tenancy modules, three new API routes, `apiBase` required on eight
+  components, `CRM_COMPANIES` back to two, `ACCT_COMPANIES` and
+  `VAULT_COMPANIES` up to three. No existing account's companies, tabs, books or
+  vault rows change. No migration: `Lead.brand` and the module `company` columns
+  have always been plain TEXT held by a union and Zod (ADR-002).
+- Status: Accepted. **Needs founder confirmation (two):**
+  1. **The Monotalic font files.** The display stack names it first and falls
+     through to Montserrat until the .woff2 lands in `branding/mindoo/`.
+  2. **Mindoo's logo.** The guideline's mark is vector with no exportable asset,
+     so the header wears the typographic "MINDOO" fallback. A PNG/SVG drops
+     straight into `BRAND_ASSETS.mindoo` with no code change.

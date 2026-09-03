@@ -1,6 +1,6 @@
 import { auth } from "./index";
 import { db } from "@/lib/db";
-import { canUseModule, type ModuleKey } from "./roles";
+import { MODULE_ADMIN_ROLES, canUseModule, type ModuleKey } from "./roles";
 import type { Brand, Role } from "@/lib/pipeline-engine/constants";
 
 /* SPEC §3's hard rules live HERE, not in the UI. Every route handler calls a guard;
@@ -108,7 +108,15 @@ export async function requireBsAdmin(): Promise<CurrentUser> {
    and the proxy is only navigation hygiene. */
 
 export async function requireModule(module: ModuleKey): Promise<CurrentUser> {
-  const user = assertRole(await requireUser(), "bsystems_admin");
+  /* ADR-074 — the FLOOR is now "an administrator of some company", which is
+     `bsystems_admin` or Mindoo's single staff role (see MODULE_ADMIN_ROLES).
+     It was the B-Systems literal, which would have bounced Mindoo's own
+     administrator out of the module the founder asked for by name.
+
+     This widens WHO reaches the module and not one row of WHAT they see: every
+     handler behind it narrows the company through lib/accounting/tenancy.ts or
+     lib/services/vault/tenancy.ts against these same live roles. */
+  const user = assertRole(await requireUser(), ...MODULE_ADMIN_ROLES);
   if (!canUseModule(user, module)) {
     throw new ApiError(403, MODULE_DENIED[module]);
   }

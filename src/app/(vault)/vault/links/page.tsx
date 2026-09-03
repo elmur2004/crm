@@ -21,6 +21,7 @@ import {
 import { VaultHead } from "@/components/vault/VaultHead";
 import { AddLinkButton, EditLinkButton } from "@/components/vault/forms";
 import { ArchiveButton } from "@/components/shared/ArchiveButton";
+import { vaultCompaniesOf } from "@/lib/services/vault/tenancy";
 
 /* ADR-070 — the vault LINKS section (founder: "a central place to keep any
    important or repeated resources and links we use constantly, instead of
@@ -76,13 +77,15 @@ export default async function VaultLinksPage({
 }: {
   searchParams: Promise<Record<string, string | undefined>>;
 }) {
-  await requireVaultPage();
+  const user = await requireVaultPage();
+  /* ADR-074 — the companies this account may see (services/vault/tenancy). */
+  const visible = vaultCompaniesOf(user);
   const locale = await getLocale();
   const t = tFor(locale);
   const params = vaultLinkListParams.parse(await searchParams);
   const [rows, stored] = await Promise.all([
-    listVaultLinks(params),
-    listVaultLinkCategories(),
+    listVaultLinks(params, visible),
+    listVaultLinkCategories(visible),
   ]);
 
   /* the datalist: OUR eight suggestions in the reader's language, then every
@@ -141,7 +144,10 @@ export default async function VaultLinksPage({
           <span className="field-label">{t(vault.company)}</span>
           <select className="field-input" name="company" defaultValue={params.company ?? ""}>
             <option value="">{t(vault.all)}</option>
-            {VAULT_COMPANIES.map((c) => (
+            {/* ADR-074 — this account's companies, not the platform's:
+                offering a company the list cannot return is a filter that
+                always comes back empty. */}
+            {visible.map((c) => (
               <option key={c} value={c}>
                 {t(VAULT_COMPANY_LABELS[c])}
               </option>

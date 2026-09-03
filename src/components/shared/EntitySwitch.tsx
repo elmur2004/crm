@@ -64,7 +64,15 @@ export async function EntitySwitch({
   /* ONE CRM segment, pointing at wherever this account lives in the merged
      shell — `landingFor` already answers that for every role, and it is the
      same answer sign-in uses, so the bar and the sign-in can never disagree. */
-  if (roles.some((r) => BS_ROLES.includes(r)) || roles.includes("byteforce_staff")) {
+  /* ADR-074 — `mindoo_staff` too. `landingFor` already sends it to /mindoo,
+     so this segment points a Mindoo account at Mindoo's own app and a
+     B-Systems account at the merged shell, with no branch here that could put
+     one in front of the other. */
+  if (
+    roles.some((r) => BS_ROLES.includes(r)) ||
+    roles.includes("byteforce_staff") ||
+    roles.includes("mindoo_staff")
+  ) {
     segments.push({ id: "crm", href: landingFor(roles), label: t(shell.switchCrm) });
   }
   if (canUseModule(user, "accounting")) {

@@ -1,4 +1,5 @@
 import { handleRoute, requireAccounting } from "@/lib/auth/guards";
+import { assertAcctCompany } from "@/lib/accounting/tenancy";
 import { ApiError } from "@/lib/api-error";
 import {
   mediaReceived,
@@ -18,10 +19,16 @@ export const POST = handleRoute(async (req: Request) => {
   const actor = { id: user.id, label: user.name };
   if (body["mode"] === "received") {
     const input = mediaReceivedSchema.parse(body);
+    /* ADR-074 — the payload names a company; it must be one of THIS
+       account's (see lib/accounting/tenancy.ts). */
+    assertAcctCompany(user, input.company);
     return Response.json(await mediaReceived(input, actor), { status: 201 });
   }
   if (body["mode"] === "sent") {
     const input = mediaSentSchema.parse(body);
+    /* ADR-074 — the payload names a company; it must be one of THIS
+       account's (see lib/accounting/tenancy.ts). */
+    assertAcctCompany(user, input.company);
     return Response.json(await mediaSent(input, actor), { status: 201 });
   }
   throw new ApiError(400, "mode must be received or sent");

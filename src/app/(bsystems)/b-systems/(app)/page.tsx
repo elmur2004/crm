@@ -41,16 +41,16 @@ export default async function BSystemsHomePage({
      pipeline roles this page always accepted, with the data-entry account still
      carved out of it and sent to its one destination.
 
-     ADR-073 — and to MINDOO, which shares this screen because it runs the same
-     pipeline and the same win. Its agent and partner figures read zero, and
-     that is a true statement about Mindoo rather than a gap: it has neither.
-     Only the company's own staff gets here; everybody else is bounced to their
-     own first destination, which by construction accepts that company and that
-     role, so the bounce cannot ping-pong. */
+     ADR-074 — MINDOO IS NO LONGER HERE. It shared this screen while it was a
+     segment of this shell; it is its own app now, with its own Home, and this
+     one is B-Systems' again — partner and agent figures included, which is
+     what made it the wrong screen for a company that has neither. Only the
+     admin gets here; everybody else is bounced to their own first destination,
+     which by construction accepts that company and that role, so the bounce
+     cannot ping-pong. */
   narrowRoles({ user, company, companies }, ...crmRolesFor(company));
   const role = crmEngineRole(company, user);
-  const runsThisCompany = company === "mindoo" ? role === "mindoo_staff" : role === "bsystems_admin";
-  if (!runsThisCompany) redirect(`${crmHomeFor(company, role)}${crmQuery(company)}`);
+  if (role !== "bsystems_admin") redirect(`${crmHomeFor(company, role)}${crmQuery(company)}`);
 
 
   const locale = await getLocale();

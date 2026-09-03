@@ -96,6 +96,9 @@ export async function notifyAdminsOfEntry(input: {
   by: string;
 }): Promise<void> {
   await notifyAdmins({
+    /* ADR-051 — data entry is a B-SYSTEMS-only role, so this broadcast is
+       always B-Systems'. Stated rather than assumed (ADR-074). */
+    brand: "bsystems",
     type: "needs_owner",
     title: `New lead added by ${input.by} — needs an owner`,
     body: `${input.by} entered "${input.leadName}". It is unassigned until you give it an owner.`,

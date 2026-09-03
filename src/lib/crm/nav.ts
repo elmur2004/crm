@@ -89,40 +89,58 @@ const BSYSTEMS_NAV: Record<string, CrmNavItem[]> = {
   bsystems_data_entry: [{ href: "/b-systems/entry", label: bsNav.dataEntry }],
 };
 
-/* ADR-073 — MINDOO's nav.
+/* ADR-074 — MINDOO's nav, and it is NOT part of the table above.
 
-   Founder: "a third CRM called Mindoo with the exact same switch mechanic and
-   the exact same info and details", and, asked which of the two it copies,
-   B-Systems. So it carries the B-Systems LEAD sections and their labels: Home,
-   the To-Do, the Calendar, Leads, the board, and Won Leads — the last because a
-   Mindoo win opens the same milestone tab and writes the same Won Deal.
+   Founder: "remove the switcher from bsystems system seperate them entirly
+   nothing inside bsystems goes to mindoo and vice versa." ADR-073 had Mindoo as
+   a third value of `crmNavFor`, which meant its items were B-Systems addresses
+   with `?company=mindoo` on them — the two systems sharing a URL space is
+   exactly what he asked us to undo. Every href here is Mindoo's OWN, and there
+   is deliberately no query string on any of them: /mindoo answers the company
+   question by being /mindoo.
+
+   WHAT IT CARRIES is the lead half of the B-Systems shape: Home, the To-Do, the
+   Calendar, Leads, the board, and Won Leads — the last because a Mindoo win
+   opens the same milestone tab and writes the same Won Deal (the founder chose
+   the B-Systems pipeline for Mindoo when asked).
 
    WHAT IT DELIBERATELY DOES NOT CARRY is the partner/agent subsystem — Partners
    & Agents, Partners, Agents, Registrations, Statements, Payments, Profile and
-   the data-entry page. Every one of those exists FOR external agents and
-   partners, and Mindoo has a single internal staff role by the founder's own
-   decision; offered here they would be doors onto screens that can never hold
-   anything. Flagged for his confirmation rather than guessed at silently — see
-   ADR-073.
+   the data-entry page. Founder, verbatim: "no partners or regestrations or
+   agents or their crm at all". Every one of those exists FOR external agents
+   and partners, and Mindoo has a single internal staff role.
 
    Users is absent for a different reason: accounts are platform-wide and are
-   administered from B-Systems, not per company. */
-const MINDOO_NAV: CrmNavItem[] = [
-  { href: "/b-systems", label: bsNav.home },
-  { href: "/b-systems/todo", label: todoPage.navItem },
-  { href: "/b-systems/calendar", label: calendarPage.navItem },
-  { href: "/b-systems/leads", label: bsNav.leads },
-  { href: "/b-systems/crm", label: bsNav.crm },
-  { href: "/b-systems/won-leads", label: bsNav.wonLeads },
+   administered from B-Systems, not per company. Accounting and the Data Vault
+   are absent from THIS list for a third reason — they are MODULES on the
+   EntitySwitch, peers of the CRM (ADR-054), and Mindoo reaches them there
+   exactly as B-Systems does. */
+export const MINDOO_NAV: CrmNavItem[] = [
+  { href: "/mindoo", label: bsNav.home },
+  { href: "/mindoo/todo", label: todoPage.navItem },
+  { href: "/mindoo/calendar", label: calendarPage.navItem },
+  { href: "/mindoo/leads", label: bsNav.leads },
+  { href: "/mindoo/crm", label: bsNav.crm },
+  { href: "/mindoo/won-leads", label: bsNav.wonLeads },
 ];
 
-/** The nav for one company. `bsRole` is the account's single B-Systems role
-    (bsRoleOrNull), and is irrelevant under ByteForce and Mindoo — each has one
-    staff role and therefore one nav. An account with no role for this company
-    gets NO items, never a borrowed set. */
+/** Mindoo's whole nav. A function, not the bare constant, so its ONE call site
+    reads like the merged shell's `crmNavFor` and a future second Mindoo role
+    has a place to be answered. */
+export function mindooNav(): CrmNavItem[] {
+  return MINDOO_NAV;
+}
+
+/** The nav for one company OF THE MERGED SHELL. `bsRole` is the account's
+    single B-Systems role (bsRoleOrNull), and is irrelevant under ByteForce,
+    which has one staff role and therefore one nav. An account with no role for
+    this company gets NO items, never a borrowed set.
+
+    ADR-074 — Mindoo is not a case here and cannot be: `CrmCompany` no longer
+    contains it, so the compiler refuses a Mindoo branch in this function. Its
+    nav is `mindooNav` above, and its shell is the only thing that calls it. */
 export function crmNavFor(company: CrmCompany, bsRole: Role | null): CrmNavItem[] {
   if (company === "byteforce") return BYTEFORCE_NAV;
-  if (company === "mindoo") return MINDOO_NAV; // ADR-073
   return (bsRole && BSYSTEMS_NAV[bsRole]) ?? [];
 }
 

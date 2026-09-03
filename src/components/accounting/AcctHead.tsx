@@ -47,7 +47,12 @@ export function AcctHead({
       </div>
       <div className="page-actions">
         {actions}
-        <AcctControls company={view.company} month={view.month} showMonth={showMonth} />
+        <AcctControls
+          company={view.company}
+          companies={view.companies}
+          month={view.month}
+          showMonth={showMonth}
+        />
       </div>
     </div>
   );

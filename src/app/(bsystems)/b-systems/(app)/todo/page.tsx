@@ -29,9 +29,9 @@ export default async function BsTodoPage({
      actions — assigning an owner is a B-Systems admin subsystem (its roster
      and its endpoint are B-Systems-locked), so it is not offered here. */
   /* ADR-073 — ONE narrowing, company-aware, before any branch. Each company's
-     own role list lives in crmRolesFor; under ByteForce and Mindoo the company
-     itself already proves the single staff role, so this is a no-op there and
-     the real wall for B-Systems' five. */
+     own role list lives in crmRolesFor; under ByteForce the company itself
+     already proves `byteforce_staff`, so this is a no-op there and the real
+     wall for B-Systems' five. */
   narrowRoles({ user, company, companies }, ...crmRolesFor(company));
 
   if (company === "byteforce") {
@@ -39,16 +39,7 @@ export default async function BsTodoPage({
     return <TodoBody lists={lists} apiBase="/api/byteforce" />;
   }
 
-  /* ADR-073 — Mindoo, and it takes the ByteForce shape rather than the
-     B-Systems one: a single staff role that sees the whole company, so the
-     scope is "all" and there are no admin row actions. Assigning a task to
-     somebody is a B-Systems subsystem — its roster and its endpoint are
-     B-Systems-locked — so it is not offered here, exactly as it is not offered
-     to ByteForce. */
-  if (company === "mindoo") {
-    const lists = await todoFor({ brand: "mindoo", scope: { kind: "all" } });
-    return <TodoBody lists={lists} apiBase="/api/mindoo" />;
-  }
+  /* ADR-074 — Mindoo's To-Do left with Mindoo, to /mindoo/todo. */
 
   /* ADR-051 + ADR-067 — under ByteForce the company itself proves
      `byteforce_staff` (companiesFor only reports a company a role carries), so

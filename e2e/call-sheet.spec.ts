@@ -40,9 +40,11 @@ test("dial from the board card opens the call sheet with a dialable tel: link", 
   await expect(cardWa).toHaveAttribute("href", "https://wa.me/201001234567");
   await expect(cardWa).toHaveAttribute("target", "_blank");
   await card.getByRole("link", { name: "Call", exact: true }).click();
-  /* ADR-073 — the call sheet is a SHARED address now (B-Systems and Mindoo),
-     so its links carry `?company=`; without it the page would resolve the
-     reader's default company and 404 the other one's lead. A PREDICATE rather
+  /* ADR-067 — the call sheet is a shared address (B-Systems and ByteForce each
+     have one), so its links carry `?company=`; without it the page would
+     resolve the reader's default company and 404 the other one's lead.
+     ADR-074 moved MINDOO's off this route entirely — it has its own at
+     /mindoo/crm/lead/…/call, with no company on it at all. A PREDICATE rather
      than a regex: escaping `?` inside a template literal is a trap — `\?` there
      collapses to a bare `?`, which quietly makes the previous character
      optional instead of matching a query string. */
@@ -91,9 +93,11 @@ test("dial from the board card opens the call sheet with a dialable tel: link", 
   /* the lead detail header carries the same entry point */
   await page.goto(`/b-systems/crm/lead/${id}`);
   await page.getByRole("link", { name: "Call", exact: true }).click();
-  /* ADR-073 — the call sheet is a SHARED address now (B-Systems and Mindoo),
-     so its links carry `?company=`; without it the page would resolve the
-     reader's default company and 404 the other one's lead. A PREDICATE rather
+  /* ADR-067 — the call sheet is a shared address (B-Systems and ByteForce each
+     have one), so its links carry `?company=`; without it the page would
+     resolve the reader's default company and 404 the other one's lead.
+     ADR-074 moved MINDOO's off this route entirely — it has its own at
+     /mindoo/crm/lead/…/call, with no company on it at all. A PREDICATE rather
      than a regex: escaping `?` inside a template literal is a trap — `\?` there
      collapses to a bare `?`, which quietly makes the previous character
      optional instead of matching a query string. */

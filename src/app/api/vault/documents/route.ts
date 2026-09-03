@@ -1,5 +1,6 @@
 import { ApiError } from "@/lib/api-error";
 import { handleRoute, requireVault } from "@/lib/auth/guards";
+import { assertVaultCompany } from "@/lib/services/vault/tenancy";
 import { createVaultDocument, vaultDocumentSchema } from "@/lib/services/vault/documents";
 import { fieldFile, fieldStr } from "@/lib/services/vault/multipart";
 
@@ -14,6 +15,9 @@ export const POST = handleRoute(async (req: Request) => {
     description: fieldStr(form, "description"),
     type: fieldStr(form, "type"),
   });
+  /* ADR-074 — the payload names a company; it must be one this
+     account holds (services/vault/tenancy.ts). */
+  assertVaultCompany(user, input.company);
   const file = fieldFile(form);
   if (!file) throw new ApiError(400, "Choose a file — a document is its file.");
   const row = await createVaultDocument(input, file, { id: user.id, label: user.name });

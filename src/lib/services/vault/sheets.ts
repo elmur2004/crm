@@ -15,7 +15,8 @@ import {
   zVaultCompany,
   zVaultDate,
 } from "./common";
-import { VAULT_SHEET_TYPES } from "./constants";
+import { VAULT_SHEET_TYPES, type VaultCompany } from "./constants";
+import { vaultCompanyWhere } from "./tenancy";
 
 /* ADR-053 — vault sheets (the reference SPEC §8.1). The two invariants:
 
@@ -64,10 +65,16 @@ export const vaultSheetListParams = vaultListParams.extend({
 });
 export type VaultSheetListParams = z.infer<typeof vaultSheetListParams>;
 
-export async function listVaultSheets(params: VaultSheetListParams) {
+export async function listVaultSheets(
+  params: VaultSheetListParams,
+  /* ADR-074 — `visible` is the tenancy wall (services/vault/tenancy.ts).
+     REQUIRED, never defaulted: a default would be "the whole platform", which
+     is exactly the leak this argument exists to close. */
+  visible: readonly VaultCompany[],
+) {
   const where: Prisma.VaultSheetWhereInput = {
     archived: params.archived,
-    ...(params.company ? { company: params.company } : {}),
+    ...vaultCompanyWhere(visible, params.company),
     ...(params.type ? { type: params.type } : {}),
     ...(params.q
       ? {

@@ -6,6 +6,7 @@ import { formatEGP } from "@/lib/money";
 import { loadBooks } from "@/lib/accounting/books";
 import { loanOutstanding, loanPaid, loanSettled, loanTotals, type AcctLoanRow } from "@/lib/accounting/engine";
 import { acctView } from "@/lib/accounting/params";
+import { moduleCompaniesFor } from "@/lib/module-companies";
 import { AcctChip, AcctHead, AcctTile } from "@/components/accounting/AcctHead";
 import { AddLoanButton, LoanActions } from "@/components/accounting/forms";
 
@@ -21,10 +22,10 @@ export default async function AcctLoansPage({
 }: {
   searchParams: Promise<{ company?: string; month?: string }>;
 }) {
-  await requireAccountingPage();
+  const user = await requireAccountingPage();
   const locale = await getLocale();
   const t = tFor(locale);
-  const view = acctView(await searchParams);
+  const view = acctView(await searchParams, moduleCompaniesFor(user.roles));
   const books = await loadBooks(view.company);
   const { owe, owed, net } = loanTotals(books);
 

@@ -5,12 +5,18 @@ import type { Msg } from "@/lib/i18n/core";
    pseudo-enums (Zod + these unions are the real constraint, the columns are
    plain String — src/lib/pipeline-engine/constants.ts pattern). */
 
-export const VAULT_COMPANIES = ["byteforce", "bsystems"] as const;
+/* ADR-074 — MINDOO joins the vault, for the reason it joined the books: the
+   Data Vault is a MODULE with a company filter, not one registry per company.
+   WHICH of these an account may see is `moduleCompaniesFor`
+   (lib/module-companies.ts), never this constant. */
+export const VAULT_COMPANIES = ["byteforce", "bsystems", "mindoo"] as const;
 export type VaultCompany = (typeof VAULT_COMPANIES)[number];
 
+/* brand names stay untranslated — the dict/accounting precedent */
 export const VAULT_COMPANY_LABELS: Record<VaultCompany, Msg> = {
   byteforce: { en: "ByteForce", ar: "ByteForce" },
   bsystems: { en: "B-Systems", ar: "B-Systems" },
+  mindoo: { en: "Mindoo", ar: "Mindoo" },
 };
 
 /* sheets */

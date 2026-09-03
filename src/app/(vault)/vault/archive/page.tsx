@@ -15,6 +15,7 @@ import {
 } from "@/lib/services/vault/constants";
 import { VaultHead } from "@/components/vault/VaultHead";
 import { ArchiveButton } from "@/components/shared/ArchiveButton";
+import { vaultCompaniesOf } from "@/lib/services/vault/tenancy";
 
 /* ADR-053 Phase 5 — the archive: nothing in the vault is deleted, ever.
    Five per-kind sections since ADR-070 added Links, each row restorable in one
@@ -34,18 +35,20 @@ type ArchivedRow = {
 };
 
 export default async function VaultArchivePage() {
-  await requireVaultPage();
+  const user = await requireVaultPage();
+  /* ADR-074 — the companies this account may see (services/vault/tenancy). */
+  const visible = vaultCompaniesOf(user);
   const locale = await getLocale();
   const t = tFor(locale);
 
   const [forms, links, sheets, documents, tasks] = await Promise.all([
-    listVaultForms({ archived: true }),
+    listVaultForms({ archived: true }, visible),
     /* ADR-070 — an archived LINK rests here with everything else: the founder
        wrote "Delete", and in this module that has always meant this screen. */
-    listVaultLinks(vaultLinkListParams.parse({ archived: "true" })),
-    listVaultSheets({ archived: true }),
-    listVaultDocuments({ archived: true }),
-    listVaultTasks({ archived: true }),
+    listVaultLinks(vaultLinkListParams.parse({ archived: "true" }), visible),
+    listVaultSheets({ archived: true }, visible),
+    listVaultDocuments({ archived: true }, visible),
+    listVaultTasks({ archived: true }, visible),
   ]);
 
   const sections: Array<{ label: Msg; rows: ArchivedRow[] }> = [

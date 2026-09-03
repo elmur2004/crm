@@ -8,6 +8,7 @@ import { memberAt } from "@/lib/accounting/engine";
 import { cairoMonth } from "@/lib/accounting/now";
 import { ACCT_DEPT_LABELS, type AcctDept } from "@/lib/accounting/constants";
 import { acctView } from "@/lib/accounting/params";
+import { moduleCompaniesFor } from "@/lib/module-companies";
 import { monthLabel } from "@/lib/accounting/format";
 import { AcctChip, AcctHead, AcctTile } from "@/components/accounting/AcctHead";
 import { AddPersonButton, RosterActions } from "@/components/accounting/forms";
@@ -25,10 +26,10 @@ export default async function AcctRosterPage({
 }: {
   searchParams: Promise<{ company?: string; month?: string }>;
 }) {
-  await requireAccountingPage();
+  const user = await requireAccountingPage();
   const locale = await getLocale();
   const t = tFor(locale);
-  const view = acctView(await searchParams);
+  const view = acctView(await searchParams, moduleCompaniesFor(user.roles));
   const books = await loadBooks(view.company);
   const now = cairoMonth();
   const withNow = books.roster.map((r) => ({ r, now: memberAt(r, now) }));

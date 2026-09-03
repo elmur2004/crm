@@ -74,6 +74,16 @@ const ALLOWED: Array<{ file: string; kind: "number" | "date-only"; why: string }
     why: "dashboard date heading: weekday + date, no clock (ADR-068 §3)",
   },
   {
+    file: "src/app/(mindoo)/mindoo/page.tsx",
+    kind: "date-only",
+    /* ADR-074 — Mindoo's Home carries the SAME weekday heading as the B-Systems
+       one above, for the same reason and with the same call. It is listed
+       separately rather than folded in because the allowlist is a list of
+       FILES: one entry per departure, so removing the heading from one screen
+       cannot silently license it on the other. */
+    why: "dashboard date heading: weekday + date, no clock (ADR-068 §3)",
+  },
+  {
     file: "src/components/bsystems/roleForms.tsx",
     kind: "number",
     why: "Number.prototype.toLocaleString — the EGP money preview, not a date",

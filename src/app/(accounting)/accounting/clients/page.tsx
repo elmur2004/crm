@@ -7,6 +7,7 @@ import { formatEGP } from "@/lib/money";
 import { loadBooks } from "@/lib/accounting/books";
 import { clientAccounts, clientTotals } from "@/lib/accounting/engine";
 import { acctQuery, acctView } from "@/lib/accounting/params";
+import { moduleCompaniesFor } from "@/lib/module-companies";
 import { AcctChip, AcctHead, AcctTile } from "@/components/accounting/AcctHead";
 
 /* ADR-052 — the derived client A/R ledger (free-text names this phase; linking
@@ -22,11 +23,11 @@ export default async function AcctClientsPage({
 }: {
   searchParams: Promise<{ company?: string; month?: string; client?: string }>;
 }) {
-  await requireAccountingPage();
+  const user = await requireAccountingPage();
   const locale = await getLocale();
   const t = tFor(locale);
   const params = await searchParams;
-  const view = acctView(params);
+  const view = acctView(params, moduleCompaniesFor(user.roles));
   const books = await loadBooks(view.company);
   const accounts = clientAccounts(books);
   const selected = params.client && accounts[params.client] ? accounts[params.client]! : null;

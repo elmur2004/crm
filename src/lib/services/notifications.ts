@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import type { Prisma } from "../../../generated/prisma/client";
 import { schedulePush } from "./push/deliver";
+import type { Brand } from "@/lib/pipeline-engine/constants";
 
 /* V2 §10 — in-app notifications. userId=null rows broadcast to every admin; the
    nav bell polls (ADR-009 pattern).
@@ -61,7 +62,20 @@ async function writeNotification(
   return row;
 }
 
+/* ADR-074 — A BROADCAST HAS EXACTLY ONE AUDIENCE: the B-Systems admin bell.
+
+   `userId: null` means "every admin", and `listNotifications({ isAdmin: true })`
+   is read by /api/b-systems/notifications and by nothing else — ByteForce's and
+   Mindoo's bells both ask for the PERSONAL feed. So a broadcast written for a
+   Mindoo lead has no reader in Mindoo and one reader outside it: it put the
+   Mindoo lead's NAME and STAGE into every B-Systems admin's bell and phone.
+
+   The brand is therefore REQUIRED, and a non-B-Systems brand writes nothing at
+   all rather than writing to somebody else's chrome. Not a silent no-op by
+   omission — the argument makes every caller state which company it is
+   speaking for, which is the only way this stays true. */
 export async function notifyAdmins(input: {
+  brand: Brand;
   type: Extract<
     NotificationType,
     "meeting_request" | "ready_to_close" | "registration" | "needs_owner"
@@ -70,7 +84,10 @@ export async function notifyAdmins(input: {
   body: string;
   leadId?: string;
 }) {
-  await writeNotification(db, { ...input, userId: null });
+  if (input.brand !== "bsystems") return;
+  const { brand: _brand, ...rest } = input;
+  void _brand;
+  await writeNotification(db, { ...rest, userId: null });
 }
 
 /* Founder (lead assignment): "it will be visible in his system". A notification

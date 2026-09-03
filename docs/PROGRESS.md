@@ -4302,3 +4302,98 @@ comment, and the ADR-013 mechanism note all fixed; .env.example confirmed tracke
   3. **Users are administered from B-Systems.** Accounts are platform-wide, so
      there is no Mindoo Users page — a Mindoo teammate is created by the
      B-Systems admin.
+
+---
+
+## Entry 071 — 2026-09-02 — MINDOO becomes its own SYSTEM: its own address, its own brand, and a wall that runs both ways
+
+- Phase: post-V2 founder work (ADR-074).
+- Done:
+  - **Mindoo left the merged shell and became an application.** ADR-073 had it
+    as a third segment of the company switch — `?company=mindoo` on B-Systems'
+    own addresses, under B-Systems' chrome. The founder asked for the opposite:
+    "remove the switcher from bsystems system seperate them entirly nothing
+    inside bsystems goes to mindoo and vice versa." So there is now a `(mindoo)`
+    route group at **/mindoo** with nine pages, its own `<html
+    data-brand="mindoo">`, its own nav, its own bell, and no switch on it.
+  - **`admin@mindoo.com` / `password123` is the way in**, exactly as he wrote
+    it. Seeded before the demo-data gate, because it is a door and not a
+    fixture. The sign-in page is untouched and never says the word Mindoo — one
+    consolidated door (ADR-028); which app you land in is `landingFor`'s answer
+    on the other side of it.
+  - **The screens are still ONE implementation each.** "Separate them entirely"
+    is about addresses, brands, sessions and data, not about source code:
+    duplicating the Leads table, the board, the lead detail, the call sheet and
+    Won Leads would have made every future fix land twice. The five B-Systems
+    bodies moved to `src/components/bsystems/pages/`, the calendar body to
+    `src/components/shared/CalendarPageBody.tsx`, and each renders at two
+    addresses under a `CrmSurface` (`lib/crm/surface.ts`).
+  - **`CrmCompany` decoupled from `Brand`.** They had been pinned identical
+    since ADR-067; the shell's two companies and the engine's three brands are
+    now a SUBSET relationship. The payoff is mechanical: a Mindoo branch inside
+    the merged shell's own functions no longer typechecks, so `crmNavFor`,
+    `crmRolesFor`, `crmEngineRole` and `companiesFor` lost their Mindoo cases to
+    the compiler rather than to a review.
+  - **THE BUG ADR-073 SHIPPED, found and fixed.** Every write on the shared
+    screens posted to a hardcoded `/api/b-systems` — the drop, "Mark ready to
+    close", the didn't-answer counter, add/edit/delete lead, the milestone
+    checkbox, the won-deal upload. Under `?company=mindoo` the board rendered
+    perfectly and every action on it was refused by the brand wall on arrival:
+    **Mindoo was read-only in practice**. Invisible because the failure is on
+    the far side of a fetch, and because the ADR-073 e2e proved the SHAPE of the
+    board without ever pressing anything. `apiBase` is now a required prop on
+    eight components, and the new e2e asserts the request URL and its status.
+  - **Accounting and the Data Vault opened to Mindoo, scoped to Mindoo alone.**
+    `lib/module-companies.ts` answers "which companies may this account see in a
+    module"; `lib/accounting/tenancy.ts` and `lib/services/vault/tenancy.ts`
+    enforce it on every company that arrives from the wire, on every list, and —
+    in the vault — on every record fetched by id. A B-Systems admin's tabs,
+    books and vault rows are byte-for-byte what they were.
+  - **`branding/mindoo/tokens.css`** — the fourth scope, 96 semantic tokens,
+    none missing and none extra (ADR-019's contract, enforced by
+    `brand-tokens.test.ts`). Palette verbatim from the guideline's page 15;
+    Montserrat self-hosted, Monotalic named first in `--font-display` and
+    falling through until the files arrive.
+  - **Three walls that were sound and quietly stopped being sufficient**:
+    `addWonDocument` looked a deal up by id alone; every `/api/vault/<kind>/[id]`
+    route acted on a record found by id alone; and "Export ALL companies" meant
+    the platform's companies rather than the caller's. All three were correct
+    with one tenant and proof of nothing with three.
+  - **Two API routes Mindoo never had**: `/api/mindoo/leads/[id]/ready` and
+    `/api/mindoo/won-leads/[id]/documents`. ADR-073 gave it the screens that
+    render those controls and not the endpoints behind them.
+- Verified: `docs/TESTING.md` Run 089 — full `vitest` green (**54 files, 908
+  tests**), `tsc --noEmit` clean, `next build` clean with all nine Mindoo routes
+  registered, `e2e/mindoo.spec.ts` rewritten to **seventeen** cases covering both
+  directions of the wall, the writes and both modules, and the FULL Playwright
+  suite run.
+- **AND THEN AN ADVERSARIAL REVIEW OF THE WHOLE DIFF, which found eighteen real
+  defects the green suites had not.** Every one reproduced in the source when I
+  checked it. The worst of them: Mindoo's To-Do and Calendar linked into
+  /b-systems, so **clicking your own row logged you out**; the vault's Recent
+  Activity feed had no company clause at all, so each tenant read the others'
+  vault log; re-spelling a link category ran a cross-company `updateMany`;
+  "Ready to close" on a Mindoo lead pushed that lead's NAME to every B-Systems
+  admin's phone; and `/api/mindoo/leads/[id]` had no DELETE behind a Delete
+  button that two Mindoo screens render. All eighteen are fixed, and nine new
+  test cases pin the ones that were ABSENCES — the class a suite grown beside
+  the code does not catch. The full breakdown is in TESTING Run 089.
+- Also caught by the first full e2e run and fixed: I had made **Clear filters**
+  carry `?company=` on an address that had never had one (2 of 168 cases).
+- In progress: nothing mid-flight.
+- Next steps: the three confirmations below.
+- Blockers: none.
+- **Needs founder confirmation (three NEW; the three from Entry 070 are now
+  ANSWERED — Mindoo does get Accounting and the Vault, scoped to itself):**
+  1. **The Monotalic font files.** The display stack names Monotalic first and
+     falls through to Montserrat until a .woff2 lands in `branding/mindoo/`.
+     Send the files and every heading changes with no code edit.
+  2. **Mindoo's logo.** The guideline's mark is vector with no exportable asset
+     in the PDF, so the header wears the typographic "MINDOO" fallback — the
+     documented state, not a gap. A PNG or SVG drops into `BRAND_ASSETS.mindoo`
+     with no code change.
+  3. **Mindoo's Accounting SHOWS Media Buying.** B-Systems hides that section by
+     your decision 5, because B-Systems does not buy media; nothing has been said
+     about Mindoo, so it gets the module's default and the section is there. Say
+     the word and `mediaHidden` gains one company.
+

@@ -55,7 +55,7 @@ export default async function DataEntryPage({
             Leads page and the Partners & Agents board — each form renders its
             own card when it opens, so wrapping them here would double it */}
         <div className="page-actions">
-          <BsAddLeadForm />
+          <BsAddLeadForm apiBase="/api/b-systems" />
           <AddProspectForm />
         </div>
       </div>

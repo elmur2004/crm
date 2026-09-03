@@ -13,6 +13,7 @@ import {
 } from "@/lib/accounting/engine";
 import { ACCT_DEPT_LABELS, ACCT_EXPENSE_TYPE_LABELS, type AcctDept, type AcctExpenseType } from "@/lib/accounting/constants";
 import { acctView } from "@/lib/accounting/params";
+import { moduleCompaniesFor } from "@/lib/module-companies";
 import { AcctChip, AcctHead, AcctTile } from "@/components/accounting/AcctHead";
 import {
   AddExpenseButton,
@@ -34,10 +35,10 @@ export default async function AcctExpensesPage({
 }: {
   searchParams: Promise<{ company?: string; month?: string }>;
 }) {
-  await requireAccountingPage();
+  const user = await requireAccountingPage();
   const locale = await getLocale();
   const t = tFor(locale);
-  const view = acctView(await searchParams);
+  const view = acctView(await searchParams, moduleCompaniesFor(user.roles));
   const books = await loadBooks(view.company);
 
   const rows = monthExpenses(books, view.month);

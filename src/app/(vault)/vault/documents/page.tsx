@@ -19,6 +19,7 @@ import {
   ReplaceFileButton,
 } from "@/components/vault/forms";
 import { ArchiveButton } from "@/components/shared/ArchiveButton";
+import { vaultCompaniesOf } from "@/lib/services/vault/tenancy";
 
 /* ADR-053 Phase 5 — vault documents: the file itself, typed and filed;
    replacement appends a version. Admin only. */
@@ -33,11 +34,13 @@ export default async function VaultDocumentsPage({
 }: {
   searchParams: Promise<Record<string, string | undefined>>;
 }) {
-  await requireVaultPage();
+  const user = await requireVaultPage();
+  /* ADR-074 — the companies this account may see (services/vault/tenancy). */
+  const visible = vaultCompaniesOf(user);
   const locale = await getLocale();
   const t = tFor(locale);
   const params = vaultDocumentListParams.parse(await searchParams);
-  const rows = await listVaultDocuments(params);
+  const rows = await listVaultDocuments(params, visible);
   const companyLabel = (c: string) =>
     (VAULT_COMPANIES as readonly string[]).includes(c)
       ? t(VAULT_COMPANY_LABELS[c as VaultCompany])
@@ -68,7 +71,10 @@ export default async function VaultDocumentsPage({
           <span className="field-label">{t(vault.company)}</span>
           <select className="field-input" name="company" defaultValue={params.company ?? ""}>
             <option value="">{t(vault.all)}</option>
-            {VAULT_COMPANIES.map((c) => (
+            {/* ADR-074 — this account's companies, not the platform's:
+                offering a company the list cannot return is a filter that
+                always comes back empty. */}
+            {visible.map((c) => (
               <option key={c} value={c}>
                 {t(VAULT_COMPANY_LABELS[c])}
               </option>

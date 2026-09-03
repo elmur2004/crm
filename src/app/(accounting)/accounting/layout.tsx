@@ -7,6 +7,7 @@ import { UndoControl } from "@/components/shared/UndoControl";
 import { AcctModuleNav } from "@/components/accounting/AcctModuleNav";
 import { logout } from "@/lib/auth/actions";
 import { requireAccountingPage } from "@/lib/auth/page-guards";
+import { moduleCompaniesFor } from "@/lib/module-companies";
 import { tFor } from "@/lib/i18n/core";
 import { getLocale } from "@/lib/i18n/server";
 import { nav, roles } from "@/lib/i18n/dict/crm";
@@ -24,6 +25,11 @@ export default async function AccountingShellLayout({
   const user = await requireAccountingPage();
   const locale = await getLocale();
   const t = tFor(locale);
+  /* ADR-074 — the company this account's books OPEN on. `acctView` resolves
+     the same value on every page below; the shell needs it too, because the
+     brand is stamped before any page renders. */
+  const companies = moduleCompaniesFor(user.roles);
+  const fallbackCompany = companies[0] ?? "byteforce";
   const initials = user.name
     .split(/\s+/)
     .map((w) => w[0])
@@ -32,15 +38,21 @@ export default async function AccountingShellLayout({
     .toUpperCase();
 
   return (
-    <ModuleBrandScope module="accounting">
+    <ModuleBrandScope module="accounting" fallback={fallbackCompany} allowed={companies}>
       <ImpersonationBar />
       <header className="app-header">
         {/* the active COMPANY's real mark + the module wordmark (directive D);
             clicking it goes to THIS module's dashboard */}
         <Link href="/accounting" className="shrink-0 flex items-center gap-3" aria-label={t(acct.navItem)}>
-          <ModuleLogo module="accounting" wordmark={t(acct.navItem)} />
+          <ModuleLogo
+            module="accounting"
+            fallback={fallbackCompany}
+            allowed={companies}
+            wordmark={t(acct.navItem)}
+          />
         </Link>
         <AcctModuleNav
+          companies={companies}
           extras={
             <>
               <LanguageToggle />

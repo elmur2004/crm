@@ -135,9 +135,12 @@ beforeEach(async () => {
   await resetDb();
 });
 
+/* ADR-074 — `importAccounting` takes the caller's COMPANIES: a wrapper file
+   may only replace books the account holds. These tests pass the original
+   pair, so every assertion below means exactly what it meant before. */
 describe("accounting import — the old app's export reproduces its dashboard exactly", () => {
   it("imports the two-company wrapper and derives the reconciliation numbers to the piaster", async () => {
-    const summary = await importAccounting(allCompaniesFile, null, actor);
+    const summary = await importAccounting(allCompaniesFile, null, ["byteforce", "bsystems"], actor);
     expect(summary.companies.map((c) => c.company)).toEqual(["byteforce", "bsystems"]);
 
     const bf = summary.companies[0]!;
@@ -192,7 +195,7 @@ describe("accounting import — the old app's export reproduces its dashboard ex
   });
 
   it("NEVER materialises payroll as expense rows — the engine derives them", async () => {
-    await importAccounting(allCompaniesFile, null, actor);
+    await importAccounting(allCompaniesFile, null, ["byteforce", "bsystems"], actor);
     const stored = await db.acctExpense.findMany({ where: { company: "byteforce" } });
     expect(stored).toHaveLength(5); // exactly the manual rows in the file
     /* the only payroll rows stored are the two MANUAL ones from the export */
@@ -202,7 +205,7 @@ describe("accounting import — the old app's export reproduces its dashboard ex
   });
 
   it("remaps old uid links onto new cuids (rosterId, payrollPaid, mediaRef)", async () => {
-    await importAccounting(allCompaniesFile, null, actor);
+    await importAccounting(allCompaniesFile, null, ["byteforce", "bsystems"], actor);
     const aya = await db.acctRosterMember.findFirstOrThrow({ where: { name: "Aya" } });
     const linked = await db.acctExpense.findFirstOrThrow({ where: { note: "adjusted" } });
     expect(linked.rosterId).toBe(aya.id);
@@ -220,8 +223,8 @@ describe("accounting import — the old app's export reproduces its dashboard ex
   });
 
   it("re-importing REPLACES the company's books — idempotent to the piaster", async () => {
-    await importAccounting(allCompaniesFile, null, actor);
-    const again = await importAccounting(allCompaniesFile, null, actor);
+    await importAccounting(allCompaniesFile, null, ["byteforce", "bsystems"], actor);
+    const again = await importAccounting(allCompaniesFile, null, ["byteforce", "bsystems"], actor);
     expect(again.companies[0]!.verify.treasuryNow).toBe(8_550_00);
     expect(await db.acctIncome.count({ where: { company: "byteforce" } })).toBe(4);
     expect(await db.acctExpense.count({ where: { company: "byteforce" } })).toBe(5);
@@ -230,8 +233,8 @@ describe("accounting import — the old app's export reproduces its dashboard ex
   });
 
   it("a single-company file needs its company named; the other company is untouched", async () => {
-    await expect(importAccounting(byteforceDoc, null, actor)).rejects.toMatchObject({ status: 400 });
-    const summary = await importAccounting(byteforceDoc, "byteforce", actor);
+    await expect(importAccounting(byteforceDoc, null, ["byteforce", "bsystems"], actor)).rejects.toMatchObject({ status: 400 });
+    const summary = await importAccounting(byteforceDoc, "byteforce", ["byteforce", "bsystems"], actor);
     expect(summary.companies).toHaveLength(1);
     expect(summary.companies[0]!.verify.treasuryNow).toBe(8_550_00);
     expect(await db.acctIncome.count({ where: { company: "bsystems" } })).toBe(0);
@@ -244,7 +247,7 @@ describe("accounting import — the old app's export reproduces its dashboard ex
       roster: [{ id: "r", name: "New", salary: 1000 }], // no since / segments
       openingBalance: "250",
     };
-    const summary = await importAccounting(scrappy, "byteforce", actor);
+    const summary = await importAccounting(scrappy, "byteforce", ["byteforce", "bsystems"], actor);
     const v = summary.companies[0]!.verify;
     /* the no-paid-key expense imported as PAID; the sinceless member starts
        this month on hold: net = −100, opening 250 → treasury 150 */
@@ -267,7 +270,7 @@ describe("accounting import — the old app's export reproduces its dashboard ex
         { id: "e1", month: M0, type: "payroll", name: "Typo", amount: 5000, deduction: 9000, paid: true },
       ],
     };
-    await expect(importAccounting(doc, "byteforce", actor)).rejects.toMatchObject({ status: 400 });
+    await expect(importAccounting(doc, "byteforce", ["byteforce", "bsystems"], actor)).rejects.toMatchObject({ status: 400 });
     /* refused while PARSING — the REPLACE never ran, so nothing was destroyed */
     expect(await db.acctExpense.count({ where: { company: "byteforce" } })).toBe(0);
   });
@@ -284,6 +287,7 @@ describe("accounting import — the old app's export reproduces its dashboard ex
         ],
       },
       "byteforce",
+      ["byteforce", "bsystems"],
       actor,
     );
     expect(summary.companies[0]!.verify.treasuryNow).toBe(-400_000);
@@ -307,6 +311,7 @@ describe("accounting import — the old app's export reproduces its dashboard ex
         ],
       },
       "byteforce",
+      ["byteforce", "bsystems"],
       actor,
     );
     const rows = await db.acctExpense.findMany({ where: { company: "byteforce" } });
@@ -319,13 +324,13 @@ describe("accounting import — the old app's export reproduces its dashboard ex
   });
 
   it("refuses files that are not an accounting export", async () => {
-    await expect(importAccounting({ hello: "world" }, "byteforce", actor)).rejects.toMatchObject({ status: 400 });
-    await expect(importAccounting([1, 2, 3], "byteforce", actor)).rejects.toMatchObject({ status: 400 });
-    await expect(importAccounting("{}", "byteforce", actor)).rejects.toMatchObject({ status: 400 });
+    await expect(importAccounting({ hello: "world" }, "byteforce", ["byteforce", "bsystems"], actor)).rejects.toMatchObject({ status: 400 });
+    await expect(importAccounting([1, 2, 3], "byteforce", ["byteforce", "bsystems"], actor)).rejects.toMatchObject({ status: 400 });
+    await expect(importAccounting("{}", "byteforce", ["byteforce", "bsystems"], actor)).rejects.toMatchObject({ status: 400 });
   });
 
   it("writes one import mark per company into the activity log", async () => {
-    await importAccounting(allCompaniesFile, null, actor);
+    await importAccounting(allCompaniesFile, null, ["byteforce", "bsystems"], actor);
     const logs = await db.activityLog.findMany({ where: { entityType: "acct_books" } });
     expect(logs.map((l) => l.entityId).sort()).toEqual(["bsystems", "byteforce"]);
     expect(logs.every((l) => l.action === "import" && l.trigger === "acct_import")).toBe(true);

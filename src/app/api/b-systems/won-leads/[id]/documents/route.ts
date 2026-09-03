@@ -13,7 +13,10 @@ export const POST = handleRoute(
     const kind = String(form.get("kind") ?? "");
     if (!(file instanceof File)) throw new ApiError(400, "No file provided");
     if (kind !== "proposal" && kind !== "contract") throw new ApiError(400, "Bad document kind");
-    const attachment = await addWonDocument(id, kind, file, { id: user.id, label: user.name });
+    const attachment = await addWonDocument(id, "bsystems", kind, file, {
+      id: user.id,
+      label: user.name,
+    });
     return Response.json(attachment, { status: 201 });
   },
 );

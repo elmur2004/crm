@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import type { Role } from "@/lib/pipeline-engine/constants";
 import {
   BS_CRM_ROLES,
-  CRM_COMPANIES,
   canSwitchCompany,
   companiesFor,
   crmQuery,
@@ -23,9 +22,11 @@ import {
 const BF: Role[] = ["byteforce_staff"];
 const ADMIN: Role[] = ["bsystems_admin"];
 const BOTH: Role[] = ["bsystems_admin", "byteforce_staff"]; // the seeded founder
-/* ADR-073 — and the founder once Mindoo exists: all three companies at once. */
+/* ADR-074 — Mindoo is NOT a company of this shell any more (it has its own app
+   at /mindoo), so `mindoo_staff` must resolve to NOTHING here. That is the
+   assertion, and it is the strongest one this file can make about the founder's
+   "separate them entirely": not that Mindoo is refused, but that it is absent. */
 const MINDOO: Role[] = ["mindoo_staff"];
-const ALL_THREE: Role[] = ["bsystems_admin", "byteforce_staff", "mindoo_staff"];
 
 describe("companiesFor — narrowing only", () => {
   it("a ByteForce-only account holds ByteForce and nothing else", () => {
@@ -74,10 +75,12 @@ describe("defaultCompanyFor — a pure function of the ROLES, never of a session
 });
 
 describe("parseCompany", () => {
-  it("accepts exactly the three literals", () => {
+  it("accepts exactly the two literals of THIS shell", () => {
     expect(parseCompany("bsystems")).toBe("bsystems");
     expect(parseCompany("byteforce")).toBe("byteforce");
-    expect(parseCompany("mindoo")).toBe("mindoo"); // ADR-073
+    /* ADR-074 — "mindoo" is a Brand but NOT a company of this shell, so it is
+       junk on this query string exactly as "portal" would be. */
+    expect(parseCompany("mindoo")).toBeNull();
   });
   it("rejects everything else, including near misses", () => {
     for (const junk of [
@@ -143,37 +146,37 @@ describe("resolveCompany — the whole matrix", () => {
       });
     }
     expect(resolveCompany(BOTH, undefined)).toMatchObject({ company: "bsystems" });
-    /* ADR-073 — and the third company is REFUSED to it, which is the whole
-       point: holding two of three is not holding all three. Iterating
-       CRM_COMPANIES here (as this case used to) quietly asserted the opposite
-       the moment a company was added. */
-    expect(resolveCompany(BOTH, "mindoo")).toMatchObject({ kind: "refused", company: "bsystems" });
+    /* ADR-074 — "mindoo" is not a company here at all, so it is JUNK rather
+       than a refusal: `parseCompany` never returns it, and a junk value falls
+       back (the accounting precedent) instead of redirecting. The distinction
+       matters — a refusal says "that company exists and is not yours", and this
+       shell must not say that about an app it has nothing to do with. */
+    expect(resolveCompany(BOTH, "mindoo")).toEqual({
+      kind: "ok",
+      company: "bsystems",
+      companies: ["bsystems", "byteforce"],
+    });
   });
 
-  it("ADR-073 — an account holding ALL THREE may ask for any of them", () => {
-    for (const c of CRM_COMPANIES) {
-      expect(resolveCompany(ALL_THREE, c)).toEqual({
-        kind: "ok",
-        company: c,
-        companies: ["bsystems", "byteforce", "mindoo"],
-      });
-    }
-    /* default-first order is unchanged by the addition: the founder's own
-       "I just want the b systems CRM" still wins */
-    expect(resolveCompany(ALL_THREE, undefined)).toMatchObject({ company: "bsystems" });
-  });
-
-  it("ADR-073 — a Mindoo-only account holds Mindoo, and is refused the other two", () => {
-    expect(companiesFor(MINDOO)).toEqual(["mindoo"]);
+  it("ADR-074 — a MINDOO account holds nothing in this shell, whatever it asks", () => {
+    /* the founder's "nothing inside bsystems goes to mindoo and vice versa",
+       from the B-Systems side. `mindoo_staff` opens Mindoo's own app; here it
+       is an account with no company, which the shell's guard turns into a
+       redirect to that account's own landing (/mindoo). */
+    expect(companiesFor(MINDOO)).toEqual([]);
     expect(canSwitchCompany(MINDOO)).toBe(false);
-    expect(defaultCompanyFor(MINDOO)).toBe("mindoo");
-    for (const other of ["bsystems", "byteforce"] as const) {
-      expect(resolveCompany(MINDOO, other)).toEqual({
-        kind: "refused",
-        company: "mindoo",
-        companies: ["mindoo"],
-      });
+    expect(defaultCompanyFor(MINDOO)).toBeNull();
+    for (const asked of [undefined, "bsystems", "byteforce", "mindoo"]) {
+      expect(resolveCompany(MINDOO, asked)).toEqual({ kind: "none" });
     }
+  });
+
+  it("ADR-074 — and holding Mindoo AS WELL adds no company to this shell", () => {
+    /* the belt on the narrowing law: a role that means nothing here cannot
+       change what the roles that DO mean something resolve to */
+    const both = [...BOTH, "mindoo_staff"] as Role[];
+    expect(companiesFor(both)).toEqual(["bsystems", "byteforce"]);
+    expect(resolveCompany(both, undefined)).toMatchObject({ company: "bsystems" });
   });
 
   it("an account with no CRM role resolves to nothing, whatever it asks for", () => {
@@ -187,10 +190,10 @@ describe("resolveCompany — the whole matrix", () => {
      "nobody gains access they do not have today" mechanical rather than a
      promise — it holds for every role subset, not just the seeded ones. */
   it("NEVER returns a company outside companiesFor(roles) — for every subset", () => {
-    /* ADR-073 — mindoo_staff joins the sweep, so this is 128 subsets rather than
-       64. The property is the point and it must widen with the role set: a
-       proof that ran over the OLD roles only would go on passing while saying
-       nothing about the new company. */
+    /* ADR-073/074 — mindoo_staff stays in the sweep, so this is 128 subsets
+       rather than 64, even though it now grants nothing HERE. That is exactly
+       why it belongs: the property must hold for a role the shell does not
+       know, and dropping it from the sweep would stop proving that. */
     const all: Role[] = [...BS_CRM_ROLES, "byteforce_staff", "mindoo_staff"];
     for (let mask = 0; mask < 1 << all.length; mask++) {
       const roles = all.filter((_, i) => mask & (1 << i));

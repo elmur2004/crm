@@ -28,6 +28,7 @@ export function BsEventPanel({
   role,
   reps,
   company,
+  apiBase,
   people = [],
   hasUnsentProposal,
   pendingMeeting,
@@ -42,6 +43,11 @@ export function BsEventPanel({
      offer, and both are ROLE-GATED per company. Hardcoded to B-Systems it
      offered Mindoo's staff no way to win their own deals. */
   company: Brand;
+  /** ADR-074 — this surface's API namespace. It was the `/api/b-systems`
+      literal, so every event a Mindoo lead submitted went to B-Systems'
+      endpoint and was refused by the brand wall: the panel offered actions
+      that could not complete. Required, so no call site inherits a company. */
+  apiBase: string;
   /** ADR-071 — the company roster for the meeting form's "Also blocks". */
   people?: Array<{ id: string; name: string }>;
   hasUnsentProposal: boolean;
@@ -97,7 +103,7 @@ export function BsEventPanel({
   async function submit(body: unknown, onOk?: () => void) {
     setBusy(true);
     setError(null);
-    const res = await fetch(`/api/b-systems/leads/${leadId}/event`, {
+    const res = await fetch(`${apiBase}/leads/${leadId}/event`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
@@ -142,7 +148,7 @@ export function BsEventPanel({
           disabled={busy}
           onClick={async () => {
             setBusy(true);
-            await fetch(`/api/b-systems/leads/${leadId}/ready`, { method: "POST" });
+            await fetch(`${apiBase}/leads/${leadId}/ready`, { method: "POST" });
             setBusy(false);
             router.refresh();
           }}

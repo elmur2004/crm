@@ -7,6 +7,7 @@ import { formatEGP } from "@/lib/money";
 import { loadBooks } from "@/lib/accounting/books";
 import { mediaHidden } from "@/lib/accounting/constants";
 import { acctQuery, acctView } from "@/lib/accounting/params";
+import { moduleCompaniesFor } from "@/lib/module-companies";
 import { AcctHead } from "@/components/accounting/AcctHead";
 import { MediaButtons } from "@/components/accounting/forms";
 
@@ -23,10 +24,10 @@ export default async function AcctMediaPage({
 }: {
   searchParams: Promise<{ company?: string; month?: string }>;
 }) {
-  await requireAccountingPage();
+  const user = await requireAccountingPage();
   const locale = await getLocale();
   const t = tFor(locale);
-  const view = acctView(await searchParams);
+  const view = acctView(await searchParams, moduleCompaniesFor(user.roles));
   if (mediaHidden(view.company)) redirect(`/accounting${acctQuery(view)}`);
   const books = await loadBooks(view.company);
 

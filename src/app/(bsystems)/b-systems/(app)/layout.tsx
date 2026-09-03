@@ -102,18 +102,7 @@ export default async function BSystemsAppLayout({
       leadQuery: "?company=byteforce",
     };
   }
-  /* ADR-073 — Mindoo's bell points at its OWN namespace and its OWN lead
-     detail. The lead path is the B-Systems one because Mindoo shares that
-     screen (it runs that pipeline); the API base is not, because the brand is
-     derived from the ROUTE and a Mindoo notification must never be fetched
-     through B-Systems' endpoint. */
-  if (companies.includes("mindoo")) {
-    bells.mindoo = {
-      apiBase: "/api/mindoo",
-      leadPathBase: "/b-systems/crm/lead",
-      leadQuery: "?company=mindoo",
-    };
-  }
+  /* ADR-074 — Mindoo's bell rings in Mindoo's own shell, not this one. */
 
   const roleLabel = role
     ? (ROLE_LABELS[role] ? t(ROLE_LABELS[role]!) : null)

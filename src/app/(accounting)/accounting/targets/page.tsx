@@ -7,6 +7,7 @@ import { db } from "@/lib/db";
 import { loadBooks } from "@/lib/accounting/books";
 import { incomeIn } from "@/lib/accounting/engine";
 import { acctView } from "@/lib/accounting/params";
+import { moduleCompaniesFor } from "@/lib/module-companies";
 import { monthLabel } from "@/lib/accounting/format";
 import { AcctHead } from "@/components/accounting/AcctHead";
 import { AddTargetButton, TargetActions } from "@/components/accounting/forms";
@@ -24,10 +25,10 @@ export default async function AcctTargetsPage({
 }: {
   searchParams: Promise<{ company?: string; month?: string }>;
 }) {
-  await requireAccountingPage();
+  const user = await requireAccountingPage();
   const locale = await getLocale();
   const t = tFor(locale);
-  const view = acctView(await searchParams);
+  const view = acctView(await searchParams, moduleCompaniesFor(user.roles));
   const [books, targets] = await Promise.all([
     loadBooks(view.company),
     db.acctTarget.findMany({ where: { company: view.company }, orderBy: { period: "desc" } }),

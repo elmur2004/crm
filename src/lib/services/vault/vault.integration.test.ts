@@ -49,6 +49,13 @@ import {
 } from "./tasks";
 import { searchVault } from "./search";
 import { utcToCairo } from "@/lib/datetime";
+import { VAULT_COMPANIES } from "./constants";
+
+/* ADR-074 — these tests exercise the SERVICES, not the tenancy wall: they
+   pass the whole platform so every assertion here keeps meaning exactly what
+   it meant before the wall existed. The wall itself is proved separately, in
+   src/lib/module-companies.test.ts and vault-tenancy.integration.test.ts. */
+const ALL_COMPANIES = VAULT_COMPANIES;
 
 /* ============================================================================
    ADR-053 — the vault invariants, each proven at the service layer:
@@ -100,6 +107,7 @@ async function makeTask(employeeId: string, overrides: Partial<{ deadline: strin
       company: "byteforce",
       deadline: overrides.deadline ?? ymdToday(),
     },
+    ALL_COMPANIES,
     actor,
   );
 }
@@ -114,6 +122,7 @@ describe("vault forms — duplicate-URL handshake + archive-not-delete", () => {
   it("warns (409) on a duplicate URL and files it when acknowledged", async () => {
     await createVaultForm(
       vaultFormSchema.parse({ company: "byteforce", name: "Hiring intake", url: "https://forms.example/a" }),
+      ALL_COMPANIES,
       actor,
     );
 
@@ -121,6 +130,7 @@ describe("vault forms — duplicate-URL handshake + archive-not-delete", () => {
     await expect(
       createVaultForm(
         vaultFormSchema.parse({ company: "bsystems", name: "Second copy", url: "https://forms.example/a" }),
+        ALL_COMPANIES,
         actor,
       ),
     ).rejects.toMatchObject({ status: 409, message: expect.stringContaining("Hiring intake") });
@@ -133,21 +143,23 @@ describe("vault forms — duplicate-URL handshake + archive-not-delete", () => {
         url: "https://forms.example/a",
         acknowledgeDuplicate: true,
       }),
+      ALL_COMPANIES,
       actor,
     );
     expect(second.id).toBeTruthy();
-    expect(await listVaultForms({ archived: false })).toHaveLength(2);
+    expect(await listVaultForms({ archived: false }, ALL_COMPANIES)).toHaveLength(2);
   });
 
   it("archived forms leave default lists, stop clashing, and restore intact", async () => {
     const form = await createVaultForm(
       vaultFormSchema.parse({ company: "byteforce", name: "Old form", url: "https://forms.example/x" }),
+      ALL_COMPANIES,
       actor,
     );
     await archiveVaultForm(form.id, actor);
 
-    expect(await listVaultForms({ archived: false })).toHaveLength(0);
-    const archivedList = await listVaultForms({ archived: true });
+    expect(await listVaultForms({ archived: false }, ALL_COMPANIES)).toHaveLength(0);
+    const archivedList = await listVaultForms({ archived: true }, ALL_COMPANIES);
     expect(archivedList).toHaveLength(1);
     expect(archivedList[0]!.archivedAt).not.toBeNull();
 
@@ -156,6 +168,7 @@ describe("vault forms — duplicate-URL handshake + archive-not-delete", () => {
       updateVaultForm(
         form.id,
         vaultFormSchema.parse({ company: "byteforce", name: "Renamed", url: "https://forms.example/x" }),
+        ALL_COMPANIES,
         actor,
       ),
     ).rejects.toMatchObject({ status: 400 });
@@ -163,6 +176,7 @@ describe("vault forms — duplicate-URL handshake + archive-not-delete", () => {
     /* an ARCHIVED duplicate does not block re-filing the same URL */
     const again = await createVaultForm(
       vaultFormSchema.parse({ company: "byteforce", name: "New copy", url: "https://forms.example/x" }),
+      ALL_COMPANIES,
       actor,
     );
     expect(again.id).toBeTruthy();
@@ -346,12 +360,12 @@ describe("vault sheets — link XOR file, CSV auto-count, version append", () =>
       null,
       actor,
     );
-    expect(await listVaultSheets({ archived: false })).toHaveLength(2);
-    expect(await listVaultSheets({ archived: false, company: "byteforce" })).toHaveLength(1);
-    expect(await listVaultSheets({ archived: false, type: "data" })).toHaveLength(1);
+    expect(await listVaultSheets({ archived: false }, ALL_COMPANIES)).toHaveLength(2);
+    expect(await listVaultSheets({ archived: false, company: "byteforce" }, ALL_COMPANIES)).toHaveLength(1);
+    expect(await listVaultSheets({ archived: false, type: "data" }, ALL_COMPANIES)).toHaveLength(1);
     await archiveVaultSheet(a.id, actor);
-    expect(await listVaultSheets({ archived: false })).toHaveLength(1);
-    expect(await listVaultSheets({ archived: true })).toHaveLength(1);
+    expect(await listVaultSheets({ archived: false }, ALL_COMPANIES)).toHaveLength(1);
+    expect(await listVaultSheets({ archived: true }, ALL_COMPANIES)).toHaveLength(1);
   });
 });
 
@@ -396,9 +410,9 @@ describe("vault documents — required file, version append, archive/restore", (
       actor,
     );
     await archiveVaultDocument(doc.id, actor);
-    expect(await listVaultDocuments({ archived: false })).toHaveLength(0);
+    expect(await listVaultDocuments({ archived: false }, ALL_COMPANIES)).toHaveLength(0);
     await restoreVaultDocument(doc.id, actor);
-    expect(await listVaultDocuments({ archived: false })).toHaveLength(1);
+    expect(await listVaultDocuments({ archived: false }, ALL_COMPANIES)).toHaveLength(1);
   });
 });
 
@@ -505,6 +519,7 @@ describe("vault tasks — lateness frozen at completion", () => {
         company: "byteforce",
         deadline: ymdShift(30),
       },
+      ALL_COMPANIES,
       actor,
     );
     const after = await getVaultTask(task.id);
@@ -518,11 +533,11 @@ describe("vault tasks — lateness frozen at completion", () => {
     const emp = await makeEmployee();
     await makeTask(emp.id, { deadline: ymdShift(-1), name: "Overdue open" });
     await makeTask(emp.id, { deadline: ymdShift(1), name: "Future open" });
-    const rows = await listVaultTasks({ archived: false });
+    const rows = await listVaultTasks({ archived: false }, ALL_COMPANIES);
     expect(rows.find((t) => t.name === "Overdue open")!.isOverdue).toBe(true);
     expect(rows.find((t) => t.name === "Future open")!.isOverdue).toBe(false);
     expect(rows.filter((t) => t.isOverdue)).toHaveLength(
-      (await listVaultTasks({ archived: false, overdue: true })).length,
+      (await listVaultTasks({ archived: false, overdue: true }, ALL_COMPANIES)).length,
     );
   });
 });
@@ -585,7 +600,7 @@ describe("vault employees — cards, counts, deactivate-not-delete", () => {
     const hidden = await makeTask(emp.id, { deadline: ymdShift(-9), name: "archived away" });
     await archiveVaultTask(hidden.id, actor);
 
-    const cards = await listVaultEmployeeCards();
+    const cards = await listVaultEmployeeCards(ALL_COMPANIES);
     expect(cards).toHaveLength(1);
     expect(cards[0]).toMatchObject({
       name: "Omar Nabil",
@@ -603,8 +618,8 @@ describe("vault employees — cards, counts, deactivate-not-delete", () => {
     await setVaultEmployeeActive(emp.id, false, actor);
     await expect(makeTask(emp.id)).rejects.toMatchObject({ status: 400 });
 
-    expect(await listVaultEmployeeCards()).toHaveLength(0); // active cards only
-    const all = await listVaultEmployeeCards({ includeInactive: true });
+    expect(await listVaultEmployeeCards(ALL_COMPANIES)).toHaveLength(0); // active cards only
+    const all = await listVaultEmployeeCards(ALL_COMPANIES, { includeInactive: true });
     expect(all[0]).toMatchObject({ active: false, completedCount: 1 }); // frozen history stays
 
     await updateVaultEmployee(
@@ -647,6 +662,7 @@ describe("vault undo — archive/restore are the safe, undoable mutations", () =
   it("archiving offers an undo that puts the record back exactly", async () => {
     const form = await createVaultForm(
       vaultFormSchema.parse({ company: "byteforce", name: "Undo me", url: "https://u.example/f" }),
+      ALL_COMPANIES,
       actor,
     );
     await archiveVaultForm(form.id, actor);
@@ -663,6 +679,7 @@ describe("vault undo — archive/restore are the safe, undoable mutations", () =
   it("undo is personal and refuses a changed record", async () => {
     const form = await createVaultForm(
       vaultFormSchema.parse({ company: "byteforce", name: "Mine", url: "https://u.example/g" }),
+      ALL_COMPANIES,
       actor,
     );
     await archiveVaultForm(form.id, actor);
@@ -694,6 +711,7 @@ describe("vault global search", () => {
     const emp = await makeEmployee();
     await createVaultForm(
       vaultFormSchema.parse({ company: "byteforce", name: "Ramadan campaign form", url: "https://s.example/f" }),
+      ALL_COMPANIES,
       actor,
     );
     await createVaultSheet(
@@ -716,17 +734,18 @@ describe("vault global search", () => {
     await makeTask(emp.id, { name: "Ramadan launch checklist" });
     const gone = await createVaultForm(
       vaultFormSchema.parse({ company: "byteforce", name: "Ramadan archived form", url: "https://s.example/g" }),
+      ALL_COMPANIES,
       actor,
     );
     await archiveVaultForm(gone.id, actor);
 
-    const results = await searchVault("ramadan");
+    const results = await searchVault("ramadan", ALL_COMPANIES);
     expect(results.total).toBe(4);
     expect(results.groups.forms).toHaveLength(1); // the archived one never surfaces
     expect(results.groups.sheets).toHaveLength(1);
     expect(results.groups.documents).toHaveLength(1);
     expect(results.groups.tasks[0]!.subtitle).toBe("Salma Adel");
 
-    expect((await searchVault("r")).total).toBe(0);
+    expect((await searchVault("r", ALL_COMPANIES)).total).toBe(0);
   });
 });
