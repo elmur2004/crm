@@ -606,13 +606,26 @@ export async function seed() {
         });
       }
     }
+  }
 
-    /* ADR-074 — a WON Mindoo deal, with its milestone tab.
+  /* ADR-074 — a WON Mindoo deal, with its milestone tab.
 
-       Mindoo wins the B-Systems way (the founder's own choice), so Won Leads
-       and the won-deal detail are real screens for it — and a demo database
-       where they are both empty is a demo of nothing. It is also what lets the
-       e2e prove the file wall on a Mindoo document instead of skipping it. */
+     Mindoo wins the B-Systems way (the founder's own choice), so Won Leads and
+     the won-deal detail are real screens for it — and a demo database where
+     both are empty is a demo of nothing. It is also what lets the e2e prove the
+     file wall on a Mindoo document instead of skipping it.
+
+     ITS OWN SENTINEL, deliberately, and this is the lesson ADR-073's fix only
+     half-learned: a demo block guarded by ANOTHER block's sentinel can never
+     land on a database that already has that other block. This won deal was
+     first written inside the leads block above, so on the founder's own dev
+     database — which has had those five leads since ADR-073 — re-seeding would
+     have added the account he needs and silently skipped the deal. One block,
+     one sentinel. */
+  const mindooWonSentinel = await db.lead.findFirst({
+    where: { brand: "mindoo", name: "Alexandria Marine" },
+  });
+  if (seedDemo && !mindooWonSentinel) {
     const mindooWon = await db.lead.create({
       data: {
         brand: "mindoo",
