@@ -77,6 +77,12 @@ function foreignRoles(self: BootstrapAdmin): Role[] {
     .filter((r) => !mine.has(r));
 }
 
+/** The administrators this BUILD knows how to heal — read by /api/health so the
+    diagnostic and the healer can never disagree about who is supposed to exist.
+    If a deployment is missing an account it also cannot name it here, which is
+    what makes "is this server running the new code" answerable from outside. */
+export const BOOTSTRAP_ADMIN_EMAILS: readonly string[] = ADMINS.map((a) => a.email);
+
 function passwordFor(admin: BootstrapAdmin): string {
   return process.env[admin.passwordEnv] || admin.fallbackPassword || "password123";
 }

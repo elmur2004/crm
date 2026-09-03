@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { db } from "@/lib/db";
-import { ensureAdminExists } from "@/lib/services/bootstrap";
+import { BOOTSTRAP_ADMIN_EMAILS, ensureAdminExists } from "@/lib/services/bootstrap";
 import { storage, uploadsDir, uploadsDirConfigured } from "@/lib/storage";
 
 /* Production self-diagnostic (founder: "the login problem remains").
@@ -135,27 +135,47 @@ export async function GET(req: Request) {
     }
   }
 
-  /* ---- the admin (heals while checking) ---- */
-  let admin: { exists: boolean; active?: boolean; status?: string; roles?: string[] } = {
-    exists: false,
+  /* ---- the admins (heals while checking) ----
+
+     ADR-074 — EVERY documented administrator, not just B-Systems'. This
+     reported one hardcoded email, so after Mindoo got its own administrator the
+     endpoint whose whole job is "why can I not sign in" could not answer the
+     question for it.
+
+     The list comes from the bootstrap itself, so this page also answers a
+     question you cannot otherwise ask a deployment from outside: if
+     admin@mindoo.com is not even NAMED in `admins` below, the server is running
+     a build from before ADR-074 and needs redeploying — no amount of seeding
+     will help. */
+  type AdminReport = {
+    email: string;
+    exists: boolean;
+    active?: boolean;
+    status?: string;
+    roles?: string[];
   };
+  const admins: AdminReport[] = BOOTSTRAP_ADMIN_EMAILS.map((email) => ({ email, exists: false }));
   if (schemaCurrent) {
     await ensureAdminExists();
-    const found = await db.user.findUnique({
-      where: { email: "admin@byteforce.com" },
-      include: { roles: true },
-    });
-    if (found) {
-      admin = {
-        exists: true,
-        active: found.active,
-        status: found.registrationStatus,
-        roles: found.roles.map((r) => r.role),
-      };
-    } else {
-      hints.push("Admin missing and could not be created — check the database user's write permissions.");
+    for (const report of admins) {
+      const found = await db.user.findUnique({
+        where: { email: report.email },
+        include: { roles: true },
+      });
+      if (found) {
+        report.exists = true;
+        report.active = found.active;
+        report.status = found.registrationStatus;
+        report.roles = found.roles.map((r) => r.role);
+      } else {
+        hints.push(
+          `${report.email} is missing and could not be created — check the database user's write permissions.`,
+        );
+      }
     }
   }
+  /* the original single-admin field, kept so anything reading it still works */
+  const admin = admins.find((a) => a.email === "admin@byteforce.com") ?? { exists: false };
 
   /* ---- uploaded files (founder: "File missing from storage") ---- */
   const uploads: {
@@ -214,11 +234,11 @@ export async function GET(req: Request) {
     env.authSecretSet &&
     dbReachable &&
     schemaCurrent &&
-    admin.exists &&
-    admin.active === true &&
-    admin.status === "approved" &&
+    admins.every((a) => a.exists && a.active === true && a.status === "approved") &&
     uploads.writable;
-  if (ok && hints.length === 0) hints.push("All checks passed — sign in with admin@byteforce.com.");
+  if (ok && hints.length === 0) {
+    hints.push(`All checks passed — sign in with ${admins.map((a) => a.email).join(" or ")}.`);
+  }
 
   return Response.json(
     {
@@ -228,6 +248,7 @@ export async function GET(req: Request) {
       db: { reachable: dbReachable, error: dbError },
       schemaCurrent,
       pendingMigrations,
+      admins,
       admin,
       uploads,
       hints,
