@@ -18,6 +18,28 @@ const credentialsSchema = z.object({
   password: z.string().min(1),
 });
 
+/* ADR-074 — WHY a sign-in was refused, in the server log.
+
+   next-auth answers every rejection with the single opaque `CredentialsSignin`,
+   and the product answers with one deliberately vague banner — both correct,
+   because telling a stranger WHICH half of a credential was wrong is how you
+   enumerate accounts. But it left the operator with the same black box as the
+   attacker: "Wrong email/phone or password" is identical for an account that
+   does not exist, one that is deactivated, one awaiting approval and a genuine
+   typo, and a deployment cannot be debugged from that. It cost three rounds of
+   guessing on Mindoo's own administrator.
+
+   So the REASON goes to the server log, where only the operator can read it,
+   and the browser keeps saying exactly what it said before. The identifier is
+   included because "which account" is the whole question; the password never
+   is, not even its length. */
+function refuse(reason: string, identifier: string | null): null {
+  console.warn(
+    `[auth] sign-in refused: ${reason}${identifier ? ` (identifier: ${identifier})` : ""}`,
+  );
+  return null;
+}
+
 import { verifyImpersonationToken } from "@/lib/services/users";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
@@ -54,21 +76,26 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       credentials: { identifier: {}, password: {} },
       async authorize(raw) {
         const parsed = credentialsSchema.safeParse(raw);
-        if (!parsed.success) return null;
+        if (!parsed.success) return refuse("malformed request", null);
         const { identifier, password } = parsed.data;
+        const kind = identifierKind(identifier);
         const where =
-          identifierKind(identifier) === "email"
+          kind === "email"
             ? { email: identifier.trim().toLowerCase() }
             : { phone: normalizePhone(identifier) };
         const user = await db.user.findUnique({
           where: where as never,
           include: { roles: true },
         });
-        if (!user || !user.active) return null;
+        /* the four reasons, told apart in the LOG and nowhere else */
+        if (!user) return refuse(`no account with that ${kind}`, identifier);
+        if (!user.active) return refuse("account is deactivated", identifier);
         /* founder: self-signups are REQUESTS — no sign-in until approved */
-        if (user.registrationStatus !== "approved") return null;
+        if (user.registrationStatus !== "approved") {
+          return refuse(`registration is "${user.registrationStatus}"`, identifier);
+        }
         const valid = await verifyPassword(password, user.passwordHash);
-        if (!valid) return null;
+        if (!valid) return refuse("password does not match", identifier);
         return {
           id: user.id,
           name: user.name,

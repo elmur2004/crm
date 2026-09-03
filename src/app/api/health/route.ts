@@ -240,9 +240,27 @@ export async function GET(req: Request) {
     hints.push(`All checks passed — sign in with ${admins.map((a) => a.email).join(" or ")}.`);
   }
 
+  /* ADR-074 — WHICH BUILD IS THIS. A deployment that silently kept serving an
+     older build is indistinguishable, from outside, from a broken database —
+     and that ambiguity is what turned one missing account into three rounds of
+     guessing. The `admins` array above already answers it structurally (an
+     account this build cannot NAME is an account it cannot heal); the commit,
+     when the host injects one, answers it exactly. */
+  const build = {
+    commit:
+      process.env.RAILWAY_GIT_COMMIT_SHA ??
+      process.env.RENDER_GIT_COMMIT ??
+      process.env.VERCEL_GIT_COMMIT_SHA ??
+      process.env.SOURCE_VERSION ??
+      process.env.GIT_COMMIT ??
+      null,
+    knowsAdmins: BOOTSTRAP_ADMIN_EMAILS,
+  };
+
   return Response.json(
     {
       ok,
+      build,
       env,
       proxy,
       db: { reachable: dbReachable, error: dbError },
