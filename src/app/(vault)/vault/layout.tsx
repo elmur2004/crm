@@ -9,6 +9,7 @@ import { VaultModuleNav } from "@/components/vault/VaultModuleNav";
 import { logout } from "@/lib/auth/actions";
 import { requireVaultPage } from "@/lib/auth/page-guards";
 import { seesUntagged, vaultCompaniesOf } from "@/lib/services/vault/tenancy";
+import type { Brand } from "@/lib/pipeline-engine/constants";
 import { tFor } from "@/lib/i18n/core";
 import { getLocale } from "@/lib/i18n/server";
 import { nav, roles } from "@/lib/i18n/dict/crm";
@@ -71,6 +72,7 @@ export default async function VaultShellLayout({
           )}
         </Link>
         <VaultModuleNav
+          company={fallbackCompany as Brand}
           extras={
             <>
               <LanguageToggle />

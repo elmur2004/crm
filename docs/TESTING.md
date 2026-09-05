@@ -5230,3 +5230,58 @@ the two things separately: the ADDRESS wall stays absolute (nothing links to
 BRAND is allow-listed to the single file ADR-075 names, with its reason, so a
 third file cannot join quietly.
 
+
+
+## Run 091 — 2026-09-03 — ADR-076: trimmed modules, and the window moved to ByteForce
+
+- Scope: `module-sections.ts`; both module navs; the eight removed section pages;
+  the foreign-card path moving from `BsCrmBoardBody` to `CrmBoardBody`;
+  `InternalBoard` gaining the inert purple card; the read-only route re-aimed.
+
+| Command | Result |
+| --- | --- |
+| `npx tsc --noEmit` | clean |
+| `npx vitest run` | **56 files, 957 tests, all passing** |
+| `npx next build` | clean |
+| `npx playwright test e2e/mindoo.spec.ts` | **26 passed** (21 → 26) |
+| `npx playwright test` (full) | **180 passed, 0 failed**, 2 skipped (the opt-in audit spec) |
+
+### New coverage
+
+Five cases, and two of them exist to catch the failure modes of a MOVE and a
+SUBTRACTION rather than of a feature:
+
+- the cards are on the ByteForce board, labelled, purple, with no grip and no
+  actions, opening the read-only view;
+- **and NOT on the B-Systems board** — the half of "move it" that rots quietly
+  if nobody asserts it;
+- a Negotiation lead sits in Sending Proposals **and says "Negotiation" on the
+  card**;
+- Mindoo's Accounting nav holds his seven and refuses the five removed ones by
+  URL; the Vault the same;
+- **B-Systems' own modules keep every section** — the trim is "for mindoo and
+  only mindoo", and a subtraction table is exactly the shape that over-applies.
+
+### The two failures, both my own locators
+
+`getByRole("link", { name: "Roster" })` and `"P&L"` found nothing: the real
+labels are **"Payroll Roster"** and **"Monthly P&L"**, and `Import` is
+`"Import / Export"`. Guessed from the section paths instead of read from
+`dict/accounting.ts`, which was two seconds away. Worth noting only because it
+is the third time this session a label has been assumed rather than looked up —
+the same root as the `assignableRoleLabels` crash, in a much cheaper place.
+
+### One caveat, closed rather than hand-waved
+
+The full run started BEFORE the last change of the session — swapping a literal
+`#FFFFFF` in `.bcard-company` for `--color-company-mindoo-on`, added to all four
+scopes. Same computed value in every scope, and `brand-tokens.test.ts` enforces
+that the four declare the identical set, so the risk was nil. `mindoo.spec.ts`
+was re-run against it anyway (26 passed): "nil" and "checked" are different
+words, and the card's own colour is what that change touched.
+
+### And one environment note
+
+The first run died on `Timed out waiting 300000ms from config.webServer` — the
+cold-`.next` trap already in IMPLEMENTATION. `npx next build` first, then
+Playwright. It costs a minute and saves five.

@@ -6108,3 +6108,82 @@ moment it was written.
   2. **The window is one-way.** Mindoo does not see B-Systems' leads on its own
      board — you asked for the B-Systems direction only, and the reverse would
      put your B-Systems clients in front of Mindoo's staff.
+
+---
+
+## ADR-076 — 2026-09-03 — Mindoo's modules are trimmed to what he named, and the window moves to ByteForce
+
+- Status: Accepted
+- Context: three instructions in one message, all opening "for mindoo and only
+  mindoo":
+
+  > "accounting should only be : dashborad income expenses clients loans tresury
+  > and import export"
+
+  > "vault should only be : links and sheets and documents"
+
+  > "also the crm of mindoo should appear in byteforce crm as purple cards and
+  > not in bsystems crm"
+
+  The first two SHRINK Mindoo's modules; the third MOVES the window ADR-075 cut
+  a few hours earlier. All three are scoped by his own first four words, so
+  B-Systems and ByteForce must come out of this byte-for-byte unchanged.
+
+### 1. A company can have fewer sections of a module
+
+`src/lib/module-sections.ts` is a table that names Mindoo and falls through to
+"everything" for everyone else — so adding a company to it can only ever
+SUBTRACT, and the two existing companies cannot be touched by accident.
+
+**It is a wall, not a menu.** The nav reads it so the tabs disappear, and every
+removed page reads it too and redirects to the module root. Hiding a tab while
+leaving the page one typed URL away would make this a tidier menu rather than a
+decision about what the company HAS — and the difference matters most for the
+five accounting screens that show money.
+
+A redirect, never a 404: the section exists, it is simply not this company's.
+
+### 2. The Archive tab is kept, and that is a judgement call
+
+He named three vault sections; Mindoo's vault has four. **Nothing in this vault
+is ever hard-deleted** (ADR-053, the reference BR-11) — "delete" means ARCHIVE,
+and the Archive screen is the only way back. Dropping that tab would make
+removing a link permanent in practice for Mindoo: a destructive change to the
+three sections he DID ask for, arrived at by subtraction.
+
+It is also a VIEW OVER his three rather than a fourth kind of record, which is
+why it reads as included rather than as a fourth thing. Flagged for confirmation
+— it is one line to remove if he disagrees.
+
+### 3. The window moved, and the stage problem it exposed
+
+ADR-075 put Mindoo's cards on the B-Systems board on his instruction; he then
+moved them to ByteForce's. The window is the same window, cut in the other wall,
+and the old wall is closed again — a move is only done when the old place is
+empty, which is its own e2e case.
+
+**The stage problem is real and was not obvious.** Mindoo runs the B-Systems
+pipeline, which has a NEGOTIATION stage the ByteForce board does not: a Mindoo
+lead sitting there has no column to land in. Silently not rendering it would
+hide the deals furthest along — usually the ones most worth seeing — so it was
+worth asking rather than defaulting. Asked, he chose Sending Proposals.
+
+So the card is placed there and **carries its real stage on its face**. A column
+that silently relabels a deal is worse than one that admits it, and the label
+costs a line.
+
+**Who sees them stayed the same.** The B-Systems board narrowed to the admin;
+the ByteForce board has exactly one role (`byteforce_staff`), so "the ByteForce
+board" would have meant every ByteForce teammate. The narrowing he approved for
+this feature is kept as it moved: the platform administrator only.
+
+- Consequences: one section table, two navs filtered, eight pages guarded, the
+  foreign-card path moved from `BsCrmBoardBody` to `CrmBoardBody`, `InternalBoard`
+  gaining the same inert-purple-card treatment `BsBoard` had, and the read-only
+  route re-aimed at the ByteForce board.
+- **Needs founder confirmation (two):**
+  1. **The vault keeps its Archive tab** — without it, "remove" is permanent for
+     Mindoo, which he did not ask for. Say the word and it goes.
+  2. **Only you see the purple cards.** ByteForce has one staff role, so
+     "appears in byteforce crm" could have meant every ByteForce teammate; I
+     kept the admin-only narrowing he chose when this lived on the other board.

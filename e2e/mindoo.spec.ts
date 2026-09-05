@@ -324,13 +324,13 @@ test.describe("ADR-074 — Mindoo", () => {
     await expect(page.getByText("mona@mindoo.example")).toHaveCount(0);
   });
 
-  test("ADR-075 — Mindoo's leads show on the B-Systems board, labelled and inert", async ({
+  test("ADR-076 — Mindoo's leads show on the BYTEFORCE board, labelled and inert", async ({
     page,
   }) => {
-    /* founder: "mindoo leads should appear in bsystems crm with a label called
-       mindoo and the card being a light purple color for the whole card" */
+    /* founder: "the crm of mindoo should appear in byteforce crm as purple
+       cards and not in bsystems crm" */
     await loginAsFounder(page);
-    await page.goto("/b-systems/crm?company=bsystems");
+    await page.goto("/b-systems/crm?company=byteforce");
     const card = page.locator('[data-deal-card="Nile Freight"]');
     await expect(card).toBeVisible();
     await expect(card).toHaveAttribute("data-foreign-company", "Mindoo");
@@ -341,28 +341,102 @@ test.describe("ADR-074 — Mindoo", () => {
     expect(bg, "the card ground carries the foreign-company tint").not.toBe("rgb(255, 255, 255)");
 
     /* INERT: no grip to drag by, and none of the actions that would post to
-       B-Systems' namespace and be refused there */
+       ByteForce's namespace and be refused there */
     await expect(card.locator(".card-grip")).toHaveCount(0);
-    await expect(card.getByRole("button", { name: /Mark ready to close/i })).toHaveCount(0);
     await expect(card.getByRole("link", { name: /Call/i })).toHaveCount(0);
 
     /* clicking opens the READ-ONLY view */
     await card.click();
     await page.waitForURL(/\/b-systems\/crm\/company-lead\//);
     await expect(page.getByRole("heading", { name: "Nile Freight" })).toBeVisible();
-    /* which has no control that writes */
     await expect(page.getByRole("button", { name: /Edit|Archive|Delete|Assign/i })).toHaveCount(0);
+  });
+
+  test("ADR-076 — and NOT on the B-Systems board", async ({ page }) => {
+    /* the second half of the same instruction, and the half that would rot
+       quietly: moving a feature is only done when the old place is empty */
+    await loginAsFounder(page);
+    await page.goto("/b-systems/crm?company=bsystems");
+    await expect(page.locator("[data-foreign-company]")).toHaveCount(0);
+    await expect(page.locator('[data-deal-card="Nile Freight"]')).toHaveCount(0);
+  });
+
+  test("ADR-076 — a Negotiation lead sits in Sending Proposals and SAYS so", async ({ page }) => {
+    /* Mindoo has a Negotiation stage; the ByteForce board has no such column.
+       The founder chose to show those cards in Sending Proposals — so the card
+       has to carry its real stage, or the column would be relabelling a deal. */
+    await loginAsFounder(page);
+    await page.goto("/b-systems/crm?company=byteforce");
+    const card = page.locator('[data-deal-card="Red Sea Resorts"]');
+    await expect(card).toBeVisible();
+    await expect(
+      page.locator('[data-stage="sending_proposal"] [data-deal-card="Red Sea Resorts"]'),
+    ).toBeVisible();
+    await expect(card.getByText("Negotiation")).toBeVisible();
   });
 
   test("ADR-075 — a non-admin never sees another company's leads", async ({ page }) => {
     /* the narrowing that keeps the window from becoming a leak: internal sales,
        agents and partners see their own pipeline and nobody else's */
-    await login(page, "omar@b-systems.example", "bsystems123", /\/b-systems\/crm/);
+    await login(page, "sara@byteforce.example", "byteforce123", /\/b-systems/);
+    await page.goto("/b-systems/crm?company=byteforce");
     await expect(page.locator("[data-foreign-company]")).toHaveCount(0);
     await expect(page.locator('[data-deal-card="Nile Freight"]')).toHaveCount(0);
     /* and the read-only route refuses him outright */
     const res = await page.goto("/b-systems/crm/company-lead/anything");
     expect(res?.status()).toBe(404);
+  });
+
+
+  test("ADR-076 — Mindoo's Accounting has only the sections he named", async ({ page }) => {
+    /* founder: "for mindoo and only mindoo — accounting should only be :
+       dashborad income expenses clients loans tresury and import export" */
+    await loginAsMindoo(page);
+    await page.goto("/accounting");
+    const nav = page.locator(".app-nav");
+    for (const kept of ["Income", "Expenses", "Clients", "Loans", "Treasury", "Import / Export"]) {
+      await expect(nav.getByRole("link", { name: kept, exact: true })).toBeVisible();
+    }
+    for (const gone of ["Payroll Roster", "Media Buying", "Monthly P&L", "Departments", "Targets"]) {
+      await expect(nav.getByRole("link", { name: gone, exact: true })).toHaveCount(0);
+    }
+    /* and a removed section is REFUSED, not merely hidden — a typed URL lands
+       back on the dashboard rather than opening a page he does not have */
+    for (const gone of ["roster", "report", "departments", "targets", "media"]) {
+      await page.goto(`/accounting/${gone}`);
+      await expect(page).toHaveURL(/\/accounting(\?|$)/);
+    }
+  });
+
+  test("ADR-076 — Mindoo's Vault has only links, sheets and documents", async ({ page }) => {
+    /* founder: "vault should only be : links and sheets and documents" */
+    await loginAsMindoo(page);
+    await page.goto("/vault");
+    const nav = page.locator(".app-nav");
+    for (const kept of ["Links", "Sheets", "Documents"]) {
+      await expect(nav.getByRole("link", { name: kept, exact: true })).toBeVisible();
+    }
+    for (const gone of ["Forms", "Tasks", "Employees"]) {
+      await expect(nav.getByRole("link", { name: gone, exact: true })).toHaveCount(0);
+    }
+    for (const gone of ["forms", "tasks", "employees"]) {
+      await page.goto(`/vault/${gone}`);
+      await expect(page).toHaveURL(/\/vault(\?|$)/);
+    }
+  });
+
+  test("ADR-076 — and B-Systems' own modules keep every section", async ({ page }) => {
+    /* the trim is "for mindoo and only mindoo"; the founder's own books and
+       vault must be exactly what they were */
+    await loginAsFounder(page);
+    await page.goto("/accounting?company=bsystems");
+    for (const kept of ["Payroll Roster", "Monthly P&L", "Departments", "Targets"]) {
+      await expect(page.locator(".app-nav").getByRole("link", { name: kept, exact: true })).toBeVisible();
+    }
+    await page.goto("/vault");
+    for (const kept of ["Forms", "Tasks", "Employees"]) {
+      await expect(page.locator(".app-nav").getByRole("link", { name: kept, exact: true })).toBeVisible();
+    }
   });
 
   test("Arabic: Mindoo keeps its name and the shell mirrors", async ({ page }) => {

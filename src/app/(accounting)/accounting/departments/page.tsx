@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import Link from "next/link";
 import { requireAccountingPage } from "@/lib/auth/page-guards";
 import { getLocale } from "@/lib/i18n/server";
@@ -10,6 +11,7 @@ import { cairoMonth } from "@/lib/accounting/now";
 import { ACCT_DEPT_LABELS, ACCT_DEPTS, mediaHidden, type AcctDept } from "@/lib/accounting/constants";
 import { acctQuery, acctView } from "@/lib/accounting/params";
 import { moduleCompaniesFor } from "@/lib/module-companies";
+import { hasAcctSection } from "@/lib/module-sections";
 import { monthLabel } from "@/lib/accounting/format";
 import { AcctHead } from "@/components/accounting/AcctHead";
 
@@ -31,6 +33,13 @@ export default async function AcctDepartmentsPage({
   const t = tFor(locale);
   const params = await searchParams;
   const view = acctView(params, moduleCompaniesFor(user.roles));
+  /* ADR-076 — a section this company does not have is REFUSED, not merely
+     hidden from the nav. The founder named Mindoo's sections; leaving the page
+     reachable by typing its address would make that a tidier menu rather than a
+     decision about what the company has. Redirect to the module root, which
+     every company keeps — never a 404, because the section exists, it is simply
+     not this company's. */
+  if (!hasAcctSection(view.company, "/accounting/departments")) redirect(`/accounting${acctQuery(view)}`);
   const scope = params.scope === "all" ? "all" : "month";
   const books = await loadBooks(view.company);
   const deptIds = ACCT_DEPTS.filter((d) => d !== "media_fee" || !mediaHidden(view.company));

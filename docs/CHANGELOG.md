@@ -1,5 +1,43 @@
 # Changelog — user-visible changes per phase/release
 
+## Mindoo's modules trimmed, and its leads move to the ByteForce board (2026-09-03)
+
+Three things, all of them "for mindoo and only mindoo" — your B-Systems and
+ByteForce screens are exactly what they were.
+
+### Mindoo's Accounting is your seven sections
+
+Dashboard · Income · Expenses · Clients · Loans · Treasury · Import / Export.
+
+Payroll Roster, Media Buying, Monthly P&L, Departments and Targets are gone from
+Mindoo — not just hidden from the menu: typing the address lands back on the
+dashboard. A tab that disappears but still opens is a tidier menu, not a
+decision about what the company has.
+
+### Mindoo's Vault is Links, Sheets and Documents
+
+Forms, Tasks and Employees are gone the same way.
+
+**One thing I kept that you didn't list: the Archive tab.** Nothing in the vault
+is ever really deleted — "remove" means archive, and Archive is the only way to
+get something back. Without that tab, removing a link in Mindoo would be
+permanent, which would quietly change the three sections you *did* ask for. Say
+the word and it goes.
+
+### Mindoo's leads are on the ByteForce board now
+
+They've moved off B-Systems, exactly as you asked — purple cards with a MINDOO
+label, click to open read-only, and nothing on them you can drag or edit.
+
+**One case needed your call and you made it:** Mindoo has a *Negotiation* stage
+that the ByteForce board has no column for. Those cards now sit in **Sending
+Proposals**, and each one says "Negotiation" on its face — so the column never
+quietly relabels a deal.
+
+As before, only you see them. ByteForce has a single staff role, so "appears in
+byteforce crm" could have meant every ByteForce teammate; I kept it to you, the
+same as when these cards lived on the other board.
+
 ## Mindoo's own users, and its leads on your B-Systems board (2026-09-03)
 
 You said two things: *"mindoo user should appear in mindoo system not in

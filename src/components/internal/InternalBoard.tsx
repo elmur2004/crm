@@ -51,6 +51,16 @@ export interface InternalBoardLead {
   subtitle: string; // "type · rep-or-Unassigned" — precomputed server-side
   partnerBadge: string | null; // "Partner: X" — precomputed server-side
   stage: string;
+  /* ADR-076 — set ONLY on a card from another company. Founder: "the crm of
+     mindoo should appear in byteforce crm as purple cards and not in bsystems
+     crm". Absent on ByteForce's own cards, so every card that existed before
+     is untouched and the marker cannot be switched on by accident.
+
+     `stageLabel` carries the lead's TRUE stage, which matters because Mindoo's
+     pipeline has a Negotiation stage this board does not: the founder chose to
+     show those cards in Sending Proposals, so the card has to say what it
+     really is or the column would be telling a lie about it. */
+  foreignCompany?: { label: string; href: string; stageLabel: string | null };
   keyDatum: string;
   noAnswer: boolean;
   /** ADR-064 — how many times we tried; 0 = no marker. `noAnswer` above stays
@@ -109,17 +119,40 @@ function LeadCardBody({
       <CardGrip drag={drag} label={t(common.dragHandle)} />
       <div className="bcard-name-row">
         <Link
-          href={`${basePath}/leads/lead/${lead.id}${query}`}
+          /* ADR-076 — a foreign card opens its own READ-ONLY view. This board's
+             detail reads under THIS company's brand and would 404 the lead. */
+          href={
+            lead.foreignCompany
+              ? lead.foreignCompany.href
+              : `${basePath}/leads/lead/${lead.id}${query}`
+          }
           className="bcard-name"
           onClick={(e) => e.stopPropagation()}
         >
           {lead.name}
         </Link>
+        {lead.foreignCompany ? (
+          <span className="bcard-company">{lead.foreignCompany.label}</span>
+        ) : null}
       </div>
+      {/* ADR-076 — the lead's TRUE stage, when this board has no column for it.
+          Mindoo has a Negotiation stage and ByteForce does not; the founder
+          chose to show those cards in Sending Proposals, so the card says what
+          it actually is — a column that silently relabels a deal would be worse
+          than not showing it. */}
+      {lead.foreignCompany?.stageLabel ? (
+        <p className="bcard-rep mt-1">{lead.foreignCompany.stageLabel}</p>
+      ) : null}
       <p className="bcard-rep mt-1">{lead.subtitle}</p>
       <div className="bcard-chips">
         {lead.partnerBadge ? <span className="bcard-badge">{lead.partnerBadge}</span> : null}
         <NoAnswerBadge locale={locale} count={lead.noAnswerCount} />
+        {/* ADR-076 — a foreign card carries NO ACTIONS. Every one below writes
+            to THIS board's namespace, and the brand wall refuses another
+            company's lead there. A button that always fails is worse than no
+            button — that was the ADR-073 bug, one screen along. */}
+        {lead.foreignCompany ? null : (
+          <>
         {/* founder: dial straight from the card. stopPropagation on BOTH the
             click and the pointer-down so it neither drags the card nor
             triggers the whole-card navigation. */}
@@ -147,13 +180,15 @@ function LeadCardBody({
             {t(callSheet.whatsapp)}
           </WhatsappChip>
         ) : null}
+          </>
+        )}
       </div>
       {lead.keyDatum || active ? (
         <div className="bcard-meta">
           <span className="bcard-meta-dot" aria-hidden />
           <span className="min-w-0">
             {lead.keyDatum}
-            {active ? (
+            {!lead.foreignCompany && active ? (
               /* founder (ADR-039/042): the didn't-answer marker, same click
                  guards as on the B-Systems board.
                  founder (ADR-064): a COUNTER — "Didn't answer" is always
@@ -233,17 +268,25 @@ function LeadCard({
   /* a MOUSE still drags the whole card; a finger scrolls it and drags by the
      grip instead (see components/shared/CardGrip) */
   const mouseDrag = useMouseOnlyListeners(listeners);
+  /* ADR-076 — a foreign card cannot be dragged: this board posts every drop to
+     its own namespace, where another company's lead is refused. */
+  const dragProps = lead.foreignCompany ? {} : mouseDrag;
   return (
     <div
       ref={setNodeRef}
-      {...mouseDrag}
+      {...dragProps}
       data-deal-card={lead.name}
       data-stage-key={stageKey(lead.stage)}
+      data-foreign-company={lead.foreignCompany ? lead.foreignCompany.label : undefined}
       onClick={() => {
         /* whole card opens the lead — but never right after a drag (the
            browser fires a click on drop; the guard swallows it) */
         if (suppressClickRef.current) return;
-        router.push(`${basePath}/leads/lead/${lead.id}${query}`);
+        router.push(
+          lead.foreignCompany
+            ? lead.foreignCompany.href
+            : `${basePath}/leads/lead/${lead.id}${query}`,
+        );
       }}
       className={`bcard ${isDragging || dragging ? "bcard--ghost" : ""}`}
     >

@@ -139,10 +139,7 @@ export async function BsCrmBoardBody({
       ? l.meetings[0].datetime.toISOString()
       : null;
 
-  /* ADR-075 — named, because two lists are built from it now: this company's
-     rows and the foreign ones shown beside them. One mapper, so a foreign card
-     can never drift into showing a different set of facts. */
-  const toBoardLead = (l: LeadRow): BsBoardLead => ({
+  const leads: BsBoardLead[] = rows.map((l) => ({
     id: l.id,
     name: l.name,
     companyName: l.companyName,
@@ -164,43 +161,19 @@ export async function BsCrmBoardBody({
     followUpDueAt:
       l.stage === "following_up" && l.followUps[0] ? l.followUps[0].dueAt.toISOString() : null,
     meetingAt: meetingAt(l),
-  });
-  const leads: BsBoardLead[] = rows.map(toBoardLead);
-  /* ADR-075 — MINDOO'S LEADS, ON THE B-SYSTEMS BOARD.
+  }));
+  /* ADR-076 — MINDOO'S LEADS MOVED OFF THIS BOARD.
 
-     Founder: "mindoo leads should appear in bsystems crm with a label called
-     mindoo and the card being a light purple color for the whole card to
-     identify it."
-
-     Three narrowings, and each is load-bearing:
-
-     · THIS BOARD ONLY. It is the B-Systems board (`ctx.brand`), never Mindoo's
-       own — Mindoo has no reason to be shown its own leads twice, and the
-       reverse direction would put B-Systems' clients in front of Mindoo.
-     · THE ADMIN ONLY. Internal sales sees the internal bucket and agents and
-       partners see their own leads; showing them another company's pipeline
-       would be a plain disclosure, and nothing in the request asked for it.
-     · READ ONLY, enforced by what the card IS rather than by hoping: no drag,
-       no actions, and a link to a view that cannot edit. The writes on this
-       board all go to /api/b-systems, where Mindoo's leads are refused.
-
-     `foreignCompany` is set on these and absent everywhere else, so every card
-     that existed yesterday is untouched. */
-  const foreign =
-    ctx.brand === "bsystems" && role === "admin"
-      ? (await listBsLeads("mindoo", "any", narrow)).map((l) => ({
-          ...toBoardLead(l),
-          foreignCompany: { label: "Mindoo", href: `${ctx.basePath}/crm/company-lead/${l.id}` },
-        }))
-      : [];
+     ADR-075 put them here on the founder's instruction; he then said "the crm
+     of mindoo should appear in byteforce crm as purple cards and not in
+     bsystems crm". So the window is the same window, cut in the other wall —
+     see CrmBoardBody in components/internal/pages.tsx. This board is B-Systems'
+     own again. */
 
   /* founder (ADR-064): the Meeting Setting column runs soonest-meeting-first,
      always — server-side, where the list is built, so the client never has to
      re-order. Every other column keeps its `updatedAt desc`. */
-  const orderedLeads = orderMeetingColumn(
-    [...leads, ...foreign],
-    configForBrand(ctx.brand).meetingStage,
-  );
+  const orderedLeads = orderMeetingColumn(leads, configForBrand(ctx.brand).meetingStage);
 
   /* ADR-074 — `listBsOwnerReps` is B-SYSTEMS' internal sales team, minted from
      the `bsystems_sales` role. Offered on a Mindoo board it would put another

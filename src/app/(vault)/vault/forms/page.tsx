@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import { requireVaultPage } from "@/lib/auth/page-guards";
 import { getLocale } from "@/lib/i18n/server";
 import { tFor } from "@/lib/i18n/core";
@@ -12,6 +13,7 @@ import {
 import { VaultHead } from "@/components/vault/VaultHead";
 import { AddFormButton, EditFormButton } from "@/components/vault/forms";
 import { ArchiveButton } from "@/components/shared/ArchiveButton";
+import { hasVaultSection } from "@/lib/module-sections";
 import { vaultCompaniesOf } from "@/lib/services/vault/tenancy";
 
 /* ADR-053 Phase 5 — vault forms: named links, duplicate URLs flagged (409
@@ -30,6 +32,12 @@ export default async function VaultFormsPage({
   const user = await requireVaultPage();
   /* ADR-074 — the companies this account may see (services/vault/tenancy). */
   const visible = vaultCompaniesOf(user);
+  /* ADR-076 — a section this company does not have is REFUSED, not merely
+     hidden from the nav. Founder: "for mindoo and only mindoo — vault should
+     only be : links and sheets and documents". Leaving the page reachable by
+     typing its address would make that a tidier menu rather than a decision
+     about what the company has. */
+  if (!hasVaultSection(visible[0] ?? "byteforce", "/vault/forms")) redirect("/vault");
   const locale = await getLocale();
   const t = tFor(locale);
   const params = vaultFormListParams.parse(await searchParams);

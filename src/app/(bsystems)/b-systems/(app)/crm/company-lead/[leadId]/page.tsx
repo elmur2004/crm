@@ -1,8 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { requireCompanySection } from "@/lib/auth/page-guards";
-import { BS_PIPELINE_ROLES } from "@/lib/crm/company";
-import { bsRoleOf } from "@/lib/api/bsystems";
+import { narrowRoles, requireCompanyPage } from "@/lib/auth/page-guards";
+import { CRM_ROLES } from "@/lib/crm/company";
 import { getLeadDetail } from "@/lib/services/leads";
 import { formatCairo } from "@/lib/datetime";
 import { tFor } from "@/lib/i18n/core";
@@ -16,19 +15,23 @@ import { GroupHistory } from "@/components/internal/GroupHistory";
 export const metadata = { title: "Lead — B-Systems CRM" };
 
 /* ============================================================================
-   ADR-075 — ANOTHER COMPANY'S LEAD, READ ONLY.
+   ADR-075/076 — ANOTHER COMPANY'S LEAD, READ ONLY.
 
-   Founder: "mindoo leads should appear in bsystems crm with a label called
-   mindoo… clickable, opens the lead read-only."
+   Founder, first: "mindoo leads should appear in bsystems crm with a label
+   called mindoo… clickable, opens the lead read-only." Then, correcting the
+   board: "the crm of mindoo should appear in byteforce crm as purple cards and
+   not in bsystems crm." The window moved; what it shows did not.
 
    This is the ONE window in the wall ADR-074 built, and it is deliberately a
    window rather than a door:
 
    · ADMIN ONLY, the same narrowing the board applies before it ever renders a
      foreign card. Internal sales, agents and partners never reach here.
-   · THE COMPANY IS PINNED IN THE CODE, never taken from the URL. A `?company=`
-     here would be a way to ask this page for any brand's lead, which is exactly
-     the widening every API namespace in this codebase refuses.
+   · THE COMPANY IT LOOKS INTO IS PINNED IN THE CODE (FOREIGN_BRAND), never
+     taken from the URL. A `?company=` deciding WHOSE lead to render would be a
+     way to ask this page for any brand's, which is exactly the widening every
+     API namespace in this codebase refuses. The `?company=` it does read
+     decides only which shell the reader is switched to.
    · NOTHING WRITES. No event panel, no edit form, no archive, no chat, no
      assign, no delete — not disabled versions of them, ABSENT. A disabled
      control is still a promise, and every one of those posts to
@@ -51,14 +54,16 @@ export default async function ForeignLeadPage({
   params: Promise<{ leadId: string }>;
   searchParams: Promise<{ company?: string }>;
 }) {
-  const { user } = await requireCompanySection(
-    "bsystems",
-    (await searchParams).company,
-    BS_PIPELINE_ROLES,
-  );
-  /* the board only ever renders these cards for the admin; this is the wall
-     that makes that true rather than merely tidy */
-  if (bsRoleOf(user) !== "bsystems_admin") notFound();
+  /* ADR-076 — reached from the BYTEFORCE board now, so the company is resolved
+     rather than pinned: the founder clicks these cards at
+     /b-systems/crm?company=byteforce. Which company he is switched to does not
+     change what this page shows — it is Mindoo's lead either way — so the
+     company here decides only that he is somewhere he belongs. */
+  const page = await requireCompanyPage((await searchParams).company);
+  narrowRoles(page, ...CRM_ROLES);
+  /* the board only ever renders these cards for the platform administrator;
+     this is the wall that makes that true rather than merely tidy */
+  if (!page.user.roles.includes("bsystems_admin")) notFound();
 
   const { leadId } = await params;
   const locale = await getLocale();
@@ -79,7 +84,9 @@ export default async function ForeignLeadPage({
         <div>
           <p className="u-eyebrow">{t(crmPage.eyebrow)}</p>
           <Link
-            href="/b-systems/crm?company=bsystems"
+            /* back to the board he came from — ByteForce's, where ADR-076 puts
+               these cards */
+            href="/b-systems/crm?company=byteforce"
             className="text-sm text-brand-muted underline underline-offset-2"
           >
             {t(m.backToBoard)}

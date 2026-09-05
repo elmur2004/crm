@@ -4454,3 +4454,41 @@ comment, and the ADR-013 mechanism note all fixed; .env.example confirmed tracke
   2. **The window is one-way.** Mindoo does not see B-Systems' leads on its own
      board — you asked for the B-Systems direction only, and the reverse would
      put your B-Systems clients in front of Mindoo's staff.
+
+---
+
+## Entry 073 — 2026-09-03 — Mindoo's modules trimmed to his list; the purple cards move to ByteForce
+
+- Phase: post-V2 founder work (ADR-076).
+- Done:
+  - **Mindoo's Accounting is his seven sections** — Dashboard, Income, Expenses,
+    Clients, Loans, Treasury, Import/Export. Payroll Roster, Media Buying,
+    Monthly P&L, Departments and Targets are gone from the nav AND refused on a
+    typed URL, because hiding a tab that still answers is a menu change rather
+    than a decision about what the company has.
+  - **Mindoo's Vault is Links, Sheets and Documents** — Forms, Tasks and
+    Employees gone the same way. Archive is KEPT and flagged: nothing in the
+    vault is hard-deleted, so without that tab "remove" becomes permanent for
+    Mindoo, which is a destructive change to the three sections he did ask for.
+  - **The purple cards moved from the B-Systems board to ByteForce's**, and the
+    old place is empty — with its own e2e case, because a move is only finished
+    when the thing is gone from where it was.
+  - **The stage problem, asked rather than guessed.** Mindoo's pipeline has a
+    Negotiation stage the ByteForce board has no column for. Not rendering those
+    cards would hide the deals furthest along; he chose Sending Proposals, so
+    they sit there and carry their REAL stage on the card — a column that
+    silently relabels a deal is worse than one that admits it.
+  - `src/lib/module-sections.ts` names Mindoo and falls through to "everything"
+    for everyone else, so the table can only ever subtract and B-Systems and
+    ByteForce come out unchanged — which is its own e2e case too.
+- Verified: `docs/TESTING.md` Run 091 — 56 vitest files / 957 tests, `tsc`
+  clean, `next build` clean, `e2e/mindoo.spec.ts` **26 passed** (21 → 26).
+- Blockers: none.
+- **Needs founder confirmation (two NEW):**
+  1. **The vault keeps its Archive tab** — without it, removing a link is
+     permanent for Mindoo. One line to drop if you want the strict three.
+  2. **Only you see the purple cards on the ByteForce board.** ByteForce has one
+     staff role, so "appears in byteforce crm" could have meant every ByteForce
+     teammate; I kept the admin-only narrowing you chose when this lived on the
+     B-Systems board.
+

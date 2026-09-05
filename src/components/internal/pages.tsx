@@ -475,9 +475,19 @@ const BOARD_STAGES = [...INTERNAL_STAGES];
 export async function CrmBoardBody({
   ctx,
   params,
+  showMindoo = false,
 }: {
   ctx: InternalAppCtx;
   params?: { q?: string; type?: string };
+  /* ADR-076 — whether to draw MINDOO'S leads beside this company's, as purple
+     read-only cards. Founder: "the crm of mindoo should appear in byteforce crm
+     as purple cards and not in bsystems crm."
+
+     Decided by the PAGE, from the live roles, and defaulted OFF: the ByteForce
+     board is rendered for every `byteforce_staff` account, and only the
+     platform administrator should see another company's pipeline. A default of
+     `true` would have made that an opt-out. */
+  showMindoo?: boolean;
 }) {
   const locale = await getLocale();
   const t = tFor(locale);
@@ -567,10 +577,71 @@ export async function CrmBoardBody({
         ? lead.meetings[0].datetime.toISOString()
         : null,
   }));
+  /* ADR-076 — MINDOO'S LEADS, as purple read-only cards.
+
+     THE STAGE PROBLEM, and the founder's answer to it. Mindoo runs the
+     B-Systems pipeline, which has a NEGOTIATION stage this board does not: a
+     Mindoo lead sitting there has no column to land in, and simply not
+     rendering it would hide the deals furthest along — usually the ones most
+     worth seeing. Asked, he chose to show them in Sending Proposals. So the
+     card is placed there and CARRIES ITS REAL STAGE on its face, because a
+     column that silently relabels a deal is worse than one that admits it. */
+  const foreign: InternalBoardLead[] = showMindoo
+    ? (
+        await db.lead.findMany({
+          where: {
+            brand: "mindoo",
+            archived: false,
+            ...leadSearchWhere(search),
+            ...leadTypeWhere(type),
+          },
+          include: {
+            followUps: { orderBy: { createdAt: "desc" }, take: 1 },
+            meetings: { orderBy: { createdAt: "desc" }, take: 1 },
+            proposals: { orderBy: { createdAt: "desc" }, take: 1 },
+            lostInfo: { orderBy: { createdAt: "desc" }, take: 1 },
+          },
+          orderBy: { updatedAt: "desc" },
+        })
+      ).map((lead) => {
+        /* the column this board can actually draw it in */
+        const column = (BOARD_STAGES as readonly string[]).includes(lead.stage)
+          ? lead.stage
+          : /* the founder's choice for a stage this board has no column for.
+               `proposalStage` is optional on a PipelineConfig, so the literal
+               is the floor — and it is the same stage internal-crm names. */
+            (internalCrmConfig.proposalStage ?? "sending_proposal");
+        return {
+          id: lead.id,
+          name: lead.name,
+          subtitle: leadTypeLabel(locale, lead.type),
+          partnerBadge: null,
+          stage: column,
+          foreignCompany: {
+            label: "Mindoo",
+            href: `${ctx.basePath}/crm/company-lead/${lead.id}${ctx.query}`,
+            /* named ONLY when the column is not the lead's own stage — on a
+               card that is where it belongs, repeating the column would be
+               noise */
+            stageLabel: column === lead.stage ? null : stageLabel(locale, lead.stage),
+          },
+          keyDatum: "",
+          noAnswer: lead.noAnswer,
+          noAnswerCount: lead.noAnswerCount,
+          latestProposalValue: null,
+          waHref: null,
+          waSentLabel: null,
+          waMarkUrl: "",
+          followUpDueAt: null,
+          meetingAt: null,
+        } satisfies InternalBoardLead;
+      })
+    : [];
+
   /* founder (ADR-064): the Meeting Setting column runs soonest-meeting-first,
      always — server-side, where the list is built, so the client never has to
      re-order. Every other column keeps its `updatedAt desc`. */
-  const orderedCards = orderMeetingColumn(cards, internalCrmConfig.meetingStage);
+  const orderedCards = orderMeetingColumn([...cards, ...foreign], internalCrmConfig.meetingStage);
 
   return (
     <div className="space-y-6">

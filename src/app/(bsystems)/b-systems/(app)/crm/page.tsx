@@ -34,7 +34,24 @@ export default async function BsCrmPage({
 }) {
   const params = await searchParams;
   const { user, company, companies } = await requireCompanyPage(params.company);
-  if (company === "byteforce") return <CrmBoardBody ctx={BYTEFORCE_CTX} params={params} />;
+  if (company === "byteforce") {
+    /* ADR-076 — the founder's window into Mindoo, and it is HERE now: "the crm
+       of mindoo should appear in byteforce crm as purple cards and not in
+       bsystems crm."
+
+       Gated on the platform administrator rather than on `byteforce_staff`,
+       which is the whole of ByteForce's role set: every ByteForce teammate
+       renders this board, and only the person who owns both companies should
+       see the other one's pipeline. That is the same narrowing he approved for
+       this feature on the B-Systems board, kept as the board moved. */
+    return (
+      <CrmBoardBody
+        ctx={BYTEFORCE_CTX}
+        params={params}
+        showMindoo={user.roles.includes("bsystems_admin")}
+      />
+    );
+  }
 
   /* ADR-051 + ADR-067 — under ByteForce the company itself proves
      `byteforce_staff` (companiesFor only reports a company a role carries), so

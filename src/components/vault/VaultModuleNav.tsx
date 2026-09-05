@@ -6,6 +6,8 @@ import { tFor, type Msg } from "@/lib/i18n/core";
 import { useLocale } from "@/components/shared/LocaleProvider";
 import { vault } from "@/lib/i18n/dict/vault";
 import { VAULT_COMPANIES } from "@/lib/services/vault/constants";
+import { hasVaultSection } from "@/lib/module-sections";
+import type { Brand } from "@/lib/pipeline-engine/constants";
 
 /* ADR-054 — the vault module's OWN header nav: Overview plus the sections —
    seven since ADR-070 added Links — in the app shell (the module is a switcher
@@ -26,13 +28,26 @@ const SECTIONS: Array<{ href: string; label: Msg }> = [
   { href: "/vault/archive", label: vault.tabArchive },
 ];
 
-export function VaultModuleNav({ extras }: { extras?: React.ReactNode }) {
+export function VaultModuleNav({
+  /* ADR-076 — the company whose sections to offer, resolved on the SERVER from
+     the account's own roles. Read from the URL it would be a request rather
+     than a fact: `?company=` is a filter here and an account that holds one
+     company sees that company whatever the query says (ADR-074). */
+  company,
+  extras,
+}: {
+  company: Brand;
+  extras?: React.ReactNode;
+}) {
   const t = tFor(useLocale());
   const params = useSearchParams();
-  const company = params.get("company") ?? "";
-  const suffix = (VAULT_COMPANIES as readonly string[]).includes(company)
-    ? `?company=${company}`
-    : "";
-  const items = SECTIONS.map((s) => ({ href: `${s.href}${suffix}`, label: t(s.label) }));
+  const asked = params.get("company") ?? "";
+  const suffix = (VAULT_COMPANIES as readonly string[]).includes(asked) ? `?company=${asked}` : "";
+  /* founder: "for mindoo and only mindoo — vault should only be : links and
+     sheets and documents". Every other company falls through to the full list. */
+  const items = SECTIONS.filter((s) => hasVaultSection(company, s.href)).map((s) => ({
+    href: `${s.href}${suffix}`,
+    label: t(s.label),
+  }));
   return <ShellNav items={items} extras={extras} />;
 }

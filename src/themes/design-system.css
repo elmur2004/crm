@@ -685,7 +685,7 @@
   font-family: var(--font-mono); font-size: 10px; font-weight: 700;
   letter-spacing: .08em; text-transform: uppercase;
   padding: 2px 7px; border-radius: 999px;
-  background: var(--color-company-mindoo); color: #FFFFFF;
+  background: var(--color-company-mindoo); color: var(--color-company-mindoo-on);
 }
 
 /* the rail's gutter, only on cards that HAVE one — the agents page renders a
