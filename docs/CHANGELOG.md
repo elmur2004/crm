@@ -1,5 +1,39 @@
 # Changelog — user-visible changes per phase/release
 
+## Edit a proposal, and set ByteForce's share from either side (2026-09-06)
+
+### An Edit button on the proposal, inside the lead
+
+Open any lead, scroll to **Stage records**, and a proposal now has an **Edit**
+button — service and amount. Until now a proposal was write-once: a mistyped
+figure meant adding a second proposal, which isn't a correction, it's a
+re-quote — it moves the lead's value and everything calculated from it just to
+fix a typo.
+
+**You only.** That figure drives the pipeline number, the Won gate and an
+agent's commission, so it isn't a control an agent should have over their own
+deal. In Mindoo, your Mindoo login is the admin; in B-Systems, your B-Systems
+one.
+
+*One thing to know:* **ByteForce proposals can't be edited**, because ByteForce
+has no admin role — everyone there is staff. Say the word and I'll open it.
+
+### The ByteForce sub-price — now on both sides
+
+You said you couldn't find it. My fault: I put it only on the purple card in the
+ByteForce CRM, but your instruction started "when we are sending proposals
+through the Mindoo platform" — which is where you looked.
+
+It's now in **both** places: on the Mindoo lead itself while you're sending the
+proposal, and on the purple card in ByteForce afterwards. Same panel, same
+figures, either door.
+
+*One thing to know:* on the Mindoo side, anyone signed into Mindoo can see and
+set that line — Mindoo has a single role, so there's no admin/staff split there.
+Right now that's only your own Mindoo account. If you add a Mindoo teammate from
+Mindoo → Users, they'd see it too, which cuts against "everyone else just gets
+the number and the service of Mindoo". One line to lock down when you want it.
+
 ## Mindoo prices in riyals, and you can add ByteForce's share of a Mindoo deal (2026-09-06)
 
 ### Mindoo's money is Saudi riyals

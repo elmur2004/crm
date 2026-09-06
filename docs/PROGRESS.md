@@ -4535,3 +4535,42 @@ comment, and the ADR-013 mechanism note all fixed; .env.example confirmed tracke
   converting them. Nothing is at risk today (Mindoo's books are empty), but if
   figures are ever to move between companies the importer needs a currency check.
 
+
+---
+
+## Entry 075 — 2026-09-06 — Proposals are editable in place; the sub-price is settable from Mindoo too
+
+- Phase: post-V2 founder work (ADR-078).
+- Done:
+  - **An Edit button on the proposal inside the lead**, admin only. A proposal
+    was write-once, so correcting a mistyped figure meant adding a SECOND
+    proposal — a re-quote rather than a correction, moving the lead's latest
+    value and everything derived from it to fix a typo.
+  - Admin-only because this number drives the pipeline figure, the Won gate's
+    prefill and, through the Won deal, **an agent's commission**. `isAdmin` is
+    the company's own administrator: B-Systems' admin, Mindoo's staff, and
+    nobody on ByteForce — flagged.
+  - Service and amount only. `sent`/`sentAt` record something that HAPPENED and
+    the board's action sets them; editing a fact about the past is a different
+    feature.
+  - **The sub-price is now settable from Mindoo's own lead detail too.** He
+    reported he could not find it: ADR-077 put it only on the ByteForce card,
+    reading "the proposal that is appearing in the ByteForce CRM" as the place —
+    but his sentence opened "when we are sending proposals through the Mindoo
+    platform", which is where he looked. Asked, he chose both.
+  - The edit control reaches `GroupHistory` as a **render prop**, not a boolean:
+    that panel draws on five screens and two of them must never grow an editor —
+    the partner prospect history and the read-only foreign lead page. A boolean
+    could be passed `true`; a missing prop cannot.
+- Verified: `docs/TESTING.md` Run 093 — 58 vitest files / 975 tests, `tsc`
+  clean, `next build` clean with all five new routes, `e2e/mindoo.spec.ts`
+  **32 passed** (29 → 32).
+- Blockers: none.
+- **Needs founder confirmation (two NEW):**
+  1. **ByteForce proposals cannot be edited** — ByteForce has no admin role, so
+     `isAdmin` is false for its staff by construction. One line to open it.
+  2. **On the Mindoo side, every Mindoo teammate can see and set the ByteForce
+     line** — Mindoo has one role and no admin/non-admin split. Today that is
+     only your own account; adding a Mindoo teammate would expose it, which cuts
+     against "everyone else will just get the number and the service of Mindoo".
+

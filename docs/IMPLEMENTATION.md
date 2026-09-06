@@ -3290,3 +3290,24 @@ assertion.
 The general rule this session keeps re-deriving: **when you narrow a function,
 the old one does not become dangerous — it becomes ADJACENT, and adjacency needs
 a sweep rather than a type.**
+
+
+### 10. A render prop is a wall a boolean is not
+
+`GroupHistory` draws proposal records on five screens, two of which must never
+be able to write: the partner prospect history, and the read-only foreign lead
+page whose whole contract is "not disabled versions of the controls, ABSENT".
+
+The obvious shape for "the admin gets an edit button" is `canEditProposals:
+boolean`. It is also the wrong one. A boolean invites the read-only page to be
+passed `true` — by a refactor, by a copy-paste, by somebody reasonably thinking
+"the admin is looking at it, so of course" — and nothing about that line would
+look wrong at the call site.
+
+An optional RENDER PROP cannot be turned on by accident, because turning it on
+means writing the control. The screens that must not write simply do not mention
+it, and their silence is the guard.
+
+Same idea as `rowActions` on `TodoBody` (ADR-051), and the same idea as passing
+`apiBase` rather than defaulting it (ADR-074): **when a capability must not leak
+into a neighbouring screen, make the neighbour's silence the safe state.**

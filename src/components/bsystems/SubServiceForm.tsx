@@ -32,12 +32,19 @@ import { subService as d } from "@/lib/i18n/dict/crm";
 
 export function SubServiceForm({
   leadId,
+  apiBase,
   hasProposal,
   mindooService,
   mindooValue,
   current,
 }: {
   leadId: string;
+  /* ADR-078 — this surface's namespace. The panel lives in TWO places now (the
+     founder, asked where he expected it: "both places") — Mindoo's own lead
+     detail while the proposal is being sent, and the purple card in the
+     ByteForce CRM afterwards. Each posts to its own company's route, because
+     the brand is derived from the route and never from input. */
+  apiBase: string;
   /* ADR-077 — a sub-service ANNOTATES a proposal, so a lead that has not been
      quoted yet has nothing to annotate. Told explicitly rather than inferred
      from a null value, because "quoted at nothing" and "not quoted" are
@@ -59,7 +66,7 @@ export function SubServiceForm({
   async function send(method: "PUT" | "DELETE", body?: unknown) {
     setBusy(true);
     setError(null);
-    const res = await fetch(`/api/b-systems/company-leads/${leadId}/sub-service`, {
+    const res = await fetch(`${apiBase}/company-leads/${leadId}/sub-service`, {
       method,
       ...(body
         ? { headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }

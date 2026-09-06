@@ -380,6 +380,13 @@ export const board = {
   noTodayMeetings: { en: "No meetings today", ar: "لا توجد اجتماعات اليوم" },
 } satisfies Record<string, Msg>;
 
+/* ADR-078 — editing a proposal in place, admin only. */
+export const proposalEdit = {
+  edit: { en: "Edit", ar: "تعديل" },
+  fieldService: { en: "Service", ar: "الخدمة" },
+  fieldValue: { en: "Estimated value", ar: "القيمة التقديرية" },
+} as const;
+
 /* ADR-077 — the ByteForce sub-service on a Mindoo proposal. Founder: "this
    proposal is X amount in Saudi riyal, and then we will get this sub-service
    for ByteForce for X amount in Egyptian pounds." Only the platform admin ever

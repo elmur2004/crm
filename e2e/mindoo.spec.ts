@@ -497,19 +497,71 @@ test.describe("ADR-074 — Mindoo", () => {
     await expect(card).toContainText("SAR");
   });
 
-  test("ADR-077 — Mindoo's own staff never see the ByteForce line", async ({ page }) => {
-    /* founder: "for everyone else, they will just get the number and the
-       service of Mindoo, which will be in Saudi riyal" */
+  test("ADR-078 — the sub-price is settable from MINDOO's side too", async ({ page }) => {
+    /* founder, asked where he expected to find it: "both places". This is the
+       one where the proposal is actually sent.
+
+       RED SEA RESORTS, not Horizon Clinics: the ByteForce-side case above
+       already annotated that one, and these specs share a seeded database in
+       file order. A test that depends on an earlier test's writes passes alone
+       and lies in a suite. */
     await loginAsMindoo(page);
     await page.goto("/mindoo/crm");
-    const card = page.locator('[data-deal-card="Horizon Clinics"]');
-    await expect(card).toBeVisible();
-    await expect(card).not.toContainText("Video production");
-    await expect(card).not.toContainText("EGP");
+    await page.locator('[data-deal-card="Red Sea Resorts"]').click();
+    await page.waitForURL(/\/mindoo\/crm\/lead\//);
 
-    /* and the endpoint refuses them outright */
-    const res = await page.request.put("/api/b-systems/company-leads/anything/sub-service", {
-      data: { service: "Sneaky", value: "1" },
+    const panel = page.locator(".card", { hasText: "ByteForce share of this deal" });
+    await expect(panel).toBeVisible();
+    /* the client's own quote, in RIYALS, shown here and not editable */
+    await expect(panel.getByText(/SAR\s[\d,]/).first()).toBeVisible();
+
+    await panel.getByRole("button", { name: /Add ByteForce service/i }).click();
+    await page.getByLabel("ByteForce service").fill("Landing page");
+    await page.getByLabel("Amount (EGP)").fill("18000");
+    await page.getByRole("button", { name: "Save", exact: true }).click();
+    await expect(panel.getByText("Landing page")).toBeVisible();
+    await expect(panel.getByText("EGP 18,000")).toBeVisible();
+  });
+
+  test("ADR-078 — and it is NOT offered on another company's lead", async ({ page }) => {
+    /* it describes what ByteForce delivers inside a MINDOO deal, so it has no
+       meaning on a B-Systems lead */
+    await loginAsFounder(page);
+    await page.goto("/b-systems/crm?company=bsystems");
+    /* a NAMED seeded lead, like every other card click in this suite — an
+       unnamed `.first()` picked whichever card the board happened to order
+       first, and a click on it did not navigate */
+    await page.locator('[data-deal-card="Delta Fresh Foods"]').first().click();
+    await page.waitForURL(/\/b-systems\/crm\/lead\//);
+    await expect(page.getByText("ByteForce share of this deal")).toHaveCount(0);
+  });
+
+  test("ADR-078 — the admin can EDIT a proposal inside the lead", async ({ page }) => {
+    /* founder: "put an edit button in the proposal inside the lead" — the admin
+       only, because this number drives the pipeline figure, the Won gate's
+       prefill and, through the Won deal, an agent's commission. */
+    await loginAsMindoo(page);
+    await page.goto("/mindoo/crm");
+    await page.locator('[data-deal-card="Horizon Clinics"]').click();
+    await page.waitForURL(/\/mindoo\/crm\/lead\//);
+
+    /* "Edit" exactly — "Edit lead" and "Edit ByteForce service" are different
+       buttons on this same page, which is why the match is exact */
+    await page.getByRole("button", { name: "Edit", exact: true }).first().click();
+    await page.getByLabel(/Estimated value/).fill("450000");
+    await page.getByRole("button", { name: "Save", exact: true }).click();
+    /* the corrected figure, in Mindoo's own currency */
+    await expect(page.getByText("SAR 450,000").first()).toBeVisible();
+  });
+
+  test("ADR-078 — a non-admin gets no proposal editor, and the API refuses one", async ({
+    page,
+  }) => {
+    /* not a disabled button — no button, and a wall behind where it would be */
+    await login(page, "01001234567", "partner123", /\/b-systems\/crm/);
+    await expect(page.getByRole("button", { name: "Edit", exact: true })).toHaveCount(0);
+    const res = await page.request.patch("/api/b-systems/proposals/anything", {
+      data: { service: "Sneaky", estimatedValue: "1" },
     });
     expect(res.status()).toBeGreaterThanOrEqual(400);
   });

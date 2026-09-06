@@ -159,6 +159,7 @@ export default async function ForeignLeadPage({
           proved the reader is the platform administrator. */}
       <SubServiceForm
         leadId={lead.id}
+        apiBase="/api/b-systems"
         hasProposal={latestProposal != null}
         mindooService={latestProposal?.service ?? null}
         mindooValue={latestProposal?.estimatedValue ?? null}

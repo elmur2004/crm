@@ -20,6 +20,8 @@ import { NoAnswerBadge } from "@/components/shared/NoAnswerBadge";
 import { ArchiveButton } from "@/components/shared/ArchiveButton";
 import { archiveMsgs } from "@/lib/i18n/dict/crm";
 import { GroupHistory } from "@/components/internal/GroupHistory";
+import { ProposalEditForm } from "@/components/shared/ProposalEditForm";
+import { SubServiceForm } from "@/components/bsystems/SubServiceForm";
 import { HistoryPanel } from "@/components/internal/HistoryPanel";
 import { BsEventPanel } from "@/components/bsystems/BsEventPanel";
 import {
@@ -119,6 +121,11 @@ export async function BsLeadDetailBody({
       }))
     : [];
   const latestMeeting = lead.meetings.at(-1);
+  /* ADR-077's lesson, applied here too: `getLeadDetail` orders every group
+     `createdAt asc` because the detail reads as a HISTORY, so the NEWEST
+     proposal is the LAST one. `.at(0)` would annotate the original quote while
+     the board showed the latest. */
+  const latestProposal = lead.proposals.at(-1) ?? null;
   const editable = {
     id: lead.id,
     name: lead.name,
@@ -297,6 +304,33 @@ export async function BsLeadDetailBody({
             </div>
           </div>
 
+          {/* ADR-078 — THE BYTEFORCE SUB-SERVICE, on Mindoo's own lead detail.
+
+              Founder: "when we are sending proposals through the Mindoo
+              platform, the admin… is allowed to customize the proposal that is
+              appearing in the ByteForce CRM" — and, asked where he expected to
+              find it, "both places". So it is here, where the proposal is
+              actually sent, as well as on the purple card in ByteForce.
+
+              MINDOO ONLY: it describes what ByteForce delivers inside a MINDOO
+              deal, so it has no meaning on a B-Systems lead and is not offered
+              there. The two currencies on screen are the whole point — the
+              client is quoted in riyals, ByteForce is owed in pounds. */}
+          {ctx.brand === "mindoo" && !lead.archived ? (
+            <SubServiceForm
+              leadId={lead.id}
+              apiBase={ctx.apiBase}
+              hasProposal={latestProposal != null}
+              mindooService={latestProposal?.service ?? null}
+              mindooValue={latestProposal?.estimatedValue ?? null}
+              current={
+                latestProposal?.bfService != null && latestProposal.bfValue != null
+                  ? { service: latestProposal.bfService, value: latestProposal.bfValue }
+                  : null
+              }
+            />
+          ) : null}
+
           {wonDeal ? (
             <div className="card card--flush0 text-sm">
               <div className="card-head">
@@ -351,7 +385,26 @@ export async function BsLeadDetailBody({
           <div>
             <h2 className="u-h3 mb-2">{t(m.stageRecords)}</h2>
             <GroupHistory
-          brand={ctx.brand}
+              brand={ctx.brand}
+              /* ADR-078 — "put an edit button in the proposal inside the lead",
+                 THE ADMIN ONLY. `access.isAdmin` is this COMPANY's own
+                 administrator (B-Systems' admin, Mindoo's staff), which is
+                 exactly the reading his answer asks for. Undefined for everyone
+                 else, so the panel has no editor at all rather than a disabled
+                 one. */
+              proposalActions={
+                access.isAdmin && !lead.archived
+                  ? (p) => (
+                      <ProposalEditForm
+                        proposalId={p.id}
+                        apiBase={ctx.apiBase}
+                        brand={ctx.brand}
+                        service={p.service}
+                        estimatedValue={p.estimatedValue}
+                      />
+                    )
+                  : undefined
+              }
               followUps={lead.followUps}
               meetings={lead.meetings}
               proposals={lead.proposals}

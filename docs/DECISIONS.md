@@ -6294,3 +6294,86 @@ never does is two answers for the SAME role, and that line is not crossed.
   converting them. Mindoo's books are new and empty so nothing is at risk today,
   but if you ever intend to move figures between companies, say so and the
   importer gets a currency check.
+
+---
+
+## ADR-078 — 2026-09-06 — A proposal can be corrected in place, and the ByteForce sub-price is settable from both sides
+
+- Status: Accepted
+- Context: two instructions, one of them a bug report on ADR-077:
+
+  > "put an edit button in the proposal inside the lead"
+
+  > "also I don't see the sub price that will appear in byteforce and can't edit
+  > it as an admin"
+
+### 1. A proposal was write-once, and that was wrong
+
+Until now the only way to change a proposal's figure was to add a SECOND
+proposal record — which is not a correction, it is a re-quote: it changes the
+lead's history, its "latest proposal" (ADR-012) and every figure derived from
+it, in order to fix a typo.
+
+**THE ADMIN ONLY**, his answer when asked, and the right one. This number is
+what `latestProposalValue` reads, so it drives the pipeline figure, the Won
+gate's prefill and — through the Won deal — the commission an agent is paid. A
+control that moves somebody's commission belongs to the person who owns the
+company, not to the person being paid.
+
+`access.isAdmin` from `requireLeadAccess` is exactly that, per company: B-Systems'
+admin, Mindoo's staff (which IS its whole staff, ADR-073), and — deliberately —
+**nobody on ByteForce**, which has no admin role at all. Flagged.
+
+**Two fields**, service and amount: the things a person mistypes. `sent`/`sentAt`
+are not editable — they record something that HAPPENED, and the board's own
+action sets them. Editing a fact about the past is a different feature with a
+different name.
+
+**Not undoable, deliberately.** ADR-045's undo is a snapshot-inverse contract
+with its own kinds and guards; a new kind for a field edit would be a new
+inverse and a new way for the stack to disagree with itself. An edit is already
+reversible by editing again, and the activity log records that it happened.
+
+### 2. Why he could not find the sub-price
+
+ADR-077 put it in ONE place — the purple card in the ByteForce CRM — reading his
+"the proposal that is appearing in the ByteForce CRM" as the location. But his
+sentence opened with "when we are **sending proposals through the Mindoo
+platform**", which is the Mindoo side, and that is where he looked.
+
+Asked, he chose **both places**. So the panel is now on Mindoo's own lead detail
+as well, where the proposal is actually sent, with a Mindoo-side endpoint beside
+the B-Systems one. One service, two doors, and the service still proves the
+proposal is Mindoo's however it is called.
+
+**The honest consequence, and he was told it before choosing:** on the Mindoo
+side the only accounts that exist are `mindoo_staff`, and Mindoo has no
+admin/non-admin distinction — its one role IS its whole staff. So every Mindoo
+teammate can set and see the ByteForce line there. Today that is one account,
+his own. The moment he adds a second from /mindoo/users, that person sees it
+too, which cuts against the original "everyone else will just get the number and
+the service of Mindoo".
+
+Flagged rather than solved by inventing a second Mindoo role nobody asked for —
+that is a decision for him, and it is one line of guard when he wants it.
+
+### 3. The render-prop, and why not a boolean
+
+`GroupHistory` draws the proposal records on FIVE screens, and two of them must
+never grow an editor: the partner prospect history, and the read-only foreign
+lead page whose entire contract is that nothing writes (ADR-075/076).
+
+So the edit control arrives as an optional render prop (`proposalActions`, the
+`rowActions` idiom from `TodoBody`) rather than a `canEdit` flag. A boolean
+would have let either of those screens sprout a button by someone passing
+`true`; a missing prop cannot.
+
+- Consequences: one service with a brand wall and an archived-lead check, three
+  namespaced endpoints, one Mindoo-side sub-service route, two client forms, one
+  render prop.
+- **Needs founder confirmation (two):**
+  1. **ByteForce proposals cannot be edited**, because ByteForce has no admin
+     role — `isAdmin` is false for `byteforce_staff` by construction. Say the
+     word and it opens to ByteForce staff.
+  2. **On the Mindoo side, every Mindoo teammate sees the ByteForce line**, for
+     the reason above. One guard when he wants it.

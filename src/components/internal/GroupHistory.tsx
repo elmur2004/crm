@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { formatCairo } from "@/lib/datetime";
 import { formatMoney } from "@/lib/money";
 import type { Brand } from "@/lib/pipeline-engine/constants";
@@ -68,6 +69,7 @@ function Section({
 
 export async function GroupHistory({
   brand,
+  proposalActions,
   followUps = [],
   meetings = [],
   proposals = [],
@@ -81,6 +83,15 @@ export async function GroupHistory({
      defaulted: an EGP default would print pounds on a Mindoo proposal, and the
      number would look perfectly right. */
   brand: Brand;
+  /* ADR-078 — what to render beside a PROPOSAL record, when this surface offers
+     anything. A render prop rather than a flag (the `rowActions` idiom from
+     TodoBody), because the decision is not "may I edit" — it is "does this
+     screen have an editor at all", and two of the five screens that draw this
+     panel deliberately have none: the partner prospect history, and the
+     read-only foreign lead page whose whole contract is that nothing writes
+     (ADR-075/076). A boolean would have let either of them grow a button by
+     someone passing `true`; a missing prop cannot. */
+  proposalActions?: (proposal: ProposalRow) => ReactNode;
   followUps?: FollowUpRow[];
   meetings?: MeetingRow[];
   proposals?: ProposalRow[];
@@ -201,6 +212,7 @@ export async function GroupHistory({
               ? `${t(records.sent)} ${p.sentAt ? formatCairo(p.sentAt, locale) : ""}`
               : t(records.notSent)}
           </p>
+          {proposalActions ? proposalActions(p) : null}
         </Section>
       ),
     });

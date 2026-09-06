@@ -5341,3 +5341,47 @@ board showed its latest, with nothing on either screen saying they disagreed.
 Caught by reading the service rather than by a test, and now `.at(-1)` with the
 reason written beside it.
 
+
+
+## Run 093 — 2026-09-06 — ADR-078: proposal edit, and the sub-price on both sides
+
+| Command | Result |
+| --- | --- |
+| `npx tsc --noEmit` | clean |
+| `npx vitest run` | **58 files, 975 tests, all passing** |
+| `npx next build` | clean; five new routes registered |
+| `npx playwright test e2e/mindoo.spec.ts` | **32 passed** (29 → 32) |
+| `npx playwright test` (full) | **186 passed, 0 failed**, 2 skipped (the opt-in audit spec) |
+
+### Four new e2e cases
+
+The sub-price set from Mindoo's side; that it is NOT offered on a B-Systems
+lead; the admin editing a proposal and seeing the corrected figure in Mindoo's
+own currency; and a non-admin getting **no editor at all** plus an API that
+refuses one.
+
+### Three failures, and all three were the test's fault in an instructive way
+
+1. **An order dependency I created.** The Mindoo-side case asserted an "Add
+   ByteForce service" button on Horizon Clinics — but the ByteForce-side case
+   earlier in the same file had already annotated that lead, so the button read
+   "Edit". These specs share one seeded database in file order, so a test that
+   depends on an earlier test's writes **passes alone and lies in a suite**. Now
+   on Red Sea Resorts, which nothing else touches.
+
+2. **A locator that matched more than I meant.** `.card` filtered by the text
+   `"Proposal"` also matches the lead's identity card, whose heading reads
+   "Sending **Proposal**s". `getByRole("button", { name: "Edit", exact: true })`
+   is unambiguous — and it has to be exact, because "Edit lead" and "Edit
+   ByteForce service" are different buttons on the same page.
+
+3. **An unnamed `.first()` card.** Clicking `[data-deal-card]`.first() on the
+   B-Systems board did not navigate — whichever card the board happened to order
+   first was not the one I imagined. Every other card click in this suite names
+   its lead; this one now does too.
+
+None of these was a product bug, and that is worth saying plainly: three
+failures, three test defects. The pattern in all three is **assuming state
+instead of establishing it** — which is the same root as the label guesses
+earlier in this session, one layer up.
+
