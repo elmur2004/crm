@@ -565,6 +565,9 @@ export async function ProspectDetailBody({ prospectId }: { prospectId: string })
           <div>
             <h2 className="u-mono mb-2">{t(pProspect.stageRecords)}</h2>
             <GroupHistory
+            /* ADR-077 — the partner/agent pipeline is B-SYSTEMS' alone; there is
+               no Mindoo prospect and never will be (Mindoo has no partners). */
+            brand="bsystems"
               followUps={prospect.followUps}
               meetings={prospect.meetings}
               lostInfo={prospect.lostInfo}

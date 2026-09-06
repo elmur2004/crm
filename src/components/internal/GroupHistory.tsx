@@ -1,5 +1,6 @@
 import { formatCairo } from "@/lib/datetime";
-import { formatEGP } from "@/lib/money";
+import { formatMoney } from "@/lib/money";
+import type { Brand } from "@/lib/pipeline-engine/constants";
 import { tFor, type Locale } from "@/lib/i18n/core";
 import { getLocale } from "@/lib/i18n/server";
 import { postponeReasonLabel, stageLabel } from "@/lib/i18n/dict/labels";
@@ -66,6 +67,7 @@ function Section({
 }
 
 export async function GroupHistory({
+  brand,
   followUps = [],
   meetings = [],
   proposals = [],
@@ -73,6 +75,12 @@ export async function GroupHistory({
   postponeInfos = [],
   won,
 }: {
+  /* ADR-077 — WHOSE money these figures are. This panel renders the pipeline
+     records for every company that has a lead detail — B-Systems', Mindoo's and
+     ByteForce's — and two of its lines print an amount. Required, never
+     defaulted: an EGP default would print pounds on a Mindoo proposal, and the
+     number would look perfectly right. */
+  brand: Brand;
   followUps?: FollowUpRow[];
   meetings?: MeetingRow[];
   proposals?: ProposalRow[];
@@ -186,7 +194,7 @@ export async function GroupHistory({
           <p>{p.service}</p>
           <p>
             {p.estimatedValue != null
-              ? formatEGP(p.estimatedValue)
+              ? formatMoney(p.estimatedValue, brand)
               : t(common.noValueSet)}{" "}
             ·{" "}
             {p.sent
@@ -239,13 +247,13 @@ export async function GroupHistory({
           at={won.createdAt}
         >
           <p>
-            {t(records.estimated)} {formatEGP(won.estimatedValue)}
+            {t(records.estimated)} {formatMoney(won.estimatedValue, brand)}
           </p>
           <p>
             {t(common.technicalOwnerColon)} {won.technicalOwner}
           </p>
           <p>
-            {t(records.collected)} {formatEGP(won.collectedAmount)}
+            {t(records.collected)} {formatMoney(won.collectedAmount, brand)}
           </p>
         </Section>
       ),

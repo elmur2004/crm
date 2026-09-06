@@ -351,6 +351,7 @@ export async function BsLeadDetailBody({
           <div>
             <h2 className="u-h3 mb-2">{t(m.stageRecords)}</h2>
             <GroupHistory
+          brand={ctx.brand}
               followUps={lead.followUps}
               meetings={lead.meetings}
               proposals={lead.proposals}

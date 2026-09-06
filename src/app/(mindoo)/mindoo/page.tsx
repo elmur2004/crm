@@ -2,7 +2,7 @@ import { requireMindooPage } from "@/lib/crm/mindoo";
 import { MINDOO_SURFACE } from "@/lib/crm/surface";
 import { internalDashboard } from "@/lib/services/metrics";
 import { configForBrand } from "@/lib/pipeline-engine/configs/for-brand";
-import { formatEGP } from "@/lib/money";
+import { formatMoney } from "@/lib/money";
 import { tFor } from "@/lib/i18n/core";
 import { getLocale } from "@/lib/i18n/server";
 import { stageLabel } from "@/lib/i18n/dict/labels";
@@ -67,13 +67,13 @@ export default async function MindooHomePage() {
         <StatCard label={t(m.totalLeads)} value={String(d.totalLeads)} />
         <StatCard
           label={t(m.pipelineValue)}
-          value={formatEGP(d.pipelineValue)}
+          value={formatMoney(d.pipelineValue, MINDOO_SURFACE.brand)}
           hint={t(m.activeStagesOnly)}
         />
-        <StatCard label={t(m.wonValue)} value={formatEGP(d.wonValue)} />
+        <StatCard label={t(m.wonValue)} value={formatMoney(d.wonValue, MINDOO_SURFACE.brand)} />
         <StatCard
           label={t(m.toBeCollected)}
-          value={formatEGP(d.toBeCollected)}
+          value={formatMoney(d.toBeCollected, MINDOO_SURFACE.brand)}
           hint={t(m.acrossAllClients)}
         />
       </div>

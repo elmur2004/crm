@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import type { CrmSurface } from "@/lib/crm/surface";
-import { formatEGP } from "@/lib/money";
+import { formatMoney } from "@/lib/money";
 import { formatCairoDate } from "@/lib/datetime";
 import { MilestoneCheckbox, WonDocumentUpload } from "@/components/bsystems/wonLeads";
 import { tFor } from "@/lib/i18n/core";
@@ -61,7 +61,7 @@ export async function BsWonDealBody({ ctx, wonId }: { ctx: CrmSurface; wonId: st
             <div className="card-pad flex gap-2 flex-wrap">
               <div className="money-tile">
                 <p className="money-label">{t(wonLeads.labelEstimatedValue)}</p>
-                <p className="money-value">{formatEGP(w.estimatedValue)}</p>
+                <p className="money-value">{formatMoney(w.estimatedValue, ctx.brand)}</p>
               </div>
               <div className="money-tile">
                 <p className="money-label">{t(common.labelTotalCommission)}</p>
@@ -169,9 +169,9 @@ export async function BsWonDealBody({ ctx, wonId }: { ctx: CrmSurface; wonId: st
                     {m.label ?? t(wonLeads.milestoneFallback).replace("{n}", String(m.index))}
                   </span>
                   <span className="ms-note ms-auto text-end">
-                    {formatEGP(m.value)}
+                    {formatMoney(m.value, ctx.brand)}
                     {m.commissionValue != null
-                      ? `${t(common.commissionSep)}${formatEGP(m.commissionValue)}`
+                      ? `${t(common.commissionSep)}${formatMoney(m.commissionValue, ctx.brand)}`
                       : ""}
                     {m.expectedStart ? ` · ${formatCairoDate(m.expectedStart, locale)}` : ""}
                     {m.expectedEnd ? ` → ${formatCairoDate(m.expectedEnd, locale)}` : ""}

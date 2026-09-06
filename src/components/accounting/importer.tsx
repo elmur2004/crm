@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { tFor } from "@/lib/i18n/core";
 import { useLocale } from "@/components/shared/LocaleProvider";
-import { formatEGP } from "@/lib/money";
+import { formatMoney } from "@/lib/money";
 import { useSearchParams } from "next/navigation";
 import { acct, acctCompanies } from "@/lib/i18n/dict/accounting";
 import { acctView } from "@/lib/accounting/params";
@@ -132,7 +132,7 @@ export function ImportPanel({ companies }: { companies: Brand[] }) {
                   ).map(([label, value], i) => (
                     <span key={i}>
                       <span className="fields-label block">{t(label)}</span>
-                      <span className="fields-value">{formatEGP(value)}</span>
+                      <span className="fields-value">{formatMoney(value, c.company as Brand)}</span>
                     </span>
                   ))}
                 </div>

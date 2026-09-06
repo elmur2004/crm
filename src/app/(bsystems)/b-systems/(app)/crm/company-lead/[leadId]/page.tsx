@@ -11,6 +11,7 @@ import { common, crmPage, leadDetail as m } from "@/lib/i18n/dict/crm";
 import { StageBadge } from "@/components/shared/StageBadge";
 import { NoAnswerBadge } from "@/components/shared/NoAnswerBadge";
 import { GroupHistory } from "@/components/internal/GroupHistory";
+import { SubServiceForm } from "@/components/bsystems/SubServiceForm";
 
 export const metadata = { title: "Lead — B-Systems CRM" };
 
@@ -78,6 +79,16 @@ export default async function ForeignLeadPage({
     notFound();
   }
 
+  /* ADR-012 — a lead's value is its NEWEST quote, and the sub-service hangs off
+     the same proposal the board and the card read.
+
+     `.at(-1)`, NOT `.at(0)`: `getLeadDetail` orders every group `createdAt asc`
+     because the detail reads as a HISTORY, oldest first. Taking the first row
+     would have annotated the lead's ORIGINAL quote while the board showed its
+     latest — the two screens disagreeing about which proposal this is, with
+     nothing on either of them saying so. */
+  const latestProposal = lead.proposals.at(-1) ?? null;
+
   return (
     <div className="space-y-6">
       <div className="page-head">
@@ -139,11 +150,31 @@ export default async function ForeignLeadPage({
         </div>
       </div>
 
+      {/* ADR-077 — THE ONE CONTROL THAT WRITES on this page, and the reason it
+          is allowed to: "the admin and the admin only is allowed to customize
+          the proposal that is appearing in the ByteForce CRM." It edits two
+          columns that exist purely for ByteForce's half of a Mindoo deal and
+          touches nothing of Mindoo's — the riyal figure beside it is shown,
+          never editable. Rendered only here, where the guard above has already
+          proved the reader is the platform administrator. */}
+      <SubServiceForm
+        leadId={lead.id}
+        hasProposal={latestProposal != null}
+        mindooService={latestProposal?.service ?? null}
+        mindooValue={latestProposal?.estimatedValue ?? null}
+        current={
+          latestProposal?.bfService != null && latestProposal.bfValue != null
+            ? { service: latestProposal.bfService, value: latestProposal.bfValue }
+            : null
+        }
+      />
+
       <div>
         <h2 className="u-h3 mb-2">{t(m.stageRecords)}</h2>
         {/* the pipeline records, read as they stand. GroupHistory renders and
             never writes, which is why it is the one panel that belongs here. */}
         <GroupHistory
+          brand={FOREIGN_BRAND}
           followUps={lead.followUps}
           meetings={lead.meetings}
           proposals={lead.proposals}

@@ -285,7 +285,18 @@ model Proposal {
   id             String    @id @default(cuid())
   leadId         String?
   service        String
-  estimatedValue Int? // piasters (ADR-018)
+  estimatedValue Int? // minor units of THIS LEAD'S BRAND currency (ADR-018/077)
+
+  /* ADR-077 — the BYTEFORCE SUB-SERVICE the platform admin may attach to a
+     MINDOO proposal: "this proposal is X in Saudi riyal, and then we will get
+     this sub-service for ByteForce for X in Egyptian pounds."
+
+     `bfValue` is EGYPTIAN POUNDS while `estimatedValue` on the same row is
+     Mindoo's RIYALS. Two currencies on one record, never added together, each
+     printed through formatMoney with its own brand. Both nullable: null means
+     the admin has not annotated this proposal, which is not zero. */
+  bfService      String?
+  bfValue        Int? // piasters, EGP — ByteForce's share
   sent           Boolean   @default(false)
   sentAt         DateTime?
   lead           Lead?     @relation(fields: [leadId], references: [id], onDelete: Cascade)

@@ -3,7 +3,7 @@ import type { CrmSurface } from "@/lib/crm/surface";
 import type { Role } from "@/lib/pipeline-engine/constants";
 import { adminWonLeads, closerWonLeads, salesWonLeads } from "@/lib/services/won-leads";
 import { DeleteLeadButton } from "@/components/bsystems/leadActions";
-import { formatEGP } from "@/lib/money";
+import { formatMoney } from "@/lib/money";
 import { formatCairoDate } from "@/lib/datetime";
 import { tFor } from "@/lib/i18n/core";
 import { getLocale } from "@/lib/i18n/server";
@@ -85,7 +85,7 @@ export async function BsWonLeadsBody({
                   </div>
                   <p className="ecard-title">{w.lead.name}</p>
                   <p className="ecard-sub">
-                    <span>{t(common.labelValue)}</span> {formatEGP(w.estimatedValue)}
+                    <span>{t(common.labelValue)}</span> {formatMoney(w.estimatedValue, ctx.brand)}
                   </p>
                   <p className="ecard-sub">
                     <span>{t(wonLeads.labelCloser)}</span> {w.closer}
@@ -162,7 +162,7 @@ export async function BsWonLeadsBody({
               <div className="flex gap-2 flex-wrap">
                 <div className="money-tile">
                   <p className="money-label">{t(common.labelValue)}</p>
-                  <p className="money-value">{formatEGP(w.estimatedValue)}</p>
+                  <p className="money-value">{formatMoney(w.estimatedValue, ctx.brand)}</p>
                 </div>
                 {w.totalCommissionPercent != null ? (
                   <div className="money-tile">
@@ -187,9 +187,9 @@ export async function BsWonLeadsBody({
                       {m.locked ? t(wonLeads.lockedSuffix) : ""}
                     </span>
                     <span className="ms-note ms-auto text-end">
-                      {formatEGP(m.value)}
+                      {formatMoney(m.value, ctx.brand)}
                       {m.commissionValue != null
-                        ? `${t(common.commissionSep)}${formatEGP(m.commissionValue)}`
+                        ? `${t(common.commissionSep)}${formatMoney(m.commissionValue, ctx.brand)}`
                         : ""}
                       {m.expectedEnd
                         ? ` · ${t(wonLeads.dueWord)} ${formatCairoDate(m.expectedEnd, locale)}`

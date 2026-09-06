@@ -605,6 +605,21 @@ export async function seed() {
           },
         });
       }
+      /* ADR-077 — a lead PAST the proposal stage has a proposal, which the seed
+         did not give it: the board's estimated-value line read empty, and there
+         was nothing for the admin to attach a ByteForce sub-service to. The
+         value is in RIYALS, because Mindoo quotes in riyals. */
+      if (stage === "sending_proposal" || stage === "negotiation") {
+        await db.proposal.create({
+          data: {
+            leadId: lead.id,
+            service: "Brand identity and launch",
+            estimatedValue: 320_000_00, // SAR 320,000
+            sent: true,
+            sentAt: new Date("2026-09-01T09:00:00Z"),
+          },
+        });
+      }
     }
   }
 

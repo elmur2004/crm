@@ -4,7 +4,7 @@ import { requireAccountingPage } from "@/lib/auth/page-guards";
 import { getLocale } from "@/lib/i18n/server";
 import { tFor } from "@/lib/i18n/core";
 import { acct } from "@/lib/i18n/dict/accounting";
-import { formatEGP } from "@/lib/money";
+import { formatMoney } from "@/lib/money";
 import { loadBooks } from "@/lib/accounting/books";
 import { departments } from "@/lib/accounting/engine";
 import { cairoMonth } from "@/lib/accounting/now";
@@ -94,17 +94,17 @@ export default async function AcctDepartmentsPage({
                 {rep.rows.map((r) => (
                   <tr key={r.id}>
                     <td className="td-title">{deptLabel(r.id)}</td>
-                    <td className="text-brand-success">{formatEGP(r.income)}</td>
-                    <td className={r.cost ? "text-brand-danger" : ""}>{r.cost ? formatEGP(r.cost) : "—"}</td>
-                    <td className={`td-title ${r.profit >= 0 ? "" : "text-brand-danger"}`}>{formatEGP(r.profit)}</td>
+                    <td className="text-brand-success">{formatMoney(r.income, view.company)}</td>
+                    <td className={r.cost ? "text-brand-danger" : ""}>{r.cost ? formatMoney(r.cost, view.company) : "—"}</td>
+                    <td className={`td-title ${r.profit >= 0 ? "" : "text-brand-danger"}`}>{formatMoney(r.profit, view.company)}</td>
                     <td>{r.income > 0 ? `${r.marginPct.toFixed(0)}%` : "—"}</td>
                   </tr>
                 ))}
                 <tr className="font-semibold">
                   <td className="td-title">{t(acct.directTotal)}</td>
-                  <td className="text-brand-success">{formatEGP(rep.totalIncome)}</td>
-                  <td className="text-brand-danger">{formatEGP(rep.totalCost)}</td>
-                  <td className={rep.directProfit >= 0 ? "" : "text-brand-danger"}>{formatEGP(rep.directProfit)}</td>
+                  <td className="text-brand-success">{formatMoney(rep.totalIncome, view.company)}</td>
+                  <td className="text-brand-danger">{formatMoney(rep.totalCost, view.company)}</td>
+                  <td className={rep.directProfit >= 0 ? "" : "text-brand-danger"}>{formatMoney(rep.directProfit, view.company)}</td>
                   <td></td>
                 </tr>
               </tbody>
@@ -116,16 +116,16 @@ export default async function AcctDepartmentsPage({
       <section className="card card-pad">
         <div className="flex items-baseline justify-between py-1.5 border-b border-brand-hairline">
           <span className="u-muted">{t(acct.directDeptProfit)}</span>
-          <span className="font-medium">{formatEGP(rep.directProfit)}</span>
+          <span className="font-medium">{formatMoney(rep.directProfit, view.company)}</span>
         </div>
         <div className="flex items-baseline justify-between py-1.5 border-b border-brand-hairline">
           <span className="u-muted">{t(acct.sharedOverhead)}</span>
-          <span className="font-medium text-brand-danger">−{formatEGP(rep.overhead)}</span>
+          <span className="font-medium text-brand-danger">−{formatMoney(rep.overhead, view.company)}</span>
         </div>
         <div className="flex items-baseline justify-between pt-3">
           <span className="u-h3">{t(acct.netAfterOverhead)}</span>
           <span className={`u-h2 ${rep.netAfterOverhead >= 0 ? "" : "text-brand-danger"}`}>
-            {formatEGP(rep.netAfterOverhead)}
+            {formatMoney(rep.netAfterOverhead, view.company)}
           </span>
         </div>
       </section>

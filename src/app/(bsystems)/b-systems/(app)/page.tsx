@@ -33,7 +33,14 @@ export default async function BSystemsHomePage({
   searchParams: Promise<{ company?: string }>;
 }) {
   const { user, company, companies } = await requireCompanyPage((await searchParams).company);
-  if (company === "byteforce") return <DashboardBody ctx={BYTEFORCE_CTX} />;
+  if (company === "byteforce") {
+    /* ADR-077 — the pipeline figure includes what Mindoo owes ByteForce, for
+       the reader who can see the sub-services that make it up. ByteForce's own
+       staff get the dashboard they have always had. */
+    return (
+      <DashboardBody ctx={BYTEFORCE_CTX} showMindoo={user.roles.includes("bsystems_admin")} />
+    );
+  }
 
   /* ADR-051 + ADR-067 — under ByteForce the company itself proves
      `byteforce_staff` (companiesFor only reports a company a role carries), so

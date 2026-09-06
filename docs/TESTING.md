@@ -5285,3 +5285,59 @@ words, and the card's own colour is what that change touched.
 The first run died on `Timed out waiting 300000ms from config.webServer` — the
 cold-`.next` trap already in IMPLEMENTATION. `npx next build` first, then
 Playwright. It costs a minute and saves five.
+
+
+## Run 092 — 2026-09-06 — ADR-077: riyals for Mindoo, and the ByteForce sub-service
+
+- Scope: `CURRENCY_FOR`/`formatMoney` and the ~100 call sites moved onto it; the
+  Mindoo-reachable sweep; two columns + migration; the sub-service service,
+  endpoint and form; the pipeline-value change; the seed's missing proposals.
+
+| Command | Result |
+| --- | --- |
+| `npx tsc --noEmit` | clean |
+| `npx vitest run` | **58 files, 975 tests, all passing** |
+| `npx next build` | clean; `/api/b-systems/company-leads/[leadId]/sub-service` registered |
+| `npx playwright test e2e/mindoo.spec.ts` | **29 passed** (26 → 29) |
+| `npx playwright test` (full) | **183 passed, 0 failed**, 2 skipped (the opt-in audit spec) |
+
+### New coverage
+
+- **`money-currency.test.ts` (10)** — the currency values, the fact that the
+  same stored integer formats identically in both currencies (which is *why*
+  there is no migration), and the SWEEP: no file a Mindoo account can reach may
+  call `formatEGP`.
+- **`foreign-sub-service.integration.test.ts` (8)** — the write, the 404 for a
+  non-Mindoo proposal in both directions, replace-not-accumulate, clearing being
+  distinct from zero, and four cases on what counts toward the owed figure
+  (won/lost/archived excluded, newest proposal only, other brands ignored).
+- **Three e2e** — Mindoo shows riyals and no pounds on three screens while the
+  other two still show pounds; the admin attaches a sub-service and both halves
+  read back in their own currencies on the page AND the card; Mindoo's own staff
+  never see the ByteForce line and the endpoint refuses them.
+
+### The one failure, and the two real gaps behind it
+
+The sub-service e2e failed at the save. Neither cause was test noise:
+
+1. **`Cairo Tech Park` is in Meeting Setting**, not Sending Proposals — I picked
+   the wrong seeded lead from memory instead of reading the array.
+2. **The Mindoo seed created no `Proposal` rows at all.** Its Sending Proposals
+   and Negotiation leads had no proposal, so the board's estimated-value line
+   was empty and there was genuinely nothing to annotate. That is a seed gap
+   ADR-073 shipped and nothing had exercised until a feature needed to read one.
+
+Fixing (2) surfaced a third thing worth more than either: with no proposal, the
+form still offered an **Add** button whose endpoint answers *"this lead has no
+proposal yet"*. That is the always-fails control this project shipped in ADR-073
+and has now removed three times. It says so instead.
+
+### A near miss the compiler could not catch
+
+`getLeadDetail` orders every group `createdAt asc`, because the detail reads as
+a HISTORY. I wrote `lead.proposals.at(0)` for "the latest proposal" — which is
+the OLDEST. The admin would have annotated the lead's original quote while the
+board showed its latest, with nothing on either screen saying they disagreed.
+Caught by reading the service rather than by a test, and now `.at(-1)` with the
+reason written beside it.
+

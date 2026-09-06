@@ -4,7 +4,7 @@ import { useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { formatMsg, tFor, type Msg } from "@/lib/i18n/core";
 import { useLocale } from "@/components/shared/LocaleProvider";
-import { formatEGP, toPiasters, toPounds } from "@/lib/money";
+import { formatMoney, toPiasters, toPounds } from "@/lib/money";
 import { acct } from "@/lib/i18n/dict/accounting";
 import {
   ACCT_DEPT_LABELS,
@@ -986,10 +986,10 @@ export function MediaButtons({ company, month }: { company: AcctCompany; month: 
                 )}
                 <span className="u-muted">
                   {t(acct.feeIncomeIs)}
-                  <strong>{formatEGP(feeP)}</strong>
+                  <strong>{formatMoney(feeP, company)}</strong>
                   {" · "}
                   {t(acct.heldForAds)}
-                  <strong>{formatEGP(Math.max(0, amountP - feeP))}</strong>
+                  <strong>{formatMoney(Math.max(0, amountP - feeP), company)}</strong>
                 </span>
               </span>
             </Field>
@@ -1140,7 +1140,7 @@ export function LoanActions({ loan, company }: { loan: LoanDto; company: AcctCom
           submitLabel={t(acct.save)}
         >
           <p className="u-muted field--wide">
-            {loan.party} · {t(acct.outstandingIs)} <strong>{formatEGP(loan.outstanding)}</strong>
+            {loan.party} · {t(acct.outstandingIs)} <strong>{formatMoney(loan.outstanding, company)}</strong>
           </p>
           <Field label={t(acct.amountEgp)}>
             <input

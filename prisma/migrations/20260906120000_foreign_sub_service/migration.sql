@@ -1,0 +1,24 @@
+-- ADR-077 (founder: "when we are sending proposals through the Mindoo platform,
+-- the admin and the admin only is allowed to customize the proposal that is
+-- appearing in the ByteForce CRM... this proposal is X amount in Saudi riyal,
+-- and then we will get this sub-service for ByteForce for X amount in Egyptian
+-- pounds") — THE BYTEFORCE SUB-SERVICE.
+--
+-- TWO NULLABLE COLUMNS ON Proposal, and nothing else.
+--
+-- The founder asked for exactly one sub-service per proposal when asked, so
+-- this is two columns rather than a table: a one-to-one that can never be more
+-- than one is a row's own business, and a join table would invite a second
+-- through the back door the day somebody writes a loop.
+--
+-- WHOSE MONEY IS WHOSE, which is the whole subtlety of this record. The
+-- proposal's own `estimatedValue` is MINDOO'S, quoted in riyals (ADR-077's
+-- CURRENCY_FOR). `bfValue` sits beside it in EGYPTIAN POUNDS, because it is
+-- ByteForce's share of the same deal. Two currencies on one row, never summed
+-- anywhere, and each one printed through formatMoney with its OWN brand.
+--
+-- Both nullable: every proposal that exists today has no sub-service, and most
+-- never will. Null means "the admin has not annotated this one", which is a
+-- different fact from zero.
+ALTER TABLE "Proposal" ADD COLUMN "bfService" TEXT;
+ALTER TABLE "Proposal" ADD COLUMN "bfValue" INTEGER;

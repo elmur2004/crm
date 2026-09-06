@@ -6187,3 +6187,110 @@ this feature is kept as it moved: the platform administrator only.
   2. **Only you see the purple cards.** ByteForce has one staff role, so
      "appears in byteforce crm" could have meant every ByteForce teammate; I
      kept the admin-only narrowing he chose when this lived on the other board.
+
+---
+
+## ADR-077 — 2026-09-06 — Mindoo quotes in riyals, and one Mindoo deal can carry a ByteForce half
+
+- Status: Accepted
+- Context, in his words:
+
+  > "change the entire landscape of Mindoo to the Saudi riyal, not the Egyptian
+  > pound. Keep everything else, B-Systems and ByteForce, in the Egyptian pound."
+
+  > "when we are sending proposals through the Mindoo platform, the admin and
+  > the admin only is allowed to customize the proposal that is appearing in the
+  > ByteForce CRM… for everyone else, they will just get the number and the
+  > service of Mindoo, which will be in Saudi riyal. The admin could customize it
+  > a little bit and say, this proposal is X amount in Saudi riyal, and then we
+  > will get this sub-service for ByteForce for X amount in Egyptian pounds."
+
+  Two features, and the second only makes sense because of the first: a Mindoo
+  deal is quoted in riyals, and the piece of it ByteForce delivers is owed in
+  pounds.
+
+### 1. The currency belongs to the company
+
+**This is a deviation from SPEC §2 ("Currency: EGP")**, which is why it is an
+ADR — and it is a deviation in the LABEL only.
+
+Nothing is stored differently and nothing needs converting. Every amount is an
+integer in minor units (ADR-018), and the riyal has two decimal places exactly
+as the pound does: `150050` is 1,500.50 in either. So `toPiasters`/`toPounds`
+are untouched, **no migration exists for this change**, and no stored figure
+moves. Three letters change in front of the number.
+
+**There is deliberately no rate, and there must not be one.** A Mindoo deal is
+quoted, invoiced and collected in riyals; a B-Systems deal in pounds. They are
+separate books that are never summed — the accounting module already scopes
+every figure to ONE company (ADR-052's filter, ADR-074's tenancy), so there is
+no screen on which a pound and a riyal are added together. The day one exists it
+needs a rate AND a date, and that is a decision to take then rather than a
+default to leave lying around now.
+
+**`formatEGP` was not deleted, it was SCOPED**, and that is the interesting
+part. It is still right for the screens that are EGP by construction —
+statements, payments, commissions, the whole partner subsystem — so the danger
+is not that it is wrong, it is that it is *right next door*. A shared body that
+keeps calling it prints "EGP 40,000" on a Mindoo proposal: correct number,
+correct layout, wrong currency, and **nothing about it looks broken**.
+
+So `money-currency.test.ts` reads the files a Mindoo account can reach and fails
+if any of them calls it. That sweep is the actual deliverable; the formatter is
+five lines.
+
+### 2. The ByteForce sub-service
+
+Two nullable columns on `Proposal`, because he chose "exactly one" when asked. A
+one-to-one that can never be more than one is a row's own business; a join table
+would invite a second through the back door the day somebody writes a loop.
+
+**Two currencies on one row.** `estimatedValue` is Mindoo's riyals — what the
+prospect was quoted. `bfValue` beside it is Egyptian pounds — what ByteForce is
+owed for its part. Never converted, never summed, each printed through
+`formatMoney` with its own brand.
+
+Three walls, each answering a different question: **whose proposal** (Mindoo's
+only, 404 otherwise), **who** (`bsystems_admin` alone — not Mindoo's staff, who
+by his instruction see only their own number and service, and not ByteForce's,
+who never see these cards), and **which currency** (the pound column is named
+for it and the form's label says so, because this is the one field on the
+platform where typing into the wrong currency is a mistake a person could
+plausibly make).
+
+### 3. The exception to "nothing writes", kept an exception
+
+ADR-075/076 built the foreign-lead page as *"nothing writes — not disabled
+versions of the controls, ABSENT"*, and that rule is what makes a read-only
+window honest. This is the one exception he asked for, and it is shaped to stay
+one: it edits nothing of Mindoo's (the riyal figure beside it is shown, never a
+field), it posts to one endpoint that admits one role, and it renders only where
+the server has already decided the reader is the administrator — so there is no
+"is the button disabled" state to get wrong.
+
+And when a lead has not been quoted yet, it says so instead of offering a button
+whose endpoint would answer *"this lead has no proposal yet"*. That
+always-fails control is a mistake this project already shipped once (ADR-073)
+and keeps taking back out.
+
+### 4. Where the money counts, and for whom
+
+He chose that the sub-service counts toward ByteForce's pipeline value AND that
+only he can see the sub-service. Together those mean **the money follows the
+visibility**: his ByteForce dashboard includes what Mindoo owes ByteForce, and
+ByteForce's own staff keep exactly the figure they have always had.
+
+A number he cannot trace would be worse than one that is not there. Two roles,
+two answers — which this codebase already does for commission (V2 §4). What it
+never does is two answers for the SAME role, and that line is not crossed.
+
+- Consequences: `CURRENCY_FOR` + `formatMoney` and ~100 call sites moved off
+  `formatEGP`; one sweep test; two columns and a migration; one service with
+  three walls; one admin-only endpoint; one form; the seed finally giving
+  Mindoo's late-stage leads a proposal to annotate.
+- **Needs founder confirmation (one):** the accounting **import/export** file
+  format carries no currency — it is the original SPA's JSON. Importing an old
+  EGP export into Mindoo's books would relabel those numbers as riyals without
+  converting them. Mindoo's books are new and empty so nothing is at risk today,
+  but if you ever intend to move figures between companies, say so and the
+  importer gets a currency check.

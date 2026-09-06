@@ -3,7 +3,7 @@ import { requireAccountingPage } from "@/lib/auth/page-guards";
 import { getLocale } from "@/lib/i18n/server";
 import { tFor } from "@/lib/i18n/core";
 import { acct } from "@/lib/i18n/dict/accounting";
-import { formatEGP } from "@/lib/money";
+import { formatMoney } from "@/lib/money";
 import { loadBooks } from "@/lib/accounting/books";
 import { memberAt } from "@/lib/accounting/engine";
 import { cairoMonth } from "@/lib/accounting/now";
@@ -63,7 +63,7 @@ export default async function AcctRosterPage({
       <div className="tile-grid">
         <AcctTile
           label={t(acct.committedSalary)}
-          value={formatEGP(committed)}
+          value={formatMoney(committed, view.company)}
           sub={`${activeNow.length} ${t(acct.activeStaff)}`}
         />
       </div>
@@ -98,7 +98,7 @@ export default async function AcctRosterPage({
                       )}
                     </td>
                     <td className="td-mono u-ltr">{r.account || "—"}</td>
-                    <td className="td-title">{cur.active ? formatEGP(cur.salary) : "—"}</td>
+                    <td className="td-title">{cur.active ? formatMoney(cur.salary, view.company) : "—"}</td>
                     <td>{r.since ? monthLabel(r.since, locale) : "—"}</td>
                     <td>
                       {cur.active ? (

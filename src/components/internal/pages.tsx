@@ -19,6 +19,7 @@ import {
   nav,
 } from "@/lib/i18n/dict/internal";
 import { internalDashboard } from "@/lib/services/metrics";
+import { byteforceOwedFromMindoo } from "@/lib/services/foreign-sub-service";
 import {
   listRepsWithCounts,
   listReps,
@@ -27,7 +28,7 @@ import {
 } from "@/lib/services/sales-reps";
 import { listClients } from "@/lib/services/clients";
 import { getLeadDetail, latestProposalValue } from "@/lib/services/leads";
-import { formatEGP } from "@/lib/money";
+import { formatMoney } from "@/lib/money";
 import { formatCairo, formatCairoDate } from "@/lib/datetime";
 import { waHref } from "@/lib/phone-dial";
 import { waSentLabel, whatsappMarkOf } from "@/components/shared/whatsappMark";
@@ -89,10 +90,27 @@ function markInitials(name: string): string {
 
 /* ---------------- Home dashboard (§6.5) ---------------- */
 
-export async function DashboardBody({ ctx }: { ctx: InternalAppCtx }) {
+export async function DashboardBody({
+  ctx,
+  showMindoo = false,
+}: {
+  ctx: InternalAppCtx;
+  /* ADR-077 — whether this reader sees what MINDOO OWES BYTEFORCE inside the
+     pipeline figure. The founder chose both that the sub-service counts toward
+     ByteForce's pipeline value AND that only he can see the sub-service at all;
+     the two together mean the money follows the visibility. A figure he cannot
+     trace would be worse than one that is not there, so ByteForce's own staff
+     keep exactly the dashboard they have always had.
+
+     Two roles, two answers — which this codebase already does for commission
+     (V2 §4). What it never does is two answers for the SAME role, and that
+     line is not crossed here. Defaulted OFF, so a new caller cannot leak it. */
+  showMindoo?: boolean;
+}) {
   const locale = await getLocale();
   const t = tFor(locale);
   const d = await internalDashboard(ctx.brand);
+  const owed = showMindoo ? await byteforceOwedFromMindoo() : 0;
   const stageCells: Array<{ key: string; label: string; value: string }> = [
     { key: "intake", label: t(dash.newNotActioned), value: String(d.leadsPerStage["new"] ?? 0) },
     { key: "following", label: stageLabel(locale, "following_up"), value: String(d.leadsPerStage["following_up"] ?? 0) },
@@ -111,9 +129,13 @@ export async function DashboardBody({ ctx }: { ctx: InternalAppCtx }) {
       </div>
       <div className="tile-grid tile-grid--vary">
         <StatCard label={t(dash.totalLeads)} value={String(d.totalLeads)} />
-        <StatCard label={t(dash.pipelineValue)} value={formatEGP(d.pipelineValue)} hint={t(dash.activeStagesOnly)} />
-        <StatCard label={t(dash.wonValue)} value={formatEGP(d.wonValue)} />
-        <StatCard label={t(dash.toBeCollected)} value={formatEGP(d.toBeCollected)} hint={t(dash.acrossAllClients)} />
+        <StatCard
+          label={t(dash.pipelineValue)}
+          value={formatMoney(d.pipelineValue + owed, ctx.brand)}
+          hint={owed > 0 ? t(dash.includesMindoo) : t(dash.activeStagesOnly)}
+        />
+        <StatCard label={t(dash.wonValue)} value={formatMoney(d.wonValue, ctx.brand)} />
+        <StatCard label={t(dash.toBeCollected)} value={formatMoney(d.toBeCollected, ctx.brand)} hint={t(dash.acrossAllClients)} />
       </div>
       <div className="card card--flush0">
         <div className="card-head">
@@ -437,6 +459,7 @@ export async function LeadDetailBody({ ctx, leadId }: { ctx: InternalAppCtx; lea
               {t(leadDetail.stageRecords)}
             </h2>
             <GroupHistory
+          brand={ctx.brand}
               followUps={lead.followUps}
               meetings={lead.meetings}
               proposals={lead.proposals}
@@ -532,10 +555,10 @@ export async function CrmBoardBody({
           : t(board.meetingNotArranged);
       case "sending_proposal":
         return lead.proposals[0]?.estimatedValue != null
-          ? `${t(board.estPrefix)} ${formatEGP(lead.proposals[0].estimatedValue)}`
+          ? `${t(board.estPrefix)} ${formatMoney(lead.proposals[0].estimatedValue, ctx.brand)}`
           : t(common.noValueSet);
       case "won":
-        return lead.wonInfo ? `${t(board.estPrefix)} ${formatEGP(lead.wonInfo.estimatedValue)}` : "";
+        return lead.wonInfo ? `${t(board.estPrefix)} ${formatMoney(lead.wonInfo.estimatedValue, ctx.brand)}` : "";
       case "lost":
         return lead.lostInfo[0]?.reason ?? "";
       default:
@@ -625,7 +648,21 @@ export async function CrmBoardBody({
                noise */
             stageLabel: column === lead.stage ? null : stageLabel(locale, lead.stage),
           },
-          keyDatum: "",
+          /* ADR-077 — BOTH HALVES OF THE DEAL, on the card. Mindoo's own quote
+             in RIYALS is what the prospect was given; the ByteForce line beside
+             it in POUNDS is what this company is owed inside it. Two
+             currencies, each printed with its own brand, never summed — see
+             lib/money.ts on why there is no rate anywhere in this codebase. */
+          keyDatum: [
+            lead.proposals[0]?.estimatedValue != null
+              ? formatMoney(lead.proposals[0].estimatedValue, "mindoo")
+              : null,
+            lead.proposals[0]?.bfService != null && lead.proposals[0].bfValue != null
+              ? `${lead.proposals[0].bfService} · ${formatMoney(lead.proposals[0].bfValue, "byteforce")}`
+              : null,
+          ]
+            .filter(Boolean)
+            .join(" → "),
           noAnswer: lead.noAnswer,
           noAnswerCount: lead.noAnswerCount,
           latestProposalValue: null,
@@ -751,16 +788,16 @@ export async function ClientsBody({ ctx }: { ctx: InternalAppCtx }) {
               <div className="ecard-stats">
                 <div>
                   <p className="ecard-stat-label">{t(clientsPage.estimatedColon)}</p>
-                  <p className="ecard-stat-value">{formatEGP(c.estimatedValue)}</p>
+                  <p className="ecard-stat-value">{formatMoney(c.estimatedValue, ctx.brand)}</p>
                 </div>
                 <div>
                   <p className="ecard-stat-label">{t(clientsPage.collectedColon)}</p>
-                  <p className="ecard-stat-value">{formatEGP(c.collected)}</p>
+                  <p className="ecard-stat-value">{formatMoney(c.collected, ctx.brand)}</p>
                 </div>
                 <div>
                   <p className="ecard-stat-label">{t(clientsPage.toBeCollectedColon)}</p>
                   <p className="ecard-stat-value">
-                    {formatEGP(c.toBeCollected)}
+                    {formatMoney(c.toBeCollected, ctx.brand)}
                     {c.dueDate ? ` (${t(clientsPage.due)} ${formatCairoDate(c.dueDate, locale)})` : ""}
                   </p>
                 </div>

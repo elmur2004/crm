@@ -379,3 +379,30 @@ export const board = {
   noTodayFollowUps: { en: "No follow-ups due today", ar: "لا توجد متابعات مستحقة اليوم" },
   noTodayMeetings: { en: "No meetings today", ar: "لا توجد اجتماعات اليوم" },
 } satisfies Record<string, Msg>;
+
+/* ADR-077 — the ByteForce sub-service on a Mindoo proposal. Founder: "this
+   proposal is X amount in Saudi riyal, and then we will get this sub-service
+   for ByteForce for X amount in Egyptian pounds." Only the platform admin ever
+   reads these strings. */
+export const subService = {
+  heading: { en: "ByteForce share of this deal", ar: "حصة ByteForce من هذه الصفقة" },
+  quotedToClient: { en: "Quoted to the client", ar: "المعروض على العميل" },
+  none: {
+    en: "No ByteForce service attached to this proposal yet.",
+    ar: "لا توجد خدمة من ByteForce مرتبطة بهذا العرض بعد.",
+  },
+  noProposal: {
+    en: "This lead has not been quoted yet — there is no proposal to attach a ByteForce service to.",
+    ar: "لم يتم تقديم عرض سعر لهذا العميل بعد — لا يوجد عرض لإرفاق خدمة ByteForce به.",
+  },
+  add: { en: "Add ByteForce service", ar: "إضافة خدمة ByteForce" },
+  edit: { en: "Edit ByteForce service", ar: "تعديل خدمة ByteForce" },
+  remove: { en: "Remove", ar: "إزالة" },
+  fieldService: { en: "ByteForce service", ar: "خدمة ByteForce" },
+  fieldValue: { en: "Amount (EGP)", ar: "المبلغ (جنيه مصري)" },
+  /* the sentence that stops the two currencies being mistaken for each other */
+  hint: {
+    en: "The client is quoted in riyals by Mindoo; this is what ByteForce is owed in pounds for its part. The two are never added together, and only you can see this.",
+    ar: "يتم عرض السعر على العميل بالريال من Mindoo؛ هذا هو المستحق لـ ByteForce بالجنيه مقابل دوره. لا يُجمع المبلغان أبدًا، وأنت وحدك من يرى هذا.",
+  },
+} as const;

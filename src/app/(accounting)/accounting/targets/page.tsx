@@ -3,7 +3,7 @@ import { requireAccountingPage } from "@/lib/auth/page-guards";
 import { getLocale } from "@/lib/i18n/server";
 import { tFor } from "@/lib/i18n/core";
 import { acct } from "@/lib/i18n/dict/accounting";
-import { formatEGP } from "@/lib/money";
+import { formatMoney } from "@/lib/money";
 import { db } from "@/lib/db";
 import { loadBooks } from "@/lib/accounting/books";
 import { incomeIn } from "@/lib/accounting/engine";
@@ -78,8 +78,8 @@ export default async function AcctTargetsPage({
                   return (
                     <tr key={target.id}>
                       <td className="td-title">{monthLabel(target.period, locale)}</td>
-                      <td>{formatEGP(target.goal)}</td>
-                      <td className="text-brand-success">{formatEGP(got)}</td>
+                      <td>{formatMoney(target.goal, view.company)}</td>
+                      <td className="text-brand-success">{formatMoney(got, view.company)}</td>
                       <td>
                         <span className="flex items-center gap-2 min-w-40">
                           <span className="meter" style={{ height: 8 }}>

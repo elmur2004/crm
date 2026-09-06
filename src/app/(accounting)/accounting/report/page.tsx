@@ -3,7 +3,7 @@ import { requireAccountingPage } from "@/lib/auth/page-guards";
 import { getLocale } from "@/lib/i18n/server";
 import { tFor } from "@/lib/i18n/core";
 import { acct } from "@/lib/i18n/dict/accounting";
-import { formatEGP } from "@/lib/money";
+import { formatMoney } from "@/lib/money";
 import { loadBooks } from "@/lib/accounting/books";
 import { pnl, trend } from "@/lib/accounting/engine";
 import {
@@ -72,14 +72,14 @@ export default async function AcctReportPage({
               <span className="u-muted">{negative ? expenseLabel(type) : incomeLabel(type)}</span>
               <span className="font-medium">
                 {negative ? "−" : ""}
-                {formatEGP(value)}
+                {formatMoney(value, view.company)}
               </span>
             </div>
           ))
       )}
       <div className="flex items-baseline justify-between pt-3 font-semibold">
         <span>{totalLabel}</span>
-        <span className={negative ? "text-brand-danger" : "text-brand-success"}>{formatEGP(total)}</span>
+        <span className={negative ? "text-brand-danger" : "text-brand-success"}>{formatMoney(total, view.company)}</span>
       </div>
     </section>
   );
@@ -118,7 +118,7 @@ export default async function AcctReportPage({
           <p className="u-eyebrow">
             {t(acct.netProfitLoss)} · {monthLabel(view.month, locale)}
           </p>
-          <p className={`u-h1 ${p.net >= 0 ? "" : "text-brand-danger"}`}>{formatEGP(p.net)}</p>
+          <p className={`u-h1 ${p.net >= 0 ? "" : "text-brand-danger"}`}>{formatMoney(p.net, view.company)}</p>
         </div>
         <div className="text-end">
           <p className="u-eyebrow">{t(acct.netMargin)}</p>
@@ -142,7 +142,7 @@ export default async function AcctReportPage({
               </div>
               <span className={`w-28 text-end font-medium ${x.net >= 0 ? "text-brand-success" : "text-brand-danger"}`}>
                 {x.net >= 0 ? "+" : "−"}
-                {formatEGP(Math.abs(x.net))}
+                {formatMoney(Math.abs(x.net), view.company)}
               </span>
             </div>
           ))}

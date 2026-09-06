@@ -2,7 +2,7 @@ import { requireAccountingPage } from "@/lib/auth/page-guards";
 import { getLocale } from "@/lib/i18n/server";
 import { tFor } from "@/lib/i18n/core";
 import { acct } from "@/lib/i18n/dict/accounting";
-import { formatEGP } from "@/lib/money";
+import { formatMoney } from "@/lib/money";
 import { loadBooks } from "@/lib/accounting/books";
 import { incomeMonth } from "@/lib/accounting/engine";
 import { ACCT_DEPT_LABELS, ACCT_INCOME_TYPE_LABELS, type AcctDept, type AcctIncomeType } from "@/lib/accounting/constants";
@@ -55,8 +55,8 @@ export default async function AcctIncomePage({
         <AddIncomeButton company={view.company} month={view.month} />
       </div>
       <div className="tile-grid">
-        <AcctTile label={t(acct.collectedThisMonth)} value={formatEGP(collected)} tone="success" />
-        <AcctTile label={t(acct.pendingReceivable)} value={formatEGP(pending)} />
+        <AcctTile label={t(acct.collectedThisMonth)} value={formatMoney(collected, view.company)} tone="success" />
+        <AcctTile label={t(acct.pendingReceivable)} value={formatMoney(pending, view.company)} />
       </div>
       <section className="card card--flush0">
         {rows.length === 0 ? (
@@ -85,7 +85,7 @@ export default async function AcctIncomePage({
                       <span className="chip-outline">{deptLabel(i.serviceLine)}</span>
                     </td>
                     <td className="td-mono">{i.note || "—"}</td>
-                    <td className="td-title">{formatEGP(i.amount)}</td>
+                    <td className="td-title">{formatMoney(i.amount, view.company)}</td>
                     <td className="td-mono u-ltr">{i.collectedDate ?? "—"}</td>
                     <td>
                       {i.collected ? (

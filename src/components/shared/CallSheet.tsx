@@ -276,6 +276,7 @@ export async function CallSheet({
       <div>
         <h2 className="u-h3 mb-2">{t(ld.stageRecords)}</h2>
         <GroupHistory
+          brand={brand}
           followUps={lead.followUps}
           meetings={lead.meetings}
           proposals={lead.proposals}

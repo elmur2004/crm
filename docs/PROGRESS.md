@@ -4492,3 +4492,46 @@ comment, and the ADR-013 mechanism note all fixed; .env.example confirmed tracke
      teammate; I kept the admin-only narrowing you chose when this lived on the
      B-Systems board.
 
+
+---
+
+## Entry 074 — 2026-09-06 — Mindoo quotes in riyals; the admin can attach ByteForce's half of a Mindoo deal
+
+- Phase: post-V2 founder work (ADR-077).
+- Done:
+  - **Mindoo's money is SAR everywhere** — its CRM, its Won Leads, its Home, its
+    accounting. B-Systems and ByteForce stay EGP. A **deviation from SPEC §2**,
+    recorded as ADR-077, and a deviation in the LABEL only: amounts are integer
+    minor units and the riyal is hundredths like the pound, so **no migration
+    and no stored figure moves**.
+  - **No conversion rate exists anywhere, deliberately.** The two books are
+    never summed — every accounting figure is already scoped to one company — so
+    a rate would be a decision left lying around rather than one taken.
+  - **`formatEGP` was scoped, not deleted.** It is still correct for statements,
+    payments, commissions and the partner subsystem. The danger is that it is
+    right NEXT DOOR: a shared body still calling it prints "EGP 40,000" on a
+    Mindoo proposal — correct number, wrong currency, and nothing about it looks
+    broken. `money-currency.test.ts` sweeps every file a Mindoo account can
+    reach and fails if one calls it. That sweep is the real deliverable.
+  - **The ByteForce sub-service**: two nullable columns on `Proposal` (he chose
+    "exactly one"), carrying **two currencies on one row** — Mindoo's riyal
+    quote and ByteForce's pound share, never converted, never summed.
+  - Three walls: Mindoo proposals only (404 otherwise), `bsystems_admin` only,
+    and the pound column named for its currency because this is the one field
+    where typing into the wrong one is a plausible human mistake.
+  - **The exception to "nothing writes" is kept an exception** — it edits
+    nothing of Mindoo's, posts to one endpoint that admits one role, and renders
+    only where the reader is already known to be the admin.
+  - **Where the money counts follows who can see it.** His ByteForce pipeline
+    figure includes what Mindoo owes ByteForce; ByteForce's staff keep the
+    dashboard they had. A number he cannot trace is worse than one that is not
+    there.
+- Verified: `docs/TESTING.md` Run 092 — 58 vitest files / **975 tests**, `tsc`
+  clean, `next build` clean, `e2e/mindoo.spec.ts` **29 passed** (26 → 29).
+- Blockers: none.
+- **Needs founder confirmation (one NEW):** the accounting import/export file
+  carries no currency — it is the original SPA's JSON. Importing an old EGP
+  export into Mindoo's books would relabel those numbers as riyals without
+  converting them. Nothing is at risk today (Mindoo's books are empty), but if
+  figures are ever to move between companies the importer needs a currency check.
+

@@ -3268,3 +3268,25 @@ which was true and irrelevant.
   answers a question about SEQUENCING when the failure was about PLACEMENT.
   Verify the thing itself — I had the file open and did not grep for which
   object the line had landed in.
+
+
+### 9. When a helper is right next door rather than wrong
+
+`formatEGP` is correct. It is correct for statements, payments, commissions and
+every partner screen, and deleting it would have been vandalism. It is also, now,
+the single easiest way to print a lie: call it from a shared body and a Mindoo
+proposal reads "EGP 40,000" — right number, right layout, wrong currency, and
+**no visual symptom at all**.
+
+That is a different shape of hazard from a missing wall, and it needs a
+different guard. A wall can be enforced at the choke point; this cannot, because
+there is no choke point — both functions are legitimate and the only thing that
+separates them is WHICH FILE is calling. So the guard is a source sweep scoped
+to "what can a Mindoo account reach", which is the same idiom as
+`page-company-guards.test.ts` and `mindoo-app.test.ts` and for the same reason:
+when correctness depends on where code lives, the directory has to be the
+assertion.
+
+The general rule this session keeps re-deriving: **when you narrow a function,
+the old one does not become dangerous — it becomes ADJACENT, and adjacency needs
+a sweep rather than a type.**

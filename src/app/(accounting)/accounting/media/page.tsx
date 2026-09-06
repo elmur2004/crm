@@ -3,7 +3,7 @@ import { requireAccountingPage } from "@/lib/auth/page-guards";
 import { getLocale } from "@/lib/i18n/server";
 import { tFor } from "@/lib/i18n/core";
 import { acct } from "@/lib/i18n/dict/accounting";
-import { formatEGP } from "@/lib/money";
+import { formatMoney } from "@/lib/money";
 import { loadBooks } from "@/lib/accounting/books";
 import { mediaHidden } from "@/lib/accounting/constants";
 import { acctQuery, acctView } from "@/lib/accounting/params";
@@ -88,10 +88,10 @@ export default async function AcctMediaPage({
                   return (
                     <tr key={client}>
                       <td className="td-title">{client}</td>
-                      <td>{formatEGP(g.received)}</td>
-                      <td className="text-brand-success">{formatEGP(g.fee)}</td>
-                      <td>{formatEGP(g.sent)}</td>
-                      <td className={`td-title ${held < 0 ? "text-brand-danger" : ""}`}>{formatEGP(held)}</td>
+                      <td>{formatMoney(g.received, view.company)}</td>
+                      <td className="text-brand-success">{formatMoney(g.fee, view.company)}</td>
+                      <td>{formatMoney(g.sent, view.company)}</td>
+                      <td className={`td-title ${held < 0 ? "text-brand-danger" : ""}`}>{formatMoney(held, view.company)}</td>
                     </tr>
                   );
                 })}

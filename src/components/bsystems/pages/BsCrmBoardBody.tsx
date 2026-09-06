@@ -3,11 +3,11 @@ import type { CrmSurface } from "@/lib/crm/surface";
 import { listBsLeads, listOwnLeads } from "@/lib/services/bsystems-admin";
 import { listBsOwnerReps } from "@/lib/services/sales-reps";
 import { listCalendarPeople } from "@/lib/services/calendar";
-import { LEAD_TYPES } from "@/lib/pipeline-engine/constants";
+import { LEAD_TYPES, type Brand } from "@/lib/pipeline-engine/constants";
 import { configForBrand } from "@/lib/pipeline-engine/configs/for-brand";
 import { orderMeetingColumn } from "@/lib/board-order";
 import { formatCairo } from "@/lib/datetime";
-import { formatEGP } from "@/lib/money";
+import { formatMoney } from "@/lib/money";
 import { waHref } from "@/lib/phone-dial";
 import { waSentLabel, whatsappMarkOf } from "@/components/shared/whatsappMark";
 import { tFor, type Locale, type Msg } from "@/lib/i18n/core";
@@ -56,7 +56,9 @@ function ownerLabel(locale: Locale, lead: LeadRow): string {
   return who ? `${bucket} · ${who}` : bucket;
 }
 
-function keyDatum(locale: Locale, lead: LeadRow): string {
+/* ADR-077 — the BRAND, because this line prints money: a Sending Proposal
+   card shows its estimated value, and Mindoo quotes in riyals. */
+function keyDatum(locale: Locale, lead: LeadRow, brand: Brand): string {
   const t = tFor(locale);
   switch (lead.stage) {
     case "following_up":
@@ -72,7 +74,7 @@ function keyDatum(locale: Locale, lead: LeadRow): string {
         : t(m.meetingNotArranged);
     case "sending_proposal":
       return lead.proposals[0]?.estimatedValue != null
-        ? `${t(m.estPrefix)}${formatEGP(lead.proposals[0].estimatedValue)}`
+        ? `${t(m.estPrefix)}${formatMoney(lead.proposals[0].estimatedValue, brand)}`
         : t(m.noValue);
     case "negotiation": {
       /* founder: "the date we will have a response for them on the proposal" —
@@ -149,7 +151,7 @@ export async function BsCrmBoardBody({
     readyToClose: l.readyToClose,
     noAnswer: l.noAnswer,
     noAnswerCount: l.noAnswerCount, // ADR-064 — the card says how many tries
-    keyDatum: keyDatum(locale, l),
+    keyDatum: keyDatum(locale, l, ctx.brand),
     waHref: waHref(l.number),
     /* ADR-069 — the chip's green state and the sentence that goes with it,
        both resolved HERE: the mark is the record's, and the date goes through

@@ -439,6 +439,81 @@ test.describe("ADR-074 — Mindoo", () => {
     }
   });
 
+
+  test("ADR-077 — Mindoo's money is RIYALS everywhere, and nobody else's moved", async ({
+    page,
+  }) => {
+    /* founder: "change the entire landscape of Mindoo to the Saudi riyal, not
+       the Egyptian pound. Keep everything else, B-Systems and ByteForce, in the
+       Egyptian pound." */
+    await loginAsMindoo(page);
+    for (const path of ["/mindoo", "/mindoo/won-leads", "/accounting"]) {
+      await page.goto(path);
+      await expect(page.getByText(/SAR\s[\d,]/).first(), `${path} shows riyals`).toBeVisible();
+      await expect(page.getByText(/EGP\s[\d,]/), `${path} shows no pounds`).toHaveCount(0);
+    }
+
+    /* and the other two are untouched */
+    await loginAsFounder(page);
+    for (const path of ["/b-systems", "/accounting?company=bsystems"]) {
+      await page.goto(path);
+      await expect(page.getByText(/EGP\s[\d,]/).first(), `${path} shows pounds`).toBeVisible();
+    }
+  });
+
+  test("ADR-077 — the admin attaches a ByteForce sub-service to a Mindoo proposal", async ({
+    page,
+  }) => {
+    /* founder: "the admin and the admin only is allowed to customize the
+       proposal that is appearing in the ByteForce CRM… this proposal is X in
+       Saudi riyal, and then we will get this sub-service for ByteForce for X in
+       Egyptian pounds." */
+    await loginAsFounder(page);
+    await page.goto("/b-systems/crm?company=byteforce");
+    /* a Mindoo lead that HAS a proposal — Horizon Clinics is the seed's
+       Sending Proposals one (Cairo Tech Park is still in Meeting Setting) */
+    const card = page.locator('[data-deal-card="Horizon Clinics"]');
+    await expect(card).toBeVisible();
+    await card.click();
+    await page.waitForURL(/\/b-systems\/crm\/company-lead\//);
+
+    /* Mindoo's own quote is shown, in RIYALS, and is not editable here */
+    await expect(page.getByText(/SAR\s[\d,]/).first()).toBeVisible();
+
+    await page.getByRole("button", { name: /Add ByteForce service/i }).click();
+    await page.getByLabel("ByteForce service").fill("Video production");
+    await page.getByLabel("Amount (EGP)").fill("40000");
+    await page.getByRole("button", { name: "Save", exact: true }).click();
+
+    /* both halves now read back, each in its OWN currency */
+    await expect(page.getByText("Video production")).toBeVisible();
+    await expect(page.getByText("EGP 40,000")).toBeVisible();
+    await expect(page.getByText(/SAR\s[\d,]/).first()).toBeVisible();
+
+    /* and the card carries the pair too */
+    await page.goto("/b-systems/crm?company=byteforce");
+    await expect(card).toContainText("Video production");
+    await expect(card).toContainText("EGP 40,000");
+    await expect(card).toContainText("SAR");
+  });
+
+  test("ADR-077 — Mindoo's own staff never see the ByteForce line", async ({ page }) => {
+    /* founder: "for everyone else, they will just get the number and the
+       service of Mindoo, which will be in Saudi riyal" */
+    await loginAsMindoo(page);
+    await page.goto("/mindoo/crm");
+    const card = page.locator('[data-deal-card="Horizon Clinics"]');
+    await expect(card).toBeVisible();
+    await expect(card).not.toContainText("Video production");
+    await expect(card).not.toContainText("EGP");
+
+    /* and the endpoint refuses them outright */
+    const res = await page.request.put("/api/b-systems/company-leads/anything/sub-service", {
+      data: { service: "Sneaky", value: "1" },
+    });
+    expect(res.status()).toBeGreaterThanOrEqual(400);
+  });
+
   test("Arabic: Mindoo keeps its name and the shell mirrors", async ({ page }) => {
     await loginAsMindoo(page);
     await page.goto("/mindoo/crm");

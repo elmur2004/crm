@@ -1,5 +1,49 @@
 # Changelog — user-visible changes per phase/release
 
+## Mindoo prices in riyals, and you can add ByteForce's share of a Mindoo deal (2026-09-06)
+
+### Mindoo's money is Saudi riyals
+
+Everywhere in Mindoo — the board, Won Leads, the dashboard, its accounting — the
+figures now read **SAR**. B-Systems and ByteForce are untouched and still read
+EGP.
+
+Nothing was converted and no number changed. Amounts were always stored as whole
+minor units, and the riyal has 100 halalas exactly as the pound has 100 piasters,
+so 1,500.50 is 1,500.50 either way. Only the three letters in front of it moved.
+
+**There is no exchange rate anywhere in the system, on purpose.** Mindoo quotes
+and collects in riyals, B-Systems in pounds, and no screen ever adds the two
+together. If you ever want a figure that combines them, tell me — that needs a
+rate *and* a date, and I'd rather ask than guess one.
+
+### ByteForce's share of a Mindoo deal
+
+On the ByteForce board, open any Mindoo (purple) lead that's been quoted. You'll
+see what the client was quoted in riyals, and underneath it you can add **what
+ByteForce delivers inside that deal, and for how much in pounds** — "Video
+production · EGP 40,000".
+
+Both halves then show on the purple card too, each in its own currency, never
+added together.
+
+- **Only you can do this, and only you can see it.** Mindoo's team see their own
+  proposal exactly as before — their number, their service, in riyals — and
+  never know the ByteForce line exists.
+- **One per proposal**, replacing rather than stacking, as you asked.
+- **It counts toward ByteForce's pipeline value** on your ByteForce dashboard,
+  and the hint under the figure says so when it does. Sara and any other
+  ByteForce teammate keep the number they've always had — since they can't see
+  the sub-services, a figure they couldn't account for would be worse than none.
+- If a Mindoo lead hasn't been quoted yet, it says so rather than offering a
+  button that would fail.
+
+**One thing to be aware of:** the accounting Import/Export file doesn't record a
+currency — it's the original app's format. Importing an old EGP export into
+Mindoo's books would relabel those numbers as riyals without converting them.
+Nothing's at risk today because Mindoo's books are empty, but if you ever plan to
+move figures between companies, say so and I'll add a check.
+
 ## Mindoo's modules trimmed, and its leads move to the ByteForce board (2026-09-03)
 
 Three things, all of them "for mindoo and only mindoo" — your B-Systems and
