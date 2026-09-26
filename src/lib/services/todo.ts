@@ -6,7 +6,7 @@ import {
   datedStagesFor,
   followUpStagesFor,
 } from "@/lib/pipeline-engine/configs/for-brand";
-import { startOfCairoDay, utcToCairo } from "@/lib/datetime";
+import { cairoDayWindowFor, utcToCairo } from "@/lib/datetime";
 
 /* Founder (ADR-041) — the To-Do page: "the actual date of today with the
    entire tasks of today... just a way of representing what I have to do today,
@@ -126,16 +126,15 @@ export interface TodoLists {
    of a DST correction is two chances to fix only one of them. Behaviour is
    unchanged — same body, same call sites. */
 
-/** [start, end) of the Cairo calendar day containing `now`, as UTC instants. */
+/** [start, end) of the Cairo calendar day containing `now`, as UTC instants.
+
+    ADR-081 — the BODY moved to lib/datetime's `cairoDayWindowFor`, because the
+    daily report builds the same window for three dates it NAMES rather than one
+    instant it holds. Same behaviour, same call sites, same DST fixtures below
+    (the todo.integration.test.ts spring-forward and fall-back cases are the
+    regression proof that nothing moved). */
 export function cairoDayWindow(now: Date): { start: Date; end: Date } {
-  const { date } = utcToCairo(now);
-  const [y, m, d] = date.split("-").map(Number);
-  const next = new Date(Date.UTC(y!, m! - 1, d! + 1));
-  const pad = (n: number) => String(n).padStart(2, "0");
-  const nextDate = `${next.getUTCFullYear()}-${pad(next.getUTCMonth() + 1)}-${pad(
-    next.getUTCDate(),
-  )}`;
-  return { start: startOfCairoDay(date), end: startOfCairoDay(nextDate) };
+  return cairoDayWindowFor(utcToCairo(now).date);
 }
 
 /* The name every other owner surface shows, in the same order (CRM board,
@@ -150,12 +149,28 @@ function ownerNameOf(lead: {
   return lead.owner?.name ?? lead.salesRep?.name ?? lead.partner?.companyName ?? null;
 }
 
-function leadWhere(brand: Brand, scope: TodoScope) {
+/** THE WALL, as a Prisma predicate: the three branches of `requireLeadAccess`
+    (admin/ByteForce staff all, sales the internal bucket, agent and partner
+    their own) and nothing else.
+
+    EXPORTED for ADR-081's daily report, which needs the identical three branches
+    WITHOUT the archive filter below — a lead he worked on and then archived is
+    still something he did that day, and its detail page still renders (read-only
+    with an Archived badge), so dropping it would undercount his day for no
+    privacy gain. Sharing the branches rather than copying them is the point: a
+    fourth copy of this predicate is a fourth place the wall can drift. */
+export function leadScopeWhere(brand: Brand, scope: TodoScope) {
   return {
     brand,
-    archived: false, // ADR-043: archived leads carry no to-dos
     ...(scope.kind === "internal" ? { ownerType: "internal" } : {}),
     ...(scope.kind === "own" ? { ownerUserId: scope.userId } : {}),
+  };
+}
+
+function leadWhere(brand: Brand, scope: TodoScope) {
+  return {
+    ...leadScopeWhere(brand, scope),
+    archived: false, // ADR-043: archived leads carry no to-dos
   };
 }
 

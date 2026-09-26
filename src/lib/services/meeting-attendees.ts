@@ -23,6 +23,13 @@ import { listCalendarPeople } from "./calendar";
    is then narrowed to the COMPANY's own roster, so a B-Systems meeting cannot
    be made to occupy a ByteForce-only account and quietly surface on the other
    company's grid.
+
+   NO ACTIVITYLOG ROW IS WRITTEN HERE, deliberately (ADR-081 §4, review Run 097).
+   Saying who else a meeting occupies is a statement about people's TIME, not about
+   the lead's progress, so it is the calendar's own bookkeeping — which also means
+   it never appears in the DAILY REPORT, that screen's only source being
+   `ActivityLog` on `entityType: "lead"`. Named in ADR-081's exclusion list so the
+   omission stays a decision; confirmation 5 is where it changes.
    ========================================================================== */
 
 export const attendeesSchema = z.object({

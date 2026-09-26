@@ -15,6 +15,16 @@ import { configForBrand, followUpStagesFor } from "@/lib/pipeline-engine/configs
    service REFUSES to mark records that are not live today's tasks, so TodoDone
    rows stay meaningful.
 
+   NO ACTIVITYLOG ROW IS WRITTEN HERE, deliberately (ADR-081 §4, review Run 097).
+   The mark is keyed to the RECORD, it says "this task is handled" rather than "I
+   worked this lead", and UNCHECKING DELETES IT — so it is not history. The visible
+   consequence is that a tick never appears in the DAILY REPORT, whose only source
+   is `ActivityLog` filtered on `entityType: "lead"`: a rep who ticks his due
+   follow-ups and records nothing else reads "Leads touched: 0" for the day. If the
+   founder decides a tick counts (ADR-081 confirmation 5), the change is a real log
+   row here plus a phrase in `dict/daily-report.ts` and an entry in that screen's
+   completeness inventory — not a second source on the report's side.
+
    Permission walls stay in the ROUTES (requireLeadAccess / requireBsAdmin —
    the projection's own scope wall re-derived from the RECORD, never from
    client input); this service takes the already-guarded caller and enforces

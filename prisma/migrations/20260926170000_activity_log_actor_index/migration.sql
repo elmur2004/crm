@@ -1,0 +1,53 @@
+-- ADR-081 (founder: "how many leads did he take action on... and which leads had
+-- these changes... I just need to look back in history just three days") — THE
+-- DAILY REPORT'S INDEX.
+--
+-- ONE STATEMENT, NO DATA CHANGE. The daily report adds no column and no table:
+-- it is a pure projection over rows ActivityLog already holds (the ADR-041
+-- philosophy the To-Do established), so there is nothing to backfill and nothing
+-- to migrate. What it adds is a QUERY SHAPE this table has never been asked for:
+--
+--     WHERE "actorId" = $1 AND "entityType" = 'lead'
+--       AND "createdAt" >= $2 AND "createdAt" < $3
+--
+-- The only index on ActivityLog is ("entityType", "entityId", "createdAt"), built
+-- for the per-lead History panel. "actorId" appears in NEITHER of its positions,
+-- so without the index below the planner falls back to that one and answers a
+-- MUCH WIDER question than it was asked: it reads every lead row the WHOLE
+-- COMPANY wrote in the window and then filters this one person out of them.
+--
+-- MEASURED, not predicted, on PostgreSQL 18 with 200k rows (docs/TESTING.md
+-- Run 096 carries both plans in full). Before: a Bitmap Heap Scan over
+-- ActivityLog_entityType_entityId_createdAt_idx, 3,773 rows read, 3,709 of them
+-- "Rows Removed by Filter", 180 buffers, cost 3,683. After: a Bitmap Index Scan
+-- on this index with ("actorId", "createdAt") as the INDEX CONDITION and
+-- entityType a free filter — 64 rows read, 12 buffers, cost 32. 117x the planner
+-- cost and 15x the buffers, and the discarded work grows with the whole
+-- product's volume rather than with one person's day: ActivityLog is the
+-- BUSIEST WRITE TABLE HERE (every stage move, comment, WhatsApp press and
+-- didn't-answer tap in both companies writes a row). A report that takes seconds
+-- to open is a report he stops opening, so this ships in the same change as the
+-- page rather than after it.
+--
+-- (Worth recording because it corrected the estimate this work started from: the
+-- pre-index plan is NOT a Seq Scan. PostgreSQL 18 can skip-scan the leading
+-- column of the existing composite index, which makes "there is no usable index"
+-- read as "it is usable for the wrong query" — slower in proportion to everyone
+-- ELSE's activity, which is the worse failure mode of the two because it is
+-- invisible on a small table.)
+--
+-- WHY NOT ("actorId", "entityType", "createdAt"): it would make entityType an
+-- index condition rather than a filter, which buys nothing at this cardinality
+-- (one person's three days is tens of rows), and it cannot answer "everything
+-- this person did" — a strictly narrower index for no measurable gain.
+--
+-- WHY NOT CONCURRENTLY: Prisma wraps each migration file in a transaction and
+-- CREATE INDEX CONCURRENTLY cannot run inside one. Plain CREATE INDEX takes a
+-- write lock on ActivityLog for its duration — sub-second at this table's size,
+-- and stated here so that a future repeat on a much larger table is a deliberate
+-- decision rather than an inherited habit.
+--
+-- IF NOT EXISTS, because scripts/start.mjs RETRIES `prisma migrate deploy` at
+-- boot: a statement that cannot be re-run turns a retried deploy into a failed
+-- one (the house convention since 20260829120000_whatsapp_sent).
+CREATE INDEX IF NOT EXISTS "ActivityLog_actorId_createdAt_idx" ON "ActivityLog"("actorId", "createdAt");

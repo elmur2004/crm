@@ -86,6 +86,58 @@ export function startOfCairoDay(date: string): Date {
   return start;
 }
 
+/** The Cairo calendar date AFTER this one, as "YYYY-MM-DD".
+
+    CALENDAR arithmetic on the date STRING — `Date.UTC(y, m - 1, d + 1)`, which
+    rolls months and years for us — never `instant + 86_400_000`. Egypt has a
+    23-hour day and a 25-hour day every year, so adding a fixed 24 hours to an
+    instant lands on the wrong Cairo date twice a year, in a way that is
+    invisible for the other 363 days. */
+export function nextCairoDate(date: string): string {
+  const [y, m, d] = date.split("-").map(Number);
+  if (![y, m, d].every((v) => Number.isFinite(v))) throw new Error(`Invalid date: ${date}`);
+  const next = new Date(Date.UTC(y!, m! - 1, d! + 1));
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${next.getUTCFullYear()}-${pad(next.getUTCMonth() + 1)}-${pad(next.getUTCDate())}`;
+}
+
+/** [start, end) of ONE named Cairo calendar date, as UTC instants.
+
+    Both ends go through `startOfCairoDay`, so the midnight-DST clamp applies to
+    the boundary AND to the boundary of the next day — which is what makes two
+    adjacent windows tile exactly, with no gap and no overlap, across the jump.
+
+    `cairoDayWindow(now)` (services/todo.ts) is this function applied to the
+    Cairo date containing an instant; the daily report (ADR-081) needs it for a
+    date it names rather than an instant it holds, and two copies of a DST
+    correction is two chances to fix only one of them (ADR-071's reason for
+    moving `startOfCairoDay` here in the first place). */
+export function cairoDayWindowFor(date: string): { start: Date; end: Date } {
+  return { start: startOfCairoDay(date), end: startOfCairoDay(nextCairoDate(date)) };
+}
+
+/** The last `days` Cairo calendar dates ending with the one containing `now` —
+    NEWEST FIRST. `cairoDatesBack(now, 3)` is the daily report's three days
+    (ADR-081: today and the two before it).
+
+    Derived by stepping BACKWARDS through the calendar from today's date string,
+    so the result is a list of DAYS rather than a list of instants: no
+    subtraction of hours happens anywhere, and Egypt's transition days cannot
+    shift one of them. */
+export function cairoDatesBack(now: Date, days: number): string[] {
+  if (!Number.isInteger(days) || days < 1) throw new Error(`days must be >= 1: ${days}`);
+  const out = [utcToCairo(now).date];
+  const pad = (n: number) => String(n).padStart(2, "0");
+  while (out.length < days) {
+    const [y, m, d] = out[out.length - 1]!.split("-").map(Number);
+    const prev = new Date(Date.UTC(y!, m! - 1, d! - 1));
+    out.push(
+      `${prev.getUTCFullYear()}-${pad(prev.getUTCMonth() + 1)}-${pad(prev.getUTCDate())}`,
+    );
+  }
+  return out;
+}
+
 /** Do two UTC instants fall on the same CAIRO calendar day? The comparison
     goes through utcToCairo — never a local-timezone Date part — so it stays
     right on the machine of a viewer anywhere in the world and across Egypt's

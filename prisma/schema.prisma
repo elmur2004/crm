@@ -655,6 +655,19 @@ model ActivityLog {
   createdAt  DateTime @default(now())
 
   @@index([entityType, entityId, createdAt])
+  /* ADR-081 — the daily report's ONLY query is "this actor, these three Cairo
+     days". The index above leads with entityType/entityId (it was built for the
+     per-lead History panel) and mentions actorId nowhere, so without this one
+     the planner answers a wider question than it was asked: measured on 200k
+     rows it read 3,773 rows of the whole company's history and discarded 3,709
+     of them to find this person's 64 (cost 3,683 vs 32 — both plans are in
+     docs/TESTING.md Run 096). The cost therefore grew with everybody ELSE's
+     activity. With this index ("actorId", "createdAt") is the index CONDITION
+     and `entityType = 'lead'` is a free filter at that cardinality.
+     Deliberately NOT [actorId, entityType, createdAt]: that would make
+     entityType an index condition too, buys nothing at this row count, and
+     cannot answer "everything this person did". */
+  @@index([actorId, createdAt])
 }
 
 model UndoEntry {

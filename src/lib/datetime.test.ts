@@ -1,10 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
+  cairoDatesBack,
+  cairoDayWindowFor,
   cairoToUtc,
   formatCairo,
   formatCairoDate,
   formatCairoShort,
+  nextCairoDate,
   sameCairoDay,
+  startOfCairoDay,
   utcToCairo,
 } from "./datetime";
 
@@ -179,5 +183,142 @@ describe("the wire layer stayed 24-hour (ADR-068 prohibition)", () => {
     });
     // and the autumn end of DST still resolves both sides of the fold
     expect(utcToCairo(cairoToUtc("2026-10-30", "12:00")).date).toBe("2026-10-30");
+  });
+});
+
+/* ============================================================================
+   ADR-081 — the DAY helpers the daily report's three-day window is built from.
+
+   The whole reason they live here rather than in the report: `cairoDayWindow`
+   (services/todo.ts) is now this file's `cairoDayWindowFor` applied to the date
+   containing an instant, so there is ONE midnight-DST clamp in the product
+   instead of two that can be fixed one at a time (ADR-071's reason for moving
+   `startOfCairoDay` here).
+
+   Every case is a FIXED instant, so the assertions hold on any machine in any
+   zone — and the two Egypt transition days are pinned, because a single 24-hour
+   subtraction anywhere in this arithmetic is invisible for 363 days a year.
+   ========================================================================== */
+
+describe("nextCairoDate — calendar arithmetic, never plus-24-hours", () => {
+  it("rolls the day, the month and the year", () => {
+    expect(nextCairoDate("2026-09-26")).toBe("2026-09-27");
+    expect(nextCairoDate("2026-09-30")).toBe("2026-10-01");
+    expect(nextCairoDate("2026-12-31")).toBe("2027-01-01");
+    expect(nextCairoDate("2028-02-28")).toBe("2028-02-29"); // leap
+  });
+
+  it("rolls the SPRING-FORWARD day, which is only 23 hours long", () => {
+    expect(nextCairoDate("2026-04-23")).toBe("2026-04-24");
+    expect(nextCairoDate("2026-10-30")).toBe("2026-10-31");
+  });
+});
+
+describe("cairoDayWindowFor — one named Cairo date, as UTC instants", () => {
+  it("is [start of that date, start of the next) and starts where startOfCairoDay does", () => {
+    const w = cairoDayWindowFor("2026-08-20");
+    expect(w.start.getTime()).toBe(startOfCairoDay("2026-08-20").getTime());
+    expect(w.end.getTime()).toBe(startOfCairoDay("2026-08-21").getTime());
+    expect(utcToCairo(w.start).date).toBe("2026-08-20");
+    expect(utcToCairo(new Date(w.end.getTime() - 60_000)).date).toBe("2026-08-20");
+  });
+
+  it("SPRING FORWARD (2026-04-24, when 00:00 does not exist): the eve keeps its last hour", () => {
+    const eve = cairoDayWindowFor("2026-04-23");
+    const day = cairoDayWindowFor("2026-04-24");
+    /* contiguous across the jump — no gap, no overlap */
+    expect(eve.end.getTime()).toBe(day.start.getTime());
+    expect(utcToCairo(day.start).date).toBe("2026-04-24");
+    expect(utcToCairo(new Date(day.start.getTime() - 60_000)).date).toBe("2026-04-23");
+    /* 23:30 on the eve belongs to the EVE, not to the transition day */
+    const late = cairoToUtc("2026-04-23", "23:30");
+    expect(late.getTime() >= eve.start.getTime()).toBe(true);
+    expect(late.getTime() < eve.end.getTime()).toBe(true);
+    /* the transition day itself is genuinely 23 HOURS long (its midnight does
+       not exist, so it starts at 01:00), while the eve is an ordinary 24 — the
+       exact asymmetry a `- 86_400_000` anywhere in this arithmetic would miss */
+    expect(day.end.getTime() - day.start.getTime()).toBe(23 * 3_600_000);
+    expect(eve.end.getTime() - eve.start.getTime()).toBe(24 * 3_600_000);
+  });
+
+  it("AUTUMN FOLD (2026-10-29): the 25-hour day is 25 hours wide and still tiles", () => {
+    const fold = cairoDayWindowFor("2026-10-29");
+    const next = cairoDayWindowFor("2026-10-30");
+    expect(fold.end.getTime()).toBe(next.start.getTime());
+    expect(fold.end.getTime() - fold.start.getTime()).toBe(25 * 3_600_000);
+    expect(next.end.getTime() - next.start.getTime()).toBe(24 * 3_600_000);
+    expect(utcToCairo(fold.start).date).toBe("2026-10-29");
+    expect(utcToCairo(next.start).date).toBe("2026-10-30");
+    /* BOTH 23:30s on the folded day belong to the folded day: the hour repeats
+       in Cairo wall-clock, and the window is wide enough to hold both */
+    const early = new Date(fold.end.getTime() - 90 * 60_000);
+    const late = new Date(fold.end.getTime() - 30 * 60_000);
+    expect(utcToCairo(early).date).toBe("2026-10-29");
+    expect(utcToCairo(late).date).toBe("2026-10-29");
+  });
+});
+
+describe("cairoDatesBack — the report's three days, newest first", () => {
+  it("is today and the two before it, as CAIRO dates", () => {
+    expect(cairoDatesBack(cairoToUtc("2026-09-26", "12:00"), 3)).toEqual([
+      "2026-09-26",
+      "2026-09-25",
+      "2026-09-24",
+    ]);
+  });
+
+  it("reads the day from CAIRO, not from UTC — 00:30 Cairo is still yesterday in UTC", () => {
+    // 2026-08-19T21:30Z is 2026-08-20 00:30 Cairo
+    expect(cairoDatesBack(new Date("2026-08-19T21:30:00Z"), 3)).toEqual([
+      "2026-08-20",
+      "2026-08-19",
+      "2026-08-18",
+    ]);
+  });
+
+  it("steps across a month and a year boundary", () => {
+    expect(cairoDatesBack(cairoToUtc("2026-10-01", "09:00"), 3)).toEqual([
+      "2026-10-01",
+      "2026-09-30",
+      "2026-09-29",
+    ]);
+    expect(cairoDatesBack(cairoToUtc("2027-01-01", "09:00"), 3)).toEqual([
+      "2027-01-01",
+      "2026-12-31",
+      "2026-12-30",
+    ]);
+  });
+
+  it("steps across BOTH DST transitions without losing or repeating a day", () => {
+    expect(cairoDatesBack(cairoToUtc("2026-04-24", "12:00"), 3)).toEqual([
+      "2026-04-24",
+      "2026-04-23",
+      "2026-04-22",
+    ]);
+    expect(cairoDatesBack(cairoToUtc("2026-10-30", "12:00"), 3)).toEqual([
+      "2026-10-30",
+      "2026-10-29",
+      "2026-10-28",
+    ]);
+  });
+
+  it("the three windows TILE: oldest start → newest end covers every instant once", () => {
+    for (const day of ["2026-04-24", "2026-10-30", "2026-09-26"]) {
+      const dates = cairoDatesBack(cairoToUtc(day, "12:00"), 3);
+      const windows = dates.map((d) => cairoDayWindowFor(d)); // newest first
+      expect(windows[2]!.end.getTime()).toBe(windows[1]!.start.getTime());
+      expect(windows[1]!.end.getTime()).toBe(windows[0]!.start.getTime());
+      /* and every instant inside the span buckets to one of the three dates */
+      const span = windows[0]!.end.getTime() - windows[2]!.start.getTime();
+      for (const offset of [0, span / 2, span - 60_000]) {
+        const at = new Date(windows[2]!.start.getTime() + offset);
+        expect(dates).toContain(utcToCairo(at).date);
+      }
+    }
+  });
+
+  it("refuses a nonsense day count rather than returning an empty window", () => {
+    expect(() => cairoDatesBack(new Date(), 0)).toThrow();
+    expect(() => cairoDatesBack(new Date(), -1)).toThrow();
   });
 });
