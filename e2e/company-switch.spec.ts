@@ -74,10 +74,12 @@ test("the nav ADAPTS per company, and no rendered nav link 404s or shows the oth
   }
   await expect(nav.getByRole("link", { name: "Clients", exact: true })).toHaveCount(0);
 
-  /* ByteForce: exactly its six, and none of the B-Systems-only sections.
-     (Five until ADR-071 added the Calendar, which both companies carry.) */
+  /* ByteForce: exactly its seven, and none of the B-Systems-only sections.
+     (Five until ADR-071 added the Calendar; six until ADR-081 added the Daily
+     report — both are shared screens, so both companies carry them.) */
   await page.goto("/b-systems?company=byteforce");
-  await expect(nav.getByRole("link")).toHaveCount(6);
+  await expect(nav.getByRole("link")).toHaveCount(7);
+  await expect(nav.getByRole("link", { name: "Daily report", exact: true })).toBeVisible();
   await expect(nav.getByRole("link", { name: "Calendar", exact: true })).toBeVisible();
   await expect(nav.getByRole("link", { name: "Clients", exact: true })).toBeVisible();
   for (const label of ["Won Leads", "Partners", "Agents", "Registrations", "Statements", "Users"]) {

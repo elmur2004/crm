@@ -937,6 +937,15 @@ label:has(input[required]) .dropzone-title::after {
 .tl-text { font: 400 12.5px/1.45 var(--font-body); color: var(--color-ink); }
 .tl-pill { font: 500 11px var(--font-body); color: var(--color-heading); background: var(--color-surface-tint); border-radius: 5px; padding: 3px 7px; }
 .tl-code { font: 500 9.5px var(--font-mono); letter-spacing: .12em; color: var(--color-muted); border: 1px solid var(--color-border); border-radius: 4px; padding: 3px 6px; }
+/* ADR-081 — ONE timeline SPLIT ACROSS TWO LISTS (the daily report folds a busy
+   lead's tail into a <details>). The rail and the live dot above are positional
+   facts about an <ol>, so a split makes the head's last row end the line and the
+   tail's first row look like the newest. These two put the facts back where they
+   belong: the day's line runs on through the fold, and only the real newest line
+   is live. No new token — both are already spent by the rules above, so they
+   exist in every brand scope. */
+.tl-list--head .tl-row:last-child .tl-rail { background: linear-gradient(var(--color-border), var(--color-border)) no-repeat center / 1px 100%; }
+.tl-list--tail .tl-row:first-child .tl-dot { background: var(--color-border); }
 
 .money-tile { min-width: 150px; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-control); padding: 11px 13px; }
 .money-label { font: 500 9.5px var(--font-mono); letter-spacing: .16em; color: var(--color-muted); text-transform: uppercase; }

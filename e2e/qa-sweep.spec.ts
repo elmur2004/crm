@@ -40,7 +40,7 @@ async function sweep(page: Page, errors: string[], paths: string[]) {
 test("ByteForce screens (in the merged shell): clean console, no horizontal overflow", async ({
   page,
 }) => {
-  test.setTimeout(150_000); // 5 paths × 6 widths (ADR-071 added the calendar)
+  test.setTimeout(190_000); // 6 paths × 6 widths (ADR-071 the calendar, ADR-081 the daily report)
   const errors: string[] = [];
   collectErrors(page, errors);
   await page.goto("/login");
@@ -56,17 +56,21 @@ test("ByteForce screens (in the merged shell): clean console, no horizontal over
     /* ADR-071 — a seven-column grid is the likeliest page in the product to
        push the body sideways, so it earns its place in the sweep */
     "/b-systems/calendar?company=byteforce",
+    /* ADR-081 — three number tiles plus a wrapping row of name + company badge
+       + count, which is the other shape that can push the body sideways */
+    "/b-systems/daily-report?company=byteforce",
   ]);
   expect(errors).toEqual([]);
 });
 
-test("B-Systems admin: all eleven sections clean at every width", async ({ page }) => {
-  /* 11 paths × 6 widths = 66 page loads. This case had always run on the
+test("B-Systems admin: all twelve sections clean at every width", async ({ page }) => {
+  /* 12 paths × 6 widths = 72 page loads. This case had always run on the
      DEFAULT 60s while its two siblings below carry explicit 240s and 210s for
      strictly less work — it passed only because these pages are quicker than
      the accounting and vault ones, and it timed out at 1.1m once the header
-     grew one more nav item. The budget is now stated, like theirs. */
-  test.setTimeout(300_000);
+     grew one more nav item. The budget is now stated, like theirs, and it grows
+     with the list (ADR-081 added the twelfth). */
+  test.setTimeout(340_000);
   const errors: string[] = [];
   collectErrors(page, errors);
   await page.goto("/login");
@@ -86,6 +90,7 @@ test("B-Systems admin: all eleven sections clean at every width", async ({ page 
     "/b-systems/statements",
     "/b-systems/users",
     "/b-systems/calendar", // ADR-071
+    "/b-systems/daily-report", // ADR-081
   ]);
   expect(errors).toEqual([]);
 });

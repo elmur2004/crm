@@ -9,7 +9,10 @@ test("the admin nav strip slides: the end chevron reveals the clipped sections",
   page,
 }) => {
   /* > 820px (the sheet takes over below that), narrow enough that the
-     B-Systems admin's eleven sections cannot all fit. Not too narrow either:
+     B-Systems admin's THIRTEEN sections cannot all fit (eleven when this was
+     written; ADR-071 added the Calendar and ADR-081 the Daily report, and each
+     one only makes the overflow this case depends on more certain). Not too
+     narrow either:
      the header's fixed logo + user cluster eat ~860px, and the strip needs a
      workable share left over for the walk below. */
   await page.setViewportSize({ width: 1180, height: 800 });

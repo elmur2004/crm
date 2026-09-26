@@ -6,7 +6,8 @@ import { useLocale } from "@/components/shared/LocaleProvider";
 import { tFor } from "@/lib/i18n/core";
 import { shell } from "@/lib/i18n/dict/auth";
 import { acctCompanies } from "@/lib/i18n/dict/accounting";
-import { companyInParams, crmQuery, type CrmCompany } from "@/lib/crm/company";
+import { companyInParams, type CrmCompany } from "@/lib/crm/company";
+import { targetFor } from "@/lib/crm/switch-target";
 
 /* ============================================================================
    ADR-067 — THE COMPANY SWITCH.
@@ -38,16 +39,9 @@ import { companyInParams, crmQuery, type CrmCompany } from "@/lib/crm/company";
    filtered but is not — which reads as data loss, not as a nav bug.
    ========================================================================== */
 
-/* The paths that exist for BOTH companies keep the path across a switch; every
-   other address (a company-exclusive section, or any deep link with an id in
-   it) falls back to that company's Home, because the equivalent screen either
-   does not exist or is about a record belonging to the other company. */
-const SHARED_PATHS = ["/b-systems", "/b-systems/todo", "/b-systems/leads", "/b-systems/crm"];
-
-export function targetFor(pathname: string, company: CrmCompany): string {
-  const path = SHARED_PATHS.includes(pathname) ? pathname : "/b-systems";
-  return `${path}${crmQuery(company)}`;
-}
+/* Which paths survive the switch lives in lib/crm/switch-target.ts (ADR-081) —
+   a client component cannot be reached by this suite, and that list had gone
+   untested long enough to lose the calendar. */
 
 export function CompanySwitch({
   companies,
