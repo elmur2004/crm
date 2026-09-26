@@ -6377,3 +6377,67 @@ would have let either of those screens sprout a button by someone passing
      word and it opens to ByteForce staff.
   2. **On the Mindoo side, every Mindoo teammate sees the ByteForce line**, for
      the reason above. One guard when he wants it.
+
+---
+
+## ADR-079 — 2026-09-26 — The ByteForce board gets its own Add lead door, and it carries a rep picker
+
+- Status: Accepted
+- Context, in his words, said while looking at `/b-systems/crm?company=byteforce`:
+
+  > "there is no add leads button"
+
+  He was right, and it was not a regression — that head never had one.
+  `CrmBoardBody` rendered a `page-head` with **no `page-actions` element at
+  all**, while `BsCrmBoardBody` has carried `BsAddLeadForm` in exactly that slot
+  since V2. The only ByteForce door was inside a rep's page
+  (`RepLeadsBody`), two clicks away and behind a choice of rep — so on the
+  screen where he actually works, there was nothing.
+
+### 1. Why the board form needs a rep and the rep pages do not
+
+`AddLeadForm` already took `salesRepId` as OPTIONAL, so the naive fix was to
+render it with nothing but an `apiBase`. Three things were verified before
+relying on that, because a form that posts into a hole is worse than no form:
+
+· **The API accepts it.** `createLeadSchema.salesRepId` is `.optional()` (A-6,
+  for partner-sourced leads) and `createLead` writes `salesRepId: null`. No
+  rejection.
+· **The board shows it.** `CrmBoardBody`'s query filters on brand, `archived`
+  and stage — never on a rep — and the card's own subtitle already renders
+  `t(common.unassigned)` for a lead with no rep. A new lead defaults to stage
+  `new`, which is the board's leading column. So it is visible immediately.
+· **The Leads page buckets it.** `countUnassigned` gives ByteForce an Unassigned
+  card. It is real.
+
+So an unassigned lead is neither rejected nor invisible, and the minimum change
+would have been correct. It still gets a **picker**, for two reasons the sister
+board does not have:
+
+1. **ByteForce organises its leads BY REP** — its Leads page *is* a grid of rep
+   cards — and there is **no UI anywhere that reassigns a ByteForce lead's rep
+   after creation**. `updateLeadSchema` would accept one; nothing sends it.
+   Creation is therefore the only moment the product offers, and a board form
+   without a rep field would make "add from the board" mean "permanently
+   unassigned".
+2. **The Unassigned bucket is named `"Unassigned (Partner leads)"`.** A lead the
+   founder typed himself landing in a bucket labelled for partners is a true
+   row filed under a false heading.
+
+The picker is **not a new idiom**: `PartnerAddLead` has had precisely this field
+— `assignToRep`, "Assign to rep (optional)", defaulting to Unassigned — since
+§7.4. The English string is reused verbatim so the product says one thing once.
+The roster is the one `CrmBoardBody` already loads for its stage forms
+(`listReps(ctx.brand)`), so no query was added.
+
+### 2. The two props are mutually exclusive by construction
+
+`salesRepId` (the rep pages' fixed rep) and `reps` (the board's roster) cannot
+both act: `pickRep` is true only when `salesRepId === undefined`, and the select
+is not rendered otherwise. That matters because the alternative — render the
+picker and then overwrite its value with the prop — is a control that visibly
+lies. A rep page has no choice to offer and does not offer one.
+
+- Consequences: one `page-actions` element, one optional prop, one i18n key, one
+  e2e case. No existing call site changes behaviour: the rep pages pass a fixed
+  rep and render exactly the form they always did.

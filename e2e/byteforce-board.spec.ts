@@ -152,3 +152,74 @@ test("a long column scrolls inside itself and a scrolled-to card still drags out
     expect(res.ok()).toBe(true);
   }
 });
+
+/* Founder, looking at this board: "there is no add leads button." The head had
+   no `page-actions` at all, so a ByteForce lead could only be added from inside
+   a rep's page. This proves the board's own form: it creates a lead, the lead
+   lands on the board, and the optional rep picker is honoured in both of its
+   positions — a named rep, and the Unassigned default ByteForce already has a
+   bucket for. */
+test("ByteForce board: the head's Add lead form creates a lead that lands on the board", async ({
+  page,
+}) => {
+  await page.goto("/login");
+  await page.getByLabel("Email or phone").fill("sara@byteforce.example");
+  await page.getByLabel("Password").fill("byteforce123");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await page.waitForURL(/\/b-systems\?company=byteforce$/);
+
+  await page.goto("/b-systems/crm?company=byteforce");
+
+  /* the control the founder could not find, in the same slot the B-Systems
+     board keeps its own */
+  const addLead = page.locator(".page-head .page-actions").getByRole("button", {
+    name: "Add lead",
+  });
+  await expect(addLead).toBeVisible();
+
+  const created: string[] = [];
+
+  async function addFromBoard(name: string, number: string, rep: string) {
+    await page.locator(".page-head .page-actions").getByRole("button", { name: "Add lead" }).click();
+    const form = page.locator("form.card-pad");
+    await expect(form.getByText("New lead", { exact: true })).toBeVisible();
+    await form.getByLabel("Name").fill(name);
+    await form.getByLabel("Number").fill(number);
+    await form.getByLabel("Type").selectOption("cold_call");
+    /* the picker exists ONLY here — a rep page passes its rep as a prop */
+    await form.getByLabel("Assign to rep (optional)").selectOption({ label: rep });
+    await form.getByRole("button", { name: "Save lead" }).click();
+    const card = page.locator(`[data-stage="new"] [data-deal-card="${name}"]`);
+    await expect(card).toBeVisible();
+    created.push(name);
+    return card;
+  }
+
+  /* assigned to a named rep — the card's own subtitle says so */
+  const assigned = await addFromBoard("Board Door Deal", "01099900011", "Ahmed Samir");
+  await expect(assigned).toContainText("Ahmed Samir");
+
+  /* and the default: Unassigned, which this board renders and the Leads page
+     buckets — so a lead added without choosing a rep is never invisible */
+  const unassigned = await addFromBoard("Board Door Unowned", "01099900022", "Unassigned");
+  await expect(unassigned).toContainText("Unassigned");
+
+  /* it is a real row in this company's pipeline, reachable by its own page */
+  await assigned.locator(".bcard-rep").click();
+  await page.waitForURL(/\/b-systems\/leads\/lead\//);
+  await expect(page.getByText("Board Door Deal").first()).toBeVisible();
+
+  /* clean up by ARCHIVING (ADR-043) — ByteForce has no lead delete. The id
+     comes off the card's own name link, which is the only place it appears. */
+  await page.goto("/b-systems/crm?company=byteforce");
+  for (const name of created) {
+    const href = await page
+      .locator(`[data-deal-card="${name}"] a.bcard-name`)
+      .getAttribute("href");
+    const id = href!.match(/\/leads\/lead\/([^?]+)/)![1];
+    const res = await page.request.post(`/api/byteforce/leads/${id}/archive`, {
+      data: { value: true },
+    });
+    expect(res.ok()).toBe(true);
+  }
+});

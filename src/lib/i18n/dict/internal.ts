@@ -132,6 +132,10 @@ export const formsDict = {
   email: { en: "Email", ar: "البريد الإلكتروني" },
   type: { en: "Type", ar: "النوع" },
   description: { en: "Description", ar: "الوصف" },
+  /* the BOARD's Add lead form only — the rep pages already know their rep and
+     pass it as a prop. Same English as the partner form's picker (pLead), which
+     is where this idiom already exists. */
+  assignToRep: { en: "Assign to rep (optional)", ar: "إسناد إلى مندوب (اختياري)" },
   saveLead: { en: "Save lead", ar: "حفظ العميل المحتمل" },
   edit: { en: "Edit", ar: "تعديل" },
   estimated: { en: "Estimated", ar: "التقديري" },

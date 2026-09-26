@@ -687,6 +687,16 @@ export async function CrmBoardBody({
           <p className="u-eyebrow">{BRAND_EYEBROW[ctx.brand]} · {t(board.eyebrowCrm)}</p>
           <h1 className="u-h1">{t(nav.crm)}</h1>
         </div>
+        {/* Founder, on this exact screen: "there is no add leads button." The
+            B-Systems board has had `BsAddLeadForm` in its `page-actions` since
+            V2; this head had no actions at all, so the only ByteForce door was
+            inside a rep's page. Same placement, same idiom — plus the roster,
+            because a board has no rep in hand and ByteForce's leads live under
+            one (the picker defaults to Unassigned, a state this board already
+            renders and the Leads page already buckets). */}
+        <div className="page-actions">
+          <AddLeadForm apiBase={ctx.apiBase} reps={reps} />
+        </div>
       </div>
       <FilterPanel activeCount={activeCount} variant="inline" defaultOpen={activeCount > 0}>
         <form

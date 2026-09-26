@@ -76,11 +76,29 @@ export function AddRepForm({ apiBase }: { apiBase: string }) {
   );
 }
 
-export function AddLeadForm({ apiBase, salesRepId }: { apiBase: string; salesRepId?: string }) {
+/* Founder: "there is no add leads button" — said on the ByteForce BOARD, which
+   had a `page-head` with no actions at all, so the only door was inside a rep's
+   page. It is on the board now, and the board has no rep in hand.
+
+   Hence `reps`: the rep pages keep passing a FIXED `salesRepId` (the rep whose
+   page it is — no picker, nothing to choose), while the board passes the roster
+   and gets the `assignToRep` select, defaulting to Unassigned. The two are
+   mutually exclusive by construction: a fixed rep wins and the picker is not
+   rendered, so a caller cannot offer a choice that the submit then overrides. */
+export function AddLeadForm({
+  apiBase,
+  salesRepId,
+  reps,
+}: {
+  apiBase: string;
+  salesRepId?: string;
+  reps?: Array<{ id: string; name: string }>;
+}) {
   const { busy, error, submit } = useSubmit();
   const locale = useLocale();
   const t = tFor(locale);
   const [open, setOpen] = useState(false);
+  const pickRep = salesRepId === undefined && reps !== undefined;
   if (!open) {
     return (
       <button onClick={() => setOpen(true)} className={btnPrimary}>
@@ -97,7 +115,9 @@ export function AddLeadForm({ apiBase, salesRepId }: { apiBase: string; salesRep
           `${apiBase}/leads`,
           "POST",
           {
-            salesRepId,
+            salesRepId: pickRep
+              ? String(fd.get("salesRepId") || "") || undefined
+              : salesRepId,
             name: String(fd.get("name")),
             number: String(fd.get("number")),
             email: String(fd.get("email") || "") || undefined,
@@ -134,6 +154,19 @@ export function AddLeadForm({ apiBase, salesRepId }: { apiBase: string; salesRep
             ))}
           </select>
         </label>
+        {pickRep ? (
+          <label className="block">
+            <span className={labelCls}>{t(formsDict.assignToRep)}</span>
+            <select name="salesRepId" className={inputCls}>
+              <option value="">{t(common.unassigned)}</option>
+              {reps!.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
       </div>
       <label className="block">
         <span className={labelCls}>{t(formsDict.description)}</span>
