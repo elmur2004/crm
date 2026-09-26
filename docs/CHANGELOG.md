@@ -1,5 +1,89 @@
 # Changelog — user-visible changes per phase/release
 
+## The daily report (2026-09-26)
+
+### "how many leads did he take action on"
+
+There's a new tab in the nav: **Daily report**. Open it and the first thing you
+see is the number you asked for — **how many leads you touched today** — in the
+biggest type on the page, with the same number for yesterday and the day before
+it beside it.
+
+Under each number is the list: every lead you touched that day, and under each
+lead, what you actually did to it. "Flagged didn't answer", "Moved to Following
+Up", "Commented", "Sent WhatsApp", "Added the lead", "Corrected the proposal" —
+in your words, and at what time.
+
+**The number counts LEADS, not clicks.** If you rang the same lead five times,
+flagged it, commented on it and moved it, that is **one** lead on the count and
+one row on the list carrying all five lines. That's what you asked for, and it's
+the difference between a number you can trust and a number that just goes up.
+
+**Click any lead and you're on it.** Every name is a link, and it takes you to
+that lead on the right company's board — never the wrong one.
+
+### It's your report, and only yours
+
+You said it plainly: *not the admin, not anyone — the user himself.* So it is.
+Every person who can work a lead has this tab, and each of them sees **their own
+day and nobody else's**. You open it as the admin and you see what **you** did,
+not what the team did. The page says so on it, so nobody has to wonder.
+
+If you ever want "what did the team do today", say the word — that's a different
+screen, and it wasn't built, because you told me whose report this is.
+
+### Three days. Not a month
+
+Today, yesterday, and the day before. There's no way to go further back, because
+you said there shouldn't be: *"I don't want to know the last month, just the last
+three days."* Three days, three numbers, and nothing to click that takes you to a
+fourth.
+
+### Nothing is stored, so nothing can go stale
+
+There's no "generate" button that saves a file somewhere. The report is read
+straight off what the system already records every time you move a card, tap
+didn't-answer or write a comment — so it is always exactly true, and there is
+nothing to keep, clean up or back up. Opening the page IS generating it.
+
+**One thing to expect on the first day:** the report only knows about work done
+from now on. Everything on your boards from before today was recorded without a
+name against it, so your first look will show three zeros and one line explaining
+why. From your next action onwards it fills up.
+
+### A day you did nothing says so
+
+A quiet day shows a clean **0** with its date, and a sentence — not a blank space
+that looks like the page broke. Same for a brand-new account.
+
+### Small things
+
+- It shows the same work whichever company you're switched to, because it's a
+  report about **your day** rather than about one board — the company you're on
+  simply sorts to the top of each day. Every row wears its company's name, so a
+  ByteForce lead and a B-Systems lead can never be confused for each other. The
+  page tells you that too.
+- If you deleted a lead, or a lead you worked on was handed to somebody else since,
+  it **still counts on the day you worked it** — the row just can't be opened any
+  more and says which of the two happened. Your number never quietly shrinks.
+- A lead you've since archived is still there, marked **Archived**, and still opens.
+- Busy lead with eight things on it? The first three show, and "+5 more" opens the
+  rest — and the line down the side runs straight through, so it still reads as one
+  day on one lead rather than two lists.
+- **A meeting you recorded as attended reads "Moved to Sending Proposals"** — your
+  move, because you chose where the lead went on that form. "Moved automatically"
+  is kept for the one case where the system really did move the card on its own:
+  the return to Following Up after a proposal goes out.
+- A lead with a very long name stays inside the page on a phone instead of pushing
+  it sideways.
+- Arabic, right to left, and the times are the twelve-hour clock you asked for.
+- It reads properly on the phone.
+
+### One repair on the way past
+
+Switching company while you were on the **Calendar** used to throw you back to the
+dashboard instead of keeping you on the calendar. Fixed.
+
 ## Mindoo is gone, and there's an Add lead button on the ByteForce board (2026-09-26)
 
 ### "there is no add leads button"

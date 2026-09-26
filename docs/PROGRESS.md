@@ -4648,3 +4648,156 @@ comment, and the ADR-013 mechanism note all fixed; .env.example confirmed tracke
      now-false present-tense fact were rewritten; the history was left, because it
      is the reason those safety properties must not be simplified away. Say the
      word and they go too.
+
+## Entry 077 — 2026-09-26 — THE DAILY REPORT: one person's own three days, projected and never stored
+- Done: the founder's daily report, in three commits (ADR-081).
+
+  **1. "how many leads did he take action on… and which leads had these changes"**
+  — `src/lib/services/daily-report.ts`, a PURE PROJECTION over `ActivityLog`. No
+  table, no snapshot, no generate-and-save: he said "I don't need this report to be
+  kept", so it is ADR-041's philosophy extended from *today* to *today and the two
+  days before it*, and "generate" means pull it up and look at it.
+  - **THE COUNT IS DISTINCT LEADS.** He asked for the number twice, so `leadCount`
+    counts LEADS and `interactionCount` counts actions, kept separate. A lead
+    touched five times is one lead, one row, five lines — asserted per day against
+    the database rows (`leadCount === new Set(entityId).size`), not against the
+    projection's own output.
+  - **IT IS HIS OWN REPORT** — `actorId = session.user.id`, with no parameter
+    anywhere that could widen it. An admin reads HIS day. "Not the admin, not
+    anyone." The page says so in words; the e2e asserts it in both directions.
+  - **THREE CAIRO DAYS**, built from date STRINGS via new shared helpers
+    `cairoDatesBack` / `cairoDayWindowFor` in `lib/datetime.ts`. The To-Do's
+    `cairoDayWindow` now calls the shared one, so there is ONE midnight-DST clamp
+    in the product. Egypt's 23-hour day (2026-04-24) and 25-hour day (2026-10-29)
+    are both pinned, at the helper level and through the projection.
+  - **A LEAD HE CAN NO LONGER OPEN IS REDACTED, NOT DROPPED** — built with
+    `name: null, href: null` (ADR-071's pattern) and still COUNTED, because
+    dropping it would silently shrink the number. One id-only probe tells a
+    deleted lead apart from one that left his scope. Archived leads stay full,
+    linked rows with a chip: a to-do is about what is next, a report about what
+    happened.
+  - **THE INDEX SHIPPED WITH IT**, not after: `@@index([actorId, createdAt])`,
+    migration `20260926170000_activity_log_actor_index`.
+
+  **2. the screen, the tab and the words** — `DailyReportBody`, the page under the
+  merged shell's guard, the nav entry for ByteForce and the four B-Systems pipeline
+  roles (not data entry), and `dict/daily-report.ts`. The number is the biggest
+  type on the page, three times over; every lead is a `leadHref` link; every row
+  wears its company. Verbs are DERIVED from strings the product already says (each
+  citing its source key) with real Arabic, and a move is phrased from its STAGE
+  rather than its row id, so a new §10 row reads correctly the day it lands. Zero
+  new CSS, zero new tokens.
+
+  **3. the docs** — ADR-081 (9 numbered decisions + the smaller ones),
+  IMPLEMENTATION §ADR-081 (seven traps plus the small things), CHANGELOG in his voice, TESTING Run 096.
+
+  **One shipped defect found on the way — BUG-020:** `SHARED_PATHS` lived inside a
+  client component, so nothing in the suite could import it — and ADR-071's
+  Calendar had never been added to it, so switching company from
+  `/b-systems/calendar` silently dropped the reader on the dashboard, for a month,
+  with no failure anywhere. Moved to `lib/crm/switch-target.ts` with a test that
+  asserts the PROPERTY rather than the list: any href in BOTH companies' navs must
+  be in it.
+- In progress: nothing mid-flight; working tree clean at close, commits local and
+  UNPUSHED (as instructed).
+- **SPEC.md was not amended**, following the precedent of every founder feature
+  since ADR-068 (the calendar, Postpone, the company work, the proposal edit and
+  the Mindoo removal are all recorded as ADRs with no SPEC edit). ADR-081 is the
+  normative record for this screen. Worth a decision at some point about whether
+  SPEC should absorb the last dozen ADRs; it is not one to take mid-feature.
+- Verified: `docs/TESTING.md` Run 096 (the feature) and **Run 097 (the review and
+  the whole-system gate before the push)**. `npx tsc --noEmit` clean at every
+  commit; **57 vitest files / 956 tests** (54/857 before — +33 service integration,
+  +48 phrase completeness, +5 switch-target, +11 datetime helpers, +2 from the
+  ADR-067 directory sweep picking up the new page; the Run 096 log's per-file rows
+  were recounted from vitest's own reporter in Run 097 and two of them were off by
+  one); **Playwright FULL suite green, 173 passed / 0 failed / 2 skipped** (175 cases),
+  `test-results/.last-run.json` `"status": "passed"`; `next build` clean, with the
+  manifest cross-checked against the source tree rather than glanced at — **156
+  source routes, all 156 present**, `/b-systems/daily-report` among them. The index proved on a **throwaway** embedded Postgres (never
+  `.pgdata/dev`) seeded with both companies' demo data and loaded to 200k rows:
+  `migrate deploy` twice, the migration statement itself run twice, the index
+  present exactly once, the `ActivityLog` columns byte-identical, and BOTH query
+  plans captured.
+  - **`/brand-audit`: PASS**, twice — once over the feature and again in Run 097 over
+    the review change set. No hex colour or `font-family` in any new file, no emoji
+    (swept by code point), no physical left/right property, **no new design token**,
+    and not one existing English string edited. Two CSS rules WERE added in the
+    review (`.tl-list--head` / `.tl-list--tail`); they spend only `--color-border`,
+    which the rules above them already spend in all three scopes, and the ADR's
+    "zero new CSS" bullet was corrected rather than left standing.
+    `brand-tokens.test.ts` 14/14.
+  - **THE REVIEW ROUND (Run 097).** Sixteen findings, each checked against the code
+    before being accepted or refused. Five were real defects in shipped code, all in
+    this feature and none of them ever deployed: an attended meeting outcome read
+    "Moved **automatically** to Sending Proposals" although he chose the destination
+    himself (`auto: true` means "no next-action click", not "the engine decided"); the
+    impersonation marker was claimed product-wide and exists only in the lead chat,
+    and the way the screen detected it would have printed a person's OWN old name on
+    every row after a rename; one long unbroken lead name pushed the page 110px
+    sideways at 390px; the `<details>` fold broke the timeline rail and painted a
+    second "newest" dot; and the "+N more" control was 34.75px against the house 44px
+    rule, with its disclosure triangle still drawn because the WebKit-only selector is
+    a no-op in Chromium and Firefox. Three more were true of the RECORD rather than
+    the code and were fixed there: ADR-081's inventory called itself complete while
+    two lead-scoped writes (the To-Do tick, a meeting's attendee set) keep no log row
+    — both now named as deliberate exclusions with their reasons and raised as founder
+    item 5; the autumn-fold integration case never actually crossed the fold; and Run
+    096's per-file counts had two wrong rows and one missing. One was REFUSED: the
+    claim that the round's 94-new / 951-total figures were each one high — the finding
+    counted the phrase inventory with a grep that also matched the array's own type
+    annotation, and 94 / 951 were exactly right.
+  - **TWO defects this round caught, both only visible in the FULL suite, and
+    neither reachable by the new spec alone:**
+    (a) a test defect — the new e2e's `toHaveText("2")` was an assertion about test
+    ORDER, since ten specs sign in as the founder before it and also act on leads.
+    It now reads the headline first and asserts the DELTA (+2 for six actions on
+    two new leads) plus `leadCount === the rows beneath it`. Caught only by reading
+    `test-results/.last-run.json` after a tailed run printed a green-looking tail.
+    (b) **a real behaviour defect in this feature's own code** (caught before it
+    ever deployed) — a REDACTED row has no company, and the sort compared brands
+    directly, so an unknown company ranked LAST and every deleted or reassigned
+    lead sank to the bottom of its day however recently it was worked. Now ranked
+    as if it were the company being looked at, with a new integration case pinning
+    it under both labels. Worth noting HOW it was caught: by an e2e that asserted a
+    position ("the thing you just did is the first row"), which is a property no
+    unit test in the suite was looking at.
+- Blockers: none.
+- **Needs founder attention (six new, from ADR-081):**
+  1. **Should data entry see its own daily report?** It does act on leads (it
+     creates and corrects them), so it has a report to show. Excluded for now on
+     ADR-051 / ADR-071 grounds — one destination, and no capability through the
+     side door of a new page. One nav line and one role list either way.
+  2. **Does the post-win money admin count as "touching a lead"?** Milestone ticks,
+     statements marked paid, payment proofs and client edits log against
+     `won_deal` / `statement` / `client`, so an admin who spent the afternoon on
+     milestones reads as a quiet day. The win itself is NOT lost. The join path per
+     family is written down in ADR-081 §4.
+  3. **A dual-company account's report is UNIFIED** — it reads identically under
+     either company label, because it is a report about his day rather than about
+     one board (ADR-071's precedent). Every row wears its company, the switch
+     reorders the day, and the page says so. The narrow alternative is one company
+     per page plus a "+N in the other company" line.
+  4. **No team view was built** — by his explicit instruction ("not the admin, not
+     anyone"). "What did the team do today" is a different screen with a different
+     permission question.
+  5. **Does ticking a To-Do task Done count as touching the lead?** It is the one
+     everyday action that leaves NO trace in this report: `setTodoDone` writes a
+     `TodoDone` row and no `ActivityLog` row, so a rep who ticks his due follow-ups
+     and records nothing else reads "Leads touched: 0". Excluded deliberately (the
+     mark is keyed to the record, it is what the To-Do's own Done section already
+     shows, and unchecking DELETES it, so it is not history) — but it is his call,
+     and counting it means writing a real log row. Same question for a meeting's
+     "also blocks" attendee set. Both are now named in ADR-081 §4.
+  6. **Should work done while IMPERSONATING be marked everywhere, or only in the
+     lead chat?** Only the chat records the admin who was driving ("Omar Agent (via
+     Elmur)"); a stage move or a didn't-answer made while acting as Omar is stored
+     under Omar's own name. Marking the rest is one shared `actorFor(user)` at every
+     lead write — a change to stored history product-wide, so it was not taken here.
+- **Carried forward, still open:** ADR-080's three (the Mindoo data is
+  unrecoverable from production; `GET /api/b-systems/backup` is an unscoped
+  `findMany()` over 45 models behind `requireBsAdmin()` alone; historical Mindoo
+  references remain in code COMMENTS where they explain a safety property).
+  ADR-071's four, of which **item 1 is now answered for this screen only**: a
+  report about a person's day spans both companies. Calendar AVAILABILITY across
+  the switch is still not crossed.

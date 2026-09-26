@@ -447,3 +447,35 @@ the moment a failure is found; close them with a reference to the fixing commit/
   a company already on the href, never doubles it". Mutation-checked: reverting
   either half of the fix turns three of the four new cases red.
 - Status: **fixed** (Run 081, the access audit).
+
+## BUG-020 — 2026-09-26 — the company switch dropped you on the dashboard from the Calendar, and nothing could have caught it
+
+- Severity: minor (a navigation surprise, no data and no access involved)
+- Where: `src/components/shared/CompanySwitch.tsx` — `SHARED_PATHS` / `targetFor`,
+  as shipped by ADR-067 and never updated by ADR-071.
+- Repro: sign in as an account holding BOTH companies (the founder), open
+  `/b-systems/calendar?company=bsystems`, press **ByteForce** on the company
+  switch. You land on `/b-systems?company=byteforce` — the dashboard — instead of
+  the ByteForce calendar. Same for any other shared screen added after ADR-067.
+- Cause: `targetFor` keeps the path only for a path listed in `SHARED_PATHS`, and
+  that list still read
+  `["/b-systems", "/b-systems/todo", "/b-systems/leads", "/b-systems/crm"]`. The
+  Calendar is a SHARED screen — one address, both companies, exactly like the
+  To-Do — but adding it to the nav was not accompanied by adding it here.
+- **Why no test failed: the list lived inside a `"use client"` component**, and
+  nothing in the vitest suite imported either the list or `targetFor` (a grep for
+  both names returned only their own declaration and their one call site). So the
+  rule had no test, in a repo whose whole method is to make the directory the
+  assertion. It sat wrong for a month.
+- Fix (ADR-081): `SHARED_PATHS` and `targetFor` moved to `src/lib/crm/switch-target.ts`
+  — pure, no React, importable — with the Calendar and the new Daily report both
+  in the list.
+- Regression test: `src/lib/crm/switch-target.test.ts` asserts the property rather
+  than the list: **every href that appears in BOTH companies' navs must be in
+  `SHARED_PATHS`**, derived from `crmNavFor` itself. A shared screen added
+  tomorrow and forgotten here is a failing test instead of a silent bounce. Plus
+  the three cases the list is actually for: a shared path keeps its path with the
+  new company, a company-exclusive section and any deep link fall back to Home,
+  and the Daily report — the one screen whose content is the same either way —
+  keeps its path.
+- Status: **fixed** (Run 096, ADR-081 §7).

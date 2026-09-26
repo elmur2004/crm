@@ -5520,3 +5520,370 @@ Worth naming because the same mistake in the other direction is much worse: a
 folder left in `prisma/migrations` with a `migration.sql` in it **will run on
 production**, whatever it is called. There is no such thing as an unapplied
 migration file sitting in that directory.
+
+## Run 096 — 2026-09-26 — ADR-081: the daily report, its index, and the plan that was not a Seq Scan
+
+| Command | Result |
+| --- | --- |
+| `npx tsc --noEmit` | clean at each of the three commits |
+| `npx vitest run` | **57 files, 951 tests, all passing** (54/857 → 57/951) |
+| `npx next build` | clean; `/b-systems/daily-report` in the manifest |
+| `npx playwright test` (FULL) | **172 passed, 0 failed**, 2 skipped (the opt-in audit spec) — `test-results/.last-run.json`: `"status": "passed"`, `failedTests: []` |
+
+Playwright ran on a **temporary copy of the config** on a verified-free port
+(3277 — 3100 may be another workstream's, and nothing of anyone else's was
+touched); the copy was deleted afterwards.
+
+- Cases: 951 vitest + 172 e2e passed / 0 failed / 2 skipped.
+- Failures: one test defect, found and fixed inside this round — see "the failure
+  a tailed run hid" below; it was a defect in a test written this session, never in
+  shipped behaviour, so it carries no BUG id. One SHIPPED defect was found by the
+  work and fixed with it: **BUG-020** — the company switch bounced you from the
+  Calendar to the dashboard, because `SHARED_PATHS` lived inside a client component
+  and had never been given the Calendar.
+- SPEC coverage touched: §5.6 (the activity log read by ACTOR for the first
+  time), §10 rows T-0…T-9 / B-1 / B-4 / B-6 / B-7 / B-9 and the same-stage
+  records FU-AGAIN / NEG-DUE / MTG-RESCHEDULE (each phrased and asserted), §3
+  (the scope wall re-proved through a new read path), §2 (Cairo days, twelve-hour
+  display).
+- Verdict: **PASS.**
+
+### The 94 new vitest tests
+
+| File | Tests | What it pins |
+| --- | --- | --- |
+| `src/lib/services/daily-report.integration.test.ts` | 31 | the projection: the three-day shape, the count, the inventory, both walls, cross-company, the two DST days, impersonation |
+| `src/lib/i18n/daily-report-phrases.test.ts` | 45 | every trigger the product can stamp on a lead resolves to a SPECIFIC phrase in EN **and** AR; an unknown one still yields a countable phrase rather than a crash |
+| `src/lib/crm/switch-target.test.ts` | 5 | the company switch's shared-path list, which had never had a test |
+| `src/lib/datetime.test.ts` (existing file) | +11 | `nextCairoDate`, `cairoDayWindowFor`, `cairoDatesBack`, and that three windows TILE across both transitions |
+| `src/lib/crm/page-company-guards.test.ts` (existing file) | +2 | the ADR-067 directory sweep, which parameterises over the route directory TWICE — so the new `daily-report/page.tsx` adds two cases to it for free |
+
+**The three rows above were RECOUNTED in Run 097** from vitest's own per-file
+reporter rather than from the diff: switch-target was logged as 6 and is 5,
+datetime as +12 and is +11 (32 → 43), and the directory-sweep row was missing
+altogether. 31 + 45 + 5 + 11 + 2 = **94**, so the round's headline and the 951
+total were right and only the attribution was wrong — which is worth correcting in
+a log whose whole method is that the numbers are measured.
+
+Four properties are worth naming because they are the ones that would have
+shipped a wrong number:
+
+1. **`leadCount === new Set(rows.map(r => r.entityId)).size`, per day**, asserted
+   against the database rows rather than against the service's own output — so
+   the test cannot agree with the bug.
+2. **Every scope case seeds a COLLEAGUE's action on the SAME lead in the SAME
+   window FIRST.** A suite that seeded only the viewer's rows would pass against
+   a service with no actor predicate at all.
+3. **A stage move off a no-answer-flagged card** writes TWO log rows in one
+   transaction with the identical instant. Asserted as ONE lead with TWO lines.
+4. **A database whose only history is seeded** (`actorId: null`, `"Seed"`) returns
+   three zero days for every account — which is what proves the actor predicate
+   is real, and is also the state the demo database is genuinely in.
+
+### The 12 new e2e cases
+
+Distinct-leads-not-actions (as a delta, plus `headline === the rows beneath it`),
+the link into each company's own lead screen, the cross-company span and the
+switch keeping the path, "it is HIS report" in both directions across two browser
+contexts, **a lead DELETED after being worked on** — still counted, no link, its
+name nowhere on the page, both interactions still listed — exactly three days and
+no control to a fourth, the empty day, the never-acted account, the data-entry
+bounce, the ByteForce-only account being refused `?company=bsystems`, the Arabic
+pass (day headings translated, an interaction pill translated, ص/م with Latin
+digits, no `AM`/`PM` anywhere, and direction measured from bounding boxes rather
+than trusted), and four widths from 320px in both languages and both companies.
+
+The deleted-lead case earns its place because it is the only one that exercises
+the REDACTION branch through the real page rather than through the service: a
+deleted lead always leaves its history behind (no FK on `entityId`), so that
+branch is what stands between the founder and a 404 on his own report.
+
+`/b-systems/daily-report` was also added to both role lists in
+`e2e/qa-sweep.spec.ts` (six widths, zero console errors, ≤1px horizontal overflow)
+and their timeout budgets raised with the path count. `e2e/company-switch.spec.ts`
+moved from 6 ByteForce nav links to 7.
+
+### THE FAILURE A TAILED RUN HID — the reason the rule exists
+
+The new spec **passed alone and failed in the full suite**, and the tail of that
+run looked green because the failure scrolled past above it. Only
+`test-results/.last-run.json` said `"status": "failed"`.
+
+The assertion was `await expect(tileValues(page).first()).toHaveText("2")`. In the
+full suite the founder has already acted on other leads today — the whole suite
+shares one seeded database and TEN specs sign in as him before this
+one — so the headline read **7**. The test was an assertion about test ORDER
+dressed up as an assertion about the feature.
+
+Rewritten to read the headline FIRST and assert the **delta**: six actions on two
+new leads must move it by exactly two, and the headline must equal the number of
+lead rows beneath it. Both are order-independent, and the second is the actual
+invariant ("a lead touched five times is one lead").
+
+Worth writing down twice: **a suite piped through `tail` is not a result.** This
+is the second time in two sessions that reading `.last-run.json` was the only
+thing that told the truth.
+
+### AND A SECOND THING THE FULL SUITE FOUND — a real ordering defect
+
+The deleted-lead case then failed on a property nothing in the unit suite was
+looking at: it expected the just-deleted lead to be the FIRST row of today (it was
+the most recent thing that happened), and got a different lead.
+
+Cause: rows sort "the company you are switched to first, then most recent first",
+and a REDACTED row has no company. The comparator compared brands directly, so an
+unknown company ranked LAST — pushing every deleted or reassigned lead to the
+bottom of the day however recently it had been worked, which reads as though the
+report had lost track of it.
+
+Fixed by ranking a null brand **as if it were the company being looked at**, so
+redaction changes what a row says and never where it sits. Pinned by a new
+integration case that asserts it under BOTH company labels. (The tempting
+alternative — "only reorder when both brands are known" — would make the
+comparator intransitive; see IMPLEMENTATION §ADR-081.)
+
+Both of this round's defects were found by running the suite the founder's way:
+everything, in order, in one database. Neither was reachable by the new spec alone,
+and the second one was caught by an e2e asserting a POSITION ("the thing you just
+did is the first row") — a property no unit test in the suite was looking at.
+
+### THE INDEX, PROVED ON A THROWAWAY DATABASE
+
+Never `.pgdata/dev`, never the vitest instance (5434) and never the e2e one: a
+fresh embedded PostgreSQL 18.4 cluster on port 5777 with its own data dir, stopped
+and **deleted** at the end. Migrated with `prisma migrate deploy`, seeded with
+BOTH companies' demo data, then loaded to **200,078** `ActivityLog` rows — 40
+other actors, one in a thousand of the bulk rows this actor's, plus 60 rows that
+are genuinely his inside the window — and `ANALYZE`d.
+
+| Assertion | Result |
+| --- | --- |
+| `prisma migrate deploy` (first run) | applied `20260926170000_activity_log_actor_index` |
+| `prisma migrate deploy` (second run) | **"No pending migrations to apply."** |
+| the migration's single statement, run twice by hand (the boot retry) | **1 copy of the index**, no error |
+| `ActivityLog` index set identical across both deploys | **true** |
+| `ActivityLog` columns byte-identical across both deploys | **true** (id, entityType, entityId, actorId, actorLabel, action, fromStage, toStage, trigger, createdAt) |
+| indexes on the table afterwards | `ActivityLog_pkey`, `ActivityLog_entityType_entityId_createdAt_idx`, `ActivityLog_actorId_createdAt_idx` — three, no duplicates |
+
+### BOTH QUERY PLANS, and the estimate they corrected
+
+The query is the report's own: `actorId = $1 AND entityType = 'lead' AND createdAt
+∈ [3 days)`, ordered by `createdAt DESC`.
+
+**WITH the index (as shipped):**
+
+```
+Sort  (cost=31.80..31.81 rows=6) (actual time=0.178..0.183 rows=64)
+  Sort Key: "createdAt" DESC
+  Buffers: shared hit=12
+  ->  Bitmap Heap Scan on "ActivityLog"  (cost=4.52..31.72 rows=6) (actual rows=64)
+        Recheck Cond: (("actorId" = $1) AND ("createdAt" >= …) AND ("createdAt" < …))
+        Filter: ("entityType" = 'lead'::text)
+        Heap Blocks: exact=6
+        ->  Bitmap Index Scan on "ActivityLog_actorId_createdAt_idx"  (cost=0.00..4.52)
+              Index Cond: (("actorId" = $1) AND ("createdAt" >= …) AND ("createdAt" < …))
+Execution Time: 0.226 ms
+```
+
+**WITHOUT it** (the same query with the index dropped):
+
+```
+Sort  (cost=3683.87..3683.89 rows=5) (actual time=2.453..2.460 rows=64)
+  Buffers: shared hit=180
+  ->  Bitmap Heap Scan on "ActivityLog"  (cost=269.92..3683.82 rows=5) (actual rows=64)
+        Recheck Cond: (("entityType" = 'lead') AND ("createdAt" >= …) AND ("createdAt" < …))
+        Filter: ("actorId" = $1)
+        Rows Removed by Filter: 3709
+        Heap Blocks: exact=69
+        ->  Bitmap Index Scan on "ActivityLog_entityType_entityId_createdAt_idx"  (cost=0.00..269.92)
+              Index Cond: (("entityType" = 'lead') AND ("createdAt" >= …) AND ("createdAt" < …))
+              Index Searches: 18
+Execution Time: 2.502 ms
+```
+
+**117× the planner cost, 15× the buffers, 11× the measured time** — and the
+estimate this work began from was wrong in an interesting way. It predicted a
+`Seq Scan`; PostgreSQL 18 instead **skip-scans the leading column of the existing
+composite index**, so the pre-index plan reads every lead row the WHOLE COMPANY
+wrote in the window (3,773) and discards 3,709 of them to return 64.
+
+That is the worse of the two failure modes, because its cost grows with everybody
+ELSE's activity rather than with the reader's own day, and it looks perfectly fine
+on a small table. `ActivityLog` is the busiest write table in the product — every
+stage move, comment, WhatsApp press and didn't-answer tap in both companies writes
+a row — so this is exactly the query that would have got slower for the life of
+the system. The migration header now quotes the plan that was MEASURED rather than
+the one that was expected.
+
+Rejected alternative, recorded: `(actorId, entityType, createdAt)`. It would make
+`entityType` an index condition rather than a free filter, which buys nothing at
+this cardinality, and it cannot answer "everything this person did".
+
+## Run 097 — 2026-09-26 — ADR-081 under review, and the WHOLE-SYSTEM gate before the push
+
+Founder: *"finish everything up and make sure that there is nothing broken — it is
+the entire system — and then push for production."* So this round is not the new
+screen's round: it is the product's. Sixteen review findings (several the same
+defect reported more than once) were each checked against the code before being
+accepted or refused, and then every gate was run from scratch.
+
+| Command | Result |
+| --- | --- |
+| `npx tsc --noEmit` | clean (before and after the fixes) |
+| `npx vitest run` (FULL) | **57 files, 956 tests, all passing** (57/951 → 57/956) |
+| `npm run build` | clean; **156 source routes, all 156 in the manifest**, `/b-systems/daily-report` among them |
+| `npx playwright test` (FULL) | **173 passed, 0 failed**, 2 skipped (the opt-in audit spec) — `test-results/.last-run.json`: `"status": "passed"`, `failedTests: []` |
+| migration re-proof, throwaway cluster | 25 migrations from VIRGIN → *"All migrations have been successfully applied"*; second `deploy` → *"No pending migrations to apply."*; statement replayed twice; `migrate status` up to date; `migrate diff --exit-code` → **"No difference detected"** |
+| `/brand-audit` over the change set | **PASS** |
+
+- Cases: 956 vitest + 173 e2e passed / 0 failed / 2 skipped.
+- Failures: none in the final run. Two test defects were found and fixed inside
+  this round, both in tests written last session (no BUG id — nothing shipped was
+  wrong): the autumn-fold case never crossed the fold, and the phrase inventory
+  carried T-6 as a row shape the product never writes. One SHIPPED-code wording
+  defect and four UI defects were found by the review and fixed here, all in the
+  daily report, **none of which had ever deployed** — so none carries a BUG id,
+  following Run 096's own precedent for the redaction-sort defect it caught the same
+  way ("caught before it ever deployed"). BUG-020 has an id because it had been live
+  for a month.
+- SPEC coverage touched: §10 (the attended-meeting rows T-6 / B-7 / B-9 re-read
+  through the report's phrasing), §2 (Cairo days — the real repeated hour), §15
+  Global DoD (no horizontal overflow, 44px targets).
+- Verdict: **PASS.**
+
+### The route list, checked rather than glanced at
+
+`npm run build` prints the manifest; a manifest that silently LOST a route is the
+failure this step exists for, so the list was cross-checked against the source
+tree instead of read: every `page.tsx` / `route.ts` under `src/app`, with route
+groups stripped, is **156 distinct routes, and all 156 are in the build**. The
+seven extras the build reports are Next's own (`/_not-found`,
+`/manifest.webmanifest`, `apple-icon.png` and four generated `icon-*.svg`).
+
+### THE REVIEW, finding by finding
+
+**Accepted and fixed — shipped code (5).**
+
+1. **"Moved automatically" was claiming the engine did HIS work.** The attended
+   branch of `meeting_outcome` returns `auto: true` (the card moves with no
+   next-action click), so `applyLeadEvent` writes `action: "auto_transfer"` — but
+   the DESTINATION comes out of the outcome form the user filled in. The report
+   therefore read "Moved automatically to Sending Proposals" for a move he made,
+   and for T-6 the honest wording was **unreachable**, since `triggerForAction`
+   never returns T-6 and the attended branch is its only source; an attended-meeting
+   win read "Moved automatically to Won" while the same win by the next-action path
+   read "Moved to Won". The three user-chosen triggers (T-6, B-7, B-9) now read as
+   plain moves; T-5 / B-6 keep the automatic wording, because nobody chose their
+   destination. The inventory had T-6 as a `stage_change`, which is why 45 passing
+   completeness cases never saw it — it now carries the real `auto_transfer`
+   shapes, B-9's included, plus a case that asserts both wordings.
+2. **The impersonation marker was claimed for the whole product and exists in one
+   writer.** `(via …)` is built only by `addLeadComment`; every other lead writer
+   stamps `label: user.name`, which under impersonation is the impersonated
+   person's own name. Worse, the screen decided whether to print the label by
+   comparing it to the reader's CURRENT name — and `actorLabel` is history while a
+   rename is allowed, so one rename would have printed a person's OWN old name on
+   every row of his last three days, in the slot reserved for somebody else's work.
+   The label is now shown only when it really is an impersonation label
+   (`isViaLabel`), ADR-081 and IMPLEMENTATION §5 say exactly what that covers, and
+   "mark impersonated work everywhere" is founder item 6.
+3. **One long unbroken lead name pushed the page sideways at 390px.** A lead name
+   is free text to 200 characters, and the name was a flex item with no `min-w-0`,
+   so it could not shrink below its min-content width: measured at **110px of
+   horizontal overflow** for a 64-character token, against the Global DoD property
+   this screen's own width sweep exists to hold. Both guards were blind to it
+   because every seeded name has spaces in it. Fixed with `min-w-0 wrap-anywhere`
+   (what `.bcard-name` already does), and the 390px case now measures a 64-char and
+   a 200-char token as well as the seeded names.
+4. **The fold broke the timeline it borrowed.** `.tl-*`'s rail and live dot are
+   POSITIONAL rules over an `<ol>`, and a busy lead's day is split across two — so
+   line three lost its rail (a gap in the middle of the day) and line four wore a
+   second "this is the newest" dot. Two scoped rules (`.tl-list--head` /
+   `.tl-list--tail`) put both facts back, and a new e2e reads the computed rail and
+   dot of all five lines rather than trusting them.
+5. **The "+N more" control was not a thumb target, and its triangle was still
+   drawn.** `[&::-webkit-details-marker]:hidden` is a no-op in Chromium (which draws
+   the marker through `::marker` on `display: list-item`) and in Firefox (which never
+   supported it); `list-none` is what removes it, and the WebKit selector stays as
+   the Safari fallback. The control measured **34.75px** against the house 44px rule
+   — under a comment that cited the rule while the assertion said 24. Now `min-h-11`,
+   and the e2e asserts 44 and that the marker box is gone.
+
+**Accepted and fixed — the record, not the code (3).**
+
+6. **Two lead-scoped writes keep no log row, and ADR-081's inventory called itself
+   complete.** `setTodoDone` (ticking a To-Do task Done) and `setMeetingAttendees`
+   (a meeting's "also blocks" set) both sit behind `requireLeadAccess` and write no
+   `ActivityLog` row, so neither can reach a projection over that table. Verified by
+   sweeping every file that calls `requireLeadAccess`: those two are the only
+   mutators in the product without a log write (`calendar.ts` and `todo.ts` are
+   read-only). Both are now named in ADR-081 §4 as **deliberate exclusions with
+   their reasons** — the tick is keyed to the RECORD rather than a lead (ADR-062),
+   it is what the To-Do's own Done section already shows, and **unchecking DELETES
+   it**, so it is rewritable state that a report about what happened must not be
+   built on; the attendee set is a statement about whose TIME a meeting occupies
+   (ADR-071). The consequence is written down rather than hidden, in the ADR, in
+   `daily-report.ts` and in `todo-done.ts`'s own header: **a rep who ticks his due
+   follow-ups and records nothing else reads "Leads touched: 0".** Whether that
+   should count is a product question about what "an action on a lead" means, so it
+   is founder item 5 beside the post-win money admin, and the change if he says yes
+   is a real log row (a new `LOG_ACTIONS` verb, and new lines on every lead's
+   History timeline) rather than a second source on the report's side.
+7. **The autumn-fold case never crossed the fold.** Egypt leaves DST at 21:00Z, so
+   2026-10-29 23:30 Cairo happens twice — at 20:30Z (EEST) and 21:30Z (EET). The
+   case seeded 19:30Z and 20:30Z, which are 22:30 and 23:30 and both EEST: it was
+   re-asserting the late-evening case above it, under a title and a comment that
+   named the wrong wall-clock times. Now the genuinely repeated pair. (The
+   helper-level case in `datetime.test.ts` always had it right, using
+   `fold.end - 90min` / `fold.end - 30min`, which is why the property was covered
+   and the projection's own path was not.)
+8. **Run 096's per-file table had two wrong rows and omitted a third.** Recounted
+   from vitest's per-file reporter rather than from the diff: switch-target is 5
+   (logged 6), `datetime.test.ts` is +11 (logged +12; 32 → 43 measured by running
+   the pre-change file), and the ADR-067 directory sweep in
+   `page-company-guards.test.ts` gains +2 for free, which the table never named.
+   Corrected in place, with the recount noted there.
+
+**Refused, with the reason (1).**
+
+9. *"`daily-report-phrases.test.ts` is 46 cases, so the round's 94 and 951 are each
+   one high."* **No — it is 45, and the miscount is in the finding.** It counted the
+   inventory with `grep -c "{ why:"`, which also matches the array's own TYPE
+   ANNOTATION (`Array<{ why: string; row: InteractionRow }>`, line 48): 37 entries,
+   not 38, plus 8 plain `it` blocks = 45, which is what vitest's verbose reporter
+   lists. So 31 + 45 + 5 + 11 + 2 = **94** and the suite total of **951** were both
+   exactly right. The two per-file rows in the same finding WERE wrong and are fixed
+   above; the totals were not. (The same grep is why this table is now written from
+   the reporter rather than from a pattern.)
+
+### The counts, per file, measured not derived
+
+| File | Run 096 | Run 097 | Why it moved |
+| --- | --- | --- | --- |
+| `src/lib/services/daily-report.integration.test.ts` | 31 | **33** | +1 a stage move under impersonation carries the impersonated name ALONE, +1 `isViaLabel` refuses a bare mismatch (the rename case) |
+| `src/lib/i18n/daily-report-phrases.test.ts` | 45 | **48** | +2 inventory rows (B-7 and B-9 attended, the real `auto_transfer` shapes), +1 "a move HE chose the destination for is not claimed as the engine's" |
+| `e2e/daily-report.spec.ts` | 12 | **13** | +1 "a busy lead's timeline survives the fold as ONE timeline" |
+| Playwright suite | 172 passed / 2 skipped | **173 passed / 2 skipped** | the same +1 |
+| suite | 57 files / 951 | **57 files / 956** | |
+
+### Brand audit over the change set — PASS
+| File | Line | Finding | Rule ref | Severity |
+| --- | --- | --- | --- | --- |
+| — | — | none | — | — |
+- **Hardcoded values:** no hex and no `font-family` in any changed file. The two
+  standing out-of-scope hits are untouched and unchanged
+  (`app/api/files/[id]/route.ts`'s standalone download page,
+  `app/manifest.ts`'s PWA colours).
+- **Tokens:** no new token. The two new CSS rules spend `--color-border` only,
+  which the rules above them already spend — declared in
+  `branding/byteforce/tokens.css`, `branding/b-systems/tokens.css` and
+  `src/themes/neutral.css`, so nothing can be missing from a scope. The new Tailwind
+  utilities (`wrap-anywhere`, `min-h-11`, `list-none`, `min-w-0`) were confirmed
+  present in the built CSS rather than assumed.
+- **i18n:** **not one existing English string changed** (the dict diff touches
+  comments, a `Set` and a ternary — no `en:` or `ar:` value), and no key was added,
+  so no new Arabic was owed. The two `→` characters in the change set are both in a
+  comment and a test label, never in a `Msg`.
+- **RTL:** no physical left/right property added; the new classes are logical or
+  axis-free.
+- **Emoji:** none (swept by code point, not by eye).

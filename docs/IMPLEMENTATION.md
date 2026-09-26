@@ -3406,3 +3406,177 @@ machine are dated 2026-08-17 and 2026-08-09, both BEFORE Mindoo existed
 (2026-09-01), so neither contains any of this. And the `pre-postgres-dev-backup`
 file there carries four real bcrypt password hashes — it is a secret, and it is
 gitignored for that reason.
+
+## ADR-081 — the daily report: seven traps, and one estimate that was simply wrong
+
+### 1. `SYSTEM_ACTOR` exists, is exported, and is called by nothing
+
+`src/lib/services/activity.ts:9` declares `SYSTEM_ACTOR = { id: null, label: "System" }`
+and a grep over `src/`, `prisma/` and `scripts/` returns **only that declaration**.
+It matters here because the report's whole predicate is `actorId = me`: if any
+genuine lead action were written with a null actor, the number would be quietly
+short and no test would notice.
+
+The two null-actor writers that DO exist are `services/bootstrap.ts:156` (entityType
+`"user"`, never `"lead"`) and `prisma/seed.ts:176` (`actorLabel: "Seed"`). So for
+`entityType: "lead"`, **a null actor means a seeded row** — which is a property of
+the current code, not a guarantee of the schema. If someone ever wires
+`SYSTEM_ACTOR` into a lead path, the report starts losing rows silently. The
+integration suite pins the seeded half (a database of `Seed` rows returns three
+zero days for every account); the rest is this note.
+
+### 2. A DELETED LEAD ALWAYS LEAVES ORPHANED HISTORY — by construction, not by accident
+
+`deleteLead` (`services/leads.ts:444-451`) does `tx.lead.delete` and THEN
+`writeLog(... trigger: "deleted")` **inside the same transaction**, and
+`ActivityLog.entityId` is a bare string with no FK. So every deleted lead leaves at
+least one log row pointing at an id that no longer exists, plus its entire prior
+history, and nothing cleans either up.
+
+Any projection over `ActivityLog` therefore has to treat "the lead did not come
+back" as a NORMAL case, not an error. Linking it unconditionally is a guaranteed
+404: the lead detail body calls `notFound()` when `requireLeadAccess` throws.
+
+The same shape bit the Mindoo purge, whose migration says it in as many words
+("ActivityLog and UndoEntry are polymorphic and carry no brand"). Worth knowing
+before writing the next reader of this table.
+
+### 3. THE DIFFERENCE BETWEEN "DELETED" AND "NOT YOURS" COSTS ONE QUERY, AND IS WORTH IT
+
+Both populations produce the same symptom — an id the scoped lookup does not
+return — but the honest copy differs: "Deleted lead" is a fact about the record,
+"No longer one of your leads" is a fact about the reader. Telling them apart needs
+a second, id-only probe over just the misses.
+
+That probe is deliberately `select: { id: true }` and nothing else. It reveals
+EXISTENCE, about rows the reader himself created history on, and not the name, the
+company or the owner. Anything wider would be a new read path around the scope
+wall, which is exactly the kind of thing a report over a polymorphic table makes
+easy to do by accident.
+
+### 4. THE WHATSAPP MARK LOGS EVEN WHEN IT CHANGES NOTHING
+
+`services/whatsapp.ts:80-93`: the `UPDATE … WHERE "whatsappSentAt" IS NULL` is
+first-press-wins, but `writeLog` runs unconditionally after it. A second person
+opening WhatsApp on the same lead therefore writes a log row and changes no state.
+
+For the daily report that is CORRECT — he did open WhatsApp — and it is written
+down here as well as in the ADR because the obvious "tidy-up" (only log when the
+UPDATE touched a row) would silently remove real interactions from somebody's
+report months later, with no failing test.
+
+### 5. IMPERSONATION PUTS THE WORK IN THE OTHER PERSON'S REPORT
+
+`lib/auth/guards.ts:19-25`: under impersonation `session.user.id` is the
+IMPERSONATED user's and `impersonatorId` only remembers who is driving. Every log
+row written while an admin acts as Omar therefore carries `actorId = Omar`.
+
+Consequence: those actions appear in **Omar's** daily report, not the admin's. It
+is the honest reading of "what happened on this lead", but it means a report can
+contain work its owner did not personally do.
+
+**HOW MUCH OF THAT THE REPORT CAN ACTUALLY SHOW — corrected in review, Run 097.**
+The first draft of this section (and of the ADR) said the line surfaces the stored
+`actorLabel` "whenever it differs from the reader's own name", and called the
+marker free. Both halves were wrong:
+
+- **The marker exists in ONE writer.** `comments.ts:129` builds
+  `"Omar Agent (via Elmur)"`, fed by `api/leadComments.ts:20-27` from
+  `user.impersonatorId`. Every other lead writer stamps `label: user.name`
+  (`leads/[id]/event`, `no-answer`, `archive`, `assign`, `whatsapp`, the lead PUT,
+  `api/internal-crm.ts`, `proposals`), and under impersonation that name IS the
+  impersonated person's. So a stage move, a didn't-answer or a WhatsApp press made
+  while acting as Omar is indistinguishable, in this table, from Omar's own. Only
+  the **lead chat** carries the admin's name.
+- **"Differs from the reader's name" is not the same question as "was somebody
+  else driving".** `actorLabel` is denormalised history — `users.ts:297` keeps it
+  deliberately ("deleting the actor must not rewrite what happened") — while
+  `users.ts:221` lets an admin rename an account freely. So after one rename every
+  row that person wrote before it carries his old name, and the string comparison
+  printed all of them in the slot reserved for somebody else's work.
+
+The screen now shows the label only when it really is an impersonation label
+(`isViaLabel`, `services/daily-report.ts`), and the ADR claims nothing beyond that.
+Marking impersonated work on the OTHER writers is a change to stored history across
+the whole product — one shared `actorFor(user)` at every lead write, plus a lookup
+of the impersonator's name — so it is a founder item, not a fix smuggled into a
+report.
+
+### 6. `SHARED_PATHS` HAD NO TEST, AND HAD ALREADY LOST THE CALENDAR
+
+`components/shared/CompanySwitch.tsx` held `SHARED_PATHS` and `targetFor` inside a
+`"use client"` module. Nothing in the vitest suite referenced either — and could
+not comfortably, since importing that file pulls in `next/navigation` and the locale
+provider. The list still read
+`["/b-systems", "/b-systems/todo", "/b-systems/leads", "/b-systems/crm"]`, so
+**ADR-071's calendar was never added**: pressing the company switch on
+`/b-systems/calendar` silently dropped the reader on the dashboard. A month, no
+failure, nobody noticed.
+
+Both functions now live in `lib/crm/switch-target.ts` (pure, no React), and
+`switch-target.test.ts` asserts the property that keeps the list honest: **every
+href that appears in BOTH companies' navs must be in `SHARED_PATHS`**. That is
+derived from the nav table rather than restated, so the next shared screen is a
+failing test instead of a silent bounce.
+
+The general lesson, which this repo has now paid for twice (ADR-068's `datetime`
+extraction was the first): a rule that lives inside a client component is a rule
+with no test.
+
+### 7. THE PERFORMANCE ESTIMATE WAS WRONG, AND THE TRUTH IS WORSE
+
+The work started from "`actorId` is not a prefix of the only index, so Postgres has
+no access path and the plan is a Seq Scan". Measured on PostgreSQL 18 with 200k
+rows, that is **not** what happens: the planner uses
+`ActivityLog_entityType_entityId_createdAt_idx` anyway — it can skip-scan the
+leading column — and answers a much wider question than it was asked:
+
+```
+Bitmap Heap Scan on "ActivityLog"  (cost=269.92..3683.82 rows=5)
+  Recheck Cond: (entityType = 'lead' AND createdAt >= … AND createdAt < …)
+  Filter: (actorId = $1)
+  Rows Removed by Filter: 3709          ← the whole company's three days
+  Buffers: shared hit=180
+```
+
+3,773 rows read to return 64. The cost therefore scales with **everybody else's**
+activity, not with the reader's own day — which is the worse failure mode of the
+two, because on a small table it looks fine and it degrades in proportion to how
+successful the product is. With `@@index([actorId, createdAt])` the same query is
+`Index Cond: (actorId = $1 AND createdAt >= … AND createdAt < …)`, 64 rows, cost 32,
+12 buffers.
+
+Two things to carry forward: **measure the plan, do not reason about it** (a modern
+planner will find a use for an index you assumed it could not use, and that use may
+be the expensive one); and when writing a migration header, quote the plan you
+measured rather than the one you expected — the file now does.
+
+### 8. Small things, recorded so they are not rediscovered
+
+- **A 24-hour subtraction is wrong twice a year, in opposite directions.**
+  `cairoDayWindowFor("2026-04-24")` is **23** hours wide (its midnight does not
+  exist, so `startOfCairoDay` clamps to 01:00) and `cairoDayWindowFor("2026-10-29")`
+  is **25**. The first draft of the new tests asserted the reverse and went red,
+  which is the only reason both numbers are now written down.
+- **In the integration suite, `createdAt` is re-stamped, never faked.** The tests
+  call the real services and then move the rows they wrote onto a chosen instant.
+  Two rows written in one transaction keep the identical instant, exactly as they do
+  in production — so ordering inside such a pair is asserted as a SET, never as a
+  sequence.
+- **`db.lead.findMany({ where: { OR: [] } })` matches nothing.** The service
+  therefore skips the lookup entirely when the account holds no company, rather
+  than relying on an empty `OR` to be harmless.
+- **A ROW WITH NO COMPANY BROKE THE SORT, and the e2e is what noticed.** Rows
+  order "the company you are switched to first, then most recent first", and a
+  REDACTED row has `brand: null`. The first draft compared brands directly, so an
+  unknown company ranked last and every deleted or reassigned lead sank to the
+  bottom of the day however recently it had been worked. The fix ranks a null
+  brand AS IF it were the current company. The tempting alternative — "only
+  reorder when both brands are known" — is worse than it looks: it makes the
+  comparator INTRANSITIVE (byteforce vs null by time, null vs bsystems by time,
+  byteforce vs bsystems by brand), and `Array.prototype.sort` with an inconsistent
+  comparator is implementation-defined. One `rank()` function keeps it a total
+  order.
+- **`.tile-label` is not `nowrap`**, so the Arabic day labels wrap at 320px instead
+  of pushing the page sideways. Checked, because `tile-grid` is
+  `repeat(auto-fit, minmax(206px, 1fr))` and 206px is wider than a third of 390.
