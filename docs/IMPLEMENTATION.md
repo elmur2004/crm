@@ -3311,3 +3311,98 @@ it, and their silence is the guard.
 Same idea as `rowActions` on `TodoBody` (ADR-051), and the same idea as passing
 `apiBase` rather than defaulting it (ADR-074): **when a capability must not leak
 into a neighbouring screen, make the neighbour's silence the safe state.**
+
+
+### 11. Removing a tenant — four traps, and the shape that made it cheap
+
+ADR-080 took a whole company out of the product. What follows is what actually
+cost time, because none of it was the part that looked hard (151 files).
+
+**The compiler did the work, and only because of a habit.** Shrinking `BRANDS`
+from three literals to two produced a list of errors that WAS the task list —
+every `Record<Brand, …>` table, every `satisfies`, every prop. That only happened
+because ADR-073 had turned four ternaries into tables and every ADR since kept
+doing it. Had those stayed `a === "x" ? p : q`, all of them would have compiled
+and silently given a removed company's rows to B-Systems. **The general rule:
+a total table is not just a guard against the NEXT value, it is the diff for
+removing the LAST one.**
+
+**Trap 1 — a shrinking union is not a data operation.** `Lead.brand` and every
+module `company` column are plain TEXT (ADR-002). Deleting `"mindoo"` from the
+TypeScript union changes nothing in the database, and every query that filters
+`brand: ctx.brand` keeps working while a row that matches nothing sits there
+forever. The dangerous case is not a query that returns nothing, it is a
+`findUnique` by id that returns a row nobody can classify: `requireLeadAccess`
+looked up a lead, checked `byteforce`, checked `mindoo`, and otherwise FELL
+THROUGH to the B-Systems branches. With the Mindoo branch deleted, a Mindoo lead
+became a B-Systems lead to that function. One line fixes it and it is worth
+keeping forever: `if (lead.brand !== "bsystems") throw new ApiError(404, …)`.
+
+**Trap 2 — the self-healing account.** `ensureAdminExists()` runs on EVERY
+sign-in attempt and recreates any administrator named in `bootstrap.ts`'s table.
+Deleting `admin@mindoo.com` from the database WITHOUT removing the table entry
+would have restored it — with its role, its approved status and its pinned
+password — minutes after the deploy, and the purge would have looked like it had
+silently failed. The table entry and the SQL delete are two halves of one change,
+and they are in two different commits, which is the only slightly uncomfortable
+thing about the ordering. (Safe here because the code commit lands first and the
+migration runs at boot of that same build.)
+
+**Trap 3 — `onDelete` you never wrote.** Prisma's defaults are invisible in the
+schema and both directions bite. A REQUIRED relation with no `onDelete` is
+RESTRICT: `WonDeal.leadId` and `Statement.milestoneId` make a plain
+`DELETE FROM "Lead"` fail. An OPTIONAL relation with no `onDelete` is SET NULL:
+`Client.leadId`, `Attachment.wonDealId`, `Attachment.statementId` leave a
+surviving row with a nulled pointer — an `Attachment` with every FK null is
+unreachable garbage plus an orphaned blob. **The error is the kind outcome; the
+SET NULL is the one that ships.** Reading the generated `migration.sql` of the
+original init is the only reliable way to see which is which.
+
+**Trap 4 — polymorphic tables have no brand, and the id set is perishable.**
+`ActivityLog` and `UndoEntry` reference records by `entityType` + a bare
+`entityId` string with no FK. The ONLY way to find a removed company's rows in
+them is to match `entityId` against that company's lead ids — and the moment the
+leads are deleted, that set is gone and those rows are unattributable forever.
+Any purge of a polymorphic-logged entity must **snapshot the id sets first**. The
+migration's step 0 is seven `CREATE TEMP TABLE`s for exactly this.
+
+### 12. Reading Mindoo's rows out of a backup, after the fact
+
+The purge is irreversible on production. If the founder wants these records for
+the separate system he is building, they can only come from a backup FILE that
+predates the deploy — the whole-system export at `GET /api/b-systems/backup`
+(the "Export data" button on the admin Home page), which is unscoped
+`findMany()` over 45 models and therefore contained every Mindoo row, its
+uploaded files base64-embedded, and the `mindoo_staff` password hashes.
+
+Given such a file, the Mindoo slice is:
+
+- `tables.user` / `tables.userRole` — the accounts whose `userRole.role` is
+  `mindoo_staff`, and the `user` rows they point at.
+- `tables.lead` — `brand === "mindoo"`; then every row of `followUp`, `meeting`,
+  `proposal`, `lostInfo`, `postponeInfo`, `negotiationNote`, `wonInfo` and
+  `leadComment` whose `leadId` is in that set.
+- `tables.wonDeal` by `leadId`; `tables.milestone` by `wonDealId`;
+  `tables.statement` by `milestoneId`; `tables.attachment` by `wonDealId` /
+  `statementId` (and its blob by `storageKey` in `files`).
+- `tables.salesRep` — `brand === "mindoo"`.
+- the nine `acct*` tables — `company === "mindoo"`, plus `acctRosterSegment` by
+  `memberId` and `acctLoanPayment` by `loanId`.
+- the six `vault*` tables — `company === "mindoo"` **only**; `company === null`
+  is ByteForce/B-Systems' untagged rows and must not be taken.
+- `tables.activityLog` / `tables.undoEntry` — `entityId` in the lead / wonDeal /
+  statement / user sets above, or `actorId` / `userId` in the user set.
+- `tables.notification`, `tables.todoDone`, `tables.calendarEvent`,
+  `tables.pushSubscription`, `tables.meetingAttendee` — by `leadId` or `userId`
+  in those sets.
+
+Against a live PostgreSQL restore of such a backup, the same slice as SQL is the
+`SELECT` mirror of the purge migration's own `DELETE` list — the migration file
+names every table and every predicate, in order, with the id sets it derives.
+Read it as the manifest.
+
+**Two facts to be plain about:** the two files in `backups/` on the founder's
+machine are dated 2026-08-17 and 2026-08-09, both BEFORE Mindoo existed
+(2026-09-01), so neither contains any of this. And the `pre-postgres-dev-backup`
+file there carries four real bcrypt password hashes — it is a secret, and it is
+gitignored for that reason.

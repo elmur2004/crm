@@ -5385,3 +5385,138 @@ failures, three test defects. The pattern in all three is **assuming state
 instead of establishing it** — which is the same root as the label guesses
 earlier in this session, one layer up.
 
+## Run 094 — 2026-09-26 — ADR-079: the ByteForce board's Add lead button
+
+| Command | Result |
+| --- | --- |
+| `npx tsc --noEmit` | clean |
+| `npx vitest run` | **58 files, 975 tests, all passing** (unchanged — this is a UI door, not a rule) |
+| `npx playwright test e2e/byteforce-board.spec.ts` | **3 passed** (2 → 3) |
+
+### The one new case, and why it asserts twice
+
+`ByteForce board: the head's Add lead form creates a lead that lands on the board`
+fills the form from the board's own `page-head .page-actions` and then asserts
+the card in the **New** column — twice, once with a named rep and once with the
+picker left at Unassigned. Two assertions because they fail differently: a
+missing rep option would pass the first and not the second, and a board query
+that filtered on a rep (it does not) would pass the second and not the first.
+
+It cleans up by ARCHIVING, reading the lead id off the card's own `a.bcard-name`
+href, because ByteForce deliberately has no lead delete (ADR-043) and the id
+appears nowhere else on the card.
+
+### A local-environment note that cost a build
+
+`@fontsource/montserrat` was in `package.json` and missing from `node_modules`,
+so `next build` failed on four unresolved CSS imports in `src/app/(mindoo)/layout.tsx`
+before a line of this work was touched. `npm install` fixed it, and the package
+left the manifest entirely in Run 095 — it was Mindoo's text face and nothing
+else used it. Worth recording because the failure named the Mindoo layout and
+looked, for a minute, like something this session had broken.
+
+---
+
+## Run 095 — 2026-09-26 — ADR-080: Mindoo removed, code and data
+
+| Command | Result |
+| --- | --- |
+| `npx tsc --noEmit` | clean at each of the three commits |
+| `npx vitest run` | **54 files, 857 tests, all passing** (58/975 → 54/857) |
+| `npx next build` | clean; **no `/mindoo` or `/api/mindoo` route in the manifest** |
+| `npx playwright test` (full) | **160 passed, 0 failed**, 2 skipped (the opt-in audit spec) — `test-results/.last-run.json`: `"status": "passed"`, `failedTests: []` |
+
+### Where the 118 vitest tests went
+
+Four test FILES were deleted with the features they guarded, and the arithmetic
+is worth writing down so a shrinking count never has to be explained twice:
+
+| File | Tests | Why it cannot survive |
+| --- | --- | --- |
+| `src/lib/crm/mindoo-app.test.ts` | 27 | it read the `(mindoo)` route tree — every page's guard, every href, the proxy's admission. There is no tree. |
+| `src/lib/services/mindoo-separation.integration.test.ts` | 41 | the two-way wall between two companies, one of which is gone. |
+| `src/lib/money-currency.test.ts` | 12 | it failed if a Mindoo-reachable file called the EGP-only formatter. With one currency that is a contradiction, not a guard. |
+| `src/lib/services/foreign-sub-service.integration.test.ts` | 18 | the ByteForce sub-price's three walls. |
+
+The remaining 20 are cases inside surviving files that asserted Mindoo behaviour
+(`company.test.ts`, `module-companies.test.ts`, `lead-address.test.ts`,
+`bootstrap.integration.test.ts`, `brand-tokens.test.ts`, `users-create.integration.test.ts`).
+**Several were not deleted but REPOINTED**, which is the interesting half: the
+role `mindoo_staff` is now cast in as `"mindoo_staff" as Role` and asserted to
+resolve to NOTHING — no company, no switch, `resolveCompany → none`,
+`moduleCompaniesFor → []`, `canUseModule → false` — because a JWT minted before
+this deploy still carries it. It also stays in the 128-subset property sweep, so
+the "never returns a company the roles do not carry" property is still proved
+against a role the build does not know. That is the shape of every stale session
+after a role is removed, and it is a stronger test than the one it replaced.
+
+### The new e2e, written entirely in negatives
+
+`e2e/mindoo-removed.spec.ts` — 5 cases, and every assertion is an absence, which
+is the only shape that can prove a removal:
+
+1. **no `/mindoo` address serves an app** — five pages and three API routes, all
+   404.
+2. **the retired administrator cannot sign in, and nothing heals it back** — the
+   credential refused on TWO consecutive attempts, because
+   `ensureAdminExists()` runs on every attempt and would have recreated the
+   account from the bootstrap table; plus `/api/health` no longer NAMING it,
+   which is the only way to ask a deployment which administrators its build
+   believes in.
+3. **no purple cards, and one currency** — `[data-foreign-company]` and
+   `.bcard-company` at count 0, no `SAR` anywhere in the body, `EGP` present,
+   and ByteForce's own cards still visible (a board rendering nothing would pass
+   the first three).
+4. **nothing survives a search** — the seeded Mindoo lead names on both boards,
+   the retired accounts in the Users table, and the word "Mindoo" anywhere in
+   Accounting or the Vault; each paired with a positive control so an empty page
+   cannot pass.
+5. **the ADR-078 half that stays** — a proposal edited in place, the field
+   labelled `(EGP)`, the saved figure shown, and "ByteForce share of this deal"
+   at count 0. This is the case that keeps the two halves of ADR-078 separated.
+
+### THE PURGE, proved on a throwaway database
+
+Never `.pgdata/dev` and never the e2e instance: a fresh embedded Postgres on its
+own port with its own data dir, deleted afterwards. Migrated to the **PRE-purge**
+schema, seeded with the real ByteForce + B-Systems demo data, then loaded with a
+Mindoo dataset built to hit every hazard the migration is ordered for — a won
+chain down to a statement and both of its attachments, a cross-company
+notification (a Mindoo lead in the B-Systems admin's bell), an untagged vault
+employee and task, a `bfValue` annotation, and **a To-Do mark a Mindoo account
+left on a B-SYSTEMS follow-up**.
+
+| Assertion | Result |
+| --- | --- |
+| Mindoo rows identified before, across 41 distinct identifiers | **90** |
+| …reaching zero after | **41 of 41** |
+| by-company tables whose loss exceeded their own Mindoo count | **0** |
+| the B-Systems follow-up a Mindoo account had ticked | **survived** |
+| the untagged vault employee + task (`company IS NULL`) | **survived** |
+| `Proposal.bfService` / `bfValue` columns remaining | **0** |
+| orphan probes (dangling FK / bare-id, 11 of them) | **none worse than before** |
+| whole migration re-run on a fresh connection | **succeeded, changed nothing** |
+
+The arithmetic on the suite total is worth recording, because a SHRINKING pass
+count is the one number a removal makes look like a regression: 186 before, minus
+`e2e/mindoo.spec.ts`'s 32, plus 1 new ByteForce-board case and 5 new removal
+cases = **160**, exactly what ran.
+
+The exact per-table before/after table is the harness's own output; the shape is
+`Lead 25 → 17`, `SalesRep 5 → 4`, `VaultEmployee 2 → 1`, `VaultTask 2 → 1`, each
+loss exactly equal to that table's Mindoo count, and `PartnerProspect 15 → 15`,
+`Partner 1 → 1`, `PortalRep 2 → 2` untouched.
+
+### The one real defect the proof found, and it was in the harness
+
+The harness held the purge migration back by renaming its folder to
+`…_purge_mindoo.hold` **inside `prisma/migrations`** — and Prisma reads every
+subdirectory there as a migration, so it applied anyway. The first run therefore
+purged BEFORE inserting the fixture, and announced itself only as
+`column "bfService" of relation "Proposal" does not exist` four steps later. A
+migration held aside must be moved OUT of the tree. IMPLEMENTATION §11.
+
+Worth naming because the same mistake in the other direction is much worse: a
+folder left in `prisma/migrations` with a `migration.sql` in it **will run on
+production**, whatever it is called. There is no such thing as an unapplied
+migration file sitting in that directory.

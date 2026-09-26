@@ -6441,3 +6441,293 @@ lies. A rep page has no choice to offer and does not offer one.
 - Consequences: one `page-actions` element, one optional prop, one i18n key, one
   e2e case. No existing call site changes behaviour: the rep pages pass a fixed
   rep and render exactly the form they always did.
+
+---
+
+## ADR-080 — 2026-09-26 — MINDOO IS REMOVED, AND ITS DATA IS DELETED
+
+- Status: Accepted. **Supersedes ADR-073, ADR-074, ADR-075, ADR-076, ADR-077 and
+  ADR-078 in part** — every decision in ADR-073…077 is withdrawn; ADR-078 is
+  split, and §1 of it survives (see §6 below).
+- Context, in his words:
+
+  > "remove mindoo completely / remove the portal the users the deals and
+  > everything related to mindoo I will do a separate system completly for it"
+
+  And, when the destructive half was put to him explicitly — that deleting the
+  rows erases real client names and real riyal deals the moment it deploys, with
+  no way back:
+
+  > "no also delete all mindoo data don't mind the screenshot"
+
+  Both halves are his, and the second is the reason this ADR ships a migration
+  rather than a note.
+
+### 0. What a removal is, as an engineering shape
+
+Twenty-six days of work across six ADRs came out in three commits, and the
+reason it was three rather than thirty is worth naming, because it is the
+dividend of a decision taken back in ADR-067 and re-taken every time since:
+**every place that had to answer "which company?" answered it in a TABLE, not a
+ternary.** `configForBrand`, `staffRolesForBrand`, `rolesForCompany`,
+`mentionableUsersFor`, `LEAD_ADDRESS`, `MODULE_BRANDS`, `BRAND_EYEBROW`,
+`BRAND_ASSETS`. Shrinking `BRANDS` from three literals to two turned every one
+of those into a compile error at the exact line that needed a decision. The
+compiler wrote the diff; the work was reading it.
+
+The mirror image is the part the compiler could not help with, and it is where
+the real risk sat: **`Lead.brand` and every module `company` column are plain
+TEXT** (ADR-002), held by a union and Zod and nothing else. Shrinking a
+TypeScript union does not remove a row. So the removal has two halves that must
+not be confused — the code half, which the type system proves, and the data
+half, which only SQL can do.
+
+### 1. The code, and the three tables it stays as
+
+`mindoo` is out of `BRANDS`, `mindoo_staff` out of `ROLES`, and with them: the
+`/mindoo` route group (11 pages, 2 layouts), `/api/mindoo/**` (18 routes),
+`branding/mindoo/**`, `MINDOO_NAV` + `mindooNav`, `MINDOO_SURFACE`,
+`MINDOO_ROLES`, `mindooCrmConfig`, `src/lib/i18n/dict/mindoo.ts`, the Montserrat
+dependency, the `[data-brand="mindoo"]` scope and its import, and the proxy's
+whole `/mindoo` clause and matcher entry.
+
+Three lookup tables are DELIBERATELY NOT folded back into the ternaries they
+replaced, even though two values make a ternary total again:
+
+| Table | Why it stays a table |
+|---|---|
+| `CONFIGS` (`configForBrand`) | it is what made the compiler demand an answer for a new company instead of letting it inherit another's role gate — the ADR-073 §1 hole |
+| `staffRolesForBrand` | same, for the API namespace's staff list |
+| `rolesForCompany` (calendar) | a company falling through to another's roster puts the wrong people's hours on a grid, silently |
+
+That is not sentiment. Those three are the exact shapes that turned ADR-073's
+third company from a grind into an afternoon, and the guarantee they buy is
+worth the same to the fourth as it was to the third. The same reasoning keeps
+`CrmSurface` (one surface now), `moduleCompaniesFor` (one answer now) and
+`MODULE_ADMIN_ROLES` (one role now) alive rather than inlined: each of them is a
+SEAM, and a seam with one thing through it is still a seam.
+
+`CrmCompany` also stays a separate type from `Brand` with the weak `satisfies`
+subset assertion ADR-074 introduced, even though the two sets coincide again.
+Restoring the equality would have been "true today", and the distinction it
+encodes — whose DATA a row is, versus which company a SHELL is showing — is the
+one the next app-with-its-own-address will need.
+
+### 2. Two modules that had grown a company, and one that had grown a table
+
+`ACCT_COMPANIES` and `VAULT_COMPANIES` go back to two. `src/lib/module-sections.ts`
+— ADR-076's per-company section table — is **deleted outright** rather than
+emptied: it existed to SUBTRACT Mindoo's sections and nothing else, so with
+Mindoo gone every company has every section and the table could only ever answer
+"yes". Eight page guards and two nav filters came out with it. What stays in
+`AcctModuleNav` is `mediaHidden`, which is a different rule with a different
+reason (founder decision 5, one tab, one company) and was deliberately never
+folded into that table.
+
+`user-tenancy.ts` is also **deleted**, and this one is worth the sentence.
+ADR-075's four walls — `listUsers(scope)`, `assertGrantable`,
+`assertUserInScope`, and the scoped impersonation mint — existed because there
+were TWO administrators who must not touch each other's people. There is one.
+`UserScope` had a single inhabitant, `userScopeWhere("bsystems")` compiled to a
+tautology, and `assertUserInScope` could not refuse anything. A wall with one
+side is not a wall, it is a comment that costs a query. What survives is the
+half of ADR-075 that was never about Mindoo: the role list is enforced in the
+SERVICE (`ASSIGNABLE_ROLES` + `assertGrantable` in `lib/services/users.ts`, one
+constant the page and the form both read), because "reading separately and
+writing freely" is the half-wall this codebase keeps rediscovering.
+
+### 3. The window, and the money
+
+**THE BYTEFORCE WINDOW** (ADR-075, moved by ADR-076) is gone: `showMindoo`, the
+foreign-lead query, the read-only `/b-systems/crm/company-lead/[leadId]` route,
+`foreignCompany` on both board card types, `.bcard[data-foreign-company]`,
+`.bcard-company`, and `--color-company-mindoo*` from all three scopes. This is
+the part he was looking at when he asked.
+
+**THE SECOND CURRENCY** (ADR-077 §1) is gone, and with it the deviation from
+SPEC §2 that ADR was written to record. `CURRENCY_FOR`, the per-currency locale
+table and `formatMoney(amount, brand)` are deleted; all 114 call sites now call
+`formatEGP`. The brand argument went with them ON PURPOSE: a parameter that can
+only produce one answer is an invitation to put a second currency back without a
+decision, and the ADR-077 reasoning (no rate, no date, separate books) would
+have to be re-argued from scratch anyway. Nothing stored moved — both currencies
+were hundredths, which is why ADR-077 needed no migration and why this needs
+none either.
+
+`money-currency.test.ts` — the sweep that failed if a Mindoo-reachable file
+called `formatEGP` — is deleted with the hazard it guarded. It was the right
+test for a two-currency product and is a contradiction in a one-currency one.
+
+**THE BYTEFORCE SUB-PRICE** (ADR-077 §2, ADR-078 §2) is gone: `SubServiceForm`,
+`services/foreign-sub-service.ts`, both namespaced endpoints, the `subService`
+dictionary, the dashboard's `includesMindoo` hint, and — in the purge migration
+— the `Proposal.bfService` / `bfValue` columns. It described what ByteForce
+delivers inside a Mindoo deal; there is no such deal.
+
+### 4. THE DATA, and why a migration
+
+The production launcher runs `prisma migrate deploy` at boot and never
+`prisma db seed` (`scripts/start.mjs`), so **a migration is the only thing that
+runs by itself on the live database.** A script would have needed somebody to
+remember, and "somebody will remember" is how the Mindoo administrator came to
+exist on exactly one machine (ADR-074's own addendum).
+
+`prisma/migrations/20260926140000_purge_mindoo/migration.sql` is applied, ships
+in the same push as the code, and runs AFTER it. That order is deliberate in
+both directions: the build it arrives with no longer knows the value `mindoo`
+(and `requireLeadAccess` now 404s a brand it does not recognise — §5), so there
+is no window in which a Mindoo row is both present and reachable; and if the
+migration had failed, those rows would have sat unreachable rather than
+half-deleted.
+
+**It is irreversible. After it runs there is no way to recover these records
+from production.**
+
+#### The three hazards the statement order exists for
+
+1. **RESTRICT, twice, and both implicit.** `WonDeal.leadId` and
+   `Statement.milestoneId` are required relations with no `onDelete`, which
+   Prisma emits as RESTRICT. A plain `DELETE FROM "Lead" WHERE brand='mindoo'`
+   FAILS on any won lead, and there was one. Won deals and statements are deleted
+   innermost-outward, before the leads.
+2. **SET NULL, which is worse than an error.** `Client.leadId`,
+   `Attachment.wonDealId` and `Attachment.statementId` are optional relations
+   with no `onDelete` — also implicit. Deleting the parent does not delete these
+   rows, it NULLS the pointer: an `Attachment` with every FK null is unreachable
+   garbage plus an orphaned blob on disk, and a `Client` row with a nulled
+   `leadId` is a surviving customer record with no lead. Deleted explicitly.
+3. **Three columns that are not foreign keys at all.** `Notification.leadId`,
+   `ActivityLog.actorId`/`entityId` and `UndoEntry.userId`/`entityId` are bare
+   strings with no relation, no cascade and no brand column. `ActivityLog` and
+   `UndoEntry` are polymorphic, so **the only way to identify a Mindoo row in
+   them is to match `entityId` against the Mindoo leads — and that id set is
+   unrecoverable the instant the leads are gone.** Hence step 0: the migration
+   snapshots every id set into temp tables before it deletes anything.
+   `UndoEntry.payload` holds JSON snapshots of Mindoo lead fields, so these are
+   data, not bookkeeping.
+
+#### The tables it touches, in order
+
+`Attachment`(statement) → `Statement` → `Attachment`(wonDeal) → `Milestone` →
+`WonDeal` → `Client` → `Notification` → `ActivityLog` → `UndoEntry` →
+`TodoDone` → `MeetingAttendee` → **`Lead`** (cascading `FollowUp`, `Meeting`,
+`Proposal`, `LostInfo`, `PostponeInfo`, `NegotiationNote`, `WonInfo`,
+`LeadComment`) → `SalesRep` → `AcctIncome`, `AcctExpense`, `AcctMediaEntry`,
+`AcctPayrollPayment`, `AcctRosterMember` (cascading `AcctRosterSegment`),
+`AcctLoan` (cascading `AcctLoanPayment`), `AcctTreasuryMove`, `AcctTarget`,
+`AcctSettings` → `VaultTask`, `VaultSheet`, `VaultDocument`, `VaultForm`,
+`VaultLink`, `VaultEmployee` → `UserRole` → **`User`** → `ALTER TABLE
+"Proposal" DROP COLUMN "bfService", "bfValue"`.
+
+#### What it deliberately does NOT touch
+
+`VaultTask.company IS NULL` and `VaultEmployee.company IS NULL`. Null means
+UNTAGGED, and every untagged row was created by an account of the original pair
+before a third company existed — the ruling is ADR-074 §5.1, and it is the
+founder's own rows. Every filter is `company = 'mindoo'`, never `IS NULL`.
+
+#### The proof
+
+A throwaway embedded Postgres on a dedicated port with a fresh data dir — never
+`.pgdata/dev`, never the e2e instance — migrated to the PRE-purge schema, seeded
+with the real ByteForce and B-Systems demo data, then loaded with a Mindoo
+dataset covering every hazard above (a won chain down to a statement and its
+attachment, a cross-company notification, an untagged vault pair, a `bfValue`
+annotation, and a To-Do mark a Mindoo account left on a **B-Systems**
+follow-up). **90 Mindoo rows across 41 identifiers, all reaching zero; every
+by-company table's loss exactly equal to its own Mindoo count and not one row
+more; the B-Systems follow-up and both untagged vault rows surviving; no new
+dangling reference in eleven orphan probes; and the whole migration re-run on a
+fresh connection changing nothing.** TESTING Run 095 carries the table.
+
+One thing was found by writing the proof rather than by review: Prisma reads
+EVERY subdirectory of `prisma/migrations` as a migration, so renaming the purge
+folder to `…_purge_mindoo.hold` in place did not hold it back — it applied
+anyway, and the first proof run silently purged before it inserted. The harness
+moves the folder out of the tree instead. IMPLEMENTATION §11.
+
+### 5. Two hardenings that are about the NEXT removal, not this one
+
+**`requireLeadAccess` now refuses a brand it does not know**, with 404 rather
+than 403, instead of falling through to the B-Systems branches:
+
+```ts
+if (lead.brand !== "bsystems") throw new ApiError(404, "Lead not found");
+```
+
+Without that line, a row whose company no longer exists would have been
+evaluated against admin/sales/agent/partner in turn and the B-Systems admin
+would have inherited it. The purge makes it moot today; the point is that
+shrinking a union is not a data operation, and the belt belongs beside the
+braces. 404 is the ADR-073 ruling reapplied: a refusal that confirms the id
+exists is a way to enumerate rows this build cannot show.
+
+**A RETIRED ROLE MUST RESOLVE TO NOTHING.** `mindoo_staff` was on live sessions,
+and a JWT minted before this deploy still carries it. `company.test.ts` and
+`module-companies.test.ts` now cast it in as `"mindoo_staff" as Role` and assert
+what such a session does: no company, no switch, `resolveCompany → none`,
+`moduleCompaniesFor → []`, `canUseModule → false`. It stays in the 128-subset
+property sweep for the same reason — the property must hold for a role the build
+does not know, which is the shape of every stale session after a role is removed.
+(The precedent is `companiesFor(["portal_rep" as Role])`, V2's retired role.)
+
+### 6. ADR-078, split precisely
+
+ADR-078 shipped two things in one commit and they have opposite fates.
+
+**KEPT — §1, the Edit button on a proposal inside the lead.** The founder asked
+for it in its own sentence ("put an edit button in the proposal inside the
+lead") about a problem that has nothing to do with a second company: a proposal
+was write-once, so correcting a mistyped figure meant adding a SECOND proposal,
+which is not a correction but a re-quote — it moves the lead's latest value
+(ADR-012), the pipeline figure, the Won gate's prefill and, through the Won
+deal, an agent's commission. `ProposalEditForm`, the `proposalActions` render
+prop on `GroupHistory`, the service and its three namespaced endpoints all stay.
+Two edits only: the `brand` prop is gone (there is one currency to label), and
+the field now reads **"Estimated value (EGP)"**. The label itself stays, on its
+own merit: an amount field that names its unit is the difference between
+correcting a figure and re-entering it in the wrong scale.
+
+**REMOVED — §2, the ByteForce sub-price on both sides.** It exists only to
+describe what ByteForce delivers inside a Mindoo deal.
+
+The render prop is the reason this split cost nothing. ADR-078 §3 chose
+`proposalActions` over a `canEdit` boolean so that two screens could not sprout
+an editor by someone passing `true`; the same shape meant removing one of the
+five screens that draw `GroupHistory` (the read-only foreign lead) took its
+absence of an editor with it, and left the other four untouched.
+
+### 7. i18n — a deliberate exception to the house rule
+
+The house rule is stated twice in the dictionaries and is absolute as written:
+*"Kept, not deleted: an EN string in this repo is asserted on, and a retired key
+costs nothing"* (ADR-067, `dict/internal.ts`), and *"Kept alive by the house
+convention that never deletes a key"* (ADR-063).
+
+Keys that merely LOST THEIR CALL SITE are kept, per the rule —
+`crm.common.readOnlyForeignLead` is the example, and it is kept with its reason
+written beside it: its English names no company (`{company}` is interpolated),
+so it is still true copy the day another company's rows are shown here again.
+
+Keys whose ENGLISH NAMES MINDOO are **deleted**: `acctCompanies.mindoo`,
+`roles.mindoo_staff`, the three `*_staff` role labels in `dict/admin.ts`, the
+whole `subService` dictionary, and `dash.includesMindoo`. That is an exception
+to the rule and it is taken knowingly. The rule's own reason is that an EN
+string in this repo is asserted on — and no surviving test can assert these,
+because every screen that rendered them is gone (checked by grep across `e2e/`
+and the vitest suites before deleting). Against that, keeping them would leave
+the removed company's name printed in the product's source after an instruction
+to remove it completely. The rule protects strings that are still copy; these
+are not.
+
+- Consequences: 151 files, 3 commits. Gone: one route group, one API namespace,
+  one brand scope, one font dependency, one role, one brand literal, one pipeline
+  config, one nav, one surface, one section table, one tenancy module, one
+  currency table, one sub-service service + form + two endpoints, one read-only
+  route, one cross-brand token in three scopes, four test files, and 34 rows of
+  i18n. Kept: three lookup tables, two seams, the subset assertion, and ADR-078
+  §1. Added: one migration, one refusal in `requireLeadAccess`, one e2e written
+  entirely in negatives (`e2e/mindoo-removed.spec.ts`).
+- **The data is unrecoverable from production after this deploy.** The exact
+  scoped-export SQL, for reading these rows out of any backup file that predates
+  it, is in IMPLEMENTATION §12.

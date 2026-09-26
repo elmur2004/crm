@@ -1,5 +1,50 @@
 # Changelog — user-visible changes per phase/release
 
+## Mindoo is gone, and there's an Add lead button on the ByteForce board (2026-09-26)
+
+### "there is no add leads button"
+
+You were right, and it had never been there. The ByteForce board's header had no
+buttons at all — the only way to add a ByteForce lead was to go into a rep's page
+first. The B-Systems board has had one in that exact spot since the start.
+
+It's there now, same place, and it asks **"Assign to rep (optional)"**. That
+field is on it because ByteForce files its leads under a rep, and nothing in the
+product can move a lead to a rep afterwards — so the moment you're typing it in
+is the only moment you get to choose. Leave it blank and the lead lands in
+Unassigned, which the board shows and the Leads page has a card for.
+
+### "remove mindoo completely"
+
+Done, in two parts.
+
+**The system is gone.** /mindoo doesn't open anything. admin@mindoo.com doesn't
+sign in. The nav, the pages, the branding and the font are out of the build. The
+**purple Mindoo cards on your ByteForce board are gone** — that's the screen you
+were looking at. So is the Saudi riyal: the whole platform is back to Egyptian
+pounds, one currency, everywhere. And so is the "ByteForce share of this deal"
+panel, which only ever described a Mindoo deal.
+
+**The data is gone too.** You were shown exactly what that destroys — real client
+names, real riyal figures — and said to do it anyway. It happened automatically
+when this deployed: the leads and everything attached to them, the won deal and
+its milestones, the accounts, the books, the vault records, the calendar entries,
+the notifications and the history. **There is no undo and no copy.** If you want
+any of those records for the new system, they can only come out of a backup file
+you took before today.
+
+**What did NOT change:** every ByteForce and B-Systems lead, client, partner,
+agent, book, vault record and person is exactly where it was, and every figure on
+both boards reads the same as it did yesterday.
+
+### One thing I kept on purpose
+
+The **Edit** button on a proposal inside a lead stays. You asked for that
+separately, and it's not a Mindoo thing — it's the difference between correcting
+a typo and having to add a second proposal, which moves the lead's value and the
+commission calculated from it. It now says **(EGP)** on the amount, because
+that's the only currency there is.
+
 ## Edit a proposal, and set ByteForce's share from either side (2026-09-06)
 
 ### An Edit button on the proposal, inside the lead

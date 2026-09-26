@@ -4574,3 +4574,77 @@ comment, and the ADR-013 mechanism note all fixed; .env.example confirmed tracke
      only your own account; adding a Mindoo teammate would expose it, which cuts
      against "everyone else will just get the number and the service of Mindoo".
 
+## Entry 076 — 2026-09-26 — An Add lead button on the ByteForce board; MINDOO REMOVED, code and data
+
+- Done: two founder requests, three commits.
+
+  **1. "there is no add leads button"** (said on `/b-systems/crm?company=byteforce`).
+  He was right and it was never there: `CrmBoardBody` rendered a `page-head` with
+  no `page-actions` at all, while `BsCrmBoardBody` has carried `BsAddLeadForm` in
+  that exact slot since V2. The only ByteForce door was inside a rep's page.
+  - It is in the same slot now, with the same idiom — **plus an "Assign to rep
+    (optional)" picker**, which the B-Systems form does not have. Three things
+    were verified before choosing that: the ByteForce create-lead API genuinely
+    accepts a lead with no rep (`createLeadSchema.salesRepId` is `.optional()`,
+    A-6); the board's own query never filters on a rep, so such a lead appears
+    immediately in New with the card's own "Unassigned" subtitle; and the Leads
+    page has an Unassigned bucket (`countUnassigned`). So the minimum change would
+    have worked. The picker is there because **ByteForce files its leads BY REP and
+    nothing in the product reassigns one afterwards** — creation is the only moment
+    offered — and because that bucket is labelled "Unassigned (Partner leads)",
+    which is a false heading for a lead he typed himself. The field is not a new
+    idiom: `PartnerAddLead` has had it, with the same English, since §7.4.
+  - ADR-079.
+
+  **2. "remove mindoo completely / … I will do a separate system completly for it"**
+  — and, when the destructive half was put to him explicitly (that it erases real
+  client names and real riyal deals, irreversibly, the moment it deploys): **"no
+  also delete all mindoo data don't mind the screenshot."**
+  - **The code** (commit 2 of 3, 151 files): the `/mindoo` route group and
+    `/api/mindoo/**`, `mindoo` out of `BRANDS` and `mindoo_staff` out of `ROLES`,
+    `branding/mindoo/**` + Montserrat + the `[data-brand="mindoo"]` scope, the
+    proxy clause and matcher entry, `MINDOO_NAV`, `MINDOO_SURFACE`,
+    `MINDOO_ROLES`, `mindooCrmConfig`, the Mindoo dictionary, the seed accounts
+    and demo data, and `admin@mindoo.com` from the bootstrap table.
+  - **THE PURPLE CARDS** — the thing he was looking at: `showMindoo`, the
+    foreign-lead query, the read-only `/b-systems/crm/company-lead/[leadId]`
+    route, `foreignCompany` on both board card types, and
+    `--color-company-mindoo*` from all three token scopes.
+  - **The money layer is one currency again.** `CURRENCY_FOR` and
+    `formatMoney(amount, brand)` are gone; 114 call sites moved to `formatEGP`.
+    SPEC §2 holds with no deviation, and ADR-077's deviation record is withdrawn.
+    The ByteForce sub-price went with it, including its two `Proposal` columns.
+  - **The data** (commit 3 of 3): one applied Prisma migration,
+    `20260926140000_purge_mindoo`, running at deploy boot. FK-safe order over 33
+    tables, with the id sets snapshotted into temp tables FIRST because
+    `ActivityLog` and `UndoEntry` are polymorphic and carry no brand — their rows
+    become unattributable the instant the leads are gone.
+- Verified: `docs/TESTING.md` Runs 094 and 095. `tsc --noEmit` clean at every
+  commit; **54 vitest files / 857 tests** (58/975 before — four test files went
+  with their features); **Playwright FULL suite green**; `next build` clean with
+  no `/mindoo` route in the manifest. The purge proved on a **throwaway** embedded
+  Postgres (never `.pgdata/dev`) seeded with BOTH companies' real demo data plus a
+  hand-built Mindoo dataset: **90 Mindoo rows across 41 identifiers all reaching
+  zero, every by-company table's loss exactly its own Mindoo count and not one row
+  more, the untagged vault rows and a B-Systems follow-up a Mindoo account had
+  ticked surviving, eleven orphan probes flat, and the whole migration re-run
+  changing nothing.**
+- Blockers: none.
+- **Needs founder attention (three):**
+  1. **THE MINDOO DATA IS UNRECOVERABLE FROM PRODUCTION.** The two files in
+     `backups/` predate Mindoo (2026-08-17, 2026-08-09), so unless he took a
+     full "Export data" backup between 2026-09-01 and this deploy, these records
+     are gone. The recovery manifest, for any backup file that does contain them,
+     is IMPLEMENTATION §12.
+  2. **A gap this work uncovered and did not close:**
+     `GET /api/b-systems/backup` is an UNSCOPED `findMany()` over 45 models
+     behind `requireBsAdmin()` alone. It included every Mindoo row, its uploaded
+     files base64-embedded, and `mindoo_staff` password hashes — ADR-074 walled
+     the accounting and vault exports and never mentioned this one. Moot for
+     Mindoo now; still true for the next tenant. Not in scope for this change.
+  3. **Historical Mindoo references remain in code COMMENTS** where they explain
+     why a required prop or a lookup table exists (ADR-073's "a table, not a
+     ternary", ADR-074's "required, not defaulted"). Comments that asserted a
+     now-false present-tense fact were rewritten; the history was left, because it
+     is the reason those safety properties must not be simplified away. Say the
+     word and they go too.
