@@ -8,7 +8,7 @@ export const metadata = { title: "Lead — B-Systems CRM" };
 /* ADR-067 — the B-Systems lead detail. ByteForce's is a different screen at
    /b-systems/leads/lead/[leadId].
 
-   ADR-074 — Mindoo's is the SAME BODY at its own address (/mindoo/crm/lead/…),
+   ADR-074 — the detail is a shared BODY a route renders,
    not this route with a company on it. ADR-073 shared the address and had to
    carry `?company=mindoo` through every link that reached it; separating the
    apps retires that whole class of "the link dropped the company and 404'd a

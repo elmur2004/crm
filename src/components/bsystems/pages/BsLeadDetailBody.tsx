@@ -21,7 +21,6 @@ import { ArchiveButton } from "@/components/shared/ArchiveButton";
 import { archiveMsgs } from "@/lib/i18n/dict/crm";
 import { GroupHistory } from "@/components/internal/GroupHistory";
 import { ProposalEditForm } from "@/components/shared/ProposalEditForm";
-import { SubServiceForm } from "@/components/bsystems/SubServiceForm";
 import { HistoryPanel } from "@/components/internal/HistoryPanel";
 import { BsEventPanel } from "@/components/bsystems/BsEventPanel";
 import {
@@ -41,13 +40,11 @@ import type { BsFormRole } from "@/components/bsystems/roleForms";
    (admin any / sales internal / agent+partner own only); admin additionally gets
    edit / copy / delete.
 
-   ADR-074 — extracted so Mindoo renders the SAME detail at /mindoo/crm/lead/…
-   Two things stay deliberately per-surface and are the reason this file cannot
-   simply hardcode B-Systems: the BRAND every read is scoped by (a lead of the
-   other company must 404 here, not render), and the API BASE every write posts
-   to (the brand is derived from the route on the server, so a Mindoo edit sent
-   to /api/b-systems is refused — which is precisely what ADR-073 shipped, and
-   what this parameterisation fixes). */
+   ADR-074 — it takes a SURFACE rather than hardcoding B-Systems, and that
+   stays: the BRAND every read is scoped by (a lead of the other company must 404
+   here, not render) and the API BASE every write posts to are per-surface facts,
+   and hardcoding either is how a write ends up at a namespace the brand wall
+   refuses. */
 
 export async function BsLeadDetailBody({
   ctx,
@@ -62,11 +59,8 @@ export async function BsLeadDetailBody({
   } catch {
     notFound();
   }
-  /* ADR-073 — Mindoo's single staff role takes the FULL form set. The light
-     forms exist to keep external agents out of fields that are not theirs;
-     Mindoo has no external agents, and this person is its whole staff. */
   const role: BsFormRole =
-    access.role === "bsystems_admin" || access.role === "mindoo_staff"
+    access.role === "bsystems_admin"
       ? "admin"
       : access.role === "bsystems_sales"
         ? "sales"
@@ -304,33 +298,6 @@ export async function BsLeadDetailBody({
             </div>
           </div>
 
-          {/* ADR-078 — THE BYTEFORCE SUB-SERVICE, on Mindoo's own lead detail.
-
-              Founder: "when we are sending proposals through the Mindoo
-              platform, the admin… is allowed to customize the proposal that is
-              appearing in the ByteForce CRM" — and, asked where he expected to
-              find it, "both places". So it is here, where the proposal is
-              actually sent, as well as on the purple card in ByteForce.
-
-              MINDOO ONLY: it describes what ByteForce delivers inside a MINDOO
-              deal, so it has no meaning on a B-Systems lead and is not offered
-              there. The two currencies on screen are the whole point — the
-              client is quoted in riyals, ByteForce is owed in pounds. */}
-          {ctx.brand === "mindoo" && !lead.archived ? (
-            <SubServiceForm
-              leadId={lead.id}
-              apiBase={ctx.apiBase}
-              hasProposal={latestProposal != null}
-              mindooService={latestProposal?.service ?? null}
-              mindooValue={latestProposal?.estimatedValue ?? null}
-              current={
-                latestProposal?.bfService != null && latestProposal.bfValue != null
-                  ? { service: latestProposal.bfService, value: latestProposal.bfValue }
-                  : null
-              }
-            />
-          ) : null}
-
           {wonDeal ? (
             <div className="card card--flush0 text-sm">
               <div className="card-head">
@@ -385,20 +352,17 @@ export async function BsLeadDetailBody({
           <div>
             <h2 className="u-h3 mb-2">{t(m.stageRecords)}</h2>
             <GroupHistory
-              brand={ctx.brand}
               /* ADR-078 — "put an edit button in the proposal inside the lead",
                  THE ADMIN ONLY. `access.isAdmin` is this COMPANY's own
-                 administrator (B-Systems' admin, Mindoo's staff), which is
-                 exactly the reading his answer asks for. Undefined for everyone
-                 else, so the panel has no editor at all rather than a disabled
-                 one. */
+                 administrator, which is exactly the reading his answer asks for.
+                 Undefined for everyone else, so the panel has no editor at all
+                 rather than a disabled one. */
               proposalActions={
                 access.isAdmin && !lead.archived
                   ? (p) => (
                       <ProposalEditForm
                         proposalId={p.id}
                         apiBase={ctx.apiBase}
-                        brand={ctx.brand}
                         service={p.service}
                         estimatedValue={p.estimatedValue}
                       />

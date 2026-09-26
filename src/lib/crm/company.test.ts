@@ -22,11 +22,14 @@ import {
 const BF: Role[] = ["byteforce_staff"];
 const ADMIN: Role[] = ["bsystems_admin"];
 const BOTH: Role[] = ["bsystems_admin", "byteforce_staff"]; // the seeded founder
-/* ADR-074 — Mindoo is NOT a company of this shell any more (it has its own app
-   at /mindoo), so `mindoo_staff` must resolve to NOTHING here. That is the
-   assertion, and it is the strongest one this file can make about the founder's
-   "separate them entirely": not that Mindoo is refused, but that it is absent. */
-const MINDOO: Role[] = ["mindoo_staff"];
+/* ADR-080 — A RETIRED ROLE, cast in rather than declared, because `Role` no
+   longer contains it. This is not archaeology: `mindoo_staff` was a real role on
+   real sessions, and a JWT minted before this deploy still carries it. The
+   assertions below are what that session must do — hold no company, switch
+   nothing, resolve to `none` — and the ONE thing it must never do is fall
+   through into B-Systems. `companiesFor(["portal_rep" as Role])` is the same
+   shape, for the role V2 retired. */
+const RETIRED: Role[] = ["mindoo_staff" as Role];
 
 describe("companiesFor — narrowing only", () => {
   it("a ByteForce-only account holds ByteForce and nothing else", () => {
@@ -78,8 +81,8 @@ describe("parseCompany", () => {
   it("accepts exactly the two literals of THIS shell", () => {
     expect(parseCompany("bsystems")).toBe("bsystems");
     expect(parseCompany("byteforce")).toBe("byteforce");
-    /* ADR-074 — "mindoo" is a Brand but NOT a company of this shell, so it is
-       junk on this query string exactly as "portal" would be. */
+    /* ADR-080 — a RETIRED company's literal is junk on this query string, so an
+       old bookmark or a stale link cannot name a company that no longer exists. */
     expect(parseCompany("mindoo")).toBeNull();
   });
   it("rejects everything else, including near misses", () => {
@@ -92,7 +95,7 @@ describe("parseCompany", () => {
       "byteforce ",
       "1",
       "all",
-      "Mindoo", // ADR-073 — the literal is lowercase; a near miss stays a miss
+      "Mindoo",
       "mindo",
     ]) {
       expect(parseCompany(junk)).toBeNull();
@@ -146,11 +149,11 @@ describe("resolveCompany — the whole matrix", () => {
       });
     }
     expect(resolveCompany(BOTH, undefined)).toMatchObject({ company: "bsystems" });
-    /* ADR-074 — "mindoo" is not a company here at all, so it is JUNK rather
-       than a refusal: `parseCompany` never returns it, and a junk value falls
-       back (the accounting precedent) instead of redirecting. The distinction
-       matters — a refusal says "that company exists and is not yours", and this
-       shell must not say that about an app it has nothing to do with. */
+    /* ADR-080 — a retired company's literal is JUNK rather than a refusal:
+       `parseCompany` never returns it, and a junk value falls back (the
+       accounting precedent) instead of redirecting. The distinction matters — a
+       refusal says "that company exists and is not yours", which would be a lie
+       about a company that does not exist. */
     expect(resolveCompany(BOTH, "mindoo")).toEqual({
       kind: "ok",
       company: "bsystems",
@@ -158,23 +161,24 @@ describe("resolveCompany — the whole matrix", () => {
     });
   });
 
-  it("ADR-074 — a MINDOO account holds nothing in this shell, whatever it asks", () => {
-    /* the founder's "nothing inside bsystems goes to mindoo and vice versa",
-       from the B-Systems side. `mindoo_staff` opens Mindoo's own app; here it
-       is an account with no company, which the shell's guard turns into a
-       redirect to that account's own landing (/mindoo). */
-    expect(companiesFor(MINDOO)).toEqual([]);
-    expect(canSwitchCompany(MINDOO)).toBe(false);
-    expect(defaultCompanyFor(MINDOO)).toBeNull();
+  it("ADR-080 — a RETIRED role holds nothing here, whatever it asks for", () => {
+    /* the stale-session case, stated as a test. A sign-in from before the Mindoo
+       removal still carries `mindoo_staff` in its JWT; this asserts that such a
+       session resolves to `none` (which the shell's guard turns into a redirect
+       to `landingFor`, i.e. back to the sign-in page) rather than inheriting
+       B-Systems because the role no longer matches anything. */
+    expect(companiesFor(RETIRED)).toEqual([]);
+    expect(canSwitchCompany(RETIRED)).toBe(false);
+    expect(defaultCompanyFor(RETIRED)).toBeNull();
     for (const asked of [undefined, "bsystems", "byteforce", "mindoo"]) {
-      expect(resolveCompany(MINDOO, asked)).toEqual({ kind: "none" });
+      expect(resolveCompany(RETIRED, asked)).toEqual({ kind: "none" });
     }
   });
 
-  it("ADR-074 — and holding Mindoo AS WELL adds no company to this shell", () => {
+  it("ADR-080 — and a retired role ALONGSIDE live ones changes nothing", () => {
     /* the belt on the narrowing law: a role that means nothing here cannot
        change what the roles that DO mean something resolve to */
-    const both = [...BOTH, "mindoo_staff"] as Role[];
+    const both = [...BOTH, ...RETIRED];
     expect(companiesFor(both)).toEqual(["bsystems", "byteforce"]);
     expect(resolveCompany(both, undefined)).toMatchObject({ company: "bsystems" });
   });
@@ -190,11 +194,11 @@ describe("resolveCompany — the whole matrix", () => {
      "nobody gains access they do not have today" mechanical rather than a
      promise — it holds for every role subset, not just the seeded ones. */
   it("NEVER returns a company outside companiesFor(roles) — for every subset", () => {
-    /* ADR-073/074 — mindoo_staff stays in the sweep, so this is 128 subsets
-       rather than 64, even though it now grants nothing HERE. That is exactly
-       why it belongs: the property must hold for a role the shell does not
-       know, and dropping it from the sweep would stop proving that. */
-    const all: Role[] = [...BS_CRM_ROLES, "byteforce_staff", "mindoo_staff"];
+    /* ADR-080 — the retired role STAYS in the sweep, so this is 128 subsets
+       rather than 64, even though it grants nothing. That is exactly why it
+       belongs: the property must hold for a role this build does not know, which
+       is the shape of every stale session after a role is removed. */
+    const all: Role[] = [...BS_CRM_ROLES, "byteforce_staff", ...RETIRED];
     for (let mask = 0; mask < 1 << all.length; mask++) {
       const roles = all.filter((_, i) => mask & (1 << i));
       const held = companiesFor(roles);

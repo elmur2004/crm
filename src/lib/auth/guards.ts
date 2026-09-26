@@ -70,13 +70,12 @@ export async function requireRole(...roles: Role[]): Promise<CurrentUser> {
 /** Brand-partitioned API namespaces derive the brand from the ROUTE, never input.
     V2 (ADR-030): B-Systems "staff-level" = admin + internal sales. */
 export function staffRolesForBrand(brand: Brand): Role[] {
-  /* ADR-073 — a table for the same reason configForBrand became one: a third
-     company must not inherit a second company's staff by falling off the end of
-     a ternary. Mindoo's staff is its one role. */
+  /* ADR-073 — a table for the same reason configForBrand became one: a company
+     must not inherit another company's staff by falling off the end of a
+     ternary. Kept a table by ADR-080, for the reason that table was. */
   const byBrand: Record<Brand, Role[]> = {
     byteforce: ["byteforce_staff"],
     bsystems: ["bsystems_admin", "bsystems_sales"],
-    mindoo: ["mindoo_staff"],
   };
   return byBrand[brand];
 }
@@ -108,13 +107,9 @@ export async function requireBsAdmin(): Promise<CurrentUser> {
    and the proxy is only navigation hygiene. */
 
 export async function requireModule(module: ModuleKey): Promise<CurrentUser> {
-  /* ADR-074 — the FLOOR is now "an administrator of some company", which is
-     `bsystems_admin` or Mindoo's single staff role (see MODULE_ADMIN_ROLES).
-     It was the B-Systems literal, which would have bounced Mindoo's own
-     administrator out of the module the founder asked for by name.
-
-     This widens WHO reaches the module and not one row of WHAT they see: every
-     handler behind it narrows the company through lib/accounting/tenancy.ts or
+  /* The FLOOR is "an administrator of some company" (MODULE_ADMIN_ROLES). It
+     says WHO reaches the module and not one row of WHAT they see: every handler
+     behind it narrows the company through lib/accounting/tenancy.ts or
      lib/services/vault/tenancy.ts against these same live roles. */
   const user = assertRole(await requireUser(), ...MODULE_ADMIN_ROLES);
   if (!canUseModule(user, module)) {
@@ -182,22 +177,17 @@ export async function requireLeadAccess(
     if (!user.roles.includes("byteforce_staff")) throw new ApiError(403, "No access");
     return { user, isAdmin: false, role: "byteforce_staff" };
   }
-  /* ADR-073 — Mindoo. One staff role, which IS the company's whole staff, so it
-     reaches every Mindoo lead; and `isAdmin` is TRUE because that person is the
-     nearest thing Mindoo has to an administrator — editing and deleting their
-     own company's leads is theirs to do, exactly as it is a B-Systems admin's.
+  /* ADR-080 — A BRAND THIS BUILD DOES NOT KNOW IS REFUSED, never treated as
+     B-Systems'. `Lead.brand` is a plain String column (ADR-002), so shrinking the
+     `Brand` union cannot make an old value disappear from the table: the Mindoo
+     purge migration does that, and this line is the belt beside it. Without it
+     every branch below — admin, sales, agent, partner — would be evaluated
+     against a row whose company no longer exists, and a B-Systems admin would
+     inherit it.
 
-     What `isAdmin` must NOT be read to mean here is "may assign this lead to
-     somebody": the assignable roster is B-Systems' agents, partners and
-     internal sales, and a Mindoo lead must never be handed to one of them. The
-     lead detail withholds that control unless the company is B-Systems, and the
-     assign ENDPOINT is unreachable anyway — it lives in /api/b-systems/**,
-     which refuses a caller without a B-Systems role, and this branch refuses a
-     B-Systems caller a Mindoo lead. */
-  if (lead.brand === "mindoo") {
-    if (!user.roles.includes("mindoo_staff")) throw new ApiError(403, "No access");
-    return { user, isAdmin: true, role: "mindoo_staff" };
-  }
+     404 rather than 403, the ADR-073 ruling: a refusal that confirms the id
+     exists is a way to enumerate rows this build cannot show. */
+  if (lead.brand !== "bsystems") throw new ApiError(404, "Lead not found");
   if (user.roles.includes("bsystems_admin")) {
     return { user, isAdmin: true, role: "bsystems_admin" };
   }

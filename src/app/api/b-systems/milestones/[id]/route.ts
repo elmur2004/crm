@@ -11,7 +11,8 @@ export const PATCH = handleRoute(
     const { id } = await ctx.params;
     const { completed } = bodySchema.parse(await req.json());
     /* ADR-073 — the company is named by the ROUTE, never by input: this
-       namespace is B-Systems', so a Mindoo milestone is invisible through it. */
+       namespace is B-Systems', so another company's milestone is invisible
+       through it — by the record's own brand, not by the route alone. */
     if (completed) await checkMilestone(id, "bsystems", { id: user.id, label: user.name });
     else await uncheckMilestone(id, "bsystems", { id: user.id, label: user.name });
     return Response.json({ ok: true });

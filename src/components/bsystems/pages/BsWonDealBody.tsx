@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import type { CrmSurface } from "@/lib/crm/surface";
-import { formatMoney } from "@/lib/money";
+import { formatEGP } from "@/lib/money";
 import { formatCairoDate } from "@/lib/datetime";
 import { MilestoneCheckbox, WonDocumentUpload } from "@/components/bsystems/wonLeads";
 import { tFor } from "@/lib/i18n/core";
@@ -12,7 +12,7 @@ import { common, wonLeads } from "@/lib/i18n/dict/admin";
 /* V2 §5 — the admin won-lead detail: full client details, contract date,
    milestone checklist (sequential), proposal/contract PDF uploads.
 
-   ADR-074 — extracted so Mindoo renders the SAME detail. The brand check below
+   ADR-074 — extracted as a shared body. The brand check below
    is the wall that stops one company opening another company's deal by id. */
 
 export async function BsWonDealBody({ ctx, wonId }: { ctx: CrmSurface; wonId: string }) {
@@ -61,7 +61,7 @@ export async function BsWonDealBody({ ctx, wonId }: { ctx: CrmSurface; wonId: st
             <div className="card-pad flex gap-2 flex-wrap">
               <div className="money-tile">
                 <p className="money-label">{t(wonLeads.labelEstimatedValue)}</p>
-                <p className="money-value">{formatMoney(w.estimatedValue, ctx.brand)}</p>
+                <p className="money-value">{formatEGP(w.estimatedValue)}</p>
               </div>
               <div className="money-tile">
                 <p className="money-label">{t(common.labelTotalCommission)}</p>
@@ -169,9 +169,9 @@ export async function BsWonDealBody({ ctx, wonId }: { ctx: CrmSurface; wonId: st
                     {m.label ?? t(wonLeads.milestoneFallback).replace("{n}", String(m.index))}
                   </span>
                   <span className="ms-note ms-auto text-end">
-                    {formatMoney(m.value, ctx.brand)}
+                    {formatEGP(m.value)}
                     {m.commissionValue != null
-                      ? `${t(common.commissionSep)}${formatMoney(m.commissionValue, ctx.brand)}`
+                      ? `${t(common.commissionSep)}${formatEGP(m.commissionValue)}`
                       : ""}
                     {m.expectedStart ? ` · ${formatCairoDate(m.expectedStart, locale)}` : ""}
                     {m.expectedEnd ? ` → ${formatCairoDate(m.expectedEnd, locale)}` : ""}

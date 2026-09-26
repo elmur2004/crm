@@ -7,7 +7,6 @@ import {
   BS_PIPELINE_ROLES,
   CRM_COMPANIES,
   CRM_ROLES,
-  MINDOO_ROLES,
   crmRolesFor,
   type CrmCompany,
 } from "./company";
@@ -83,7 +82,6 @@ function rolesFrom(args: string): Role[] {
   if (/\bBS_PIPELINE_ROLES\b/.test(args)) found.push(...BS_PIPELINE_ROLES);
   if (/\bBS_CRM_ROLES\b/.test(args)) found.push(...BS_CRM_ROLES);
   if (/\bCRM_ROLES\b/.test(args)) found.push(...CRM_ROLES);
-  if (/\bMINDOO_ROLES\b/.test(args)) found.push(...MINDOO_ROLES);
   /* the company argument of requireCompanySection is a string literal too —
      it is filtered out here because "bsystems" is not a Role, "bsystems_admin" is */
   found.push(...[...args.matchAll(/"([a-z_]+)"/g)].map((m) => m[1]!).filter(isRole));
@@ -132,7 +130,7 @@ const CASES: Array<{ company: CrmCompany; role: Role | null; as: Role }> = [
   { company: "byteforce", role: null, as: "byteforce_staff" },
   ...BS_CRM_ROLES.map((role) => ({ company: "bsystems" as const, role, as: role })),
   /* ADR-074 — Mindoo is NOT a case here: it is its own app, and its nav is
-     swept by mindoo-app.test.ts against its own guard. */
+     swept against its own guard. */
 ];
 
 describe("ADR-067 — the nav table never offers a door the guards would shut", () => {

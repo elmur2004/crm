@@ -18,23 +18,20 @@ import { BrandLogo } from "@/components/shared/BrandLogo";
 
 export type ModuleName = "accounting" | "vault";
 
-/* ADR-074 — a TABLE, for the reason every ternary in this codebase became one
-   when Mindoo arrived: `a === "x" ? p : q` is total with two values and a
-   trapdoor with three. Both of these fell through to ByteForce / neutral, so a
-   Mindoo account would have read its own books under ByteForce's colours —
-   which is not a cosmetic bug, it is the module telling him he is looking at
-   another company. */
-const MODULE_BRANDS: readonly string[] = ["byteforce", "bsystems", "mindoo"];
+/* ADR-074 — a LIST rather than a pair of ternaries, and it stays one: a
+   company falling through to ByteForce's colours is the module telling the
+   reader he is looking at another company's money, which is not a cosmetic bug.
+   Kept a list by ADR-080 for that reason. */
+const MODULE_BRANDS: readonly string[] = ["byteforce", "bsystems"];
 
 export function moduleBrand(
   module: ModuleName,
   company: string | null,
   /* ADR-074 — the brand to wear when the URL names no company. It is a PROP
      from the server, not a literal, because the answer depends on the account:
-     accounting always shows ONE company's books, and for Mindoo's administrator
-     that company is Mindoo. Hardcoded to ByteForce, his own books opened under
-     another company's colours — the module telling him he is looking at
-     somebody else's money, which is worse than a cosmetic bug.
+     accounting always shows ONE company's books, and the module must wear that
+     company's colours rather than a hardcoded default — a mismatch there is the
+     module telling the reader he is looking at somebody else's money.
 
      The vault can show several companies at once and wears the NEUTRAL scope
      for that mixed view, so its fallback is "neutral" — except for an account
@@ -45,9 +42,9 @@ export function moduleBrand(
 
      This function used to trust `?company=` on its own, and the SERVER does
      not: `resolveModuleCompany` returns the account's own default for a company
-     it does not hold. So `/accounting?company=mindoo` opened as a B-Systems
-     admin showed ByteForce's books — correctly — inside a Mindoo-branded shell
-     with Mindoo's mark on it, while the switcher underneath marked ByteForce as
+     it does not hold. So a `?company=` naming a company the reader does not hold
+     showed the DEFAULT company's books — correctly — inside the requested
+     company's branded shell, while the switcher underneath marked the default as
      current. The screen contradicted itself, and it did the more alarming thing
      too: it labelled one company's money with another company's name.
 
@@ -111,11 +108,6 @@ export function ModuleLogo({
         <BrandLogo brand="byteforce" height={26} />
       ) : brand === "bsystems" ? (
         <BrandLogo brand="bsystems" variant="mark" height={36} />
-      ) : brand === "mindoo" ? (
-        /* ADR-074 — Mindoo's typographic fallback (themes/assets.ts), which is
-           the documented state for a brand whose files the founder has not
-           supplied, not a gap. */
-        <BrandLogo brand="mindoo" variant="mark" height={36} />
       ) : (
         <span className="flex items-center gap-1.5" aria-hidden>
           <span className="hub-mark-a" style={{ width: 22, height: 22 }} />

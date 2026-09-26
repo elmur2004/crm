@@ -40,13 +40,12 @@ export function BsEventPanel({
   reps: Array<{ id: string; name: string }>;
   /* ADR-073 — WHICH pipeline this lead runs on. Required, like BsBoard's: the
      panel decides which next actions and which meeting-outcome destinations to
-     offer, and both are ROLE-GATED per company. Hardcoded to B-Systems it
-     offered Mindoo's staff no way to win their own deals. */
+     offer, and both are ROLE-GATED per company. Hardcoded to one company it
+     offers another company's staff no way to win their own deals. */
   company: Brand;
-  /** ADR-074 — this surface's API namespace. It was the `/api/b-systems`
-      literal, so every event a Mindoo lead submitted went to B-Systems'
-      endpoint and was refused by the brand wall: the panel offered actions
-      that could not complete. Required, so no call site inherits a company. */
+  /** ADR-074 — this surface's API namespace. Required rather than defaulted to
+      the `/api/b-systems` literal, so no call site inherits a company: a panel
+      posting to the wrong namespace offers actions the brand wall refuses. */
   apiBase: string;
   /** ADR-071 — the company roster for the meeting form's "Also blocks". */
   people?: Array<{ id: string; name: string }>;
@@ -62,22 +61,20 @@ export function BsEventPanel({
      `BsFormRole` describes the FORM SHAPE (full or light), and it is a lossy
      four-value summary of a role: mapping a role into it and back out again
      necessarily lands on a B-Systems role, because those are the only four it
-     can name. For Mindoo that round trip produced `bsystems_admin`, which is in
-     neither of Mindoo's config lists — so the Won action vanished and the panel
-     looked complete with no way to close a deal. The company is the only thing
-     that can answer this. */
+     can name. For any other company that round trip produces `bsystems_admin`,
+     which is in neither of that company's config lists — so the Won action
+     vanishes and the panel looks complete with no way to close a deal. The
+     company is the only thing that can answer this. */
   const engineRole: Role =
-    company === "mindoo"
-      ? "mindoo_staff"
-      : company === "byteforce"
-        ? "byteforce_staff"
-        : role === "admin"
-          ? "bsystems_admin"
-          : role === "sales"
-            ? "bsystems_sales"
-            : role === "agent"
-              ? "bsystems_agent"
-              : "bsystems_partner";
+    company === "byteforce"
+      ? "byteforce_staff"
+      : role === "admin"
+        ? "bsystems_admin"
+        : role === "sales"
+          ? "bsystems_sales"
+          : role === "agent"
+            ? "bsystems_agent"
+            : "bsystems_partner";
   const light = isLight(role);
   const [action, setAction] = useState("");
   const [outcome, setOutcome] = useState("");

@@ -26,7 +26,7 @@ import { VAULT_COMPANIES, type VaultCompany } from "./constants";
    and gives Mindoo exactly the rows tagged Mindoo. The alternative — showing
    untagged rows to everybody — would have leaked the founder's own untagged
    B-Systems tasks into Mindoo on day one, which is the opposite of "nothing
-   inside bsystems goes to mindoo".
+   inside bsystems goes to" another company's.
 
    404, NOT 403, on a company the account does not hold: a company it may not
    see must not be confirmed to exist (ADR-073's ruling, applied again).

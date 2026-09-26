@@ -9,40 +9,32 @@ import {
 import { tFor } from "@/lib/i18n/core";
 import { getLocale } from "@/lib/i18n/server";
 import { common, roleBadges, usersAdmin as d } from "@/lib/i18n/dict/admin";
-import type { UserScope } from "@/lib/services/user-tenancy";
 
 /* V2 §2.10 — every user; create with role/entity assignment; remove
    (deactivate, reversible); impersonate = open their account directly.
 
-   ADR-075 — ONE screen, TWO administrators. Founder: "mindoo user should appear
-   in mindoo system not in bsystems systems separate their users." That is a
-   statement about WHOSE PEOPLE each administrator sees, not about having two
-   different screens — so the body is shared and what varies is passed in:
+   ADR-075 made this body take a SURFACE so two administrators could share one
+   screen; ADR-080 removed the second administrator and the surface stays, minus
+   its `scope`. What it still carries is real: the API namespace the writes go to
+   and the roles this administrator may grant, both passed in rather than assumed.
 
-     scope     whose accounts are listed, and the only ones the writes may touch
-     apiBase   the namespace those writes go to (the company is derived from the
-               ROUTE on the server, so the namespace IS the company)
-     roles     what this administrator may grant
-
-   Every wall here is a courtesy. The SERVICE refuses a crossing on its own
-   (assertUserInScope, assertGrantable), which is what makes the shared screen
-   safe rather than merely tidy. */
+   Every wall here is a courtesy. The SERVICE refuses an ungrantable role on its
+   own (`assertGrantable`), which is what makes the screen safe rather than
+   merely tidy. */
 
 export interface UsersSurface {
-  scope: UserScope;
   apiBase: string;
   assignableRoles: readonly string[];
   /** the accounts the bootstrap pins, which may never be deleted and whose
       identity the editor protects — read from the bootstrap itself so this
       screen and the healer cannot disagree about who is undeletable. */
   bootstrapAdminEmails: readonly string[];
-  /** the impersonation server action, when this surface has one. Mindoo passes
-      none: one staff role means nobody to impersonate. */
+  /** the impersonation server action, when this surface has one. */
   impersonate?: (targetUserId: string) => Promise<void>;
 }
 
 export async function UsersBody({ ctx, viewerId }: { ctx: UsersSurface; viewerId: string }) {
-  const users = await listUsers(ctx.scope);
+  const users = await listUsers();
   const locale = await getLocale();
   const t = tFor(locale);
 
@@ -128,7 +120,7 @@ export async function UsersBody({ ctx, viewerId }: { ctx: UsersSurface; viewerId
                       />
                       {/* ADR-075 — impersonation is offered only where the
                           surface has an action for it. B-Systems has had one
-                          since V2 §2.10; Mindoo has one staff role and nobody
+                          since V2 §2.10; a surface with nobody
                           to impersonate, so it passes none and the button
                           simply is not there. */}
                       {ctx.impersonate && u.active && u.id !== viewerId ? (

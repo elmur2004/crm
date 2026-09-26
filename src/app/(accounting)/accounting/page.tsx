@@ -2,7 +2,7 @@ import { requireAccountingPage } from "@/lib/auth/page-guards";
 import { getLocale } from "@/lib/i18n/server";
 import { tFor } from "@/lib/i18n/core";
 import { acct } from "@/lib/i18n/dict/accounting";
-import { formatMoney } from "@/lib/money";
+import { formatEGP } from "@/lib/money";
 import { loadBooks } from "@/lib/accounting/books";
 import { dashboard } from "@/lib/accounting/engine";
 import { cairoMonth } from "@/lib/accounting/now";
@@ -74,36 +74,36 @@ export default async function AcctDashboardPage({
           <p className="acct-hero-eyebrow">
             {t(acct.treasuryBalance)} · {t(acct.nowWord)}
           </p>
-          <p className="acct-hero-value">{formatMoney(d.treasuryNow, view.company)}</p>
+          <p className="acct-hero-value">{formatEGP(d.treasuryNow)}</p>
           <p className="acct-hero-sub">
             {t(acct.cashCarried)} · {t(acct.monthNetProfit)}{" "}
             <b>
               {d.monthNet >= 0 ? "+" : "−"}
-              {formatMoney(Math.abs(d.monthNet), view.company)}
+              {formatEGP(Math.abs(d.monthNet))}
             </b>
           </p>
         </div>
       </section>
 
       <div className="acct-kpi-grid">
-        <AcctKpi label={t(acct.incomeCollected)} value={formatMoney(d.incomeCollected, view.company)} tone="success" accent />
+        <AcctKpi label={t(acct.incomeCollected)} value={formatEGP(d.incomeCollected)} tone="success" accent />
         <AcctKpi
           label={t(acct.expensesPaid)}
-          value={formatMoney(d.expensesPaid, view.company)}
+          value={formatEGP(d.expensesPaid)}
           sub={t(acct.approvedThisMonth)}
           tone="danger"
           accent
         />
         <AcctKpi
           label={t(acct.toBePaid)}
-          value={formatMoney(d.onHold, view.company)}
+          value={formatEGP(d.onHold)}
           sub={t(acct.awaitingApproval)}
           tone="warning"
           accent
         />
         <AcctKpi
           label={t(acct.monthNetProfit)}
-          value={formatMoney(d.monthNet, view.company)}
+          value={formatEGP(d.monthNet)}
           tone={d.monthNet >= 0 ? "net" : "danger"}
           accent
         />
@@ -111,39 +111,39 @@ export default async function AcctDashboardPage({
       <div className="acct-kpi-grid">
         <AcctKpi
           label={t(acct.accountsReceivable)}
-          value={formatMoney(d.accountsReceivable, view.company)}
+          value={formatEGP(d.accountsReceivable)}
           sub={t(acct.uncollectedAllMonths)}
           tone="warning"
           accent
         />
         <AcctKpi
           label={t(acct.accountsPayable)}
-          value={formatMoney(d.accountsPayable, view.company)}
+          value={formatEGP(d.accountsPayable)}
           sub={t(acct.onHoldAllMonths)}
           tone={d.accountsPayable > 0 ? "danger" : "muted"}
           accent
         />
         <AcctKpi
           label={t(acct.committedSalary)}
-          value={formatMoney(d.committedSalary, view.company)}
+          value={formatEGP(d.committedSalary)}
           sub={`${d.activeStaff} ${t(acct.activeStaff)}`}
           tone="warning"
         />
         <AcctKpi
           label={t(acct.clientsOweYou)}
-          value={formatMoney(d.clientsOwe, view.company)}
+          value={formatEGP(d.clientsOwe)}
           tone={d.clientsOwe > 0 ? "warning" : "muted"}
         />
       </div>
       <div className="acct-kpi-grid">
         <AcctKpi
           label={t(acct.weOweLoans)}
-          value={formatMoney(d.loansOwe, view.company)}
+          value={formatEGP(d.loansOwe)}
           tone={d.loansOwe > 0 ? "danger" : "muted"}
         />
         <AcctKpi
           label={t(acct.owedToUsLoans)}
-          value={formatMoney(d.loansOwed, view.company)}
+          value={formatEGP(d.loansOwed)}
           tone={d.loansOwed > 0 ? "success" : "muted"}
         />
       </div>
@@ -155,7 +155,7 @@ export default async function AcctDashboardPage({
               {t(acct.target)} · {monthLabel(view.month, locale)}
             </span>
             <span className="u-muted">
-              {formatMoney(d.target.collected, view.company)} / {formatMoney(d.target.goal, view.company)}
+              {formatEGP(d.target.collected)} / {formatEGP(d.target.goal)}
             </span>
           </div>
           <div className="meter">

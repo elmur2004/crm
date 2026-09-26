@@ -2,7 +2,7 @@ import { requireAccountingPage } from "@/lib/auth/page-guards";
 import { getLocale } from "@/lib/i18n/server";
 import { tFor } from "@/lib/i18n/core";
 import { acct } from "@/lib/i18n/dict/accounting";
-import { formatMoney } from "@/lib/money";
+import { formatEGP } from "@/lib/money";
 import { loadBooks } from "@/lib/accounting/books";
 import { addMonths, liveTreasury, netIn, treasuryThrough } from "@/lib/accounting/engine";
 import { cairoMonth } from "@/lib/accounting/now";
@@ -45,7 +45,7 @@ export default async function AcctTreasuryPage({
         className={`font-medium ${signed ? (value >= 0 ? "text-brand-success" : "text-brand-danger") : ""}`}
       >
         {signed ? (value >= 0 ? "+" : "−") : ""}
-        {formatMoney(Math.abs(value), view.company)}
+        {formatEGP(Math.abs(value))}
       </span>
     </div>
   );
@@ -65,7 +65,7 @@ export default async function AcctTreasuryPage({
       <div className="tile-grid">
         <AcctTile
           label={t(acct.balanceNow)}
-          value={formatMoney(balanceNow, view.company)}
+          value={formatEGP(balanceNow)}
           sub={t(acct.cashNowAnyMonth)}
           tone={balanceNow >= 0 ? "success" : "danger"}
         />
@@ -76,21 +76,21 @@ export default async function AcctTreasuryPage({
           <span className="u-muted">
             {t(acct.openingBalanceOf)} ({monthLabel(addMonths(view.month, -1), locale)})
           </span>
-          <span className="font-medium">{formatMoney(opening, view.company)}</span>
+          <span className="font-medium">{formatEGP(opening)}</span>
         </div>
         {line(t(acct.monthNetLine), net)}
         {line(t(acct.depositsLine), deposits)}
         {line(t(acct.withdrawalsLine), -withdrawals)}
         <div className="flex items-baseline justify-between pt-3">
           <span className="u-h3">{t(acct.closingBalance)}</span>
-          <span className={`u-h2 ${closing >= 0 ? "" : "text-brand-danger"}`}>{formatMoney(closing, view.company)}</span>
+          <span className={`u-h2 ${closing >= 0 ? "" : "text-brand-danger"}`}>{formatEGP(closing)}</span>
         </div>
       </section>
 
       <section className="card card-pad flex items-center justify-between gap-3 flex-wrap">
         <div>
           <p className="tile-label">{t(acct.systemOpening)}</p>
-          <p className="u-h2 mt-1">{formatMoney(books.openingBalance, view.company)}</p>
+          <p className="u-h2 mt-1">{formatEGP(books.openingBalance)}</p>
         </div>
         <OpeningButton company={view.company} current={books.openingBalance} />
       </section>
@@ -130,7 +130,7 @@ export default async function AcctTreasuryPage({
                     <td className="td-mono u-ltr">{m.date}</td>
                     <td className={`td-title ${m.kind === "deposit" ? "text-brand-success" : "text-brand-danger"}`}>
                       {m.kind === "deposit" ? "+" : "−"}
-                      {formatMoney(m.amount, view.company)}
+                      {formatEGP(m.amount)}
                     </td>
                     <td>
                       <MoveActions

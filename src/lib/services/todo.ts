@@ -191,7 +191,7 @@ export async function todoFor(opts: {
      states its company is a row you can forward to somebody. */
   /* ADR-074 — the ONE lead-address table (lib/crm/surface.ts). The ternary
      here sent every MINDOO row to ByteForce's screen inside the B-Systems
-     shell, which the proxy refuses for mindoo_staff: every row on Mindoo's
+     shell, which the proxy refuses for another company's staff: every row on
      To-Do logged the reader out. */
   const leadLink = (leadId: string) => leadHref(opts.brand, leadId);
   /* Statements and milestones are admin-owned subsystems. (The partnership

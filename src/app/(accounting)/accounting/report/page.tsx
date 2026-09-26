@@ -3,7 +3,7 @@ import { requireAccountingPage } from "@/lib/auth/page-guards";
 import { getLocale } from "@/lib/i18n/server";
 import { tFor } from "@/lib/i18n/core";
 import { acct } from "@/lib/i18n/dict/accounting";
-import { formatMoney } from "@/lib/money";
+import { formatEGP } from "@/lib/money";
 import { loadBooks } from "@/lib/accounting/books";
 import { pnl, trend } from "@/lib/accounting/engine";
 import {
@@ -14,7 +14,6 @@ import {
 } from "@/lib/accounting/constants";
 import { acctQuery, acctView } from "@/lib/accounting/params";
 import { moduleCompaniesFor } from "@/lib/module-companies";
-import { hasAcctSection } from "@/lib/module-sections";
 import { monthLabel } from "@/lib/accounting/format";
 import { AcctHead } from "@/components/accounting/AcctHead";
 
@@ -36,13 +35,6 @@ export default async function AcctReportPage({
   const locale = await getLocale();
   const t = tFor(locale);
   const view = acctView(await searchParams, moduleCompaniesFor(user.roles));
-  /* ADR-076 — a section this company does not have is REFUSED, not merely
-     hidden from the nav. The founder named Mindoo's sections; leaving the page
-     reachable by typing its address would make that a tidier menu rather than a
-     decision about what the company has. Redirect to the module root, which
-     every company keeps — never a 404, because the section exists, it is simply
-     not this company's. */
-  if (!hasAcctSection(view.company, "/accounting/report")) redirect(`/accounting${acctQuery(view)}`);
   const books = await loadBooks(view.company);
   const p = pnl(books, view.month);
   const points = trend(books, view.month);
@@ -72,14 +64,14 @@ export default async function AcctReportPage({
               <span className="u-muted">{negative ? expenseLabel(type) : incomeLabel(type)}</span>
               <span className="font-medium">
                 {negative ? "−" : ""}
-                {formatMoney(value, view.company)}
+                {formatEGP(value)}
               </span>
             </div>
           ))
       )}
       <div className="flex items-baseline justify-between pt-3 font-semibold">
         <span>{totalLabel}</span>
-        <span className={negative ? "text-brand-danger" : "text-brand-success"}>{formatMoney(total, view.company)}</span>
+        <span className={negative ? "text-brand-danger" : "text-brand-success"}>{formatEGP(total)}</span>
       </div>
     </section>
   );
@@ -118,7 +110,7 @@ export default async function AcctReportPage({
           <p className="u-eyebrow">
             {t(acct.netProfitLoss)} · {monthLabel(view.month, locale)}
           </p>
-          <p className={`u-h1 ${p.net >= 0 ? "" : "text-brand-danger"}`}>{formatMoney(p.net, view.company)}</p>
+          <p className={`u-h1 ${p.net >= 0 ? "" : "text-brand-danger"}`}>{formatEGP(p.net)}</p>
         </div>
         <div className="text-end">
           <p className="u-eyebrow">{t(acct.netMargin)}</p>
@@ -142,7 +134,7 @@ export default async function AcctReportPage({
               </div>
               <span className={`w-28 text-end font-medium ${x.net >= 0 ? "text-brand-success" : "text-brand-danger"}`}>
                 {x.net >= 0 ? "+" : "−"}
-                {formatMoney(Math.abs(x.net), view.company)}
+                {formatEGP(Math.abs(x.net))}
               </span>
             </div>
           ))}

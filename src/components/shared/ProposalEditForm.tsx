@@ -3,8 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { btnGhost, btnPrimary, inputCls, labelCls } from "@/components/portal/groupForms";
-import { CURRENCY_FOR } from "@/lib/money";
-import type { Brand } from "@/lib/pipeline-engine/constants";
+import { CURRENCY } from "@/lib/money";
 import { tFor } from "@/lib/i18n/core";
 import { useLocale } from "@/components/shared/LocaleProvider";
 import { common, proposalEdit as d } from "@/lib/i18n/dict/crm";
@@ -16,23 +15,21 @@ import { common, proposalEdit as d } from "@/lib/i18n/dict/crm";
    proposal — which is a re-quote, not a correction: it moves the lead's latest
    value and everything derived from it, to fix a typo.
 
-   THE CURRENCY IS IN THE LABEL, not assumed. This same form edits a B-Systems
-   proposal in pounds and a Mindoo one in riyals (ADR-077), and the amount field
-   is the one place on this screen where typing into the wrong currency produces
-   a number that looks entirely reasonable. */
+   THE CURRENCY IS IN THE LABEL, and it stays there. ADR-077 needed it because
+   two currencies existed and this one form edited both; ADR-080 removed the
+   second one, and the label survives on its own merit — an amount field that
+   names its unit is the difference between correcting a figure and re-entering
+   it in the wrong scale. */
 
 export function ProposalEditForm({
   proposalId,
   apiBase,
-  brand,
   service,
   estimatedValue,
 }: {
   proposalId: string;
   /** this surface's namespace — the company is derived from the ROUTE */
   apiBase: string;
-  /** whose money this is, for the currency in the field label */
-  brand: Brand;
   service: string;
   estimatedValue: number | null;
 }) {
@@ -83,7 +80,7 @@ export function ProposalEditForm({
       </label>
       <label className="block">
         <span className={labelCls}>
-          {t(d.fieldValue)} ({CURRENCY_FOR[brand]})
+          {t(d.fieldValue)} ({CURRENCY})
         </span>
         <input
           type="number"

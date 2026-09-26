@@ -137,16 +137,13 @@ export async function GET(req: Request) {
 
   /* ---- the admins (heals while checking) ----
 
-     ADR-074 — EVERY documented administrator, not just B-Systems'. This
-     reported one hardcoded email, so after Mindoo got its own administrator the
-     endpoint whose whole job is "why can I not sign in" could not answer the
-     question for it.
-
-     The list comes from the bootstrap itself, so this page also answers a
-     question you cannot otherwise ask a deployment from outside: if
-     admin@mindoo.com is not even NAMED in `admins` below, the server is running
-     a build from before ADR-074 and needs redeploying — no amount of seeding
-     will help. */
+     ADR-074 — EVERY documented administrator, read from the BOOTSTRAP itself
+     rather than from a hardcoded email. That is not tidiness: it is the only way
+     this endpoint can answer a question you cannot otherwise ask a deployment
+     from outside — which administrators the running BUILD believes in. An admin
+     the founder expects that is not even NAMED in `admins` below means the server
+     is running an older build and needs redeploying; no amount of seeding will
+     help. (ADR-080 removed the second one, and the shape stays for the next.) */
   type AdminReport = {
     email: string;
     exists: boolean;

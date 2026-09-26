@@ -14,10 +14,10 @@ export const PATCH = handleRoute(
     const actor = { id: user.id, label: user.name };
     const { active, ...edit } = input;
     if (Object.values(edit).some((v) => v !== undefined)) {
-      await updateUser(id, edit, "bsystems", actor);
+      await updateUser(id, edit, actor);
     }
     if (active !== undefined) {
-      await setUserActive(id, active, "bsystems", actor);
+      await setUserActive(id, active, actor);
     }
     return Response.json({ ok: true });
   },
@@ -30,7 +30,7 @@ export const DELETE = handleRoute(
   async (_req: Request, ctx: { params: Promise<{ id: string }> }) => {
     const user = await requireBsAdmin();
     const { id } = await ctx.params;
-    await deleteUser(id, "bsystems", { id: user.id, label: user.name });
+    await deleteUser(id, { id: user.id, label: user.name });
     return Response.json({ ok: true });
   },
 );

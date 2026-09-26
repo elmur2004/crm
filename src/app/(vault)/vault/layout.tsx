@@ -14,7 +14,6 @@ import { tFor } from "@/lib/i18n/core";
 import { getLocale } from "@/lib/i18n/server";
 import { nav, roles } from "@/lib/i18n/dict/crm";
 import { vault } from "@/lib/i18n/dict/vault";
-import { mindooShell } from "@/lib/i18n/dict/mindoo";
 
 /* ADR-054 — the Data Vault module's app shell: same chrome contract as the two
    CRM shells (header, module nav, switcher, language toggle, user cluster,
@@ -50,12 +49,10 @@ export default async function VaultShellLayout({
             FILTER shows, because the vault is B-Systems' registry and the
             filter is a filter.
 
-            ADR-074 — that reasoning holds for the account it was written about
-            and not for Mindoo's, which does not have a B-Systems registry to
-            put a B-Systems mark on. So the mark is pinned per ACCOUNT: the
-            companies it holds decide, and for an account holding only Mindoo
-            the header wears Mindoo's. `ModuleLogo` already resolves exactly
-            this from the same fallback the brand scope uses. */}
+            ADR-074 — pinned per ACCOUNT rather than globally: the companies it
+            holds decide, so an account that does not hold the untagged rows
+            wears its own company's mark instead. `ModuleLogo` resolves that
+            from the same fallback the brand scope uses. */}
         <Link href="/vault" className="shrink-0 flex items-center gap-3" aria-label={t(vault.navItem)}>
           {seesUntagged(visible) ? (
             <>
@@ -72,7 +69,6 @@ export default async function VaultShellLayout({
           )}
         </Link>
         <VaultModuleNav
-          company={fallbackCompany as Brand}
           extras={
             <>
               <LanguageToggle />
@@ -93,11 +89,8 @@ export default async function VaultShellLayout({
           </span>
           <span className="user-meta">
             <span className="user-name block">{user.name}</span>
-            {/* ADR-074 — the module admits both companies' administrators now,
-                so a hardcoded "Admin (B-Systems)" badge was telling Mindoo's
-                staff it held a role it does not have. */}
             <span className="user-role block">
-              {user.roles.includes("bsystems_admin") ? t(roles.bsystems_admin) : t(mindooShell.roleLabel)}
+              {t(roles.bsystems_admin)}
             </span>
           </span>
           <form action={logout.bind(null, "/login")}>

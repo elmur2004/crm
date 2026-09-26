@@ -29,7 +29,7 @@ import { FilterPanel } from "@/components/shared/FilterPanel";
    against the lead name, the company, or the number. Query-param names are
    unchanged — old links keep working; `q` is the new one.
 
-   ADR-074 — extracted from the page so Mindoo can render the SAME screen at
+   ADR-074 — extracted from the page, so this screen is a BODY rendered at
    its own address. Everything company-shaped now comes off `ctx` (see
    lib/crm/surface.ts); nothing here knows which of the two it is drawing, and
    there is deliberately no branch that could tell them apart. */

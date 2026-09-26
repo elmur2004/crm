@@ -23,9 +23,8 @@ export const metadata = { title: "CRM — B-Systems CRM" };
    CLAUDE.md forbids forking the ENGINE; it does not ask us to merge the views,
    and the engine here is already the one shared module.
 
-   ADR-074 — the B-Systems body moved to components/bsystems/pages so Mindoo's
-   own app renders that same board at /mindoo/crm. Mindoo is not a third board:
-   it IS this one, at another address, under another brand. */
+   ADR-074 — the B-Systems body lives in components/bsystems/pages so the board
+   is a body a route renders rather than a page. */
 
 export default async function BsCrmPage({
   searchParams,
@@ -35,22 +34,7 @@ export default async function BsCrmPage({
   const params = await searchParams;
   const { user, company, companies } = await requireCompanyPage(params.company);
   if (company === "byteforce") {
-    /* ADR-076 — the founder's window into Mindoo, and it is HERE now: "the crm
-       of mindoo should appear in byteforce crm as purple cards and not in
-       bsystems crm."
-
-       Gated on the platform administrator rather than on `byteforce_staff`,
-       which is the whole of ByteForce's role set: every ByteForce teammate
-       renders this board, and only the person who owns both companies should
-       see the other one's pipeline. That is the same narrowing he approved for
-       this feature on the B-Systems board, kept as the board moved. */
-    return (
-      <CrmBoardBody
-        ctx={BYTEFORCE_CTX}
-        params={params}
-        showMindoo={user.roles.includes("bsystems_admin")}
-      />
-    );
+    return <CrmBoardBody ctx={BYTEFORCE_CTX} params={params} />;
   }
 
   /* ADR-051 + ADR-067 — under ByteForce the company itself proves

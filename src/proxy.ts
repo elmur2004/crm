@@ -38,22 +38,11 @@ function allowed(pathname: string, roles: Role[]): boolean {
      row — with /no-access as the honest landing. The edge is navigation
      hygiene here; the server is the wall. */
   if (pathname.startsWith("/accounting") || pathname.startsWith("/vault")) {
-    /* ADR-074 — Mindoo reaches both modules too (founder: "having vault and
-       accounting and the crm and to do and calender"). Its staff is its own
-       company's administrator, and WHICH BOOKS it may open is settled by the
-       module's own company gate against the live User row — never here, where
-       there is only a JWT that can be stale. Same division of labour as the
-       per-admin flags below: the edge is navigation hygiene, the server is the
-       wall. */
-    return roles.includes("bsystems_admin") || roles.includes("mindoo_staff");
-  }
-  /* ADR-074 — MINDOO'S OWN APP. One role opens it and nothing else does, in
-     BOTH directions: `mindoo_staff` is not in the /b-systems list below any
-     more, and no B-Systems role is in this one. That is the founder's
-     "separate them entirely" as two lines of code. The page wall
-     (requireMindooPage) re-reads the live roles a millisecond later. */
-  if (pathname.startsWith("/mindoo")) {
-    return roles.includes("mindoo_staff");
+    /* WHICH books an administrator may open is settled by the module's own
+       company gate against the live User row — never here, where there is only
+       a JWT that can be stale. Same division of labour as the per-admin flags
+       below: the edge is navigation hygiene, the server is the wall. */
+    return roles.includes("bsystems_admin");
   }
   if (pathname.startsWith("/b-systems")) {
     // V2 (ADR-030): the role-aware B-Systems CRM — per-section scoping happens
@@ -80,9 +69,6 @@ function allowed(pathname: string, roles: Role[]): boolean {
       roles.includes("bsystems_partner") ||
       roles.includes("bsystems_data_entry") ||
       roles.includes("byteforce_staff")
-      /* ADR-074 — `mindoo_staff` is NOT here. It was, while Mindoo was a
-         segment of this shell; it now has its own app and nothing of it
-         belongs at this prefix. */
     );
   }
   return true; // /portal keeps only its public landing/signup pages
@@ -127,7 +113,6 @@ export const config = {
   matcher: [
     "/byteforce/:path*",
     "/b-systems/:path*",
-    "/mindoo/:path*", // ADR-074
     "/portal/:path*",
     "/accounting/:path*",
     "/vault/:path*",

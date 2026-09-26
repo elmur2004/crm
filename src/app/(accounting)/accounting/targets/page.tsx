@@ -3,13 +3,12 @@ import { requireAccountingPage } from "@/lib/auth/page-guards";
 import { getLocale } from "@/lib/i18n/server";
 import { tFor } from "@/lib/i18n/core";
 import { acct } from "@/lib/i18n/dict/accounting";
-import { formatMoney } from "@/lib/money";
+import { formatEGP } from "@/lib/money";
 import { db } from "@/lib/db";
 import { loadBooks } from "@/lib/accounting/books";
 import { incomeIn } from "@/lib/accounting/engine";
 import { acctQuery, acctView } from "@/lib/accounting/params";
 import { moduleCompaniesFor } from "@/lib/module-companies";
-import { hasAcctSection } from "@/lib/module-sections";
 import { monthLabel } from "@/lib/accounting/format";
 import { AcctHead } from "@/components/accounting/AcctHead";
 import { AddTargetButton, TargetActions } from "@/components/accounting/forms";
@@ -31,13 +30,6 @@ export default async function AcctTargetsPage({
   const locale = await getLocale();
   const t = tFor(locale);
   const view = acctView(await searchParams, moduleCompaniesFor(user.roles));
-  /* ADR-076 — a section this company does not have is REFUSED, not merely
-     hidden from the nav. The founder named Mindoo's sections; leaving the page
-     reachable by typing its address would make that a tidier menu rather than a
-     decision about what the company has. Redirect to the module root, which
-     every company keeps — never a 404, because the section exists, it is simply
-     not this company's. */
-  if (!hasAcctSection(view.company, "/accounting/targets")) redirect(`/accounting${acctQuery(view)}`);
   const [books, targets] = await Promise.all([
     loadBooks(view.company),
     db.acctTarget.findMany({ where: { company: view.company }, orderBy: { period: "desc" } }),
@@ -78,8 +70,8 @@ export default async function AcctTargetsPage({
                   return (
                     <tr key={target.id}>
                       <td className="td-title">{monthLabel(target.period, locale)}</td>
-                      <td>{formatMoney(target.goal, view.company)}</td>
-                      <td className="text-brand-success">{formatMoney(got, view.company)}</td>
+                      <td>{formatEGP(target.goal)}</td>
+                      <td className="text-brand-success">{formatEGP(got)}</td>
                       <td>
                         <span className="flex items-center gap-2 min-w-40">
                           <span className="meter" style={{ height: 8 }}>

@@ -48,16 +48,6 @@ const ADMINS: readonly BootstrapAdmin[] = [
     passwordEnv: "ADMIN_PASSWORD",
     legacyEmail: "admin@b-systems.example",
   },
-  /* ADR-074 — MINDOO'S OWN ADMINISTRATOR, its whole staff and the only way into
-     /mindoo. One role: holding a B-Systems role too would put it in whichever
-     app `landingFor` picked and give it a module switcher that crosses the wall
-     the rest of ADR-074 builds. */
-  {
-    email: "admin@mindoo.com",
-    name: "Mindoo Admin",
-    roles: ["mindoo_staff"],
-    passwordEnv: "MINDOO_ADMIN_PASSWORD",
-  },
 ];
 
 /* ADR-074 — the roles that belong to a DIFFERENT bootstrap administrator.

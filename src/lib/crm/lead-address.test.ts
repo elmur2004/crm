@@ -12,15 +12,15 @@ import { moduleCompaniesFor } from "@/lib/module-companies";
 
    Three services build a link to a lead from outside any page — the calendar
    projection, the To-Do projection and the push deep-link — and every one of
-   them was `brand === "bsystems" ? … : …`. With two brands that is total. With
-   three it silently sent MINDOO to a B-Systems address, which `proxy.ts` now
-   refuses for `mindoo_staff`: a Mindoo meeting, a Mindoo To-Do row and a Mindoo
-   mention push each logged the reader out on a click.
+   them was `brand === "bsystems" ? … : …`. That is total with two brands and a
+   trapdoor with three, and when a third arrived each one silently pointed at the
+   wrong app: the reader was logged out by clicking their own To-Do row.
 
    They were found by review, not by the suite, because nothing here asserted
    the SHAPE of an address. It does now, over `BRANDS` rather than over a list
-   written out by hand, so a fourth company fails these cases the day it is
-   added rather than the day somebody clicks.
+   written out by hand, so a THIRD company fails these cases the day it is added
+   rather than the day somebody clicks. That is why this file survives ADR-080
+   with the tenant it was written for gone.
    ========================================================================== */
 
 const ROOT = process.cwd();
@@ -58,14 +58,6 @@ describe("leadHref — every brand's lead lives at its OWN app", () => {
     expect(pageExists(href), `${href} has no page.tsx`).toBe(true);
   });
 
-  it("MINDOO never points into the B-Systems shell", () => {
-    /* the founder's "nothing inside bsystems goes to mindoo and vice versa",
-       as the one assertion that would have caught all three services */
-    expect(leadHref("mindoo", "x")).toBe("/mindoo/crm/lead/x");
-    expect(leadHref("mindoo", "x")).not.toContain("/b-systems");
-    expect(leadHref("mindoo", "x")).not.toContain("company=");
-  });
-
   it("the merged shell's two keep their company, and their own screens", () => {
     /* B-Systems' leads are on the BOARD's detail, ByteForce's on the rep
        directory's — two screens at one prefix, told apart by the parameter */
@@ -83,41 +75,44 @@ describe("deepLinkFor — a push never opens an app the reader cannot enter", ()
     expect(deepLinkFor({ type: "assigned", leadId: "L" }, brand)).toBe(leadHref(brand, "L"));
   });
 
-  it("a MINDOO mention whose lead is unreadable lands on Mindoo, not B-Systems", () => {
+  it.each(BRANDS)("a %s mention whose lead is unreadable lands on that brand's home", (brand) => {
     /* comments.ts nulls the leadId per brand precisely so a dual-role reader's
-       other bell cannot deep-link into the wrong app; before ADR-074 this fell
-       past two `if`s and opened /b-systems, which the proxy refuses */
-    expect(deepLinkFor({ type: "mention", leadId: null }, "mindoo")).toBe("/mindoo");
+       other bell cannot deep-link into the wrong app */
+    expect(deepLinkFor({ type: "mention", leadId: null }, brand)).toBe(appHomeFor(brand));
   });
 });
 
 describe("moduleBrand — the chrome answers the same question the server did", () => {
   const BS = moduleCompaniesFor(["bsystems_admin"]);
-  const MD = moduleCompaniesFor(["mindoo_staff"]);
+  /* ADR-080 — an account holding ONE company. There is no role that produces
+     this today, and the function must still be right for it: the property is
+     about the LIST it is handed, not about who could hand it one. */
+  const ONE: readonly string[] = ["bsystems"];
 
   it("obeys ?company= only when the account holds it", () => {
     expect(moduleBrand("accounting", "bsystems", "byteforce", BS)).toBe("bsystems");
-    expect(moduleBrand("vault", "mindoo", "mindoo", MD)).toBe("mindoo");
+    expect(moduleBrand("vault", "bsystems", "bsystems", ONE)).toBe("bsystems");
   });
 
   it("IGNORES a company the account does not hold — never labels one company's rows with another's", () => {
-    /* the server falls back to the account's own default for an unheld
-       company, so obeying the URL here put Mindoo's mark and palette over
-       ByteForce's books (and, reversed, ByteForce's over Mindoo's) */
+    /* the server falls back to the account's own default for an unheld company,
+       so obeying the URL here would put one company's mark and palette over
+       another's books. ADR-080 — including a RETIRED company's literal, which
+       is the shape an old bookmark arrives in. */
     expect(moduleBrand("accounting", "mindoo", "byteforce", BS)).toBe("byteforce");
-    expect(moduleBrand("accounting", "byteforce", "mindoo", MD)).toBe("mindoo");
-    expect(moduleBrand("vault", "bsystems", "mindoo", MD)).toBe("mindoo");
+    expect(moduleBrand("accounting", "byteforce", "bsystems", ONE)).toBe("bsystems");
+    expect(moduleBrand("vault", "byteforce", "bsystems", ONE)).toBe("bsystems");
   });
 
   it("falls back to the SERVER's answer when the URL says nothing", () => {
-    expect(moduleBrand("accounting", null, "mindoo", MD)).toBe("mindoo");
+    expect(moduleBrand("accounting", null, "bsystems", ONE)).toBe("bsystems");
     expect(moduleBrand("vault", null, "neutral", BS)).toBe("neutral");
   });
 
   it("never returns a brand outside the account's companies (except the vault's neutral)", () => {
-    for (const asked of [...BRANDS, "junk", null]) {
-      const got = moduleBrand("accounting", asked, MD[0]!, MD);
-      expect(MD).toContain(got);
+    for (const asked of [...BRANDS, "mindoo", "junk", null]) {
+      const got = moduleBrand("accounting", asked, ONE[0]!, ONE);
+      expect(ONE).toContain(got);
     }
   });
 });

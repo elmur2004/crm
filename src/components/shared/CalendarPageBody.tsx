@@ -24,7 +24,7 @@ import {
    is the whole feature and the reason it can exist without widening SPEC §3 by
    a single row. This body only draws what it is handed.
 
-   ADR-074 — extracted so Mindoo's calendar lives at /mindoo/calendar. The scope
+   ADR-074 — extracted so the calendar is a body a route renders. The scope
    is decided by each app's own page (admin all, sales the internal bucket,
    agents and partners their own leads under B-Systems; the whole company under
    ByteForce and Mindoo, each of which has one staff role), because "who may see

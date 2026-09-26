@@ -3,14 +3,13 @@ import { requireAccountingPage } from "@/lib/auth/page-guards";
 import { getLocale } from "@/lib/i18n/server";
 import { tFor } from "@/lib/i18n/core";
 import { acct } from "@/lib/i18n/dict/accounting";
-import { formatMoney } from "@/lib/money";
+import { formatEGP } from "@/lib/money";
 import { loadBooks } from "@/lib/accounting/books";
 import { memberAt } from "@/lib/accounting/engine";
 import { cairoMonth } from "@/lib/accounting/now";
 import { ACCT_DEPT_LABELS, type AcctDept } from "@/lib/accounting/constants";
 import { acctQuery, acctView } from "@/lib/accounting/params";
 import { moduleCompaniesFor } from "@/lib/module-companies";
-import { hasAcctSection } from "@/lib/module-sections";
 import { monthLabel } from "@/lib/accounting/format";
 import { AcctChip, AcctHead, AcctTile } from "@/components/accounting/AcctHead";
 import { AddPersonButton, RosterActions } from "@/components/accounting/forms";
@@ -32,13 +31,6 @@ export default async function AcctRosterPage({
   const locale = await getLocale();
   const t = tFor(locale);
   const view = acctView(await searchParams, moduleCompaniesFor(user.roles));
-  /* ADR-076 — a section this company does not have is REFUSED, not merely
-     hidden from the nav. The founder named Mindoo's sections; leaving the page
-     reachable by typing its address would make that a tidier menu rather than a
-     decision about what the company has. Redirect to the module root, which
-     every company keeps — never a 404, because the section exists, it is simply
-     not this company's. */
-  if (!hasAcctSection(view.company, "/accounting/roster")) redirect(`/accounting${acctQuery(view)}`);
   const books = await loadBooks(view.company);
   const now = cairoMonth();
   const withNow = books.roster.map((r) => ({ r, now: memberAt(r, now) }));
@@ -63,7 +55,7 @@ export default async function AcctRosterPage({
       <div className="tile-grid">
         <AcctTile
           label={t(acct.committedSalary)}
-          value={formatMoney(committed, view.company)}
+          value={formatEGP(committed)}
           sub={`${activeNow.length} ${t(acct.activeStaff)}`}
         />
       </div>
@@ -98,7 +90,7 @@ export default async function AcctRosterPage({
                       )}
                     </td>
                     <td className="td-mono u-ltr">{r.account || "—"}</td>
-                    <td className="td-title">{cur.active ? formatMoney(cur.salary, view.company) : "—"}</td>
+                    <td className="td-title">{cur.active ? formatEGP(cur.salary) : "—"}</td>
                     <td>{r.since ? monthLabel(r.since, locale) : "—"}</td>
                     <td>
                       {cur.active ? (

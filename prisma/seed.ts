@@ -55,10 +55,11 @@ async function upsertUser(opts: {
 
      This loop only ever ADDED, so `roles` was a floor rather than the state:
      re-seeding a live dev database left every role the account had ever been
-     given. ADR-074 removes `mindoo_staff` from admin@byteforce.com — the whole
-     point being that no account holds both apps — and on an upgraded database
-     that revocation was silently a no-op, leaving a bsystems_admin who could
-     still open /mindoo and whose module switcher crossed the wall.
+     given. ADR-074 needed to REVOKE a role (it took `mindoo_staff` off
+     admin@byteforce.com) and on an upgraded database that revocation was
+     silently a no-op — an account kept an app it was no longer meant to hold.
+     ADR-080 leans on the same loop from the other side: `mindoo_staff` is not in
+     any seeded account's list any more, so re-seeding STRIPS it.
 
      The doc comment above already promises "seeded accounts are always in the
      documented state"; this makes the ROLES keep that promise too. Scoped to
@@ -90,30 +91,8 @@ export async function seed() {
     name: "Elmur",
     email: "admin@byteforce.com",
     password: "password123",
-    /* ADR-074 — the founder's B-Systems account holds the TWO companies of the
-       merged shell, and no longer `mindoo_staff`. Mindoo has its own app and
-       its own credentials now (below), by his own instruction: "I enter the
-       creditials : admin@mindoo.com and password123 / the system opens with
-       [the] mindoo branding". Holding both roles on one account would have put
-       him in whichever app `landingFor` picked and given him a module switcher
-       that crosses the wall the rest of ADR-074 builds. */
+    /* the founder's account holds the TWO companies of the merged shell. */
     roles: ["bsystems_admin", "byteforce_staff"],
-  });
-
-  /* ADR-074 — MINDOO'S OWN ADMINISTRATOR, verbatim from the founder:
-     "I enter the creditials : admin@mindoo.com and password123".
-
-     It is seeded beside the B-Systems admin and BEFORE the demo-data gate, so
-     it exists on a production seed too — it is the way into the Mindoo app, not
-     a fixture. One role, which is Mindoo's whole staff; the two module flags
-     default true on the User row, so this account opens Accounting and the Data
-     Vault as well (founder: "having vault and accounting and the crm and to do
-     and calender"), scoped to Mindoo alone by `moduleCompaniesFor`. */
-  await upsertUser({
-    name: "Mindoo Admin",
-    email: "admin@mindoo.com",
-    password: "password123",
-    roles: ["mindoo_staff"],
   });
 
   /* ---- demo data — never on production (SEED_DEMO=1 overrides) ---- */
@@ -128,16 +107,6 @@ export async function seed() {
     email: "sara@byteforce.example",
     password: "byteforce123",
     roles: ["byteforce_staff"],
-  });
-
-  /* ADR-073/074 — a second MINDOO account, so the demo data proves that Mindoo
-     is a company with staff rather than one login: she reaches the same app as
-     admin@mindoo.com and is refused by /b-systems exactly as he is. */
-  await upsertUser({
-    name: "Mona Adel",
-    email: "mona@mindoo.example",
-    password: "mindoo123",
-    roles: ["mindoo_staff"],
   });
 
   // A-8 default: one B-Systems account may carry both roles
@@ -537,161 +506,6 @@ export async function seed() {
     });
     await log("won_deal", wonDeal.id, "create", "B-9");
     await log("won_deal", wonDeal.id, "milestone_check", "P-8");
-  }
-
-  /* ---- ADR-073: MINDOO, the third company -------------------------------- */
-  /* A handful of leads spread across its pipeline, so the board, the dashboard
-     counts and the To-Do all have something real to draw. Mindoo runs the
-     B-Systems pipeline, so `negotiation` is among them — a stage ByteForce does
-     not have, which makes this seed the demo of the difference as well. All are
-     internal and unowned: Mindoo has one staff role and no owner buckets. */
-  /* Idempotence: the same sentinel idiom the B-Systems demo block uses above —
-     skip the whole block when its first lead is already on file, so re-running
-     the seed on a live dev database tops up roles and accounts (which upsert)
-     without duplicating rows (which do not). */
-  const mindooSentinel = await db.lead.findFirst({ where: { brand: "mindoo", name: "Nile Freight" } });
-  if (seedDemo && !mindooSentinel) {
-    const mindooLeads: Array<[string, string, string]> = [
-      ["Nile Freight", "Logistics", "new"],
-      ["Delta Foods", "FMCG", "following_up"],
-      ["Cairo Tech Park", "Real estate", "meeting_setting"],
-      ["Horizon Clinics", "Healthcare", "sending_proposal"],
-      ["Red Sea Resorts", "Hospitality", "negotiation"],
-    ];
-    let n = 0;
-    for (const [name, industry, stage] of mindooLeads) {
-      n += 1;
-      const lead = await db.lead.create({
-        data: {
-          brand: "mindoo",
-          ownerType: "internal",
-          name,
-          number: `0105000${String(100 + n)}`,
-          type: "cold_call",
-          companyName: name,
-          industry,
-          stage,
-        },
-      });
-      /* `log` is scoped to the block above; the row is written directly here
-         so every seeded lead still carries its creation entry (§5.6). */
-      await db.activityLog.create({
-        data: {
-          entityType: "lead",
-          entityId: lead.id,
-          actorLabel: "Seed",
-          action: "create",
-          trigger: "T-0",
-        },
-      });
-      if (stage === "following_up") {
-        await db.followUp.create({
-          data: {
-            leadId: lead.id,
-            context: "initial",
-            dueAt: new Date("2026-09-03T07:00:00Z"),
-            dueTimeSet: true,
-            method: "call",
-          },
-        });
-      }
-      if (stage === "meeting_setting") {
-        await db.meeting.create({
-          data: {
-            leadId: lead.id,
-            arranged: true,
-            datetime: new Date("2026-09-04T11:00:00Z"),
-            mode: "online",
-          },
-        });
-      }
-      /* ADR-077 — a lead PAST the proposal stage has a proposal, which the seed
-         did not give it: the board's estimated-value line read empty, and there
-         was nothing for the admin to attach a ByteForce sub-service to. The
-         value is in RIYALS, because Mindoo quotes in riyals. */
-      if (stage === "sending_proposal" || stage === "negotiation") {
-        await db.proposal.create({
-          data: {
-            leadId: lead.id,
-            service: "Brand identity and launch",
-            estimatedValue: 320_000_00, // SAR 320,000
-            sent: true,
-            sentAt: new Date("2026-09-01T09:00:00Z"),
-          },
-        });
-      }
-    }
-  }
-
-  /* ADR-074 — a WON Mindoo deal, with its milestone tab.
-
-     Mindoo wins the B-Systems way (the founder's own choice), so Won Leads and
-     the won-deal detail are real screens for it — and a demo database where
-     both are empty is a demo of nothing. It is also what lets the e2e prove the
-     file wall on a Mindoo document instead of skipping it.
-
-     ITS OWN SENTINEL, deliberately, and this is the lesson ADR-073's fix only
-     half-learned: a demo block guarded by ANOTHER block's sentinel can never
-     land on a database that already has that other block. This won deal was
-     first written inside the leads block above, so on the founder's own dev
-     database — which has had those five leads since ADR-073 — re-seeding would
-     have added the account he needs and silently skipped the deal. One block,
-     one sentinel. */
-  const mindooWonSentinel = await db.lead.findFirst({
-    where: { brand: "mindoo", name: "Alexandria Marine" },
-  });
-  if (seedDemo && !mindooWonSentinel) {
-    const mindooWon = await db.lead.create({
-      data: {
-        brand: "mindoo",
-        ownerType: "internal",
-        name: "Alexandria Marine",
-        number: "0105000200",
-        type: "referral",
-        companyName: "Alexandria Marine",
-        industry: "Shipping",
-        stage: "won",
-      },
-    });
-    await db.activityLog.create({
-      data: {
-        entityType: "lead",
-        entityId: mindooWon.id,
-        actorLabel: "Seed",
-        action: "create",
-        trigger: "T-0",
-      },
-    });
-    const mindooDeal = await db.wonDeal.create({
-      data: {
-        leadId: mindooWon.id,
-        estimatedValue: 450_000_00,
-        totalCommissionPercent: 8_00, // 8.00%
-        contractDate: new Date("2026-08-15T00:00:00Z"),
-      },
-    });
-    await db.milestone.create({
-      data: {
-        wonDealId: mindooDeal.id,
-        index: 1,
-        label: "Kickoff",
-        value: 250_000_00,
-        expectedStart: new Date("2026-08-20T00:00:00Z"),
-        expectedEnd: new Date("2026-09-20T00:00:00Z"),
-        completed: true,
-        completedAt: new Date("2026-08-22T09:00:00Z"),
-      },
-    });
-    await db.milestone.create({
-      data: {
-        wonDealId: mindooDeal.id,
-        index: 2,
-        label: "Delivery",
-        value: 200_000_00,
-        expectedStart: new Date("2026-09-21T00:00:00Z"),
-        expectedEnd: new Date("2026-10-21T00:00:00Z"),
-      },
-    });
   }
 
   console.log("Seed complete.");

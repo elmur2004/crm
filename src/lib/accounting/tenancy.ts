@@ -14,7 +14,7 @@ import { ACCT_COMPANIES, type AcctCompany } from "./constants";
 
    Adding Mindoo makes that sentence false. `company` is now genuinely a TENANT
    selector, and a route that merely parses it against ACCT_COMPANIES would let
-   a B-Systems admin post `company=mindoo` and write into another company's
+   a B-Systems admin post a foreign `company=` and write into another company's
    books — the exact widening the CRM namespaces refuse by deriving the brand
    from the ROUTE instead of from input (see lib/api/internal-crm.ts).
 

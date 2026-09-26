@@ -17,7 +17,8 @@ export async function generateMetadata() {
    rather than falling into a role lookup and turning into a 500. Its win writes
    a Client, not a Won Deal, so this page would have nothing to show it.
 
-   ADR-074 — Mindoo DOES win this way and has this screen, at its own address.
+   ADR-074 — the screen is a shared body; which company's wins it shows is the
+   SURFACE's answer, never a literal in the body.
    The body is shared; the guard is not. */
 
 export default async function WonLeadsPage({

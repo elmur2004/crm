@@ -4,7 +4,7 @@ import { BS_PIPELINE_ROLES } from "@/lib/crm/company";
 import { bsRoleOf } from "@/lib/api/bsystems";
 import { impersonate } from "@/lib/auth/actions";
 import { BOOTSTRAP_ADMIN_EMAILS } from "@/lib/services/bootstrap";
-import { grantableRoles } from "@/lib/services/user-tenancy";
+import { ASSIGNABLE_ROLES } from "@/lib/services/users";
 import { UsersBody } from "@/components/bsystems/pages/UsersBody";
 import { tFor } from "@/lib/i18n/core";
 import { getLocale } from "@/lib/i18n/server";
@@ -24,9 +24,8 @@ export async function generateMetadata() {
    this line bsRoleOf is TOTAL: holding "bsystems" is exactly holding one of the
    five B-Systems roles, so it can no longer throw.
 
-   ADR-075 — and it is B-SYSTEMS' PEOPLE only. Mindoo administers its own at
-   /mindoo/users; neither list contains the other's accounts, and neither
-   administrator can edit, deactivate, delete or impersonate across. */
+   ADR-075 — the roles an administrator may grant are the SERVICE's list, not
+   this page's, so the form and the wall cannot disagree. */
 
 export default async function UsersPage({
   searchParams,
@@ -43,9 +42,8 @@ export default async function UsersPage({
   return (
     <UsersBody
       ctx={{
-        scope: "bsystems",
         apiBase: "/api/b-systems",
-        assignableRoles: grantableRoles("bsystems"),
+        assignableRoles: ASSIGNABLE_ROLES,
         bootstrapAdminEmails: BOOTSTRAP_ADMIN_EMAILS,
         impersonate,
       }}

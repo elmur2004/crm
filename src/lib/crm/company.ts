@@ -32,28 +32,25 @@ import type { Brand, Role } from "@/lib/pipeline-engine/constants";
     `defaultCompanyFor`. The order decides where an account holding both lands,
     and the founder's "I just want the b systems CRM" has to keep winning.
 
-    ADR-074 — MINDOO IS NOT HERE, and that is the whole point of it. Founder:
-    "remove the switcher from bsystems system, separate them entirely — nothing
-    inside bsystems goes to mindoo and vice versa." Mindoo is its own app at
-    /mindoo with its own shell and its own brand; it is not a segment of this
-    one. A company that cannot be switched to from here must not be in the list
-    this shell's switch, guards and nav are all built from. */
+    ADR-080 — with Mindoo gone this is again every company the platform has, so
+    `CrmCompany` and `Brand` hold the same two values. They stay two SEPARATE
+    types on purpose (see below): they answer different questions, and collapsing
+    them because the answers happen to coincide is how the distinction is lost
+    the next time they do not. */
 export const CRM_COMPANIES = ["bsystems", "byteforce"] as const;
 export type CrmCompany = (typeof CRM_COMPANIES)[number];
 
-/* ADR-074 — CrmCompany is now a SUBSET of Brand, not a copy of it, and the two
+/* ADR-074 — CrmCompany is a SUBSET of Brand, not a copy of it, and the two
    dimensions are genuinely different questions:
 
-     Brand       WHOSE DATA a row belongs to. Three values, and Mindoo is one:
-                 Lead.brand, the accounting books, the vault records.
-     CrmCompany  WHICH COMPANY THIS SHELL IS SHOWING. Two values, because this
-                 shell serves two.
+     Brand       WHOSE DATA a row belongs to — Lead.brand, the accounting books,
+                 the vault records.
+     CrmCompany  WHICH COMPANY THIS SHELL IS SHOWING.
 
-   They were identical while every company lived in one shell, and the old
-   `satisfies` line pinned that. It cannot survive a company with its own app,
-   so it is replaced by the weaker relationship that is actually true — every
-   CrmCompany IS a Brand — which still fails to compile if somebody renames one
-   of them or adds a shell company the engine has never heard of. */
+   ADR-080 does NOT restore the `satisfies` equality this replaced, even though
+   the two sets coincide again: the subset form still fails to compile if
+   somebody renames one of them or adds a shell company the engine has never
+   heard of, and it leaves room for the next company that has its own app. */
 const _crmCompaniesAreBrands: readonly Brand[] = CRM_COMPANIES satisfies readonly Brand[];
 void _crmCompaniesAreBrands;
 
@@ -75,25 +72,17 @@ export const BS_CRM_ROLES: readonly [Role, ...Role[]] = [
   "bsystems_data_entry",
 ];
 
-/** ADR-073 — Mindoo's whole staff, as a list for symmetry with the two above.
-    One role today; a list because every caller here already speaks in lists,
-    and a lone literal would be the one place that has to change shape if Mindoo
-    ever grows a second role. */
-export const MINDOO_ROLES: readonly [Role, ...Role[]] = ["mindoo_staff"];
-
-/** Every role that may enter the merged shell at all (either of ITS companies).
-    ADR-074 — `mindoo_staff` is not among them: it opens Mindoo's own app and
-    nothing here. */
+/** Every role that may enter the merged shell at all (either of its companies). */
 export const CRM_ROLES: readonly [Role, ...Role[]] = [...BS_CRM_ROLES, "byteforce_staff"];
 
 /** ADR-073 — the roles that may work inside ONE company's shared screens.
 
     The five shared pages (Home, To-Do, Calendar, Leads, the board) each narrow
     to a different set depending on the company they are rendering. With two
-    companies that was an `if` and an implicit else; with three it becomes a
-    table, and a table is the only shape `nav.test.ts` can check without
-    parsing branches out of source — it imports THIS and asks it, so the nav
-    contract is tested against the function the pages actually call.
+    companies that was an `if` and an implicit else in each page; a FUNCTION is
+    the only shape `nav.test.ts` can check without parsing branches out of
+    source — it imports THIS and asks it, so the nav contract is tested against
+    the function the pages actually call.
 
     Note what it is NOT: a grant. The company has already been resolved against
     the account's live roles before any page calls this. */
@@ -111,11 +100,6 @@ export function companiesFor(roles: Role[]): CrmCompany[] {
      already gives bsystems_admin over byteforce_staff. */
   if (roles.some((r) => BS_CRM_ROLES.includes(r))) held.push("bsystems");
   if (roles.includes("byteforce_staff")) held.push("byteforce");
-  /* ADR-074 — Mindoo is deliberately absent. `mindoo_staff` grants no company
-     HERE, because this function answers "which companies may this account see
-     in the merged shell", and Mindoo is not in that shell. Its own app asks its
-     own question (requireMindoo), and an account holding only mindoo_staff is
-     refused this shell entirely rather than shown an empty switch. */
   return held;
 }
 

@@ -3,7 +3,7 @@ import type { CrmSurface } from "@/lib/crm/surface";
 import type { Role } from "@/lib/pipeline-engine/constants";
 import { adminWonLeads, closerWonLeads, salesWonLeads } from "@/lib/services/won-leads";
 import { DeleteLeadButton } from "@/components/bsystems/leadActions";
-import { formatMoney } from "@/lib/money";
+import { formatEGP } from "@/lib/money";
 import { formatCairoDate } from "@/lib/datetime";
 import { tFor } from "@/lib/i18n/core";
 import { getLocale } from "@/lib/i18n/server";
@@ -14,7 +14,7 @@ import { common, wonLeads } from "@/lib/i18n/dict/admin";
    data + milestone progress; commission shows for agents/partners, NEVER for
    internal sales.
 
-   ADR-074 — extracted so Mindoo renders the SAME screen. Mindoo's staff reads
+   ADR-074 — extracted as a shared body. Its administrator reads
    the admin view, because it is the whole of its company's staff and there is
    no narrower audience to show it. ByteForce still has no Won Leads at all —
    its win writes a Client, not a Won Deal — so no surface exists for it. */
@@ -55,7 +55,7 @@ export async function BsWonLeadsBody({
   userId,
 }: {
   ctx: CrmSurface;
-  /* the ENGINE role for this surface — `bsystems_admin` and `mindoo_staff`
+  /* the ENGINE role for this surface — `bsystems_admin`
      both read the administrator's view; the other three read their own deals */
   role: Role | null;
   userId: string;
@@ -63,7 +63,7 @@ export async function BsWonLeadsBody({
   const locale = await getLocale();
   const t = tFor(locale);
 
-  if (role === "bsystems_admin" || role === "mindoo_staff") {
+  if (role === "bsystems_admin") {
     const deals = await adminWonLeads(ctx.brand);
     return (
       <div className="space-y-6">
@@ -85,7 +85,7 @@ export async function BsWonLeadsBody({
                   </div>
                   <p className="ecard-title">{w.lead.name}</p>
                   <p className="ecard-sub">
-                    <span>{t(common.labelValue)}</span> {formatMoney(w.estimatedValue, ctx.brand)}
+                    <span>{t(common.labelValue)}</span> {formatEGP(w.estimatedValue)}
                   </p>
                   <p className="ecard-sub">
                     <span>{t(wonLeads.labelCloser)}</span> {w.closer}
@@ -162,7 +162,7 @@ export async function BsWonLeadsBody({
               <div className="flex gap-2 flex-wrap">
                 <div className="money-tile">
                   <p className="money-label">{t(common.labelValue)}</p>
-                  <p className="money-value">{formatMoney(w.estimatedValue, ctx.brand)}</p>
+                  <p className="money-value">{formatEGP(w.estimatedValue)}</p>
                 </div>
                 {w.totalCommissionPercent != null ? (
                   <div className="money-tile">
@@ -187,9 +187,9 @@ export async function BsWonLeadsBody({
                       {m.locked ? t(wonLeads.lockedSuffix) : ""}
                     </span>
                     <span className="ms-note ms-auto text-end">
-                      {formatMoney(m.value, ctx.brand)}
+                      {formatEGP(m.value)}
                       {m.commissionValue != null
-                        ? `${t(common.commissionSep)}${formatMoney(m.commissionValue, ctx.brand)}`
+                        ? `${t(common.commissionSep)}${formatEGP(m.commissionValue)}`
                         : ""}
                       {m.expectedEnd
                         ? ` · ${t(wonLeads.dueWord)} ${formatCairoDate(m.expectedEnd, locale)}`

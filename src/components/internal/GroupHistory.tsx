@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { formatCairo } from "@/lib/datetime";
-import { formatMoney } from "@/lib/money";
+import { formatEGP } from "@/lib/money";
 import type { Brand } from "@/lib/pipeline-engine/constants";
 import { tFor, type Locale } from "@/lib/i18n/core";
 import { getLocale } from "@/lib/i18n/server";
@@ -68,7 +68,6 @@ function Section({
 }
 
 export async function GroupHistory({
-  brand,
   proposalActions,
   followUps = [],
   meetings = [],
@@ -77,20 +76,14 @@ export async function GroupHistory({
   postponeInfos = [],
   won,
 }: {
-  /* ADR-077 — WHOSE money these figures are. This panel renders the pipeline
-     records for every company that has a lead detail — B-Systems', Mindoo's and
-     ByteForce's — and two of its lines print an amount. Required, never
-     defaulted: an EGP default would print pounds on a Mindoo proposal, and the
-     number would look perfectly right. */
-  brand: Brand;
   /* ADR-078 — what to render beside a PROPOSAL record, when this surface offers
      anything. A render prop rather than a flag (the `rowActions` idiom from
      TodoBody), because the decision is not "may I edit" — it is "does this
      screen have an editor at all", and two of the five screens that draw this
      panel deliberately have none: the partner prospect history, and the
-     read-only foreign lead page whose whole contract is that nothing writes
-     (ADR-075/076). A boolean would have let either of them grow a button by
-     someone passing `true`; a missing prop cannot. */
+     call sheet, which is for reading a record down a phone line. A boolean would
+     have let either of them grow a button by someone passing `true`; a missing
+     prop cannot. */
   proposalActions?: (proposal: ProposalRow) => ReactNode;
   followUps?: FollowUpRow[];
   meetings?: MeetingRow[];
@@ -205,7 +198,7 @@ export async function GroupHistory({
           <p>{p.service}</p>
           <p>
             {p.estimatedValue != null
-              ? formatMoney(p.estimatedValue, brand)
+              ? formatEGP(p.estimatedValue)
               : t(common.noValueSet)}{" "}
             ·{" "}
             {p.sent
@@ -259,13 +252,13 @@ export async function GroupHistory({
           at={won.createdAt}
         >
           <p>
-            {t(records.estimated)} {formatMoney(won.estimatedValue, brand)}
+            {t(records.estimated)} {formatEGP(won.estimatedValue)}
           </p>
           <p>
             {t(common.technicalOwnerColon)} {won.technicalOwner}
           </p>
           <p>
-            {t(records.collected)} {formatMoney(won.collectedAmount, brand)}
+            {t(records.collected)} {formatEGP(won.collectedAmount)}
           </p>
         </Section>
       ),

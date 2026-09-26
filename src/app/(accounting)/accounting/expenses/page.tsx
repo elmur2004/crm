@@ -2,7 +2,7 @@ import { requireAccountingPage } from "@/lib/auth/page-guards";
 import { getLocale } from "@/lib/i18n/server";
 import { tFor } from "@/lib/i18n/core";
 import { acct } from "@/lib/i18n/dict/accounting";
-import { formatMoney } from "@/lib/money";
+import { formatEGP } from "@/lib/money";
 import { loadBooks } from "@/lib/accounting/books";
 import {
   expenseAmount,
@@ -55,7 +55,7 @@ export default async function AcctExpensesPage({
     <section className="card card--flush0">
       <div className="card-head">
         <h2 className="u-h3">{title}</h2>
-        <span className="u-muted">−{formatMoney(sum(list), view.company)}</span>
+        <span className="u-muted">−{formatEGP(sum(list))}</span>
       </div>
       {list.length === 0 ? (
         <p className="empty m-4">{emptyText}</p>
@@ -97,7 +97,7 @@ export default async function AcctExpensesPage({
                   </td>
                   <td className="td-mono">{e.note || "—"}</td>
                   <td className={`td-title ${e.paid ? "text-brand-danger" : ""}`}>
-                    −{formatMoney(expenseAmount(e), view.company)}
+                    −{formatEGP(expenseAmount(e))}
                     {/* ADR-058 — a payroll row carrying a one-month adjustment
                         must not silently show a number that disagrees with the
                         roster salary. The NET stays the headline (the SPA's own
@@ -105,9 +105,9 @@ export default async function AcctExpensesPage({
                         row, the SPA's one per-row idiom. */}
                     {e.type === "payroll" && (e.deduction || e.bonus) ? (
                       <span className="u-muted block">
-                        {t(acct.payrollBaseWord)} {formatMoney(e.amount, view.company)}
-                        {e.deduction ? ` − ${t(acct.deductionWord)} ${formatMoney(e.deduction, view.company)}` : ""}
-                        {e.bonus ? ` + ${t(acct.bonusWord)} ${formatMoney(e.bonus, view.company)}` : ""}
+                        {t(acct.payrollBaseWord)} {formatEGP(e.amount)}
+                        {e.deduction ? ` − ${t(acct.deductionWord)} ${formatEGP(e.deduction)}` : ""}
+                        {e.bonus ? ` + ${t(acct.bonusWord)} ${formatEGP(e.bonus)}` : ""}
                       </span>
                     ) : null}
                   </td>
@@ -160,8 +160,8 @@ export default async function AcctExpensesPage({
         <AddExpenseButton company={view.company} month={view.month} roster={roster} />
       </div>
       <div className="tile-grid">
-        <AcctTile label={t(acct.paidThisMonth)} value={formatMoney(paidExpenseIn(books, view.month), view.company)} tone="danger" />
-        <AcctTile label={t(acct.onHoldToBePaid)} value={formatMoney(pendingExpenseIn(books, view.month), view.company)} />
+        <AcctTile label={t(acct.paidThisMonth)} value={formatEGP(paidExpenseIn(books, view.month))} tone="danger" />
+        <AcctTile label={t(acct.onHoldToBePaid)} value={formatEGP(pendingExpenseIn(books, view.month))} />
       </div>
       {section(t(acct.payrollSection), payrollRows, t(acct.noPayroll))}
       {section(t(acct.otherExpensesSection), otherRows, t(acct.noOtherExpenses))}

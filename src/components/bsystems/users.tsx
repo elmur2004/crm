@@ -9,43 +9,19 @@ import { assignableRoleLabels, common, usersAdmin as d } from "@/lib/i18n/dict/a
 
 /* V2 §2.10 — admin user management widgets. */
 
-/* ADR-074 — `mindoo_staff` was MISSING, and its absence broke a path this
-   project had already written down. ADR-073 decided that accounts are
-   platform-wide and "a Mindoo teammate is created by the B-Systems admin" —
-   but the admin's own create-user form never offered the role, so the
-   documented way to make one did not exist. The SERVER has accepted it all
-   along (createUserSchema takes z.enum(ROLES)); only this list said otherwise,
-   which is the worst version of the bug: no error anywhere, just an option
-   nobody could pick.
+/* ADR-075 — apiBase + assignableRoles come from the SURFACE that renders this.
 
-   It stays in the B-Systems admin's screen deliberately. Mindoo has no Users
-   page of its own — accounts are the platform's, not a company's — and that is
-   the ADR-073 decision ADR-074 did not change. */
-/* ADR-075 — apiBase + roles come from the SURFACE that renders this.
+   The screen was built to serve two administrators at two addresses, so what
+   varies is passed in rather than hardcoded: the namespace the writes go to (the
+   brand is derived from the ROUTE on the server, so the namespace IS the company
+   being acted on) and the roles this administrator may grant. ADR-080 left one
+   administrator; the props stay REQUIRED, because a default would let a new call
+   site act on the wrong namespace silently.
 
-   Both companies administer their own people now, on the same screen at two
-   addresses: /b-systems/users and /mindoo/users. Duplicating the editor would
-   make every future fix land twice, so what varies is passed in — the namespace
-   the writes go to (the brand is derived from the ROUTE on the server, so the
-   namespace IS the company being acted on) and the roles this administrator may
-   grant. Both required: a default would silently act on B-Systems from Mindoo's
-   own screen. The SERVICE refuses a crossing either way (assertGrantable,
-   assertUserInScope); these props are the courtesy. */
-export const BSYSTEMS_ASSIGNABLE_ROLES = [
-  "bsystems_admin",
-  "bsystems_sales",
-  "bsystems_agent",
-  "bsystems_partner",
-  "bsystems_data_entry", // ADR-051 — add-only
-  "byteforce_staff",
-  /* ADR-075 — `mindoo_staff` was here for one commit and is deliberately gone
-     again. ADR-074 added it because ADR-073 had decided a Mindoo teammate is
-     created BY the B-Systems admin; the founder then said the opposite —
-     "mindoo user should appear in mindoo system not in bsystems systems
-     separate their users" — so Mindoo administers its own people at
-     /mindoo/users, and this form cannot mint them. The SERVICE refuses it
-     either way (assertGrantable); this list is the courtesy. */
-];
+   The list itself is the SERVICE's `ASSIGNABLE_ROLES` (lib/services/users.ts) —
+   the same constant `assertGrantable` enforces, so the checkboxes and the wall
+   cannot disagree. This file used to keep its own copy; two lists describing one
+   rule is how a role reaches the form that the server refuses. */
 
 /* ADR-066 (founder: "block some admins from acsessing accounting or data
    vault") — the two module switches, shown beside the role boxes they NARROW.

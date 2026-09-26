@@ -14,16 +14,19 @@ import {
    ADR-074 — the MODULE tenancy, proved rather than promised.
 
    Accounting and the Data Vault are ONE screen set with a company filter, and
-   the founder asked for two things about them at once: Mindoo must have them,
-   and nothing of B-Systems' may reach Mindoo. Both come down to a single
-   predicate, so this file hammers it — including the case that is easy to get
-   right by accident and wrong in a hurry: adding a company must not add a tab
-   to anybody who was already here.
+   the predicate that decides which companies an account may point them at is
+   the whole wall. ADR-080 removed the tenant this file was written for; the
+   predicate stays, and so does the property the file hammers — including the
+   case that is easy to get right by accident and wrong in a hurry: a company
+   list must never contain a company the roles do not carry, and a role this
+   build does not know must resolve to nothing rather than to a default.
    ========================================================================== */
 
 const BS_ADMIN: Role[] = ["bsystems_admin"];
-const MINDOO: Role[] = ["mindoo_staff"];
-const BOTH: Role[] = ["bsystems_admin", "mindoo_staff"];
+/* ADR-080 — cast in, because `Role` no longer contains it: the assertions
+   below are what a stale session carrying the retired role must do in a MODULE,
+   which is get no books and no vault rows at all. */
+const RETIRED: Role[] = ["mindoo_staff" as Role];
 
 const bearer = (roles: Role[]) => ({
   roles,
@@ -38,8 +41,8 @@ describe("moduleCompaniesFor — narrowing only", () => {
     expect(moduleCompaniesFor(BS_ADMIN)).toEqual(["byteforce", "bsystems"]);
   });
 
-  it("a Mindoo account gets Mindoo and nothing else", () => {
-    expect(moduleCompaniesFor(MINDOO)).toEqual(["mindoo"]);
+  it("ADR-080 — a RETIRED role gets NO company, not a default one", () => {
+    expect(moduleCompaniesFor(RETIRED)).toEqual([]);
   });
 
   it("every other role gets NOTHING — the role is the floor", () => {
@@ -52,24 +55,31 @@ describe("moduleCompaniesFor — narrowing only", () => {
   });
 
   it("NEVER returns a company outside the platform's brands — for every subset", () => {
-    const all: Role[] = [...BS_CRM_ROLES, "byteforce_staff", "mindoo_staff"];
+    const all: Role[] = [...BS_CRM_ROLES, "byteforce_staff", ...RETIRED];
     for (let mask = 0; mask < 1 << all.length; mask++) {
       const roles = all.filter((_, i) => mask & (1 << i));
       for (const c of moduleCompaniesFor(roles)) expect(BRANDS).toContain(c);
     }
   });
 
-  it("holding BOTH is the union, and B-Systems' default still wins", () => {
-    expect(moduleCompaniesFor(BOTH)).toEqual(["byteforce", "bsystems", "mindoo"]);
-    /* order is load-bearing: the module opens on the first entry */
-    expect(moduleCompaniesFor(BOTH)[0]).toBe("byteforce");
+  it("order is load-bearing — the module opens on the first entry", () => {
+    expect(moduleCompaniesFor(BS_ADMIN)[0]).toBe("byteforce");
+  });
+
+  it("ADR-080 — a retired role alongside the live one adds no company", () => {
+    expect(moduleCompaniesFor([...BS_ADMIN, ...RETIRED])).toEqual(["byteforce", "bsystems"]);
   });
 });
 
-describe("canUseModule — Mindoo clears the floor, everybody else is unchanged", () => {
-  it("admits both administrators", () => {
+describe("canUseModule — the role is the floor", () => {
+  it("admits the administrator", () => {
     expect(canUseModule(bearer(BS_ADMIN), "accounting")).toBe(true);
-    expect(canUseModule(bearer(MINDOO), "vault")).toBe(true);
+    expect(canUseModule(bearer(BS_ADMIN), "vault")).toBe(true);
+  });
+
+  it("ADR-080 — and REFUSES the retired role outright", () => {
+    expect(canUseModule(bearer(RETIRED), "accounting")).toBe(false);
+    expect(canUseModule(bearer(RETIRED), "vault")).toBe(false);
   });
 
   it("still refuses every non-administrator, flags or no flags", () => {
@@ -80,7 +90,7 @@ describe("canUseModule — Mindoo clears the floor, everybody else is unchanged"
   });
 
   it("ADR-066 is intact — a per-account flag still takes one module away", () => {
-    const blocked = { roles: MINDOO, canAccessAccounting: false, canAccessVault: true };
+    const blocked = { roles: BS_ADMIN, canAccessAccounting: false, canAccessVault: true };
     expect(canUseModule(blocked, "accounting")).toBe(false);
     expect(canUseModule(blocked, "vault")).toBe(true);
   });
@@ -95,13 +105,14 @@ describe("resolveModuleCompany — the URL narrows, it never grants", () => {
     /* never a refusal and never the asked-for company: the module has always
        fallen back on a bad query string, and the fallback is by construction a
        company this account holds */
+    /* ADR-080 — including a RETIRED company's literal off an old bookmark */
     expect(resolveModuleCompany(moduleCompaniesFor(BS_ADMIN), "mindoo")).toBe("byteforce");
-    expect(resolveModuleCompany(moduleCompaniesFor(MINDOO), "bsystems")).toBe("mindoo");
+    expect(resolveModuleCompany(["bsystems"], "byteforce")).toBe("bsystems");
   });
 
   it("treats junk, absence and repetition alike", () => {
     for (const raw of [undefined, null, "", "junk", ["bsystems", "mindoo"]]) {
-      expect(resolveModuleCompany(moduleCompaniesFor(MINDOO), raw)).toBe("mindoo");
+      expect(resolveModuleCompany(["bsystems"], raw)).toBe("bsystems");
     }
   });
 
@@ -111,10 +122,15 @@ describe("resolveModuleCompany — the URL narrows, it never grants", () => {
 });
 
 describe("acctView — the accounting module opens on a company you hold", () => {
-  it("a Mindoo account never lands on another company's books", () => {
-    const view = acctView({ company: "byteforce" }, moduleCompaniesFor(MINDOO));
-    expect(view.company).toBe("mindoo");
-    expect(view.companies).toEqual(["mindoo"]);
+  it("an account never lands on a company's books it does not hold", () => {
+    const view = acctView({ company: "byteforce" }, ["bsystems"]);
+    expect(view.company).toBe("bsystems");
+    expect(view.companies).toEqual(["bsystems"]);
+  });
+
+  it("ADR-080 — a RETIRED role has no books to open at all", () => {
+    const view = acctView({ company: "mindoo" }, moduleCompaniesFor(RETIRED));
+    expect(view.companies).toEqual([]);
   });
 
   it("a B-Systems admin's default and tabs are byte-for-byte what they were", () => {
@@ -126,19 +142,22 @@ describe("acctView — the accounting module opens on a company you hold", () =>
 
 describe("the vault's company clause", () => {
   const BS_VISIBLE = ["byteforce", "bsystems"] as const;
-  const MD_VISIBLE = ["mindoo"] as const;
+  /* ADR-080 — an account holding ONE company and not the module's default. It
+     was Mindoo's list; the property it proves is about the DEFAULT, not about
+     which company, so B-Systems-only carries it with a company that exists. */
+  const ONE_VISIBLE = ["bsystems"] as const;
 
   it("an untagged row belongs to the accounts that own the default company", () => {
     expect(seesUntagged(BS_VISIBLE)).toBe(true);
-    expect(seesUntagged(MD_VISIBLE)).toBe(false);
+    expect(seesUntagged(ONE_VISIBLE)).toBe(false);
   });
 
   it("with no filter, a list is every company this account holds", () => {
     expect(vaultCompanyWhere(BS_VISIBLE, undefined)).toEqual({
       AND: [{ company: { in: ["byteforce", "bsystems"] } }],
     });
-    expect(vaultCompanyWhere(MD_VISIBLE, undefined)).toEqual({
-      AND: [{ company: { in: ["mindoo"] } }],
+    expect(vaultCompanyWhere(ONE_VISIBLE, undefined)).toEqual({
+      AND: [{ company: { in: ["bsystems"] } }],
     });
   });
 
@@ -149,11 +168,11 @@ describe("the vault's company clause", () => {
   });
 
   it("a filter naming a company it does NOT hold is ignored, never obeyed", () => {
-    /* the important one: `?company=bsystems` typed into a Mindoo session must
-       not return B-Systems' rows, and must not return nothing either — it is
-       a filter that does not apply */
-    expect(vaultCompanyWhereNullable(MD_VISIBLE, "bsystems")).toEqual({
-      AND: [{ OR: [{ company: { in: ["mindoo"] } }] }],
+    /* the important one: a `?company=` naming a company this session does not
+       hold must not return that company's rows, and must not return nothing
+       either — it is a filter that does not apply */
+    expect(vaultCompanyWhereNullable(ONE_VISIBLE, "byteforce")).toEqual({
+      AND: [{ OR: [{ company: { in: ["bsystems"] } }] }],
     });
   });
 
@@ -165,9 +184,9 @@ describe("the vault's company clause", () => {
     expect(vaultCompanyWhereNullable(BS_VISIBLE, "byteforce")).toEqual({
       AND: [{ OR: [{ company: { in: ["byteforce"] } }] }],
     });
-    /* and Mindoo never sees them at all */
-    expect(vaultCompanyWhereNullable(MD_VISIBLE, undefined)).toEqual({
-      AND: [{ OR: [{ company: { in: ["mindoo"] } }] }],
+    /* and an account without the default company never sees them at all */
+    expect(vaultCompanyWhereNullable(ONE_VISIBLE, undefined)).toEqual({
+      AND: [{ OR: [{ company: { in: ["bsystems"] } }] }],
     });
   });
 

@@ -20,7 +20,7 @@ export const metadata = { title: "Calendar — B-Systems CRM" };
    to the service, which turns everything outside it into a "busy" block rather
    than dropping it.
 
-   ADR-074 — Mindoo's calendar is the same BODY at /mindoo/calendar, under its
+   ADR-074 — the calendar is a shared BODY a route renders, under its
    own guard and its own scope. */
 
 export default async function CalendarPage({

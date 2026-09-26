@@ -25,15 +25,14 @@ export async function mentionableUsersFor(leadId: string): Promise<Mention[]> {
   });
   if (!lead) throw new ApiError(404, "Lead not found");
 
-  /* ADR-073 — the two SINGLE-ROLE companies answer this identically: everybody
-     who holds the company's one staff role can open every one of its leads, so
-     everybody is mentionable. Only B-Systems has owner buckets to narrow by,
-     which is why it is the one branch with an OR in it. Naming Mindoo here
-     rather than letting it fall through matters: the fall-through would have
-     offered B-Systems' admins and agents on a Mindoo lead's chat. */
+  /* ADR-073 — a SINGLE-ROLE company answers this in one line: everybody who
+     holds its one staff role can open every one of its leads, so everybody is
+     mentionable. Only B-Systems has owner buckets to narrow by, which is why it
+     is the one branch with an OR in it. A TABLE rather than a ternary, so a
+     company that is not named here cannot fall through and be offered
+     B-Systems' admins and agents on its own lead's chat. */
   const singleStaffRole: Partial<Record<string, string>> = {
     byteforce: "byteforce_staff",
-    mindoo: "mindoo_staff",
   };
   const soleRole = singleStaffRole[lead.brand];
   const where =

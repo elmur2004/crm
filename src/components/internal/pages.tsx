@@ -19,7 +19,6 @@ import {
   nav,
 } from "@/lib/i18n/dict/internal";
 import { internalDashboard } from "@/lib/services/metrics";
-import { byteforceOwedFromMindoo } from "@/lib/services/foreign-sub-service";
 import {
   listRepsWithCounts,
   listReps,
@@ -28,7 +27,7 @@ import {
 } from "@/lib/services/sales-reps";
 import { listClients } from "@/lib/services/clients";
 import { getLeadDetail, latestProposalValue } from "@/lib/services/leads";
-import { formatMoney } from "@/lib/money";
+import { formatEGP } from "@/lib/money";
 import { formatCairo, formatCairoDate } from "@/lib/datetime";
 import { waHref } from "@/lib/phone-dial";
 import { waSentLabel, whatsappMarkOf } from "@/components/shared/whatsappMark";
@@ -75,7 +74,6 @@ export type InternalAppCtx = CrmSurface;
 const BRAND_EYEBROW: Record<Brand, string> = {
   byteforce: "BYTEFORCE",
   bsystems: "B-SYSTEMS",
-  mindoo: "MINDOO", // ADR-073
 };
 
 /* Decorative initials for entity-card marks (aria-hidden, spec §2.4). */
@@ -90,27 +88,10 @@ function markInitials(name: string): string {
 
 /* ---------------- Home dashboard (§6.5) ---------------- */
 
-export async function DashboardBody({
-  ctx,
-  showMindoo = false,
-}: {
-  ctx: InternalAppCtx;
-  /* ADR-077 — whether this reader sees what MINDOO OWES BYTEFORCE inside the
-     pipeline figure. The founder chose both that the sub-service counts toward
-     ByteForce's pipeline value AND that only he can see the sub-service at all;
-     the two together mean the money follows the visibility. A figure he cannot
-     trace would be worse than one that is not there, so ByteForce's own staff
-     keep exactly the dashboard they have always had.
-
-     Two roles, two answers — which this codebase already does for commission
-     (V2 §4). What it never does is two answers for the SAME role, and that
-     line is not crossed here. Defaulted OFF, so a new caller cannot leak it. */
-  showMindoo?: boolean;
-}) {
+export async function DashboardBody({ ctx }: { ctx: InternalAppCtx }) {
   const locale = await getLocale();
   const t = tFor(locale);
   const d = await internalDashboard(ctx.brand);
-  const owed = showMindoo ? await byteforceOwedFromMindoo() : 0;
   const stageCells: Array<{ key: string; label: string; value: string }> = [
     { key: "intake", label: t(dash.newNotActioned), value: String(d.leadsPerStage["new"] ?? 0) },
     { key: "following", label: stageLabel(locale, "following_up"), value: String(d.leadsPerStage["following_up"] ?? 0) },
@@ -131,11 +112,11 @@ export async function DashboardBody({
         <StatCard label={t(dash.totalLeads)} value={String(d.totalLeads)} />
         <StatCard
           label={t(dash.pipelineValue)}
-          value={formatMoney(d.pipelineValue + owed, ctx.brand)}
-          hint={owed > 0 ? t(dash.includesMindoo) : t(dash.activeStagesOnly)}
+          value={formatEGP(d.pipelineValue)}
+          hint={t(dash.activeStagesOnly)}
         />
-        <StatCard label={t(dash.wonValue)} value={formatMoney(d.wonValue, ctx.brand)} />
-        <StatCard label={t(dash.toBeCollected)} value={formatMoney(d.toBeCollected, ctx.brand)} hint={t(dash.acrossAllClients)} />
+        <StatCard label={t(dash.wonValue)} value={formatEGP(d.wonValue)} />
+        <StatCard label={t(dash.toBeCollected)} value={formatEGP(d.toBeCollected)} hint={t(dash.acrossAllClients)} />
       </div>
       <div className="card card--flush0">
         <div className="card-head">
@@ -459,7 +440,6 @@ export async function LeadDetailBody({ ctx, leadId }: { ctx: InternalAppCtx; lea
               {t(leadDetail.stageRecords)}
             </h2>
             <GroupHistory
-          brand={ctx.brand}
               followUps={lead.followUps}
               meetings={lead.meetings}
               proposals={lead.proposals}
@@ -498,19 +478,9 @@ const BOARD_STAGES = [...INTERNAL_STAGES];
 export async function CrmBoardBody({
   ctx,
   params,
-  showMindoo = false,
 }: {
   ctx: InternalAppCtx;
   params?: { q?: string; type?: string };
-  /* ADR-076 — whether to draw MINDOO'S leads beside this company's, as purple
-     read-only cards. Founder: "the crm of mindoo should appear in byteforce crm
-     as purple cards and not in bsystems crm."
-
-     Decided by the PAGE, from the live roles, and defaulted OFF: the ByteForce
-     board is rendered for every `byteforce_staff` account, and only the
-     platform administrator should see another company's pipeline. A default of
-     `true` would have made that an opt-out. */
-  showMindoo?: boolean;
 }) {
   const locale = await getLocale();
   const t = tFor(locale);
@@ -555,10 +525,10 @@ export async function CrmBoardBody({
           : t(board.meetingNotArranged);
       case "sending_proposal":
         return lead.proposals[0]?.estimatedValue != null
-          ? `${t(board.estPrefix)} ${formatMoney(lead.proposals[0].estimatedValue, ctx.brand)}`
+          ? `${t(board.estPrefix)} ${formatEGP(lead.proposals[0].estimatedValue)}`
           : t(common.noValueSet);
       case "won":
-        return lead.wonInfo ? `${t(board.estPrefix)} ${formatMoney(lead.wonInfo.estimatedValue, ctx.brand)}` : "";
+        return lead.wonInfo ? `${t(board.estPrefix)} ${formatEGP(lead.wonInfo.estimatedValue)}` : "";
       case "lost":
         return lead.lostInfo[0]?.reason ?? "";
       default:
@@ -600,85 +570,10 @@ export async function CrmBoardBody({
         ? lead.meetings[0].datetime.toISOString()
         : null,
   }));
-  /* ADR-076 — MINDOO'S LEADS, as purple read-only cards.
-
-     THE STAGE PROBLEM, and the founder's answer to it. Mindoo runs the
-     B-Systems pipeline, which has a NEGOTIATION stage this board does not: a
-     Mindoo lead sitting there has no column to land in, and simply not
-     rendering it would hide the deals furthest along — usually the ones most
-     worth seeing. Asked, he chose to show them in Sending Proposals. So the
-     card is placed there and CARRIES ITS REAL STAGE on its face, because a
-     column that silently relabels a deal is worse than one that admits it. */
-  const foreign: InternalBoardLead[] = showMindoo
-    ? (
-        await db.lead.findMany({
-          where: {
-            brand: "mindoo",
-            archived: false,
-            ...leadSearchWhere(search),
-            ...leadTypeWhere(type),
-          },
-          include: {
-            followUps: { orderBy: { createdAt: "desc" }, take: 1 },
-            meetings: { orderBy: { createdAt: "desc" }, take: 1 },
-            proposals: { orderBy: { createdAt: "desc" }, take: 1 },
-            lostInfo: { orderBy: { createdAt: "desc" }, take: 1 },
-          },
-          orderBy: { updatedAt: "desc" },
-        })
-      ).map((lead) => {
-        /* the column this board can actually draw it in */
-        const column = (BOARD_STAGES as readonly string[]).includes(lead.stage)
-          ? lead.stage
-          : /* the founder's choice for a stage this board has no column for.
-               `proposalStage` is optional on a PipelineConfig, so the literal
-               is the floor — and it is the same stage internal-crm names. */
-            (internalCrmConfig.proposalStage ?? "sending_proposal");
-        return {
-          id: lead.id,
-          name: lead.name,
-          subtitle: leadTypeLabel(locale, lead.type),
-          partnerBadge: null,
-          stage: column,
-          foreignCompany: {
-            label: "Mindoo",
-            href: `${ctx.basePath}/crm/company-lead/${lead.id}${ctx.query}`,
-            /* named ONLY when the column is not the lead's own stage — on a
-               card that is where it belongs, repeating the column would be
-               noise */
-            stageLabel: column === lead.stage ? null : stageLabel(locale, lead.stage),
-          },
-          /* ADR-077 — BOTH HALVES OF THE DEAL, on the card. Mindoo's own quote
-             in RIYALS is what the prospect was given; the ByteForce line beside
-             it in POUNDS is what this company is owed inside it. Two
-             currencies, each printed with its own brand, never summed — see
-             lib/money.ts on why there is no rate anywhere in this codebase. */
-          keyDatum: [
-            lead.proposals[0]?.estimatedValue != null
-              ? formatMoney(lead.proposals[0].estimatedValue, "mindoo")
-              : null,
-            lead.proposals[0]?.bfService != null && lead.proposals[0].bfValue != null
-              ? `${lead.proposals[0].bfService} · ${formatMoney(lead.proposals[0].bfValue, "byteforce")}`
-              : null,
-          ]
-            .filter(Boolean)
-            .join(" → "),
-          noAnswer: lead.noAnswer,
-          noAnswerCount: lead.noAnswerCount,
-          latestProposalValue: null,
-          waHref: null,
-          waSentLabel: null,
-          waMarkUrl: "",
-          followUpDueAt: null,
-          meetingAt: null,
-        } satisfies InternalBoardLead;
-      })
-    : [];
-
   /* founder (ADR-064): the Meeting Setting column runs soonest-meeting-first,
      always — server-side, where the list is built, so the client never has to
      re-order. Every other column keeps its `updatedAt desc`. */
-  const orderedCards = orderMeetingColumn([...cards, ...foreign], internalCrmConfig.meetingStage);
+  const orderedCards = orderMeetingColumn(cards, internalCrmConfig.meetingStage);
 
   return (
     <div className="space-y-6">
@@ -798,16 +693,16 @@ export async function ClientsBody({ ctx }: { ctx: InternalAppCtx }) {
               <div className="ecard-stats">
                 <div>
                   <p className="ecard-stat-label">{t(clientsPage.estimatedColon)}</p>
-                  <p className="ecard-stat-value">{formatMoney(c.estimatedValue, ctx.brand)}</p>
+                  <p className="ecard-stat-value">{formatEGP(c.estimatedValue)}</p>
                 </div>
                 <div>
                   <p className="ecard-stat-label">{t(clientsPage.collectedColon)}</p>
-                  <p className="ecard-stat-value">{formatMoney(c.collected, ctx.brand)}</p>
+                  <p className="ecard-stat-value">{formatEGP(c.collected)}</p>
                 </div>
                 <div>
                   <p className="ecard-stat-label">{t(clientsPage.toBeCollectedColon)}</p>
                   <p className="ecard-stat-value">
-                    {formatMoney(c.toBeCollected, ctx.brand)}
+                    {formatEGP(c.toBeCollected)}
                     {c.dueDate ? ` (${t(clientsPage.due)} ${formatCairoDate(c.dueDate, locale)})` : ""}
                   </p>
                 </div>

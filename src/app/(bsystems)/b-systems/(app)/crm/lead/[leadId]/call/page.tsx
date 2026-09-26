@@ -11,7 +11,7 @@ import { callSheet } from "@/lib/i18n/dict/call";
    lead detail; CallSheet re-checks requireLeadAccess for the specific lead.
 
    ADR-067 — B-Systems only; ByteForce's call sheet is its own route.
-   ADR-074 — and Mindoo's is its own route too, at /mindoo/crm/lead/…/call. */
+   ADR-074 — the call sheet is a shared body a route renders. */
 
 export async function generateMetadata() {
   const locale = await getLocale();

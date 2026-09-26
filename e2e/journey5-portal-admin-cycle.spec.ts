@@ -86,9 +86,8 @@ async function dragTo(page: Page, card: Locator, column: Locator) {
      BEFORE that move. If that last move triggered one more auto-scroll, the
      release happened at a stale point, one column to the left of the target.
 
-     ADR-075 is what exposed it: the admin's board now also carries Mindoo's
-     leads (the founder asked for them), the columns got taller and busier, and
-     the drop landed on Postpone — the column immediately before Won. The
+     It was exposed by a board that had grown taller and busier: the drop
+     landed on Postpone — the column immediately before Won. The
      product is unaffected, because a person drags with the target column
      highlighted and lets go when it is right; this is a scripted pointer with
      no eyes, so it has to check.

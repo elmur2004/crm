@@ -3,7 +3,7 @@ import { requireAccountingPage } from "@/lib/auth/page-guards";
 import { getLocale } from "@/lib/i18n/server";
 import { tFor } from "@/lib/i18n/core";
 import { acct } from "@/lib/i18n/dict/accounting";
-import { formatMoney } from "@/lib/money";
+import { formatEGP } from "@/lib/money";
 import { loadBooks } from "@/lib/accounting/books";
 import { clientAccounts, clientTotals } from "@/lib/accounting/engine";
 import { acctQuery, acctView } from "@/lib/accounting/params";
@@ -54,11 +54,11 @@ export default async function AcctClientsPage({
           </Link>
         </div>
         <div className="tile-grid">
-          <AcctTile label={t(acct.invoiced)} value={formatMoney(selected.invoiced, view.company)} />
-          <AcctTile label={t(acct.collected)} value={formatMoney(selected.collected, view.company)} tone="success" />
+          <AcctTile label={t(acct.invoiced)} value={formatEGP(selected.invoiced)} />
+          <AcctTile label={t(acct.collected)} value={formatEGP(selected.collected)} tone="success" />
           <AcctTile
             label={t(acct.balance)}
-            value={formatMoney(Math.abs(selected.balance), view.company)}
+            value={formatEGP(Math.abs(selected.balance))}
             sub={
               selected.balance > 0
                 ? t(acct.owesYou)
@@ -68,7 +68,7 @@ export default async function AcctClientsPage({
             }
           />
           {selected.held !== 0 ? (
-            <AcctTile label={t(acct.adBudgetHeld)} value={formatMoney(selected.held, view.company)} />
+            <AcctTile label={t(acct.adBudgetHeld)} value={formatEGP(selected.held)} />
           ) : null}
         </div>
         <section className="card card--flush0">
@@ -93,11 +93,11 @@ export default async function AcctClientsPage({
                     <td className="td-mono u-ltr">{l.date}</td>
                     <td>{lineLabel[l.kind] ?? l.desc}</td>
                     <td className="td-mono">{l.note || "—"}</td>
-                    <td>{l.debit ? formatMoney(l.debit, view.company) : l.held && l.held < 0 ? `${formatMoney(-l.held, view.company)} ⤳` : "—"}</td>
+                    <td>{l.debit ? formatEGP(l.debit) : l.held && l.held < 0 ? `${formatEGP(-l.held)} ⤳` : "—"}</td>
                     <td className={l.credit ? "text-brand-success" : ""}>
-                      {l.credit ? formatMoney(l.credit, view.company) : l.held && l.held > 0 ? `${formatMoney(l.held, view.company)} ⤳` : "—"}
+                      {l.credit ? formatEGP(l.credit) : l.held && l.held > 0 ? `${formatEGP(l.held)} ⤳` : "—"}
                     </td>
-                    <td className="td-title">{formatMoney(Math.abs(l.running ?? 0), view.company)}</td>
+                    <td className="td-title">{formatEGP(Math.abs(l.running ?? 0))}</td>
                   </tr>
                 ))}
               </tbody>
@@ -125,9 +125,9 @@ export default async function AcctClientsPage({
         showMonth={false}
       />
       <div className="tile-grid">
-        <AcctTile label={t(acct.totalOwedByClients)} value={formatMoney(totals.owed, view.company)} sub={t(acct.acrossAllClients)} />
-        <AcctTile label={t(acct.totalClientCredit)} value={formatMoney(totals.credit, view.company)} sub={t(acct.acrossAllClients)} />
-        <AcctTile label={t(acct.netClientBalance)} value={formatMoney(Math.abs(totals.net), view.company)} />
+        <AcctTile label={t(acct.totalOwedByClients)} value={formatEGP(totals.owed)} sub={t(acct.acrossAllClients)} />
+        <AcctTile label={t(acct.totalClientCredit)} value={formatEGP(totals.credit)} sub={t(acct.acrossAllClients)} />
+        <AcctTile label={t(acct.netClientBalance)} value={formatEGP(Math.abs(totals.net))} />
       </div>
       <section className="card card--flush0">
         {list.length === 0 ? (
@@ -156,9 +156,9 @@ export default async function AcctClientsPage({
                         {a.client}
                       </Link>
                     </td>
-                    <td>{formatMoney(a.invoiced, view.company)}</td>
-                    <td className="text-brand-success">{formatMoney(a.collected, view.company)}</td>
-                    <td className="td-title">{formatMoney(Math.abs(a.balance), view.company)}</td>
+                    <td>{formatEGP(a.invoiced)}</td>
+                    <td className="text-brand-success">{formatEGP(a.collected)}</td>
+                    <td className="td-title">{formatEGP(Math.abs(a.balance))}</td>
                     <td>
                       {a.balance > 0 ? (
                         <AcctChip kind="wait">{t(acct.owesYou)}</AcctChip>
@@ -168,7 +168,7 @@ export default async function AcctClientsPage({
                         <AcctChip kind="good">{t(acct.settled)}</AcctChip>
                       )}
                     </td>
-                    <td>{a.held ? formatMoney(a.held, view.company) : "—"}</td>
+                    <td>{a.held ? formatEGP(a.held) : "—"}</td>
                   </tr>
                 ))}
               </tbody>

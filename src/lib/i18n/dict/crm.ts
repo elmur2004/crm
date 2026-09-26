@@ -37,18 +37,19 @@ export const roles = {
   bsystems_agent: { en: "Agent", ar: "وكيل" },
   bsystems_partner: { en: "Partner", ar: "شريك" },
   bsystems_data_entry: { en: "Data entry", ar: "إدخال بيانات" },
-  /* ADR-073 — Mindoo's one role. Named here so the shell's role line and the
-     Users table print words rather than the raw id; both have a fallback, so
-     this is legibility rather than a fix. (`byteforce_staff` has never been in
-     this map — its label comes from the ByteForce dictionary.) */
-  mindoo_staff: { en: "Mindoo staff", ar: "فريق ميندو" },
 } satisfies Record<string, Msg>;
 
 /* ---- shared bits across the surface ---- */
 
 export const common = {
   /* ADR-075 — the footnote on another company's lead, so "why can I not edit
-     this" is answered on the page rather than guessed at. */
+     this" is answered on the page rather than guessed at.
+
+     ADR-080 removed the read-only foreign-lead page with the company it was
+     written for, and this key is KEPT, per the house convention that never
+     deletes a key: its English names no company (`{company}` is interpolated),
+     so it is still true copy the day another company's rows are shown here
+     again, and an EN string in this repo is asserted on. */
   readOnlyForeignLead: {
     en: "This lead belongs to {company}. You can see it here; it is edited in {company}'s own system.",
     ar: "هذا العميل يخص {company}. يمكنك الاطلاع عليه هنا، ويتم تعديله في نظام {company} الخاص.",
@@ -387,29 +388,3 @@ export const proposalEdit = {
   fieldValue: { en: "Estimated value", ar: "القيمة التقديرية" },
 } as const;
 
-/* ADR-077 — the ByteForce sub-service on a Mindoo proposal. Founder: "this
-   proposal is X amount in Saudi riyal, and then we will get this sub-service
-   for ByteForce for X amount in Egyptian pounds." Only the platform admin ever
-   reads these strings. */
-export const subService = {
-  heading: { en: "ByteForce share of this deal", ar: "حصة ByteForce من هذه الصفقة" },
-  quotedToClient: { en: "Quoted to the client", ar: "المعروض على العميل" },
-  none: {
-    en: "No ByteForce service attached to this proposal yet.",
-    ar: "لا توجد خدمة من ByteForce مرتبطة بهذا العرض بعد.",
-  },
-  noProposal: {
-    en: "This lead has not been quoted yet — there is no proposal to attach a ByteForce service to.",
-    ar: "لم يتم تقديم عرض سعر لهذا العميل بعد — لا يوجد عرض لإرفاق خدمة ByteForce به.",
-  },
-  add: { en: "Add ByteForce service", ar: "إضافة خدمة ByteForce" },
-  edit: { en: "Edit ByteForce service", ar: "تعديل خدمة ByteForce" },
-  remove: { en: "Remove", ar: "إزالة" },
-  fieldService: { en: "ByteForce service", ar: "خدمة ByteForce" },
-  fieldValue: { en: "Amount (EGP)", ar: "المبلغ (جنيه مصري)" },
-  /* the sentence that stops the two currencies being mistaken for each other */
-  hint: {
-    en: "The client is quoted in riyals by Mindoo; this is what ByteForce is owed in pounds for its part. The two are never added together, and only you can see this.",
-    ar: "يتم عرض السعر على العميل بالريال من Mindoo؛ هذا هو المستحق لـ ByteForce بالجنيه مقابل دوره. لا يُجمع المبلغان أبدًا، وأنت وحدك من يرى هذا.",
-  },
-} as const;

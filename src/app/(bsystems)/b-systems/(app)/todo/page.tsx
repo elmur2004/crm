@@ -39,7 +39,7 @@ export default async function BsTodoPage({
     return <TodoBody lists={lists} apiBase="/api/byteforce" />;
   }
 
-  /* ADR-074 — Mindoo's To-Do left with Mindoo, to /mindoo/todo. */
+  /* ADR-074 — the To-Do is a shared body; the SURFACE decides whose rows. */
 
   /* ADR-051 + ADR-067 — under ByteForce the company itself proves
      `byteforce_staff` (companiesFor only reports a company a role carries), so

@@ -43,8 +43,7 @@ test("dial from the board card opens the call sheet with a dialable tel: link", 
   /* ADR-067 — the call sheet is a shared address (B-Systems and ByteForce each
      have one), so its links carry `?company=`; without it the page would
      resolve the reader's default company and 404 the other one's lead.
-     ADR-074 moved MINDOO's off this route entirely — it has its own at
-     /mindoo/crm/lead/…/call, with no company on it at all. A PREDICATE rather
+     A PREDICATE rather
      than a regex: escaping `?` inside a template literal is a trap — `\?` there
      collapses to a bare `?`, which quietly makes the previous character
      optional instead of matching a query string. */
@@ -96,8 +95,7 @@ test("dial from the board card opens the call sheet with a dialable tel: link", 
   /* ADR-067 — the call sheet is a shared address (B-Systems and ByteForce each
      have one), so its links carry `?company=`; without it the page would
      resolve the reader's default company and 404 the other one's lead.
-     ADR-074 moved MINDOO's off this route entirely — it has its own at
-     /mindoo/crm/lead/…/call, with no company on it at all. A PREDICATE rather
+     A PREDICATE rather
      than a regex: escaping `?` inside a template literal is a trap — `\?` there
      collapses to a bare `?`, which quietly makes the previous character
      optional instead of matching a query string. */

@@ -1,7 +1,7 @@
 import { db } from "@/lib/db";
 import { leadHref } from "@/lib/crm/surface";
 import type { Brand, Role } from "@/lib/pipeline-engine/constants";
-import { BS_CRM_ROLES, BS_PIPELINE_ROLES, MINDOO_ROLES } from "@/lib/crm/company";
+import { BS_CRM_ROLES, BS_PIPELINE_ROLES } from "@/lib/crm/company";
 
 /* ============================================================================
    ADR-071 — THE CALENDAR.
@@ -100,13 +100,12 @@ export interface CalendarEntry {
 /** Every role that puts a person inside this company — the same predicate
     `companiesFor` narrows with, read in the other direction. */
 export function rolesForCompany(brand: Brand): Role[] {
-  /* ADR-073 — a table, not a ternary: Mindoo falling through to the B-Systems
-     roster would have put every B-Systems agent on Mindoo's calendar and made
-     Mindoo's own staff invisible on it. */
+  /* ADR-073 — a table, not a ternary: a company falling through to another
+     company's roster puts the wrong people on a calendar, and it does so
+     silently. Kept a table by ADR-080. */
   const byBrand: Record<Brand, Role[]> = {
     byteforce: ["byteforce_staff"],
     bsystems: [...BS_CRM_ROLES],
-    mindoo: [...MINDOO_ROLES],
   };
   return byBrand[brand];
 }
@@ -348,5 +347,4 @@ export async function calendarFor(opts: {
 export const CALENDAR_ROLES: readonly [Role, ...Role[]] = [
   ...BS_PIPELINE_ROLES,
   "byteforce_staff",
-  ...MINDOO_ROLES, // ADR-073
 ];

@@ -3,17 +3,12 @@ import { BRANDS, type Brand, type Role } from "@/lib/pipeline-engine/constants";
 /* ============================================================================
    ADR-074 — WHICH COMPANIES A MODULE SHOWS THIS ACCOUNT.
 
-   Founder: Mindoo has "vault and accounting and the crm and to do and calender
-   all the other things"; and, in the same breath, "nothing inside bsystems goes
-   to mindoo and vice versa."
-
-   Those two sentences together are this file. Accounting and the Data Vault are
-   MODULES (ADR-054) — one screen set with a COMPANY FILTER on it, not one
-   application per company — so Mindoo does not need a second Accounting; it
-   needs the same one, opened to a different set of companies. That is the
-   cheapest honest answer, and it is also the safest: there is one query layer,
-   one importer, one export format and one set of tests, with a single predicate
-   deciding what any account may point them at.
+   ADR-080 removed the second answer this function was written to give (Mindoo's)
+   and the function stays, because the QUESTION it answers is not Mindoo's: a
+   module is one screen set with a company FILTER on it (ADR-054), and every
+   caller still has to be told which companies to filter to rather than assuming
+   the platform's whole list. That is the distinction ADR-074 §5 drew between a
+   filter and a tenant, and it survives the tenant leaving.
 
    THE LAW OF THIS FILE, stated once and matching `companiesFor`'s in
    lib/crm/company.ts: it NARROWS. It reads the roles an account already holds
@@ -21,8 +16,7 @@ import { BRANDS, type Brand, type Role } from "@/lib/pipeline-engine/constants";
    branch here that can hand anybody a company a role does not already carry,
    and every caller must treat a company OUTSIDE the returned list as absent —
    not as forbidden. A module shows a tab for each company in this list and no
-   others, so a B-Systems admin is never offered Mindoo's books and Mindoo's
-   staff is never offered ByteForce's.
+   others.
 
    ORDER IS LOAD-BEARING: the first entry is the DEFAULT the module opens on
    when the URL does not say, so ByteForce stays first for the accounts that
@@ -32,11 +26,8 @@ import { BRANDS, type Brand, type Role } from "@/lib/pipeline-engine/constants";
 export function moduleCompaniesFor(roles: Role[]): Brand[] {
   const held: Brand[] = [];
   /* B-Systems' administrator keeps EXACTLY the two companies he has had since
-     ADR-052. Adding Mindoo to the platform must not add a tab to his books. */
+     ADR-052 — which, since ADR-080, is again every company there is. */
   if (roles.includes("bsystems_admin")) held.push("byteforce", "bsystems");
-  /* Mindoo's staff is its own company's administrator, and its whole world is
-     one company. */
-  if (roles.includes("mindoo_staff")) held.push("mindoo");
   return held;
 }
 

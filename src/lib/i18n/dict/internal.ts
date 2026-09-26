@@ -45,12 +45,6 @@ export const dash = {
   eyebrowHome: { en: "HOME", ar: "الرئيسية" },
   totalLeads: { en: "Total leads", ar: "إجمالي العملاء المحتملين" },
   pipelineValue: { en: "Pipeline value", ar: "قيمة خط المبيعات" },
-  /* ADR-077 — the hint changes when the figure includes what Mindoo owes
-     ByteForce, so the number is never larger than the reader can account for. */
-  includesMindoo: {
-    en: "Active stages, including ByteForce's share of Mindoo deals",
-    ar: "المراحل النشطة، شاملة حصة ByteForce من صفقات Mindoo",
-  },
   activeStagesOnly: { en: "Active stages only", ar: "المراحل النشطة فقط" },
   wonValue: { en: "Won value", ar: "قيمة الصفقات المكسوبة" },
   toBeCollected: { en: "To be collected", ar: "المطلوب تحصيله" },

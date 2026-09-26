@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/lib/db";
 import { resetDb } from "@/tests/db-reset";
-import { ensureAdminExists } from "./bootstrap";
+import { BOOTSTRAP_ADMIN_EMAILS, ensureAdminExists } from "./bootstrap";
 import { hashPassword, verifyPassword } from "@/lib/auth/hash";
 
 /* Founder: the admin MUST work in every environment, with the DOCUMENTED
@@ -11,12 +11,10 @@ import { hashPassword, verifyPassword } from "@/lib/auth/hash";
 beforeEach(async () => {
   await resetDb();
   delete process.env.ADMIN_PASSWORD;
-  delete process.env.MINDOO_ADMIN_PASSWORD;
 });
 
 afterEach(() => {
   delete process.env.ADMIN_PASSWORD;
-  delete process.env.MINDOO_ADMIN_PASSWORD;
 });
 
 describe("Admin bootstrap (self-healing, password-pinned)", () => {
@@ -117,11 +115,11 @@ describe("Admin bootstrap (self-healing, password-pinned)", () => {
     await ensureAdminExists();
     await ensureAdminExists();
     /* ADR-074 — counted PER ADMIN rather than globally. The global count said
-       "2" and meant "the one admin's two roles"; with a second administrator on
-       the table that sentence stopped being true while the property it was
+       "2" and meant "the one admin's two roles", which stopped being true the
+       moment a second administrator joined the table while the property it was
        protecting — nothing duplicated — still held. Per-account is what was
-       always meant, and it survives a third. */
-    for (const email of ["admin@byteforce.com", "admin@mindoo.com"]) {
+       always meant, and it survives the next one. */
+    for (const email of BOOTSTRAP_ADMIN_EMAILS) {
       const admin = await db.user.findUniqueOrThrow({
         where: { email },
         include: { roles: true },
@@ -135,81 +133,18 @@ describe("Admin bootstrap (self-healing, password-pinned)", () => {
 });
 
 /* ============================================================================
-   ADR-074 — MINDOO'S ADMINISTRATOR IS BOOTSTRAPPED TOO.
+   ADR-074 — A BOOTSTRAP ADMIN'S ROLES ARE ASSERTED, NARROWLY.
 
-   The founder asked for Mindoo by credential — "I enter the creditials :
-   admin@mindoo.com and password123" — and that account was created by the SEED
-   alone. The production launcher runs `prisma migrate deploy` and never
-   `prisma db seed`, so a seeded-only account reaches a freshly seeded local
-   database and nowhere else: the credential he was given answered "wrong
-   password" on every other environment, forever, with nothing in the product to
-   explain it. Which is exactly what he reported.
+   The mechanism was built for two administrators, so that neither could end up
+   holding the other's app: each admin's own roles are upserted and any role
+   owned by ANOTHER bootstrap admin is revoked BY NAME. ADR-080 removed the
+   second administrator, so there is nothing to revoke today — and the narrow
+   shape is what survives, because the alternative ("revoke everything not in the
+   list") would silently undo a role the founder granted from the Users screen.
+   That is the case below, and it is the one that still has teeth.
    ========================================================================== */
 
-describe("ADR-074 — Mindoo's administrator heals like B-Systems'", () => {
-  it("is created on an empty database, approved, with its one role", async () => {
-    expect(await ensureAdminExists()).toBe("ok");
-    const admin = await db.user.findUniqueOrThrow({
-      where: { email: "admin@mindoo.com" },
-      include: { roles: true },
-    });
-    expect(admin.name).toBe("Mindoo Admin");
-    expect(admin.active).toBe(true);
-    expect(admin.registrationStatus).toBe("approved");
-    expect(admin.roles.map((r) => r.role)).toEqual(["mindoo_staff"]);
-    expect(await verifyPassword("password123", admin.passwordHash)).toBe(true);
-  });
-
-  it("repairs a stale hash, exactly as the other admin's pin does", async () => {
-    await db.user.create({
-      data: {
-        name: "Mindoo Admin",
-        email: "admin@mindoo.com",
-        passwordHash: await hashPassword("something-else"),
-        active: false,
-        registrationStatus: "pending",
-      },
-    });
-    expect(await ensureAdminExists()).toBe("ok");
-    const admin = await db.user.findUniqueOrThrow({
-      where: { email: "admin@mindoo.com" },
-      include: { roles: true },
-    });
-    expect(await verifyPassword("password123", admin.passwordHash)).toBe(true);
-    expect(admin.active).toBe(true);
-    expect(admin.registrationStatus).toBe("approved");
-    expect(admin.roles.map((r) => r.role)).toEqual(["mindoo_staff"]);
-  });
-
-  it("honours its OWN password env, and not the other admin's", async () => {
-    /* per-account on purpose: rotating one company's administrator must not
-       silently change another company's */
-    process.env.MINDOO_ADMIN_PASSWORD = "mindoo-rotated";
-    process.env.ADMIN_PASSWORD = "bsystems-rotated";
-    expect(await ensureAdminExists()).toBe("ok");
-    const mindoo = await db.user.findUniqueOrThrow({ where: { email: "admin@mindoo.com" } });
-    const bsystems = await db.user.findUniqueOrThrow({ where: { email: "admin@byteforce.com" } });
-    expect(await verifyPassword("mindoo-rotated", mindoo.passwordHash)).toBe(true);
-    expect(await verifyPassword("bsystems-rotated", bsystems.passwordHash)).toBe(true);
-  });
-
-  it("REVOKES the other app's role — the two administrators never overlap", async () => {
-    /* the ADR-073 state, which every database seeded before ADR-074 still
-       carries: one account holding all three companies. Holding both apps puts
-       it in whichever one `landingFor` names and hands it a module switcher
-       that crosses the wall. */
-    await ensureAdminExists();
-    const bs = await db.user.findUniqueOrThrow({ where: { email: "admin@byteforce.com" } });
-    await db.userRole.create({ data: { userId: bs.id, role: "mindoo_staff" } });
-
-    expect(await ensureAdminExists()).toBe("ok");
-    const healed = await db.user.findUniqueOrThrow({
-      where: { email: "admin@byteforce.com" },
-      include: { roles: true },
-    });
-    expect(healed.roles.map((r) => r.role).sort()).toEqual(["bsystems_admin", "byteforce_staff"]);
-  });
-
+describe("ADR-074 — the bootstrap asserts roles without confiscating them", () => {
   it("leaves a role the founder granted by hand alone", async () => {
     /* narrow revocation, by name: only roles owned by ANOTHER bootstrap admin
        are taken away. Silently undoing a grant made from the Users screen would

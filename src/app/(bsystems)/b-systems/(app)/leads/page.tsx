@@ -17,8 +17,8 @@ export const metadata = { title: "Leads — B-Systems CRM" };
    buckets. Two bodies, one address, chosen by the company — never merged into
    "the leads table", which would quietly lose the rep directory.
 
-   ADR-074 — the B-Systems body moved to components/bsystems/pages so Mindoo's
-   own app can render the same table at /mindoo/leads. What is left here is the
+   ADR-074 — the B-Systems body lives in components/bsystems/pages, so this
+   table is a body a route renders. What is left here is the
    guard, which is the only thing that was ever company-specific. */
 
 export default async function BsLeadsPage({

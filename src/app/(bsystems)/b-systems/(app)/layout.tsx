@@ -102,7 +102,8 @@ export default async function BSystemsAppLayout({
       leadQuery: "?company=byteforce",
     };
   }
-  /* ADR-074 — Mindoo's bell rings in Mindoo's own shell, not this one. */
+  /* ADR-074 — the bell is CHROME, and chrome belongs to the shell that draws
+     it: a notification feed is per-app, never platform-wide. */
 
   const roleLabel = role
     ? (ROLE_LABELS[role] ? t(ROLE_LABELS[role]!) : null)

@@ -687,7 +687,7 @@ describe("PP-4a partner account provisioning (founder: admin sets the credential
 describe("Impersonation tokens (V2 §2.10 + founder snap-back)", () => {
   it("carries the impersonating admin, logs, and rejects tampering/expiry", async () => {
     const agent = await makeAgent();
-    const token = await mintImpersonationToken(agent.id, "bsystems", admin, {
+    const token = await mintImpersonationToken(agent.id, admin, {
       impersonatorId: "admin-user-1",
     });
     /* the session remembers WHO impersonates — powers "Back to admin" */
@@ -697,7 +697,7 @@ describe("Impersonation tokens (V2 §2.10 + founder snap-back)", () => {
     });
 
     /* the snap-back token has NO impersonator — a clean admin session */
-    const returnToken = await mintImpersonationToken(agent.id, "bsystems", admin, {
+    const returnToken = await mintImpersonationToken(agent.id, admin, {
       trigger: "impersonation_return",
     });
     expect(verifyImpersonationToken(returnToken)).toEqual({
@@ -728,7 +728,7 @@ describe("Impersonation tokens (V2 §2.10 + founder snap-back)", () => {
   it("refuses to impersonate a deactivated account", async () => {
     const agent = await makeAgent();
     await db.user.update({ where: { id: agent.id }, data: { active: false } });
-    await expect(mintImpersonationToken(agent.id, "bsystems", admin)).rejects.toThrow(/deactivated/);
+    await expect(mintImpersonationToken(agent.id, admin)).rejects.toThrow(/deactivated/);
   });
 });
 
@@ -806,7 +806,6 @@ describe("Admin user editing (founder V4)", () => {
         password: "NewPass#2026",
         roles: ["bsystems_agent", "bsystems_partner"],
       },
-      "bsystems",
       admin,
     );
     const updated = await db.user.findUniqueOrThrow({
@@ -826,9 +825,9 @@ describe("Admin user editing (founder V4)", () => {
   it("refuses identifier collisions and self-demotion", async () => {
     const a = await makeAgent();
     const b = await makeAgent();
-    await updateUser(a.id, { email: "taken@agents.example" }, "bsystems", admin);
+    await updateUser(a.id, { email: "taken@agents.example" }, admin);
     await expect(
-      updateUser(b.id, { email: "taken@agents.example" }, "bsystems", admin),
+      updateUser(b.id, { email: "taken@agents.example" }, admin),
     ).rejects.toThrow(/another account/);
 
     const adminUser = await db.user.create({
@@ -839,7 +838,6 @@ describe("Admin user editing (founder V4)", () => {
       updateUser(
         adminUser.id,
         { roles: ["bsystems_sales"] },
-        "bsystems",
         { id: adminUser.id, label: "Boss" },
       ),
     ).rejects.toThrow(/your own admin access/);

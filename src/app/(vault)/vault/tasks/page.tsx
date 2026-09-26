@@ -20,7 +20,6 @@ import {
   ReopenTaskButton,
 } from "@/components/vault/forms";
 import { ArchiveButton } from "@/components/shared/ArchiveButton";
-import { hasVaultSection } from "@/lib/module-sections";
 import { vaultCompaniesOf } from "@/lib/services/vault/tenancy";
 
 /* ADR-053 Phase 5 — the tasks screen: assignee cards (open/overdue/completed,
@@ -50,12 +49,6 @@ export default async function VaultTasksPage({
   const user = await requireVaultPage();
   /* ADR-074 — the companies this account may see (services/vault/tenancy). */
   const visible = vaultCompaniesOf(user);
-  /* ADR-076 — a section this company does not have is REFUSED, not merely
-     hidden from the nav. Founder: "for mindoo and only mindoo — vault should
-     only be : links and sheets and documents". Leaving the page reachable by
-     typing its address would make that a tidier menu rather than a decision
-     about what the company has. */
-  if (!hasVaultSection(visible[0] ?? "byteforce", "/vault/tasks")) redirect("/vault");
   const locale = await getLocale();
   const t = tFor(locale);
   const raw = await searchParams;

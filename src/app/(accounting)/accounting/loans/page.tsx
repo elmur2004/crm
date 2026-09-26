@@ -2,7 +2,7 @@ import { requireAccountingPage } from "@/lib/auth/page-guards";
 import { getLocale } from "@/lib/i18n/server";
 import { tFor } from "@/lib/i18n/core";
 import { acct } from "@/lib/i18n/dict/accounting";
-import { formatMoney } from "@/lib/money";
+import { formatEGP } from "@/lib/money";
 import { loadBooks } from "@/lib/accounting/books";
 import { loanOutstanding, loanPaid, loanSettled, loanTotals, type AcctLoanRow } from "@/lib/accounting/engine";
 import { acctView } from "@/lib/accounting/params";
@@ -63,10 +63,10 @@ export default async function AcctLoansPage({
                     </td>
                     <td className="td-mono u-ltr">{l.date}</td>
                     <td className="td-mono u-ltr">{l.dueDate || "—"}</td>
-                    <td>{formatMoney(l.principal, view.company)}</td>
-                    <td>{formatMoney(loanPaid(l), view.company)}</td>
+                    <td>{formatEGP(l.principal)}</td>
+                    <td>{formatEGP(loanPaid(l))}</td>
                     <td className={`td-title ${settled ? "" : l.direction === "borrowed" ? "text-brand-danger" : ""}`}>
-                      {formatMoney(out, view.company)}
+                      {formatEGP(out)}
                     </td>
                     <td>
                       {settled ? (
@@ -105,11 +105,11 @@ export default async function AcctLoansPage({
         <AddLoanButton company={view.company} month={view.month} />
       </div>
       <div className="tile-grid">
-        <AcctTile label={t(acct.weOwePayable)} value={formatMoney(owe, view.company)} sub={t(acct.outstandingBorrowed)} tone={owe > 0 ? "danger" : undefined} />
-        <AcctTile label={t(acct.owedToUsReceivable)} value={formatMoney(owed, view.company)} sub={t(acct.outstandingLent)} />
+        <AcctTile label={t(acct.weOwePayable)} value={formatEGP(owe)} sub={t(acct.outstandingBorrowed)} tone={owe > 0 ? "danger" : undefined} />
+        <AcctTile label={t(acct.owedToUsReceivable)} value={formatEGP(owed)} sub={t(acct.outstandingLent)} />
         <AcctTile
           label={t(acct.netLoanPosition)}
-          value={formatMoney(Math.abs(net), view.company)}
+          value={formatEGP(Math.abs(net))}
           sub={net >= 0 ? t(acct.netReceivable) : t(acct.netPayable)}
         />
       </div>

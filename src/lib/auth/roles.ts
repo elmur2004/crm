@@ -39,21 +39,17 @@ export type ModuleAccessBearer = {
   canAccessVault: boolean;
 };
 
-/* ADR-074 — the roles that are their COMPANY'S ADMINISTRATOR, and therefore
-   the floor for both modules. Founder: Mindoo has "vault and accounting and the
-   crm and to do and calender". `mindoo_staff` is Mindoo's whole staff and its
-   own administrator, so it clears the same floor `bsystems_admin` does.
+/* The roles that are their COMPANY'S ADMINISTRATOR, and therefore the floor for
+   both modules. ADR-074 widened this from the `bsystems_admin` literal to admit
+   Mindoo's own administrator; ADR-080 removed that company, so the list is one
+   role again — kept as a LIST rather than folded back into a literal, because
+   `assertRole(...)` and `canUseModule` both read it as a set, and a set with one
+   member is the shape those callers already speak.
 
-   This widens WHO may open the modules; it does not widen WHAT they see. Which
-   company's books and which company's vault rows are a separate question,
-   answered by `moduleCompaniesFor` in lib/module-companies.ts — and answered
-   there ALONE, so a Mindoo account opening Accounting sees Mindoo and a
-   B-Systems admin sees the two companies he always saw. Neither is offered the
-   other's tab at all. */
-export const MODULE_ADMIN_ROLES: readonly [Role, ...Role[]] = [
-  "bsystems_admin",
-  "mindoo_staff",
-];
+   It says WHO may open a module, never WHAT they see: which company's books and
+   vault rows is `moduleCompaniesFor` in lib/module-companies.ts, and there
+   alone. */
+export const MODULE_ADMIN_ROLES: readonly [Role, ...Role[]] = ["bsystems_admin"];
 
 export function canUseModule(user: ModuleAccessBearer, module: ModuleKey): boolean {
   /* the role is the FLOOR — no flag ever lifts a non-administrator over it */

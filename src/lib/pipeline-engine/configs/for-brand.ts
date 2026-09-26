@@ -1,6 +1,5 @@
 import { internalCrmConfig } from "./internal-crm";
 import { bsystemsCrmConfig } from "./bsystems-crm";
-import { mindooCrmConfig } from "./mindoo-crm";
 import type { Brand } from "../constants";
 import type { PipelineConfig } from "../types";
 
@@ -15,19 +14,16 @@ import type { PipelineConfig } from "../types";
    learn the name of a stage. `partnersConfigFor` already lives here; this is
    its twin, in the same place, so the engine stays the one owner of the answer.
    leads.ts re-exports it, so every existing importer is undisturbed. */
-/* ADR-073 — a TABLE, not the ternary this used to be.
+/* ADR-073 — a TABLE, not the ternary this used to be, and it stays one.
 
-   With two companies `brand === "byteforce" ? a : b` was total. With three it
-   is a trapdoor: Mindoo would have fallen into the B-Systems config silently,
-   which is nearly right — Mindoo copies that pipeline — and therefore the worst
-   kind of wrong, because it would have run on B-SYSTEMS' role gate, where
-   `mindoo_staff` is not a Won role and nobody could ever close a Mindoo deal.
-   `Record<Brand, …>` makes the compiler demand an answer for every company that
-   exists, which is how the next one gets noticed instead of inheriting. */
+   Two companies make `brand === "byteforce" ? a : b` total, so ADR-080 could
+   have folded this back into a ternary when Mindoo left. It does not: the table
+   is what made the compiler demand an answer for Mindoo instead of letting it
+   inherit B-Systems' role gate silently, and that guarantee is worth exactly as
+   much for the next company as it was for the last one. */
 const CONFIGS: Record<Brand, PipelineConfig> = {
   byteforce: internalCrmConfig,
   bsystems: bsystemsCrmConfig,
-  mindoo: mindooCrmConfig,
 };
 
 export function configForBrand(brand: Brand): PipelineConfig {

@@ -14,7 +14,7 @@ export async function generateMetadata() {
 }
 
 /* V2 §5 — the admin won-lead detail. ADR-067: B-Systems only, company refused
-   before the role narrowing. ADR-074: Mindoo renders the same body at its own
+   before the role narrowing. ADR-074: the same body is rendered from its own
    address, under its own guard. */
 
 export default async function WonLeadDetailPage({

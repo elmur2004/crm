@@ -7,7 +7,7 @@ import { LEAD_TYPES, type Brand } from "@/lib/pipeline-engine/constants";
 import { configForBrand } from "@/lib/pipeline-engine/configs/for-brand";
 import { orderMeetingColumn } from "@/lib/board-order";
 import { formatCairo } from "@/lib/datetime";
-import { formatMoney } from "@/lib/money";
+import { formatEGP } from "@/lib/money";
 import { waHref } from "@/lib/phone-dial";
 import { waSentLabel, whatsappMarkOf } from "@/components/shared/whatsappMark";
 import { tFor, type Locale, type Msg } from "@/lib/i18n/core";
@@ -30,7 +30,7 @@ import type { BsFormRole } from "@/components/bsystems/roleForms";
    board is not a list), no Archived view (ADR-043: archived leaves the board).
    All narrowing is server-side, in the same services the Leads list uses.
 
-   ADR-074 — extracted from the page so Mindoo renders the SAME board at its
+   ADR-074 — extracted from the page, so the board is a BODY a route renders at
    own address. The board component stays statically bound to BSYSTEMS_STAGES,
    which is exactly right: Mindoo's pipeline IS that shape (the founder's own
    choice when asked), and a board parameterised by stage set at runtime is how
@@ -74,7 +74,7 @@ function keyDatum(locale: Locale, lead: LeadRow, brand: Brand): string {
         : t(m.meetingNotArranged);
     case "sending_proposal":
       return lead.proposals[0]?.estimatedValue != null
-        ? `${t(m.estPrefix)}${formatMoney(lead.proposals[0].estimatedValue, brand)}`
+        ? `${t(m.estPrefix)}${formatEGP(lead.proposals[0].estimatedValue)}`
         : t(m.noValue);
     case "negotiation": {
       /* founder: "the date we will have a response for them on the proposal" —
@@ -164,14 +164,6 @@ export async function BsCrmBoardBody({
       l.stage === "following_up" && l.followUps[0] ? l.followUps[0].dueAt.toISOString() : null,
     meetingAt: meetingAt(l),
   }));
-  /* ADR-076 — MINDOO'S LEADS MOVED OFF THIS BOARD.
-
-     ADR-075 put them here on the founder's instruction; he then said "the crm
-     of mindoo should appear in byteforce crm as purple cards and not in
-     bsystems crm". So the window is the same window, cut in the other wall —
-     see CrmBoardBody in components/internal/pages.tsx. This board is B-Systems'
-     own again. */
-
   /* founder (ADR-064): the Meeting Setting column runs soonest-meeting-first,
      always — server-side, where the list is built, so the client never has to
      re-order. Every other column keeps its `updatedAt desc`. */
