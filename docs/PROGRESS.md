@@ -4698,8 +4698,12 @@ comment, and the ADR-013 mechanism note all fixed; .env.example confirmed tracke
   with no failure anywhere. Moved to `lib/crm/switch-target.ts` with a test that
   asserts the PROPERTY rather than the list: any href in BOTH companies' navs must
   be in it.
-- In progress: nothing mid-flight; working tree clean at close, commits local and
-  UNPUSHED (as instructed).
+- In progress: nothing mid-flight; working tree clean at close. **The three commits
+  are PUSHED to `origin/main` and LIVE** (`dc6ed05..fa946b7`), on his explicit
+  instruction to "finish everything up... and then push for production" — the
+  review fixes were folded into the commits they belong to rather than piled on
+  top, so the history still reads as three steps. The deploy is verified rather
+  than assumed: TESTING Run 097's "The deploy, verified" section.
 - **SPEC.md was not amended**, following the precedent of every founder feature
   since ADR-068 (the calendar, Postpone, the company work, the proposal edit and
   the Mindoo removal are all recorded as ADRs with no SPEC edit). ADR-081 is the

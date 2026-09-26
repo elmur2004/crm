@@ -5887,3 +5887,73 @@ seven extras the build reports are Next's own (`/_not-found`,
 - **RTL:** no physical left/right property added; the new classes are logical or
   axis-free.
 - **Emoji:** none (swept by code point, not by eye).
+
+### The deploy, verified — not assumed
+
+The chunk names on `https://crm.byteforceinc.com/login` were recorded BEFORE the
+push (9 of them, `0p49ned6xijhl.js` among them) and then polled every 25s. On the
+17th poll they had changed — `0p49ned6xijhl.js` out, `3imoe4cmqx5t3.js` in, the
+other eight identical, which is exactly the shape of a rebuild of the same app —
+and `GET /api/health` answered:
+
+```
+ok: true | schemaCurrent: true | pendingMigrations: []
+db: { reachable: true, error: null }
+```
+
+**The empty list IS the migration proof.** `unappliedMigrations()` reads the
+DEPLOYED container's own `prisma/migrations` directory and subtracts
+`_prisma_migrations` (ADR-057's fix, after a data-only migration once hid behind a
+column probe). The deployed bundle is these three commits and nothing else, so its
+migrations directory now contains `20260926170000_activity_log_actor_index`, and an
+empty pending list means **that index exists in the production database**.
+
+Unauthenticated smoke, all from a cold client:
+
+| URL | Result |
+| --- | --- |
+| `/login` | 200, `<title>Sign in — ByteForce × B-Systems Sales Platform</title>`, the real form (Email or phone / Password / Sign in) |
+| `/` | 307 → `/login` |
+| `/portal` | 200, `<title>B-Systems Partnership Programme</title>` |
+| `/b-systems/daily-report?company=bsystems` | 307 → `/login` |
+| `/b-systems/todo`, `/b-systems/calendar` | 307 → `/login` |
+| `/api/health` | 200, `ok: true` |
+
+**Stated honestly rather than dressed up: the NEW TAB cannot be clicked from
+outside.** The middleware redirects every unauthenticated CRM address to `/login`,
+including one that does not exist, so a 307 proves the address is guarded and does
+NOT by itself prove the page shipped. What does: the bundle changed after a push
+containing only these commits, nothing 500s, the schema is current, and the suite
+that clicked the tab 13 different ways ran against this exact tree. Signing in on
+production would need the founder's own password, which was not guessed.
+
+**The uploads section of `/api/health`, verbatim** (a STANDING issue, unchanged by
+this deploy and unrelated to it — recorded here so it is not read as new):
+
+```json
+{
+  "dir": "/app/uploads",
+  "persistentDirConfigured": false,
+  "writable": true,
+  "attachments": 9,
+  "missingFiles": 9,
+  "missingSample": [
+    "5b32ff484b8d40618fc9deefa49e4c5d.pdf",
+    "c46f4394c8504e7ba1162423d1e09365.pdf",
+    "0a854cb47a0e48d59cfdd481e50b66fe.pdf",
+    "80005c0872554124ae49e3553d5aeb38.pdf",
+    "77e604868be44f2cae7e83ac916bb196.pdf"
+  ]
+}
+```
+
+and the two hints it prints beside them, also verbatim:
+
+- 9 uploaded file(s) referenced in the database are MISSING from /app/uploads — they were lost when the container was redeployed. Attach a persistent volume, set UPLOADS_DIR to its path, then re-upload the files (statements have a Re-upload proof button) or import a backup that contains them.
+- UPLOADS_DIR is not set — uploads live INSIDE the container and every redeploy deletes them. Attach a persistent volume (e.g. mount it at /data/uploads) and set UPLOADS_DIR to that path.
+
+Nine attachments referenced by the database have no file behind them and **every
+redeploy — including this one — deletes whatever was uploaded since the last one**,
+because the container has no persistent volume. It is a hosting change (mount a
+volume, set `UPLOADS_DIR`), not a code change, and it is the one thing on this
+health check that is not green.
