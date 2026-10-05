@@ -71,11 +71,27 @@ export function requiredGroupForTarget(
   if (toStage === config.meetingStage) return { group: "meeting" };
   if (config.proposalStage && toStage === config.proposalStage) return { group: "proposal" };
   if (toStage === config.lostStage) return { group: "lost" };
-  /* ADR-072 — parking a lead ASKS WHY, every time. The founder described the
-     popup before he described the column, and a move that recorded no reason
-     would make the column a place leads vanish into rather than a list you can
-     work back through. */
-  if (config.postponeStage && toStage === config.postponeStage) return { group: "postpone" };
+  /* ADR-082 SUPERSEDES ADR-072's "a popup that always asks why".
+
+     ADR-072, the founder: "When we move the lead there, the pop up will be as he
+     not answering at all, or is he no show in the meeting? Or is he not
+     interested right now at all?" — and so `requiredGroupForTarget` returned
+     `{ group: "postpone" }` here, which refused a bare transition before
+     anything was written.
+
+     ADR-082, the founder, on being shown that the board's confirm-move modal
+     opened empty and the move could not be completed at all: "don't ask for
+     anything just drop it there." The popup is withdrawn by the person who
+     asked for it, so parking a lead now carries NO group — which is to say
+     `postponeStage` is deliberately ABSENT from this function, and the move
+     commits immediately by action or by drag, exactly the way a move back to
+     intake and the funnel's Contacted/Waiting (PP-3) already do.
+
+     What did NOT change: `PostponeInfo` and its existing rows stay — real
+     history of why leads were shelved — and `postponeSchema` still parses, so
+     an old client or an API caller that posts the group is accepted rather than
+     400ed. The table simply stops growing: with no required group, persistGroup
+     is handed `null` and writes nothing. */
   if (config.negotiationStage && toStage === config.negotiationStage) {
     return { group: "negotiation" }; // V2 — a note entry
   }

@@ -166,6 +166,12 @@ export const events = {
   },
   reasonRequired: { en: "Reason (required)", ar: "السبب (مطلوب)" },
   collectedAmountEgp: { en: "Collected amount (EGP)", ar: "المبلغ المُحصَّل (ج.م)" },
+  /* ADR-082 — the ByteForce twin of `stageForm.postponeAsksNothing`. The
+     founder: "don't ask for anything just drop it there." */
+  postponeAsksNothing: {
+    en: "Parking the lead asks for nothing — it can come back out at any time.",
+    ar: "تأجيل العميل لا يطلب أي بيانات — ويمكن إعادته في أي وقت.",
+  },
   terminalPrefix: { en: "This lead is", ar: "هذا العميل المحتمل في مرحلة" },
   terminalSuffix: { en: "— no further actions.", ar: "— لا مزيد من الإجراءات." },
   proposalReady: {

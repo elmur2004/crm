@@ -953,8 +953,8 @@ describe("Same-stage records (founder)", () => {
    assertions that matter are the ones about coming BACK OUT — a stage nobody
    can leave is Lost wearing a different name.
    ========================================================================== */
-describe("Postpone / Not answering (ADR-072)", () => {
-  it("is reachable from every active stage on both internal CRMs, and always asks why", () => {
+describe("Postpone / Not answering (ADR-072, amended by ADR-082)", () => {
+  it("is reachable from every active stage on both internal CRMs, and ASKS NOTHING", () => {
     for (const [config, ctx, stages] of [
       [internal, staff, ["new", "following_up", "meeting_setting", "sending_proposal"]],
       [
@@ -969,9 +969,11 @@ describe("Postpone / Not answering (ADR-072)", () => {
           transition(config, { stage: from }, { type: "next_action", action: "postponed" }, ctx),
         );
         expect(moved.toStage).toBe("postponed");
-        /* the popup is not optional: a park with no reason makes the column a
-           place leads vanish into rather than a list you can work back through */
-        expect(moved.requiredGroup).toEqual({ group: "postpone" });
+        /* ADR-082 supersedes ADR-072's always-asks-why popup. The founder, on
+           being shown the empty confirm-move modal: "don't ask for anything
+           just drop it there." A null requiredGroup is what makes the move
+           commit with no form at all (SPEC §10.1 T-11). */
+        expect(moved.requiredGroup).toBeNull();
       }
     }
   });
@@ -1016,7 +1018,9 @@ describe("Postpone / Not answering (ADR-072)", () => {
         ),
       );
       expect(noShow.toStage).toBe("postponed");
-      expect(noShow.requiredGroup).toEqual({ group: "postpone" });
+      /* ADR-082 — a no-show lands on the shelf and is asked nothing, by this
+         route as much as by the action and the drag */
+      expect(noShow.requiredGroup).toBeNull();
     }
   });
 
@@ -1057,11 +1061,14 @@ describe("Postpone / Not answering (ADR-072)", () => {
     }
   });
 
-  it("a DRAG into the column is the same move as the action — the popup opens either way", () => {
-    /* "when we move the lead there, the pop up will be…" — and on these boards
-       moving is usually dragging. Both internal pipelines have dragEnabled, so
-       the drop has to be validated exactly like the next action, or the founder
-       gets the column he asked for and a silent park with no reason. */
+  it("a DRAG into the column is the same move as the action — and neither asks anything", () => {
+    /* ADR-082, the founder: "don't ask for anything just drop it there." On
+       these boards moving IS usually dragging, and the drop and the next action
+       have to agree — which is the half ADR-072 got right and the board never
+       honoured: InternalBoard knew five destinations and not this one, so the
+       drop opened a modal with no fields in it and the move could not be
+       completed at all. The engine answer below is what the boards now ask
+       (requiredGroupForTarget === null ⇒ commit, no modal). */
     for (const [config, ctx] of [
       [internal, staff],
       [bsystems, admin],
@@ -1070,7 +1077,7 @@ describe("Postpone / Not answering (ADR-072)", () => {
         transition(config, { stage: "following_up" }, { type: "drag", to: "postponed" }, ctx),
       );
       expect(dropped.toStage).toBe("postponed");
-      expect(dropped.requiredGroup).toEqual({ group: "postpone" });
+      expect(dropped.requiredGroup).toBeNull();
 
       /* and back out again by drag, which is how a lead leaves the shelf */
       const dragBack = expectOk(
@@ -1081,12 +1088,55 @@ describe("Postpone / Not answering (ADR-072)", () => {
     }
   });
 
-  it("requiredGroupForTarget answers `postpone` for the stage and nothing else does", () => {
+  it("requiredGroupForTarget answers NOTHING for the stage, while its neighbours still ask", () => {
     for (const config of [internal, bsystems]) {
-      expect(requiredGroupForTarget(config, "following_up", "postponed")).toEqual({
-        group: "postpone",
-      });
+      /* ADR-082 — the single line that makes the park formless. Asserted
+         beside Lost on purpose: the two columns sit next to each other and
+         only one of them asks for a reason now. */
+      expect(requiredGroupForTarget(config, "following_up", "postponed")).toBeNull();
+      expect(requiredGroupForTarget(config, "new", "postponed")).toBeNull();
+      expect(requiredGroupForTarget(config, "meeting_setting", "postponed")).toBeNull();
       expect(requiredGroupForTarget(config, "postponed", "lost")).toEqual({ group: "lost" });
+      expect(requiredGroupForTarget(config, "postponed", "following_up")).toEqual({
+        group: "follow_up",
+        context: "initial",
+      });
+    }
+  });
+
+  it("no destination on either internal board is a DEAD END — the bug class, as a test", () => {
+    /* THE LESSON OF ADR-082. The postpone column was proved only through the
+       lead page, where an unknown target renders an empty form that still
+       submits; on the BOARD the same gap is a modal with no fields and no way
+       to complete the move. So every destination the engine can offer is
+       checked here against the set of groups the boards can actually render —
+       a new stage that opens a group nobody has built now fails in this file
+       rather than in his hands. */
+    const RENDERABLE = new Set([
+      "follow_up",
+      "meeting",
+      "proposal",
+      "lost",
+      "negotiation",
+      "won",
+      "won_deal",
+    ]);
+    for (const [config, ctx] of [
+      [internal, staff],
+      [bsystems, admin],
+    ] as const) {
+      for (const from of config.stages) {
+        if (config.terminalStages.includes(from)) continue;
+        for (const action of config.nextActions(from, ctx.role)) {
+          const group = requiredGroupFor(config, from, action);
+          if (group === null) continue; // commits immediately — nothing to render
+          expect(
+            RENDERABLE.has(group.group),
+            `${config.kind}: ${from} → ${action} opens the "${group.group}" group, ` +
+              "which no board form renders — that destination is a dead end (ADR-082)",
+          ).toBe(true);
+        }
+      }
     }
   });
 });

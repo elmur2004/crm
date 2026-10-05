@@ -346,6 +346,14 @@ export const stageForm = {
     ar: " — يجب أن تساوي نسبة العمولة الإجمالية",
   },
   backToNew: { en: "The lead returns to the New column.", ar: "يعود العميل المحتمل إلى عمود «جديد»." },
+  /* ADR-082 — the founder withdrew ADR-072's popup ("don't ask for anything
+     just drop it there"), so the lead page's Postpone action has no fields. A
+     form with a title and a lone button looks broken; this says why there is
+     nothing to fill in, exactly as `backToNew` does for the intake move. */
+  postponeAsksNothing: {
+    en: "Parking the lead asks for nothing — it can come back out at any time.",
+    ar: "تأجيل العميل لا يطلب أي بيانات — ويمكن إعادته في أي وقت.",
+  },
 } satisfies Record<string, Msg>;
 
 /* ---- BsBoard (kanban) ---- */

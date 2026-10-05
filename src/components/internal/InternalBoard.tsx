@@ -16,6 +16,7 @@ import {
 } from "@dnd-kit/core";
 import { INTERNAL_STAGES } from "@/lib/pipeline-engine/constants";
 import { internalCrmConfig } from "@/lib/pipeline-engine/configs/internal-crm";
+import { requiredGroupForTarget } from "@/lib/pipeline-engine/transition";
 import { btnGhost, btnPrimary } from "@/components/portal/groupForms";
 import { tFor } from "@/lib/i18n/core";
 import { useLocale } from "@/components/shared/LocaleProvider";
@@ -422,8 +423,16 @@ export function InternalBoard({
       setMessage(t(msg.terminalMove));
       return;
     }
-    if (to === "new") {
-      void commitDrop({ event: { type: "drag", to } }, leadId, to, "toast"); // intake — no form
+    /* ADR-082 — ASK THE ENGINE, never a list of stage names kept by hand.
+       `to === "new"` used to be the one hardcoded formless target here, and
+       that is exactly how the Postpone column shipped broken: ADR-072 added a
+       destination this board had never heard of, `fieldsForTarget` returned
+       null for it, and the drop opened a confirm-move modal with nothing in it
+       — the move could not be completed at all. A null requiredGroup now means
+       "commit immediately, no modal", so intake, Postpone, and every formless
+       destination anybody adds next are right by construction. */
+    if (requiredGroupForTarget(internalCrmConfig, lead.stage, to) === null) {
+      void commitDrop({ event: { type: "drag", to } }, leadId, to, "toast");
       return;
     }
     setArranged(false);

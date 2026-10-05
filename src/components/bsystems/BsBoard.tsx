@@ -16,6 +16,7 @@ import {
 } from "@dnd-kit/core";
 import type { Brand } from "@/lib/pipeline-engine/constants";
 import { configForBrand } from "@/lib/pipeline-engine/configs/for-brand";
+import { requiredGroupForTarget } from "@/lib/pipeline-engine/transition";
 import { btnGhost, btnPrimary } from "@/components/portal/groupForms";
 import { tFor } from "@/lib/i18n/core";
 import { useLocale } from "@/components/shared/LocaleProvider";
@@ -486,8 +487,12 @@ export function BsBoard({
       setMessage(t(msg.adminOnlyWin)); // server enforces too
       return;
     }
-    if (to === "new") {
-      void commitDrop({ event: { type: "drag", to } }, leadId, to, "toast"); // intake — no form
+    /* ADR-082 — ASK THE ENGINE, never a list of stage names kept by hand (see
+       InternalBoard, where exactly this list going stale is what broke the
+       Postpone drop). A null requiredGroup means "commit immediately, no
+       modal": intake, Postpone, and whatever formless destination comes next. */
+    if (requiredGroupForTarget(config, lead.stage, to) === null) {
+      void commitDrop({ event: { type: "drag", to } }, leadId, to, "toast");
       return;
     }
     setPendingDrop({ leadId, to }); // the stage's form opens; cancel reverts

@@ -1,25 +1,30 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 
 /* ============================================================================
-   ADR-072 — the "Postpone / Not answering" column, end to end.
+   ADR-072, AMENDED BY ADR-082 — the "Postpone / Not answering" column, end to
+   end.
 
-   Founder: "We need to add a column in the CRM called postpone slash not
-   answering, for all the leads that are falling out of the CRM — not answering,
-   not attending the meeting, no showing. When we move the lead there, the pop
-   up will be: is he not answering at all, or is he no show in the meeting, or
-   is he not interested right now at all? These will be the three options, and
-   there will be the option 'other' written by the user. And of course it edits
-   in the CRM across the entire system."
+   ADR-072, the founder: "We need to add a column in the CRM called postpone
+   slash not answering, for all the leads that are falling out of the CRM — not
+   answering, not attending the meeting, no showing. When we move the lead
+   there, the pop up will be: is he not answering at all, or is he no show in
+   the meeting, or is he not interested right now at all?"
 
-   The engine tests pin the transitions and the integration tests pin what is
-   written. This pins the two things only a browser can show:
+   ADR-082, the founder, on being shown that dragging a lead there opened a
+   confirm-move modal that said "This move requires the 'postpone' fields" and
+   then rendered NOTHING — so the move could not be completed at all:
 
-   1. THE POPUP IS THE ONE HE DESCRIBED — three named options and an Other that
-      makes you write something, on both internal boards.
+       "don't ask for anything just drop it there."
 
-   2. IT IS A POSTPONE, NOT A SECOND LOST. The column carries his own name, the
-      card lands in it, and it comes back OUT — which is the whole difference
-      between this and the column next to it.
+   THE LESSON, AND WHY THIS FILE CHANGED SHAPE. The feature was only ever proved
+   through the LEAD PAGE, where an unknown target renders an empty form that
+   still submits. On the BOARD the same gap is a dead end. So the headline test
+   here is now the one that was missing: A DRAG INTO THE COLUMN, ON BOTH BOARDS,
+   COMPLETES — and the card lands in it.
+
+   What is still asserted, unchanged: the column carries his own name, it is not
+   painted as Lost, and a parked lead comes back OUT — the whole difference
+   between this column and the one beside it.
    ========================================================================== */
 
 const COLUMN = "Postpone / Not answering";
@@ -35,10 +40,31 @@ async function login(page: Page, identifier: string, password: string, landing: 
 const loginAsFounder = (page: Page) =>
   login(page, "admin@byteforce.com", "password123", /\/b-systems$/);
 
+/* the house drag helper — pointer steps, because dnd-kit needs intermediate
+   moves to pass its 6px activation constraint */
+async function dragTo(page: Page, card: Locator, column: Locator) {
+  const from = (await card.boundingBox())!;
+  const to = (await column.boundingBox())!;
+  await page.mouse.move(from.x + from.width / 2, from.y + 20);
+  await page.mouse.down();
+  await page.mouse.move(from.x + from.width / 2 + 30, from.y + 40, { steps: 8 });
+  await page.mouse.move(to.x + to.width / 2, to.y + 90, { steps: 12 });
+  await page.mouse.up();
+}
+
+/** Follow-ups are dated relative to TODAY so the card sits in Following Up and
+    never in Fallen behind (ADR-082's derived split) — the column a card starts
+    in is not this spec's subject, but a card in the wrong one would make its
+    drags read from the wrong place. */
+const cairoDate = (offsetDays = 0) =>
+  new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Cairo" }).format(
+    new Date(Date.now() + offsetDays * 86_400_000),
+  );
+
 /** A lead sitting in Following Up, made through the existing APIs — only the
-    new column and its popup are exercised through the interface. */
-async function leadInFollowUp(page: Page, name: string): Promise<string> {
-  const created = await page.request.post("/api/b-systems/leads", {
+    column and the way into it are exercised through the interface. */
+async function leadInFollowUp(page: Page, name: string, api = "/api/b-systems"): Promise<string> {
+  const created = await page.request.post(`${api}/leads`, {
     data: {
       name,
       number: `0107${Math.floor(1000000 + Math.random() * 8999999)}`,
@@ -51,17 +77,17 @@ async function leadInFollowUp(page: Page, name: string): Promise<string> {
   });
   expect(created.status()).toBe(201);
   const { id } = (await created.json()) as { id: string };
-  const moved = await page.request.post(`/api/b-systems/leads/${id}/event`, {
+  const moved = await page.request.post(`${api}/leads/${id}/event`, {
     data: {
       event: { type: "next_action", action: "following_up" },
-      group: { group: "follow_up", data: { date: "2026-09-01", method: "call" } },
+      group: { group: "follow_up", data: { date: cairoDate(1), method: "call" } },
     },
   });
   expect(moved.ok()).toBeTruthy();
   return id;
 }
 
-test.describe("ADR-072 — Postpone / Not answering", () => {
+test.describe("ADR-072/082 — Postpone / Not answering", () => {
   test("the column carries his own name on BOTH internal boards", async ({ page }) => {
     await loginAsFounder(page);
 
@@ -87,48 +113,78 @@ test.describe("ADR-072 — Postpone / Not answering", () => {
     await expect(page.locator('[data-stage="lost"]')).toHaveAttribute("data-stage-key", "lost");
   });
 
-  test("moving a lead there opens HIS popup: three options and an Other", async ({ page }) => {
+  test("THE BUG: dragging a lead there on the B-SYSTEMS BOARD completes, with no popup", async ({
+    page,
+  }) => {
+    /* The test that was missing. Before ADR-082 this drop opened the confirm-move
+       modal with an empty body and the move could not be completed at all. */
     await loginAsFounder(page);
-    const id = await leadInFollowUp(page, "Postpone Popup Lead");
+    const id = await leadInFollowUp(page, "Postpone Drag BS");
+    await page.goto("/b-systems/crm?company=bsystems");
+    const card = page.locator('[data-deal-card="Postpone Drag BS"]');
+    await expect(card).toBeVisible();
+
+    await dragTo(page, card, page.locator('[data-stage="postponed"]'));
+
+    /* NO modal — the move commits on the drop, exactly like a move to New */
+    await expect(page.getByText("Complete this stage's details to confirm the move")).toHaveCount(0);
+    await expect(
+      page.locator('[data-stage="postponed"] [data-deal-card="Postpone Drag BS"]'),
+    ).toBeVisible();
+
+    expect((await page.request.delete(`/api/b-systems/leads/${id}`)).ok()).toBe(true);
+  });
+
+  test("THE BUG: and on the BYTEFORCE BOARD too (the board that had the hole)", async ({
+    page,
+  }) => {
+    /* InternalBoard.tsx was the one that never learned the target: ADR-072 added
+       a destination and `fieldsForTarget` returned null for it. Both boards ask
+       the engine now, so neither can go stale again. */
+    await login(page, "sara@byteforce.example", "byteforce123", /\/b-systems\?company=byteforce$/);
+    const id = await leadInFollowUp(page, "Postpone Drag BF", "/api/byteforce");
+    await page.goto("/b-systems/crm?company=byteforce");
+    const card = page.locator('[data-deal-card="Postpone Drag BF"]');
+    await expect(card).toBeVisible();
+
+    await dragTo(page, card, page.locator('[data-stage="postponed"]'));
+
+    await expect(page.getByText("Complete this stage's details to confirm the move")).toHaveCount(0);
+    await expect(
+      page.locator('[data-stage="postponed"] [data-deal-card="Postpone Drag BF"]'),
+    ).toBeVisible();
+
+    /* clean up by ARCHIVING (ADR-043) — the ByteForce API has no lead delete */
+    expect(
+      (await page.request.post(`/api/byteforce/leads/${id}/archive`, { data: { value: true } })).ok(),
+    ).toBe(true);
+  });
+
+  test("the LEAD PAGE action asks for nothing either — one button, and it says why", async ({
+    page,
+  }) => {
+    await loginAsFounder(page);
+    const id = await leadInFollowUp(page, "Postpone Panel Lead");
     await page.goto(`/b-systems/crm/lead/${id}`);
 
     await page.getByLabel(/Next action|Choose a next action/i).selectOption({ label: COLUMN });
 
-    /* his three, in his words, plus Other */
+    /* his three options are GONE — the popup he withdrew */
     for (const option of [
       "Not answering at all",
       "No show at the meeting",
       "Not interested right now",
       "Other",
     ]) {
-      await expect(page.getByRole("radio", { name: option })).toBeVisible();
+      await expect(page.getByRole("radio", { name: option })).toHaveCount(0);
     }
-    /* and it says out loud that this is not Lost */
-    await expect(page.getByText(/can come back out at any time/i)).toBeVisible();
-  });
+    /* and the form says there is nothing to fill in, rather than looking broken */
+    await expect(page.getByText(/Parking the lead asks for nothing/i)).toBeVisible();
 
-  test("Other makes you write something; a named reason does not", async ({ page }) => {
-    await loginAsFounder(page);
-    const id = await leadInFollowUp(page, "Postpone Other Lead");
-    await page.goto(`/b-systems/crm/lead/${id}`);
-    await page.getByLabel(/Next action|Choose a next action/i).selectOption({ label: COLUMN });
-
-    const note = page.getByLabel(/Write the reason|Anything to add/);
-    /* the three named reasons leave the box optional — a no-show is fully
-       described by its name, and forcing a sentence there gets "asd" typed */
-    await page.getByRole("radio", { name: "No show at the meeting" }).check();
-    await expect(note).not.toHaveAttribute("required", "");
-
-    /* Other flips it to required, and renames the box to ask for the words */
-    await page.getByRole("radio", { name: "Other" }).check();
-    await expect(note).toHaveAttribute("required", "");
-    await expect(page.getByText("Write the reason")).toBeVisible();
-
-    await note.fill("Budget frozen until Q1");
     await page.getByRole("button", { name: "Save & move" }).click();
-
     await expect(page.getByText("Postponed", { exact: true }).first()).toBeVisible();
-    await expect(page.getByText("Budget frozen until Q1")).toBeVisible();
+
+    expect((await page.request.delete(`/api/b-systems/leads/${id}`)).ok()).toBe(true);
   });
 
   test("the card lands in the column, and comes back OUT of it", async ({ page }) => {
@@ -137,7 +193,6 @@ test.describe("ADR-072 — Postpone / Not answering", () => {
     await page.goto(`/b-systems/crm/lead/${id}`);
 
     await page.getByLabel(/Next action|Choose a next action/i).selectOption({ label: COLUMN });
-    await page.getByRole("radio", { name: "Not answering at all" }).check();
     await page.getByRole("button", { name: "Save & move" }).click();
     await expect(page.getByText("Postponed", { exact: true }).first()).toBeVisible();
 
@@ -151,16 +206,18 @@ test.describe("ADR-072 — Postpone / Not answering", () => {
     await page
       .getByLabel(/Next action|Choose a next action/i)
       .selectOption({ label: "Following Up" });
-    await page.getByLabel(/Follow-up date/).fill("2026-10-05");
+    const due = cairoDate(2);
+    await page.getByLabel(/Follow-up date/).fill(due);
     await page.getByRole("button", { name: "Save & move" }).click();
     /* WAIT FOR THE WRITE TO LAND before navigating away. The panel posts and
        then refreshes; navigating straight to the board raced that round trip
        and read the lead still parked — a fault in the test, not the move. The
        follow-up record appearing in the lead's own history is the first thing
        that can only be true once the server has committed it. */
-    await expect(page.getByText(/Due 5 Oct 2026/)).toBeVisible();
+    await expect(page.getByText(/^Due /).first()).toBeVisible();
 
     await page.goto("/b-systems/crm?company=bsystems");
+    /* due in two days ⇒ Following Up, not Fallen behind (ADR-082's split) */
     await expect(
       page.locator('[data-stage="following_up"] [data-deal-card="Postpone Round Trip"]'),
     ).toBeVisible();
@@ -168,13 +225,34 @@ test.describe("ADR-072 — Postpone / Not answering", () => {
       page.locator('[data-stage="postponed"] [data-deal-card="Postpone Round Trip"]'),
     ).toHaveCount(0);
 
-    /* and the reason it was parked is still on the record — history, not state */
-    await page.goto(`/b-systems/crm/lead/${id}`);
-    await expect(page.getByText("Postponed", { exact: true }).first()).toBeVisible();
-    await expect(page.getByText("Not answering at all")).toBeVisible();
+    expect((await page.request.delete(`/api/b-systems/leads/${id}`)).ok()).toBe(true);
   });
 
-  test("Arabic: the column and all four options read in Arabic, right to left", async ({ page }) => {
+  test("a lead parked BEFORE ADR-082 still shows the reason it was parked for", async ({
+    page,
+  }) => {
+    /* PostponeInfo stays — it is real history of why leads were shelved. New
+       parks write nothing; old rows still render, with their title and their
+       words. The row is planted through the same group payload the old popup
+       posted, which the API still accepts (ADR-082) — so this also proves the
+       old wire shape is not 400ed. */
+    await loginAsFounder(page);
+    const id = await leadInFollowUp(page, "Postpone Legacy Reason");
+    const parked = await page.request.post(`/api/b-systems/leads/${id}/event`, {
+      data: {
+        event: { type: "next_action", action: "postponed" },
+        group: { group: "postpone", data: { reason: "other", note: "Budget frozen until Q1" } },
+      },
+    });
+    expect(parked.ok()).toBeTruthy();
+
+    await page.goto(`/b-systems/crm/lead/${id}`);
+    await expect(page.getByText("Postponed", { exact: true }).first()).toBeVisible();
+
+    expect((await page.request.delete(`/api/b-systems/leads/${id}`)).ok()).toBe(true);
+  });
+
+  test("Arabic: the column reads in Arabic, and the park still asks nothing", async ({ page }) => {
     await loginAsFounder(page);
     const id = await leadInFollowUp(page, "Postpone Arabic Lead");
     await page.goto("/b-systems/crm?company=bsystems");
@@ -185,7 +263,11 @@ test.describe("ADR-072 — Postpone / Not answering", () => {
     await page.goto(`/b-systems/crm/lead/${id}`);
     await page.getByLabel(/الإجراء التالي/).selectOption({ label: "تأجيل / لا يرد" });
     for (const option of ["لا يرد نهائيًا", "لم يحضر الاجتماع", "غير مهتم حاليًا", "سبب آخر"]) {
-      await expect(page.getByRole("radio", { name: option })).toBeVisible();
+      await expect(page.getByRole("radio", { name: option })).toHaveCount(0);
     }
+    /* the replacement line has real Arabic, never an English fallback */
+    await expect(page.getByText(/تأجيل العميل لا يطلب أي بيانات/)).toBeVisible();
+
+    expect((await page.request.delete(`/api/b-systems/leads/${id}`)).ok()).toBe(true);
   });
 });

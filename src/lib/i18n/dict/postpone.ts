@@ -1,8 +1,17 @@
 import type { Msg } from "@/lib/i18n/core";
 
-/* ADR-072 — the "Postpone / Not answering" column and the popup that opens
-   when a lead is moved into it. The founder dictated the three options; they
-   are his words, kept whole. */
+/* ADR-072 — the "Postpone / Not answering" column and the popup that opened
+   when a lead was moved into it. The founder dictated the three options; they
+   are his words, kept whole.
+
+   ADR-082 — THE POPUP IS GONE ("don't ask for anything just drop it there"),
+   so `question`, `hint`, `otherLabel`, `otherPlaceholder` and `noteLabel` have
+   NO call site today. They are kept, per the house rule that never deletes a
+   key: the reasons they describe are still stored on every lead parked before
+   today and still rendered by GroupHistory, `POSTPONE_REASON_LABELS` still
+   names them, and if the founder asks for the popup back these are the exact
+   words he dictated for it. `historyTitle` is live — it titles the stored
+   reason on the lead detail, the prospect detail and the call sheet. */
 
 export const postponeMsgs = {
   question: { en: "Why is this being postponed?", ar: "لماذا يتم تأجيله؟" },
