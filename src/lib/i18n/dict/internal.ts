@@ -283,6 +283,13 @@ export const history = {
     en: "Returned to Lead — new number added",
     ar: "أُعيد إلى عميل محتمل — أُضيف رقم جديد",
   },
+  /* ADR-082 — the pill on the row the system wrote for itself. Without it the
+     History reads "group added" against a follow-up nobody typed, and the only
+     clue is the bare [FU-AUTO] code at the end of the line. */
+  nextFollowUpAuto: {
+    en: "Next follow-up logged automatically — still no answer",
+    ar: "تم تسجيل المتابعة التالية تلقائيًا — لا يزال لا يرد",
+  },
   /* LOG_ACTIONS display words — EN matches the previous `replace(/_/g, " ")`
      output (and the "auto-moved" special case) byte-for-byte */
   actions: {

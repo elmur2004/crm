@@ -58,6 +58,20 @@ export type UpdatedRef =
     }
   | { model: "proposal"; id: string; sent: boolean; sentAt: string | null };
 
+/** ADR-064 + ADR-082 — the inverse of ONE "Didn't answer"/"Answered" press.
+
+    `created` is the follow-up the press auto-logged (ADR-082: at most one, and
+    only on a counting press for a lead whose live follow-up was due today).
+    OPTIONAL on purpose: every entry written before ADR-082 has no such key, and
+    `deleteCreated` defaults it to `[]`, so a pending entry that predates the
+    deploy still undoes correctly instead of throwing. */
+export interface NoAnswerSnapshot {
+  noAnswer: boolean;
+  /** the tally before the press (ADR-064); absent on pre-ADR-064 entries */
+  noAnswerCount?: number;
+  created?: CreatedRef[];
+}
+
 export interface StageEventSnapshot {
   stage: string;
   noAnswer: boolean;
@@ -304,17 +318,27 @@ async function undoLead(
       });
       return;
     }
-    case "lead_no_answer":
+    case "lead_no_answer": {
+      const snap = payload as unknown as NoAnswerSnapshot;
+      /* ADR-082 — FIRST the follow-up the press logged by itself, then the
+         marker. Leaving that row behind would put the lead back on TOMORROW's
+         To-Do and leave tomorrow's date on its board card, with nothing on any
+         screen to explain where either came from — the undo would look like it
+         worked and the lead would quietly re-enter the chase. Exactly the ids
+         this press recorded, never a query by date: `deleteCreated` deletes
+         only what was written down. */
+      await deleteCreated(tx, snap.created);
       /* ADR-064 — the TALLY comes back, not just the flag: undoing the 4th
          attempt leaves 3, and undoing an Answered press gives the number back */
       await tx.lead.update({
         where: { id: lead.id },
         data: {
-          noAnswer: Boolean(payload.noAnswer),
-          noAnswerCount: noAnswerCountOf(payload.noAnswerCount, Boolean(payload.noAnswer)),
+          noAnswer: Boolean(snap.noAnswer),
+          noAnswerCount: noAnswerCountOf(snap.noAnswerCount, Boolean(snap.noAnswer)),
         },
       });
       return;
+    }
     case "lead_ready":
       await tx.lead.update({
         where: { id: lead.id },

@@ -14,11 +14,12 @@ import {
 } from "@/lib/pipeline-engine/constants";
 import { ApiError } from "@/lib/api-error";
 import { storage } from "@/lib/storage";
-import { cairoToUtc, formatCairo } from "@/lib/datetime";
+import { cairoToUtc, formatCairo, nextCairoDate, utcToCairo } from "@/lib/datetime";
 import {
   followUpDueAt,
   followUpDueTimeSet,
   groupPayloadSchema,
+  type FollowUpInput,
   type GroupPayload,
   type WonDealInput,
 } from "./groups";
@@ -189,7 +190,65 @@ export async function markReadyToClose(brand: Brand, leadId: string, actor: Acto
    whole feature); `value: false` is the Answered button and resets the tally to
    zero. `noAnswer` is kept in lockstep as `noAnswerCount > 0`, so every existing
    reader, filter, query and test on the flag keeps working. */
-export async function setNoAnswer(brand: Brand, leadId: string, value: boolean, actor: Actor) {
+/* ============================================================================
+   ADR-082 - AND THE PRESS NOW LOGS TOMORROW'S FOLLOW-UP BY ITSELF.
+
+   The founder, verbatim: "whenever I log didn't answer for someone who's in
+   the following up column in the day of the follow up it automatically logs
+   another follow up until he answers."
+
+   THE GATE IS THREE CONDITIONS, AND ALL THREE ARE HIS:
+     - the lead is in the FOLLOW-UP stage of its own pipeline, and
+     - its LIVE follow-up (the latest record - the same one the board's key
+       datum prints and the To-Do projects) is due on TODAY'S CAIRO DAY, and
+     - this is a counting press (`value === true`), not the Answered press.
+   A follow-up in the FUTURE is left alone: he has not chased it yet, and
+   moving its date forward would quietly rewrite a commitment he made. One that
+   has already FALLEN BEHIND is left alone too, and that is his explicit
+   instruction when asked: "no keep it fallen behind in a separate column I
+   will pick it up and make another follow up date." Re-dating a fallen-behind
+   lead is his decision, made by hand.
+
+   WHAT THE NEW ROW INHERITS: the chase's own method, "following up about" text,
+   owner columns and context. Inheriting is the only answer that keeps the chain
+   readable - this is the SAME conversation on a later day, so its method and
+   its subject are still the method and the subject, and a row that forgot them
+   would read as a new unrelated task. The context carries so an auto-logged
+   chase after a proposal still titles itself "Following up after proposal".
+   The DATE is tomorrow and the TIME is nobody's choice: `dueTimeSet` is false
+   and the slot takes followUpDueAt's 09:00 Cairo default (ADR-061/063), because
+   the system is picking the day, not the person.
+
+   TOMORROW IS A CALENDAR DAY, NEVER `now + 86_400_000`. `utcToCairo(now).date`
+   then `nextCairoDate` - Egypt has a 23-hour day and a 25-hour day every year,
+   and adding a fixed day to an instant lands on the wrong Cairo date on both of
+   them, invisibly for the other 363. `followUpDueAt` then re-anchors if the
+   09:00 wall clock would fall off the posted date.
+
+   IT REPEATS, AND IT CANNOT PILE UP. The second press of the day finds the live
+   follow-up dated TOMORROW, not today, so the gate closes: one press advances
+   the chase by one day and further presses that day only count. Concurrency
+   rides the same property - the lead row is locked by the tally update BEFORE
+   the live follow-up is read, so a racing press reads the row the first one
+   committed and declines to add a second.
+
+   UNDO (ADR-045/064) CARRIES THE CREATED ROW. The press was already undoable
+   and its payload already restored the flag and the tally; it now also carries
+   the follow-up's id in `created`, and `performUndo` deletes exactly that id.
+   An undo that left the row behind would silently re-enter the lead into
+   tomorrow's To-Do and tomorrow's board datum with nothing on screen to explain
+   it. The fingerprint is untouched - creating a child row does not touch the
+   lead row - so the INTEGRITY guard still means what it meant.
+   ========================================================================== */
+export async function setNoAnswer(
+  brand: Brand,
+  leadId: string,
+  value: boolean,
+  actor: Actor,
+  /** injectable only so a test can name the Cairo day - the same concession
+      `todoFor` and `dailyReportFor` make, and the only one. */
+  now: Date = new Date(),
+) {
   const lead = await getLead(brand, leadId);
   assertNotArchived(lead);
   /* clearing an already-clear marker is still a no-op (ADR-039's idempotence,
@@ -228,6 +287,58 @@ export async function setNoAnswer(brand: Brand, leadId: string, value: boolean, 
       action: "update",
       trigger: value ? "no_answer" : "no_answer_cleared",
     });
+
+    /* ADR-082 - tomorrow's follow-up, when the three conditions in this
+       function's header all hold. Deliberately AFTER the lead update: that
+       update took the row lock, so a racing press reads the follow-up row the
+       first one committed (see "it cannot pile up" above) rather than racing it
+       and writing a duplicate. */
+    const created: CreatedRef[] = [];
+    if (value && lead.stage === configForBrand(brand).followUpStage) {
+      const live = await tx.followUp.findFirst({
+        where: { leadId: lead.id },
+        orderBy: { createdAt: "desc" },
+      });
+      const today = utcToCairo(now).date;
+      /* EQUALITY, which rejects the past and the future in one expression - a
+         `<=` here is exactly the auto-relog he said NOT to build for a lead
+         that has already fallen behind. */
+      if (live && utcToCairo(live.dueAt).date === today) {
+        const next = await tx.followUp.create({
+          data: {
+            leadId: lead.id,
+            context: live.context,
+            dueAt: followUpDueAt({
+              date: nextCairoDate(today),
+              /* the stored method is one of FOLLOW_UP_METHODS by construction
+                 (the Zod enum is the only way a row gets written); `followUpDueAt`
+                 reads only `date`/`time`, so the cast is inert either way */
+              method: live.method as FollowUpInput["method"],
+            }),
+            dueTimeSet: false, // the SYSTEM chose the day; nobody chose a clock
+            method: live.method,
+            ownerSalesRepId: live.ownerSalesRepId,
+            ownerPortalRepId: live.ownerPortalRepId,
+            followingUpWith: live.followingUpWith,
+          },
+        });
+        created.push({ model: "followUp", id: next.id });
+        /* T-10 / section 5.6 - a record creation writes its own log row, like
+           every other follow-up this product writes. Its OWN trigger, so the
+           history and the daily report can say the system logged it rather than
+           letting it read as something he typed. The DAILY REPORT counts
+           DISTINCT LEADS (ADR-081), so a press that writes two rows is still
+           ONE lead in his headline number - and two honest LINES under it,
+           because two things really did happen. */
+        await writeLog(tx, {
+          entityType: "lead",
+          entityId: lead.id,
+          actor,
+          action: "group_added",
+          trigger: "FU-AUTO",
+        });
+      }
+    }
     const undoLabel = formatMsg(
       value ? undoLabels.flaggedNoAnswer : undoLabels.clearedNoAnswer,
       { name: lead.name },
@@ -264,9 +375,17 @@ export async function setNoAnswer(brand: Brand, leadId: string, value: boolean, 
          `noAnswer` is maintained as `noAnswerCount > 0` by every write path, so
          the flag follows the number rather than being snapshotted apart from
          it. */
+      /* ADR-082 - `created` rides along, so the inverse of the press is the
+         flag, the tally AND the follow-up it logged. Empty on every press that
+         did not log one, and ABSENT from every entry written before today -
+         `deleteCreated` defaults it to [], so old pending entries still undo. */
       payload: before
-        ? { noAnswer: before.noAnswer, noAnswerCount: before.noAnswerCount }
-        : { noAnswer: fresh.noAnswerCount - 1 > 0, noAnswerCount: fresh.noAnswerCount - 1 },
+        ? { noAnswer: before.noAnswer, noAnswerCount: before.noAnswerCount, created }
+        : {
+            noAnswer: fresh.noAnswerCount - 1 > 0,
+            noAnswerCount: fresh.noAnswerCount - 1,
+            created,
+          },
     });
     return fresh;
   });

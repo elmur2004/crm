@@ -126,6 +126,14 @@ export const dailyReport = {
   /* sameStageActionMsgs — the three records the card does not move for */
   loggedAnotherFollowUp: { en: "Logged another follow-up", ar: "سجّل متابعة أخرى" },
   setTheResponseDate: { en: "Set the response date", ar: "حدّد موعد الرد" },
+  /* ADR-082 — the follow-up the "Didn't answer" press logged by itself. Its
+     own phrase rather than reusing `loggedAnotherFollowUp`: on his daily report
+     the difference between what HE did and what the system did for him is the
+     whole point of reading the line. */
+  autoLoggedNextFollowUp: {
+    en: "Next follow-up logged automatically",
+    ar: "سُجلت المتابعة التالية تلقائيًا",
+  },
   rescheduledTheMeeting: { en: "Rescheduled the meeting", ar: "أعاد جدولة الاجتماع" },
   /* UNREFERENCED, deliberately, and kept per the house convention (todoPage.overdue
      is the precedent): a CANCELLED meeting really does move the lead, so it is
@@ -162,6 +170,7 @@ const USER_CHOSEN_DESTINATION = new Set(["T-6", "B-7", "B-9"]);
    (T-7's delayed meeting, which requires a new date and time). */
 const IN_PLACE_BY_TRIGGER: Record<string, Msg> = {
   "FU-AGAIN": dailyReport.loggedAnotherFollowUp,
+  "FU-AUTO": dailyReport.autoLoggedNextFollowUp, // ADR-082
   "NEG-DUE": dailyReport.setTheResponseDate,
   "MTG-RESCHEDULE": dailyReport.rescheduledTheMeeting,
   "T-7": dailyReport.rescheduledTheMeeting, // internal: delayed meeting

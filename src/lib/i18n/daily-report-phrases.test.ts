@@ -95,6 +95,9 @@ const INVENTORY: Array<{ why: string; row: InteractionRow }> = [
 
   /* ---- the same-stage records (SAME_STAGE_TRIGGERS), action `group_added` */
   { why: "FU-AGAIN another follow-up", row: group("FU-AGAIN") },
+  /* ADR-082 — the follow-up the "Didn't answer" press logs by itself. Same
+     `group_added` shape, its own trigger, so the report says the SYSTEM did it. */
+  { why: "FU-AUTO the auto-logged next follow-up (ADR-082)", row: group("FU-AUTO") },
   { why: "NEG-DUE the response date", row: group("NEG-DUE") },
   { why: "MTG-RESCHEDULE a new meeting", row: group("MTG-RESCHEDULE") },
 ];
@@ -167,8 +170,21 @@ describe("ADR-081 — every interaction the product records has a phrase, in bot
     );
   });
 
+  it("the auto-logged follow-up is not claimed as something HE typed", () => {
+    /* ADR-082 — on his own daily report the difference between what he did and
+       what the system did for him is the whole reason to read the line. */
+    expect(interactionPhrase("en", group("FU-AUTO"))).toBe("Next follow-up logged automatically");
+    expect(interactionPhrase("en", group("FU-AUTO"))).not.toBe(
+      interactionPhrase("en", group("FU-AGAIN")),
+    );
+    expect(interactionPhrase("ar", group("FU-AUTO"))).not.toBe(
+      interactionPhrase("ar", group("FU-AGAIN")),
+    );
+  });
+
   it("a record written IN PLACE never says 'Moved'", () => {
     for (const row of [
+      group("FU-AUTO"),
       group("FU-AGAIN"),
       group("NEG-DUE"),
       group("MTG-RESCHEDULE"),

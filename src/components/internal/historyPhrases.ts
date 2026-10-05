@@ -26,6 +26,11 @@ export const NUMBER_ADDED_PIPELINES: readonly PipelineConfig[] = [partnersConfig
 const LEGACY_NUMBER_ADDED_TRIGGERS = ["PA-2"] as const;
 
 export const TRIGGER_PHRASES: Record<string, Msg> = Object.fromEntries([
+  /* ADR-082 — the follow-up the "Didn't answer" press logs by itself. A
+     LITERAL, not a slot: it is not a pipeline transition at all (the card does
+     not move and no config declares it), it is a side effect of the marker, so
+     there is nothing on a config to derive it from. */
+  ["FU-AUTO", history.nextFollowUpAuto],
   ...NUMBER_ADDED_PIPELINES.map((config) => [
     /* the same default `transition.ts` stamps when a config declares no ids */
     config.triggers?.numberAdded ?? "PP-2",
