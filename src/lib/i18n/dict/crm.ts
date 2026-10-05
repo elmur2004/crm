@@ -1,6 +1,7 @@
 import type { Msg } from "@/lib/i18n/core";
 import { pPipeline } from "./partners";
 import { stageMsgs } from "./labels";
+import { callSheet } from "./call";
 import { entryPage } from "./entry";
 
 /* B-Systems core surface dictionary (shell + admin home + CRM board + leads +
@@ -460,10 +461,10 @@ export const proposalEdit = {
 export const leadsExport = {
   /* each button NAMES its company — he asked for two, one per company, and a
      sheet of the wrong company's customers is the one mistake that matters */
-  button: { en: "Export leads — {company}", ar: "تصدير العملاء — {company}" },
+  button: { en: "Export leads — {company}", ar: "تصدير العملاء المحتملين — {company}" },
   hint: {
     en: "Every lead, ever — live, won, lost and archived.",
-    ar: "كل العملاء المحتملين من البداية — الجاري والمكسب والخاسر والمؤرشف.",
+    ar: "كل العملاء المحتملين منذ البداية — الجاري والمكسب والخاسر والمؤرشف.",
   },
   /* the workbook's own tab. nav.leads is "Leads" — the same word as the page
      the button sits on, which is what a person expects the tab to say. */
@@ -484,7 +485,10 @@ export const leadsExport = {
   hOwnerBucket: { en: "Owner bucket", ar: "فئة المالك" },
   hOwner: common.owner,
   hSalesRep: { en: "Sales rep", ar: "مسؤول المبيعات" },
-  hPartner: { en: "Introduced by partner", ar: "شريك مُحوِّل" },
+  /* the product's own Arabic for a referral is "ترشيح" (dailyReport.addedFromPartner),
+     so the partner who sent the lead is "الشريك المُرشِّح" and not a second word for
+     the same act */
+  hPartner: { en: "Introduced by partner", ar: "الشريك المُرشِّح" },
   hCreated: common.created,
   hLastActivity: { en: "Last activity", ar: "آخر نشاط" },
   hFollowUp: { en: "Latest follow-up", ar: "آخر متابعة" },
@@ -495,7 +499,11 @@ export const leadsExport = {
   hLostReason: { en: "Lost reason", ar: "سبب الخسارة" },
   /* ADR-064's tally — "(times)" because the cell is a COUNT, not a flag */
   hNoAnswer: { en: "Didn't answer (times)", ar: "عدد مرات عدم الرد" },
-  hWhatsapp: { en: "WhatsApp sent", ar: "تم إرسال واتساب" },
+  /* the call sheet's own chip already says exactly this, and call.ts states the
+     rule the first draft of this key broke: the WORDMARK stays "WhatsApp" in both
+     languages, never transliterated. Referenced rather than retyped, so one
+     English string cannot grow two Arabic ones. */
+  hWhatsapp: callSheet.whatsappSentJustNow,
 
   /* ---- the STATUS column's four values ---- */
   /* won/lost REFERENCE the stage labels, so Status and Stage never disagree

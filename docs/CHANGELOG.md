@@ -2110,3 +2110,77 @@ All of it is in.
 - So that this cannot happen again with the next column: the boards no longer
   keep their own list of where a lead is allowed to go. They ask the pipeline, so
   a new column can never be a place a card gets stuck.
+
+## Export all your leads to Excel — one button per company (2026-10-06)
+
+> *"add a button to export all leads in an excel sheet / a button for bsystems and
+> a button for byteforce"*
+
+### Where the buttons are
+
+**On the Leads page**, at the top, next to Add lead: **Export leads — B-Systems**
+and **Export leads — ByteForce**. Press one and the file downloads.
+
+You see the button for every company whose Leads page you can open. You see both.
+Sara sees only ByteForce. Omar and the agents see neither — they cannot open the
+Leads page in the first place, and they cannot get the file by any other route
+either, which is deliberate: an agent only ever sees his own leads, and one
+spreadsheet would hand him everybody's.
+
+### What is in the file
+
+**Every lead, ever** — exactly as you asked. Live pipeline, won, lost, **and
+archived**, with a **Status** column saying which. The archived ones are in there
+even though they are on no screen any more, so nothing you have ever entered is
+missing from the file.
+
+No filters are applied. Whatever the Leads page happens to be filtered to when you
+press the button makes no difference — you always get the whole book.
+
+Twenty-one columns: name, company, number, email, position, industry, type, stage,
+**status**, owner bucket, owner, sales rep, the partner who introduced the lead,
+created, last activity, the latest follow-up, the latest meeting, the estimated
+value, the lost reason, how many times he didn't answer, and whether WhatsApp was
+sent.
+
+### The number keeps its zero
+
+This is a real Excel file, not a comma-separated one, and the reason is the phone
+number. Every number in the system starts with a **0** — `01012345678` — and if
+this had been a CSV, Excel would have opened it as `1012345678` and thrown that
+zero away, silently, on the one field you need to call the lead. It does not. The
+number comes out of the file exactly as it went in, all eleven digits.
+
+The same goes for the Arabic. Names and company names written in Arabic open
+correctly, not as a line of question marks.
+
+### You can actually sort it
+
+The dates are **real dates**, not text — so you can sort by "created", filter
+"follow-ups this week", or order by last activity, and Excel understands you. The
+value column and the didn't-answer count are **real numbers**, so you can sum them
+and the totals are right.
+
+The dates are Cairo dates. A lead you added at half past one in the morning shows
+the day you added it, not the day before.
+
+The top row is frozen, so the headings stay on screen however far you scroll.
+
+### In Arabic too
+
+Switch the system to Arabic and the file comes out in Arabic: Arabic column
+headings, and the sheet itself laid out **right to left**, so it reads the way the
+rest of the app does.
+
+### The file name
+
+`b-systems-leads-2026-10-06.xlsx` and `byteforce-leads-2026-10-06.xlsx` — the
+company and the date are in the name, so the two files never land on top of each
+other in your Downloads folder and you can tell at a glance which is which and
+when you pulled it.
+
+### One more thing
+
+Every download is **recorded** — who pulled which company's list, and when. This is
+the one button in the whole system that hands over every customer a company has, so
+there is a record of it.

@@ -7723,3 +7723,342 @@ same five changes, told the truth.
      recorded), or stop (the column goes uniformly null as the old chases end)?
      Kept, because dropping a field while copying a row forward is a quiet loss
      of information, and nothing reads it either way.
+
+## ADR-083 — 2026-10-06 — EVERY LEAD, EVER, AS A REAL SPREADSHEET: two buttons on the Leads page, a leading zero that survives, and the wall copied from the page
+
+- Context: the founder, verbatim — *"add a button to export all leads in an excel
+  sheet / a button for bsystems and a button for byteforce"*. Asked where the
+  buttons belong and what goes in the file, he answered: **the Leads page** (not
+  the CRM board), and **every lead, ever — live pipeline, won, lost AND archived
+  — with a column saying which**.
+
+  Nothing in the product exported leads before. The two things that already
+  existed were whole-module JSON dumps (the books, ADR-054, and the vault
+  backup): machine formats, for re-import, not for a person to open. This is the
+  first export that is *for reading*.
+
+### 1. A REAL `.xlsx`, AND THAT IS A CORRECTNESS DECISION, NOT A PREFERENCE
+
+A CSV would have been one line of code. It was rejected, and the reason is not
+taste:
+
+- **Every Egyptian mobile in this database starts with a zero** — `01012345678`,
+  `0221000001`. Excel strips a leading zero from a CSV the instant it opens the
+  file and shows `1012345678`. That is silent corruption of **the single field the
+  sheet exists for**: the number he calls the lead on. There is no CSV spelling of
+  "treat this as text" that Excel honours by default.
+- **The table is full of Arabic names.** Excel mis-decodes UTF-8 CSV without a
+  byte-order mark, and a BOM is a convention rather than a guarantee — a sheet of
+  mojibake is a sheet he cannot use.
+
+So the file is a real OOXML workbook, the phone is written as a **text cell** (it
+lands in `sharedStrings`, zero intact, `t="s"` on the cell), and every other
+column carries **its real type**: dates are date cells with a display format,
+money and the didn't-answer tally are numbers. A spreadsheet whose columns are all
+strings is a screenshot with extra steps — he could not sort it by date or sum a
+column, which is the whole point of asking for Excel rather than a print.
+
+**Proven by reading the file back**, not by inspecting the code that wrote it: 27
+integration cases generate the real bytes and parse them with a *different*
+library, plus raw `unzipSync` reads of `sheet1.xml`, `sharedStrings.xml` and
+`styles.xml` for the two structural claims a semantic reader cannot make (is the
+phone genuinely a text cell, is the sheet genuinely right-to-left). Three
+mutations were applied and watched go red: the phone written as a number (3 red),
+the Cairo shift removed (3 red), right-to-left forced off (1 red).
+
+### 2. THE DEPENDENCY: `write-excel-file`, and why not the obvious one
+
+There was no spreadsheet library in `package.json`. CLAUDE.md requires an ADR for
+a stack addition, so here it is.
+
+**Chosen: `write-excel-file@4.1.1`** (MIT), imported from its `/node` entry.
+
+| | why |
+| --- | --- |
+| **Actively published** | 4.1.1 is from **June 2026**. Its sibling reader `read-excel-file@9.3.10` is from **August 2026**. Both are maintained in the open. |
+| **One dependency** | `fflate` (the zip), and nothing else. Two packages added to the tree in total; `npm audit` reports **no advisory** against either (the project's nine pre-existing ones are against `next`, `prisma`, `vitest`, `sharp` and `mysql2`-via-`embedded-postgres`, and are untouched). |
+| **Does exactly the four things this needs** | per-cell `type` (`String` / `Number` / `Date` / `Boolean`), per-cell `format` (the numFmt), `rightToLeft` on the sheet, and `stickyRowsCount` for the frozen header. |
+| **Server runtime** | the `/node` export returns `{ toBuffer, toStream, toFile }` and is plain ESM — no native module, no WASM, no browser API. |
+| **Never reaches the browser** | it is imported by exactly one module (`lib/services/leads-export.ts`), which is imported by exactly one module (`lib/api/leads-export-route.ts`), which is imported by the two `route.ts` files. The buttons are a **server component** rendering plain `<a download>` anchors — zero client JavaScript — so there is no path by which the library can be pulled into a client bundle, and `npm run build` confirms it: the First Load JS figures are unchanged. |
+
+**Rejected, with reasons:**
+
+- **`xlsx` (SheetJS)** — the npm package is pinned at **0.18.5**, which the
+  project itself abandoned on npm years ago in favour of its own CDN. It carries
+  known prototype-pollution and ReDoS advisories that will never be fixed *on
+  npm*, and a dependency whose upstream has left the registry has no patch route
+  at all. This is the library most people reach for and it is the wrong one.
+- **`exceljs`** — the most featureful option, and the one whose reader would have
+  made the round-trip test easiest. Last publish **December 2024**. For a
+  dependency added to write a founder's download, "maintained" beat "capable", and
+  the three features of it that would be used here (typed cells, numFmt, RTL) are
+  all present in the chosen library.
+- **`node-xlsx`** (April 2024, and a thin wrapper over SheetJS — it inherits the
+  problem), **`@e965/xlsx`** (a SheetJS fork, July 2024), **`excel4node`** and
+  **`xlsx-populate`** (no per-cell typing worth the name).
+
+**`read-excel-file` is a DEV dependency only.** It exists so the test can read the
+file back with a reader that is not the writer. It never ships.
+
+### 3. THE WALL — worked out from the existing guards, and copied, not loosened
+
+This is the only real risk in the feature: one request returns an entire company's
+customer list in one file, onto a laptop, before anybody can notice.
+
+**Who may reach the Leads page today**, read off
+`src/app/(bsystems)/b-systems/(app)/leads/page.tsx`:
+
+- **ByteForce** — `requireCompanyPage` resolves `byteforce` only for an account
+  whose roles carry it (`companiesFor` narrows, ADR-067), so reaching that branch
+  *is* proof of `byteforce_staff`. One role.
+- **B-Systems** — the page narrows to `BS_PIPELINE_ROLES` and then redirects
+  anything that is not `bsystems_admin` to its own board. Admin, and nobody else.
+
+**So the export's wall is exactly that**, in `LEADS_EXPORT_ROLES`:
+`bsystems → ["bsystems_admin"]`, `byteforce → ["byteforce_staff"]`.
+
+**The four refusals, stated because they are the decision:**
+
+- `bsystems_sales` — **refused.** Internal sales works the internal bucket and
+  cannot open the admin Leads page. It would have been easy to reach for
+  `staffRolesForBrand("bsystems")`, which the rest of that API namespace uses and
+  which *includes* internal sales — that would have handed a salesperson the
+  admin's whole book. It is not used here, and a test asserts it is not.
+- `bsystems_agent` / `bsystems_partner` — **refused.** This is the answer to the
+  question "if such a role can reach the page at all, decide what they get and say
+  why". **They cannot reach the page at all**, so the honest answer is *nothing* —
+  and it is the right one independently: an agent or a partner sees only their own
+  leads everywhere in this product (`requireLeadAccess` throws on anybody else's),
+  and a company-wide file would undo that permission in a single click. A
+  per-owner export was considered and rejected as a feature nobody asked for: an
+  agent already has their own board, their own To-Do and their own filters.
+- `bsystems_data_entry` — **refused twice over**: carved out of
+  `BS_PIPELINE_ROLES` (ADR-051), and not the admin.
+
+**Enforced SERVER-SIDE, in the route, from the session.** `requireUser()` re-reads
+the roles from the database on every request (ADR-017), so a revoked role bites on
+the very next press with no re-login — asserted. Nothing on this path reads the
+request: no `searchParams`, no `new URL(...)`, no body.
+
+**The company is the ROUTE, not a parameter.** Two addresses —
+`/api/byteforce/leads/export` and `/api/b-systems/leads/export` — behind one
+shared handler that takes the company as a *function argument* the two `route.ts`
+files hardcode. ADR-067 says a `?company=` on an API route would be the single way
+to widen access across companies, so there isn't one; a test proves that adding
+`?company=byteforce` to the B-Systems endpoint changes nothing at all.
+
+**THE EQUIVALENCE IS THE TEST, not a second copy of the table.** A test comparing
+`LEADS_EXPORT_ROLES` to a hand-written expectation would pass happily the day
+somebody widened both. So `leads-export.test.ts` builds `pageReaches()` out of the
+very functions the real page calls — `resolveCompany`, `crmRolesFor`,
+`crmEngineRole` — in the real order, and sweeps **all 64 role subsets × both
+companies**, asserting that an account can export a company exactly when it can
+open that company's Leads page. Widening the export, or widening the page, turns
+it red naming the role. (Checked by mutation: adding `bsystems_sales` to the table
+reddened four cases, including the sweep.)
+
+**The buttons follow the same predicate.** `leadsExportCompanies(roles)` is
+`companiesFor` filtered by `canExportLeads`, computed on the server by the page
+and handed to whichever body renders. The case that forced it: an account holding
+`bsystems_sales` + `byteforce_staff` holds BOTH companies and can open ByteForce's
+Leads page but not B-Systems' — so it is shown **one** button. The UI can never
+offer a download the server then refuses, because they are one function.
+
+**Every download is logged** — a new `LogEntityType`, `lead_export`, with the
+*company* as `entityId` (the `acct_books` / `vault_backup` precedent) and
+`action: "export"`. "Who pulled the whole list, and when" has to be answerable for
+the one request in the product that can answer it. A refused request writes
+nothing.
+
+### 4. THE COLUMNS — twenty-one, derived from the model
+
+In order:
+
+| # | column | source | cell type |
+| --- | --- | --- | --- |
+| 1 | Name | `Lead.name` | text |
+| 2 | Company | `Lead.companyName` | text |
+| 3 | **Number** | `Lead.number` | **TEXT — the leading zero** |
+| 4 | Email | `Lead.email` | text |
+| 5 | Position | `Lead.position` | text |
+| 6 | Industry | `Lead.industry` | text |
+| 7 | Type | `Lead.type` via `leadTypeLabel` | text |
+| 8 | Stage | `Lead.stage` via `stageLabel` | text |
+| 9 | **Status** | derived — live / won / lost / archived | text |
+| 10 | Owner bucket | `Lead.ownerType` via `ownerTypeLabel` | text |
+| 11 | Owner | `Lead.owner.name` | text |
+| 12 | Sales rep | `Lead.salesRep.name` | text |
+| 13 | Introduced by partner | `Lead.partner.companyName` | text |
+| 14 | Created | `Lead.createdAt` | **date**, `dd/mm/yyyy hh:mm AM/PM` |
+| 15 | Last activity | `Lead.updatedAt` | **date**, `dd/mm/yyyy hh:mm AM/PM` |
+| 16 | Latest follow-up | newest `FollowUp.dueAt` | **date** — see §6 |
+| 17 | Latest meeting | newest `Meeting.datetime` | **date**, `dd/mm/yyyy hh:mm AM/PM` |
+| 18 | Estimated value (EGP) | newest `Proposal.estimatedValue`, else `WonInfo` / `WonDeal` | **number**, pounds, `#,##0.00` |
+| 19 | Lost reason | newest `LostInfo.reason` | text |
+| 20 | Didn't answer (times) | `Lead.noAnswerCount` | **number**, including 0 |
+| 21 | WhatsApp sent | `Lead.whatsappSentAt` | Yes / No |
+
+**Left out, deliberately:** `description`, `requirements` and the negotiation
+notes (paragraphs — one of them makes every row as tall as its longest note);
+`createdByUserId` ("added by", ADR-051 — a *fourth* person-column beside Owner,
+Sales rep and Partner, answering a question nobody asked of this file, and it is
+on the lead's History); the lead **id** (a cuid is noise to a human, and this
+sheet is for calling people, not for joining tables); `source` (it says "partner"
+exactly when the Partner column is filled — the same fact twice); `readyToClose`
+(an internal notification flag, not a property of the customer).
+
+**No filters.** His sentence was "every lead, ever", so the query takes nothing
+but the brand: not the Leads page's stage / owner / type / search controls, not
+`?view=archived`. An export that honoured the current filters would hand him a
+file whose contents depend on a query string he has forgotten he set — and it also
+means **there is no client-controlled input on this path at all**, which is the
+right property for this endpoint. Rows come out newest-added first, the Leads
+table's own default order (`sortLeads`'s `"added"`), so the file opens in the order
+of the screen the button sits on.
+
+**THE STATUS COLUMN'S OVERLAP, decided.** `archived` is a flag and `won` / `lost`
+are stages, so a lead can be both. **Archived wins**, because it is the answer to
+"where did this lead go" — an archived row appears on no screen in the product,
+and a sheet that called it "Won" would send him looking for a card that is not
+there. **Nothing is lost by the precedence**: the Stage column sits immediately
+before Status and still reads "Won", so filtering the sheet by Stage counts every
+win including the archived ones. Asserted both ways.
+
+### 5. SCALE — measured, not estimated
+
+"All leads, ever" grows without bound, so: **both halves BUFFER.** Prisma
+materialises every row of the company (plus its newest follow-up, meeting,
+proposal and lost row) and the library assembles the sheet XML and zips it in
+memory before a byte is sent. **The route does not stream.**
+
+Measured on this schema and these 21 columns, with Arabic in a third of the names
+and every optional record present:
+
+| rows | file | wall clock | heap used | RSS |
+| --- | --- | --- | --- | --- |
+| 10,000 | 0.85 MB | **2.8 s** | 75 MB | 227 MB |
+| 50,000 | 4.2 MB | 13 s | 251 MB | 558 MB |
+| 100,000 | 8.4 MB | 28 s | 462 MB | 983 MB |
+
+**At ten thousand rows this is fine** — under three seconds and under 100 MB of
+heap for a founder pressing a button, on a database that holds a few hundred leads
+today.
+
+**Where it breaks is a TIMEOUT, not a crash.** Around 50,000 rows the wall clock
+starts brushing a 30 s platform request limit; at 100,000 the resident set is
+within a hair of a 1 GB container. That is the point at which this should stream
+(`toStream`, which the library also offers) and read the leads in cursor-paged
+batches instead of one `findMany`. **Deliberately not built today**: streaming
+costs the row count in the response (the `X-Lead-Rows` header the e2e asserts
+against), and the product is two orders of magnitude away from needing it. The
+threshold is written down here and in the function's own header so the next person
+finds it instead of rediscovering it in production.
+
+### 6. BILINGUAL, AND THE TWO DATE TRAPS
+
+- **Headers follow the viewer's language**, off the same locale cookie every screen
+  reads (`getLocale`). **Twelve of the twenty-one headers reference existing Msg
+  keys** (`common.name`, `common.number`, `common.created`,
+  `stageForm.estimatedValue`, `callSheet.whatsappSentJustNow`, …) rather than being
+  retyped — the `optionalSuffix` convention in `dict/labels.ts`: the English stays
+  byte-identical to what is on screen, the Arabic is the translation that was
+  already reviewed, and a column header cannot drift from the field it names. The
+  Status column's **Won** and **Lost** reference `stageMsgs`, so Status and Stage
+  can never disagree about a word; **Archived** references
+  `archiveMsgs.archived`; the sheet's tab is `nav.leads`. Sixteen references in
+  all, and **fourteen new keys**, each with real Arabic.
+
+  **The brand audit caught two of those new keys and both were folded in before
+  the gate** — recorded rather than quietly fixed, because the lesson is the
+  convention's own:
+    - `hWhatsapp` was a new literal whose English was byte-identical to
+      `callSheet.whatsappSentJustNow` with *different* Arabic, and its Arabic
+      transliterated the wordmark to واتساب against the rule `call.ts` states in
+      as many words ("the brand name stays 'WhatsApp' in both languages"). It is
+      a reference now, so one English string cannot grow two Arabic ones.
+    - `button.ar` read "تصدير العملاء" — *export the customers*. This product
+      distinguishes clients from leads by name, and the hint one line below and
+      the sheet tab inside the downloaded file both said العملاء المحتملين. Three
+      words for one noun on one screen. Now one.
+    - `hPartner.ar` was tidied in the same pass for the same reason: the product's
+      Arabic for a referral is ترشيح (`dailyReport.addedFromPartner`), so the
+      partner who sent the lead is الشريك المُرشِّح.
+- **An Arabic export sets the sheet right-to-left** (`rightToLeft="1"` in
+  `sheetView`), so the columns run from the right and Excel's own frame flips with
+  them. The English file is unchanged — asserted in both directions.
+- **TRAP ONE — the time zone.** An Excel date cell is a serial number with *no*
+  time zone, and the library derives it from `date.getTime()`, i.e. it reads the
+  `Date` as UTC. Every instant here is UTC and every screen displays Africa/Cairo
+  (SPEC §2), so handing Prisma's `Date` straight to a cell would print a lead
+  created at 01:30 Cairo on the 6th as **the 5th** — the app and the sheet
+  disagreeing about the day, on the column he would sort by. Every date cell
+  therefore carries the **Cairo wall clock pinned to UTC**, built from the same
+  `utcToCairo` the screens format through. Pinned by a test at a deliberately
+  nasty instant (23:30 UTC, which is 02:30 the next day in Cairo's October DST).
+- **TRAP TWO — printing a clock nobody chose.** ADR-061 made follow-ups date-only
+  and ADR-063 exists precisely to stop the stored 09:00 default being rendered as
+  if somebody picked it. So column 16 is **per-cell**: `dueTimeSet` true → the
+  Cairo clock with `dd/mm/yyyy hh:mm AM/PM`; false → the Cairo day at midnight
+  with `dd/mm/yyyy`. Midnight is also what makes Excel's own date filter exact —
+  "equals 10/11/2026" does not match a serial carrying a fraction. The two times
+  that *are* printed are twelve-hour, ADR-068.
+
+### 7. THE FILENAME
+
+`byteforce-leads-2026-10-06.xlsx` and `b-systems-leads-2026-10-06.xlsx` — the
+company and the **Cairo** day, the accounting export's own convention
+(`{company}-accounting-{YYYY-MM-DD}.json`). The company is in it so the two
+downloads cannot collide in one Downloads folder; the date is Cairo's, not the
+server's, because a file stamped yesterday because the box runs UTC is a support
+question nobody should have to answer.
+
+- Alternatives considered:
+  - **CSV** — rejected on correctness, §1. This is the decision the whole ADR
+    turns on, and it is the one a reasonable person would have got wrong.
+  - **`xlsx` (SheetJS) from npm** — rejected: abandoned on the registry with
+    unfixable advisories, §2.
+  - **`exceljs`** — rejected on publishing cadence, §2. The closest call here.
+  - **Generating the sheet in the BROWSER** — rejected outright: it would put a zip
+    library in the client bundle *and* require the whole lead list to be sent to
+    the client as JSON first, which is a worse version of the same download with no
+    audit log and no server wall.
+  - **`staffRolesForBrand("bsystems")` as the B-Systems wall** — rejected, §3. It
+    is the guard the rest of that API namespace uses, which is exactly what makes
+    it the trap: it includes internal sales.
+  - **A per-owner export for agents and partners** — rejected: nobody asked, and
+    the roles in question cannot reach the page the buttons live on.
+  - **Honouring the Leads page's filters** — rejected, §4. "Every lead, ever."
+  - **One endpoint with `?company=`** — rejected: ADR-067 names this as the one way
+    to widen access across companies.
+  - **A client component for the buttons** — rejected: there is nothing for
+    JavaScript to do. A server component with `<a download>` works with scripting
+    off and keeps the library out of the bundle.
+  - **Putting the buttons on the CRM board as well** — rejected: he was asked and
+    said the Leads page. Asserted as an absence.
+  - **Including the lead id, `description`, `requirements` or "added by"** —
+    rejected, §4.
+  - **Streaming today** — rejected with a measured threshold rather than a shrug,
+    §5.
+  - **A Boolean cell for WhatsApp** — rejected: Excel renders a real boolean as the
+    English words TRUE/FALSE in every language, and this file is bilingual.
+  - **A currency literal inside the money numFmt** (`"EGP" #,##0.00`) — rejected:
+    it would have to be quoted into the styles XML for no gain, and the header
+    already says EGP. The cell stays a plain number so it sums.
+  - **`archived` losing to `won` in the Status column** — rejected, §4.
+
+- Resolves: one founder request (no SPEC §11 A-#). Adds `lead_export` to
+  `LOG_ENTITY_TYPES`. **Deviates from SPEC §2's stack** by adding
+  `write-excel-file` (runtime) and `read-excel-file` (dev) — the deviation this
+  ADR exists to record. No migration, no schema change, no permission change, and
+  no change to any existing route or screen other than two anchors in one page
+  head.
+- Status: Accepted. **Needs founder confirmation (three):**
+  1. **Should an ARCHIVED WON lead read "Archived" or "Won" in the Status
+     column?** Archived wins today, because it answers "where did this lead go".
+     The Stage column beside it still says Won, so no count is lost either way —
+     this is a wording choice, and a one-line change.
+  2. **Should the file respect the Leads page's filters when they are set?** It
+     ignores them on purpose ("every lead, ever"). A second "export what I am
+     looking at" button is a small change if he wants both.
+  3. **Should the export be available anywhere else** — the CRM board, Won Leads, a
+     rep's own page? He named the Leads page, and that is where it is.

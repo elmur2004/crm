@@ -154,7 +154,7 @@ test("an Arabic viewer gets Arabic headers and a right-to-left sheet", async ({ 
   await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
 
   /* the button itself is Arabic, and still names its company */
-  await expect(page.getByRole("link", { name: "تصدير العملاء — B-Systems" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "تصدير العملاء المحتملين — B-Systems" })).toBeVisible();
 
   const res = await page.request.get("/api/b-systems/leads/export");
   expect(res.status()).toBe(200);

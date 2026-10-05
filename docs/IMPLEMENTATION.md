@@ -4019,3 +4019,170 @@ change, and no stage added to any pipeline.** The two changes that LOOK like the
 need a migration — a new board column and a renamed field — needed neither, for
 the same reason in both cases: the column is derived from data that was already
 there, and the rename is a caption over a column that keeps its name.
+
+## ADR-083 — the leads export: seven traps, two of them a wrong day on the page he would sort by
+
+Written while building it. Every one of these is a thing that compiled, typechecked
+and looked right.
+
+### 1. AN EXCEL DATE HAS NO TIME ZONE, AND THE DEFAULT IS WRONG BY A DAY
+
+An `.xlsx` date cell is **a serial number**: a count of days since 1900, with the
+time as a fraction. There is no offset in it, anywhere. `write-excel-file` derives
+it the only way it can — `date.getTime() / 86_400_000 + 25_569` — which means **it
+reads the `Date` as UTC**.
+
+Every instant in this database is UTC (SPEC §2) and every screen displays
+Africa/Cairo. So the obvious code — hand Prisma's `createdAt` to the cell — writes
+a serial whose hands are **UTC hands**, and a lead created at 01:30 Cairo on the
+6th prints as **the 5th**. The app and the sheet disagreeing about the day, on the
+column he would sort and filter by, with no error anywhere.
+
+The fix is one function, `cairoCell`: take `utcToCairo(instant)` — the very
+splitter every screen formats through — and re-assemble its `{date, time}` as a
+**UTC instant**, so the serial comes out carrying the hands of a Cairo clock. Every
+date column goes through it.
+
+Pinned at a deliberately nasty instant rather than a safe one: `23:30 UTC` on
+2026-10-05, which is `02:30` on the 6th in Cairo. Egypt is on DST in October
+(it reinstated it in 2023, ending the last Thursday of the month), so the test also
+catches anybody who "simplifies" the shift to a fixed `+2`. My own first
+expectation in that test was `01:30` — I had written `+2` by hand in my head, which
+is exactly the mistake the helper exists to prevent.
+
+### 2. AND THE SECOND DATE TRAP IS ADR-063 ALL OVER AGAIN
+
+`FollowUp.dueAt` is a full instant but a follow-up is a **date** (ADR-061), and the
+09:00 Cairo in the column is a DEFAULT nobody chose. ADR-063 added `dueTimeSet`
+precisely so the product stops printing clocks people did not pick, and a
+spreadsheet column formatted `dd/mm/yyyy hh:mm` would have reprinted all of them —
+every follow-up in the file claiming he had scheduled a nine o'clock call.
+
+So the follow-up cell is **per-cell**, not per-column: `dueTimeSet` true → the
+Cairo clock with a time format; false → the Cairo **day at midnight** with
+`dd/mm/yyyy`. Mixed formats in one column are allowed in OOXML (the format lives in
+the cell's style, not the column's) and are the truthful rendering.
+
+**Midnight is not cosmetic either.** With a `dd/mm/yyyy` format over a serial that
+still carries `.375` of a day, Excel *displays* the right date and its own date
+filter does not match it — "equals 10/11/2026" silently returns nothing. Truncating
+to the Cairo day makes the filter exact. That is a bug nobody would have reported
+as a bug; they would have concluded the filter was broken.
+
+### 3. THE WALL I ALMOST INHERITED WAS ONE ROLE TOO WIDE
+
+Every brand-partitioned route in this API reaches for `requireBrandStaff(brand)` /
+`staffRolesForBrand(brand)`. It is the house idiom and it is right for the dozens
+of routes that use it. For **this** route it is a hole:
+`staffRolesForBrand("bsystems")` is `["bsystems_admin", "bsystems_sales"]`, and
+internal sales **cannot open the B-Systems Leads page** — the page redirects it to
+the board. Using the house idiom would have handed a salesperson the admin's entire
+customer list, with a guard that looks exactly like the forty next to it.
+
+The wall therefore comes from the PAGE, read off its own guard chain, and lives in
+one table (`LEADS_EXPORT_ROLES`). There is a test that asserts in as many words
+that `LEADS_EXPORT_ROLES.bsystems` does **not** contain `bsystems_sales`, because
+the next person to touch this file will have the same instinct I did.
+
+### 4. A TABLE-VERSUS-TABLE TEST CANNOT FAIL IN THE DIRECTION THAT MATTERS
+
+The first draft of the wall test compared `LEADS_EXPORT_ROLES` to a hand-written
+expectation. It passes. It also passes the day somebody widens the export **and**
+updates the expectation in the same commit, which is exactly how a permission
+widens by accident — and it says nothing at all about the claim the ADR actually
+makes, which is *that the export's wall equals the page's wall*.
+
+So the test builds `pageReaches(roles, company)` out of the functions the real page
+calls — `resolveCompany`, `crmRolesFor`, `crmEngineRole` — in the real order, and
+sweeps **all 64 role subsets × 2 companies** asserting the equivalence. Now
+widening *either* side turns it red. Mutation-checked: adding `bsystems_sales` to
+the table reddened four cases and the sweep named the role in its message.
+
+The same reasoning is why the buttons and the route share **one** predicate. Two
+copies of "who may export" — one for rendering, one for refusing — is a UI that
+offers a download the server rejects, or worse, the reverse.
+
+### 5. HOLDING BOTH COMPANIES IS NOT HOLDING BOTH EXPORTS
+
+This is the case that forced `leadsExportCompanies` to be a filter rather than just
+`companies`. An account with `bsystems_sales` + `byteforce_staff`:
+
+- `companiesFor` reports **both** — so the company switch renders, and both
+  companies' screens are reachable;
+- ByteForce's Leads page **opens** (the company itself proves `byteforce_staff`);
+- B-Systems' Leads page **redirects** it to the board (not admin).
+
+So it must see exactly **one** button. Deriving the buttons from `companies` would
+have printed two, and the second one would have 403'd — the UI promising something
+the wall takes back, which reads as a broken feature rather than as a permission.
+Asserted in the unit sweep and again at the route.
+
+### 6. THE LIBRARY CHOICE WAS NOT THE OBVIOUS ONE, AND THE OBVIOUS ONE IS A TRAP
+
+`xlsx` (SheetJS) is what everybody reaches for. The npm package is **0.18.5** and
+the project moved off npm years ago to its own CDN: the registry copy is frozen,
+carries known advisories, and **has no patch route** — `npm audit fix` can never
+fix it because there is nothing newer to install. `exceljs`, the obvious
+alternative, last shipped in December 2024.
+
+`write-excel-file` (June 2026) + `read-excel-file` (August 2026) won on
+maintenance, and the second one is a genuine gift to the tests: **the reader is not
+the writer**, so a round-trip assertion is not the library agreeing with itself.
+For the two claims a semantic reader cannot make — *is the phone really a text
+cell*, *is the sheet really right-to-left* — the tests unzip the archive with
+`fflate` (already in the tree as the writer's one dependency) and read
+`sheet1.xml`, `sharedStrings.xml` and `styles.xml` directly, the way Excel will.
+
+That is also how the leading-zero claim is proved properly rather than
+plausibly: `<si><t>01012345678</t></si>` in the shared strings, and the cell that
+points at it typed `t="s"`, with an explicit assertion that `<v>1012345678</v>`
+appears **nowhere** in the sheet.
+
+### A smaller one: `read-excel-file`'s default export returns SHEETS, not rows
+
+`readXlsxFile(input)` in v9 resolves to `Sheet[]` (`{ sheet, data }`), not to the
+grid. `readSheet(input)` is the one that returns rows. Both are used on purpose —
+`readSheet` for the grid, `readXlsxFile` for the **tab name**, which is the only way
+to assert that an Arabic export names its sheet العملاء المحتملون.
+
+### And one float the tests had to be honest about
+
+An Excel serial is a fraction of a day in a double, so `14:00` is not exactly
+representable and a write-then-read costs **under a millisecond** — the reader
+returns `13:59:59.999`. That is below anything a date format can show (Excel rounds
+a serial to the unit it is printing), so the assertions round to the minute and say
+why, rather than being pinned to a value that happens to survive. The **day** is
+asserted separately and exactly, because the day is the claim.
+
+### A seventh, found by the brand audit: an English string with two Arabic ones
+
+`hWhatsapp` shipped in the first commit as a new literal, `{ en: "WhatsApp sent",
+ar: "تم إرسال واتساب" }`. The English is **byte-identical** to
+`callSheet.whatsappSentJustNow`, which has been in the product since ADR-069 with
+a *different* Arabic — and the group's own header comment claims the opposite
+property in as many words, two inches above it. The Arabic half also
+transliterated the wordmark, against a rule `call.ts` states explicitly ("the
+brand name stays 'WhatsApp' in both languages").
+
+The same pass found `button.ar` reading "تصدير العملاء" — *export the customers* —
+while the hint one line below it and the sheet tab inside the file it downloads
+both said العملاء المحتملين. **Three Arabic words for one English noun, on one
+screen.**
+
+Both are one-line fixes and neither was a brand-rule breach, which is exactly why
+they are worth writing down: the convention that twelve of these headers follow was
+written to prevent this, and I broke it twice in the same object while documenting
+it. The fix in both cases is to REFERENCE, not retype.
+
+### What it cost, and what it did not
+
+Four commits. Two new runtime files (`lib/crm/leads-export.ts` pure,
+`lib/services/leads-export.ts` the writer), one shared route handler, two
+three-line `route.ts` files, one server component, two anchors added to one page
+head, one new `LogEntityType`, 14 new i18n keys and 16 references to existing ones,
+and **two dependencies** — one runtime, one dev-only.
+
+**No migration, no schema change, no new column, no new table, no permission
+change, no stage change, and not one line of new CSS.** The buttons are the house
+`btn-ghost` and `u-muted`, which is why there was nothing for the brand audit to
+find in the UI: a feature that adds no colour cannot get a colour wrong.
