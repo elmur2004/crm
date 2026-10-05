@@ -222,6 +222,54 @@ test.describe("ADR-072/082 — Postpone / Not answering", () => {
     expect((await page.request.delete(`/api/b-systems/leads/${id}`)).ok()).toBe(true);
   });
 
+  test("THE BYTEFORCE LEAD PANEL asks for nothing either — the panel that had no case", async ({
+    page,
+  }) => {
+    /* Review — coverage gap. Everything above proves the LEAD PAGE through the
+       B-Systems panel (roleForms / BsLeadDetailBody). ByteForce has a SECOND
+       panel, `LeadEventPanel`, with its own `fieldsForTarget`, its own
+       `groupForTarget` and its own copy of the "asks for nothing" line — and
+       that is precisely the function that went stale when ADR-072 added the
+       destination, which is the bug this whole file exists for. Two panels, two
+       cases.
+
+       The ByteForce lead lives at its own address (`/b-systems/leads/lead/:id`),
+       which is also why a wrong one would not have been noticed here. */
+    await login(page, "sara@byteforce.example", "byteforce123", /\/b-systems\?company=byteforce$/);
+    const id = await leadInFollowUp(page, "Postpone BF Panel", "/api/byteforce");
+    await page.goto(`/b-systems/leads/lead/${id}?company=byteforce`);
+
+    await page.getByLabel(/Next action/i).selectOption({ label: COLUMN });
+
+    /* his three options are GONE here too — the popup he withdrew */
+    for (const option of [
+      "Not answering at all",
+      "No show at the meeting",
+      "Not interested right now",
+      "Other",
+    ]) {
+      await expect(page.getByRole("radio", { name: option })).toHaveCount(0);
+    }
+    /* and this panel says why there is nothing to fill in, in its own words */
+    await expect(page.getByText(/Parking the lead asks for nothing/i)).toBeVisible();
+
+    await page.getByRole("button", { name: "Save & move" }).click();
+    await expect(page.locator(".stage-chip--header").first()).toHaveText(COLUMN);
+    /* and NO reason row was written — the history title went with the popup */
+    await expect(page.getByText("Postponed", { exact: true })).toHaveCount(0);
+
+    /* and it comes back OUT, from this panel, with a date of its own */
+    await page.getByLabel(/Next action/i).selectOption({ label: "Following Up" });
+    await page.getByLabel(/Follow-up date/i).fill(cairoDate(2));
+    await page.getByRole("button", { name: "Save & move" }).click();
+    await expect(page.locator(".stage-chip--header").first()).toHaveText("Following Up");
+
+    /* clean up by ARCHIVING (ADR-043) — the ByteForce API has no lead delete */
+    expect(
+      (await page.request.post(`/api/byteforce/leads/${id}/archive`, { data: { value: true } })).ok(),
+    ).toBe(true);
+  });
+
   test("the card lands in the column, and comes back OUT of it", async ({ page }) => {
     await loginAsFounder(page);
     const id = await leadInFollowUp(page, "Postpone Round Trip");
