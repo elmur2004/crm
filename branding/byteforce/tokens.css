@@ -129,8 +129,12 @@
   --color-stage-postponed-chip-ink: #77550A;
   /* ADR-082 - "Fallen behind": the follow-ups whose day has passed. Built on
      the FUNCTIONAL RED both brands already share (--color-danger, #C0392B),
-     exactly as ADR-072's Postpone was built on the shared functional amber, and
-     for the same reason: the meaning is brand-neutral. A missed commitment is
+     for the same reason ADR-072's Postpone was built on the shared functional
+     amber: the meaning is brand-neutral. (ADR-072 shares only the ACCENT and
+     warms its well and chip per brand; all four values here are identical in
+     both brands, because all four derive from the `--color-danger` /
+     `-danger-tint` / `-danger-ink` set, which has been brand-identical since
+     ADR-014/R2. Stated rather than implied — brand audit, Run 098.) A missed commitment is
      what the red already says on an overdue receivable, and this column must not
      read as "paused" (amber, which Postpone owns) or as "gone" (grey, Lost).
      Identical in all three scopes - the column means the same thing whichever

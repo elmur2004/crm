@@ -633,8 +633,17 @@
 .col--over-blocked { background: var(--color-danger-tint); border-color: var(--color-danger-border-strong); }
 .col-locked-note {
   margin: 0 9px 9px; padding: 7px 9px; border-radius: 7px;
-  background: color-mix(in srgb, var(--color-accent) 10%, transparent);
-  border: 1px dashed color-mix(in srgb, var(--color-accent) 45%, transparent);
+  /* ADR-082 (brand audit) — the BOX rides the column's own stage bar, like the
+     ink below and like `.col-empty` already does. BYTE-IDENTICAL on Won, which
+     was this rule's only column until today: `--stage-bar` there is
+     `--color-stage-won-accent`, which is #F15C24 in ByteForce and #FF4F87 in
+     B-Systems — i.e. exactly `--color-accent` in both brands. On the second
+     closed column (Fallen behind) the hardcoded accent would have painted a
+     SIGNAL PINK box under functional-red text on the B-Systems board, which is
+     pink used as a surface outside the Won cue — the one thing the B-Systems
+     palette rules forbid it. */
+  background: color-mix(in srgb, var(--stage-bar, var(--color-accent)) 10%, transparent);
+  border: 1px dashed color-mix(in srgb, var(--stage-bar, var(--color-accent)) 45%, transparent);
   font: 500 10px var(--font-mono); letter-spacing: .12em; text-transform: uppercase;
   /* ADR-082 - the note rides the COLUMN's own stage ink now. It was
      hardcoded to the Won chip ink, which was right while Won was the only

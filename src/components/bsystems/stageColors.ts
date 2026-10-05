@@ -75,6 +75,13 @@ export function stageTint(stage: string): string {
       return "bg-stage-waiting";
     case "qualified":
       return "bg-stage-qualified";
+    /* ADR-082 (brand audit) — the derived column has no caller for these two
+       helpers today (both are handed real stage sets), but a trio of switches
+       where one knows a key and two do not is a latent paint bug: the next
+       caller handed a `boardColumns()` id would get the neutral surface tint
+       instead of the column's own red. Kept in step on purpose. */
+    case FALLEN_BEHIND_COLUMN:
+      return "bg-stage-fallen-behind";
     case "won":
       return "bg-stage-won";
     case "lost":
@@ -107,6 +114,8 @@ export function stageAccent(stage: string): string {
       return "bg-stage-waiting-accent";
     case "qualified":
       return "bg-stage-qualified-accent";
+    case FALLEN_BEHIND_COLUMN: // ADR-082 — see stageTint above
+      return "bg-stage-fallen-behind-accent";
     case "won":
       return "bg-stage-won-accent";
     case "lost":
