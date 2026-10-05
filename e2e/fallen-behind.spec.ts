@@ -54,15 +54,33 @@ async function login(page: Page, identifier: string, password: string, landing: 
 const loginFounder = (page: Page) =>
   login(page, "admin@byteforce.com", "password123", /\/b-systems$/);
 
+/* Aim so the CARD lands centred on the target column, not the POINTER. dnd-kit
+   scores the collision on the DRAGGED CARD's rect, so pointing at the column
+   centre leaves the card straddling its neighbour — and since ADR-082 inserted
+   "Fallen behind" immediately before Following Up, a straddled drop now lands on
+   a column that REFUSES it, which reads as "the feature is broken" rather than
+   as a mis-aimed test. Same compensation prospect-pipeline.spec.ts uses for its
+   seven columns. */
 async function dragTo(page: Page, card: Locator, column: Locator) {
   await column.scrollIntoViewIfNeeded();
   await card.scrollIntoViewIfNeeded();
-  const from = (await card.boundingBox())!;
-  const to = (await column.boundingBox())!;
-  await page.mouse.move(from.x + from.width / 2, from.y + 20);
+  const cardBox = (await card.boundingBox())!;
+  const gripBox = (await card.locator(".bcard-grip").boundingBox())!;
+  const gripX = gripBox.x + gripBox.width / 2;
+  const gripY = gripBox.y + gripBox.height / 2;
+  const offsetX = gripX - (cardBox.x + cardBox.width / 2);
+  const offsetY = gripY - (cardBox.y + cardBox.height / 2);
+  const aim = async () => {
+    const to = (await column.boundingBox())!;
+    return { x: to.x + to.width / 2 + offsetX, y: to.y + 40 + cardBox.height / 2 + offsetY };
+  };
+  await page.mouse.move(gripX, gripY);
   await page.mouse.down();
-  await page.mouse.move(from.x + from.width / 2 + 30, from.y + 40, { steps: 8 });
-  await page.mouse.move(to.x + to.width / 2, to.y + 90, { steps: 14 });
+  await page.mouse.move(gripX, gripY + 12, { steps: 4 });
+  const first = await aim();
+  await page.mouse.move(first.x, first.y, { steps: 14 });
+  const settled = await aim();
+  await page.mouse.move(settled.x, settled.y, { steps: 2 });
   await page.mouse.up();
 }
 
@@ -84,7 +102,15 @@ async function leadDueOn(page: Page, name: string, number: string, date: string,
   return id;
 }
 
+/* ADR-082 — NINE 218px columns plus gaps is ~2100px on B-Systems (eight stages
+   and the derived Fallen behind column), well outside the default 1280 viewport.
+   `page.mouse` works in VIEWPORT coordinates, so the right-hand columns could
+   never be reached, and `scrollIntoViewIfNeeded` on the column scrolls the CARD
+   out of view at the same time — the two ends cannot both be brought in by
+   scrolling. Give the drag cases a board that fits. */
 test.describe("ADR-082 — Fallen behind", () => {
+  test.use({ viewport: { width: 2300, height: 1000 } });
+
   test("the column exists on BOTH lead boards, before Following Up, in its own colour", async ({
     page,
   }) => {

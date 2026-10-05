@@ -61,15 +61,18 @@ test("the lead detail records another follow-up without leaving Following Up", a
 
   /* two follow-up records now, and the stage badge has not moved */
   await expect(page.getByText("Following up", { exact: true })).toHaveCount(2);
-  /* month abbreviation is ICU-dependent in en-GB ("Sep" / "Sept") — the day and
-     year prove the NEW record landed, and with the time left blank it renders
+  /* ADR-082 — the expected day is now DERIVED from the same offset the form was
+     filled with, through the app's own formatter: the month abbreviation is
+     ICU-dependent in en-GB ("Sep" / "Sept") and the date is relative, so naming
+     either by hand is two ways to rot. With the time left blank it renders
      DATE-ONLY (ADR-061's norm, kept by ADR-063).
      ADR-068 widened the hour to \d{1,2}: the clock is twelve-hour now, so
      "9:00 AM" has a ONE-digit hour. Left at \d{2} this assertion would have gone
      on passing while proving nothing — the one test in the suite that got
      WEAKER by being left alone. */
-  await expect(page.getByText(/Due 8 Sept? 2026/)).toBeVisible();
-  await expect(page.getByText(/8 Sept? 2026, \d{1,2}:\d{2}/)).toHaveCount(0);
+  const due = cairoDateLabel(8);
+  await expect(page.getByText(new RegExp(`Due ${due}`))).toBeVisible();
+  await expect(page.getByText(new RegExp(`${due}, \\d{1,2}:\\d{2}`))).toHaveCount(0);
 
   await page.goto("/b-systems/crm");
   await expect(

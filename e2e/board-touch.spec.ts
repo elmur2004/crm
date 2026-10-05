@@ -68,9 +68,27 @@ const center = (b: { x: number; y: number; width: number; height: number }) => (
    mid-viewport — outside both auto-scroll zones — until the board stops
    moving, then (3) re-reads the target's CURRENT box, settles on it, and
    lifts. Exactly what a thumb does when the column slides under it. */
-async function touchDragToStage(page: Page, from: { x: number; y: number }, stage: string) {
+/* ADR-082 — `[data-column]`, not `[data-stage]`: the derived "Fallen behind"
+   column carries no `data-stage`, and it now sits IMMEDIATELY BEFORE Following
+   Up. A finger aimed at Following Up's centre leaves the dragged card's rect
+   straddling that new neighbour, and dnd-kit scores the collision on the CARD —
+   so the drop was landing on a column that refuses it, with no modal and a
+   toast. The aim below compensates by the grip-to-card-centre offset, the way
+   the mouse helpers in prospect-pipeline / fallen-behind / postpone do. */
+async function touchDragToStage(
+  page: Page,
+  from: { x: number; y: number },
+  stage: string,
+  card?: Locator,
+) {
   const cdp = await page.context().newCDPSession(page);
-  const box = () => page.locator(`[data-stage="${stage}"]`).boundingBox();
+  const box = () => page.locator(`[data-column="${stage}"]`).boundingBox();
+  /* the finger holds the GRIP, which sits at the card's inline-start edge */
+  let offsetX = 0;
+  if (card) {
+    const cardBox = (await card.boundingBox())!;
+    offsetX = from.x - (cardBox.x + cardBox.width / 2);
+  }
   await cdp.send("Input.dispatchTouchEvent", {
     type: "touchStart",
     touchPoints: [{ x: from.x, y: from.y }],
@@ -84,15 +102,35 @@ async function touchDragToStage(page: Page, from: { x: number; y: number }, stag
     }
   };
   const before = (await box())!;
-  /* the second column is only partly on screen at 390px — aim at the part
-     that IS, exactly as a thumb would */
-  const aim = { x: Math.min(before.x + before.width / 2, 350), y: before.y + 70 };
+  /* the target column is only partly on screen at 390px — aim at the part that
+     IS, exactly as a thumb would */
+  const EDGE = 350;
+  const want = (b: { x: number; width: number }) => b.x + b.width / 2 + offsetX;
+  let aim = { x: Math.min(want(before), EDGE), y: before.y + 70 };
   await moveTo(from, aim, 12);
+  /* ADR-082 — HOLD AT THE EDGE UNTIL THE TARGET ARRIVES, then park. dnd-kit
+     auto-scrolls the board while the finger rests near the edge, and the column
+     list grew by one (the derived Fallen behind column), so one hover no longer
+     scrolls far enough: the clamped drop below was landing on that new
+     neighbour, which REFUSES drops — a toast and no modal, which reads as the
+     feature being broken rather than as the test under-scrolling. Re-checking in
+     a loop is what a thumb actually does, and it is indifferent to how many
+     columns there are. */
+  for (let i = 0; i < 8; i++) {
+    await page.waitForTimeout(220);
+    const live = (await box())!;
+    if (want(live) <= EDGE) break;
+    await moveTo(aim, { x: EDGE, y: aim.y }, 2); // keep the auto-scroll running
+    aim = { x: EDGE, y: aim.y };
+  }
   const park = { x: 140, y: aim.y };
   await moveTo(aim, park, 4);
   await page.waitForTimeout(350); // any edge auto-scroll has stopped by now
   const live = (await box())!;
-  const drop = { x: Math.min(Math.max(live.x + live.width / 2, 24), 340), y: live.y + 70 };
+  const drop = {
+    x: Math.min(Math.max(want(live), 24), 340),
+    y: live.y + 70,
+  };
   await moveTo(park, drop, 4);
   await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
   await page.waitForTimeout(400); // let the drop settle before measuring
@@ -262,7 +300,7 @@ test("dragging BY THE GRIP still moves a card between stages, on touch", async (
   const card = page.locator('[data-deal-card="Grip Lead 1"]');
   await expect(card).toBeVisible();
   const grip = (await card.locator(".bcard-grip").boundingBox())!;
-  await touchDragToStage(page, center(grip), "following_up");
+  await touchDragToStage(page, center(grip), "following_up", card);
 
   /* the drop opened the stage's form — the move is real, not a scroll */
   await expect(page.getByText("Complete this stage's details to confirm the move")).toBeVisible();

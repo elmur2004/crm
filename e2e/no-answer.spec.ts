@@ -227,7 +227,10 @@ test("Undo removes the auto-logged follow-up too — no phantom left behind (ADR
   await expect(card).toContainText(`Next: ${dayLabel(1)}`);
 
   await page.getByRole("button", { name: /^Undo:/ }).click();
-  await expect(page.getByText(/^Undone:/)).toBeVisible();
+  /* the stored label, named exactly — the toast's <p> also carries the "!" icon
+     span, so its normalized text starts with "!" and an anchored /^Undone:/
+     could never match it (and a bare /Undone:/ would pass on any undo at all) */
+  await expect(page.getByText("Undone: Flagged Auto Undo Lead as no answer")).toBeVisible();
 
   await page.goto("/b-systems/crm");
   const back = page.locator('[data-deal-card="Auto Undo Lead"]');

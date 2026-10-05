@@ -97,7 +97,10 @@ test("ByteForce: full parity — the same label, the same hint, no Owner (ADR-04
   expect(created.status()).toBe(201);
   const { id } = (await created.json()) as { id: string };
 
-  await page.goto(`/b-systems/crm/lead/${id}?company=byteforce`);
+  /* ADR-074's LEAD_ADDRESS table: ByteForce leads are READ on the rep
+     directory's detail screen, B-Systems' on the board's — two screens at one
+     prefix, told apart by `?company=`. */
+  await page.goto(`/b-systems/leads/lead/${id}?company=byteforce`);
   await page.getByLabel(/Next action|Choose a next action/i).selectOption("following_up");
   await expectAboutField(page);
 

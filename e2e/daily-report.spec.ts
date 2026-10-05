@@ -73,7 +73,13 @@ test.describe("ADR-081 — the daily report", () => {
     const b = await createLead(page, api, LEAD_B, "0109810002");
 
     /* FOUR more actions on lead A — a stage move, a didn't-answer, a comment and
-       a WhatsApp mark — and ONE on lead B. Six actions, TWO leads. */
+       a WhatsApp mark — and ONE on lead B. Six actions, TWO leads.
+
+       ADR-082 — the didn't-answer press is now worth TWO log rows, not one: the
+       follow-up below is dated TODAY, so the press also logs tomorrow's chase
+       (`FU-AUTO`). SEVEN rows, still TWO leads — which is exactly the property
+       this case is here to defend, so the delta assertion below is unchanged and
+       lead A's own line count goes from five to six. */
     const moved = await page.request.post(`${api}/leads/${a}/event`, {
       data: {
         event: { type: "drag", to: "following_up" },
@@ -112,16 +118,22 @@ test.describe("ADR-081 — the daily report", () => {
     const rowA = page.locator(".record-group").filter({ hasText: LEAD_A });
     await expect(rowA).toHaveCount(1);
     await expect(rowA.getByRole("link", { name: LEAD_A })).toBeVisible();
-    /* FIVE interactions on that one lead — five lines, one row, one unit of count */
-    await expect(rowA.locator(".record-time")).toHaveText("Interactions: 5");
+    /* SIX interactions on that one lead — six lines, one row, ONE unit of count.
+       The sixth is ADR-082's auto-logged follow-up, which is the whole point:
+       one press of "Didn't answer" writes two rows and must still count the lead
+       ONCE. */
+    await expect(rowA.locator(".record-time")).toHaveText("Interactions: 6");
     /* the first three lines show; the rest fold into a native disclosure */
     await expect(rowA.locator("details summary")).toContainText("more");
     await rowA.locator("details summary").click();
-    await expect(rowA.locator(".tl-row")).toHaveCount(5);
+    await expect(rowA.locator(".tl-row")).toHaveCount(6);
     for (const phrase of [
       "Sent WhatsApp",
       "Commented",
       "Flagged didn't answer",
+      /* ADR-082 — and the system's own row, phrased as the SYSTEM's: it must
+         never read like the follow-up he logged himself */
+      "Next follow-up logged automatically",
       "Moved to Following Up",
       "Added the lead",
     ]) {
@@ -399,28 +411,33 @@ test.describe("ADR-081 — the daily report", () => {
     /* the rail and the live dot are POSITIONAL css rules over an <ol>, and the
        fold splits one lead's day across two lists — so line three used to lose its
        rail (a gap in the middle of the day) and line four used to wear a second
-       "this is the newest" dot. Review, Run 097. LEAD_A has five interactions from
-       the first case in this file, so it is the row that folds. */
+       "this is the newest" dot. Review, Run 097. LEAD_A has SIX interactions from
+       the first case in this file (five of his own plus ADR-082's auto-logged
+       follow-up), so it is the row that folds. */
     await loginAsFounder(page);
     await openReport(page, "bsystems");
     const rowA = page.locator(".record-group").filter({ hasText: LEAD_A });
     await expect(rowA.locator("details summary")).toContainText("more");
     await rowA.locator("details summary").click();
-    await expect(rowA.locator(".tl-row")).toHaveCount(5);
+    const LINES = 6;
+    await expect(rowA.locator(".tl-row")).toHaveCount(LINES);
 
-    /* the rail runs on through the fold: only the LAST of the five ends the line */
+    /* the rail runs on through the fold: only the LAST line ends it */
     const rails = await rowA
       .locator(".tl-row .tl-rail")
       .evaluateAll((els) => els.map((el) => getComputedStyle(el).backgroundImage));
-    expect(rails).toHaveLength(5);
-    expect(rails.slice(0, 4).every((v) => v !== "none"), `rails: ${rails.join(" | ")}`).toBe(true);
-    expect(rails[4]).toBe("none");
+    expect(rails).toHaveLength(LINES);
+    expect(
+      rails.slice(0, LINES - 1).every((v) => v !== "none"),
+      `rails: ${rails.join(" | ")}`,
+    ).toBe(true);
+    expect(rails[LINES - 1]).toBe("none");
 
     /* and exactly ONE dot is the live one — the newest line, at the top */
     const dots = await rowA
       .locator(".tl-row .tl-dot")
       .evaluateAll((els) => els.map((el) => getComputedStyle(el).backgroundColor));
-    expect(dots).toHaveLength(5);
+    expect(dots).toHaveLength(LINES);
     expect(new Set(dots.slice(1)).size, `dots: ${dots.join(" | ")}`).toBe(1);
     expect(dots[0]).not.toBe(dots[1]);
   });

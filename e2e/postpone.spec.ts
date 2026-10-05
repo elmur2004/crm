@@ -40,15 +40,33 @@ async function login(page: Page, identifier: string, password: string, landing: 
 const loginAsFounder = (page: Page) =>
   login(page, "admin@byteforce.com", "password123", /\/b-systems$/);
 
-/* the house drag helper — pointer steps, because dnd-kit needs intermediate
-   moves to pass its 6px activation constraint */
+/* Aim so the CARD lands centred on the target column, not the POINTER. dnd-kit
+   scores the collision on the DRAGGED CARD's rect, so pointing at the column
+   centre leaves the card straddling its neighbour — and since ADR-082 inserted
+   "Fallen behind" immediately before Following Up, a straddled drop now lands on
+   a column that REFUSES it, which reads as "the feature is broken" rather than
+   as a mis-aimed test. Same compensation prospect-pipeline.spec.ts uses for its
+   seven columns. */
 async function dragTo(page: Page, card: Locator, column: Locator) {
-  const from = (await card.boundingBox())!;
-  const to = (await column.boundingBox())!;
-  await page.mouse.move(from.x + from.width / 2, from.y + 20);
+  await column.scrollIntoViewIfNeeded();
+  await card.scrollIntoViewIfNeeded();
+  const cardBox = (await card.boundingBox())!;
+  const gripBox = (await card.locator(".bcard-grip").boundingBox())!;
+  const gripX = gripBox.x + gripBox.width / 2;
+  const gripY = gripBox.y + gripBox.height / 2;
+  const offsetX = gripX - (cardBox.x + cardBox.width / 2);
+  const offsetY = gripY - (cardBox.y + cardBox.height / 2);
+  const aim = async () => {
+    const to = (await column.boundingBox())!;
+    return { x: to.x + to.width / 2 + offsetX, y: to.y + 40 + cardBox.height / 2 + offsetY };
+  };
+  await page.mouse.move(gripX, gripY);
   await page.mouse.down();
-  await page.mouse.move(from.x + from.width / 2 + 30, from.y + 40, { steps: 8 });
-  await page.mouse.move(to.x + to.width / 2, to.y + 90, { steps: 12 });
+  await page.mouse.move(gripX, gripY + 12, { steps: 4 });
+  const first = await aim();
+  await page.mouse.move(first.x, first.y, { steps: 14 });
+  const settled = await aim();
+  await page.mouse.move(settled.x, settled.y, { steps: 2 });
   await page.mouse.up();
 }
 
@@ -87,7 +105,22 @@ async function leadInFollowUp(page: Page, name: string, api = "/api/b-systems"):
   return id;
 }
 
+/** The lead detail's own stage chip. The pre-ADR-082 cases asserted the
+    "Postponed" HISTORY TITLE instead, which GroupHistory renders once per
+    `PostponeInfo` row — and the whole point of ADR-082 is that no such row is
+    written any more, so that title is now exactly what must be ABSENT. The
+    stage chip is what proves the park landed. */
+const stageChip = (page: Page) => page.locator(".stage-chip--header").first();
+
+/* ADR-082 — NINE 218px columns plus gaps is ~2100px on B-Systems (eight stages
+   and the derived Fallen behind column), well outside the default 1280 viewport.
+   `page.mouse` works in VIEWPORT coordinates, so the right-hand columns could
+   never be reached, and `scrollIntoViewIfNeeded` on the column scrolls the CARD
+   out of view at the same time — the two ends cannot both be brought in by
+   scrolling. Give the drag cases a board that fits. */
 test.describe("ADR-072/082 — Postpone / Not answering", () => {
+  test.use({ viewport: { width: 2300, height: 1000 } });
+
   test("the column carries his own name on BOTH internal boards", async ({ page }) => {
     await loginAsFounder(page);
 
@@ -182,7 +215,9 @@ test.describe("ADR-072/082 — Postpone / Not answering", () => {
     await expect(page.getByText(/Parking the lead asks for nothing/i)).toBeVisible();
 
     await page.getByRole("button", { name: "Save & move" }).click();
-    await expect(page.getByText("Postponed", { exact: true }).first()).toBeVisible();
+    await expect(stageChip(page)).toHaveText(COLUMN);
+    /* and NO reason row was written — the history title is gone with the popup */
+    await expect(page.getByText("Postponed", { exact: true })).toHaveCount(0);
 
     expect((await page.request.delete(`/api/b-systems/leads/${id}`)).ok()).toBe(true);
   });
@@ -194,7 +229,7 @@ test.describe("ADR-072/082 — Postpone / Not answering", () => {
 
     await page.getByLabel(/Next action|Choose a next action/i).selectOption({ label: COLUMN });
     await page.getByRole("button", { name: "Save & move" }).click();
-    await expect(page.getByText("Postponed", { exact: true }).first()).toBeVisible();
+    await expect(stageChip(page)).toHaveText(COLUMN);
 
     await page.goto("/b-systems/crm?company=bsystems");
     await expect(
@@ -228,26 +263,38 @@ test.describe("ADR-072/082 — Postpone / Not answering", () => {
     expect((await page.request.delete(`/api/b-systems/leads/${id}`)).ok()).toBe(true);
   });
 
-  test("a lead parked BEFORE ADR-082 still shows the reason it was parked for", async ({
+  test("the OLD popup payload is accepted and IGNORED, and writes no reason row", async ({
     page,
   }) => {
-    /* PostponeInfo stays — it is real history of why leads were shelved. New
-       parks write nothing; old rows still render, with their title and their
-       words. The row is planted through the same group payload the old popup
-       posted, which the API still accepts (ADR-082) — so this also proves the
-       old wire shape is not 400ed. */
+    /* `postponeSchema` and its union member stay, so a stale tab posting the
+       withdrawn popup's group is accepted rather than 400ed — and the payload is
+       then dropped, because the move requires no group. The table stops growing.
+
+       A browser can prove both halves of that. What it CANNOT do any more is
+       plant a LEGACY row to prove the old ones still render: there is no API
+       that writes `PostponeInfo`, which is the point. That render is pinned in
+       `src/lib/services/postpone.integration.test.ts` ("a lead parked BEFORE
+       ADR-082 keeps its reason, and the detail still reads it"), over the same
+       `getLeadDetail` payload this page is built from, and `GroupHistory`
+       defaults `postponeInfos` to [] and iterates — so the old populated case and
+       the new empty one are the same code path with different input. */
     await loginAsFounder(page);
-    const id = await leadInFollowUp(page, "Postpone Legacy Reason");
+    const id = await leadInFollowUp(page, "Postpone Legacy Payload");
     const parked = await page.request.post(`/api/b-systems/leads/${id}/event`, {
       data: {
         event: { type: "next_action", action: "postponed" },
         group: { group: "postpone", data: { reason: "other", note: "Budget frozen until Q1" } },
       },
     });
-    expect(parked.ok()).toBeTruthy();
+    /* ACCEPTED — not a 400 */
+    expect(parked.status(), await parked.text()).toBe(200);
 
     await page.goto(`/b-systems/crm/lead/${id}`);
-    await expect(page.getByText("Postponed", { exact: true }).first()).toBeVisible();
+    /* the move landed … */
+    await expect(stageChip(page)).toHaveText(COLUMN);
+    /* … and the payload was dropped: no reason row, no reason text */
+    await expect(page.getByText("Postponed", { exact: true })).toHaveCount(0);
+    await expect(page.getByText("Budget frozen until Q1")).toHaveCount(0);
 
     expect((await page.request.delete(`/api/b-systems/leads/${id}`)).ok()).toBe(true);
   });
