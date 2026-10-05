@@ -26,6 +26,12 @@ export const stageMsgs: Record<string, Msg> = {
   qualified: { en: "Qualified", ar: "مؤهَّل" },
   /* ADR-072 — the founder's own column name, kept whole in both languages. */
   postponed: { en: "Postpone / Not answering", ar: "تأجيل / لا يرد" },
+  /* ADR-082 - the founder's own column name: "any fallen behind dates should
+     be in a separate column called fallen behind". It sits in this map beside
+     the stages because `stageLabel` is what every column head calls, and the
+     DERIVED column has a head like any other - but it is NOT a stage and does
+     not appear in any config's `stages` (see lib/crm/fallen-behind.ts). */
+  fallen_behind: { en: "Fallen behind", ar: "متأخرة" },
   won: { en: "Won", ar: "مكسب" },
   lost: { en: "Lost", ar: "خسارة" },
 };

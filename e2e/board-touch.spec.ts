@@ -1,5 +1,23 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
+/* ADR-082 — follow-up dates are RELATIVE to today. A hardcoded date silently
+   drifts into the past, and a past date now puts the card in the derived
+   "Fallen behind" column instead of Following Up — which would fail this spec
+   for a reason that has nothing to do with its subject. */
+const cairoDate = (offsetDays = 0) =>
+  new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Cairo" }).format(
+    new Date(Date.now() + offsetDays * 86_400_000),
+  );
+
+/* the app's own rendering (lib/datetime formatCairo) — same Node, same ICU */
+const cairoDateLabel = (offsetDays = 0) =>
+  new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Africa/Cairo",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  }).format(new Date(Date.now() + offsetDays * 86_400_000));
+
 /* Founder, on his phone: "the scroller of the columns and the CRM is not
    working — when I try to scroll using the cards it drags the card. I should
    have a button to drag the card, otherwise I'm just scrolling even if I'm
@@ -252,7 +270,7 @@ test("dragging BY THE GRIP still moves a card between stages, on touch", async (
      auto-scrolled under the finger) fails here loudly, not as a 60s hang
      waiting for another stage's fields */
   await expect(page.locator(".modal-eyebrow")).toContainText("Following Up");
-  await page.getByLabel("Follow-up date").fill("2026-10-03");
+  await page.getByLabel("Follow-up date").fill(cairoDate(1));
   await page.getByLabel("Method").selectOption("call");
   await page.getByRole("button", { name: "Confirm move" }).click();
   await expect(

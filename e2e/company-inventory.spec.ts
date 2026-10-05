@@ -100,6 +100,7 @@ test("the two boards stay two pipelines: Negotiation is B-Systems' alone", async
   await page.goto("/b-systems/crm?company=bsystems");
   await expect(page.locator(".board [data-stage]")).toHaveCount(8);
   await expect(page.locator('[data-stage="negotiation"]')).toHaveCount(1);
+  await expect(page.locator(".board [data-column]")).toHaveCount(9); // ADR-082
   await expect(page.locator('[data-stage="postponed"]')).toHaveCount(1);
 
   /* switch — and the COLUMNS change, not just the cards standing in them. */
@@ -108,6 +109,14 @@ test("the two boards stay two pipelines: Negotiation is B-Systems' alone", async
   await expect(page.locator(".board [data-stage]")).toHaveCount(7);
   await expect(page.locator('[data-stage="negotiation"]')).toHaveCount(0);
   await expect(page.locator('[data-stage="postponed"]')).toHaveCount(1);
+
+  /* ADR-082 — and the DERIVED "Fallen behind" column is an extra COLUMN on
+     both boards without being an extra STAGE on either. That is the whole
+     claim of the derived split, and the two counts above are what prove it:
+     [data-stage] is still 8 and 7, while [data-column] is one more of each. */
+  await expect(page.locator('.board [data-column]')).toHaveCount(8);
+  await expect(page.locator('[data-column="fallen_behind"]')).toHaveCount(1);
+  await expect(page.locator('[data-column="fallen_behind"][data-stage]')).toHaveCount(0);
 });
 
 test("a filter does not follow you across the switch, looking applied when it is not", async ({

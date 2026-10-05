@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -17,6 +17,12 @@ import {
 import type { Brand } from "@/lib/pipeline-engine/constants";
 import { configForBrand } from "@/lib/pipeline-engine/configs/for-brand";
 import { requiredGroupForTarget } from "@/lib/pipeline-engine/transition";
+import { utcToCairo } from "@/lib/datetime";
+import {
+  FALLEN_BEHIND_COLUMN,
+  boardColumns,
+  columnFor,
+} from "@/lib/crm/fallen-behind";
 import { btnGhost, btnPrimary } from "@/components/portal/groupForms";
 import { tFor } from "@/lib/i18n/core";
 import { useLocale } from "@/components/shared/LocaleProvider";
@@ -279,6 +285,7 @@ function LeadCard({
 function Column({
   stage,
   meetingStage,
+  followUpStage,
   apiBase,
   leadPathBase,
   leadQuery,
@@ -288,11 +295,16 @@ function Column({
   suppressClickRef,
   landedHere,
 }: {
+  /** a COLUMN id: every pipeline stage, plus ADR-082's derived
+      `fallen_behind`, which is not a stage and is not a drop target */
   stage: string;
   /* ADR-073 — passed in rather than read from a module-level config: the Today
      chip hangs off the MEETING column, and which stage that is belongs to the
      pipeline the board is drawing. */
   meetingStage: string;
+  /** ADR-082 — same reasoning as `meetingStage`: which stage the Today chip and
+      the derived split belong to is a property of the pipeline being drawn. */
+  followUpStage: string | null;
   apiBase: string;
   leadPathBase: string;
   /** ADR-073/074 — the query string carried onto every card's link:
@@ -308,7 +320,13 @@ function Column({
   const locale = useLocale();
   const t = tFor(locale);
   const { setNodeRef, isOver } = useDroppable({ id: stage });
-  const blocked = wonBlocked && stage === "won";
+  /* ADR-082 — "Fallen behind" is CLOSED to drops for a different reason than
+     Won: Won is a permission wall, this is a DATE CONDITION with no destination
+     to be. Same treatment on screen, because "you cannot drop here" is the same
+     message, and `blocked` is deliberately the one flag so the two can never
+     drift apart visually. */
+  const closed = stage === FALLEN_BEHIND_COLUMN;
+  const blocked = closed || (wonBlocked && stage === "won");
   const overCls = isOver ? (blocked ? "col--over-blocked" : "col--over-valid") : "";
   /* founder (ADR-061 + ADR-064): the Today chip — on Following Up, and now on
      Meeting Setting too. Client-side over the already-loaded cards, default
@@ -317,18 +335,31 @@ function Column({
      The droppable stays the whole column, so a filtered column still accepts
      drops. Each column filters on its OWN instant, and says so when the filter
      empties it. */
-  const isFollowUpCol = stage === "following_up";
+  /* ADR-082 — the chip STAYS on Following Up and does NOT go on Fallen behind.
+     On Following Up it still means what it meant, only narrower: the column is
+     already today-or-later, so the chip separates TODAY from LATER — exactly
+     the "just see today's follow ups" of ADR-061 (it used to also hide overdue
+     cards, which are simply not in this column any more). On Fallen behind a
+     Today filter could only ever count 0 and empty the column, because every
+     card there is overdue by definition: a control that can only lie. */
+  const isFollowUpCol = followUpStage !== null && stage === followUpStage;
   const isMeetingCol = stage === meetingStage;
   const { todayOnly, toggle, todayCount, visible } = useTodayFilter(
     leads,
     isMeetingCol ? MEETING_AT : isFollowUpCol ? FOLLOW_UP_AT : null,
     landedHere,
   );
+  /* ADR-082 — `data-column` goes on EVERY column; `data-stage` only on the real
+     pipeline stages. The derived Fallen behind column is not a stage, and an
+     attribute saying it was would be a lie the suite reads: `.board
+     [data-stage]` counts this pipeline's columns and must keep counting them.
+     Every selector that wants "the column" uses `data-column`. */
   const hasChip = isFollowUpCol || isMeetingCol;
   return (
     <div
       ref={setNodeRef}
-      data-stage={stage}
+      data-column={stage}
+      data-stage={closed ? undefined : stage}
       data-stage-key={stageKey(stage)}
       className={`col ${overCls}`}
     >
@@ -340,7 +371,11 @@ function Column({
           <span className="count-pill">{visible.length}</span>
         </span>
       </div>
-      {blocked ? <p className="col-locked-note">{t(msg.adminOnlyColumn)}</p> : null}
+      {blocked ? (
+        <p className="col-locked-note">
+          {t(closed ? msg.dateOnlyColumn : msg.adminOnlyColumn)}
+        </p>
+      ) : null}
       <div className="col-cards">
         {visible.map((l) => (
           <LeadCard
@@ -361,7 +396,11 @@ function Column({
               ? t(msg.blocked)
               : todayOnly && leads.length > 0
                 ? t(isMeetingCol ? msg.noTodayMeetings : msg.noTodayFollowUps)
-                : t(msg.emptyColumn)}
+                : closed
+                  ? /* an empty Fallen behind column is GOOD NEWS — say so
+                       rather than "Nothing here yet", which reads as a gap */
+                    t(msg.nothingFallenBehind)
+                  : t(msg.emptyColumn)}
           </div>
         ) : null}
       </div>
@@ -435,6 +474,16 @@ export function BsBoard({
      into the same column are two distinct signals. */
   const [landed, setLanded] = useState<{ stage: string; n: number }>({ stage: "", n: 0 });
 
+  /* ADR-082 — TODAY'S CAIRO DAY, sampled after mount exactly as the Today chip
+     samples it (useTodayFilter): never at render, because this board is SSR'd
+     and a render-time clock can hydration-mismatch. Until it lands, every card
+     sits in its stage column — the pre-split picture for one beat, which is
+     honestly "not known yet" rather than a guess. */
+  const [today, setToday] = useState<string | null>(null);
+  useEffect(() => setToday(utcToCairo(new Date()).date), []);
+  const columnOf = (lead: BsBoardLead) =>
+    today ? columnFor(lead, config.followUpStage, today) : lead.stage;
+
   async function commitDrop(
     body: unknown,
     leadId: string,
@@ -478,7 +527,17 @@ export function BsBoard({
     const to = event.over ? String(event.over.id) : null;
     if (!to) return;
     const lead = leads.find((l) => l.id === leadId);
-    if (!lead || lead.stage === to) return;
+    if (!lead) return;
+    /* ADR-082 — nothing can be dropped INTO Fallen behind: it is a date
+       condition, not a destination. Checked before the stage comparison,
+       because the column is not a stage and `lead.stage === to` cannot catch
+       it. A card is dragged OUT of it exactly as it would be out of Following
+       Up — its stage IS following_up, so there is no second path below. */
+    if (to === FALLEN_BEHIND_COLUMN) {
+      setMessage(t(msg.cannotDropFallenBehind));
+      return;
+    }
+    if (lead.stage === to) return;
     if (config.terminalStages.includes(lead.stage)) {
       setMessage(t(msg.terminalMove));
       return;
@@ -515,15 +574,20 @@ export function BsBoard({
 
       <DndContext id="bs-board" sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd}>
         <div className="board" data-cols="6plus">
-          {config.stages.map((stage) => (
+          {/* ADR-082 — the pipeline's stages PLUS the derived Fallen behind
+              column. The engine still owns the STAGES (§5.1); `boardColumns`
+              adds one more COLUMN, which is a rendering fact, not a pipeline
+              one — no config gained a stage and no §10 row was written. */}
+          {boardColumns(config.stages, config.followUpStage).map((stage) => (
             <Column
               key={stage}
               stage={stage}
               meetingStage={config.meetingStage}
+              followUpStage={config.followUpStage}
               apiBase={apiBase}
               leadPathBase={leadPathBase}
               leadQuery={leadQuery}
-              leads={leads.filter((l) => l.stage === stage)}
+              leads={leads.filter((l) => columnOf(l) === stage)}
               wonBlocked={!canWin}
               draggingId={draggingId}
               suppressClickRef={suppressClickRef}

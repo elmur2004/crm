@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -15,8 +15,14 @@ import {
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { INTERNAL_STAGES } from "@/lib/pipeline-engine/constants";
+import { utcToCairo } from "@/lib/datetime";
 import { internalCrmConfig } from "@/lib/pipeline-engine/configs/internal-crm";
 import { requiredGroupForTarget } from "@/lib/pipeline-engine/transition";
+import {
+  FALLEN_BEHIND_COLUMN,
+  boardColumns,
+  columnFor,
+} from "@/lib/crm/fallen-behind";
 import { btnGhost, btnPrimary } from "@/components/portal/groupForms";
 import { tFor } from "@/lib/i18n/core";
 import { useLocale } from "@/components/shared/LocaleProvider";
@@ -269,6 +275,8 @@ function Column({
   suppressClickRef,
   landedHere,
 }: {
+  /** a COLUMN id: every pipeline stage, plus ADR-082's derived
+      `fallen_behind`, which is not a stage and is not a drop target */
   stage: string;
   leads: InternalBoardLead[];
   basePath: string;
@@ -283,7 +291,12 @@ function Column({
   const locale = useLocale();
   const t = tFor(locale);
   const { setNodeRef, isOver } = useDroppable({ id: stage });
-  const overCls = isOver ? "col--over-valid" : "";
+  /* ADR-082 — "Fallen behind" is a DATE CONDITION, not a destination, so it is
+     CLOSED to drops and says so exactly the way the B-Systems board already
+     says the Won column is closed: a permanent locked note, the blocked
+     drag-over tint, and a toast if a drop is attempted anyway. */
+  const closed = stage === FALLEN_BEHIND_COLUMN;
+  const overCls = isOver ? (closed ? "col--over-blocked" : "col--over-valid") : "";
   /* founder (ADR-061 + ADR-064): the Today chip — on Following Up, and now on
      Meeting Setting too. Client-side over the already-loaded cards, default
      OFF. "Today" is the CAIRO calendar day, never the viewer's local one; the
@@ -291,18 +304,32 @@ function Column({
      The droppable stays the whole column, so a filtered column still accepts
      drops. Each column filters on its OWN instant, and says so when the filter
      empties it. */
-  const isFollowUpCol = stage === "following_up";
+  /* ADR-082 — the chip STAYS on Following Up and does NOT go on Fallen behind.
+     On Following Up it still means what it meant, only narrower: the column is
+     already today-or-later, so pressing it separates TODAY from LATER, which is
+     exactly the "just see today's follow ups" he asked for in ADR-061 (it used
+     to also hide the overdue cards, and those are simply not in this column any
+     more). On Fallen behind a Today filter could only ever count 0 and empty
+     the column, because every card in it is overdue by definition — a control
+     that can only lie. */
+  const isFollowUpCol = stage === internalCrmConfig.followUpStage;
   const isMeetingCol = stage === internalCrmConfig.meetingStage;
   const { todayOnly, toggle, todayCount, visible } = useTodayFilter(
     leads,
     isMeetingCol ? MEETING_AT : isFollowUpCol ? FOLLOW_UP_AT : null,
     landedHere,
   );
+  /* ADR-082 — `data-column` goes on EVERY column; `data-stage` only on the real
+     pipeline stages. The derived Fallen behind column is not a stage, and an
+     attribute saying it was would be a lie the suite reads: `.board
+     [data-stage]` counts this pipeline's columns and must keep counting them.
+     Every selector that wants "the column" uses `data-column`. */
   const hasChip = isFollowUpCol || isMeetingCol;
   return (
     <div
       ref={setNodeRef}
-      data-stage={stage}
+      data-column={stage}
+      data-stage={closed ? undefined : stage}
       data-stage-key={stageKey(stage)}
       className={`col ${overCls}`}
     >
@@ -314,6 +341,7 @@ function Column({
           <span className="count-pill">{visible.length}</span>
         </span>
       </div>
+      {closed ? <p className="col-locked-note">{t(msg.dateOnlyColumn)}</p> : null}
       <div className="col-cards">
         {visible.map((l) => (
           <LeadCard
@@ -330,9 +358,15 @@ function Column({
           /* review: while the Today chip is pressed and cards are merely
              HIDDEN, "Nothing here yet" would lie — say what the filter found */
           <div className="col-empty">
-            {todayOnly && leads.length > 0
-              ? t(isMeetingCol ? msg.noTodayMeetings : msg.noTodayFollowUps)
-              : t(msg.emptyColumn)}
+            {isOver && closed
+              ? t(msg.blocked)
+              : todayOnly && leads.length > 0
+                ? t(isMeetingCol ? msg.noTodayMeetings : msg.noTodayFollowUps)
+                : closed
+                  ? /* an empty Fallen behind column is GOOD NEWS — say so
+                       rather than "Nothing here yet", which reads as a gap */
+                    t(msg.nothingFallenBehind)
+                  : t(msg.emptyColumn)}
           </div>
         ) : null}
       </div>
@@ -367,6 +401,17 @@ export function InternalBoard({
   /* set on every drag end, cleared a beat later: the click the browser fires
      on drop must not navigate (whole-card onClick checks this ref) */
   const suppressClickRef = useRef(false);
+
+  /* ADR-082 — TODAY'S CAIRO DAY, sampled after mount, exactly as the Today chip
+     samples it (useTodayFilter). Not at render: these boards are SSR'd, and a
+     render-time clock can hydration-mismatch. Until it lands, `today` is null
+     and every card sits in its stage column — the pre-ADR-082 picture for one
+     beat, which is the honest "not known yet" rather than a guess. A tab left
+     open across Cairo midnight re-splits on the next render. */
+  const [today, setToday] = useState<string | null>(null);
+  useEffect(() => setToday(utcToCairo(new Date()).date), []);
+  const columnOf = (lead: InternalBoardLead) =>
+    today ? columnFor(lead, internalCrmConfig.followUpStage, today) : lead.stage;
 
   /* Review — which column last accepted a drop, and how many drops it has
      taken this mount. A column whose Today chip is pressed lets go when a card
@@ -418,7 +463,19 @@ export function InternalBoard({
     const to = event.over ? String(event.over.id) : null;
     if (!to) return;
     const lead = leads.find((l) => l.id === leadId);
-    if (!lead || lead.stage === to) return;
+    if (!lead) return;
+    /* ADR-082 — nothing can be dropped INTO Fallen behind: it is a date
+       condition, not a destination. Checked before the stage comparison, since
+       the column is not a stage and `lead.stage === to` would never catch it. */
+    if (to === FALLEN_BEHIND_COLUMN) {
+      setMessage(t(msg.cannotDropFallenBehind));
+      return;
+    }
+    /* dragging a FALLEN-BEHIND card back onto Following Up is a no-op for the
+       same reason every same-column drop is: the stage has not changed. The way
+       a lead leaves that column is a new follow-up DATE ("Log another
+       follow-up"), and then it moves itself. */
+    if (lead.stage === to) return;
     if (internalCrmConfig.terminalStages.includes(lead.stage)) {
       setMessage(t(msg.terminalMove));
       return;
@@ -481,11 +538,15 @@ export function InternalBoard({
         onDragEnd={onDragEnd}
       >
         <div className="board" data-cols="6plus">
-          {INTERNAL_STAGES.map((stage) => (
+          {/* ADR-082 — the stage list PLUS the derived Fallen behind column. The
+              engine's stage set is still the only source of the stages (§5.1);
+              `boardColumns` inserts one more COLUMN, which is a rendering fact
+              and not a pipeline one. */}
+          {boardColumns(INTERNAL_STAGES, internalCrmConfig.followUpStage).map((stage) => (
             <Column
               key={stage}
               stage={stage}
-              leads={leads.filter((l) => l.stage === stage)}
+              leads={leads.filter((l) => columnOf(l) === stage)}
               basePath={basePath}
               query={query}
               apiBase={apiBase}

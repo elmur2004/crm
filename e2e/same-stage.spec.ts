@@ -1,5 +1,23 @@
 import { expect, test, type Page } from "@playwright/test";
 
+/* ADR-082 — follow-up dates are RELATIVE to today. A hardcoded date silently
+   drifts into the past, and a past date now puts the card in the derived
+   "Fallen behind" column instead of Following Up — which would fail this spec
+   for a reason that has nothing to do with its subject. */
+const cairoDate = (offsetDays = 0) =>
+  new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Cairo" }).format(
+    new Date(Date.now() + offsetDays * 86_400_000),
+  );
+
+/* the app's own rendering (lib/datetime formatCairo) — same Node, same ICU */
+const cairoDateLabel = (offsetDays = 0) =>
+  new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Africa/Cairo",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  }).format(new Date(Date.now() + offsetDays * 86_400_000));
+
 /* Founder (same-stage records): "if I followed up with them and they need
    another follow-up, add a button inside the lead". The button records a
    SECOND follow-up from the lead detail; the card stays in Following Up and
@@ -27,7 +45,7 @@ test("the lead detail records another follow-up without leaving Following Up", a
   const moved = await page.request.post(`/api/b-systems/leads/${id}/event`, {
     data: {
       event: { type: "next_action", action: "following_up" },
-      group: { group: "follow_up", data: { date: "2026-09-01", time: "10:00", method: "call" } },
+      group: { group: "follow_up", data: { date: cairoDate(1), time: "10:00", method: "call" } },
     },
   });
   expect(moved.ok()).toBeTruthy();
@@ -38,7 +56,7 @@ test("the lead detail records another follow-up without leaving Following Up", a
      here, which must submit cleanly and render exactly as ADR-061 did */
   await expect(page.getByLabel("Follow-up time (optional)")).toBeVisible();
   await expect(page.getByLabel("Follow-up time (optional)")).not.toHaveAttribute("required", "");
-  await page.getByLabel("Follow-up date").fill("2026-09-08");
+  await page.getByLabel("Follow-up date").fill(cairoDate(8));
   await page.getByRole("button", { name: "Save record" }).click();
 
   /* two follow-up records now, and the stage badge has not moved */

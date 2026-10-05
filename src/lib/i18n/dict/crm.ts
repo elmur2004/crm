@@ -380,6 +380,18 @@ export const stageForm = {
 
 export const board = {
   adminOnlyColumn: { en: "Admin-only column", ar: "عمود خاص بالمدير فقط" },
+  /* ADR-082 - the "Fallen behind" column is CLOSED to drops, and says so the
+     way the Won column already does (`col-locked-note` + the blocked
+     drag-over). Nothing can be dropped in because it is a DATE CONDITION, not
+     a destination: a lead leaves it by being given a new follow-up date, and
+     then it moves itself. */
+  dateOnlyColumn: { en: "Not a drop target", ar: "لا يقبل الإسقاط" },
+  cannotDropFallenBehind: {
+    en: "Fallen behind is decided by the follow-up date — give the lead a new date instead.",
+    ar: "يتحدد عمود «متأخرة» بتاريخ المتابعة — امنح العميل تاريخًا جديدًا بدلًا من ذلك.",
+  },
+  /* the empty state of a column that is, happily, empty */
+  nothingFallenBehind: { en: "Nothing has fallen behind", ar: "لا يوجد شيء متأخر" },
   blocked: { en: "Blocked", ar: "محظور" },
   emptyColumn: { en: "Nothing here yet", ar: "لا يوجد شيء هنا بعد" },
   terminalMove: {

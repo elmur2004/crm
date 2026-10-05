@@ -91,6 +91,8 @@
   --color-stage-won: var(--color-surface-tint); --color-stage-won-accent: var(--color-border); --color-stage-won-chip: var(--color-surface-tint); --color-stage-won-chip-ink: var(--color-muted);
   /* ADR-072 */
   --color-stage-postponed: var(--color-surface-tint); --color-stage-postponed-accent: var(--color-border); --color-stage-postponed-chip: var(--color-surface-tint); --color-stage-postponed-chip-ink: var(--color-muted);
+  /* ADR-082 */
+  --color-stage-fallen-behind: var(--color-surface-tint); --color-stage-fallen-behind-accent: var(--color-border); --color-stage-fallen-behind-chip: var(--color-surface-tint); --color-stage-fallen-behind-chip-ink: var(--color-muted);
   --color-stage-lost: var(--color-surface-tint); --color-stage-lost-accent: var(--color-border); --color-stage-lost-chip: var(--color-surface-tint); --color-stage-lost-chip-ink: var(--color-muted);
 }
 

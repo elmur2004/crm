@@ -1,3 +1,8 @@
+import {
+  FALLEN_BEHIND_COLUMN,
+  FALLEN_BEHIND_STAGE_KEY,
+} from "@/lib/crm/fallen-behind";
+
 /* V2 — per-stage color helpers (token-mapped only). The keys cover every stage
    id across pipelines; intake covers new/lead. */
 
@@ -33,6 +38,13 @@ export function stageKey(stage: string): string {
       return "waiting";
     case "qualified":
       return "qualified";
+    /* ADR-082 - the DERIVED "Fallen behind" column (lib/crm/fallen-behind.ts).
+       It is not a stage, but it has a column head and a well like every other
+       column, so it needs its own key - and its own key is also what keeps it
+       out of the `default: "lost"` fallback, which would paint a lead he is
+       merely late on in the colour of a lead that is gone. */
+    case FALLEN_BEHIND_COLUMN:
+      return FALLEN_BEHIND_STAGE_KEY;
     case "won":
       return "won";
     default:

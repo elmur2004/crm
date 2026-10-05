@@ -93,6 +93,11 @@
   --color-stage-postponed-accent: var(--color-stage-postponed-accent);
   --color-stage-postponed-chip: var(--color-stage-postponed-chip);
   --color-stage-postponed-chip-ink: var(--color-stage-postponed-chip-ink);
+  /* ADR-082 */
+  --color-stage-fallen-behind: var(--color-stage-fallen-behind);
+  --color-stage-fallen-behind-accent: var(--color-stage-fallen-behind-accent);
+  --color-stage-fallen-behind-chip: var(--color-stage-fallen-behind-chip);
+  --color-stage-fallen-behind-chip-ink: var(--color-stage-fallen-behind-chip-ink);
   --color-stage-lost: var(--color-stage-lost);
   --color-stage-lost-accent: var(--color-stage-lost-accent);
   --color-stage-lost-chip: var(--color-stage-lost-chip);

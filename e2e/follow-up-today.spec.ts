@@ -7,7 +7,16 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
    parity), counts the cards whose latest follow-up is due on today's CAIRO
    day, defaults OFF, and filters client-side. Robust against neighbours: other
    specs may park their own leads in this column, so every count assertion is
-   RELATIVE (chip count === cards shown while pressed), never an absolute. */
+   RELATIVE (chip count === cards shown while pressed), never an absolute.
+
+   ADR-082 CHANGED WHAT THE CHIP IS FOR, so this file changed with it. The
+   Following Up column is TODAY-OR-LATER now (anything overdue lives in the
+   derived "Fallen behind" column), so the chip no longer hides overdue cards —
+   it separates TODAY from LATER, which is still exactly "just see today's
+   follow ups" and is the only thing left for it to do. The cases below
+   therefore prove the filter with a LATER card, which is the card it really
+   hides; the overdue card keeps an assertion of its own, in the column it now
+   belongs to, so nothing was dropped to make the rename fit. */
 
 const cairoDate = (offsetDays = 0) =>
   new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Cairo" }).format(
@@ -53,36 +62,49 @@ test("B-Systems board: the Today chip shows only today's follow-ups; off restore
 }) => {
   await login(page, "admin@byteforce.com", "password123", /\/b-systems$/);
   const todayId = await leadDueOn(page, "/api/b-systems", "Today Chip Lead", "0107770001", cairoDate());
+  const laterId = await leadDueOn(
+    page,
+    "/api/b-systems",
+    "Later Chip Lead",
+    "0107770002",
+    cairoDate(4),
+  );
+  /* ADR-082 — and an OVERDUE one, which is no longer in this column at all */
   const overdueId = await leadDueOn(
     page,
     "/api/b-systems",
     "Overdue Chip Lead",
-    "0107770002",
+    "0107770012",
     cairoDate(-1),
   );
 
   await page.goto("/b-systems/crm");
-  const col = page.locator('[data-stage="following_up"]');
+  const col = page.locator('[data-column="following_up"]');
   const chip = col.getByRole("button", { name: /^Today · \d+$/ });
   await expect(chip).toBeVisible();
-  /* default OFF — everything shows, the overdue card included */
+  /* default OFF — everything this column holds shows: today AND later */
   await expect(chip).toHaveAttribute("aria-pressed", "false");
   await expect(col.locator('[data-deal-card="Today Chip Lead"]')).toBeVisible();
-  await expect(col.locator('[data-deal-card="Overdue Chip Lead"]')).toBeVisible();
+  await expect(col.locator('[data-deal-card="Later Chip Lead"]')).toBeVisible();
+  /* the overdue card is in the DERIVED column, and the chip never sees it */
+  await expect(
+    page.locator('[data-column="fallen_behind"] [data-deal-card="Overdue Chip Lead"]'),
+  ).toBeVisible();
+  await expect(col.locator('[data-deal-card="Overdue Chip Lead"]')).toHaveCount(0);
 
-  /* ON: only today's cards — the overdue one disappears, the counts agree */
+  /* ON: only today's cards — the LATER one disappears, the counts agree */
   await chip.click();
   await expect(chip).toHaveAttribute("aria-pressed", "true");
   await expect(col.locator('[data-deal-card="Today Chip Lead"]')).toBeVisible();
-  await expect(col.locator('[data-deal-card="Overdue Chip Lead"]')).toHaveCount(0);
+  await expect(col.locator('[data-deal-card="Later Chip Lead"]')).toHaveCount(0);
   await expectCountsAgree(col, chip);
 
-  /* OFF again: the overdue card comes back */
+  /* OFF again: the later card comes back */
   await chip.click();
   await expect(chip).toHaveAttribute("aria-pressed", "false");
-  await expect(col.locator('[data-deal-card="Overdue Chip Lead"]')).toBeVisible();
+  await expect(col.locator('[data-deal-card="Later Chip Lead"]')).toBeVisible();
 
-  for (const id of [todayId, overdueId]) {
+  for (const id of [todayId, laterId, overdueId]) {
     expect((await page.request.delete(`/api/b-systems/leads/${id}`)).ok()).toBe(true);
   }
 });
@@ -93,23 +115,28 @@ test("ByteForce board: full parity — the chip filters and restores there too (
   await login(page, "sara@byteforce.example", "byteforce123", /\/b-systems\?company=byteforce$/);
   const ids = [
     await leadDueOn(page, "/api/byteforce", "BF Today Chip", "0107770003", cairoDate()),
-    await leadDueOn(page, "/api/byteforce", "BF Overdue Chip", "0107770004", cairoDate(-1)),
+    await leadDueOn(page, "/api/byteforce", "BF Later Chip", "0107770004", cairoDate(4)),
+    /* ADR-082 — the derived column reaches ByteForce too (the parity rule) */
+    await leadDueOn(page, "/api/byteforce", "BF Overdue Chip", "0107770014", cairoDate(-1)),
   ];
 
   await page.goto("/b-systems/crm?company=byteforce");
-  const col = page.locator('[data-stage="following_up"]');
+  const col = page.locator('[data-column="following_up"]');
   const chip = col.getByRole("button", { name: /^Today · \d+$/ });
   await expect(chip).toHaveAttribute("aria-pressed", "false");
-  await expect(col.locator('[data-deal-card="BF Overdue Chip"]')).toBeVisible();
+  await expect(col.locator('[data-deal-card="BF Later Chip"]')).toBeVisible();
+  await expect(
+    page.locator('[data-column="fallen_behind"] [data-deal-card="BF Overdue Chip"]'),
+  ).toBeVisible();
 
   await chip.click();
   await expect(chip).toHaveAttribute("aria-pressed", "true");
   await expect(col.locator('[data-deal-card="BF Today Chip"]')).toBeVisible();
-  await expect(col.locator('[data-deal-card="BF Overdue Chip"]')).toHaveCount(0);
+  await expect(col.locator('[data-deal-card="BF Later Chip"]')).toHaveCount(0);
   await expectCountsAgree(col, chip);
 
   await chip.click();
-  await expect(col.locator('[data-deal-card="BF Overdue Chip"]')).toBeVisible();
+  await expect(col.locator('[data-deal-card="BF Later Chip"]')).toBeVisible();
 
   /* clean up by ARCHIVING (ADR-043) — the ByteForce API has no lead delete */
   for (const id of ids) {
@@ -128,7 +155,7 @@ test("Arabic: the chip reads اليوم, and still toggles right-to-left", async
   await page.getByRole("button", { name: "عربي" }).click();
   await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
 
-  const col = page.locator('[data-stage="following_up"]');
+  const col = page.locator('[data-column="following_up"]');
   const chip = col.getByRole("button", { name: /اليوم · \d+/ });
   await expect(chip).toBeVisible();
   await expect(chip).toHaveAttribute("aria-pressed", "false");

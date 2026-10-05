@@ -132,6 +132,40 @@ describe("stage tokens exist in ALL THREE brand scopes (ADR-057)", () => {
         expect(bf).toContain(`--color-stage-${family}${suffix}`);
       }
     }
+    /* ADR-072's postpone and ADR-082's fallen-behind families too. The second
+       one is the first STAGE TOKEN SET that belongs to a column which is not a
+       stage (the derived split), and it needs the three-scope law just as much:
+       `.col` spends `--stage-well` through a bare var(), so a scope that fails
+       to declare it paints the column in the page background and the founder
+       sees a column with no colour at all. */
+    for (const family of ["postponed", "fallen-behind"]) {
+      for (const suffix of ["", "-accent", "-chip", "-chip-ink"]) {
+        expect(bf).toContain(`--color-stage-${family}${suffix}`);
+      }
+    }
+  });
+
+  /* ADR-082 — and the fallen-behind family is the SAME functional red in all
+     three scopes, for ADR-072's reason: "late" is brand-neutral, exactly like
+     "on hold" (the shared amber) and like the error red both brands already
+     share. A column that changed meaning-colour with the company switch would
+     be the thing the switch is least allowed to change. */
+  it("the fallen-behind family is identically valued in ALL THREE scopes", () => {
+    const scopes: Array<[string, string]> = [
+      ["branding/byteforce/tokens.css", '[data-brand="byteforce"]'],
+      ["branding/b-systems/tokens.css", '[data-brand="bsystems"]'],
+    ];
+    for (const [file, selector] of scopes) {
+      const body = scopeBody(read(file), selector);
+      expect(body).toContain("--color-stage-fallen-behind-accent: #C0392B");
+      expect(body).toContain("--color-stage-fallen-behind-chip-ink: #8E2C20");
+      expect(body).toContain("--color-stage-fallen-behind: #FCF2F0");
+    }
+    /* neutral resolves it to the shell's own surface, like every other stage
+       family there — declared, so nothing resolves to nothing */
+    const neutral = scopeBody(read("src/themes/neutral.css"), '[data-brand="neutral"]');
+    expect(neutral).toContain("--color-stage-fallen-behind:");
+    expect(neutral).toContain("--color-stage-fallen-behind-accent:");
   });
 
   /* ADR-054 addendum — the accounting green is the SAME three-scope law. It is

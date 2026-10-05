@@ -489,6 +489,7 @@
 [data-stage-key="qualified"] { --stage-well: var(--color-stage-qualified); --stage-bar: var(--color-stage-qualified-accent); --stage-chip: var(--color-stage-qualified-chip); --stage-chip-ink: var(--color-stage-qualified-chip-ink); }
 [data-stage-key="waiting"] { --stage-well: var(--color-stage-waiting); --stage-bar: var(--color-stage-waiting-accent); --stage-chip: var(--color-stage-waiting-chip); --stage-chip-ink: var(--color-stage-waiting-chip-ink); }
 [data-stage-key="postponed"] { --stage-well: var(--color-stage-postponed); --stage-bar: var(--color-stage-postponed-accent); --stage-chip: var(--color-stage-postponed-chip); --stage-chip-ink: var(--color-stage-postponed-chip-ink); }
+[data-stage-key="fallen-behind"] { --stage-well: var(--color-stage-fallen-behind); --stage-bar: var(--color-stage-fallen-behind-accent); --stage-chip: var(--color-stage-fallen-behind-chip); --stage-chip-ink: var(--color-stage-fallen-behind-chip-ink); }
 [data-stage-key="won"] { --stage-well: var(--color-stage-won); --stage-bar: var(--color-stage-won-accent); --stage-chip: var(--color-stage-won-chip); --stage-chip-ink: var(--color-stage-won-chip-ink); }
 [data-stage-key="lost"] { --stage-well: var(--color-stage-lost); --stage-bar: var(--color-stage-lost-accent); --stage-chip: var(--color-stage-lost-chip); --stage-chip-ink: var(--color-stage-lost-chip-ink); }
 
@@ -634,7 +635,13 @@
   margin: 0 9px 9px; padding: 7px 9px; border-radius: 7px;
   background: color-mix(in srgb, var(--color-accent) 10%, transparent);
   border: 1px dashed color-mix(in srgb, var(--color-accent) 45%, transparent);
-  font: 500 10px var(--font-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--color-stage-won-chip-ink);
+  font: 500 10px var(--font-mono); letter-spacing: .12em; text-transform: uppercase;
+  /* ADR-082 - the note rides the COLUMN's own stage ink now. It was
+     hardcoded to the Won chip ink, which was right while Won was the only
+     closed column; "Fallen behind" is closed too, and a red column with a
+     Won-coloured note reads as a bug. Byte-identical on Won, where
+     --stage-chip-ink IS --color-stage-won-chip-ink. */
+  color: var(--stage-chip-ink, var(--color-stage-won-chip-ink));
 }
 .col-empty {
   margin: 0 9px 12px; border: 1px dashed var(--stage-chip, var(--color-border)); border-radius: 9px; padding: 18px 10px; text-align: center;

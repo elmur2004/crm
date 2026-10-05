@@ -1,5 +1,23 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
+/* ADR-082 — follow-up dates are RELATIVE to today. A hardcoded date silently
+   drifts into the past, and a past date now puts the card in the derived
+   "Fallen behind" column instead of Following Up — which would fail this spec
+   for a reason that has nothing to do with its subject. */
+const cairoDate = (offsetDays = 0) =>
+  new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Cairo" }).format(
+    new Date(Date.now() + offsetDays * 86_400_000),
+  );
+
+/* the app's own rendering (lib/datetime formatCairo) — same Node, same ICU */
+const cairoDateLabel = (offsetDays = 0) =>
+  new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Africa/Cairo",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  }).format(new Date(Date.now() + offsetDays * 86_400_000));
+
 /* ADR-042 — ByteForce board parity with the B-Systems board: drag opens the
    stage's INTERNAL form (drop = the matching Next Action), whole-card click
    opens the lead, and the didn't-answer marker toggles on this board too. */
@@ -53,15 +71,15 @@ test("ByteForce board: drag opens the stage form; didn't-answer toggles; whole c
   await expect(page.getByText("Complete this stage's details to confirm the move")).toBeVisible();
   await expect(page.getByLabel("Follow-up date")).toBeVisible();
   await expect(page.getByLabel("Follow-up time (optional)")).toBeVisible(); // ADR-063
-  await page.getByLabel("Follow-up date").fill("2026-10-01");
+  await page.getByLabel("Follow-up date").fill(cairoDate(1));
   await page.getByLabel("Method").selectOption("call");
   await page.getByRole("button", { name: "Confirm move" }).click();
   const movedCard = page.locator('[data-stage="following_up"] [data-deal-card="Parity Deal"]');
   await expect(movedCard).toBeVisible();
   /* …and with the time left blank the follow-up renders DATE-ONLY on the
      card's key datum — no 9:00 AM nobody chose (ADR-063) */
-  await expect(movedCard).toContainText("Next: 1 Oct 2026");
-  await expect(movedCard).not.toContainText("1 Oct 2026, ");
+  await expect(movedCard).toContainText(`Next: ${cairoDateLabel(1)}`);
+  await expect(movedCard).not.toContainText(`${cairoDateLabel(1)}, `);
 
   /* Didn't answer: chip appears; clearing removes it. */
   await card.getByRole("button", { name: "Didn't answer" }).click();
@@ -136,7 +154,7 @@ test("a long column scrolls inside itself and a scrolled-to card still drags out
   await deep.scrollIntoViewIfNeeded();
   await dragTo(page, deep, page.locator('[data-stage="following_up"]'));
   await expect(page.getByText("Complete this stage's details to confirm the move")).toBeVisible();
-  await page.getByLabel("Follow-up date").fill("2026-10-02");
+  await page.getByLabel("Follow-up date").fill(cairoDate(2));
   await page.getByLabel("Method").selectOption("call");
   await page.getByRole("button", { name: "Confirm move" }).click();
   await expect(

@@ -1,5 +1,23 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
+/* ADR-082 — follow-up dates are RELATIVE to today. A hardcoded date silently
+   drifts into the past, and a past date now puts the card in the derived
+   "Fallen behind" column instead of Following Up — which would fail this spec
+   for a reason that has nothing to do with its subject. */
+const cairoDate = (offsetDays = 0) =>
+  new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Cairo" }).format(
+    new Date(Date.now() + offsetDays * 86_400_000),
+  );
+
+/* the app's own rendering (lib/datetime formatCairo) — same Node, same ICU */
+const cairoDateLabel = (offsetDays = 0) =>
+  new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Africa/Cairo",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  }).format(new Date(Date.now() + offsetDays * 86_400_000));
+
 /* ADR-073 — take the id from the PATHNAME, not the raw href. Card links carry
    `?company=` now that the lead detail is shared between companies, and a bare
    `split("/").pop()` returns "<id>?company=bsystems" — which then swallows the
@@ -126,7 +144,7 @@ test("journey 4: agent requests to join, admin approves, agent works the board w
   await expect(page.getByLabel("Follow-up date")).toBeVisible();
   await expect(page.getByLabel("Follow-up time (optional)")).toBeVisible();
   await expect(page.getByLabel("Owner")).toHaveCount(0);
-  await page.getByLabel("Follow-up date").fill("2026-10-01");
+  await page.getByLabel("Follow-up date").fill(cairoDate(1));
   await page.getByLabel("Method").selectOption("call");
   await page.getByRole("button", { name: "Confirm move" }).click();
   await expect(
