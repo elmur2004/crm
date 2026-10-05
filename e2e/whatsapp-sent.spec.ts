@@ -55,12 +55,39 @@ async function pressChip(page: Page, chip: Locator) {
 }
 
 /** What the browser PAINTED. A token that is declared outside its [data-brand]
-    scope resolves to nothing and the chip stays grey with a clean CI. */
+    scope resolves to nothing and the chip stays grey with a clean CI.
+
+    TWO serialisations, ONE colour (ADR-083 run, where this went red on a loaded
+    machine having passed the run before). `.card-dial` and its siblings carry a
+    `background-color .15s ease` transition, so when `.wa-sent` lands client-side
+    the paint ANIMATES — and while a transition is in flight Chromium serialises
+    the interpolated colour as `rgba(r, g, b, 1)` rather than `rgb(r, g, b)`.
+    Sample it at the wrong millisecond and the assertion fails against the very
+    colour it was looking for.
+
+    So: `settled` drops a FULLY OPAQUE alpha and nothing else. It is lossless for
+    what this file is actually asserting — a wrong token still fails, and a chip
+    that is genuinely translucent keeps its `rgba(…, 0.x)` and fails too. The
+    strict equality the ADR-054 addendum earned is untouched. */
+const settled = (colour: string) =>
+  colour.replace(/^rgba\((\d+),\s*(\d+),\s*(\d+),\s*1\)$/, "rgb($1, $2, $3)");
+
 const paintOf = (chip: Locator) =>
   chip.evaluate((el) => {
     const cs = getComputedStyle(el);
     return { bg: cs.backgroundColor, ink: cs.color };
-  });
+  }).then(({ bg, ink }) => ({ bg: settled(bg), ink: settled(ink) }));
+
+/** The paint ONCE THE TRANSITION HAS SETTLED. The claim in this file is that the
+    chip ends up wearing the token's green, not that it wears it at a particular
+    millisecond, so the read retries rather than sampling once. */
+async function expectPaint(chip: Locator, want: { bg?: string; ink?: string }) {
+  await expect(async () => {
+    const painted = await paintOf(chip);
+    if (want.bg !== undefined) expect(painted.bg).toBe(want.bg);
+    if (want.ink !== undefined) expect(painted.ink).toBe(want.ink);
+  }).toPass({ timeout: 5_000 });
+}
 
 /** Reload until the SERVER agrees — the mark is dispatched with sendBeacon and
     nothing waits on it, so the very next render may still be the pre-press one.
@@ -115,10 +142,9 @@ test("a press turns the chip green on the B-Systems board, and a DIFFERENT user 
   await expect(sentChip()).toHaveClass(/wa-sent/);
   await expect(sentChip()).toHaveAttribute("data-wa-sent", "true");
 
-  /* …and green in the TOKENS' green, measured off the paint */
-  const painted = await paintOf(sentChip());
-  expect(painted.bg).toBe(GREEN_TINT);
-  expect(painted.ink).toBe(GREEN_INK);
+  /* …and green in the TOKENS' green, measured off the paint once it has settled
+     (the press repaints through a 150ms transition — see `paintOf`) */
+  await expectPaint(sentChip(), { bg: GREEN_TINT, ink: GREEN_INK });
 
   /* the server render carries who and when, and the words say it too — the
      state is never colour alone */
@@ -149,7 +175,7 @@ test("a press turns the chip green on the B-Systems board, and a DIFFERENT user 
     name: /^Message on WhatsApp — 01099911122 — WhatsApp sent by Elmur on /,
   });
   await expect(callChip).toHaveClass(/wa-sent/);
-  expect((await paintOf(callChip)).ink).toBe(GREEN_INK);
+  await expectPaint(callChip, { ink: GREEN_INK });
   /* …and the sentence is printed in VISIBLE words as well: `title` is a hover
      tooltip, and this screen is the one built to be used on a phone */
   await expect(
@@ -162,7 +188,7 @@ test("a press turns the chip green on the B-Systems board, and a DIFFERENT user 
   const omarChip = omarCard.getByRole("link", { name: /^WhatsApp sent by Elmur on / });
   await expect(omarChip).toBeVisible();
   await expect(omarChip).toHaveClass(/wa-sent/);
-  expect((await paintOf(omarChip)).bg).toBe(GREEN_TINT);
+  await expectPaint(omarChip, { bg: GREEN_TINT });
   /* nothing plain is left beside it — the chip changed, it did not duplicate */
   await expect(omarCard.getByRole("link", { name: "WhatsApp", exact: true })).toHaveCount(0);
 
@@ -200,7 +226,7 @@ test("the ByteForce board's chip goes green too, and Sara sees it", async ({ pag
   await expectGreenAfterReload(page, () => card.getByRole("link", { name: /^WhatsApp sent/ }));
   /* the token resolves under THIS company's brand scope as well — the pair is
      declared identically in both, which is what makes the switch safe */
-  expect((await paintOf(card.getByRole("link", { name: /^WhatsApp sent/ }))).bg).toBe(GREEN_TINT);
+  await expectPaint(card.getByRole("link", { name: /^WhatsApp sent/ }), { bg: GREEN_TINT });
 
   /* Sara is ByteForce staff and never touched this lead — she still sees it */
   const saraCtx = await page.context().browser()!.newContext();
@@ -249,7 +275,7 @@ test("the partner/agent card carries the same mark, on its board and its detail"
     .getByRole("link", { name: /^WhatsApp sent by Elmur on / })
     .first();
   await expect(inlineChip).toHaveClass(/wa-sent/);
-  expect((await paintOf(inlineChip)).ink).toBe(GREEN_INK);
+  await expectPaint(inlineChip, { ink: GREEN_INK });
 
   expect((await page.request.delete(`/api/b-systems/partners-pipeline/${id}`)).ok()).toBe(true);
 });
