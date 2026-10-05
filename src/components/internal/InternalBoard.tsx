@@ -440,7 +440,7 @@ export function InternalBoard({
   }
 
   function fieldsForTarget(target: string, lead: InternalBoardLead) {
-    if (target === "following_up") return <FollowUpFields reps={reps} />;
+    if (target === "following_up") return <FollowUpFields />;
     if (target === "meeting_setting")
       return <MeetingFields arranged={arranged} setArranged={setArranged} reps={reps} />;
     if (target === "sending_proposal") return <ProposalFields />;

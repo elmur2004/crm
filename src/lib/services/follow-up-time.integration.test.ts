@@ -327,3 +327,64 @@ describe("ADR-063 — a time never moves a follow-up off its Cairo day", () => {
     expect(lists.today.map((i) => i.title)).toContain("Spring Forward");
   });
 });
+
+/* ============================================================================
+   ADR-082 — THE OWNER SELECT IS GONE, AND THE API DID NOT CHANGE.
+
+   The founder: "and remove the owner selection field." Only the INPUT goes.
+   `FollowUp.ownerSalesRepId` / `ownerPortalRepId` stay in the schema (history
+   and backups carry them) and `followUpSchema` keeps accepting both, so an API
+   caller or an old tab that still posts one is not 400ed — which is exactly
+   the shape ADR-061 chose for `time` and ADR-082 reuses here.
+
+   The two facts worth pinning are therefore in tension and both have to hold:
+   a follow-up recorded the way the product records it now has NO owner, and a
+   follow-up recorded by something that still sends one keeps it.
+   ========================================================================== */
+describe("the follow-up owner columns: no input, but still an accepted field", () => {
+  it("still ACCEPTS ownerSalesRepId on the wire and stores it", async () => {
+    const actor = await makeActor();
+    const rep = await db.salesRep.create({ data: { brand: "bsystems", name: "Owner Rep" } });
+    const lead = await createLead(
+      "bsystems",
+      { name: "Owner Wire Corp", number: "0101119001", type: "cold_call" },
+      actor,
+    );
+    await applyLeadEvent({
+      brand: "bsystems",
+      leadId: lead.id,
+      event: { type: "next_action", action: "following_up" },
+      group: {
+        group: "follow_up",
+        data: { date: "2026-10-01", method: "call", ownerSalesRepId: rep.id },
+      } as never,
+      actor,
+      role: "bsystems_admin",
+    });
+    const row = await db.followUp.findFirstOrThrow({ where: { leadId: lead.id } });
+    expect(row.ownerSalesRepId).toBe(rep.id);
+  });
+
+  it("and a follow-up recorded WITHOUT one is null, not blank-stringed", async () => {
+    /* what every follow-up logged from today looks like. Null is what makes the
+       lead detail's Owner line disappear rather than render an empty label —
+       GroupHistory already gated it on a truthy owner. */
+    const actor = await makeActor();
+    const lead = await createLead(
+      "bsystems",
+      { name: "No Owner Corp", number: "0101119002", type: "cold_call" },
+      actor,
+    );
+    await applyLeadEvent({
+      brand: "bsystems",
+      leadId: lead.id,
+      event: { type: "next_action", action: "following_up" },
+      group: { group: "follow_up", data: { date: "2026-10-01", method: "call" } } as never,
+      actor,
+      role: "bsystems_admin",
+    });
+    const row = await db.followUp.findFirstOrThrow({ where: { leadId: lead.id } });
+    expect(row.ownerSalesRepId).toBeNull();
+    expect(row.ownerPortalRepId).toBeNull();
+  });
+});

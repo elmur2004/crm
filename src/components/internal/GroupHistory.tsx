@@ -138,9 +138,12 @@ export async function GroupHistory({
               {t(records.ownerColon)} {owner}
             </p>
           ) : null}
+          {/* ADR-082 — "About:", not "With:": the field records a TOPIC now
+              (founder: "it should be following up about instead of with").
+              The meeting's attendee line below keeps `withColon`. */}
           {f.followingUpWith ? (
             <p>
-              {t(records.withColon)} {f.followingUpWith}
+              {t(records.aboutColon)} {f.followingUpWith}
             </p>
           ) : null}
         </Section>

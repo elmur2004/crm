@@ -146,7 +146,27 @@ export const stageForms = {
   methodCall: { en: "Call", ar: "اتصال" },
   methodMessage: { en: "Message", ar: "رسالة" },
   methodVisit: { en: "Visit", ar: "زيارة" },
-  followingUpWith: { en: "Following up with", ar: "المتابعة مع" },
+  /* ADR-082 — THE FOUNDER RENAMED THIS FIELD: "when I move a lead to the
+     follow up it should be following up about instead of with". A DELIBERATE
+     change to a shipped English string, so the byte-identical i18n rule yields
+     to his instruction (the e2e that reads these strings was updated with it,
+     never weakened) — recorded as the fourth such exception, after ADR-051's
+     "Deal → Lead", ADR-068's twelve-hour clock and ADR-072's column name.
+     The ARABIC moved with the meaning: مع ("with") → بخصوص ("about"), because a
+     label that still says "with" in one language is the drift this rule exists
+     to stop. The KEY keeps its name: it tracks `FollowUp.followingUpWith`, the
+     database column, which deliberately did NOT get renamed — renaming a column
+     for a label change is churn, and a migration that rewrites history for a
+     caption is the kind nobody can undo. */
+  followingUpWith: { en: "Following up about", ar: "المتابعة بخصوص" },
+  /* ADR-082 — "with" takes a PERSON, "about" takes a TOPIC, so the placeholder
+     had to move with the label: a field captioned "about" over a "Contact
+     person" hint is worse than either alone. Examples rather than a restatement
+     of the label — that is what a placeholder is for. */
+  followUpTopicPlaceholder: { en: "The proposal, the price, a question…", ar: "العرض، السعر، سؤال…" },
+  /* ADR-082 — ORPHANED: this was the placeholder of the field when it asked
+     "Following up WITH" (a contact person). Kept per the house rule that never
+     deletes a key; if a person field ever comes back this is its hint. */
   contactPersonPlaceholder: { en: "Contact person", ar: "جهة الاتصال" },
   arranged: { en: "Arranged?", ar: "تم الترتيب؟" },
   date: { en: "Date", ar: "التاريخ" },

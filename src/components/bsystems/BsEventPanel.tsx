@@ -183,7 +183,7 @@ export function BsEventPanel({
               className="space-y-3"
             >
               <p className="u-label">{t(msg.followUpAfterProposal)}</p>
-              <FollowUpFieldsV2 light={false} reps={reps} />
+              <FollowUpFieldsV2 light={false} />
               <button type="submit" disabled={busy} className={btnPrimary}>
                 {t(msg.sentMoveToFollowUp)}
               </button>

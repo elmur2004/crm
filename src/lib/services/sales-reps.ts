@@ -24,13 +24,19 @@ export async function listReps(brand: Brand) {
   return db.salesRep.findMany({ where: { brand }, orderBy: { name: "asc" } });
 }
 
-/* V2 §3 (ADR-038) — the B-Systems Owner list for the admin/sales stage forms.
-   The B-Systems app has NO rep-cards screen (§6.1 is ByteForce-only), so on a
-   live system SalesRep has no "bsystems" rows and the Owner select rendered
-   empty. The internal sales team actually lives in Users (role bsystems_sales,
-   V2 §0 role map) — cards are auto-provisioned here, on read, for every active
-   sales account without one (matched by exact name, idempotent), keeping
-   FollowUp.ownerSalesRepId on its SalesRep FK. */
+/* V2 §3 (ADR-038) — the B-Systems rep roster for the stage forms. The
+   B-Systems app has NO rep-cards screen (§6.1 is ByteForce-only), so on a live
+   system SalesRep has no "bsystems" rows and every picker rendered empty. The
+   internal sales team actually lives in Users (role bsystems_sales, V2 §0 role
+   map) — cards are auto-provisioned here, on read, for every active sales
+   account without one (matched by exact name, idempotent).
+
+   ADR-082 — the FOLLOW-UP Owner select this was built for is gone ("remove the
+   owner selection field"), so the remaining consumers are the Add-lead rep
+   picker (ADR-079) and the meeting form's Technical support datalist. The
+   auto-provision still runs on every CRM board open, so nothing about the
+   SalesRep rows themselves changed; `FollowUp.ownerSalesRepId` keeps its FK and
+   every row already pointing at one. */
 export async function listBsOwnerReps() {
   const [team, existing] = await Promise.all([
     db.user.findMany({

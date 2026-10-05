@@ -133,7 +133,8 @@ export async function PartnersPipelineBody({
     }
   }
 
-  const reps = (await listBsOwnerReps()).map((r) => ({ id: r.id, name: r.name }));
+  /* ADR-082 — the owner roster is no longer read here: the follow-up form's
+     Owner select was its only consumer on this board. */
   const cards: ProspectCard[] = prospects.map((p) => ({
     id: p.id,
     title: prospectTitle(p),
@@ -231,7 +232,7 @@ export async function PartnersPipelineBody({
       {orderedCards.length === 0 && activeCount > 0 ? (
         <p className="empty">{t(pPipeline.noMatches)}</p>
       ) : (
-        <PartnersBoard cards={orderedCards} reps={reps} />
+        <PartnersBoard cards={orderedCards} />
       )}
     </div>
   );
@@ -248,7 +249,6 @@ export async function ProspectDetailBody({ prospectId }: { prospectId: string })
   const { prospect, history } = data;
   const locale = await getLocale();
   const t = tFor(locale);
-  const reps = await listBsOwnerReps();
   const latestMeeting = prospect.meetings.at(-1);
   const agent = prospect.kind === "agent";
   /* ADR-057 — this card's OWN pipeline: never compare a stage against a
@@ -551,7 +551,6 @@ export async function ProspectDetailBody({ prospectId }: { prospectId: string })
             <ProspectEventPanel
               prospectId={prospect.id}
               stage={prospect.stage}
-              reps={reps.map((r) => ({ id: r.id, name: r.name }))}
               pendingMeeting={Boolean(
                 latestMeeting && latestMeeting.outcome === null && latestMeeting.arranged,
               )}

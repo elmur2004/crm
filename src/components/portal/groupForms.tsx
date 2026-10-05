@@ -53,7 +53,7 @@ export function FollowUpFields() {
       </label>
       <label className="block">
         <span className={labelCls}>{t(stageForms.followingUpWith)}</span>
-        <input type="text" name="followingUpWith" className={inputCls} placeholder={t(stageForms.contactPersonPlaceholder)} />
+        <input type="text" name="followingUpWith" className={inputCls} placeholder={t(stageForms.followUpTopicPlaceholder)} />
       </label>
     </>
   );

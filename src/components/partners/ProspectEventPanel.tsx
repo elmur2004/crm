@@ -34,14 +34,16 @@ import { fields as authFields, signup } from "@/lib/i18n/dict/auth";
    Qualified opens NOTHING (1.3), and "Record a follow-up" still renders the
    follow-up form even though no STAGE plays the follow-up role any more (2.1). */
 
-type Rep = { id: string; name: string };
 
 const inputCls = "field-input";
 const labelCls = "field-label block mb-1.5";
 const btnPrimary = "btn-primary";
 const btnGhost = "btn-ghost";
 
-function FollowUpFields({ reps }: { reps: Rep[] }) {
+/* ADR-082 — the founder: "remove the owner selection field". The prospect
+   funnel's follow-up form is the third copy of it and loses it too, by the
+   founder's parity rule. */
+function FollowUpFields() {
   const locale = useLocale();
   const t = tFor(locale);
   return (
@@ -69,20 +71,11 @@ function FollowUpFields({ reps }: { reps: Rep[] }) {
           ))}
         </select>
       </label>
-      <label className="block">
-        <span className={labelCls}>{t(pPanel.owner)}</span>
-        <select name="ownerSalesRepId" className={inputCls}>
-          <option value="">—</option>
-          {reps.map((r) => (
-            <option key={r.id} value={r.id}>
-              {r.name}
-            </option>
-          ))}
-        </select>
-      </label>
+      {/* ADR-082 — the Owner select is GONE. The FollowUp owner columns stay
+          in the schema and Zod still accepts them; only the input goes. */}
       <label className="block">
         <span className={labelCls}>{t(pPanel.followingUpWith)}</span>
-        <input type="text" name="followingUpWith" className={inputCls} placeholder={t(pPanel.contactPersonPh)} />
+        <input type="text" name="followingUpWith" className={inputCls} placeholder={t(pPanel.followUpTopicPh)} />
       </label>
     </>
   );
@@ -229,7 +222,7 @@ export function prospectGroupPayload(group: RequiredGroup | null, fd: FormData) 
         date: String(fd.get("date")),
         time: String(fd.get("time") || "") || undefined,
         method: String(fd.get("method")) as "call" | "message" | "visit",
-        ownerSalesRepId: String(fd.get("ownerSalesRepId") || "") || undefined,
+        /* ADR-082 — no ownerSalesRepId on the wire; the server still takes it. */
         followingUpWith: String(fd.get("followingUpWith") || "") || undefined,
       },
     };
@@ -275,14 +268,14 @@ export function prospectGroupPayload(group: RequiredGroup | null, fd: FormData) 
 export function ProspectGroupFields({
   group,
   target,
-  reps,
   defaults,
   cardNumbers,
 }: {
   group: RequiredGroup | null;
   /** only for the informational "returns to Lead" note — never for the form */
   target?: string;
-  reps: Rep[];
+  /* ADR-082 — no `reps`: the Owner select was the only field on this panel
+     that needed the roster, and the founder removed it. */
   defaults: ProspectGateDefaults;
   cardNumbers: string[];
 }) {
@@ -294,7 +287,7 @@ export function ProspectGroupFields({
       <p className="u-muted">{t(pPanel.returnsToLead)}</p>
     ) : null;
   }
-  if (group.group === "follow_up") return <FollowUpFields reps={reps} />;
+  if (group.group === "follow_up") return <FollowUpFields />;
   if (group.group === "meeting")
     /* V2 §6 — simplified: date + time + online/offline. */
     return (
@@ -350,14 +343,12 @@ export function ProspectGroupFields({
 export function ProspectEventPanel({
   prospectId,
   stage,
-  reps,
   pendingMeeting,
   defaults,
   cardNumbers,
 }: {
   prospectId: string;
   stage: string;
-  reps: Rep[];
   pendingMeeting: boolean;
   defaults: ProspectGateDefaults;
   /** all numbers on the card (primary + alternatives) — V2 §6 dialed selection */
@@ -410,7 +401,6 @@ export function ProspectEventPanel({
     <ProspectGroupFields
       group={group}
       target={target}
-      reps={reps}
       defaults={defaults}
       cardNumbers={cardNumbers}
     />

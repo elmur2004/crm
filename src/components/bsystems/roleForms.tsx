@@ -21,7 +21,10 @@ export const isLight = (r: BsFormRole) => r === "agent" || r === "partner";
 
 type Rep = { id: string; name: string };
 
-export function FollowUpFieldsV2({ light, reps }: { light: boolean; reps: Rep[] }) {
+/* ADR-082 — the founder: "remove the owner selection field". No `reps` prop
+   (MeetingFieldsV2 still takes it — a different field he did not touch), and
+   `light` now gates only "Following up about". */
+export function FollowUpFieldsV2({ light }: { light: boolean }) {
   const locale = useLocale();
   const t = tFor(locale);
   return (
@@ -50,24 +53,16 @@ export function FollowUpFieldsV2({ light, reps }: { light: boolean; reps: Rep[] 
           ))}
         </select>
       </label>
+      {/* ADR-082 — the Owner select is GONE for every role (founder: "remove
+          the owner selection field"). The FollowUp owner columns stay in the
+          schema and the Zod schema still accepts them; only the input goes.
+          The light (agent/partner) forms never showed either field and still
+          do not — V2 §3 is untouched. */}
       {!light ? (
-        <>
-          <label className="block">
-            <span className={labelCls}>{t(common.owner)}</span>
-            <select name="ownerSalesRepId" className={inputCls}>
-              <option value="">—</option>
-              {reps.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="block">
-            <span className={labelCls}>{t(msg.followingUpWith)}</span>
-            <input type="text" name="followingUpWith" className={inputCls} placeholder={t(msg.contactPerson)} />
-          </label>
-        </>
+        <label className="block">
+          <span className={labelCls}>{t(msg.followingUpWith)}</span>
+          <input type="text" name="followingUpWith" className={inputCls} placeholder={t(msg.followUpTopic)} />
+        </label>
       ) : null}
     </>
   );
@@ -82,7 +77,8 @@ export function followUpPayload(fd: FormData, light: boolean) {
       date: String(fd.get("date")),
       time: String(fd.get("time") || "") || undefined,
       method: String(fd.get("method")) as "call" | "message" | "visit",
-      ownerSalesRepId: light ? undefined : String(fd.get("ownerSalesRepId") || "") || undefined,
+      /* ADR-082 — no ownerSalesRepId: the field is gone from the form for
+         every role, so the key is absent on the wire. The server still takes it. */
       followingUpWith: light ? undefined : String(fd.get("followingUpWith") || "") || undefined,
     },
   };
@@ -422,7 +418,7 @@ export function GroupFieldsV2({
 }) {
   const t = tFor(useLocale());
   const light = isLight(role);
-  if (target === "following_up") return <FollowUpFieldsV2 light={light} reps={reps} />;
+  if (target === "following_up") return <FollowUpFieldsV2 light={light} />;
   if (target === "meeting_setting")
     return (
       <MeetingFieldsV2

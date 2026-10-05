@@ -27,7 +27,11 @@ const labelCls = "field-label block mb-1.5";
 const btnPrimary = "btn-primary";
 const btnGhost = "btn-ghost";
 
-export function FollowUpFields({ reps }: { reps: Rep[] }) {
+/* ADR-082 — the founder: "remove the owner selection field". No `reps` prop:
+   the follow-up form no longer offers a choice, so it no longer takes the list
+   (MeetingFields below still does — its Technical support datalist is a
+   different field and he did not touch it). */
+export function FollowUpFields() {
   const locale = useLocale();
   const t = tFor(locale);
   return (
@@ -57,20 +61,15 @@ export function FollowUpFields({ reps }: { reps: Rep[] }) {
           ))}
         </select>
       </label>
-      <label className="block">
-        <span className={labelCls}>{t(events.owner)}</span>
-        <select name="ownerSalesRepId" className={inputCls}>
-          <option value="">—</option>
-          {reps.map((r) => (
-            <option key={r.id} value={r.id}>
-              {r.name}
-            </option>
-          ))}
-        </select>
-      </label>
+      {/* ADR-082 — the Owner select is GONE (founder: "remove the owner
+          selection field"). `FollowUp.ownerSalesRepId` / `ownerPortalRepId`
+          stay in the schema (history and backups carry them) and the Zod
+          schema still accepts both, so the API is unchanged; only the input
+          goes. A follow-up recorded from today simply has no owner of its own,
+          and the lead's owner is the one every screen already shows. */}
       <label className="block">
         <span className={labelCls}>{t(events.followingUpWith)}</span>
-        <input type="text" name="followingUpWith" className={inputCls} placeholder={t(events.contactPerson)} />
+        <input type="text" name="followingUpWith" className={inputCls} placeholder={t(events.followUpTopic)} />
       </label>
     </>
   );
@@ -88,7 +87,8 @@ export function followUpFromForm(fd: FormData) {
       date: String(fd.get("date")),
       time: String(fd.get("time") || "") || undefined,
       method: String(fd.get("method")) as "call" | "message" | "visit",
-      ownerSalesRepId: String(fd.get("ownerSalesRepId") || "") || undefined,
+      /* ADR-082 — no ownerSalesRepId: the field is gone from the form, so the
+         key is simply absent on the wire. The server still accepts it. */
       followingUpWith: String(fd.get("followingUpWith") || "") || undefined,
     },
   };
@@ -322,7 +322,7 @@ export function LeadEventPanel({
   }
 
   function fieldsForTarget(target: string) {
-    if (target === "following_up") return <FollowUpFields reps={reps} />;
+    if (target === "following_up") return <FollowUpFields />;
     if (target === "meeting_setting")
       return <MeetingFields arranged={arranged} setArranged={setArranged} reps={reps} />;
     if (target === "sending_proposal") return <ProposalFields />;
@@ -368,7 +368,7 @@ export function LeadEventPanel({
             className="space-y-3"
           >
             <p className="u-h3">{t(events.followingUpAfterProposal)}</p>
-            <FollowUpFields reps={reps} />
+            <FollowUpFields />
             <button type="submit" disabled={busy} className={btnPrimary}>
               {t(events.sentMoveToFollowingUp)}
             </button>

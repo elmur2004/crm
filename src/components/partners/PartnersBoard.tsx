@@ -82,7 +82,6 @@ export interface ProspectCard {
   waMarkUrl: string;
 }
 
-type Rep = { id: string; name: string };
 
 /* The card's CONTENT — shared verbatim by the in-column draggable and the
    DragOverlay clone. Founder: columns cap their height and scroll inside now,
@@ -262,7 +261,9 @@ function Column({
 }
 
 /** THE board: the seven shared columns, both kinds of card, one drag context. */
-export function PartnersBoard({ cards, reps }: { cards: ProspectCard[]; reps: Rep[] }) {
+/* ADR-082 — no `reps`: the Owner select on the follow-up form was the only
+   thing on this board that needed the roster, and the founder removed it. */
+export function PartnersBoard({ cards }: { cards: ProspectCard[] }) {
   /* both kinds run the SAME stages since ADR-059, so the COLUMNS come from the
      config once — `stages` is the same array object for either kind. Anything
      that depends on a card's BEHAVIOUR must ask that card's own config
@@ -462,7 +463,6 @@ export function PartnersBoard({ cards, reps }: { cards: ProspectCard[]; reps: Re
                     pending.to,
                   )}
                   target={pending.to}
-                  reps={reps}
                   defaults={pendingCard.defaults}
                   cardNumbers={pendingCard.cardNumbers}
                 />
