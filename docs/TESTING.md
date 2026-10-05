@@ -6123,3 +6123,114 @@ verified byte-identical to it, and `git stash list` still shows their entry.
 not ours. The baseline test counts that stash was meant to measure were taken with
 `git show <baseline>:<path>` into a scratch directory instead, which is what
 should have been done first.
+
+## Run 099 — 2026-10-05 — ADR-082 UNDER ADVERSARIAL REVIEW, and the whole-product gate before the push
+
+Two reviewers went at the eight unpushed ADR-082 commits. **Ten findings, every
+one adjudicated against the code rather than taken on trust: nine real and
+fixed, one correct-as-it-stands and recorded instead.** Every fix carries a
+regression test, and **every test was MUTATION-CHECKED** — the fix broken, the
+test watched go red, the fix restored, the suite re-run clean. The
+finding-by-finding account is ADR-082 §8; the traps are IMPLEMENTATION §§11-14.
+
+| Command | Result |
+| --- | --- |
+| `npx tsc --noEmit` | **clean** on the final tree (and at every step of the review) |
+| `npx vitest run` (FULL) | **59 files, 1022 tests, all passing** (1006 -> 1022, +16) |
+| `npx playwright test` (FULL) | **199 passed, 0 failed**, 2 skipped (the opt-in `audit` spec) in 18.3m — `test-results/.last-run.json`: `"status": "passed"`, `failedTests: []` |
+| mutation check, e2e (6 fixes) | **6 of 6 went RED**, one test per fix, then all restored |
+| mutation check, unit (3 guards) | **3 of 3 went RED**, then restored |
+| `npm run build` | **clean** — route list checked: 170 routes, 48/48 static pages generated, and NOT ONE route added or removed by the review (the five changes added none either) — the 6 Turbopack warnings are the standing `storage` glob ones, byte-for-byte the same six as Run 098 |
+| `/brand-audit` over the change set | **PASS** — zero rule breaches in any changed file; two LOW findings of its own, both fixed in this batch (below) |
+
+Playwright ran on a **temporary copy of the config on a verified-free port
+(3187)**, because the shared 3100 may be another workstream's and killing
+someone else's server is never an option; the copy was deleted before the
+commit. **No migration re-proof row again, and for the same reason: this batch
+still ships no schema change** — `prisma/schema.prisma` is untouched by the
+review as it was by the five changes.
+
+- Cases: 1022 vitest + 199 e2e passed / 0 failed / 2 skipped.
+- Failures: **none in the final run.** The first full run of the review tree had
+  **two red, and both were MY OWN new assertions over-reaching** — test defects,
+  not product defects, and worth recording because each was a wrong belief about
+  the product rather than a typo:
+  1. the first-paint case closed with "and with JS the board DOES still say it",
+     reached through `?q=NoSuchLeadAnywhere` — but a filter that matches NOTHING
+     renders "No cards match these filters" INSTEAD of the board, so there was no
+     column to read. It now uses a filter that keeps one live card and no overdue
+     one, which is the state that actually exercises the restored line.
+  2. the midnight case closed with `Today · 0` on the chip — an absolute count
+     over a seeded board, which is exactly the kind of assertion that is right by
+     luck. It now plants a SECOND lead due tomorrow, presses the chip and leaves
+     it pressed across midnight, and asserts the chip shows the card that has
+     BECOME today's. That proves the chip re-sampled off the same hook, which the
+     zero never did.
+  Neither carries a BUG id: both were written in this session and both were wrong
+  about the test, not about the system.
+- SPEC coverage touched: §10.1 T-12 (the auto-logged follow-up — its gate now
+  reads the LOCKED row, and it refuses to double-book a day), §2 (Cairo days: a
+  new `msUntilNextCairoDay` derived from the same day-window the To-Do and the
+  daily report tile with, asserted at 23 and 25 hours on Egypt's two transition
+  days), §5.6/T-10 (a press that logs nothing writes no `FU-AUTO` row either),
+  §6.2 (the follow-up field group keeps no `min` — a deliberate non-change), §4
+  (the three-scope token law, guard tightened from three values to four).
+- Verdict: **PASS.**
+
+### The per-finding adjudication, with its mutation result
+
+| # | Finding | Verdict | Regression test | Mutation |
+| --- | --- | --- | --- | --- |
+| M1 | the auto-log gate reads a STALE lead (`leads.ts`) | **REAL — fixed** (`fresh.stage`, the locked row) | `auto-follow-up.integration.test.ts` — "THE GATE READS THE LOCKED ROW", two real overlapping Postgres transactions, deterministic | reverted to `lead.stage` -> RED (that test alone), restored -> green |
+| M2 | the press can book tomorrow TWICE | **REAL — fixed** (skip when `cairoDayWindowFor(tomorrow)` already holds a row; still flags, still counts) | same file — "TOMORROW IS NEVER DOUBLE-BOOKED" + the To-Do consequence case | guard neutered -> RED (both those tests), restored -> green |
+| M3 | the split never RE-SAMPLES the Cairo day; two comments claim it does | **REAL — fixed** (one `useCairoToday` hook: midnight re-arm + `visibilitychange`; both comments corrected) | `datetime.test.ts` — 5 cases on `msUntilNextCairoDay`; `fallen-behind.spec.ts` — "A TAB LEFT OPEN ACROSS CAIRO MIDNIGHT RE-SPLITS BY ITSELF", with a real fake clock | re-arm + visibility handler removed -> RED, restored -> green |
+| M4 | the split uses the LATEST follow-up, not the LIVE one | **REAL — fixed** (`lib/crm/live-record.ts`, shared with the To-Do and its marks; the key datum gated too) | `fallen-behind.spec.ts` — "a SUPERSEDED follow-up does not file the card", through the real B-6 light-role path as an agent | gate reverted on the B-Systems feed -> RED, restored -> green |
+| M5 | a backdated drop lands in Fallen behind SILENTLY | **REAL — fixed** (toast naming lead/column/reason/way out; `setLanded` on the column the card ACTUALLY went to). **No `min` added** — refusing a backdated entry is a product decision nobody asked for | `fallen-behind.test.ts` — 11 cases on `landingColumn` / `followUpDateOfDrop`, incl. agreement with `isFallenBehind` on the boundary; `fallen-behind.spec.ts` — the backdated drop AND a plain drop that must stay silent | toast removed -> RED, restored -> green |
+| L1 | `PartnersBoard` emits `data-stage` but not `data-column` | **REAL — fixed** | `fallen-behind.spec.ts` — the partners-board case now asserts `[data-column]` equals `[data-stage]` and counts 7 | attribute removed -> RED, restored -> green |
+| L2 | the first paint prints "Nothing has fallen behind" over a 0 count | **REAL — fixed** (suppressed until the day is known; the permanent locked note stays) | `fallen-behind.spec.ts` — "THE FIRST PAINT SAYS NOTHING", held open with a **JavaScript-disabled** second context, plus the half that proves the line is only DEFERRED | unconditional text restored -> RED, restored -> green |
+| L3 | two comments claim "no product path can create a `following_up` lead with no follow-up" | **REAL (the COMMENTS) — both corrected**; the behaviour is sound and unchanged | n/a — a comment is not testable; the behaviour it describes is pinned in `fallen-behind.test.ts` and the B-6 path is now exercised by M4's e2e | n/a |
+| L4 | coverage: no 390px case for the new column; no ByteForce-panel postpone case | **REAL — both closed** (two phone-width cases; one ByteForce `LeadEventPanel` case, which is the very function whose staleness caused this ADR's bug) | `fallen-behind.spec.ts` (x2 at 390px), `postpone.spec.ts` (ByteForce panel, there and back) | the `postponed` case deleted from `LeadEventPanel.fieldsForTarget` -> RED, restored -> green |
+| L5 | the `FU-AUTO` activity row survives an undo that deleted its follow-up | **REFUTED as a defect — left alone and RECORDED.** `performUndo` deletes no `ActivityLog` row for ANY kind: it restores state and then WRITES an `undo` row. A `lead_event` undo leaves its `group_added` line in exactly the same way. The log is an account of what happened, and the press, the auto-log and the undo all happened | the existing undo cases already assert the follow-up row is deleted and the log is not | n/a |
+
+### The 16 new vitest tests
+
+| File | Tests | What it pins |
+| --- | --- | --- |
+| `src/lib/services/auto-follow-up.integration.test.ts` | 29 (26 -> 29, **+3**) | the locked-row gate under two real overlapping transactions; the double-booked day (no row, no `FU-AUTO`, flag and tally intact); and the To-Do consequence — the lead appearing ONCE across tomorrow's two lists |
+| `src/lib/datetime.test.ts` | 48 (43 -> 48, **+5**) | `msUntilNextCairoDay`: lands on the next Cairo midnight rather than 24h on, the whole day from its first instant, **23 and 25 hours** on Egypt's two transition days, never 0 or negative, and inside `setTimeout`'s 32-bit range |
+| `src/lib/crm/fallen-behind.test.ts` | 24 (16 -> 24, **+8**) | `landingColumn` (today/later land where aimed, backdated lands behind, agreement with `isFallenBehind` on the boundary, no other stage re-filed, and the first paint answering the TARGET) and `followUpDateOfDrop` (the follow-up group's date, null for every other drop, null for a malformed one rather than a guess) |
+| `src/lib/brand-tokens.test.ts` | 15 (unchanged) | the fallen-behind guard **tightened from 3 of 4 values to 4 of 4**, and the neutral scope from 2 of 4 names to all four, each asserted to carry a `var()` rather than merely to be declared |
+
+### The 8 new e2e cases
+
+| Spec | Case | What it proves |
+| --- | --- | --- |
+| `fallen-behind` | a SUPERSEDED follow-up does not file the card | the real B-6 path, AS AN AGENT: lead behind -> Sending Proposals -> "Sent" with no form -> the card is in Following Up reading "No follow-up set", not in the red column |
+| `fallen-behind` | a BACKDATED drop says where the card went and why | the toast names the lead, the column and the way out; the placement is still the correct one |
+| `fallen-behind` | a drop that lands where it was AIMED says nothing | the toast is a signal, not noise — the case that stops the fix becoming a nag |
+| `fallen-behind` | THE FIRST PAINT SAYS NOTHING | a JS-disabled context holds the un-split paint open: 0 count, no claim, locked note present — and the line returns once the day is known |
+| `fallen-behind` | A TAB LEFT OPEN ACROSS CAIRO MIDNIGHT RE-SPLITS BY ITSELF | a fake clock five minutes to midnight, rolled ten minutes with no reload: the card moves itself AND the pressed chip starts showing the card that has become today's |
+| `fallen-behind` (390px) | the column, its cards and its locked note all read at 390px | the phone case the 2300px describe could never have; plus no horizontal PAGE scroll |
+| `fallen-behind` (390px) | the card opens from the column by TAP | the grip scrolls, the body opens, and the lead page still says Following Up |
+| `postpone` | THE BYTEFORCE LEAD PANEL asks for nothing either | the second panel, with its own `fieldsForTarget` — the function whose staleness was this ADR's bug. There and back, through the UI |
+
+### The brand audit's own two, fixed here
+
+- **A token comment stated a false property.** The fallen-behind well's comment
+  claimed it is "a shade off `--color-danger-tint` on purpose, so the blocked
+  drag-over state is still visible against it". Measured: `#FCF2F0` against
+  `#FBEDEB` is (1, 5, 5)/255 — indistinguishable, and therefore NOT what keeps
+  that state legible; `.col--over-blocked`'s own strong border is. Corrected in
+  both brand files, in the same spirit as M3's two comments: **a comment that
+  states a false property is a defect in this repo.** No value changed, so no
+  pixel changed.
+- **The three-scope guard was checking three of four values.** `-chip` was
+  DECLARED everywhere (the set-equality test covers every name in every scope)
+  but its VALUE was unpinned — so the one token a brand could have quietly
+  re-tinted was the one nobody was watching, and a guard that checks most of a
+  family teaches the next reader that most is enough. All four values in both
+  branded scopes now, and all four names in `neutral.css` asserted to resolve
+  through a `var()`. Mutation-checked in both directions at once.
+- The audit also measured the new column's contrast, since it is the product's
+  first red column: title 4.94:1, chip ink 6.17:1, locked note ~6.5:1, empty
+  state 7.5:1 — all AA.

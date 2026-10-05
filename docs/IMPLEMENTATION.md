@@ -3688,7 +3688,7 @@ Related, and the reason `stageKey` needed its own `case`: that function's
 lead, silently, with every brand guard green — exactly the failure ADR-072's own
 comment warns about two cases above the new one.
 
-### 6. THE DAY MUST BE SAMPLED AFTER MOUNT, NOT AT RENDER
+### 6. THE DAY MUST BE SAMPLED AFTER MOUNT, NOT AT RENDER — AND RE-SAMPLED AFTER THAT
 
 Both boards are server-rendered. A `new Date()` in the render path produces a
 different answer on the server and on the client, which is a hydration mismatch
@@ -3703,6 +3703,49 @@ honest "not known yet", and it is why the split is a client-side `columnOf` and
 not a server-side bucket: a server-side split would be correct at request time
 and then frozen, so a board left open overnight would show yesterday's division
 with no way to notice.
+
+**AND THE FIRST VERSION OF THIS SECTION WAS HALF-RIGHT, WHICH IS THE TRAP WORTH
+WRITING DOWN (review).** Sampling in an effect fixes HYDRATION. It does not fix
+STALENESS, and both boards carried a comment claiming it did — "a tab left open
+across Cairo midnight re-splits on the next render" — plus a claim of parity with
+`useTodayFilter`, which re-sampled on every press and so was not actually the
+same thing. `useEffect(—, [])` runs once per MOUNT, and `router.refresh()` is a
+RE-RENDER, not a remount: it is exactly the call every drop makes, so the board
+could refresh all night and never re-ask what day it was.
+
+Three facts made that worse than a cosmetic lag, and all three are on one screen:
+
+- the SERVER was already on the new day (it reads the real clock per request), so
+  the data and the division disagreed;
+- the overdue card still sat in Following Up, where pressing "Didn't answer" does
+  NOTHING — the auto-log gate requires the live follow-up to be due TODAY, and
+  his was due yesterday. A button that silently does nothing is the worst of the
+  three;
+- the Today chip beside it had re-sampled on its last press, so the two controls
+  in the same column head answered different questions.
+
+The fix is one hook, `useCairoToday`, and the interesting part is the RE-ARM:
+
+- **computed from the Cairo day's own end**, via `msUntilNextCairoDay`, which is
+  `cairoDayWindowFor(today).end` — the same boundary the To-Do and the daily
+  report tile their days with. A `+ 86_400_000` re-arm would be an hour late on
+  Egypt's 25-hour day and an hour early on its 23-hour one, and "an hour late"
+  means the board shows yesterday's split through the first working hour of the
+  new day, which is when it is read;
+- **`visibilitychange` as well as the timer**, because a background tab's timers
+  are throttled and a sleeping machine fires none at all. The phone picked up in
+  the morning is the actual way this product is used, and the timer alone does
+  not cover it;
+- **the sampler re-arms itself**, so there is one code path and it cannot be left
+  un-armed; and `setToday` with the same string is a no-op in React, so a
+  spurious wake costs a comparison and renders nothing.
+
+`msUntilNextCairoDay` is pure and lives in `lib/datetime.ts`, which is what makes
+any of this testable in a node-environment suite — five cases, including the two
+transition days asserted at 23 and 25 hours. The WIRING is proved in Playwright
+with a real fake clock: install it five minutes before the next Cairo midnight,
+load the board, roll the clock forward ten minutes, and the card must move on its
+own with no reload, no navigation and no drag.
 
 ### 7. THE TODAY CHIP'S MEANING CHANGED WITHOUT ITS CODE CHANGING
 
@@ -3825,12 +3868,150 @@ next caller. Caught by the audit, not by a test, and that is the honest record:
 no test in the suite exercises those two helpers over a column id, because
 nothing in the product hands them one.
 
+### 11. THE GATE READ TWO DIFFERENT ROWS, AND THE COMMENT ONLY DESCRIBED ONE
+
+`setNoAnswer` reads the lead twice: once through `getLead` before the
+transaction (for the archive guard, the undo label and the idempotence
+short-circuit) and once as `fresh`, the row its own `tx.lead.update` RETURNS —
+which is the row the lock protects. §2 above is all about the second read, and
+the function header spends a paragraph on it. The auto-log gate then asked
+`lead.stage`.
+
+Two rows, one of them stale, and the stale one decided a write. A press racing a
+move to Meeting Setting read `following_up` from a snapshot taken before the
+other transaction committed, then blocked on the row lock, then — holding the
+lock, looking at a lead that was now in Meeting Setting — booked tomorrow's
+follow-up anyway. The founder's sentence names the column: "someone who's in the
+following up column".
+
+What makes this worth a section is that **the comment was the tell and nobody
+read it as one.** The header said the lock makes a racing press "read the row the
+first one committed and declines to add a second". That was true of the follow-up
+read and false of the stage read, and the sentence did not distinguish them. The
+fix is one word (`lead.stage` — `fresh.stage`); the lasting change is that the
+header now says WHICH reads are under the lock, so the next person can check the
+claim against the code instead of trusting it.
+
+The test is the part to keep. Racing two service calls with `Promise.all` would
+reproduce it sometimes, which is worse than not reproducing it at all. Instead
+the ordering is NAMED, with two real interactive Postgres transactions: T1
+updates the stage and holds the lock behind a promise the test controls; the
+press starts, takes its snapshot (READ COMMITTED, so it still sees
+`following_up`), and blocks; the test releases T1; the press's update returns the
+row as it now is. Deterministic, no retries, and it goes red the moment the gate
+reads the snapshot again.
+
+### 12. "IT CANNOT PILE UP" WAS AN ARGUMENT ABOUT ORDERINGS, NOT A QUESTION
+
+§4's gate is an equality on the live follow-up's day, and the ADR argued from it
+that the press cannot pile rows up: after the first press the live row is dated
+TOMORROW, so today no longer matches. That argument is correct and it is also not
+the whole space, because **the live row is the NEWEST row, and newest is not
+latest-dated.**
+
+Two rows, created in this order, break it:
+
+1. a follow-up dated TOMORROW, recorded by hand;
+2. a follow-up dated TODAY, recorded after it ("actually I'll call him today").
+
+The live row is now (2), due today, so the gate opens — and books a second row on
+a day that already had one. No race, no concurrency, two clicks.
+
+The cost of that is not an extra row in a table. The To-Do derives its Done
+section PER CAIRO DAY: a follow-up due today that is not the lead's live record
+is labelled "superseded" and shown as done. So on tomorrow's list the lead
+appeared **twice** — once as live work and once as already handled, in two
+sections that contradict each other. The board and the To-Do disagreeing about a
+lead is the failure mode this product is most exposed to, because they are read
+within a minute of each other.
+
+The fix is to stop arguing and ask: `cairoDayWindowFor(nextCairoDate(today))`,
+the same window the To-Do and the daily report tile their days with, and skip the
+create when anything already falls inside it. Two properties worth stating:
+
+- **the press still flags and still counts.** The attempt happened; the tally is
+  the founder's own "so we can know how many times we tried". Only the booking
+  was wrong. A press that books nothing also writes no `FU-AUTO` line, because
+  nothing was logged — the log must not claim a row that does not exist.
+- **the undo is unaffected.** `created` is empty, so the inverse is the flag and
+  the tally, which is exactly what `performUndo` already does for a press that
+  logged nothing (the future-dated case).
+
+### 13. THE SAME RULE IN FOUR PLACES, AND THE TWO THAT NEEDED IT MOST HAD NO COPY
+
+The To-Do has always required a record to be its lead's NEWEST — across
+follow-ups, meetings, proposals and negotiation notes — before it counts as live
+work. Its completion marks (`todo-done.ts`) require the same thing, with a second
+copy of the same `Math.max`. The B-Systems card's NEGOTIATION datum applies the
+idea by hand against negotiation notes only. And the boards' Following Up datum —
+which since this ADR decides a COLUMN — applied it not at all.
+
+So the one surface where a stale record now has a VISIBLE, actionable
+consequence was the one surface that never asked the question. The live path is
+B-6 / V2 §3: an agent or partner who checks "Sent" on a proposal is asked for
+nothing, and the lead returns to Following Up with no new date. Its newest
+follow-up is then the pre-proposal one, and the board filed the card under Fallen
+behind — a red column that refuses drops and whose remedy is "give the lead a new
+date", for a lead whose date nobody had promised.
+
+`lib/crm/live-record.ts` holds the rule now and the four readers share it.
+`negotiationNotes` is OPTIONAL in its input type, because the ByteForce pipeline
+has no negotiation stage and a caller reading that board may legitimately not
+fetch them — a missing list and an empty list mean the same thing here, which is
+why it is an optional field rather than a second function. (That board's query
+fetches them anyway now, so both boards ask the identical question; the subquery
+costs one row it will never find.)
+
+One judgement call inside the fix, stated because it widened the diff: the card's
+KEY DATUM went through the same gate, not just the column. Gating only the column
+would have left a card sitting in Following Up while printing "Next: <a date from
+before the proposal>" — trading one inconsistency for a new one. It prints "No
+follow-up set", which is both true and the thing the ADR already says such a card
+should say.
+
+### 14. A PLACEMENT CAN BE CORRECT AND STILL BE A DEFECT
+
+The follow-up date input has no `min` and the server validates only the format,
+so a backdated follow-up commits. Dropped on Following Up, that card lands in
+Fallen behind — which is RIGHT: the date really has passed, and the whole point
+of the derived column is that it maintains itself from the data.
+
+The defect was that nothing said so. `commitDrop` posted, refreshed, and the card
+appeared two columns from where the pointer let go of it, in a column whose own
+note reads "Not a drop target". A rep reads that as the drag having failed and
+the board having put his card somewhere arbitrary.
+
+This is the same failure `landedHere` already exists to prevent — "the rep drags
+a card in and watches it vanish" — and it deserved the same kind of answer: say
+it. The toast names the lead, the column, the reason and the way out ("give it a
+date from today onwards and it moves back by itself", which is the founder's own
+remedy). And `setLanded` now names the column the card ACTUALLY went to, so the
+released Today chip is the right column's.
+
+**What was deliberately NOT done: adding `min` to the input.** Refusing a
+backdated follow-up is a product decision nobody has asked for, and recording a
+chase made yesterday is a real thing people do. Blocking it would have been the
+smaller diff and the bigger assumption.
+
+Both halves come from one pure function, `landingColumn`, and it is checked
+against `isFallenBehind` on the boundary in the same test file — two functions
+reading two shapes (a submitted day-string, a stored instant) must not be able to
+disagree about which day is late.
+
 ### What it cost, and what it did not
 
-Five commits. One new pure module (`lib/crm/fallen-behind.ts`, ~90 lines of code
-and comment), one deleted component, one new stage-token family in three scopes,
-nine i18n keys added and seven annotated as orphaned, two new SPEC §10.1 rows,
-and one line removed from `requiredGroupForTarget`.
+Five commits, plus one for the brand audit, one for the eleven e2e corrections
+and one for the review. Three new pure modules (`lib/crm/fallen-behind.ts`,
+`lib/crm/live-record.ts`, `components/shared/useCairoToday.ts`), one deleted
+component, one new stage-token family in three scopes, ten i18n keys added and
+seven annotated as orphaned, two new SPEC §10.1 rows, and one line removed from
+`requiredGroupForTarget`.
+
+The review's nine fixes added one exported helper to `lib/datetime.ts`
+(`msUntilNextCairoDay`), two to `lib/crm/fallen-behind.ts` (`landingColumn`,
+`followUpDateOfDrop`), one shared module that replaced three copies of the same
+`Math.max`, one toast string in both languages, one `data-column` attribute, and
+**one word** in the auto-log gate — which was the most consequential of the lot.
 
 **No migration, no schema change, no new table, no new column, no permission
 change, and no stage added to any pipeline.** The two changes that LOOK like they

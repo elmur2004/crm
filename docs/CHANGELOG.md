@@ -2015,7 +2015,13 @@ All of it is in.
   for it that way: "keep it fallen behind in a separate column I will pick it up
   and make another follow up date." It waits for you.
 - **Press it twice in one day and you get one extra follow-up, not two.** The
-  second press only counts the try — tomorrow is already booked.
+  second press only counts the try — tomorrow is already booked. **And if
+  tomorrow was ALREADY booked by hand**, the press counts the try and leaves your
+  own follow-up alone: one lead, one job, one day. It never books the same day
+  twice.
+- **If the lead has been moved on in another tab while you press**, the press
+  counts the try and books nothing. The next follow-up is only ever written for a
+  lead that is still in Following Up — which is what you asked for.
 - **Undo takes the new follow-up with it.** Press "Didn't answer" by mistake and
   one Undo puts the lead back exactly as it was: the marker gone, the count back
   to what it was, and no follow-up sitting in tomorrow's list that you never
@@ -2036,7 +2042,17 @@ All of it is in.
   the day itself is over, so a 9 a.m. call does not jump columns on you at 9:01.
 - **The column looks after itself.** Nothing has to be dragged anywhere because a
   date went past — a lead appears in Fallen behind the morning it is late, by
-  itself, and leaves the same way.
+  itself, and leaves the same way. **Including on a screen you left open all
+  night:** the board notices the new day on its own, at midnight Cairo time, and
+  again the moment you come back to the tab.
+- **A lead you have just moved forward is not "late".** If a follow-up from
+  before a proposal is still the newest thing on the card, the card reads "No
+  follow-up set" and stays in Following Up — it is owing you a date, not overdue
+  on one, and Fallen behind is for dates that have passed.
+- **Give a follow-up a date that has already gone by and the board tells you.**
+  The card goes to Fallen behind, which is correct — the date really has passed —
+  and a message names the lead, says why, and tells you that a date from today
+  onwards brings it straight back.
 - **You cannot drop anything INTO Fallen behind.** It is decided by the date, not
   by where you put the card. Try it and the column says "Not a drop target" and
   tells you what to do instead: give the lead a new follow-up date.

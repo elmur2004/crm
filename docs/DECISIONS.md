@@ -7305,9 +7305,14 @@ Consequences, each one a decision:
   "No follow-up set", which is work for TODAY, and filing it under the column he
   has told us he will only revisit *to re-date things* would bury the one card
   whose problem is that it has no date to re-date. Pinned as a unit test rather
-  than an e2e because **no product path can create the state**: every move into
-  the stage requires the follow-up group, so it arrives only through a restored
-  backup or seed data.
+  than an e2e because the condition is PURE and the column it chooses is the
+  whole of the behaviour. **Corrected on review:** this paragraph used to say
+  "no product path can create the state", which is false. B-6 / V2 §3 returns an
+  AGENT's or PARTNER's lead to Following Up with no follow-up form at all, and a
+  lead can reach Sending Proposals straight from New without ever having had a
+  follow-up — so the UI reaches it in two clicks. The behaviour above is
+  unchanged and is the right one; only the claim about reachability was wrong,
+  and the e2e header that repeated it was corrected in the same change.
 - **`data-column` on every column; `data-stage` only on real stages.** The
   derived column carries no `data-stage`, so `.board [data-stage]` keeps counting
   the pipeline's own columns (8 on B-Systems, 7 on ByteForce — unchanged) while
@@ -7564,11 +7569,126 @@ reviewer should be able to see that none of them was shipped behaviour:
   checked for, and a ByteForce lead opened at the B-Systems address (ADR-074's
   `LEAD_ADDRESS` table has them on different screens).
 
+### 8. THE ADVERSARIAL REVIEW: five mediums, five lows, and what each turned out to be
+
+Two reviewers went at this batch before it shipped. Every finding was checked
+against the code rather than taken on trust, each real one has a regression test,
+and each test was MUTATION-CHECKED — the fix broken, the test watched go red, the
+fix restored. Nothing below changes a founder-facing decision; all of it is the
+same five changes, told the truth.
+
+**The five mediums, all REAL, all fixed:**
+
+1. **The auto-log gate read a STALE lead.** `setNoAnswer` took a `getLead`
+   snapshot BEFORE its transaction and gated on `lead.stage`, while `fresh` — the
+   row the tally update returns under the lock it took — sat unused two lines
+   above. So a press racing a move to Meeting Setting booked tomorrow's chase for
+   a lead that had already left the column his sentence named. The gate reads
+   `fresh.stage` now, and the function header's claim about the lock is TRUE
+   rather than aspirational: it was only ever true of the follow-up READ, and the
+   comment said it of the whole gate. Pinned with two real overlapping Postgres
+   transactions, so the ordering is named rather than hoped for: T1 moves the lead
+   and HOLDS the row lock, the press reads `following_up` from its snapshot and
+   blocks, T1 commits, and the press must believe the row it gets back.
+2. **The press could book tomorrow TWICE.** The gate never asked whether the
+   target day was already taken. The live follow-up is the NEWEST row, so a lead
+   can carry a row dated tomorrow that is not the live one — book tomorrow by
+   hand, log a chase for today, press — and a second row landed on the same day.
+   That matters because the To-Do derives "done" per CAIRO DAY: any same-day
+   follow-up that is not the live record reads as "superseded", so the lead showed
+   up on tomorrow's list as live work AND in the same day's Done section. One
+   card, twice, contradicting itself. **The decision, since the reviewer asked for
+   one: the press still FLAGS and still COUNTS, and writes nothing.** The attempt
+   really happened and the tally is his own "so we can know how many times we
+   tried"; only the duplicate booking was wrong, and "it automatically logs
+   another follow up until he answers" is already satisfied when tomorrow is
+   booked. No row, and no `FU-AUTO` line either, because nothing was logged.
+3. **The split never RE-SAMPLED the Cairo day.** `useEffect(—, [])` samples once
+   per MOUNT, and `router.refresh()` re-renders without remounting — so a tab left
+   open across midnight kept yesterday's division while the SERVER had already
+   moved on. The overdue card still sat in Following Up, pressing "Didn't answer"
+   on it booked nothing (the gate needs the live follow-up due TODAY), and the
+   Today chip beside it counted a different day: three surfaces, one screen, three
+   answers. Both boards carried a comment claiming the opposite and claiming
+   parity with `useTodayFilter`, which re-sampled on every press. **A comment that
+   states a false property is a defect in this repo**, so both were corrected as
+   part of the fix. There is now ONE hook — `useCairoToday` — which samples after
+   mount, re-arms at the next Cairo midnight (from `msUntilNextCairoDay`, derived
+   from the same day-window the To-Do tiles with, never a fixed 24 hours — Egypt's
+   23- and 25-hour days would drift it an hour on the two days a wrong answer is
+   hardest to spot) and re-samples on `visibilitychange`, because a background
+   tab's timers are throttled and a sleeping machine fires none at all. The chip
+   uses the same hook and dropped its press-time sample, which was only ever there
+   because nothing else refreshed the day.
+4. **The split used the LATEST follow-up, not the LIVE one.** Both board feeds
+   were `stage === "following_up" && l.followUps[0]`, with no newest-record gate —
+   while the To-Do's identical concept has required the follow-up to be the lead's
+   newest record across follow-ups, meetings, proposals and negotiation notes
+   since it was written. The live path: B-6 / V2 §3 returns a light-role lead to
+   Following Up with NO follow-up form, so the pre-proposal row becomes the latest
+   one and the board filed the card under **Fallen behind** — a red column that
+   refuses drops and tells him to re-date something he never dated. The rule now
+   lives in one module (`lib/crm/live-record.ts`) and the To-Do, its completion
+   marks and both boards read it from there; it was three copies of the same
+   `Math.max` in two files and no copy at all in the two that had just started
+   needing it. The card's KEY DATUM went through the same gate in the same change,
+   because a card left printing "Next: <a date from before the proposal>" while
+   sitting in the live column would have been a new inconsistency introduced by
+   fixing the old one. It reads "No follow-up set" now, which is what is true.
+5. **A backdated drop landed in Fallen behind SILENTLY.** The follow-up date input
+   has no `min` and the server validates only the format, so a past date commits —
+   and the PLACEMENT is correct, because the date really has passed. The silence
+   was the defect: `commitDrop` refreshed and the card appeared two columns away,
+   in a column whose own note reads "Not a drop target". That is the same failure
+   the `landedHere` machinery exists to prevent. There is a toast now, naming the
+   lead, where it went, why, and the way back out — and `setLanded` releases the
+   Today chip of the column the card ACTUALLY went to rather than the stage it was
+   dropped on. Both halves come from one pure function, `landingColumn`, checked
+   against `isFallenBehind` on the boundary so the two cannot drift. **No `min`
+   was added**: blocking a backdated entry is a product decision nobody has asked
+   for, and recording a chase you made yesterday is a real thing.
+
+**The five lows:**
+
+- **`PartnersBoard` emitted `data-stage` but not `data-column`**, while both lead
+  boards declare "every selector that wants the column uses `data-column`" as an
+  absolute. Added, so the convention is true of three boards out of three. That
+  board has no derived column, so the two attributes agree there — which is now
+  the assertion.
+- **The first paint printed an affirmative falsehood.** With `today === null`
+  every card sits in its stage column, so the derived one was empty and said
+  "Nothing has fallen behind" over a 0 count while overdue cards rendered next
+  door. Suppressed until the day is known: a blank is honest, that sentence was
+  not. The permanent "Not a drop target" note stays, because the column is closed
+  to drops whether or not the day is known. The beat is too short to race, so the
+  test holds it open instead — a second browser context with **JavaScript
+  disabled** never hydrates, so the SSR paint IS the whole case.
+- **Two comments claimed "no product path can create a `following_up` lead with
+  no follow-up".** FALSE, and corrected in both places (the e2e spec's header and
+  this ADR's own §4): the B-6 light-role return does exactly that through the UI,
+  and a lead can reach Sending Proposals straight from New without ever having
+  had a follow-up. The BEHAVIOUR is sound and unchanged — such a card belongs in
+  Following Up, owing a date rather than overdue on one.
+- **Two coverage holes, both closed.** The fallen-behind spec pinned a 2300px
+  viewport for its whole describe (its drags need nine columns reachable by the
+  mouse), so the new column had no PHONE case on a product whose founder works
+  off a phone — two 390px cases now, neither of which drags. And postpone's e2e
+  covered only the B-Systems lead panel, leaving `LeadEventPanel` — ByteForce's
+  SECOND panel, with its own `fieldsForTarget` — untested, which is precisely the
+  function that went stale and caused the bug this ADR fixes. Two panels, two
+  cases.
+- **The `FU-AUTO` activity row survives an undo that deleted its follow-up** —
+  and that is RIGHT, so it is recorded rather than changed. `performUndo` deletes
+  no `ActivityLog` row for any kind: it restores state, then WRITES an `undo` row
+  of its own. A `lead_event` undo leaves its `group_added` line behind in exactly
+  the same way. The log is an account of what happened, and the press and the
+  auto-log did happen; the undo is the next thing that happened, and it says so.
+
 - Resolves: five founder directives (no SPEC §11 A-#). **Supersedes ADR-072's
   always-asks-why popup rule.** Amends ADR-061's Today-chip meaning (narrower,
   same control), extends ADR-064's undo payload, and adds SPEC §10.1 rows T-11
   and T-12.
-- Status: Accepted. **Needs founder confirmation (four):**
+- Status: Accepted. **Needs founder confirmation (six):**
   1. **Should the auto-logged follow-up also fire from NEGOTIATION?** A
      negotiation response date is a follow-up row due today on a lead that is not
      in Following Up. His sentence named the column, so negotiation is excluded —
@@ -7580,3 +7700,26 @@ reviewer should be able to see that none of them was shipped behaviour:
      His phrase was "fallen behind"; the Arabic is a translation, not a dictation.
   4. **Should the "Following up about" text be a required field now that it is a
      topic rather than a person's name?** It stays optional, as it always was.
+  5. **THE PRE-RENAME ROWS STILL HOLD PEOPLE'S NAMES, and the auto-log copies
+     them forward.** "Following up with" became "about" as a LABEL ONLY — there
+     was no migration, deliberately (a migration for a caption). So every
+     follow-up recorded before this batch holds a PERSON'S NAME in a field the
+     product now renders "About:", and ADR-082 §1's inheritance carries that name
+     onto every auto-logged chase, one per day, for as long as the lead is
+     chased. Nothing has been backfilled and nothing has silently stopped
+     inheriting, because all three answers are his to pick: **(a) leave it** — the
+     old rows read oddly and age out of relevance by themselves; **(b) clear the
+     old values** — a one-off `UPDATE` on rows written before this deploy, which
+     throws away information somebody typed; **(c) stop inheriting for pre-rename
+     rows only** — keep the history readable but break the chain for exactly the
+     leads where the text is a name. Option (c) needs a cutoff date in the code,
+     which is a thing to maintain for ever, so it is not the default.
+  6. **The INHERITED OWNER COLUMNS, now that no form sets them.** §1's auto-log
+     copies `ownerSalesRepId` / `ownerPortalRepId` from the chase it continues,
+     and §4 removed the only input that ever set either. So they are inherited
+     forward on leads that acquired one before this batch and are `null` for
+     everything recorded since — two populations in one column, with no screen
+     that reads it. Keep inheriting (the chain stays faithful to what was
+     recorded), or stop (the column goes uniformly null as the old chases end)?
+     Kept, because dropping a field while copying a row forward is a quiet loss
+     of information, and nothing reads it either way.

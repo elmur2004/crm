@@ -4966,6 +4966,70 @@ comment, and the ADR-013 mechanism note all fixed; .env.example confirmed tracke
   the assertion was RAISED with the new line named rather than relaxed. TWO were
   my own slips. The Today-chip spec was rewritten rather than trimmed, because its
   cases proved the filter with a card that is not in that column any more.
+- **TWO ADVERSARIAL REVIEWS, TEN FINDINGS, ALL TEN ADJUDICATED AGAINST THE CODE
+  — an eighth commit.** Nine were real and are fixed; the tenth was right to be
+  raised and right to be left alone, so it is recorded instead. Every fix carries
+  a regression test and every test was MUTATION-CHECKED (the fix broken, the test
+  watched go red, the fix restored) — ADR-082 §8 has the finding-by-finding
+  account. The five that mattered:
+  1. **The auto-log gate read a STALE lead.** It gated on the pre-transaction
+     `getLead` snapshot while `fresh` — the locked row the tally update returns —
+     sat unused two lines above, so a press racing a move to Meeting Setting
+     booked tomorrow's chase for a lead that had already left the column his
+     sentence named. The lock claim in that function's header was only ever true
+     of the follow-up READ; it is true of the whole gate now. Pinned with two
+     real overlapping Postgres transactions, so the ordering is named rather than
+     hoped for.
+  2. **The press could book tomorrow TWICE** — a lead can carry a row dated
+     tomorrow that is not the LIVE one (book tomorrow by hand, log a chase for
+     today, press), and the gate never asked. Tomorrow's To-Do then showed that
+     lead as live work AND as already-done, because Done is derived per DAY. It
+     now asks, and when the day is taken the press still FLAGS and still COUNTS
+     and writes nothing — the attempt happened, only the duplicate was wrong.
+  3. **The Fallen-behind split never RE-SAMPLED the Cairo day.** Once per MOUNT,
+     and `router.refresh()` does not remount — so a tab left open overnight kept
+     yesterday's division while the server had moved on, "Didn't answer" on the
+     overdue card booked nothing, and the Today chip beside it counted a
+     different day. Both boards carried a comment claiming the opposite, which in
+     this repo is itself a defect, and both were corrected with the fix. One hook
+     now (`useCairoToday`): samples after mount, re-arms at the next CAIRO
+     midnight (never a fixed 24 hours — Egypt has a 23- and a 25-hour day) and
+     re-samples when the tab comes back, because a sleeping machine fires no
+     timers at all.
+  4. **The split used the LATEST follow-up, not the LIVE one** — while the
+     To-Do's identical concept has required the newest record across follow-ups,
+     meetings, proposals and negotiation notes since it was written. Live path: a
+     light-role "Sent" on a proposal returns the lead to Following Up with NO new
+     date, so the pre-proposal row filed the card under **Fallen behind** — a red
+     column that refuses drops and tells him to re-date something he never dated.
+     The rule now lives in one module and four readers share it; it was three
+     copies in two files and no copy at all in the two that had just started
+     needing it.
+  5. **A backdated drop landed in Fallen behind in SILENCE.** The placement is
+     right (the date really has passed); the silence was the defect, and it is
+     the same failure the `landedHere` machinery exists to prevent. There is a
+     toast now naming the lead, where it went, why and the way back out, and the
+     chip is released on the column the card ACTUALLY went to. No `min` was added
+     to the date input: refusing a backdated entry is a product decision nobody
+     has asked for.
+- **The five lows:** `PartnersBoard` now emits `data-column` too, so "every
+  selector that wants the column uses `data-column`" is true of three boards out
+  of three; the first paint no longer prints "Nothing has fallen behind" over a 0
+  count while overdue cards render next door (a blank is honest, that sentence
+  was not — and the test holds the beat open with a JAVASCRIPT-DISABLED context
+  rather than racing it); two comments claiming "no product path can create a
+  `following_up` lead with no follow-up" were FALSE and are corrected in both
+  places (the B-6 light-role return does exactly that, and the behaviour itself
+  is sound); and two coverage holes are closed — the fallen-behind column had no
+  390px case because its describe pins 2300px for the drags, and postpone's e2e
+  had never touched ByteForce's SECOND lead panel, which is precisely the panel
+  whose stale `fieldsForTarget` caused the bug this ADR fixes.
+- **The one finding left ALONE, deliberately:** the `FU-AUTO` activity row
+  survives an undo that deleted its follow-up. `performUndo` deletes no
+  `ActivityLog` row for ANY kind — it restores state and then writes an `undo`
+  row of its own, and a `lead_event` undo leaves its `group_added` line behind in
+  exactly the same way. The log is an account of what happened; the press and the
+  auto-log did happen, and the undo is the next thing that did.
 - **One process note, logged against the project and not the code:** a
   `git stash push` of files that had no local changes is a no-op that still exits
   0, and the `git stash pop` that followed it popped ANOTHER workstream's
@@ -4976,7 +5040,18 @@ comment, and the ADR-013 mechanism note all fixed; .env.example confirmed tracke
   measure were taken with `git show <baseline>:<path>` into a scratch directory
   instead. **Never run `git stash pop` in this repo** — it is shared, and the
   stash is not ours.
-- Tests: **vitest 1006/1006 in 59 files** (94 new across four files: the new
+- Tests, FINAL (after the review; Run 099 has the full table): **vitest
+  1022/1022 in 59 files**, **Playwright 199 passed / 0 failed / 2 skipped in
+  18.3m** with the verdict read from `test-results/.last-run.json`
+  (`"status": "passed"`), **`npm run build` clean** (170 routes, 48/48 static
+  pages, no route added or removed), **`npx tsc --noEmit` clean**, and
+  **`/brand-audit` PASS** — zero rule breaches in any changed file, with two
+  LOW findings of its own fixed in the batch (a token comment that stated a
+  false property, and a three-scope guard that was pinning three of four
+  values). Nine of the review's fixes carry a regression test and **every one
+  of those tests was mutation-checked** — 6 e2e and 3 unit, all red on the
+  broken fix, all restored.
+- Tests, as the five changes were written: **vitest 1006/1006 in 59 files** (94 new across four files: the new
   `auto-follow-up` and `fallen-behind` suites, the rewritten postpone suite, and
   additions to the follow-up-time, brand-token, engine and phrase suites).
   **Playwright: full suite green, verdict read from `test-results/.last-run.json`,
@@ -5001,6 +5076,29 @@ comment, and the ADR-013 mechanism note all fixed; .env.example confirmed tracke
      phrase was "fallen behind"; the Arabic is a translation, not a dictation.
   4. **Should "Following up about" be REQUIRED now that it asks for a topic rather
      than a person's name?** It stays optional, exactly as it always was.
+- **Needs founder attention (TWO NEW, from the review — and they are data
+  questions, not code ones):**
+  5. **THE PRE-RENAME FOLLOW-UPS STILL HOLD PEOPLE'S NAMES, and the auto-log
+     copies them forward every day.** "Following up with" became "about" as a
+     LABEL ONLY — no migration, deliberately, because a migration for a caption
+     is churn. The consequence is that every follow-up recorded before this batch
+     holds a PERSON'S NAME in a field now rendered "About:", and the auto-logged
+     chase inherits that text onto a new row once a day for as long as the lead
+     is chased. **Nothing has been backfilled and nothing has silently stopped
+     inheriting**, because the choice is his: (a) leave it — the old rows read
+     oddly and age out by themselves; (b) clear the old values — one `UPDATE` over
+     rows written before this deploy, which throws away something somebody typed;
+     (c) stop inheriting for pre-rename rows only — which needs a cutoff date in
+     the code, a thing to maintain for ever, which is why it is not the default.
+  6. **The inherited OWNER COLUMNS on follow-ups, now that no form sets them.**
+     The auto-log copies `ownerSalesRepId` / `ownerPortalRepId` from the chase it
+     continues, and this batch removed the only input that ever set either. So
+     they are inherited forward on leads that acquired one before the batch and
+     `null` for everything recorded since: two populations in one column, with no
+     screen that reads it. Kept inheriting for now, because dropping a field
+     while copying a row forward is a quiet loss of information — but it is his
+     call whether the column should simply go uniformly null as the old chases
+     end.
 - **Carried forward, still open:** ADR-081's six. ADR-080's three (the Mindoo data
   is unrecoverable from production; `GET /api/b-systems/backup` is an unscoped
   `findMany()` over 45 models behind `requireBsAdmin()` alone; historical Mindoo
