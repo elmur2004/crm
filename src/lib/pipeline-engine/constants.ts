@@ -273,6 +273,13 @@ export const LOG_ENTITY_TYPES = [
   /* ADR-054 — whole-module operations on the vault (its own export/import);
      entityId is the literal "vault", the acct_books precedent */
   "vault_backup",
+  /* ADR-083 — one company's WHOLE lead list, downloaded as a spreadsheet.
+     entityId is the company ("byteforce" | "bsystems") — the same
+     acct_books / vault_backup precedent, because the subject of the event is
+     the company's book rather than any one lead. It is logged because this is
+     the single request in the product that hands over every customer a company
+     has: "who pulled the list, and when" must be answerable. */
+  "lead_export",
 ] as const;
 export type LogEntityType = (typeof LOG_ENTITY_TYPES)[number];
 

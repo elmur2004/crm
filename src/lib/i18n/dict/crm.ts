@@ -1,5 +1,6 @@
 import type { Msg } from "@/lib/i18n/core";
 import { pPipeline } from "./partners";
+import { stageMsgs } from "./labels";
 import { entryPage } from "./entry";
 
 /* B-Systems core surface dictionary (shell + admin home + CRM board + leads +
@@ -142,6 +143,7 @@ export const leadsFilters = {
   clear: { en: "Clear filters", ar: "مسح التصفية" },
   activeCount: { en: "active filters", ar: "تصفية نشطة" },
 } satisfies Record<string, Msg>;
+
 
 /* ---- admin Home dashboard ---- */
 
@@ -436,3 +438,73 @@ export const proposalEdit = {
   fieldValue: { en: "Estimated value", ar: "القيمة التقديرية" },
 } as const;
 
+/* ---- the LEADS EXPORT (ADR-083) ------------------------------------------
+
+   Founder: "add a button to export all leads in an excel sheet / a button for
+   bsystems and a button for byteforce", on the Leads page, and the sheet holds
+   "every lead, ever — live pipeline, won, lost AND archived — with a column
+   saying which".
+
+   The headers follow the VIEWER's language, so they live here like every other
+   string in the product rather than as literals in the writer. Nine of them
+   REFERENCE the keys the lead detail and the leads table already use (the
+   `optionalSuffix` convention in dict/labels.ts): the English stays
+   byte-identical to what is on screen, the Arabic is the translation that was
+   already reviewed, and a column header can never drift from the field it
+   names.
+
+   It sits LAST in this module on purpose: it reads `stageForm`, `stageMsgs` and
+   `archiveMsgs`, and a `const` that references one declared below it would
+   throw at import time rather than fail to compile. */
+
+export const leadsExport = {
+  /* each button NAMES its company — he asked for two, one per company, and a
+     sheet of the wrong company's customers is the one mistake that matters */
+  button: { en: "Export leads — {company}", ar: "تصدير العملاء — {company}" },
+  hint: {
+    en: "Every lead, ever — live, won, lost and archived.",
+    ar: "كل العملاء المحتملين من البداية — الجاري والمكسب والخاسر والمؤرشف.",
+  },
+  /* the workbook's own tab. nav.leads is "Leads" — the same word as the page
+     the button sits on, which is what a person expects the tab to say. */
+  sheet: nav.leads,
+
+  /* ---- column headers, in order ---- */
+  hName: common.name,
+  hCompany: common.company,
+  /* "Number" is this product's own word for the phone (the lead detail says
+     "Number:", the leads table's column says it, the search box offers it) */
+  hNumber: common.number,
+  hEmail: common.email,
+  hPosition: common.position,
+  hIndustry: common.industry,
+  hType: common.type,
+  hStage: common.stage,
+  hStatus: { en: "Status", ar: "الحالة" },
+  hOwnerBucket: { en: "Owner bucket", ar: "فئة المالك" },
+  hOwner: common.owner,
+  hSalesRep: { en: "Sales rep", ar: "مسؤول المبيعات" },
+  hPartner: { en: "Introduced by partner", ar: "شريك مُحوِّل" },
+  hCreated: common.created,
+  hLastActivity: { en: "Last activity", ar: "آخر نشاط" },
+  hFollowUp: { en: "Latest follow-up", ar: "آخر متابعة" },
+  hMeeting: { en: "Latest meeting", ar: "آخر اجتماع" },
+  /* same words as the proposal form's own field, so the column and the screen
+     that fills it agree */
+  hValue: stageForm.estimatedValue,
+  hLostReason: { en: "Lost reason", ar: "سبب الخسارة" },
+  /* ADR-064's tally — "(times)" because the cell is a COUNT, not a flag */
+  hNoAnswer: { en: "Didn't answer (times)", ar: "عدد مرات عدم الرد" },
+  hWhatsapp: { en: "WhatsApp sent", ar: "تم إرسال واتساب" },
+
+  /* ---- the STATUS column's four values ---- */
+  /* won/lost REFERENCE the stage labels, so Status and Stage never disagree
+     about a word; archived references the archive view's own label. */
+  statusLive: { en: "Live", ar: "جارٍ" },
+  statusWon: stageMsgs.won,
+  statusLost: stageMsgs.lost,
+  statusArchived: archiveMsgs.archived,
+
+  yes: { en: "Yes", ar: "نعم" },
+  no: { en: "No", ar: "لا" },
+} satisfies Record<string, Msg>;
