@@ -17,6 +17,8 @@ import {
 import { StageBadge } from "@/components/shared/StageBadge";
 import { BsAddLeadForm } from "@/components/bsystems/leadActions";
 import { FilterPanel } from "@/components/shared/FilterPanel";
+import { LeadsExportButtons } from "@/components/shared/LeadsExportButtons";
+import type { CrmCompany } from "@/lib/crm/company";
 
 /* V2 §2.2 — the admin Leads section: every lead with the owner-bucket filter
    (Internal / Agents / Partners / Admins / Any). Admin-added leads land in the
@@ -63,9 +65,15 @@ export interface BsLeadsParams {
 export async function BsLeadsBody({
   ctx,
   params,
+  exportCompanies = [],
 }: {
   ctx: CrmSurface;
   params: BsLeadsParams;
+  /* ADR-083 — the companies whose export button this account is shown, decided
+     by the PAGE from the live roles. Defaults to NONE: a body cannot see a
+     session, and a default that rendered a button would be a default that
+     offers a company-wide customer list. */
+  exportCompanies?: CrmCompany[];
 }) {
   const locale = await getLocale();
   const t = tFor(locale);
@@ -108,6 +116,7 @@ export async function BsLeadsBody({
           <h1 className="u-h1">{t(m.title)}</h1>
         </div>
         <div className="page-actions">
+          <LeadsExportButtons companies={exportCompanies} />
           <BsAddLeadForm apiBase={ctx.apiBase} />
         </div>
       </div>

@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import type { Brand } from "@/lib/pipeline-engine/constants";
 import type { CrmSurface } from "@/lib/crm/surface";
+import type { CrmCompany } from "@/lib/crm/company";
 import { INTERNAL_STAGES, LEAD_TYPES } from "@/lib/pipeline-engine/constants";
 import { internalCrmConfig } from "@/lib/pipeline-engine/configs/internal-crm";
 import { orderMeetingColumn } from "@/lib/board-order";
@@ -36,6 +37,7 @@ import { WhatsappChip } from "@/components/shared/WhatsappChip";
 import { StatCard } from "@/components/shared/StatCard";
 import { AnimatedValue } from "@/components/shared/AnimatedValue";
 import { StageBadge } from "@/components/shared/StageBadge";
+import { LeadsExportButtons } from "@/components/shared/LeadsExportButtons";
 import { NoAnswerBadge } from "@/components/shared/NoAnswerBadge";
 import { stageKey } from "@/components/bsystems/stageColors";
 import { AddLeadForm, AddRepForm, ClientEditForm } from "./forms";
@@ -141,7 +143,17 @@ export async function DashboardBody({ ctx }: { ctx: InternalAppCtx }) {
 
 /* ---------------- Leads: rep cards grid (§6.1) ---------------- */
 
-export async function LeadsBody({ ctx }: { ctx: InternalAppCtx }) {
+export async function LeadsBody({
+  ctx,
+  exportCompanies = [],
+}: {
+  ctx: InternalAppCtx;
+  /* ADR-083 — the companies whose export button this account is shown. Decided
+     by the PAGE from the live roles (`leadsExportCompanies`), never here: a
+     body cannot see a session, and the one thing this prop must never become is
+     a default that renders a button for everybody. Hence `[]`. */
+  exportCompanies?: CrmCompany[];
+}) {
   const locale = await getLocale();
   const t = tFor(locale);
   const [reps, unassigned, unassignedArchived] = await Promise.all([
@@ -157,6 +169,7 @@ export async function LeadsBody({ ctx }: { ctx: InternalAppCtx }) {
           <h1 className="u-h1">{t(nav.leads)}</h1>
         </div>
         <div className="page-actions">
+          <LeadsExportButtons companies={exportCompanies} />
           <AddRepForm apiBase={ctx.apiBase} />
         </div>
       </div>
