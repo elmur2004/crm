@@ -138,8 +138,15 @@
      what the red already says on an overdue receivable, and this column must not
      read as "paused" (amber, which Postpone owns) or as "gone" (grey, Lost).
      Identical in all three scopes - the column means the same thing whichever
-     company the switch is pointed at. The well is a shade off --color-danger-tint
-     on purpose, so the blocked drag-over state is still visible against it. */
+     company the switch is pointed at.
+
+     The well is a shade off --color-danger-tint (#FCF2F0 against #FBEDEB), and
+     the audit was right that the claim this comment used to make for that is
+     false: one and five parts in 255 is not a difference anyone can see, so it
+     is NOT what keeps the blocked drag-over state legible. What keeps that state
+     legible is .col--over-blocked's own --color-danger-border-strong border. The
+     well is simply the column's own surface, a hair lighter than the error tint
+     so the two are not literally the same token value by accident. */
   --color-stage-fallen-behind: #FCF2F0;
   --color-stage-fallen-behind-accent: #C0392B;
   --color-stage-fallen-behind-chip: #F4D8D4;

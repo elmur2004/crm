@@ -155,17 +155,36 @@ describe("stage tokens exist in ALL THREE brand scopes (ADR-057)", () => {
       ["branding/byteforce/tokens.css", '[data-brand="byteforce"]'],
       ["branding/b-systems/tokens.css", '[data-brand="bsystems"]'],
     ];
+    /* ALL FOUR values, in both branded scopes. The audit caught this guard
+       pinning three of them — `-chip` was declared (the set-equality test above
+       covers every NAME in every scope) but its VALUE was unpinned, so the one
+       token a brand could have quietly re-tinted was the one nobody was
+       watching. A guard that checks most of a family teaches the next reader
+       that most is enough. */
+    const VALUES: Array<[string, string]> = [
+      ["", "#FCF2F0"],
+      ["-accent", "#C0392B"],
+      ["-chip", "#F4D8D4"],
+      ["-chip-ink", "#8E2C20"],
+    ];
     for (const [file, selector] of scopes) {
       const body = scopeBody(read(file), selector);
-      expect(body).toContain("--color-stage-fallen-behind-accent: #C0392B");
-      expect(body).toContain("--color-stage-fallen-behind-chip-ink: #8E2C20");
-      expect(body).toContain("--color-stage-fallen-behind: #FCF2F0");
+      for (const [suffix, value] of VALUES) {
+        expect(body, `${file} ${suffix}`).toContain(
+          `--color-stage-fallen-behind${suffix}: ${value}`,
+        );
+      }
     }
-    /* neutral resolves it to the shell's own surface, like every other stage
-       family there — declared, so nothing resolves to nothing */
+    /* neutral resolves them to the shell's own surface, like every other stage
+       family there — declared, so nothing resolves to nothing. ALL FOUR here
+       too: the set-equality test proves the names exist, and this proves each
+       one actually carries a value rather than an empty declaration. */
     const neutral = scopeBody(read("src/themes/neutral.css"), '[data-brand="neutral"]');
-    expect(neutral).toContain("--color-stage-fallen-behind:");
-    expect(neutral).toContain("--color-stage-fallen-behind-accent:");
+    for (const [suffix] of VALUES) {
+      expect(neutral).toMatch(
+        new RegExp(`--color-stage-fallen-behind${suffix}:\\s*var\\(--color-[a-z-]+\\)`),
+      );
+    }
   });
 
   /* ADR-054 addendum — the accounting green is the SAME three-scope law. It is
