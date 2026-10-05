@@ -6234,3 +6234,65 @@ review as it was by the five changes.
 - The audit also measured the new column's contrast, since it is the product's
   first red column: title 4.94:1, chip ink 6.17:1, locked note ~6.5:1, empty
   state 7.5:1 — all AA.
+
+### The deploy, verified — not assumed
+
+The chunk names on `https://crm.byteforceinc.com/login` were recorded BEFORE the
+push (11 of them) and then polled every 25s. **On the 16th poll they changed**,
+and the shape of the change is exactly a rebuild of the same app: eight of the
+eleven identical, `0ld51jle4fft3.js` out and `12e5fky3vp7e9.js` in, and BOTH
+stylesheets replaced (`2dnzbg9_savyx.css` / `2w-58gkaa7-tf.css` out,
+`1xjdc_-2o6573.css` / `2lisf1bxin9qh.css` in). Two new stylesheets is the signal
+to look at here: this batch is the first deploy to carry the new stage-token
+family, and the CSS had to change for that reason alone. `GET /api/health`
+answered, on every poll including the first (no 502 window was observed this
+time):
+
+```
+ok: true | schemaCurrent: true | pendingMigrations: []
+db: { reachable: true, error: null }
+```
+
+**The empty list IS the migration proof**, as in Run 097: `unappliedMigrations()`
+reads the DEPLOYED container's own `prisma/migrations` directory and subtracts
+`_prisma_migrations`. This batch adds no migration, so an empty list is also the
+assertion that it needed none.
+
+Unauthenticated smoke, from a cold client:
+
+| URL | Result |
+| --- | --- |
+| `/login` | 200, `<title>Sign in — ByteForce x B-Systems Sales Platform</title>`, the real form (Email or phone / Password / Sign in) |
+| `/` | 307 -> `/login` |
+| `/portal` | 200 |
+| `/b-systems/crm?company=bsystems` | 307 -> `/login` |
+| `/b-systems/leads?company=byteforce` | 307 -> `/login` |
+| `/b-systems/todo` | 307 -> `/login` |
+| `/api/health` | 200, `ok: true` |
+
+**AND THE NEW COLUMN IS IN THE DEPLOYED ARTEFACT, which is the part a 307 cannot
+tell you.** Every stylesheet the live `/login` and `/portal` reference was
+fetched and read: all FOUR of
+`--color-stage-fallen-behind{,-accent,-chip,-chip-ink}` are declared **7 times
+each** (the three `[data-brand]` scopes plus the `@theme` bridge and its
+companions), the `[data-stage-key=fallen-behind]` binding is present, and so is
+`.col-locked-note`, the rule the brand audit re-pointed at the column's own
+stage vars. 48 hits on the token family, 54 on `fallen-behind`, in production
+CSS. `--color-stage-postponed` sits beside it at the same count, which is the
+control: a family that was already live, counted the same way.
+
+**What this does NOT prove, stated plainly rather than dressed up:** nobody
+clicked the column on production. The middleware redirects every unauthenticated
+CRM address to `/login`, so the BOARD cannot be reached from outside and the
+board's own JS chunk is not referenced by any page a cold client can load.
+Signing in would need the founder's own password, which was not guessed. What
+stands in its place: the bundle changed after a push containing only these
+fourteen commits, the stylesheets that paint the column are in production and
+carry all four of its tokens, nothing 500s, the schema is current, and the suite
+that drove that column 16 different ways — including across a faked Cairo
+midnight and with JavaScript switched off — ran green against this exact tree.
+
+The `uploads` section of `/api/health` is unchanged and still not green
+(`persistentDirConfigured: false`, 9 referenced attachments missing). It is a
+STANDING hosting issue, recorded in full in Run 097, untouched by this deploy and
+unrelated to it — repeated here only so it is not read as new.

@@ -4001,10 +4001,11 @@ disagree about which day is late.
 ### What it cost, and what it did not
 
 Five commits, plus one for the brand audit, one for the eleven e2e corrections
-and one for the review. Three new pure modules (`lib/crm/fallen-behind.ts`,
-`lib/crm/live-record.ts`, `components/shared/useCairoToday.ts`), one deleted
-component, one new stage-token family in three scopes, ten i18n keys added and
-seven annotated as orphaned, two new SPEC §10.1 rows, and one line removed from
+and SIX for the adversarial review — fourteen in all. Three new pure
+modules (`lib/crm/fallen-behind.ts`, `lib/crm/live-record.ts`,
+`components/shared/useCairoToday.ts`), one deleted component, one new
+stage-token family in three scopes, ten i18n keys added and seven
+annotated as orphaned, two new SPEC §10.1 rows, and one line removed from
 `requiredGroupForTarget`.
 
 The review's nine fixes added one exported helper to `lib/datetime.ts`

@@ -4967,8 +4967,9 @@ comment, and the ADR-013 mechanism note all fixed; .env.example confirmed tracke
   my own slips. The Today-chip spec was rewritten rather than trimmed, because its
   cases proved the filter with a card that is not in that column any more.
 - **TWO ADVERSARIAL REVIEWS, TEN FINDINGS, ALL TEN ADJUDICATED AGAINST THE CODE
-  — an eighth commit.** Nine were real and are fixed; the tenth was right to be
-  raised and right to be left alone, so it is recorded instead. Every fix carries
+  — six more commits, the ninth to the fourteenth.** Nine findings were real
+  and are fixed; the tenth was right to be raised and right to be left alone,
+  so it is recorded instead. Every fix carries
   a regression test and every test was MUTATION-CHECKED (the fix broken, the test
   watched go red, the fix restored) — ADR-082 §8 has the finding-by-finding
   account. The five that mattered:
