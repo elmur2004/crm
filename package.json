@@ -32,6 +32,7 @@
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "web-push": "^3.6.7",
+    "write-excel-file": "^4.1.1",
     "zod": "^4.4.3"
   },
   "devDependencies": {
@@ -43,6 +44,7 @@
     "@types/web-push": "^3.6.4",
     "dotenv": "^17.4.2",
     "embedded-postgres": "^18.4.0-beta.17",
+    "read-excel-file": "^9.3.10",
     "tailwindcss": "^4.3.3",
     "tsx": "^4.23.11",
     "typescript": "^7.0.2",
