@@ -1112,18 +1112,32 @@ describe("Postpone / Not answering (ADR-072, amended by ADR-082)", () => {
        checked here against the set of groups the boards can actually render —
        a new stage that opens a group nobody has built now fails in this file
        rather than in his hands. */
+    /* every group a board form can actually render, by file:
+         InternalBoard/LeadEventPanel  follow_up meeting proposal lost won
+         BsBoard/roleForms             follow_up meeting proposal lost negotiation won_deal
+         PartnersBoard/ProspectEvent-  follow_up meeting lost won_partner numbers
+       plus `meeting_reschedule`, which only a meeting OUTCOME opens (never an
+       action), and is rendered inline by all three panels. */
     const RENDERABLE = new Set([
       "follow_up",
       "meeting",
+      "meeting_reschedule",
       "proposal",
       "lost",
       "negotiation",
       "won",
       "won_deal",
+      "won_partner",
+      "numbers",
     ]);
+    /* ALL THREE boards, not just the two internal ones: the bug was a board
+       keeping its own list of destinations, and the funnel board has a list of
+       its own to go stale. */
     for (const [config, ctx] of [
       [internal, staff],
       [bsystems, admin],
+      [partners, admin],
+      [agents, admin],
     ] as const) {
       for (const from of config.stages) {
         if (config.terminalStages.includes(from)) continue;
