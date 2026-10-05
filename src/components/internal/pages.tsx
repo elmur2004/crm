@@ -6,6 +6,7 @@ import type { CrmSurface } from "@/lib/crm/surface";
 import { INTERNAL_STAGES, LEAD_TYPES } from "@/lib/pipeline-engine/constants";
 import { internalCrmConfig } from "@/lib/pipeline-engine/configs/internal-crm";
 import { orderMeetingColumn } from "@/lib/board-order";
+import { isNewestRecord } from "@/lib/crm/live-record";
 import { tFor } from "@/lib/i18n/core";
 import { getLocale } from "@/lib/i18n/server";
 import { leadTypeLabel, stageLabel } from "@/lib/i18n/dict/labels";
@@ -504,6 +505,10 @@ export async function CrmBoardBody({
       meetings: { orderBy: { createdAt: "desc" }, take: 1 },
       proposals: { orderBy: { createdAt: "desc" }, take: 1 },
       lostInfo: { orderBy: { createdAt: "desc" }, take: 1 },
+      /* ADR-082 (review) — the live-record gate reads all four kinds, so the
+         two boards ask the identical question even though this pipeline has no
+         negotiation stage and can therefore never have one of these */
+      negotiationNotes: { orderBy: { createdAt: "desc" }, take: 1, select: { createdAt: true } },
       wonInfo: { select: { estimatedValue: true } },
     },
     orderBy: { updatedAt: "desc" },
@@ -516,8 +521,12 @@ export async function CrmBoardBody({
       case "following_up":
         /* ADR-061 + ADR-063: a follow-up is a DAY unless someone chose a time —
            the clock rides `dueTimeSet`, never the instant. */
-        return lead.followUps[0]
-          ? `${t(board.nextPrefix)} ${formatCairo(lead.followUps[0].dueAt, locale, lead.followUps[0].dueTimeSet)}`
+        /* ADR-082 (review) — only while that follow-up is the lead's NEWEST
+           record, the same rule the To-Do has always used. A "Sent" on a
+           proposal (T-5) can return the lead here with no new date, and the
+           pre-proposal row is not a promise anybody made. */
+        return isNewestRecord(lead.followUps[0], lead)
+          ? `${t(board.nextPrefix)} ${formatCairo(lead.followUps[0]!.dueAt, locale, lead.followUps[0]!.dueTimeSet)}`
           : t(board.noFollowUpSet);
       case "meeting_setting":
         return lead.meetings[0]?.datetime
@@ -560,8 +569,11 @@ export async function CrmBoardBody({
     /* the Today chip's datum (ADR-061) — the same latest follow-up the key
        datum shows, only on Following Up cards */
     followUpDueAt:
-      lead.stage === "following_up" && lead.followUps[0]
-        ? lead.followUps[0].dueAt.toISOString()
+      /* ADR-082 (review) — the LIVE follow-up, not merely the latest one: this
+         instant decides a COLUMN now, and a superseded row would file the card
+         under "Fallen behind" with nothing to re-date. */
+      lead.stage === "following_up" && isNewestRecord(lead.followUps[0], lead)
+        ? lead.followUps[0]!.dueAt.toISOString()
         : null,
     /* ADR-064 — the instant the Meeting Setting card SHOWS (its keyDatum
        above), which is also the instant its column is ordered and filtered by */

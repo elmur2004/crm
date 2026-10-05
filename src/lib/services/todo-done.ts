@@ -3,6 +3,7 @@ import type { Brand } from "@/lib/pipeline-engine/constants";
 import { ApiError } from "@/lib/api-error";
 import type { Actor } from "./activity";
 import { cairoDayWindow, type TodoKind } from "./todo";
+import { newestRecordAt } from "@/lib/crm/live-record";
 import { configForBrand, followUpStagesFor } from "@/lib/pipeline-engine/configs/for-brand";
 
 /* Founder 2.2/2.3 (ADR-062) — MANUAL To-Do completion. "Add a checkbox next to
@@ -112,19 +113,9 @@ const LATEST_SELECT = {
   negotiationNotes: { orderBy: { createdAt: "desc" }, take: 1, select: { createdAt: true } },
 } as const;
 
-function newestOf(lead: {
-  followUps: { createdAt: Date }[];
-  meetings: { createdAt: Date }[];
-  proposals: { createdAt: Date }[];
-  negotiationNotes: { createdAt: Date }[];
-}): number {
-  return Math.max(
-    lead.followUps[0]?.createdAt.getTime() ?? 0,
-    lead.meetings[0]?.createdAt.getTime() ?? 0,
-    lead.proposals[0]?.createdAt.getTime() ?? 0,
-    lead.negotiationNotes[0]?.createdAt.getTime() ?? 0,
-  );
-}
+/* the rule itself lives in crm/live-record — one copy for the To-Do, its
+   marks and both boards (see that module's header) */
+const newestOf = newestRecordAt;
 
 /** Check (done: true) or uncheck (done: false) one To-Do task.
     Checking validates the record IS a live task in today's Cairo window and

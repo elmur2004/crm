@@ -6,6 +6,7 @@ import { listCalendarPeople } from "@/lib/services/calendar";
 import { LEAD_TYPES, type Brand } from "@/lib/pipeline-engine/constants";
 import { configForBrand } from "@/lib/pipeline-engine/configs/for-brand";
 import { orderMeetingColumn } from "@/lib/board-order";
+import { isNewestRecord } from "@/lib/crm/live-record";
 import { formatCairo } from "@/lib/datetime";
 import { formatEGP } from "@/lib/money";
 import { waHref } from "@/lib/phone-dial";
@@ -65,8 +66,14 @@ function keyDatum(locale: Locale, lead: LeadRow, brand: Brand): string {
       /* ADR-061 + ADR-063: a follow-up is a DAY unless someone chose a time —
          the clock rides `dueTimeSet`, never the instant (a defaulted 09:00 and
          a chosen 09:00 are the same instant). */
-      return lead.followUps[0]
-        ? `${t(m.nextPrefix)}${formatCairo(lead.followUps[0].dueAt, locale, lead.followUps[0].dueTimeSet)}`
+      /* ADR-082 (review) — and only while that follow-up is the lead's NEWEST
+         record, exactly as the negotiation case below has always done and as
+         the To-Do has always done. A light-role "Sent" on a proposal (B-6)
+         returns the lead here with NO new date, so the pre-proposal follow-up
+         would otherwise print as "Next: <a date from before the proposal>" —
+         a promise nobody made. Owing a date reads as owing a date. */
+      return isNewestRecord(lead.followUps[0], lead)
+        ? `${t(m.nextPrefix)}${formatCairo(lead.followUps[0]!.dueAt, locale, lead.followUps[0]!.dueTimeSet)}`
         : t(m.noFollowUp);
     case "meeting_setting":
       return lead.meetings[0]?.datetime
@@ -161,7 +168,14 @@ export async function BsCrmBoardBody({
     /* the Today chip's datum (ADR-061) — the same latest follow-up the key
        datum shows, only on Following Up cards */
     followUpDueAt:
-      l.stage === "following_up" && l.followUps[0] ? l.followUps[0].dueAt.toISOString() : null,
+      /* ADR-082 (review) — the LIVE follow-up, not merely the latest one. This
+         instant now decides a COLUMN, so a superseded row would file the card
+         under "Fallen behind" — red, refusing drops, telling him to re-date
+         something he never dated. Same gate as the key datum above and as the
+         To-Do's own liveness rule (crm/live-record). */
+      l.stage === "following_up" && isNewestRecord(l.followUps[0], l)
+        ? l.followUps[0]!.dueAt.toISOString()
+        : null,
     meetingAt: meetingAt(l),
   }));
   /* founder (ADR-064): the Meeting Setting column runs soonest-meeting-first,

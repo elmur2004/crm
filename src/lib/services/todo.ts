@@ -7,6 +7,7 @@ import {
   followUpStagesFor,
 } from "@/lib/pipeline-engine/configs/for-brand";
 import { cairoDayWindowFor, utcToCairo } from "@/lib/datetime";
+import { isNewestRecord, newestRecordAt } from "@/lib/crm/live-record";
 
 /* Founder (ADR-041) — the To-Do page: "the actual date of today with the
    entire tasks of today... just a way of representing what I have to do today,
@@ -349,15 +350,12 @@ export async function todoFor(opts: {
   for (const lead of stagedLeads) {
     const f = lead.followUps[0] ?? null;
     const m = lead.meetings[0] ?? null;
-    const p = lead.proposals[0] ?? null;
-    const n = lead.negotiationNotes[0] ?? null;
-    const newest = Math.max(
-      f?.createdAt.getTime() ?? 0,
-      m?.createdAt.getTime() ?? 0,
-      p?.createdAt.getTime() ?? 0,
-      n?.createdAt.getTime() ?? 0,
-    );
-    if (followUpStages.includes(lead.stage) && f && f.createdAt.getTime() === newest) {
+    /* the LIVE-RECORD rule, from the one module that owns it (crm/live-record).
+       It used to be an inline Math.max here, a second copy in todo-done.ts and
+       no copy at all on the boards — which is how ADR-082's column came to file
+       cards by a follow-up that had already been superseded. */
+    const newest = newestRecordAt(lead);
+    if (followUpStages.includes(lead.stage) && isNewestRecord(f, lead)) {
       items.push({
         kind: kindOfFollowUp(f.context),
         recordId: f.id,
