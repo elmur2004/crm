@@ -5957,3 +5957,169 @@ redeploy — including this one — deletes whatever was uploaded since the last
 because the container has no persistent volume. It is a hosting change (mount a
 volume, set `UPLOADS_DIR`), not a code change, and it is the one thing on this
 health check that is not green.
+
+## Run 098 — 2026-10-05 — ADR-082: the follow-up flow, five ways
+
+Five founder changes in one batch (ADR-082). Four came in one message about the
+follow-up flow; the fifth was a bug report with his own fix attached. Every gate
+run on the FINAL tree, after the brand audit and after the eleven e2e corrections
+— not on the tree each commit was written against.
+
+| Command | Result |
+| --- | --- |
+| `npx tsc --noEmit` | clean at each of the seven commits, and on the final tree |
+| `npx vitest run` (FULL) | **59 files, 1006 tests, all passing** (57/956 → 59/1006) |
+| `npm run build` | **clean** — "Compiled successfully", 48/48 static pages generated; the 6 Turbopack warnings are the pre-existing `storage` regex ones, unchanged by this batch |
+| `npx playwright test` (FULL) | **191 passed, 0 failed**, 2 skipped (the opt-in `audit` spec) in 19.4m — `test-results/.last-run.json`: `"status": "passed"`, `failedTests: []` |
+| `/brand-audit` over the change set | **PASS**, with two findings fixed in the batch (see below) |
+| three-scope token sweep (scripted, scope-first) | **PASS** — 52 stage tokens, identical in all three `[data-brand]` scopes; the 4-token fallen-behind family present in each; 100 semantic tokens identical between the two brands; `[data-stage-key="fallen-behind"]` bound; the `@theme` bridge complete; no raw hex outside `branding/` + `src/themes/` |
+
+Playwright ran on a **temporary copy of the config** on a verified-free port
+(3187 — 3100 may be another workstream's, and nothing of anyone else's was
+touched); the copy was deleted afterwards. No migration re-proof row in this
+table, and that is the point: **this batch ships no schema change at all** —
+`prisma/schema.prisma` is untouched, so there is nothing to replay.
+
+- Cases: 1006 vitest + 191 e2e passed / 0 failed / 2 skipped.
+- Failures: **none in the final run.** Eleven e2e specs failed in the first full
+  run and all eleven were TEST defects, not shipped behaviour — see "the eleven"
+  below. None carries a BUG id: nine were in tests written or touched this
+  session, and the two that were not (the daily report's interaction count) were
+  right about the old behaviour and had to be raised to the new, which is a test
+  following a deliberate change rather than a bug.
+- SPEC coverage touched: **§10.1 gains T-11 (postpone carries no fields) and
+  T-12 (the auto-logged next follow-up)** — both normative, both implemented and
+  tested. §10.1 T-1/T-5 (the follow-up group and its contexts, now inherited by
+  the auto-log), §5.6/T-10 (a record creation writes its own log row — the new
+  `FU-AUTO` trigger), §5.2 (`PostponeInfo` accumulates — it now simply stops),
+  §2 (Cairo days and the DST transitions), §4 (the three-scope token law), §6.2
+  (the follow-up field group loses its Owner input and renames one label).
+- Verdict: **PASS.**
+
+### The 50 new vitest tests (57/956 → 59/1006)
+
+| File | Tests | What it pins |
+| --- | --- | --- |
+| `src/lib/services/auto-follow-up.integration.test.ts` | **26** (new) | the gate's one positive and three negatives, what the row inherits, the repeat across days, that it cannot pile up, five racing presses, the log row, the four undo properties, the To-Do/daily-report projections, and all four 2026 Egypt DST transition days plus a 23:30-Cairo press |
+| `src/lib/crm/fallen-behind.test.ts` | **16** (new) | the day boundary (today is NOT behind, at every hour of it), Cairo-vs-UTC, a null and an unparseable instant, that only the follow-up stage splits, the column order, the funnel getting nothing, that the id is not a stage in any pipeline, and that `stageKey` does not fall through to Lost |
+| `src/lib/services/postpone.integration.test.ts` | 12 (10 → 12, **+2**) | rewritten to the new truth: the formless park by action AND by drag, the old payload accepted-and-ignored, a legacy reason still read back, the schema that survives, and the formless park still being undoable |
+| `src/lib/services/follow-up-time.integration.test.ts` | 11 (9 → 11, **+2**) | the owner columns: still accepted on the wire and stored, and `null` on a follow-up recorded the way the product records it now |
+| `src/lib/i18n/daily-report-phrases.test.ts` | 50 (48 → 50, **+2**) | `FU-AUTO` in the inventory, and that its phrase is NOT the one for a follow-up he logged himself |
+| `src/lib/pipeline-engine/transition.test.ts` | 53 (52 → 53, **+1**) | every postpone case inverted to `requiredGroup === null`, plus the new dead-end sweep: every destination of every non-terminal stage on both internal pipelines must open a group some board form renders |
+| `src/lib/brand-tokens.test.ts` | 15 (14 → 15, **+1**) | the fallen-behind family in all three scopes, identically valued |
+
+26 + 16 + 2 + 2 + 2 + 1 + 1 = **50**, and 956 + 50 = 1006 — the headline the
+reporter printed. The five per-file baselines were taken with
+`git show <baseline>:<path>` and counted declaration-by-declaration (the
+`it.each` inventories by their array rows), because the attribution is the part
+this log has got wrong before (Run 096, corrected in Run 097).
+
+### The eleven e2e failures, and what each one actually was
+
+None was shipped behaviour. They are grouped by cause, because the grouping is
+the finding.
+
+**FOUR were the drag, and they are the real consequence of inserting a column.**
+`board-touch` (grip drag on touch), `fallen-behind` (dragged OUT), `postpone` (the
+B-Systems board drop). Inserting "Fallen behind" before Following Up moves every
+column to its right, and three different mechanisms broke:
+
+1. dnd-kit scores a drop on the **dragged card's rect**, not the pointer; the grip
+   sits at the card's inline-start edge, so aiming the POINTER at a column centre
+   leaves the CARD straddling the previous column. Survivable while the left
+   neighbour was New (formless, commits); not survivable once it became a column
+   that REFUSES drops — the symptom is "no modal and a toast", which reads as the
+   feature being broken. Fixed by compensating for the grip-to-card-centre offset,
+   which `prospect-pipeline.spec.ts` had already solved for seven columns.
+2. Nine 218px columns is ~2100px, past the default 1280 viewport, and
+   `scrollIntoViewIfNeeded` cannot rescue it: scrolling the COLUMN in scrolls the
+   CARD out. The two whole-board cases now run at 2300px wide.
+3. The TOUCH helper relied on one hover at the screen edge auto-scrolling the
+   target in. One more column means one hover is not far enough, and the clamped
+   drop landed on the new neighbour. It now holds at the edge in a loop until the
+   target's aim point is inside the visible strip.
+
+**THREE asked to see the postpone REASON** (`postpone`: the lead page, the round
+trip, the legacy row). That reason is exactly what no longer exists, so the
+assertions were inverted: the lead really is parked (its stage chip) and NO reason
+row was written. The legacy-row render moved to the integration test, because no
+API writes `PostponeInfo` any more — which is the point, and is stated in the spec
+rather than worked around.
+
+**TWO were the daily report, and this pair is the most valuable of the eleven.**
+Lead A's follow-up is dated TODAY and the spec then presses "didn't answer", so
+the press now writes a second log row: six interactions on one lead where there
+were five. **The headline — DISTINCT LEADS — did not move**, which is precisely
+the property ADR-082 claims and the one the founder asked for twice. So the
+assertion was RAISED to six with the new line named ("Next follow-up logged
+automatically"), not relaxed; and the sibling fold case had its `5` turned into a
+named `LINES` constant so the two can never disagree again.
+
+**TWO were my own slips.** A follow-up date made relative without updating the day
+the assertion names, and a ByteForce lead opened at the B-Systems address
+(ADR-074's `LEAD_ADDRESS` table puts the two companies' lead screens at different
+paths).
+
+**And one spec was rewritten rather than trimmed.** `follow-up-today` proved the
+Today chip by creating an OVERDUE card and asserting the chip hid it — a card that
+is not in that column any more. Deleting it would have been quicker and would have
+removed the only coverage of the thing the ADR is about. It now proves the filter
+with a LATER card (the card the chip really hides) and the overdue card keeps an
+assertion of its own, in the column it now belongs to.
+
+### Four properties worth naming, because each one would have shipped wrong
+
+1. **UNDO AND THE PHANTOM FOLLOW-UP.** The press was already undoable and its
+   payload already restored the flag and the tally; it now also carries the
+   created row's id, and the inverse runs the same `deleteCreated` the stage-event
+   inverse uses. Three cases pin what the obvious implementation gets wrong:
+   undoing the FOURTH of four presses deletes ITS row and no earlier one (which is
+   why the payload carries ids and not a date predicate); an entry written BEFORE
+   this deploy still undoes (the field is optional, `deleteCreated` defaults to
+   `[]`, proved by rewriting a live entry into the old shape); and the FINGERPRINT
+   still matches, because creating a child row does not touch the lead row — if it
+   had not, every one of these presses would have become quietly un-undoable.
+2. **THE ORDER OF WRITES IS THE CONCURRENCY ANSWER.** The auto-log sits AFTER the
+   tally update, which takes the lead's row lock, so a racing press blocks,
+   resumes, re-reads the committed follow-up and declines to add a second. Written
+   the other way round both presses would write a row for tomorrow. The code looks
+   identical either way, so it is pinned with five genuinely overlapping
+   transactions against the real Postgres.
+3. **THE GATE IS AN EQUALITY, NOT A `<=`.** `<=` would have chased fallen-behind
+   leads too — the behaviour he ruled out in as many words — and the two changes in
+   this batch would then have fought each other, the auto-relog walking every late
+   lead forward one day per press and quietly emptying the column he asked for in
+   the same message. Pinned by a yesterday case and a nine-days-behind case.
+4. **TOMORROW IS A CALENDAR DAY.** `utcToCairo(now).date` + `nextCairoDate`, never
+   `now + 86_400_000`. Egypt has a 23-hour and a 25-hour day every year; the fixed
+   addition is wrong on both and right the other 363. Proved on all four 2026
+   transition days, plus a 23:30-Cairo press that is already the next UTC day.
+
+### The brand audit's two findings, both fixed in this batch
+
+- **`.col-locked-note`'s BOX, not just its ink.** Its background and dashed border
+  were wired to `--color-accent`, which was unremarkable while the Won column was
+  its only consumer — Won's own accent IS `--color-accent` in both brands — and
+  painted a SIGNAL PINK box under functional-red text on the new column: pink as a
+  surface outside the Won cue, which the B-Systems rules forbid. Both halves now
+  ride the column's own `--stage-bar` / `--stage-chip-ink`, and the Won note is
+  **byte-identical**, which is the check that the diagnosis was right rather than
+  merely different.
+- **`stageTint()` / `stageAccent()` lagged `stageKey()`.** Only the one with a live
+  call site had learned the new column. Nothing was wrong on screen, because both
+  are handed real stage sets — but a trio of switches where one knows a key and two
+  do not is a latent paint bug for the next caller. Caught by the audit, not by a
+  test, and recorded as such: nothing in the product hands those two a column id,
+  so no test exercises them over one.
+
+### One process note
+
+A `git stash push` of paths that had no local changes is a no-op that still exits
+0, and the `git stash pop` after it popped **another workstream's** pre-existing
+"calendar WIP" entry into this tree. The pop CONFLICTED, so git kept the entry and
+nothing of theirs was lost; the five injected files were restored to HEAD and
+verified byte-identical to it, and `git stash list` still shows their entry.
+**`git stash pop` must not be run in this repo** — it is shared, and the stash is
+not ours. The baseline test counts that stash was meant to measure were taken with
+`git show <baseline>:<path>` into a scratch directory instead, which is what
+should have been done first.

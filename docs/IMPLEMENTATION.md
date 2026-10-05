@@ -3580,3 +3580,260 @@ measured rather than the one you expected — the file now does.
 - **`.tile-label` is not `nowrap`**, so the Arabic day labels wrap at 320px instead
   of pushing the page sideways. Checked, because `tile-grid` is
   `repeat(auto-fit, minmax(206px, 1fr))` and 206px is wider than a third of 390.
+
+## ADR-082 — the follow-up flow, five ways: ten traps, one of them a bug that had shipped
+
+### 1. UNDO, AND THE PHANTOM FOLLOW-UP (the one that would have been worst)
+
+"Didn't answer" was already an undoable action, and its payload already restored
+the flag and the tally (ADR-039, then ADR-064). Making the press ALSO create a
+FollowUp row meant the existing inverse was suddenly incomplete, and the failure
+is silent in both directions: the undo reports success, the card goes back to
+"no marker", and the lead is still sitting in tomorrow's To-Do and still printing
+tomorrow's date as its key datum, with nothing on any screen to say why.
+
+The fix was to follow the pattern already in the file rather than invent one.
+`StageEventSnapshot` has carried `created: CreatedRef[]` since ADR-045 precisely
+because a stage move mints child records; `deleteCreated` walks it and deletes
+only ids the write recorded itself. The no-answer payload was a bare
+`{ noAnswer, noAnswerCount }` object read through `payload.x`; it is now a typed
+`NoAnswerSnapshot` with an OPTIONAL `created`, and the case calls the same
+`deleteCreated`.
+
+Three things had to be checked, not assumed:
+
+- **`created` must be optional, and `deleteCreated` must tolerate its absence.**
+  Every undo entry pending at deploy time has a payload with no such key. It
+  already defaults the parameter to `[]`, so nothing was needed — but a test that
+  rewrites a live entry into the old shape and then undoes it is what makes that
+  a fact rather than a reading of the code.
+- **The FINGERPRINT still has to match.** ADR-045's INTEGRITY guard stores the
+  lead's `updatedAt` and refuses the undo if the row changed since. Creating a
+  child row does not touch the lead row, so it still matches — but if it had not,
+  every one of these presses would have become un-undoable, which is a much
+  quieter failure than a crash. Pinned by a test that compares the stored
+  fingerprint to the lead's live `updatedAt`.
+- **Undoing the FOURTH press must delete ITS row and no earlier one.** Four
+  presses on four days leave four auto-logged rows. This is exactly why the
+  payload carries IDS and not a date predicate: "delete the follow-up due
+  tomorrow" would be right three times out of four and wrong on the day it
+  mattered.
+
+### 2. THE ORDER OF WRITES IS THE CONCURRENCY ANSWER (and it looks like style)
+
+The auto-log sits AFTER the tally `update`, not before it, and that is load
+bearing. The tally update takes the lead's row lock; under READ COMMITTED a
+second racing press blocks there, and when it resumes its next statement sees a
+fresh snapshot — including the follow-up the first press committed. So it reads a
+live follow-up dated TOMORROW, the today-equality fails, and it declines to add a
+second row.
+
+Written the other way round — read the follow-up, then update the tally — both
+presses would read the same today-dated row and both would write a row for
+tomorrow. The lead would then be chased twice and, worse, `interactionCount` and
+the To-Do would both carry a duplicate nobody could account for. The code looks
+identical either way, which is why the test uses five genuinely overlapping
+transactions against the real Postgres rather than a mocked sequence.
+
+The same property is also the FEATURE: a second press on the same day cannot pile
+up, because the gate closes behind the first one. One mechanism, two problems.
+
+### 3. "TOMORROW" IS NOT `now + 86_400_000`
+
+Egypt has a 23-hour day and a 25-hour day every year. Adding a fixed day to an
+instant lands on the wrong Cairo date on both of them and is invisible the other
+363 days — the exact shape of bug `nextCairoDate` was written for (ADR-081). The
+day is read with `utcToCairo(now).date` and advanced with `nextCairoDate`, which
+does calendar arithmetic on the date STRING.
+
+A second, subtler one: a press at 23:30 Cairo is already the next day in UTC. Any
+reading of the day off the instant itself — or off the server's local clock — books
+the follow-up a day late. Both cases are in the suite, plus all four 2026
+transition days.
+
+And the DST re-anchor in `followUpDueAt` earns its keep here for the first time
+without a user involved: on spring-forward day the 09:00 default is safe, but the
+function is the one guarantee that a system-chosen day can never slide onto the
+eve.
+
+### 4. THE GATE IS AN EQUALITY, AND A `<=` WOULD HAVE LOOKED LIKE A KINDNESS
+
+`utcToCairo(live.dueAt).date === today` rejects the past and the future in one
+expression. The tempting version is `<= today` — "chase anything that is due or
+overdue" — and it is precisely the behaviour the founder ruled out when asked:
+"no keep it fallen behind in a separate column I will pick it up and make another
+follow up date." Worse, the two changes in this ADR would then have fought each
+other: the auto-relog would walk every fallen-behind lead forward one day per
+press and quietly empty the column he asked for in the same message. Two
+requests, one of which silently cancels the other, is the kind of interaction
+that only shows up if both are implemented at once — which they were.
+
+### 5. THE DERIVED COLUMN, AND THE ATTRIBUTE THAT WOULD HAVE LIED
+
+A derived column has a column head and a well like any other, so the obvious
+implementation renders `data-stage="fallen_behind"`. That is a lie with teeth:
+`.board [data-stage]` is how `company-inventory.spec.ts` asserts that the two
+boards are two pipelines (8 columns vs 7), and the count would silently have
+become 9 and 8 — a failing test whose message points at the wrong thing, and, if
+it had been "fixed" by updating the numbers, a permanent claim in the suite that
+both pipelines gained a stage.
+
+So `data-column` goes on EVERY column and `data-stage` only on real stages. That
+also made `company-inventory` able to assert the thing that actually matters:
+`[data-stage]` still 8 and 7, `[data-column]` one more of each — the derived split
+in two lines.
+
+Related, and the reason `stageKey` needed its own `case`: that function's
+`default` is `"lost"`. A column left out of it is painted in the colour of a dead
+lead, silently, with every brand guard green — exactly the failure ADR-072's own
+comment warns about two cases above the new one.
+
+### 6. THE DAY MUST BE SAMPLED AFTER MOUNT, NOT AT RENDER
+
+Both boards are server-rendered. A `new Date()` in the render path produces a
+different answer on the server and on the client, which is a hydration mismatch
+in React 19, and it also goes stale in a tab left open across Cairo midnight.
+ADR-061 already solved this for the Today chip (`useTodayFilter` samples in an
+effect), and the split had to follow the same discipline rather than reach for
+the clock directly.
+
+The consequence is stated rather than hidden: for one beat after mount `today` is
+null and every card sits in its STAGE column — the pre-split picture. That is the
+honest "not known yet", and it is why the split is a client-side `columnOf` and
+not a server-side bucket: a server-side split would be correct at request time
+and then frozen, so a board left open overnight would show yesterday's division
+with no way to notice.
+
+### 7. THE TODAY CHIP'S MEANING CHANGED WITHOUT ITS CODE CHANGING
+
+Nothing in `TodayChip` or `useTodayFilter` was touched, and that is the point
+worth writing down: the chip filters the cards its column was given, so the
+moment the column stopped containing overdue cards the chip stopped hiding them.
+Its behaviour is unchanged; its MEANING narrowed from "today, not the past or the
+future" to "today, not the future".
+
+That is invisible in the code and very visible in the test suite, which is where
+the work actually was. `follow-up-today.spec.ts` proved the filter by creating an
+OVERDUE card and asserting the chip hid it — a card that is no longer in that
+column at all. Updating it meant re-deciding what each case was FOR: the filter
+is now proved with a LATER card (the card it really hides), and the overdue card
+keeps an assertion of its own in the column it now belongs to. Deleting the
+overdue card from the spec would have been quicker and would have removed the
+only coverage of the thing the ADR is about.
+
+### 8. THE POSTPONE BUG: A HAND-WRITTEN LIST THAT WENT STALE, AND WHY ONLY THE BOARD BROKE
+
+`InternalBoard.tsx` kept its own list of which drop targets open a form:
+
+```ts
+if (to === "new") { commit immediately; return; }
+setPendingDrop({ leadId, to });   // everything else gets the modal
+```
+
+…and `fieldsForTarget` listed five destinations. ADR-072 added a sixth. The drop
+therefore opened a modal, `fieldsForTarget` returned `null`, the body rendered
+empty, and the server — correctly — refused the submit for a missing group. The
+move was unreachable.
+
+**The lead PAGE never broke**, which is why this shipped and survived a month:
+its panel resolves the same question through the engine (`requiredGroupFor`), so
+an unknown target there renders an empty form that still submits. One surface
+asking the engine and one keeping its own list is the whole bug, and it is a
+shape worth recognising — the duplicate is not a duplicated LIST, it is a
+duplicated DECISION.
+
+So the fix is not "add `postponed` to the list". Both boards now ask
+`requiredGroupForTarget(config, lead.stage, to) === null`, which also folded away
+the `to === "new"` special case that was the list's only other entry. And because
+"the UI can render every group the engine can ask for" is now a real invariant, it
+is asserted: an engine test walks every destination of every non-terminal stage
+on both internal pipelines and fails if the required group is one no board form
+renders, naming the stage and the group in the failure message.
+
+**The same class, audited and clean:** every other target on both boards either
+renders its fields (follow_up, meeting, proposal, negotiation, lost, won /
+won_deal) or needs none (intake, and now postpone). The partner/agent board
+already asked the engine (ADR-059), and the portal's forms are driven by the
+required group too.
+
+### 9. ADDING A COLUMN MOVED THE BOARD, AND FOUR DRAG TESTS STARTED AIMING AT AIR
+
+The one consequence nothing in the plan predicted, and the most generalisable
+thing in this ADR: **inserting a column changes where every column to its right
+is on screen**, and the suite is full of helpers that compute a drop point from a
+column's bounding box.
+
+Three separate failure modes came out of that single fact, and they fail
+differently:
+
+1. **THE STRADDLE.** dnd-kit scores a drop on the **dragged card's rect**, not on
+   the pointer. The grip sits at the card's inline-start edge, so a helper that
+   moves the POINTER to the column centre leaves the CARD's rect centred ~100px to
+   the left — straddling the previous column. That was survivable while Following
+   Up's left neighbour was New (a formless target that commits), and it stopped
+   being survivable the moment the left neighbour became a column that REFUSES
+   drops: the symptom is "no modal, and a toast", which reads as the feature being
+   broken rather than as the test under-aiming. Fixed by compensating for the
+   grip-to-card-centre offset, which `prospect-pipeline.spec.ts` had already
+   worked out for its seven columns — the comment there is the one that explains
+   it, and it should have been read before writing a third drag helper.
+2. **THE BOARD IS WIDER THAN THE VIEWPORT.** Nine 218px columns plus gaps is
+   ~2100px, well past the default 1280. `page.mouse` works in VIEWPORT
+   coordinates, so the right-hand columns are unreachable — and
+   `scrollIntoViewIfNeeded()` cannot rescue it, because scrolling the COLUMN in
+   scrolls the CARD out. The two ends of a long drag cannot both be brought on
+   screen by scrolling. The only honest fix is a viewport that holds the board,
+   which is what prospect-pipeline does and what the two whole-board cases here
+   now do.
+3. **ONE HOVER IS NO LONGER ENOUGH AUTO-SCROLL.** The TOUCH helper relies on
+   dnd-kit auto-scrolling the board while the finger rests near the screen edge,
+   then re-reads the target's live box and clamps the drop into the visible strip.
+   With one more column between the card and the target, a single hover does not
+   scroll far enough, and the clamp pins the drop onto the new neighbour. It now
+   holds at the edge in a loop until the target's aim point is inside the strip —
+   which is what a thumb actually does, and is indifferent to how many columns
+   there are.
+
+**The lesson for the next column.** A board test that names a column by its
+bounding box has an invisible dependency on the column COUNT. The three fixes
+above remove it in different ways (aim by the card, widen the viewport, keep
+scrolling until the target arrives), and all three are now written down at their
+call sites so the next person adding a column finds the reason rather than the
+symptom.
+
+### 10. THE BRAND AUDIT'S TWO, AND WHY THE FIRST ONE WAS INVISIBLE
+
+**`.col-locked-note`'s box.** The rule's `color` was hardcoded to
+`--color-stage-won-chip-ink` and its background/border to `--color-accent`. Moving
+only the INK to the column's own var (which is what the first pass did) left the
+BOX pink on the B-Systems board: pink as a surface outside the Won cue, which the
+B-Systems palette rules forbid, under functional-red text.
+
+It was invisible for a precise reason worth recording: **the rule had exactly one
+consumer until today**, the Won column, whose own accent IS `--color-accent` in
+both brands. A token spent through a global name that happens to equal the local
+one is indistinguishable from a token spent correctly — right up to the second
+consumer. Both halves now ride `--stage-bar` / `--stage-chip-ink`, and the Won
+note is byte-identical, which is the test that the diagnosis was right rather
+than merely different.
+
+**`stageTint()` / `stageAccent()` lagging `stageKey()`.** Three sibling switches
+over the same vocabulary, and only the one with a live call site was updated.
+Nothing was wrong on screen — the other two are handed real stage sets — but a
+trio where one knows a key and two do not is a latent paint bug waiting for the
+next caller. Caught by the audit, not by a test, and that is the honest record:
+no test in the suite exercises those two helpers over a column id, because
+nothing in the product hands them one.
+
+### What it cost, and what it did not
+
+Five commits. One new pure module (`lib/crm/fallen-behind.ts`, ~90 lines of code
+and comment), one deleted component, one new stage-token family in three scopes,
+nine i18n keys added and seven annotated as orphaned, two new SPEC §10.1 rows,
+and one line removed from `requiredGroupForTarget`.
+
+**No migration, no schema change, no new table, no new column, no permission
+change, and no stage added to any pipeline.** The two changes that LOOK like they
+need a migration — a new board column and a renamed field — needed neither, for
+the same reason in both cases: the column is derived from data that was already
+there, and the rename is a caption over a column that keeps its name.

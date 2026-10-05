@@ -1992,3 +1992,105 @@ All of it is in.
   onward comes back with its exact numbers.
 - All of it reads properly in Arabic, right to left: **لم يرد · 2**, and hovering
   says **عدد المحاولات: 2**.
+
+## The follow-up chases by itself, Fallen behind gets its own column, and Postpone stops asking (2026-10-05)
+
+### 1. "Whenever I log didn't answer for someone who's in the following up column in the day of the follow up it automatically logs another follow up until he answers."
+
+- **Press "Didn't answer" on a lead you were meant to chase today, and the next
+  follow-up is written for you — tomorrow.** You do not have to open the lead and
+  type a new date. Press it again tomorrow and it moves to the day after, and so
+  on until he picks up.
+- **It copies what you already put on the chase** — the method (call, message or
+  visit) and what the follow-up is about. It is the same conversation one day
+  later, so the card still tells you what you are ringing about.
+- **It gives it a day, not a time.** The system picked the day, so there is no
+  clock on it — exactly like a follow-up you record without touching the time
+  box. If you had set a time on today's chase, that time was for today's call and
+  is not carried over.
+- **It does nothing to a lead you have not chased yet.** Press "Didn't answer" on
+  a lead whose follow-up is next Tuesday and the try is counted and the date is
+  left exactly where you put it. Moving it would be rewriting your own plan.
+- **It does nothing to a lead that has already fallen behind**, because you asked
+  for it that way: "keep it fallen behind in a separate column I will pick it up
+  and make another follow up date." It waits for you.
+- **Press it twice in one day and you get one extra follow-up, not two.** The
+  second press only counts the try — tomorrow is already booked.
+- **Undo takes the new follow-up with it.** Press "Didn't answer" by mistake and
+  one Undo puts the lead back exactly as it was: the marker gone, the count back
+  to what it was, and no follow-up sitting in tomorrow's list that you never
+  asked for.
+- **The lead's history says the system did it** — "Next follow-up logged
+  automatically — still no answer" — so you can always tell it apart from one you
+  typed yourself. Your daily report says the same, and still counts the lead
+  once, not twice.
+- **Today's task is done, not lost.** On the To-Do, the follow-up you just chased
+  moves into the finished list for today, and the new one shows up tomorrow.
+
+### 2. "The follow up column should just contain current or future dates — any fallen behind dates should be in a separate column called fallen behind."
+
+- **Following Up now holds today and later, and nothing else.** Anything whose
+  date has passed sits in a new column, **Fallen behind**, in red, immediately
+  before it. On both CRM boards.
+- **A follow-up due this morning is TODAY, not late.** It only falls behind once
+  the day itself is over, so a 9 a.m. call does not jump columns on you at 9:01.
+- **The column looks after itself.** Nothing has to be dragged anywhere because a
+  date went past — a lead appears in Fallen behind the morning it is late, by
+  itself, and leaves the same way.
+- **You cannot drop anything INTO Fallen behind.** It is decided by the date, not
+  by where you put the card. Try it and the column says "Not a drop target" and
+  tells you what to do instead: give the lead a new follow-up date.
+- **Which is how a lead comes back out.** Open it, press "Log another follow-up",
+  pick a date — and the card is back in Following Up on its own.
+- **You can drag a card OUT of Fallen behind** to anywhere you could drag it from
+  Following Up: a meeting, a proposal, Postpone, Lost. It behaves exactly the
+  same, because as far as the rest of the system is concerned the lead is still
+  in Following Up.
+- **Nothing else moved.** The lead's own page still says Following Up. The
+  To-Do, the Leads tables, the search, the filters, the counts, the daily report
+  and the call sheet all read exactly as they did.
+- **The Today filter stays where it was**, on Following Up — where it now sorts
+  today's calls from the ones further out. There is no Today filter on Fallen
+  behind, because everything in it is late by definition.
+- **An empty Fallen behind column says "Nothing has fallen behind"**, which is
+  good news, rather than "Nothing here yet", which reads like something is
+  missing.
+- The partners and agents board does not get the column: follow-ups there are
+  records you add to any card, not a column.
+
+### 3. "When I move a lead to the follow up it should be following up about instead of with."
+
+- **The field is called "Following up about" now**, on every form that has it —
+  the ByteForce lead, the B-Systems lead, and a partner or agent card.
+- **The hint under it changed with it.** It used to say "Contact person", which
+  made no sense the moment the question is what the call is about. Now it offers
+  examples: "The proposal, the price, a question…".
+- **The lead's history reads "About:"** instead of "With:". A meeting still says
+  "With:", because the people in a meeting really are people you are with.
+- **It reads right in Arabic too** — المتابعة بخصوص, not المتابعة مع.
+- Everything already written in that box is untouched and still shows.
+
+### 4. "And remove the owner selection field."
+
+- **The Owner picker is gone from the follow-up form**, everywhere it appeared.
+- **Nothing was deleted from your records.** Follow-ups that already have an
+  owner still show it on the lead's page and on the call sheet, exactly as
+  before. New ones simply do not have one, and the line is left off rather than
+  showing an empty label.
+
+### 5. "Don't ask for anything just drop it there."
+
+- **Dragging a lead to Postpone / Not answering works again.** It used to open
+  the confirm box and then show you nothing at all, so the move could never be
+  finished. That is fixed.
+- **And it is fixed the way you asked: Postpone asks for nothing.** Drop a lead
+  there and it goes, straight away, with no box to fill in — from the board and
+  from the lead's page, exactly like putting a lead back in New.
+- **This cancels the pop-up with the three reasons.** The reasons already on your
+  leads are still there and still show in each lead's history; the system just
+  stops asking for a new one.
+- **The "didn't answer" count still survives the move**, as it did before — a
+  lead parked because he never answered keeps the number of times you tried.
+- So that this cannot happen again with the next column: the boards no longer
+  keep their own list of where a lead is allowed to go. They ask the pipeline, so
+  a new column can never be a place a card gets stuck.

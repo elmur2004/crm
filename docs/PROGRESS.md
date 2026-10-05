@@ -4805,3 +4805,205 @@ comment, and the ADR-013 mechanism note all fixed; .env.example confirmed tracke
   ADR-071's four, of which **item 1 is now answered for this screen only**: a
   report about a person's day spans both companies. Calendar AVAILABILITY across
   the switch is still not crossed.
+
+## Entry 078 — 2026-10-05 — THE FOLLOW-UP FLOW, FIVE WAYS: the chase logs itself, Fallen behind splits out of Following Up, "about" replaces "with", the Owner picker goes, and Postpone stops asking why
+
+- Done: five founder changes in five commits (ADR-082). Four came in one message
+  about the follow-up flow; the fifth arrived as a bug report with his own fix
+  attached. Full vitest and full Playwright green, `npm run build` clean,
+  brand-audit clean.
+
+  **1. "Didn't answer" books tomorrow's follow-up by itself** (SPEC §10.1 T-12)
+  — "whenever I log didn't answer for someone who's in the following up column in
+  the day of the follow up it automatically logs another follow up until he
+  answers." `setNoAnswer` writes a second FollowUp when THREE conditions hold: the
+  lead is in its own pipeline's follow-up stage, its LIVE follow-up is due on
+  TODAY'S CAIRO DAY, and the press is a counting press. He answered the two open
+  questions himself: the new row is dated **TOMORROW**, and a lead that has
+  already fallen behind is **not** re-chased ("no keep it fallen behind in a
+  separate column I will pick it up and make another follow up date").
+  - **THE GATE IS AN EQUALITY**, not a `<=`. One expression rejects both the
+    future (he has not chased it yet; moving the date would rewrite his own
+    commitment) and the past (his explicit instruction, and auto-relogging would
+    quietly empty the column he asked for in the same message).
+  - **IT INHERITS THE CHASE'S OWN DETAILS** — method, the "following up about"
+    text, the owner columns and the context — because it is the same conversation
+    one day later; a stripped row reads as a new unrelated task, and an
+    after-proposal chase keeps its "Following up after proposal" title. The one
+    thing NOT inherited is the TIME: `dueTimeSet = false`, 09:00 Cairo default,
+    because the system picked the day and nobody picked a clock.
+  - **TOMORROW IS A CALENDAR DAY** (`utcToCairo` then `nextCairoDate`), never
+    `now + 86_400_000`. Proved on all four 2026 Egypt DST transition days and on a
+    23:30-Cairo press, which is already the next UTC day.
+  - **IT CANNOT PILE UP, AND THAT IS ALSO THE CONCURRENCY ANSWER.** The second
+    press of the day finds the live follow-up dated tomorrow, so the gate closes.
+    The order of writes is load bearing: the tally `update` takes the lead's row
+    lock BEFORE the live follow-up is read, so a racing press blocks, resumes,
+    re-reads the committed row and declines to add a second — asserted with five
+    genuinely overlapping transactions against a real Postgres.
+  - **UNDO WAS THE TRAP.** The payload now carries the created row's id and
+    `performUndo` runs the same `deleteCreated` the stage-event inverse uses. An
+    undo that left the row behind would put the lead back on TOMORROW's To-Do and
+    leave tomorrow's date on its card, with nothing on screen to explain either —
+    an undo that looks like it worked while the lead quietly re-enters the chase.
+    The field is optional and defaults to `[]`, so an entry pending from before
+    the deploy still undoes (pinned by rewriting a live entry into the old shape).
+    The fingerprint is untouched, because creating a child row does not touch the
+    lead row — also pinned.
+  - **Downstream is honest**: one `group_added` / `FU-AUTO` log row beside the
+    `no_answer` row, with its own history pill and its own daily-report phrase, so
+    the system's work is never read as something he typed. ADR-081 counts DISTINCT
+    LEADS, so one press is ONE lead and two lines. On the To-Do today's row moves
+    to Done/superseded and tomorrow's appears tomorrow.
+
+  **2. The "Fallen behind" column** — "the follow up column should just contain
+  current or future dates any fallen behind dates should be in a separate column
+  called fallen behind." A **DERIVED SPLIT** of `following_up`
+  (`src/lib/crm/fallen-behind.ts`): the stage never changes, the boards draw two
+  columns and decide by the live follow-up's due date.
+  - **The reason that settles it**: a derived column maintains itself as days
+    pass. A real stage would need somebody to drag every card across the board the
+    morning it aged, which is the work the column exists to remove — plus a
+    migration, §10 rows and drag rules of its own.
+  - **The boundary is the CAIRO DAY and today is not behind.** A `dueAt < now`
+    split calls this morning's 09:00 follow-up late at 09:01 and moves the card
+    out from under him mid-call.
+  - **Nothing can be dropped IN** — it is a date condition, not a destination. The
+    column id is not a stage and is in no config's `stages`; both boards refuse
+    the drop before the stage comparison (which could never catch it) and say so
+    the way the Won column already does: a permanent locked note, the blocked
+    drag-over tint, and a toast naming the way out. **A card drags OUT to anywhere
+    `following_up` already allows**, with no second code path — the drop modal's
+    eyebrow still reads "Following Up → …", which is the proof.
+  - **The way out is his own**: a new follow-up date, and the card moves itself.
+  - **THE TODAY CHIP STAYS ON FOLLOWING UP.** Its meaning narrows rather than
+    changing — the column is already today-or-later, so the chip separates TODAY
+    from LATER, which is still "just see today's follow ups" (ADR-061). It is NOT
+    put on Fallen behind, where it could only ever count 0 and empty the column:
+    a control that can only lie. No change to `TodayChip` / `useTodayFilter`.
+  - **A `following_up` lead with NO follow-up stays in FOLLOWING UP** — it is
+    owing a date, not overdue, and its card already says "No follow-up set", which
+    is work for today. Pinned as a unit test, not an e2e, because **no product
+    path can create the state** (every move into the stage requires the follow-up
+    group), so it only arrives via a restored backup or seed data.
+  - `data-column` on every column, `data-stage` only on real stages: `.board
+    [data-stage]` still counts 8 and 7, `[data-column]` one more of each. A new
+    `--color-stage-fallen-behind` family in **all three scopes** on the functional
+    red both brands share, its own `stageKey` case (that function's `default` is
+    `"lost"`), and `.col-locked-note` now rides the column's own `--stage-chip-ink`
+    instead of Won's. The partner/agent board gets nothing — no follow-up stage
+    since ADR-059, and `boardColumns(stages, null)` returns the stages untouched.
+
+  **3. "Following up about"** — the label in all four dicts, and the **Arabic
+  moved with the meaning** (المتابعة مع → المتابعة بخصوص): leaving it saying "with"
+  is the drift the byte-identical rule exists to stop, in the direction that rule
+  cannot see. **The FOURTH sanctioned exception to ADR-037**, after ADR-051,
+  ADR-059 §8 and ADR-068 — and since no spec read the old wording, a new one PINS
+  the new wording in both languages on every form, so the rule survives by being
+  asserted rather than relaxed. The semantic shift is followed through: "with"
+  takes a person, "about" takes a topic, so the "Contact person" placeholder
+  became examples ("The proposal, the price, a question…") under new keys, and the
+  history line became **"About:"** — its own key, because `withColon` still serves
+  the MEETING's attendee line, where the people really are people. **The database
+  column keeps its name**; renaming a column for a caption is churn.
+
+  **4. The Owner select is gone** from the three forms that had it (the portal
+  never had one — it stamps the owner server-side, ADR-026). **Only the input
+  goes**: the columns stay in the schema and Zod still accepts them, so an API
+  caller or a stale tab is not 400ed and its value is still stored (pinned both
+  ways). **Exactly one surface reads them** — `GroupHistory`'s `Owner:` line,
+  which already gated itself on a truthy owner, so an owner-less follow-up simply
+  has no Owner line; it feeds the lead detail, the prospect detail and the call
+  sheet by the same component. The now-dead `reps` plumbing came out of the
+  prospect panel and the partners board, including two `listBsOwnerReps()` reads
+  nothing consumed.
+
+  **5. POSTPONE ASKS FOR NOTHING, and ADR-072's always-asks-why rule is
+  SUPERSEDED.** His bug report: dragging a lead to Postpone opened the confirm box
+  and rendered nothing, so the move could not be completed at all. His fix: "don't
+  ask for anything just drop it there." `requiredGroupForTarget` no longer answers
+  for the postpone stage — one line — and **SPEC §10.1 gains T-11** stating it
+  normatively (ADR-072 never wrote a §10 row at all). The fields are deleted; both
+  lead panels show a one-line note instead of an empty form with a lone button.
+  - **THE ROOT CAUSE WAS NOT THE POPUP.** `InternalBoard.tsx` kept its OWN
+    hand-written list of which destinations open a form (`to === "new"` was the
+    single formless target it knew), and ADR-072 added one it had never heard of.
+    The lead page resolves the same question through the engine, which is why this
+    survived a month. **Both boards now ask the engine**, so intake, Postpone and
+    every formless destination anybody adds next are right by construction — and a
+    new engine test walks every destination of every non-terminal stage on both
+    internal pipelines and fails if its group is one no board form renders. The
+    bug class, as a test. **Audited: no other target on either board is a dead end.**
+  - **`PostponeInfo` and its rows STAY** — real history of why leads were shelved.
+    The table stops growing (no required group ⇒ `persistGroup` writes nothing);
+    the schema, the union member and the five orphaned strings are kept and
+    annotated so an old client is accepted-and-ignored rather than refused; an OLD
+    lead still renders its reason and a NEW one renders nothing, both tested. Undo
+    still works and is asserted explicitly, because the inverse of a formless park
+    is the stage alone.
+
+- **The brand audit caught two, both fixed in a sixth commit.** (1) The
+  "you cannot drop here" note had its BOX wired to `--color-accent`, which was
+  unremarkable while Won was its only consumer — Won's own accent IS the accent
+  in both brands — and painted a SIGNAL PINK box under functional-red text on the
+  new column, i.e. pink as a surface outside the Won cue. Both the box and the ink
+  now ride the column's own stage vars, and the Won note is byte-identical, which
+  is the check that the diagnosis was right rather than merely different. (2)
+  `stageTint()` / `stageAccent()` had not learned the new column that `stageKey()`
+  had: nothing wrong on screen (both are handed real stage sets) but a latent
+  paint bug for the next caller. All three know it now.
+- **ELEVEN e2e specs went red, and not one of them was shipped behaviour** — a
+  seventh commit. FOUR were the drag, and they are the genuine consequence of
+  inserting a column: the board moved, so helpers that aimed a card at a column by
+  eye landed on its new neighbour, which refuses drops — so the symptom was "no
+  modal and a toast", i.e. the feature looking broken. They aim by the CARD now
+  (dnd-kit scores the collision on the dragged card's rect), the two whole-board
+  cases get a viewport that holds nine columns, and the TOUCH helper holds at the
+  screen edge in a loop until the target has auto-scrolled in. THREE asked to see
+  the postpone REASON, which is exactly what no longer exists. TWO were the daily
+  report, and they are the most useful pair: lead A's line count went 5 → 6 while
+  the HEADLINE (distinct leads) did not move — the property this ADR claims, so
+  the assertion was RAISED with the new line named rather than relaxed. TWO were
+  my own slips. The Today-chip spec was rewritten rather than trimmed, because its
+  cases proved the filter with a card that is not in that column any more.
+- **One process note, logged against the project and not the code:** a
+  `git stash push` of files that had no local changes is a no-op that still exits
+  0, and the `git stash pop` that followed it popped ANOTHER workstream's
+  pre-existing "calendar WIP" entry into this tree. The pop CONFLICTED and git
+  therefore kept the entry, so nothing of theirs was lost; the five injected files
+  were restored to HEAD and verified byte-identical to it, and `git stash list`
+  still shows their entry. The baseline test counts that stash was meant to
+  measure were taken with `git show <baseline>:<path>` into a scratch directory
+  instead. **Never run `git stash pop` in this repo** — it is shared, and the
+  stash is not ours.
+- Tests: **vitest 1006/1006 in 59 files** (94 new across four files: the new
+  `auto-follow-up` and `fallen-behind` suites, the rewritten postpone suite, and
+  additions to the follow-up-time, brand-token, engine and phrase suites).
+  **Playwright: full suite green, verdict read from `test-results/.last-run.json`,
+  not from a tailed tail.** Two new specs (`fallen-behind`, `follow-up-about`),
+  one rewritten (`postpone`), one updated to the new truth (`follow-up-today` —
+  the chip's job changed, so its cases now prove the filter with a LATER card,
+  which is the card it really hides, and the overdue card keeps an assertion of
+  its own in the column it now belongs to). Five more specs had hardcoded
+  follow-up dates made relative: a fixed date was already rotting into the past,
+  and a past date now re-files the card, which would have failed those specs for
+  a reason that has nothing to do with their subject.
+- Blockers: none.
+- **Needs founder attention (four new, from ADR-082):**
+  1. **Should the auto-logged follow-up also fire from NEGOTIATION?** A negotiation
+     response date is a follow-up row due today on a lead that is not in Following
+     Up. His sentence named the column, so negotiation is excluded — a one-line
+     change if he wants it.
+  2. **Should a FUTURE follow-up's date be pulled forward by a "Didn't answer"
+     press?** Today it is untouched: the attempt is counted, the date is left as he
+     set it. Chasing a lead early is a real thing people do.
+  3. **Is "Fallen behind" / "متأخرة" the wording he wants on the column head?** His
+     phrase was "fallen behind"; the Arabic is a translation, not a dictation.
+  4. **Should "Following up about" be REQUIRED now that it asks for a topic rather
+     than a person's name?** It stays optional, exactly as it always was.
+- **Carried forward, still open:** ADR-081's six. ADR-080's three (the Mindoo data
+  is unrecoverable from production; `GET /api/b-systems/backup` is an unscoped
+  `findMany()` over 45 models behind `requireBsAdmin()` alone; historical Mindoo
+  references remain in code COMMENTS where they explain a safety property).
+  ADR-071's four, less item 1 for the daily report only. ADR-063's one accepted
+  false negative (a deliberate pre-ADR-061 09:00 reads as date-only).
