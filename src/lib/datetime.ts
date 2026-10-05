@@ -116,6 +116,27 @@ export function cairoDayWindowFor(date: string): { start: Date; end: Date } {
   return { start: startOfCairoDay(date), end: startOfCairoDay(nextCairoDate(date)) };
 }
 
+/** Milliseconds from `now` until the next CAIRO midnight — how long a screen
+    whose picture depends on "which Cairo day is it" may keep that picture.
+
+    ADR-082's boards and the Today chip both divide their cards by today's Cairo
+    day. A tab left open overnight has to re-divide them, and it has to do that
+    on the CAIRO calendar: the viewer's own midnight is the wrong moment (and in
+    some zones a different day entirely), and a fixed 24-hour re-arm drifts one
+    hour off twice a year, on exactly the two days a wrong answer is hardest to
+    spot.
+
+    Derived from `cairoDayWindowFor(today).end`, the same tiling boundary the
+    To-Do and the daily report use, so there is ONE definition of where a Cairo
+    day ends. Never zero or negative: the caller is a timer, and a 0 would spin.
+    Clamped BELOW 2^31 ms because `setTimeout` silently fires immediately — in a
+    loop — past that, which this can never reach legitimately (a Cairo day is at
+    most 25 hours) but a bad clock could. */
+export function msUntilNextCairoDay(now: Date): number {
+  const end = cairoDayWindowFor(utcToCairo(now).date).end.getTime();
+  return Math.min(Math.max(end - now.getTime(), 1), 2_147_483_000);
+}
+
 /** The last `days` Cairo calendar dates ending with the one containing `now` —
     NEWEST FIRST. `cairoDatesBack(now, 3)` is the daily report's three days
     (ADR-081: today and the two before it).

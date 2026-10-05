@@ -390,6 +390,14 @@ export const board = {
     en: "Fallen behind is decided by the follow-up date — give the lead a new date instead.",
     ar: "يتحدد عمود «متأخرة» بتاريخ المتابعة — امنح العميل تاريخًا جديدًا بدلًا من ذلك.",
   },
+  /* ADR-082 (review) — a drop whose follow-up date has already passed lands in
+     Fallen behind, two columns from where he let go of it, in a column that
+     itself says "Not a drop target". The placement is right; saying nothing was
+     not. The toast names the lead, where it went, why, and the way back out. */
+  landedFallenBehind: {
+    en: "{name} went to Fallen behind — that follow-up date has already passed. Give it a date from today onwards and it moves back by itself.",
+    ar: "انتقل {name} إلى «متأخرة» — فتاريخ المتابعة هذا قد مضى. امنحه تاريخًا من اليوم أو بعده وسيعود من تلقاء نفسه.",
+  },
   /* the empty state of a column that is, happily, empty */
   nothingFallenBehind: { en: "Nothing has fallen behind", ar: "لا يوجد شيء متأخر" },
   blocked: { en: "Blocked", ar: "محظور" },

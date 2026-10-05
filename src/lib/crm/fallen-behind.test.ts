@@ -4,7 +4,9 @@ import {
   FALLEN_BEHIND_STAGE_KEY,
   boardColumns,
   columnFor,
+  followUpDateOfDrop,
   isFallenBehind,
+  landingColumn,
 } from "./fallen-behind";
 import { cairoToUtc } from "@/lib/datetime";
 import { BSYSTEMS_STAGES, INTERNAL_STAGES, PROSPECT_STAGES } from "@/lib/pipeline-engine/constants";
@@ -126,6 +128,82 @@ describe("columnFor — the split lives inside ONE stage", () => {
 
   it("a pipeline with NO follow-up stage gets no split at all", () => {
     expect(columnFor(card("contacted", iso("2026-01-01")), null, TODAY)).toBe("contacted");
+  });
+});
+
+describe("landingColumn — where a DROP actually put the card (review)", () => {
+  /* The drop's target is a STAGE; the column is derived. A backdated follow-up
+     dropped on Following Up therefore lands two columns away, in a column that
+     says "Not a drop target" — and the board used to say nothing at all about
+     it. This function is what lets both boards name the column the card really
+     went to: it releases the right Today chip and it fires the toast. */
+  it("a drop with TODAY's or a LATER date lands on the column it was dropped on", () => {
+    expect(landingColumn("following_up", TODAY, "following_up", TODAY)).toBe("following_up");
+    expect(landingColumn("following_up", "2026-12-25", "following_up", TODAY)).toBe("following_up");
+  });
+
+  it("a BACKDATED drop lands in Fallen behind — the thing that was silent", () => {
+    expect(landingColumn("following_up", "2026-11-09", "following_up", TODAY)).toBe(
+      FALLEN_BEHIND_COLUMN,
+    );
+    expect(landingColumn("following_up", "2020-01-01", "following_up", TODAY)).toBe(
+      FALLEN_BEHIND_COLUMN,
+    );
+  });
+
+  it("agrees with isFallenBehind on the BOUNDARY — today is not behind", () => {
+    /* Two functions, one boundary. They read different shapes (a day-string
+       here, a stored instant there), so they are checked against each other. */
+    for (const date of ["2026-11-09", TODAY, "2026-11-11"]) {
+      const byDrop = landingColumn("following_up", date, "following_up", TODAY);
+      const byRow = columnFor(
+        { stage: "following_up", followUpDueAt: iso(date) },
+        "following_up",
+        TODAY,
+      );
+      expect(byDrop, date).toBe(byRow);
+    }
+  });
+
+  it("never re-files a drop on any OTHER stage, however old its date", () => {
+    for (const stage of ["new", "meeting_setting", "sending_proposal", "postponed", "lost"]) {
+      expect(landingColumn(stage, "2020-01-01", "following_up", TODAY), stage).toBe(stage);
+    }
+  });
+
+  it("answers the TARGET when there is no date, no day, or no follow-up stage", () => {
+    /* `null` day is the FIRST PAINT, before the Cairo day is known: the answer
+       has to be the target, never a guess — the same discipline the boards use
+       when they leave every card in its stage column for that one beat. */
+    expect(landingColumn("following_up", null, "following_up", TODAY)).toBe("following_up");
+    expect(landingColumn("following_up", "2020-01-01", "following_up", null)).toBe("following_up");
+    expect(landingColumn("contacted", "2020-01-01", null, TODAY)).toBe("contacted");
+  });
+});
+
+describe("followUpDateOfDrop — reading the date off the wire the boards post", () => {
+  const drop = (group: unknown) => ({ event: { type: "drag", to: "following_up" }, group });
+
+  it("finds the date of a follow-up group", () => {
+    expect(followUpDateOfDrop(drop({ group: "follow_up", data: { date: "2026-11-09" } }))).toBe(
+      "2026-11-09",
+    );
+  });
+
+  it("is null for every drop that carries no follow-up group", () => {
+    /* most of them: the formless drags, and every other stage's form */
+    expect(followUpDateOfDrop({ event: { type: "drag", to: "postponed" } })).toBeNull();
+    expect(followUpDateOfDrop(drop({ group: "lost", data: { reason: "price" } }))).toBeNull();
+    expect(followUpDateOfDrop(drop(undefined))).toBeNull();
+  });
+
+  it("is null for a MALFORMED date rather than a guess", () => {
+    /* a guess here would move a card's column on the strength of a bad payload */
+    expect(followUpDateOfDrop(drop({ group: "follow_up", data: {} }))).toBeNull();
+    expect(followUpDateOfDrop(drop({ group: "follow_up", data: { date: "" } }))).toBeNull();
+    expect(followUpDateOfDrop(drop({ group: "follow_up", data: { date: 20261109 } }))).toBeNull();
+    expect(followUpDateOfDrop(null)).toBeNull();
+    expect(followUpDateOfDrop(undefined)).toBeNull();
   });
 });
 

@@ -230,6 +230,14 @@ function Column({
   return (
     <div
       ref={setNodeRef}
+      /* ADR-082 (review) — `data-column` on EVERY column, on EVERY board. Both
+         lead boards declare "every selector that wants the column uses
+         data-column" as an absolute; this board emitted only `data-stage`, so
+         the convention was true of two boards out of three. It has no derived
+         column of its own (no follow-up stage since ADR-059), which is exactly
+         why `data-column` and `data-stage` are identical here — and why a
+         cross-board selector must still find it. */
+      data-column={stage}
       data-stage={stage}
       data-stage-key={stageKey(stage)}
       className={`col ${isOver ? "col--over-valid" : ""}`}

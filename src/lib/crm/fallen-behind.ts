@@ -77,6 +77,51 @@ export function columnFor(
     : card.stage;
 }
 
+/** The COLUMN a just-committed drop actually put the card in.
+
+    ADR-082 (review) — the drop's TARGET is a stage; the column is DERIVED. A
+    drop on Following Up carrying a follow-up date that has already passed
+    therefore lands two columns away, under "Fallen behind" — and the board said
+    NOTHING about it: `commitDrop` refreshed, the card appeared somewhere he was
+    not looking, and the column it appeared in says "Not a drop target". The
+    placement is right (the date really has passed); the silence was the defect,
+    and it is the same failure the `landedHere` machinery exists to prevent.
+
+    Both inputs are Cairo DAY-STRINGS, so the comparison is a plain
+    lexicographic one — which for ISO dates is also a chronological one, the
+    same property `isFallenBehind` relies on. A `null` day (the first paint,
+    before the Cairo day is known) answers the TARGET: never a guess.
+
+    It takes the SUBMITTED date rather than a stored instant because it runs
+    before the refresh — the row it describes may not have been read back yet. */
+export function landingColumn(
+  toStage: string,
+  /** the "YYYY-MM-DD" the drop's follow-up group carried, if any */
+  followUpDate: string | null,
+  followUpStage: string | null,
+  todayCairoDate: string | null,
+): string {
+  return followUpStage !== null &&
+    toStage === followUpStage &&
+    todayCairoDate !== null &&
+    followUpDate !== null &&
+    followUpDate < todayCairoDate
+    ? FALLEN_BEHIND_COLUMN
+    : toStage;
+}
+
+/** The follow-up date a drop's payload carries, read off the wire shape both
+    boards post (`{ event, group: { group, data } }`). `null` for every drop
+    that carries no follow-up group, which is most of them — and for a group
+    whose date is missing or is not a string, because a guess here would move a
+    card's column on the strength of a malformed payload. */
+export function followUpDateOfDrop(body: unknown): string | null {
+  const group = (body as { group?: { group?: string; data?: { date?: unknown } } } | null)?.group;
+  if (!group || group.group !== "follow_up") return null;
+  const date = group.data?.date;
+  return typeof date === "string" && date !== "" ? date : null;
+}
+
 /** The board's column list: the pipeline's stages with the derived column
     inserted immediately BEFORE the follow-up stage.
 

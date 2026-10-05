@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -17,20 +17,22 @@ import {
 import type { Brand } from "@/lib/pipeline-engine/constants";
 import { configForBrand } from "@/lib/pipeline-engine/configs/for-brand";
 import { requiredGroupForTarget } from "@/lib/pipeline-engine/transition";
-import { utcToCairo } from "@/lib/datetime";
 import {
   FALLEN_BEHIND_COLUMN,
+  followUpDateOfDrop,
+  landingColumn,
   boardColumns,
   columnFor,
 } from "@/lib/crm/fallen-behind";
 import { btnGhost, btnPrimary } from "@/components/portal/groupForms";
-import { tFor } from "@/lib/i18n/core";
+import { formatMsg, tFor } from "@/lib/i18n/core";
 import { useLocale } from "@/components/shared/LocaleProvider";
 import { stageLabel } from "@/lib/i18n/dict/labels";
 import { board as msg, common } from "@/lib/i18n/dict/crm";
 import { callSheet } from "@/lib/i18n/dict/call";
 import { CardGrip, useMouseOnlyListeners, type CardDrag } from "@/components/shared/CardGrip";
 import { TodayChip, useTodayFilter } from "@/components/shared/TodayChip";
+import { useCairoToday } from "@/components/shared/useCairoToday";
 import { NoAnswerBadge } from "@/components/shared/NoAnswerBadge";
 import { WhatsappChip } from "@/components/shared/WhatsappChip";
 import { stageKey } from "./stageColors";
@@ -294,6 +296,7 @@ function Column({
   draggingId,
   suppressClickRef,
   landedHere,
+  dayKnown,
 }: {
   /** a COLUMN id: every pipeline stage, plus ADR-082's derived
       `fallen_behind`, which is not a stage and is not a drop target */
@@ -316,6 +319,9 @@ function Column({
   suppressClickRef: { current: boolean };
   /** drops this column has accepted this mount — bump releases its Today chip */
   landedHere: number;
+  /** ADR-082 (review) — has the Cairo day landed yet? Until it has, the derived
+      column is empty because the split has not run, and must say nothing. */
+  dayKnown: boolean;
 }) {
   const locale = useLocale();
   const t = tFor(locale);
@@ -354,6 +360,26 @@ function Column({
      attribute saying it was would be a lie the suite reads: `.board
      [data-stage]` counts this pipeline's columns and must keep counting them.
      Every selector that wants "the column" uses `data-column`. */
+  /* ADR-082 (review) — ONE expression for the empty line, and it may be
+     NOTHING. On the first paint the Cairo day is not known yet, so every card
+     still sits in its stage column and this one is empty for a beat — printing
+     "Nothing has fallen behind" over a 0 count while overdue cards render next
+     door is a one-beat affirmative falsehood, which is worse than a blank. The
+     line appears the moment the day lands. */
+  const emptyNote =
+    isOver && blocked
+      ? t(msg.blocked)
+      : todayOnly && leads.length > 0
+        ? t(isMeetingCol ? msg.noTodayMeetings : msg.noTodayFollowUps)
+        : closed
+          ? /* an empty Fallen behind column is GOOD NEWS — say so rather than
+               "Nothing here yet", which reads as a gap. But only once the day
+               is known: before that, the column is empty because the split has
+               not run, not because he is on top of everything. */
+            dayKnown
+            ? t(msg.nothingFallenBehind)
+            : null
+          : t(msg.emptyColumn);
   const hasChip = isFollowUpCol || isMeetingCol;
   return (
     <div
@@ -388,20 +414,10 @@ function Column({
             suppressClickRef={suppressClickRef}
           />
         ))}
-        {visible.length === 0 ? (
+        {visible.length === 0 && emptyNote !== null ? (
           /* review: while the Today chip is pressed and cards are merely
              HIDDEN, "Nothing here yet" would lie — say what the filter found */
-          <div className="col-empty">
-            {isOver && blocked
-              ? t(msg.blocked)
-              : todayOnly && leads.length > 0
-                ? t(isMeetingCol ? msg.noTodayMeetings : msg.noTodayFollowUps)
-                : closed
-                  ? /* an empty Fallen behind column is GOOD NEWS — say so
-                       rather than "Nothing here yet", which reads as a gap */
-                    t(msg.nothingFallenBehind)
-                  : t(msg.emptyColumn)}
-          </div>
+          <div className="col-empty">{emptyNote}</div>
         ) : null}
       </div>
     </div>
@@ -474,13 +490,18 @@ export function BsBoard({
      into the same column are two distinct signals. */
   const [landed, setLanded] = useState<{ stage: string; n: number }>({ stage: "", n: 0 });
 
-  /* ADR-082 — TODAY'S CAIRO DAY, sampled after mount exactly as the Today chip
-     samples it (useTodayFilter): never at render, because this board is SSR'd
-     and a render-time clock can hydration-mismatch. Until it lands, every card
-     sits in its stage column — the pre-split picture for one beat, which is
-     honestly "not known yet" rather than a guess. */
-  const [today, setToday] = useState<string | null>(null);
-  useEffect(() => setToday(utcToCairo(new Date()).date), []);
+  /* ADR-082 — TODAY'S CAIRO DAY, from the one hook that owns it (useCairoToday,
+     shared with the ByteForce board and the Today chip): never read at render,
+     because this board is SSR'd and a render-time clock can hydration-mismatch.
+     Until it lands, every card sits in its stage column — the pre-split picture
+     for one beat, which is honestly "not known yet" rather than a guess, and
+     the derived column stays SILENT while it is (see Column).
+
+     Review — the hook RE-SAMPLES at the next Cairo midnight and when the tab
+     comes back. The previous `useEffect(…, [])` sampled once per MOUNT, and
+     `router.refresh()` re-renders without remounting: a tab left open overnight
+     kept yesterday's division while the server had already moved on. */
+  const today = useCairoToday();
   const columnOf = (lead: BsBoardLead) =>
     today ? columnFor(lead, config.followUpStage, today) : lead.stage;
 
@@ -508,7 +529,18 @@ export function BsBoard({
       return;
     }
     setPendingDrop(null);
-    setLanded((p) => ({ stage: to, n: p.stage === to ? p.n + 1 : 1 }));
+    /* ADR-082 (review) — the column the card ACTUALLY went to, which is not
+       always the stage it was dropped on: a backdated follow-up lands in Fallen
+       behind. `landed` releases the Today chip of the column that accepted the
+       card, so it has to name the right one — and a move he cannot see has to
+       be said out loud, because the column it landed in refuses drops and would
+       otherwise read as the feature being broken. */
+    const column = landingColumn(to, followUpDateOfDrop(body), config.followUpStage, today);
+    setLanded((p) => ({ stage: column, n: p.stage === column ? p.n + 1 : 1 }));
+    if (column !== to) {
+      const name = leads.find((l) => l.id === leadId)?.name ?? "";
+      setMessage(t(formatMsg(msg.landedFallenBehind, { name })));
+    }
     router.refresh();
   }
 
@@ -592,6 +624,7 @@ export function BsBoard({
               draggingId={draggingId}
               suppressClickRef={suppressClickRef}
               landedHere={landed.stage === stage ? landed.n : 0}
+              dayKnown={today !== null}
             />
           ))}
         </div>

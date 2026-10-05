@@ -28,17 +28,44 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
      · the Today chip stays on Following Up and never appears on this column;
      · the stage has not changed, so nothing that keys on stage moves.
 
-   NOT COVERED HERE, deliberately: a `following_up` lead with NO follow-up at
-   all. It belongs in Following Up (a lead owing a date is not overdue) and that
-   is pinned in lib/crm/fallen-behind.test.ts — because no product path can
-   create one. Every move into the stage requires the follow-up group, so the
-   state only arrives through a restored backup or seed data.
+   PINNED AS A UNIT TEST INSTEAD: a `following_up` lead with NO follow-up at
+   all. It belongs in Following Up (a lead owing a date is not overdue), and
+   lib/crm/fallen-behind.test.ts is where that lives, because the condition is
+   pure and the column it chooses is the whole of the behaviour.
+
+   AND THE STATE IS REACHABLE THROUGH THE UI — an earlier draft of this comment
+   said it was not, which was wrong and is corrected here (review). B-6: an
+   AGENT or PARTNER who checks "Sent" on a proposal returns the lead to
+   Following Up with NO follow-up form (V2 section 3 — the light roles are asked
+   for nothing), and a lead can reach Sending Proposals straight from New
+   without ever having had a follow-up. The BEHAVIOUR is sound in that case and
+   is the behaviour this file and the unit test both describe: the card lands in
+   Following Up, printing "No follow-up set", which is work for today.
    ========================================================================== */
 
 const cairoDate = (offsetDays = 0) =>
   new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Cairo" }).format(
     new Date(Date.now() + offsetDays * 86_400_000),
   );
+
+/** The UTC instant of the next CAIRO midnight, found by bisecting on the Cairo
+    day-string rather than by assuming an offset — Egypt is UTC+2 or UTC+3 and
+    the midnight-crossing test must not be the one thing in this repo that
+    hardcodes which. */
+const cairoDateAt = (at: Date) =>
+  new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Cairo" }).format(at);
+
+function nextCairoMidnight(): Date {
+  const today = cairoDate();
+  let lo = Date.now();
+  let hi = lo + 36 * 3_600_000; // certainly a later Cairo day
+  while (hi - lo > 1_000) {
+    const mid = Math.floor((lo + hi) / 2);
+    if (cairoDateAt(new Date(mid)) === today) lo = mid;
+    else hi = mid;
+  }
+  return new Date(hi);
+}
 
 const COL_BEHIND = '[data-column="fallen_behind"]';
 const COL_FOLLOWING = '[data-column="following_up"]';
@@ -319,6 +346,20 @@ test.describe("ADR-082 — Fallen behind", () => {
     await expect(page.locator(".board")).toBeVisible();
     await expect(page.locator(COL_BEHIND)).toHaveCount(0);
     await expect(page.locator(COL_FOLLOWING)).toHaveCount(0);
+
+    /* Review — and it carries `data-column` on every column like the other two
+       boards, so "every selector that wants the column uses data-column" is
+       true of the whole product rather than of two thirds of it. This board has
+       no derived column, so the two attributes agree here — and that is the
+       assertion. */
+    const columns = await page.locator(".board [data-column]").evaluateAll((els) =>
+      els.map((el) => el.getAttribute("data-column")),
+    );
+    const stages = await page.locator(".board [data-stage]").evaluateAll((els) =>
+      els.map((el) => el.getAttribute("data-stage")),
+    );
+    expect(columns).toEqual(stages);
+    expect(columns.length).toBe(7); // PROSPECT_STAGES, and not one more
   });
 
   test("Arabic: the column reads متأخرة, and still refuses a drop", async ({ page }) => {
@@ -333,6 +374,312 @@ test.describe("ADR-082 — Fallen behind", () => {
     await expect(behind).toContainText("متأخرة");
     await expect(behind.getByText("لا يقبل الإسقاط")).toBeVisible();
     await expect(behind.locator('[data-deal-card="Arabic Behind Lead"]')).toBeVisible();
+
+    expect((await page.request.delete(`/api/b-systems/leads/${id}`)).ok()).toBe(true);
+  });
+
+  test("a SUPERSEDED follow-up does not file the card — owing a date is not overdue", async ({
+    page,
+  }) => {
+    /* Review finding, on the live path that produces it. B-6 / V2 section 3: an
+       AGENT or a PARTNER who checks "Sent" on a proposal is asked for NOTHING,
+       so the lead returns to Following Up with no new date. Its newest
+       follow-up is then the one from BEFORE the proposal — not a promise
+       anybody made — and the board was filing the card by that date. A lead
+       the agent had just moved forward therefore appeared in a red column that
+       refuses drops and tells him to re-date something he never dated.
+
+       The fix is the gate the To-Do has always applied: the follow-up counts
+       only while it is the lead's NEWEST record across follow-ups, meetings,
+       proposals and negotiation notes (lib/crm/live-record). The card then
+       reads "No follow-up set", which is work for today, in the column he
+       works out of. */
+    await login(page, "nourhan.agent@b-systems.example", "agent123", /\/b-systems\/crm$/);
+    const created = await page.request.post("/api/b-systems/leads", {
+      data: {
+        name: "Superseded Lead",
+        number: "0107778017",
+        type: "cold_call",
+        companyName: "Superseded Co",
+      },
+    });
+    expect(created.status(), await created.text()).toBe(201);
+    const { id } = (await created.json()) as { id: string };
+
+    /* a follow-up three days PAST — genuinely fallen behind, and the board says so */
+    const dated = await page.request.post(`/api/b-systems/leads/${id}/event`, {
+      data: {
+        event: { type: "next_action", action: "following_up" },
+        group: { group: "follow_up", data: { date: cairoDate(-3), method: "call" } },
+      },
+    });
+    expect(dated.ok(), await dated.text()).toBeTruthy();
+    await page.goto("/b-systems/crm");
+    await expect(page.locator(`${COL_BEHIND} [data-deal-card="Superseded Lead"]`)).toBeVisible();
+
+    /* on to Sending Proposals, then "Sent" — which asks this role for nothing */
+    const proposed = await page.request.post(`/api/b-systems/leads/${id}/event`, {
+      data: {
+        event: { type: "next_action", action: "sending_proposal" },
+        group: { group: "proposal", data: { service: "ERP rollout", sent: false } },
+      },
+    });
+    expect(proposed.ok(), await proposed.text()).toBeTruthy();
+    const sent = await page.request.post(`/api/b-systems/leads/${id}/event`, {
+      data: { event: { type: "proposal_sent" } },
+    });
+    expect(sent.ok(), await sent.text()).toBeTruthy();
+
+    await page.goto("/b-systems/crm");
+    const card = page.locator(`${COL_FOLLOWING} [data-deal-card="Superseded Lead"]`);
+    await expect(card).toBeVisible();
+    await expect(page.locator(`${COL_BEHIND} [data-deal-card="Superseded Lead"]`)).toHaveCount(0);
+    /* and the card says what is true, rather than printing a pre-proposal date */
+    await expect(card).toContainText("No follow-up set");
+
+    /* the stage is still the stage — nothing about this is a stage move */
+    await page.goto(`/b-systems/crm/lead/${id}`);
+    await expect(page.getByText("Following Up").first()).toBeVisible();
+
+    /* delete is admin-only (V2 section 2.2), so the founder clears it up */
+    await loginFounder(page);
+    expect((await page.request.delete(`/api/b-systems/leads/${id}`)).ok()).toBe(true);
+  });
+
+  test("a BACKDATED drop says where the card went and why — it is not silent", async ({
+    page,
+  }) => {
+    /* Review finding. The follow-up date input has no `min` and the server
+       validates only the FORMAT, so a past date commits — and the placement
+       that follows is CORRECT: the date really has passed. What was wrong was
+       the silence. `commitDrop` refreshed and the card appeared two columns
+       away, in a column whose own note reads "Not a drop target", with nothing
+       to connect the two. That is the same failure the `landedHere` machinery
+       exists to prevent, and the fix is the same kind of thing: say it.
+
+       Also pinned here: the chip is released on the column the card ACTUALLY
+       went to, not on the one it was dropped on. */
+    await loginFounder(page);
+    const created = await page.request.post("/api/b-systems/leads", {
+      data: {
+        name: "Backdated Drop",
+        number: "0107778018",
+        type: "cold_call",
+        companyName: "Backdated Co",
+      },
+    });
+    expect(created.status()).toBe(201);
+    const { id } = (await created.json()) as { id: string };
+
+    await page.goto("/b-systems/crm");
+    const card = page.locator('[data-column="new"] [data-deal-card="Backdated Drop"]');
+    await expect(card).toBeVisible();
+
+    await dragTo(page, card, page.locator(COL_FOLLOWING));
+    await expect(page.getByText("Complete this stage's details to confirm the move")).toBeVisible();
+    await page.getByLabel(/Follow-up date/).fill(cairoDate(-2));
+    await page.getByRole("button", { name: "Confirm move" }).click();
+
+    /* the toast names the LEAD, the COLUMN and the way back out */
+    const toast = page.locator(".toast");
+    await expect(toast).toBeVisible();
+    await expect(toast).toContainText("Backdated Drop");
+    await expect(toast).toContainText("Fallen behind");
+    await expect(toast).toContainText(/date from today onwards/i);
+
+    /* and that IS where it went — the placement was never the defect */
+    await expect(page.locator(`${COL_BEHIND} [data-deal-card="Backdated Drop"]`)).toBeVisible();
+    await expect(page.locator(`${COL_FOLLOWING} [data-deal-card="Backdated Drop"]`)).toHaveCount(0);
+
+    expect((await page.request.delete(`/api/b-systems/leads/${id}`)).ok()).toBe(true);
+  });
+
+  test("a drop that lands where it was AIMED says nothing — the toast is not noise", async ({
+    page,
+  }) => {
+    await loginFounder(page);
+    const created = await page.request.post("/api/b-systems/leads", {
+      data: {
+        name: "Plain Drop",
+        number: "0107778019",
+        type: "cold_call",
+        companyName: "Plain Co",
+      },
+    });
+    expect(created.status()).toBe(201);
+    const { id } = (await created.json()) as { id: string };
+
+    await page.goto("/b-systems/crm");
+    const card = page.locator('[data-column="new"] [data-deal-card="Plain Drop"]');
+    await dragTo(page, card, page.locator(COL_FOLLOWING));
+    await page.getByLabel(/Follow-up date/).fill(cairoDate(3));
+    await page.getByRole("button", { name: "Confirm move" }).click();
+
+    await expect(page.locator(`${COL_FOLLOWING} [data-deal-card="Plain Drop"]`)).toBeVisible();
+    await expect(page.locator(".toast")).toHaveCount(0);
+
+    expect((await page.request.delete(`/api/b-systems/leads/${id}`)).ok()).toBe(true);
+  });
+
+  test("THE FIRST PAINT SAYS NOTHING — no 'Nothing has fallen behind' over a 0 count", async ({
+    browser,
+    page,
+    baseURL,
+  }) => {
+    /* Review finding. Before the Cairo day lands, every card sits in its stage
+       column and the derived one is empty — so it printed "Nothing has fallen
+       behind" over a 0 count while overdue cards rendered next door. A one-beat
+       affirmative falsehood, which is worse than a blank.
+
+       The beat is too short to catch by racing it, so it is held open instead:
+       a second context with JAVASCRIPT DISABLED never hydrates, so `today`
+       stays null for ever and the SSR paint IS the whole test. The cookies come
+       from the logged-in context, because the sign-in form needs JS. */
+    await loginFounder(page);
+    const overdue = await leadDueOn(page, "First Paint Behind", "0107778020", cairoDate(-3));
+    /* a LATER card too, for the second half: a filter that matches nothing at
+       all renders "No cards match these filters" INSTEAD of the board, so the
+       empty-but-known state has to be reached with a filter that keeps one
+       live card and no overdue one. */
+    const later = await leadDueOn(page, "First Paint Later", "0107778021", cairoDate(5));
+    const state = await page.context().storageState();
+
+    const noJs = await browser.newContext({ javaScriptEnabled: false, storageState: state, baseURL });
+    const flat = await noJs.newPage();
+    await flat.goto("/b-systems/crm");
+
+    /* the SSR paint really is the un-split one: the overdue card is in Following
+       Up, which is the state that made the other column's claim a lie */
+    await expect(
+      flat.locator(`${COL_FOLLOWING} [data-deal-card="First Paint Behind"]`),
+    ).toBeVisible();
+    const behind = flat.locator(COL_BEHIND);
+    await expect(behind).toBeVisible();
+    await expect(behind.locator(".count-pill")).toHaveText("0");
+    /* ... and it claims NOTHING about it */
+    await expect(behind.getByText("Nothing has fallen behind")).toHaveCount(0);
+    await expect(behind.locator(".col-empty")).toHaveCount(0);
+    /* the permanent note is NOT the empty state and must still be there — the
+       column is closed to drops whether or not the day is known */
+    await expect(behind.getByText("Not a drop target")).toBeVisible();
+    await noJs.close();
+
+    /* AND THE LINE IS NOT LOST, only deferred: with JS, the same board says it
+       the moment the day is known and the column is genuinely empty. This half
+       is what stops the fix from being "delete the empty state". */
+    await page.goto("/b-systems/crm?q=First Paint Later");
+    await expect(page.locator(`${COL_FOLLOWING} [data-deal-card="First Paint Later"]`)).toBeVisible();
+    const emptyBehind = page.locator(COL_BEHIND);
+    await expect(emptyBehind.locator(".count-pill")).toHaveText("0");
+    await expect(emptyBehind.getByText("Nothing has fallen behind")).toBeVisible();
+
+    for (const id of [overdue, later]) {
+      expect((await page.request.delete(`/api/b-systems/leads/${id}`)).ok()).toBe(true);
+    }
+  });
+
+  test("A TAB LEFT OPEN ACROSS CAIRO MIDNIGHT RE-SPLITS BY ITSELF", async ({ page }) => {
+    /* Review finding. The split sampled the Cairo day ONCE PER MOUNT
+       (`useEffect(…, [])`), and `router.refresh()` re-renders this tree without
+       remounting — so a board left open overnight kept YESTERDAY's division
+       while the server had already moved on. The card he was overdue on still
+       sat in Following Up, pressing "Didn't answer" on it booked nothing (the
+       auto-log needs the live follow-up to be due TODAY), and the Today chip
+       beside it counted a different day. Three surfaces, one screen, three
+       answers.
+
+       Proved with a real fake clock rather than an argument: install it five
+       minutes before the next Cairo midnight, load the board, then roll the
+       clock past midnight WITHOUT touching the page. The card must move on its
+       own. `useCairoToday` re-arms from `msUntilNextCairoDay`, so this is also
+       the only test that can tell a correct re-arm from a 24-hour one. */
+    await loginFounder(page);
+    const todays = await leadDueOn(page, "Midnight Lead", "0107778013", cairoDate());
+    /* and one due TOMORROW, which is the day the clock is about to roll into —
+       the chip beside the column has to re-sample too, and a count that merely
+       dropped to 0 would not tell a re-sample from a column that emptied. */
+    const next = await leadDueOn(page, "Midnight Next Lead", "0107778022", cairoDate(1));
+
+    /* five minutes to midnight — the clock has to be installed before the page
+       that reads it is loaded */
+    await page.clock.install({ time: new Date(nextCairoMidnight().getTime() - 5 * 60_000) });
+    await page.goto("/b-systems/crm");
+    await expect(page.locator(`${COL_FOLLOWING} [data-deal-card="Midnight Lead"]`)).toBeVisible();
+    await expect(page.locator(`${COL_BEHIND} [data-deal-card="Midnight Lead"]`)).toHaveCount(0);
+
+    /* press the chip and LEAVE IT PRESSED across midnight: it then shows
+       whichever card the hook calls today's, which is the whole question */
+    await page.locator(COL_FOLLOWING).getByRole("button", { name: /^Today/ }).click();
+    await expect(page.locator(`${COL_FOLLOWING} [data-deal-card="Midnight Lead"]`)).toBeVisible();
+    await expect(
+      page.locator(`${COL_FOLLOWING} [data-deal-card="Midnight Next Lead"]`),
+    ).toHaveCount(0);
+
+    /* ten minutes pass. No reload, no navigation, no drag. */
+    await page.clock.fastForward(10 * 60_000);
+
+    /* THE SPLIT re-sampled: yesterday's card is behind now, by itself */
+    await expect(page.locator(`${COL_BEHIND} [data-deal-card="Midnight Lead"]`)).toBeVisible();
+    await expect(page.locator(`${COL_FOLLOWING} [data-deal-card="Midnight Lead"]`)).toHaveCount(0);
+    /* AND THE CHIP re-sampled with it, off the same hook: still pressed, and
+       now showing the card that has become today's */
+    await expect(
+      page.locator(`${COL_FOLLOWING} [data-deal-card="Midnight Next Lead"]`),
+    ).toBeVisible();
+
+    for (const id of [todays, next]) {
+      expect((await page.request.delete(`/api/b-systems/leads/${id}`)).ok()).toBe(true);
+    }
+  });
+});
+
+/* Review — the describe above pins a 2300px viewport for ALL of its cases
+   because its drags need the whole nine-column board reachable by the mouse.
+   That left the new column with no PHONE case at all, on a product whose
+   founder works off a phone. These two need no drag, so they get 390px. */
+test.describe("ADR-082 — Fallen behind at phone width", () => {
+  test.use({ viewport: { width: 390, height: 844 } });
+
+  test("the column, its cards and its locked note all read at 390px", async ({ page }) => {
+    await loginFounder(page);
+    const behind = await leadDueOn(page, "Phone Behind Lead", "0107778014", cairoDate(-4));
+    const live = await leadDueOn(page, "Phone Live Lead", "0107778015", cairoDate(1));
+
+    await page.goto("/b-systems/crm");
+    const column = page.locator(COL_BEHIND);
+    await column.scrollIntoViewIfNeeded();
+    await expect(column).toBeVisible();
+    await expect(column).toContainText("Fallen behind");
+    await expect(column.getByText("Not a drop target")).toBeVisible();
+    await expect(column.locator('[data-deal-card="Phone Behind Lead"]')).toBeVisible();
+
+    /* the board scrolls sideways; the PAGE must not — a horizontal page scroll
+       at phone width is the failure mode a new column introduces */
+    const noPageScroll = await page.evaluate(
+      () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+    );
+    expect(noPageScroll).toBe(true);
+
+    for (const id of [behind, live]) {
+      expect((await page.request.delete(`/api/b-systems/leads/${id}`)).ok()).toBe(true);
+    }
+  });
+
+  test("the card opens from the column by TAP, and the stage never moved", async ({ page }) => {
+    /* The grip exists so a finger scrolls the column instead of dragging the
+       card (CardGrip); tapping the card body still opens the lead. */
+    await loginFounder(page);
+    const id = await leadDueOn(page, "Phone Tap Lead", "0107778016", cairoDate(-7));
+
+    await page.goto("/b-systems/crm");
+    const column = page.locator(COL_BEHIND);
+    await column.scrollIntoViewIfNeeded();
+    await expect(column).toHaveAttribute("data-stage-key", "fallen-behind");
+    const card = column.locator('[data-deal-card="Phone Tap Lead"]');
+    await card.scrollIntoViewIfNeeded();
+    await card.click();
+    await expect(page).toHaveURL(new RegExp(`/lead/${id}`));
+    await expect(page.getByText("Following Up").first()).toBeVisible();
 
     expect((await page.request.delete(`/api/b-systems/leads/${id}`)).ok()).toBe(true);
   });

@@ -6,6 +6,7 @@ import {
   formatCairo,
   formatCairoDate,
   formatCairoShort,
+  msUntilNextCairoDay,
   nextCairoDate,
   sameCairoDay,
   startOfCairoDay,
@@ -255,6 +256,47 @@ describe("cairoDayWindowFor — one named Cairo date, as UTC instants", () => {
     const late = new Date(fold.end.getTime() - 30 * 60_000);
     expect(utcToCairo(early).date).toBe("2026-10-29");
     expect(utcToCairo(late).date).toBe("2026-10-29");
+  });
+});
+
+describe("msUntilNextCairoDay — how long a board may keep yesterday's picture", () => {
+  /* ADR-082 (review). The boards and the Today chip divide their cards by
+     today's Cairo day and are re-armed from this number. The defect it closes
+     is a tab left open across midnight: the division has to change by itself,
+     because `router.refresh()` re-renders the tree WITHOUT remounting, so a
+     once-per-mount sample never fires again. */
+  it("lands exactly on the next Cairo midnight, not 24 hours after the clock", () => {
+    const now = cairoToUtc("2026-08-20", "22:15");
+    const fire = new Date(now.getTime() + msUntilNextCairoDay(now));
+    expect(utcToCairo(fire).date).toBe("2026-08-21");
+    expect(fire.getTime()).toBe(cairoDayWindowFor("2026-08-20").end.getTime());
+    /* one minute before it, the day has NOT turned */
+    expect(utcToCairo(new Date(fire.getTime() - 60_000)).date).toBe("2026-08-20");
+  });
+
+  it("is the whole day from the first instant of it", () => {
+    const start = cairoDayWindowFor("2026-08-20").start;
+    expect(msUntilNextCairoDay(start)).toBe(24 * 3_600_000);
+  });
+
+  it("the 23-HOUR and 25-HOUR days are 23 and 25 hours, not 24", () => {
+    /* A fixed `+ 86_400_000` re-arm drifts an hour on exactly these two days —
+       and an hour LATE means the board shows yesterday's split through the
+       first hour of the new working day, which is when it is read. */
+    expect(msUntilNextCairoDay(cairoDayWindowFor("2026-04-24").start)).toBe(23 * 3_600_000);
+    expect(msUntilNextCairoDay(cairoDayWindowFor("2026-10-29").start)).toBe(25 * 3_600_000);
+  });
+
+  it("is never zero or negative — a timer armed with 0 would spin", () => {
+    const eve = new Date(cairoDayWindowFor("2026-08-20").end.getTime() - 1);
+    expect(msUntilNextCairoDay(eve)).toBeGreaterThan(0);
+    /* and the boundary instant itself belongs to the NEXT day, so it asks for
+       that day's whole length rather than 0 */
+    expect(msUntilNextCairoDay(cairoDayWindowFor("2026-08-20").end)).toBe(24 * 3_600_000);
+  });
+
+  it("stays inside setTimeout's 32-bit range, which fires IMMEDIATELY past it", () => {
+    expect(msUntilNextCairoDay(new Date())).toBeLessThan(2_147_483_647);
   });
 });
 
