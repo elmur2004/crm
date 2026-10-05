@@ -225,6 +225,131 @@ describe("1. due TODAY — the press logs tomorrow's follow-up", () => {
     expect((await db.lead.findUniqueOrThrow({ where: { id: lead.id } })).noAnswerCount).toBe(3);
   });
 
+  it("THE GATE READS THE LOCKED ROW — a press racing a move OUT books nothing", async () => {
+    /* Review finding. The three conditions were read from two different rows:
+       the follow-up from inside the transaction, under the lock, but the STAGE
+       from the `getLead` snapshot taken before the transaction existed. A press
+       racing a move to Meeting Setting therefore booked tomorrow's chase for a
+       lead that had already left the column the founder named ("someone who's
+       in the following up column").
+
+       The ordering is NAMED here rather than hoped for, with two real
+       overlapping Postgres transactions:
+         T1  moves the lead to Meeting Setting and HOLDS the row lock;
+         the press starts, and its pre-transaction read still sees
+         `following_up` (READ COMMITTED — T1 has not committed), then blocks on
+         the lock at its own update;
+         T1 commits, the press's update returns the row as it NOW is, and the
+         gate must believe THAT row.
+       Deterministic: no retry, no flake, and it goes red the moment the gate
+       reads the snapshot again. */
+    const lead = await leadDueOn(TODAY);
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const mover = db.$transaction(
+      async (tx) => {
+        await tx.lead.update({ where: { id: lead.id }, data: { stage: "meeting_setting" } });
+        await held;
+      },
+      { timeout: 20_000 },
+    );
+    await new Promise((r) => setTimeout(r, 400)); // T1 now holds the lock
+    const press = setNoAnswer("bsystems", lead.id, true, admin, AT_NOON);
+    await new Promise((r) => setTimeout(r, 400)); // the press is blocked on it
+    release();
+    await mover;
+    await press;
+
+    /* NO second follow-up, and nothing in the log claiming one was written */
+    expect(await followUps(lead.id)).toHaveLength(1);
+    expect(await db.activityLog.count({ where: { entityId: lead.id, trigger: "FU-AUTO" } })).toBe(
+      0,
+    );
+    /* the ATTEMPT still counted — the stage decides the follow-up, not the tally */
+    const row = await db.lead.findUniqueOrThrow({ where: { id: lead.id } });
+    expect(row.stage).toBe("meeting_setting");
+    expect(row.noAnswerCount).toBe(1);
+  });
+
+  it("TOMORROW IS NEVER DOUBLE-BOOKED — the press flags, counts, and adds no row", async () => {
+    /* Review finding, and it needs no race at all: book tomorrow BY HAND, then
+       log a chase for today. The live follow-up is the NEWEST row — today's —
+       so the gate opens, and the day it would book is already taken.
+
+       The second row is the defect because the To-Do derives "done" per CAIRO
+       DAY: any same-day follow-up that is not the live record reads as
+       "superseded". The lead would appear on tomorrow's list as live work AND
+       in the same day's Done section — one card, twice, contradicting itself.
+
+       WHAT THE PRESS DOES INSTEAD: it still flags and still counts (the attempt
+       really happened, and the tally is his own "so we can know how many times
+       we tried"); it writes no row and no FU-AUTO line, because nothing was
+       logged. His sentence — "it automatically logs another follow up until he
+       answers" — is already satisfied when tomorrow is booked. */
+    const lead = await leadDueOn(TOMORROW);
+    await applyLeadEvent({
+      brand: "bsystems",
+      leadId: lead.id,
+      event: { type: "next_action", action: "follow_up_again" },
+      group: { group: "follow_up", data: { date: TODAY, method: "call" } } as never,
+      actor: admin,
+      role: "bsystems_admin",
+    });
+    expect(await followUps(lead.id)).toHaveLength(2);
+
+    await setNoAnswer("bsystems", lead.id, true, admin, AT_NOON);
+
+    const rows = await followUps(lead.id);
+    expect(rows).toHaveLength(2);
+    expect(rows.map((r) => utcToCairo(r.dueAt).date).sort()).toEqual([TODAY, TOMORROW]);
+    const row = await db.lead.findUniqueOrThrow({ where: { id: lead.id } });
+    expect(row.noAnswerCount).toBe(1);
+    expect(row.noAnswer).toBe(true);
+    expect(await db.activityLog.count({ where: { entityId: lead.id, trigger: "FU-AUTO" } })).toBe(
+      0,
+    );
+    /* and the press is still UNDOABLE — it just has no created row to carry */
+    expect(await db.activityLog.count({ where: { entityId: lead.id, trigger: "no_answer" } })).toBe(
+      1,
+    );
+  });
+
+  it("…so tomorrow's To-Do carries that lead ONCE, never as live work AND done", async () => {
+    /* The consequence the duplicate produced, asserted where he would have seen
+       it. With TWO rows on tomorrow, the newer one is tomorrow's live task and
+       the older one lands in the SAME day's Done section as "superseded" — the
+       lead printed twice, in two sections that disagree about it.
+
+       Which of the two lists the single surviving row lands in is the
+       PRE-EXISTING liveness rule (ADR-041/062), untouched here: the hand-booked
+       tomorrow row was created BEFORE today's chase, so today's row is the
+       lead's newest and tomorrow's row is superseded history. The board agrees
+       with that reading — the live follow-up is today's, so on tomorrow the
+       card sits in Fallen behind. One row, one place, one story. */
+    const lead = await leadDueOn(TOMORROW);
+    await applyLeadEvent({
+      brand: "bsystems",
+      leadId: lead.id,
+      event: { type: "next_action", action: "follow_up_again" },
+      group: { group: "follow_up", data: { date: TODAY, method: "call" } } as never,
+      actor: admin,
+      role: "bsystems_admin",
+    });
+    await setNoAnswer("bsystems", lead.id, true, admin, AT_NOON);
+
+    const tomorrow = await todoFor({
+      brand: "bsystems",
+      scope: { kind: "all" },
+      now: cairoToUtc(TOMORROW, "12:00"),
+    });
+    const live = tomorrow.today.filter((i) => i.leadId === lead.id);
+    const done = tomorrow.done.filter((i) => i.leadId === lead.id);
+    expect(live.length + done.length).toBe(1);
+    expect(done).toHaveLength(1);
+  });
+
   it("racing presses on one lead still write at most ONE auto follow-up", async () => {
     /* Real Postgres, real overlapping transactions. The row lock serialises
        them, and each one re-reads the live follow-up after acquiring it. */

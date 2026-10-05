@@ -14,7 +14,13 @@ import {
 } from "@/lib/pipeline-engine/constants";
 import { ApiError } from "@/lib/api-error";
 import { storage } from "@/lib/storage";
-import { cairoToUtc, formatCairo, nextCairoDate, utcToCairo } from "@/lib/datetime";
+import {
+  cairoDayWindowFor,
+  cairoToUtc,
+  formatCairo,
+  nextCairoDate,
+  utcToCairo,
+} from "@/lib/datetime";
 import {
   followUpDueAt,
   followUpDueTimeSet,
@@ -232,6 +238,30 @@ export async function markReadyToClose(brand: Brand, leadId: string, actor: Acto
    the live follow-up is read, so a racing press reads the row the first one
    committed and declines to add a second.
 
+   AND ALL THREE CONDITIONS ARE READ UNDER THAT LOCK (review). The STAGE comes
+   from `fresh` - the row the tally update RETURNED, which is the row the lock
+   protects - never from the pre-transaction `getLead` snapshot. That snapshot
+   is taken before the lock is anywhere near being held, so a press racing a
+   move to Meeting Setting read `following_up` from it and booked tomorrow's
+   chase for a lead that is no longer in the column the founder named ("someone
+   who's in the following up column"). The sentence above about concurrency was
+   only ever true of the follow-up READ; it is true of the whole gate now.
+
+   AND THE TARGET DAY IS NEVER DOUBLE-BOOKED. Before creating, the gate asks
+   whether this lead already has a follow-up falling on tomorrow's CAIRO DAY
+   (`cairoDayWindowFor`, the same window the To-Do and the daily report tile
+   their days with) and, if it has, writes NOTHING - no row, no FU-AUTO log
+   line. The press still FLAGS and still COUNTS: the attempt really happened
+   and the tally is the founder's own "so we can know how many times we tried".
+   What would be wrong is the second row, because the live follow-up is read by
+   `createdAt` while the To-Do keys its Done section off the DAY: a lead with
+   two rows on one day shows up tomorrow as live work AND as already-done
+   ("superseded"), the same card twice, in two sections that contradict each
+   other. Reachable without any race - book tomorrow by hand, then log a chase
+   for today, then press - so it is closed by a question rather than by an
+   argument about orderings. "It automatically logs another follow up until he
+   answers" is already satisfied when tomorrow is booked.
+
    UNDO (ADR-045/064) CARRIES THE CREATED ROW. The press was already undoable
    and its payload already restored the flag and the tally; it now also carries
    the follow-up's id in `created`, and `performUndo` deletes exactly that id.
@@ -294,7 +324,13 @@ export async function setNoAnswer(
        first one committed (see "it cannot pile up" above) rather than racing it
        and writing a duplicate. */
     const created: CreatedRef[] = [];
-    if (value && lead.stage === configForBrand(brand).followUpStage) {
+    /* THE STAGE IS `fresh`'s, NOT `lead`'s (review). `fresh` is the row the
+       update above returned under the lock it took; `lead` is a snapshot read
+       by `getLead` before this transaction existed. Gating on the snapshot made
+       the lock claim in the header aspirational rather than true: a press
+       racing a move to Meeting Setting booked tomorrow's chase for a lead that
+       had already left the column the founder named. */
+    if (value && fresh.stage === configForBrand(brand).followUpStage) {
       const live = await tx.followUp.findFirst({
         where: { leadId: lead.id },
         orderBy: { createdAt: "desc" },
@@ -304,39 +340,56 @@ export async function setNoAnswer(
          `<=` here is exactly the auto-relog he said NOT to build for a lead
          that has already fallen behind. */
       if (live && utcToCairo(live.dueAt).date === today) {
-        const next = await tx.followUp.create({
-          data: {
-            leadId: lead.id,
-            context: live.context,
-            dueAt: followUpDueAt({
-              date: nextCairoDate(today),
-              /* the stored method is one of FOLLOW_UP_METHODS by construction
-                 (the Zod enum is the only way a row gets written); `followUpDueAt`
-                 reads only `date`/`time`, so the cast is inert either way */
-              method: live.method as FollowUpInput["method"],
-            }),
-            dueTimeSet: false, // the SYSTEM chose the day; nobody chose a clock
-            method: live.method,
-            ownerSalesRepId: live.ownerSalesRepId,
-            ownerPortalRepId: live.ownerPortalRepId,
-            followingUpWith: live.followingUpWith,
-          },
+        const target = nextCairoDate(today);
+        /* IS TOMORROW ALREADY BOOKED? (review) The live follow-up is the NEWEST
+           row, so a lead can carry a row dated tomorrow that is not the live
+           one - book tomorrow by hand, then log a chase for today, then press.
+           A second row on that day is the defect: the To-Do derives "done" per
+           DAY, so the lead would appear on tomorrow's list as live work and in
+           the same day's Done section as "superseded" - one card, twice,
+           contradicting itself. The window is the shared Cairo-day one, so this
+           question tiles exactly with the day the To-Do will ask about.
+           The press still flags and still COUNTS; only the duplicate is wrong. */
+        const { start, end } = cairoDayWindowFor(target);
+        const booked = await tx.followUp.findFirst({
+          where: { leadId: lead.id, dueAt: { gte: start, lt: end } },
+          select: { id: true },
         });
-        created.push({ model: "followUp", id: next.id });
-        /* T-10 / section 5.6 - a record creation writes its own log row, like
-           every other follow-up this product writes. Its OWN trigger, so the
-           history and the daily report can say the system logged it rather than
-           letting it read as something he typed. The DAILY REPORT counts
-           DISTINCT LEADS (ADR-081), so a press that writes two rows is still
-           ONE lead in his headline number - and two honest LINES under it,
-           because two things really did happen. */
-        await writeLog(tx, {
-          entityType: "lead",
-          entityId: lead.id,
-          actor,
-          action: "group_added",
-          trigger: "FU-AUTO",
-        });
+        if (!booked) {
+          const next = await tx.followUp.create({
+            data: {
+              leadId: lead.id,
+              context: live.context,
+              dueAt: followUpDueAt({
+                date: target,
+                /* the stored method is one of FOLLOW_UP_METHODS by construction
+                   (the Zod enum is the only way a row gets written); `followUpDueAt`
+                   reads only `date`/`time`, so the cast is inert either way */
+                method: live.method as FollowUpInput["method"],
+              }),
+              dueTimeSet: false, // the SYSTEM chose the day; nobody chose a clock
+              method: live.method,
+              ownerSalesRepId: live.ownerSalesRepId,
+              ownerPortalRepId: live.ownerPortalRepId,
+              followingUpWith: live.followingUpWith,
+            },
+          });
+          created.push({ model: "followUp", id: next.id });
+          /* T-10 / section 5.6 - a record creation writes its own log row, like
+             every other follow-up this product writes. Its OWN trigger, so the
+             history and the daily report can say the system logged it rather than
+             letting it read as something he typed. The DAILY REPORT counts
+             DISTINCT LEADS (ADR-081), so a press that writes two rows is still
+             ONE lead in his headline number - and two honest LINES under it,
+             because two things really did happen. */
+          await writeLog(tx, {
+            entityType: "lead",
+            entityId: lead.id,
+            actor,
+            action: "group_added",
+            trigger: "FU-AUTO",
+          });
+        }
       }
     }
     const undoLabel = formatMsg(
