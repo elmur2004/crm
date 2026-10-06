@@ -6527,3 +6527,60 @@ machine. `whatsapp-sent.spec.ts` alone: **5 passed**.
   test teardown, it predates this batch, it is not adjacent to the export cases,
   and **no test failed**. Recorded so it is not read as new or as the download
   route's.
+
+### The deploy, verified
+
+Chunk names recorded off the live `/login` **before** the push, then polled until
+they moved. Exactly **one** of the eleven referenced assets changed —
+`1md7z1m2mj4sr.js` -> `3bldibp_fvdr-.js` — and the **two CSS chunks did not**,
+which is itself the check: a content-hashed stylesheet whose name is unchanged is
+a stylesheet whose bytes are unchanged, and this batch claims not one line of new
+CSS.
+
+`/api/health`, live, after the restart:
+
+```
+ok: true | schemaCurrent: true | pendingMigrations: []
+db: { reachable: true, error: null }
+admin roles: ["bsystems_admin","byteforce_staff"]
+```
+
+**The empty list IS the migration proof**: `unappliedMigrations()` reads the
+DEPLOYED container's own `prisma/migrations` directory and subtracts
+`_prisma_migrations`. This batch adds no migration, so an empty list is also the
+assertion that it needed none.
+
+Unauthenticated smoke, from a cold client:
+
+| URL | Result |
+| --- | --- |
+| `/login` | 200, `<title>Sign in — ByteForce × B-Systems Sales Platform</title>`, the real form (Email or phone / Password / Sign in) |
+| `/` | 307 -> `/login` |
+| `/portal` | 200 |
+| `/b-systems/leads?company=bsystems` | 307 -> `/login` |
+| `/b-systems/leads?company=byteforce` | 307 -> `/login` |
+| `/api/health` | 200, `ok: true` |
+| **`/api/b-systems/leads/export`** | **401**, body `{"error":"Not signed in"}` |
+| **`/api/byteforce/leads/export`** | **401**, body `{"error":"Not signed in"}` |
+| **`/api/b-systems/leads/export?company=byteforce`** | **401** — the hand-typed parameter changes nothing, in production as in the suite |
+
+**401 and not 404 is the useful half**: the two endpoints really are in the
+deployed artefact, and they refuse an anonymous caller with a clean JSON error
+and not one row of data. The `/api/**` paths are outside the edge proxy's
+matcher, so that refusal is the ROUTE's own guard answering on production —
+which is exactly the wall this feature's risk lives behind.
+
+**What this does NOT prove, stated plainly rather than dressed up:** nobody
+pressed the button on production. Every CRM address redirects an unauthenticated
+client to `/login`, so the Leads page cannot be reached from outside and no
+signed-in download was taken. Signing in would need the founder's own password,
+which was not guessed. What stands in its place: the bundle changed after a push
+containing only these six commits, the schema is current, the two new endpoints
+answer from production with the right refusal, nothing 500s, and the suite that
+generated and re-read the real file 27 ways — plus 18 more on the wall and 9 in a
+browser — ran green against this exact tree.
+
+The `uploads` section of `/api/health` is unchanged and still not green
+(`persistentDirConfigured: false`, 9 referenced attachments missing). It is a
+STANDING hosting issue, recorded in full in Run 097, untouched by this deploy and
+unrelated to it — repeated here only so it is not read as new.
