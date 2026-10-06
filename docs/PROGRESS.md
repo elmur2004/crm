@@ -5106,3 +5106,178 @@ comment, and the ADR-013 mechanism note all fixed; .env.example confirmed tracke
   references remain in code COMMENTS where they explain a safety property).
   ADR-071's four, less item 1 for the daily report only. ADR-063's one accepted
   false negative (a deliberate pre-ADR-061 09:00 reads as date-only).
+
+## Entry 079 — 2026-10-06 — THE LEADS EXPORT: two buttons on the Leads page, a real .xlsx whose leading zeros survive, and the wall copied off the page
+
+- Done: one founder request in five commits (ADR-083). *"add a button to export
+  all leads in an excel sheet / a button for bsystems and a button for
+  byteforce"*, with his two answers: **on the Leads page**, and **every lead,
+  ever — live pipeline, won, lost AND archived — with a column saying which**.
+  Full vitest and full Playwright green, `npm run build` clean, `/brand-audit`
+  **PASS** with its two findings folded in before the gate.
+
+  **1. A REAL `.xlsx`, and that is correctness rather than taste.** A CSV would
+  have been one line. Every number in this database starts with a `0` and Excel
+  strips a leading zero from a CSV the instant it opens it — silently corrupting
+  **the one field the sheet exists for**, the number he calls the lead on — and
+  Arabic names mis-decode without a BOM. So the phone is written as a **TEXT
+  cell** (it lands in `sharedStrings`, `t="s"` on the cell, zero intact) and
+  every other column carries its real type: dates are date cells with a display
+  format, money and the didn't-answer tally are numbers. A sheet whose columns
+  are all text cannot be sorted by date or summed, which is the whole point of
+  asking for Excel. **Proved by reading the generated file back** with a
+  different library, plus raw `unzipSync` reads of `sheet1.xml`,
+  `sharedStrings.xml` and `styles.xml` for the two claims a semantic reader
+  cannot make.
+
+  **2. THE DEPENDENCY: `write-excel-file`** (MIT, one dependency, published June
+  2026) with `read-excel-file` (August 2026) as a **dev** dependency so the test
+  reads the file back with a reader that is not the writer. **Not `xlsx`
+  (SheetJS)**, which is frozen at 0.18.5 on npm with advisories that cannot be
+  fixed there because the project left the registry — the library most people
+  reach for, and the wrong one. **Not `exceljs`**, whose last release was
+  December 2024; the closest call. It is imported by one module, which is
+  imported by one module, which is imported by the two `route.ts` files, and the
+  buttons are a **server component** rendering plain `<a download>` anchors — so
+  there is no path by which it can reach a client bundle, and no client chunk in
+  the build contains it.
+
+  **3. THE WALL IS THE LEADS PAGE'S OWN, not one role looser.** ByteForce needs
+  `byteforce_staff`; B-Systems needs `bsystems_admin`. The trap avoided: every
+  brand-partitioned route in this API reaches for `staffRolesForBrand(brand)`,
+  which for B-Systems is `["bsystems_admin", "bsystems_sales"]` — and internal
+  sales **cannot open the B-Systems Leads page**. Using the house idiom would
+  have handed a salesperson the admin's entire customer list behind a guard that
+  looks exactly like the forty next to it. `bsystems_sales`,
+  `bsystems_agent`, `bsystems_partner` and `bsystems_data_entry` are all
+  refused; an agent sees only his own leads everywhere else in this product and
+  one file would undo that in a single click. Enforced in the route, from the
+  session, against roles re-read from the database on every request (ADR-017),
+  with no `searchParams`, no `new URL(...)` and no body read on the path.
+
+  **4. THE COMPANY IS THE ROUTE.** Two addresses behind one shared handler that
+  takes the company as a function argument the two `route.ts` files hardcode —
+  ADR-067's rule that a `?company=` on an API route is the single way to widen
+  access across companies, so there isn't one. A test proves
+  `?company=byteforce` on the B-Systems endpoint changes nothing at all.
+
+  **5. THE EQUIVALENCE IS THE TEST.** A test comparing the role table to a
+  hand-written expectation passes the day somebody widens both. So the sweep
+  builds `pageReaches()` out of the functions the real page calls —
+  `resolveCompany`, `crmRolesFor`, `crmEngineRole` — in the real order, and
+  checks **all 64 role subsets × both companies** for the equivalence "can
+  export ⇔ can open that company's Leads page". Mutation-checked: adding
+  `bsystems_sales` to the table reddened four cases, the sweep naming the role.
+  The buttons render from the **same predicate**, so the screen can never offer
+  a file the server withholds — the case that forced it being
+  `bsystems_sales + byteforce_staff`, which holds **both** companies and may
+  open only ByteForce's Leads page, and therefore sees exactly **one** button.
+
+  **6. TWENTY-ONE COLUMNS, derived from the model**, and five fields
+  deliberately left out (the paragraph fields, "added by", the cuid, `source`,
+  `readyToClose`) — each with a reason in the ADR. **No filters**: his sentence
+  was "every lead, ever", so the query takes nothing but the brand, which also
+  means there is no client-controlled input on this path at all. The Status
+  column's overlap is decided: **archived beats won/lost**, because it answers
+  "where did this lead go", and nothing is lost because the Stage column beside
+  it still reads Won.
+
+  **7. TWO DATE TRAPS, both of which would have been wrong by a day or an hour
+  on screen.** An Excel date cell is a serial number with **no time zone**, and
+  the library derives it from `getTime()` — so Prisma's UTC `Date` handed
+  straight to a cell prints a lead created at 01:30 Cairo on the 6th as **the
+  5th**. Every date cell carries the **Cairo wall clock pinned to UTC**, built
+  from the same `utcToCairo` the screens format through, and is pinned by a test
+  at 23:30 UTC in October (Egypt on DST, so anybody who "simplifies" the shift
+  to `+2` goes red). Second: ADR-063 exists to stop printing clocks nobody
+  chose, so the follow-up cell is **per-cell** — a chosen time keeps its clock,
+  an unset one is the Cairo **day at midnight** with no time in its format.
+  Midnight is not cosmetic: Excel's own "equals 10/11/2026" filter does not
+  match a serial carrying a fraction.
+
+  **8. BILINGUAL, and the sheet flips.** Headers follow the viewer's language;
+  an Arabic export sets `rightToLeft="1"` so the columns run from the right.
+  Twelve of the twenty-one headers **reference existing Msg keys** so a column
+  header cannot drift from the field it names, Won/Lost reference `stageMsgs`,
+  and fourteen keys are new with real Arabic. The filename carries the company
+  and the **Cairo** day (`b-systems-leads-2026-10-06.xlsx`), so the two
+  downloads cannot collide in one Downloads folder. **Every download is logged**
+  — a new `lead_export` entity type with the company as its id — because this is
+  the one request in the product that hands over every customer a company has.
+
+  **9. SCALE, measured rather than estimated.** Both halves **buffer**; the route
+  does not stream. 10,000 leads → **0.85 MB, 2.8 s, 75 MB heap, 227 MB RSS**;
+  50,000 → 4.2 MB, 13 s, 251 MB, 558 MB; 100,000 → 8.4 MB, 28 s, 462 MB,
+  983 MB. **Ten thousand is fine.** Where it breaks is a **timeout, not a
+  crash**: around 50,000 the wall clock brushes a 30 s request limit and at
+  100,000 the resident set is within a hair of a 1 GB container. That is the
+  point to stream (`toStream`) and cursor-page the read — not built today,
+  because streaming costs the row count in the response and the real database
+  holds a few hundred leads.
+
+- **The brand audit's two findings, both mine, both in the new Arabic** (fixed in
+  commit 4, recorded in IMPLEMENTATION as the seventh trap): `hWhatsapp` was a
+  new literal whose English was byte-identical to `callSheet.whatsappSentJustNow`
+  with *different* Arabic, and it transliterated the wordmark against the rule
+  `call.ts` states in as many words; and `button.ar` read "تصدير العملاء" —
+  *export the customers* — while the hint below it and the sheet tab inside the
+  downloaded file both said العملاء المحتملين. Three Arabic words for one English
+  noun on one screen. Both are references now. Neither was a brand-rule breach,
+  which is exactly why they are worth recording: the convention twelve of these
+  headers follow was written to prevent this, and I broke it twice in the same
+  object while writing the comment that explains it.
+- Nothing structural: **no migration, no schema change, no new column, no new
+  table, no permission change, no stage change, and not one line of new CSS** —
+  the buttons are the house `btn-ghost` and `u-muted`, which is why the audit had
+  nothing to find in the UI. One `LOG_ENTITY_TYPES` value added; no route removed
+  (the build's route list was diffed against the previous commit's tree — nothing
+  lost, exactly the two new endpoints added).
+- The other workstream's `git stash` entry ("calendar WIP") was **not touched**:
+  no `stash pop`, no `stash apply`. Per-commit isolation was verified by
+  reverting the later commits' files out of the tree and running
+  `npx tsc --noEmit` against each commit's own content, then restoring from
+  copies in the scratchpad. Port 3100 was free but a **copy of
+  `playwright.config.ts` on 3147** was used anyway, so a parallel workstream's
+  server could not be disturbed, and the copy was deleted after the run.
+- **One existing spec was edited, for a flake this batch exposed rather than
+  caused.** The first full Playwright run on the final tree came back 207/1, and
+  the red was `whatsapp-sent.spec.ts` asserting `rgb(230, 244, 236)` against
+  `rgba(230, 244, 236, 1)` — **the same colour, spelled two ways**. The chip
+  repaints through the house's shared 150 ms `background-color` transition, and
+  Chromium serialises an interpolated colour with its alpha, so a single
+  `getComputedStyle` sample fails on a loaded machine. It passed on the SAME tree
+  forty minutes earlier; the batch touches no CSS, no theme, no token, no chip and
+  no board, and the failing case is on a screen where this feature renders
+  nothing. The read now waits for the paint to settle and ignores a fully opaque
+  alpha — lossless, and mutation-checked by moving the green one unit off, which
+  is still red. All five single-sample paint reads in that file were converted,
+  not just the one that went red.
+- Tests: **vitest 1081/1081 in 62 files** (+59 in three new files: 14 pure wall
+  cases, 27 on the generated file, 18 on the route), **Playwright
+  208 passed / 0 failed / 2 skipped** with the verdict read from
+  `test-results/.last-run.json` (`"status": "passed"`), **`npm run build`
+  clean** (165 route entries, 50/50 static pages, the only two additions being
+  the export endpoints, nothing removed), **`npx tsc --noEmit` clean**, and
+  **`/brand-audit` PASS**. Five claims were mutation-checked — the phone as a
+  number, the Cairo shift removed, right-to-left forced off, the route guard
+  deleted, and the chip's green moved one unit — 16 cases red in total, all
+  restored.
+- Blockers: none.
+- **Needs founder attention (three new, from ADR-083):**
+  1. **Should an ARCHIVED WON lead read "Archived" or "Won" in the Status
+     column?** Archived wins today, because it answers "where did this lead go";
+     the Stage column beside it still says Won, so no count is lost either way.
+     A wording choice and a one-line change.
+  2. **Should the file respect the Leads page's filters when they are set?** It
+     ignores them on purpose — "every lead, ever". A second "export what I am
+     looking at" button is small if he wants both.
+  3. **Should the export appear anywhere else** — the CRM board, Won Leads, a
+     rep's own page? He named the Leads page, and that is where it is.
+- **Carried forward, still open:** ADR-082's six. ADR-081's six. ADR-080's three
+  (the Mindoo data is unrecoverable from production; `GET /api/b-systems/backup`
+  is an unscoped `findMany()` over 45 models behind `requireBsAdmin()` alone;
+  historical Mindoo references remain in code COMMENTS where they explain a
+  safety property). ADR-071's four, less item 1 for the daily report only.
+  ADR-063's one accepted false negative. The standing hosting issue on
+  `/api/health`'s `uploads` section (`persistentDirConfigured: false`, 9
+  referenced attachments missing) — untouched by this batch and unrelated to it.

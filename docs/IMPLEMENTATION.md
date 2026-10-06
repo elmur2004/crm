@@ -4020,7 +4020,7 @@ need a migration — a new board column and a renamed field — needed neither, 
 the same reason in both cases: the column is derived from data that was already
 there, and the rename is a caption over a column that keeps its name.
 
-## ADR-083 — the leads export: seven traps, two of them a wrong day on the page he would sort by
+## ADR-083 — the leads export: six traps, two of them a wrong day on the page he would sort by
 
 Written while building it. Every one of these is a thing that compiled, typechecked
 and looked right.
@@ -4174,13 +4174,41 @@ they are worth writing down: the convention that twelve of these headers follow 
 written to prevent this, and I broke it twice in the same object while documenting
 it. The fix in both cases is to REFERENCE, not retype.
 
+### And one red that was NOT a trap of this feature's, checked before it was excused
+
+The first full Playwright run on the finished tree came back 207/1, and the red
+was `whatsapp-sent.spec.ts` — a file this batch does not touch — asserting
+`rgb(230, 244, 236)` against `rgba(230, 244, 236, 1)`. **The same colour, spelled
+two ways.** Every button in this house shares a `background-color .15s ease`
+transition, so when `.wa-sent` lands client-side the paint ANIMATES, and while a
+transition is in flight Chromium serialises the interpolated colour with its
+alpha. One `getComputedStyle` sample, taken at the wrong millisecond, fails
+against the exact colour it is looking for.
+
+It is written down here because of how easy "not mine" is to say and how often it
+is wrong. What made it safe to say: the batch touches **no CSS file, no theme, no
+token, no chip component and no board**; the whole diff of `dict/crm.ts` has
+**zero deletion lines**, and the one key that now reads
+`callSheet.whatsappSentJustNow` only reads it; the failing case is on
+`/b-systems/crm`, where this feature renders nothing; and the same test passed on
+the same tree forty minutes earlier, the difference being that the second run took
+21.1m against 19.3m on the same box.
+
+Fixed rather than re-run until it behaved: the read retries until the paint
+settles, and a **fully opaque** alpha is dropped and nothing else — mutation-
+checked by moving the green one unit off, which is still red, naming both values.
+All five single-sample paint reads in that file were converted, not just the one
+that failed, because the other four are the same hazard waiting for a slower
+machine.
+
 ### What it cost, and what it did not
 
-Four commits. Two new runtime files (`lib/crm/leads-export.ts` pure,
+Five commits. Two new runtime files (`lib/crm/leads-export.ts` pure,
 `lib/services/leads-export.ts` the writer), one shared route handler, two
 three-line `route.ts` files, one server component, two anchors added to one page
-head, one new `LogEntityType`, 14 new i18n keys and 16 references to existing ones,
-and **two dependencies** — one runtime, one dev-only.
+head, one new `LogEntityType`, 14 new i18n keys and 16 references to existing
+ones, one existing spec's paint reads made settle-safe, and **two dependencies** —
+one runtime, one dev-only.
 
 **No migration, no schema change, no new column, no new table, no permission
 change, no stage change, and not one line of new CSS.** The buttons are the house

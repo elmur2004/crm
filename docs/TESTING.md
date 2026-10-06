@@ -6296,3 +6296,234 @@ The `uploads` section of `/api/health` is unchanged and still not green
 (`persistentDirConfigured: false`, 9 referenced attachments missing). It is a
 STANDING hosting issue, recorded in full in Run 097, untouched by this deploy and
 unrelated to it — repeated here only so it is not read as new.
+
+## Run 100 — 2026-10-06 — ADR-083: the leads export, and the file read back
+
+The whole-product gate before the push, plus the feature's own suites. The
+interesting part of this run is that **the tests open the artefact**: for an
+export, "the handler returned 200" proves nothing a founder cares about, so every
+claim about the file is made by generating the real bytes and parsing them back.
+
+### The gate
+
+| check | result |
+| --- | --- |
+| `npx tsc --noEmit` | **clean** — and run separately against EACH commit's own tree (see "per-commit isolation" below) |
+| `npx vitest run` (full) | **1081 passed / 0 failed, 62 files**, 181 s |
+| `npx playwright test` (full) | **208 passed / 0 failed / 2 skipped**, 19.1m — the gate run, after the flake fix below |
+| `test-results/.last-run.json` | `{ "status": "passed", "failedTests": [] }` — the verdict, read from the file, not from a tailed tail |
+| `npm run build` | **clean**, 165 route entries, 50/50 static pages |
+| `/brand-audit` | **PASS**, two bilingual findings folded in before the gate |
+
+**The vitest delta is exactly the new work:** the baseline at `a517595` was
+**1022 passed in 59 files** (Run 099). This run is **1081 in 62** — +59 tests in
++3 files, and not one existing case changed:
+
+| new file | cases | what it is for |
+| --- | --- | --- |
+| `src/lib/crm/leads-export.test.ts` | 14 | the WALL, pure — the 64-subset equivalence, the href table, the Status overlap, the filename |
+| `src/lib/services/leads-export.integration.test.ts` | 27 | THE FILE — generated and read back |
+| `src/lib/services/leads-export-wall.integration.test.ts` | 18 | the ROUTE — every role, both companies, cross-company, impersonation, the log row |
+
+**The Playwright delta is exactly the new spec:** the baseline was **199 passed /
+2 skipped**; this run is 208 / 2 skipped — +9, all in
+`e2e/leads-export.spec.ts`. **No existing spec needed an edit for the feature** —
+the two anchors added to the Leads page head did not disturb one locator in 199
+existing cases, and `qa-sweep`'s "B-Systems admin: all twelve sections clean at
+every width" passed unchanged, which is the case that would have caught a new
+control overflowing at 320px. One existing spec WAS edited, for a flake it
+exposed rather than caused — see "the one red, and what it was" below.
+
+### What "read it back" actually means here
+
+Three readers, on purpose, because each one can prove something the others
+cannot:
+
+1. **`read-excel-file` (dev dependency)** — a *different* library from the writer,
+   with its own XML parser. It returns the grid with real JavaScript types, which
+   is how "dates are dates, money is a number, the phone is a string" is checked
+   without the library grading its own homework. `readSheet` for the rows,
+   `readXlsxFile` for the **tab name** (the only way to assert that an Arabic
+   export names its sheet العملاء المحتملون).
+2. **`fflate`'s `unzipSync`** — the raw archive, read the way Excel will, for the
+   two structural claims a semantic reader cannot make:
+   - the phone is `<si><t>01012345678</t></si>` in `sharedStrings.xml` and the
+     cell pointing at it is typed `t="s"` — **and `<v>1012345678</v>` appears
+     nowhere in the sheet**;
+   - `rightToLeft="1"` is in `sheetView` for an Arabic export and **absent** for
+     an English one;
+   - `formatCode="dd/mm/yyyy"` and `formatCode="#,##0.00"` are in `styles.xml`;
+   - `ySplit="1"` / `state="frozen"` — the header really is pinned.
+3. **The first two bytes.** `PK`. If this were a CSV with an `.xlsx` extension
+   Excel would still open it and still eat the leading zeros, which is the bug —
+   so the test says out loud that it is a zip.
+
+### The founder's claims, and the case that pins each one
+
+| claim | how it is pinned |
+| --- | --- |
+| the leading zero survives | `"01012345678"` in, `"01012345678"` out as a `string` of length 11, `t="s"`, and explicitly **not** `1012345678`. Plus a 12-lead sweep where every phone comes back a zero-prefixed string. |
+| Arabic round-trips | `محمد عبد الرحمن` / `شركة النيل للتجارة` / `مدير المشتريات` / `الإنشاءات` in and out, byte-for-byte |
+| headers follow the viewer | `Name` / `Status` in EN, `الاسم` / `الحالة` / `الرقم` in AR, and the two header rows asserted **unequal**; the translated stage (`تفاوض`) and type (`اتصال مباشر`) are the screens' own labels |
+| dates are dates, not strings | `instanceof Date`, `typeof !== "string"`, and the **Cairo day**: `23:30 UTC` on 2026-10-05 reads back as `02:30` on the 6th (Egypt on DST in October — a `+2` shortcut fails this) |
+| ADR-063's rule holds in the file | an unset `dueTimeSet` → midnight Cairo + `dd/mm/yyyy`; a chosen one → `16:45` kept |
+| money is numeric | `150_050` piasters in → the **number** `1500.5` out, and asserted not `150050` and not `"EGP 1,500.50"`; a won lead with no proposal still carries `80_000` |
+| counts are numeric | `3` for a chased lead, and the honest **`0`** for an untried one (not a blank) |
+| live / won / lost / archived all appear with the right status | four leads, four statuses, `rows === 4`, grid length 5 |
+| the archived-won overlap | Status `Archived`, Stage `Won`, in the same row |
+| the row count matches the database | 7 active + 5 archived seeded, `db.lead.count() === 12`, `rows === 12`, 12 data rows, and the 3 foreign leads absent |
+| no cross-company leak | asserted in BOTH directions, each file holding exactly its own company's one lead |
+| the filename | `b-systems-leads-<cairo today>.xlsx` vs `byteforce-leads-<cairo today>.xlsx`, asserted unequal |
+| 21 columns, all bilingual | unique keys, every header non-empty in both languages, and **`header.ar !== header.en` for every one** — so no Arabic column can fall back to English |
+
+### The wall, at the route
+
+18 integration cases with a mocked **session only** — real route modules, real
+guards, real Postgres, real spreadsheet:
+
+- **every role × every company**, driven off `canExportLeads` so the expectation
+  cannot drift from the predicate: `byteforce_staff` → ByteForce 200 / B-Systems
+  403; `bsystems_admin` → the reverse; the other four roles 403 everywhere, with
+  the house message `"You do not have access to this area"`.
+- **a hand-typed cross-company request, both ways**, and the refusal body
+  asserted **not** to contain the other company's seeded lead name.
+- **`?company=byteforce` on the B-Systems endpoint** → 200, `X-Lead-Rows: 1`, and
+  a `b-systems-leads-` filename. The parameter is inert because nothing reads it.
+- **anonymous → 401** on both, before a row is read; **deactivated admin → 403**
+  on a still-valid session; **a revoked role → 403 on the very next request**,
+  then 200 again when granted back (ADR-017, no re-login).
+- **impersonation** honours the impersonated account's roles: a founder acting as
+  an agent is refused, and his own session is untouched.
+- **the response**: the OOXML content type, an `attachment` disposition matching
+  `b-systems-leads-\d{4}-\d{2}-\d{2}\.xlsx`, `X-Lead-Rows: 3` with one of the
+  three archived, `Cache-Control: no-store`, and `PK` at the front.
+- **the log row**: one `lead_export` entry, `entityId` the company, `action`
+  `export`, carrying the actor's id and label — and **zero** rows after a refused
+  request.
+- **the directory sweep**: both `route.ts` files call `leadsExportRoute(...)` and
+  nothing else — no second guard, no `searchParams`, no `db.`; the shared handler
+  contains no `searchParams` and no `new URL(`. A third export endpoint cannot
+  skip the wall without turning this red.
+
+### The 64-subset equivalence
+
+`leads-export.test.ts` does not compare the role table to a hand-written
+expectation — that test passes the day somebody widens both sides. It rebuilds
+the Leads page's guard chain from the functions the page itself calls
+(`resolveCompany` → `crmRolesFor` → `crmEngineRole`, in that order) and asserts
+**`canExportLeads(roles, c) === pageReaches(roles, c)` for all 64 role subsets ×
+2 companies**. It also asserts the narrowing law — `leadsExportCompanies` never
+reports a company outside `companiesFor(roles)`, for every subset — and that
+`LEADS_EXPORT_ROLES.bsystems` does **not** contain `bsystems_sales`, which is the
+mistake the house idiom invites.
+
+### FOUR MUTATIONS, 15 cases red, all restored
+
+Every load-bearing claim was broken on purpose and the test watched fail:
+
+| mutation | red |
+| --- | --- |
+| the phone written as a `Number` instead of text | **3** — the string round trip, the `t="s"` / sharedStrings read, and the 12-lead sweep |
+| `cairoCell` returning the instant unchanged (no Cairo shift) | **3** — the created-date day, the chosen follow-up clock, the latest meeting |
+| `rightToLeft` forced to `false` | **1** — the Arabic RTL case |
+| `bsystems_sales` added to `LEADS_EXPORT_ROLES` | **4** — the 64-subset sweep (naming the role in its message), the four-role refusal, the "both companies is not both exports" case, and the table assertion |
+| the route's `canExportLeads` guard deleted | **8** — every role, the four refusals, both cross-company directions, the revoked role, impersonation, and "a refused request writes no log row" |
+| `GREEN_TINT` moved one unit off `#E6F4EC` (the flake fix, below) | **1** — naming both values, so the normalisation did not blunt the assertion |
+
+### Scale, measured
+
+Not a test (a 100,000-row case would add half a minute to the suite), but measured
+rather than guessed, on a synthetic 21-column sheet with Arabic in a third of the
+names and every optional record present:
+
+| rows | file | wall clock | heap used | RSS |
+| --- | --- | --- | --- | --- |
+| 10,000 | 0.85 MB | 2.8 s | 75 MB | 227 MB |
+| 50,000 | 4.2 MB | 13 s | 251 MB | 558 MB |
+| 100,000 | 8.4 MB | 28 s | 462 MB | 983 MB |
+
+Both halves buffer; the route does not stream. Ten thousand rows is fine; the
+first thing to break above ~50,000 is a request **timeout**, not a crash. ADR-083
+§5 has the threshold and the fix (`toStream` + cursor-paged reads).
+
+### Build, and the client bundle
+
+`npm run build` clean. **165 route entries, 50/50 static pages.** The route list
+was diffed against the set derivable from the previous commit's own tree
+(`git ls-tree a517595`): **nothing lost**, and the only additions beyond Next's
+generated metadata routes are `/api/b-systems/leads/export` and
+`/api/byteforce/leads/export`.
+
+**The spreadsheet library does not reach the browser, and that is checked rather
+than asserted.** Grepping the built output for the library's own markers
+(`stickyRowsCount`, `rightToLeft`, `sharedStrings`):
+
+- **0 hits in `.next/static/` across all 49 client chunks**;
+- **1 hit in `.next/server/chunks/`** — exactly where it belongs.
+
+The six Turbopack build warnings are the pre-existing `src/lib/storage/index.ts`
+dynamic-filesystem ones, unchanged and unrelated.
+
+### Per-commit isolation
+
+Each of the four commits was typechecked against **its own tree**, not just
+against the finished one: the later commits' files were moved out of the working
+tree (new files deleted, modified files restored with `git checkout --`), `npx tsc
+--noEmit` run, the commit made, then the next commit's files restored from copies
+held in the scratchpad. All four clean. **The other workstream's `git stash` entry
+was never touched** — no `stash pop`, no `stash apply`; the files were held as
+plain copies outside the repo for exactly that reason.
+
+### The one red, and what it was
+
+The first full run on the final tree came back **207 passed / 1 failed**, and the
+red was `whatsapp-sent.spec.ts:75` — a test this batch does not touch, in a file
+this batch does not touch, which had passed on the **same tree** forty minutes
+earlier. The message is the tell:
+
+```
+Expected: "rgb(230, 244, 236)"
+Received: "rgba(230, 244, 236, 1)"
+```
+
+**The same colour, spelled two ways.** `.card-dial` and its siblings carry
+`transition: background-color .15s ease` (design-system.css, the shared button
+transition), so when `.wa-sent` is applied client-side after the press the paint
+**animates** — and while a transition is in flight Chromium serialises the
+interpolated colour as `rgba(r, g, b, 1)` rather than `rgb(r, g, b)`. The test
+sampled `getComputedStyle` **once**, at whatever millisecond it got, so on a
+loaded machine (this run took 21.1m against the previous 19.3m on the same box)
+it failed against the very colour it was looking for.
+
+**Checked against the batch before being called a flake**, because "not mine" is
+the easiest wrong answer: `git diff a517595..HEAD` touches **no CSS file, no
+theme, no token, no chip component and no board**; the only file in the diff that
+spec could even read is `dict/crm.ts`, where the change is purely additive (zero
+deletion lines across the whole batch) and `hWhatsapp` only *reads*
+`callSheet.whatsappSentJustNow` — a read cannot change paint. And the failing test
+is on `/b-systems/crm`, where this feature renders nothing.
+
+**Fixed rather than re-run until it behaved.** The read now retries until the
+paint settles (`expectPaint`, a `toPass` around the sample) and `settled()` drops
+a **fully opaque** alpha and nothing else. That is lossless for what the file
+asserts: `GREEN_TINT` moved one unit to `rgb(231, 244, 236)` still fails, naming
+both values — so the strict equality the ADR-054 addendum earned (a token
+declared outside its brand scope fails here rather than in production) is intact,
+and a genuinely translucent chip keeps its `rgba(…, 0.x)` and fails too. The five
+single-sample reads in that file all became settled reads, not just the one that
+went red, because the other four are the same hazard waiting for a slower
+machine. `whatsapp-sent.spec.ts` alone: **5 passed**.
+
+### Two things that are NOT failures, said plainly
+
+- **Port.** 3100 was verified free, but the suite was still run against a **copy
+  of `playwright.config.ts` on port 3147** so a parallel workstream could not be
+  disturbed by a 20-minute `next start`. The copy was deleted afterwards.
+- **`[WebServer] ⨯ Error: The destination stream closed early.`** appears in the
+  Playwright log — **once in the first run and twice in the second**, and in
+  different places each time (after `journey4`, after `postpone`, and in the first
+  run after `whatsapp-sent`, which finished before this feature's spec even
+  started). It is a Next log line for a client that went away mid-response during
+  test teardown, it predates this batch, it is not adjacent to the export cases,
+  and **no test failed**. Recorded so it is not read as new or as the download
+  route's.
