@@ -6915,3 +6915,48 @@ file gained 5 and the suite 4, because the fifth replaced nothing). `npm run
 build` clean, "✓ Compiled successfully in 27.4s", and `alert-switched` verified
 present in the local build output before the push so the deploy check had a
 known string to look for.
+
+### BUG-022's deploy, verified
+
+The check had to change shape again, and the reason is worth recording: this
+commit adds **no new string** to any client asset and **no CSS**, so Run 102's
+"assert a known new string is in the deployed file" method had nothing to look
+for. And the bug itself is behind the sign-in wall — an anonymous request to
+`?q=a&q=b` is redirected by the page guard before the board renders, so it
+answered 307 both before and after the fix. There is no unauthenticated probe
+that can tell them apart.
+
+So the signal used is the FULL referenced asset set, not a window of it:
+`src/lib/crm/company.ts` is imported by `CompanySwitch`, a client component, so
+adding `oneValue` to that module necessarily changes one client chunk's content and
+therefore its content hash.
+
+```
+POLL 31: DEPLOYED — asset set changed
+< /_next/static/chunks/1audvsd5lmo3c.js
+> /_next/static/chunks/1eebcam4rqego.js
+```
+
+Exactly one of the eleven referenced assets moved, which is what a one-module
+change should do, and the ten that did not are the assertion that nothing else
+was rebuilt.
+
+`/api/health` after the restart: `ok: true | schemaCurrent: true |
+pendingMigrations: [] | db.reachable: true`.
+
+Smoke, cold client:
+
+| URL | Result |
+| --- | --- |
+| `/login` | 200, correct `<title>` |
+| `/` | 307 → `/login` |
+| `/b-systems/crm?company=bsystems&q=a&q=b` | 307 → `/login` (the repeated parameter: no 500 **and** no leak) |
+| `/b-systems/crm?company=byteforce&q=test&switched=bsystems` | 307 → `/login` (the hop's arrival URL refuses a stranger) |
+| `/api/b-systems/backup?log=0` | 401 |
+| `/portal` | 200 |
+
+**Stated plainly:** the 307 on the repeated parameter is NOT proof the fix
+works — it is proof the guard runs first, which was true before the fix too.
+What proves the fix is the five unit cases, one of which asserts the unguarded
+expression throws `TypeError`, run green against this exact tree. The deploy
+check above proves only that this tree is what production is running.
