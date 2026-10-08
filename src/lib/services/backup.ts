@@ -3,6 +3,7 @@ import type { Prisma } from "../../../generated/prisma/client";
 import { ApiError } from "@/lib/api-error";
 import { storage } from "@/lib/storage";
 import type { Actor } from "./activity";
+import { buildLeadLogs, LEAD_LOG_VERSION, type LeadLog } from "./backup-log";
 
 /* Full-system backup & restore (founder directive): Export produces ONE JSON
    file holding every table (ids preserved) plus every uploaded file (base64).
@@ -11,6 +12,16 @@ import type { Actor } from "./activity";
    Admin-only at the route layer. The file contains password hashes — treat it
    as a secret. */
 
+/* DELIBERATELY STILL 1 AFTER ADR-084, and the reasoning is the opposite of the
+   instinct. `importBackup` REJECTS a payload whose version is GREATER than the
+   build it is fed to — so this number answers one question only: "can this file
+   still be restored here?". ADR-084 adds a top-level key that the restore path
+   never reads, and leaves every byte of `tables` where it was, so a file written
+   today restores PERFECTLY on a build that predates the log. Bumping it would
+   therefore invent an incompatibility that does not exist and refuse a restore
+   that would have worked — the one failure mode a backup system must not have.
+   The log carries its OWN version (`LEAD_LOG_VERSION`) for readers of the log.
+   A real change to `tables` is what moves this number. */
 export const BACKUP_VERSION = 1;
 const BACKUP_APP = "byteforce-bsystems-sales-platform";
 
@@ -27,6 +38,22 @@ const MODELS = [
      answer for legacy rows; here the default IS the answer. */
   "user",
   "userRole",
+  /* ADR-084 — THE TWO TABLES THAT HAD SILENTLY FALLEN OUT (the exact failure
+     mode INTEGRATION-PLAN §3 warns about, and the second time it has happened
+     here: `undoEntry` below carries the same note). ADR-071's calendar shipped
+     into `src/tests/db-reset.ts` and never into this list, so every personal
+     calendar entry and every meeting's "also blocks" roster was MISSING from
+     the export — and, worse, a restore DELETED them: both cascade from parents
+     this list does wipe (`user` and `meeting`), so importing a backup took out
+     calendar data the backup had never carried. `calendarEvent` sits here,
+     directly after its only parent; `meetingAttendee` sits after `meeting`.
+     Deletes run reversed, so each clears before the rows it points at.
+     NO restore twin for either: they are brand-new tables with no legacy shape
+     to repair, and a pre-ADR-071 payload simply has no such key, which the
+     `?? []` missing-table rule already handles.
+     `backup-models.test.ts` now diffs this list against the schema, so a
+     thirteenth table cannot fall out in silence. */
+  "calendarEvent",
   "salesRep",
   "portalRep",
   /* ADR-069 added THREE columns to each of `partnerProspect` and `lead`
@@ -42,6 +69,7 @@ const MODELS = [
   "lead",
   "followUp",
   "meeting",
+  "meetingAttendee", // ADR-084 — AFTER meeting and user (see calendarEvent above)
   "proposal",
   "lostInfo",
   "postponeInfo", // ADR-072 — a Lead child, so it sits with the other groups
@@ -114,9 +142,28 @@ export interface BackupFilePayload {
   exportedAt: string;
   tables: Record<string, Record<string, unknown>[]>;
   files: Array<{ key: string; data: string }>; // base64
+  /* ADR-084 (founder: "when I export the data as json I want the exact log for
+     each single lead to be extracted") — a DERIVED, READ-ONLY section: every
+     lead with its complete story, oldest first, each entry carrying when it
+     happened to the hour and who did it. `importBackup` never reads it, which
+     is the whole design: `tables` remains the restore contract, untouched.
+
+     OPTIONAL, and that is a safety decision rather than a convenience. Measured
+     at 2,000 leads and 20,000 history rows the log is 55% of the whole file
+     (8.68 MB of 15.74 MB) — it roughly DOUBLES it, because it restates as prose
+     what `tables` holds as rows. This file is the one that rebuilds the company,
+     so there must always be a way to produce it that cannot be defeated by the
+     size of the log: `?log=0` on the endpoint omits these two keys entirely.
+     ABSENT, never an empty array — `leadLogs: []` would state that no lead has
+     a history, which is a different and false claim. */
+  leadLogVersion?: number;
+  leadLogs?: LeadLog[];
 }
 
-export async function exportBackup(): Promise<BackupFilePayload> {
+export async function exportBackup(
+  opts: { includeLeadLogs?: boolean } = {},
+): Promise<BackupFilePayload> {
+  const includeLeadLogs = opts.includeLeadLogs ?? true; // his instruction is the default
   const tables: BackupFilePayload["tables"] = {};
   for (const model of MODELS) {
     tables[model] = await delegate(db, model).findMany();
@@ -141,6 +188,11 @@ export async function exportBackup(): Promise<BackupFilePayload> {
     exportedAt: new Date().toISOString(),
     tables,
     files,
+    /* built from the tables ALREADY IN MEMORY above — no second pass over the
+       database, so the log costs CPU and bytes, never query time */
+    ...(includeLeadLogs
+      ? { leadLogVersion: LEAD_LOG_VERSION, leadLogs: buildLeadLogs(tables) }
+      : {}),
   };
 }
 

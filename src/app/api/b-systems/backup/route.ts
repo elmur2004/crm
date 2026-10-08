@@ -6,9 +6,15 @@ import { exportBackup, importBackup } from "@/lib/services/backup";
    GET  → downloads the complete system state as one JSON file (incl. uploads).
    POST → REPLACES all data with an uploaded backup file. */
 
-export const GET = handleRoute(async () => {
+export const GET = handleRoute(async (req: Request) => {
   await requireBsAdmin();
-  const payload = await exportBackup();
+  /* ADR-084 — the per-lead log is IN by default, because asking for it in the
+     export is exactly what the founder asked for. `?log=0` leaves it out: it is
+     roughly half the file's bytes, and the one file that rebuilds the company
+     must stay producible however large its history grows. Nothing else changes —
+     `tables` is identical either way, so both files restore the same. */
+  const includeLeadLogs = new URL(req.url).searchParams.get("log") !== "0";
+  const payload = await exportBackup({ includeLeadLogs });
   const stamp = payload.exportedAt.slice(0, 10);
   return new Response(JSON.stringify(payload), {
     headers: {
