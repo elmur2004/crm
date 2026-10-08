@@ -479,3 +479,56 @@ the moment a failure is found; close them with a reference to the fixing commit/
   and the Daily report — the one screen whose content is the same either way —
   keeps its path.
 - Status: **fixed** (Run 096, ADR-081 §7).
+
+## BUG-021 — 2026-10-08 — the backup never carried ADR-071's calendar, and a restore DELETED it
+
+- Severity: **critical** (silent, unrecoverable data loss on the one operation
+  whose entire job is not losing data)
+- Where: `src/lib/services/backup.ts`, the `MODELS` array. `meetingAttendee` and
+  `calendarEvent` were present in `src/tests/db-reset.ts` — which the array's own
+  comment says to keep in sync with — and absent from the array itself. Shipped
+  with ADR-071 (2026-09-26) and survived a feature, a phase gate and a production
+  deploy.
+- Symptom, in two halves, the second worse than the first:
+  1. **The export omitted both tables.** `exportBackup` iterates `MODELS`, so a
+     backup file contained no personal calendar entries and no meeting "also
+     blocks" rosters at all.
+  2. **The restore DELETED them.** `importBackup` wipes `[...MODELS].reverse()`
+     and both of these cascade from parents that list DOES wipe —
+     `MeetingAttendee` from `Meeting` and `User`, `CalendarEvent` from `User`. So
+     a restore cleared every calendar entry and every roster in the live
+     database, and then had nothing in the file to put back.
+
+  Net effect: restoring a backup destroyed calendar data the backup had never
+  saved. Nothing warned, nothing failed, and the counts the import returns never
+  mentioned the two tables because they were not in the loop that builds them.
+- Why nothing caught it: nothing could. The array carried a comment — *"Keep in
+  sync with prisma/schema.prisma and src/tests/db-reset.ts"* — and a comment is
+  not a mechanism. The round-trip integration test asserts the tables its own
+  fixture populates, and its fixture had no calendar rows, so a missing table was
+  invisible to it by construction. This is the second time a table has fallen out
+  of this list: `undoEntry` was the first, found by hand during the ADR-053
+  hardening, and its own comment in the file calls it "the exact failure mode
+  INTEGRATION-PLAN §3 warns about".
+- Fixed in ADR-084: both entries added in FK-safe order (`calendarEvent` after
+  `user`, its only parent; `meetingAttendee` after `meeting` — deletes run
+  reversed, so each clears before the rows it points at). Neither needs a restore
+  twin: they are new tables with no legacy shape, and a pre-ADR-071 payload
+  simply has no such key, which the existing `?? []` missing-table rule handles.
+- Regression: `src/lib/services/backup-lead-log.integration.test.ts` →
+  *"exports and restores personal calendar entries and meeting rosters"* asserts
+  both tables are in the exported file, that the import counts them, and that
+  they come back attached to the same account and the same meeting with ADR-071's
+  default-private `shared` still false.
+- And the structural fix, so the CLASS of bug is closed rather than this instance
+  of it: `src/lib/services/backup-models.test.ts` reads `prisma/schema.prisma`
+  and the `MODELS` list and fails on any difference, names the missing models in
+  the failure message, checks for duplicates, diffs both ways against the reset
+  list, and includes a test proving the guard itself can fail. Verified by
+  re-injecting this exact bug: removing `"calendarEvent"` turns it red twice and
+  names the table in both messages.
+- **Unrecoverable residue, stated plainly:** any restore performed before
+  2026-10-08 destroyed the calendar entries and meeting rosters live at that
+  moment, and no backup from before today contains them. They cannot be
+  recovered by anything. What is in the database now is safe from here on.
+  Flagged to the founder in PROGRESS rather than left to be discovered.

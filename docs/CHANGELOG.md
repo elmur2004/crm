@@ -2184,3 +2184,144 @@ when you pulled it.
 Every download is **recorded** — who pulled which company's list, and when. This is
 the one button in the whole system that hands over every customer a company has, so
 there is a record of it.
+
+## 8 October 2026 — Every lead's full story, inside the backup file
+
+You asked that when you export the data as JSON, the exact log for each single
+lead comes out with it. It does now.
+
+### What's in the file
+
+Open the backup and alongside the usual data there's a new section: **one entry
+per lead, with everything that ever happened to it, in order from oldest to
+newest.** Not a summary — the actual log.
+
+For each lead you get its name, company, which company's CRM it belongs to,
+where it stands now, and whether it's archived. Then the story:
+
+- every move through the CRM, and every automatic move the system made for you
+- every "didn't answer" press — so you can count how many times you tried
+- every comment, with the text
+- every follow-up: when it's due, how you're reaching them, what it's about
+- every meeting: the slot, online or offline, and who else's calendar it blocks
+- every proposal, with the value
+- why it was lost, or why it was postponed
+- the win, the deal, the milestones, and every statement — including **the day
+  the money actually arrived**, not just the day the invoice was raised
+- every task you ticked off the To-Do, and who ticked it
+- the contract and the payment proofs
+
+### Dates and hours, on every single line
+
+Every line says when it happened twice over: once as a precise timestamp, and
+once written out in Cairo time on a twelve-hour clock — "8 Oct 2026, 2:30 PM".
+No line is undated.
+
+One deliberate exception, because it would otherwise be a lie: a follow-up you
+left as a **date** with no time still reads as just a date. The system never
+invents a 9 AM nobody chose.
+
+### Who did it — or an honest blank
+
+Each line names the person where the system knows. Where it genuinely doesn't
+record one — the follow-up, meeting and proposal forms have never stored an
+author — the line says nothing rather than guessing. You'll find who did it on
+the matching history line at the same moment. A log that invents names is worse
+than one that admits a gap.
+
+### Your backup still restores — that was the first rule
+
+The backup file is the one thing standing between the company and starting over.
+So the log was **added beside** the existing data, not folded into it. Nothing
+about the part that rebuilds your system changed by a single character.
+
+Which means all three of these work:
+- a file you download today restores fine
+- a file you downloaded **last month**, before this existed, still restores fine
+- and a file downloaded today would restore fine even on the old version
+
+### Something was quietly missing from your backups
+
+While building this, two things turned up that were **not in your backup at
+all**: your personal calendar entries, and the list of colleagues each meeting
+blocks. Both arrived with the calendar and never made it into the export.
+
+Worse: restoring a backup *deleted* them, because they're attached to accounts
+and meetings that a restore replaces. So a restore was silently taking out
+calendar data the backup had never saved.
+
+Both are in the backup now and come back correctly, private ones still private.
+The honest part: anything lost in a restore done before today is gone — nothing
+can bring it back. What's in the system now is safe from here on.
+
+And there's now an automatic check that fails the build if any table ever falls
+out of the backup again. This had happened once before. It can't happen quietly
+a third time.
+
+### One practical note
+
+The log is roughly half the size of the file — it roughly doubles it, because
+it's writing out in sentences what the data holds in rows. At your current size
+that's nothing to notice. If the system ever grows to tens of thousands of
+leads and the download gets unwieldy, you can add `?log=0` to the end of the
+export address to get the smaller file without the log. It restores exactly the
+same.
+
+## 8 October 2026 — The search box now covers both companies
+
+You asked: if you search for something and it isn't in B-Systems' CRM but it is
+in ByteForce's, the system should switch you over and show you the lead.
+
+It does.
+
+### What happens
+
+Search the board as usual. If this company has it, nothing changes — you get
+your results, same as always.
+
+If this company has **nothing** and the other one has it, you land on the other
+company's board with your search still applied and the lead on screen. The
+switcher at the top updates to match, so the screen never disagrees with itself.
+
+### It tells you it moved
+
+A line appears at the top of the board:
+
+> Nothing in B-Systems matched "Hopscotch Holdings", so you are now in ByteForce,
+> where it does.
+
+That sentence is deliberate. When the company switches, the columns and every
+card on screen change at once — without a line saying why, that reads as the app
+losing your place rather than answering you.
+
+Next to it is **Back to B-Systems**, which returns you with your search intact.
+One click, nothing lost.
+
+### Three things it will not do
+
+**It won't move you when your search worked.** If this company has matches, you
+stay. A search that is answering you should not be interrupted.
+
+**It won't bounce you back and forth.** It switches at most once. If neither
+company has the thing, you stay where you are and nothing is announced — there's
+nothing useful to say.
+
+**It won't show anyone a lead that isn't theirs.** This was the careful part. The
+check asks "would the other company's board show this lead *to this person*" —
+not just "does this name exist somewhere". So:
+
+- an agent is only ever moved for **his own** lead
+- a sales rep only for a lead in the internal bucket
+- someone who can only open one company is never moved at all, and is told
+  nothing about the other
+
+The lazy version of this feature would have told a rep that *somebody else's*
+lead matched his search. It doesn't name the lead, but it still answers a
+question he shouldn't be asking — so it was built the careful way instead.
+
+### Where it works
+
+The **CRM board**, which is the screen both companies have with a search box on
+it. The Leads page doesn't do this yet, because ByteForce's Leads page is a list
+of sales reps rather than a searchable table of leads — there's no equivalent
+screen to switch to. Say the word if you want that.

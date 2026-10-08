@@ -5,6 +5,14 @@ import { ApiError } from "@/lib/api-error";
 
 /* V2 role helpers for the B-Systems API surface. */
 
+/* ADR-085 — these three read NOTHING but `roles`, and the cross-company search
+   hop needs to ask them about an account it holds only the roles of. Widening
+   the parameter is backwards-compatible (every CurrentUser satisfies it) and it
+   keeps the role PRECEDENCE in one place: a probe that re-derived "which
+   B-Systems role does this account act as" would be a second answer to a
+   question whose first answer is three lines below. */
+type RoleHolder = Pick<CurrentUser, "roles">;
+
 /* ADR-067 — the TOTAL twin of `bsRoleOf`, for the merged shell.
 
    `bsRoleOf` THROWS for an account with no B-Systems role, and that is right
@@ -17,7 +25,7 @@ import { ApiError } from "@/lib/api-error";
    is a 500, and in the LAYOUT it would 500 the whole app for a ByteForce-only
    teammate instead of showing him his own CRM. Pages ask this one and redirect
    on null; API routes keep the throwing one. */
-export function bsRoleOrNull(user: CurrentUser): Role | null {
+export function bsRoleOrNull(user: RoleHolder): Role | null {
   try {
     return bsRoleOf(user);
   } catch {
@@ -25,7 +33,7 @@ export function bsRoleOrNull(user: CurrentUser): Role | null {
   }
 }
 
-export function bsRoleOf(user: CurrentUser): Role {
+export function bsRoleOf(user: RoleHolder): Role {
   if (user.roles.includes("bsystems_admin")) return "bsystems_admin";
   if (user.roles.includes("bsystems_sales")) return "bsystems_sales";
   if (user.roles.includes("bsystems_agent")) return "bsystems_agent";
@@ -47,7 +55,7 @@ export function bsRoleOf(user: CurrentUser): Role {
    The company has already been resolved and checked by the page guard, so this
    only ever translates; it can never grant. Null means the account holds no
    role for this company at all — the caller redirects. */
-export function crmEngineRole(company: CrmCompany, user: CurrentUser): Role | null {
+export function crmEngineRole(company: CrmCompany, user: RoleHolder): Role | null {
   if (company === "byteforce") return user.roles.includes("byteforce_staff") ? "byteforce_staff" : null;
   /* ADR-074 — Mindoo is not a case here and cannot be: `CrmCompany` is the
      MERGED SHELL's two companies now, and Mindoo has its own app whose pages

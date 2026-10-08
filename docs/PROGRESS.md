@@ -5281,3 +5281,171 @@ comment, and the ADR-013 mechanism note all fixed; .env.example confirmed tracke
   ADR-063's one accepted false negative. The standing hosting issue on
   `/api/health`'s `uploads` section (`persistentDirConfigured: false`, 9
   referenced attachments missing) — untouched by this batch and unrelated to it.
+
+## 2026-10-08 — ADR-084: the exact log for each single lead, inside the backup — and the two tables the backup had stopped carrying
+
+**Founder, verbatim:** *"when I export the data as json I want the exact log for
+each single lead to be extracted."* Asked which export and how deep: **the full
+system backup**, and **"activities entries comments dates hours meetings each
+single action and when it happend"**.
+
+### Done
+
+- **A new `leadLogs` section in the backup file.** One entry per lead — every
+  lead, including archived ones — carrying its complete story oldest-first:
+  every stage move and automatic transfer, every didn't-answer press, comments
+  with their text, follow-ups (due instant, method, what it is about, whether a
+  time was chosen), meetings (slot, mode, and the ADR-071 accounts whose
+  calendars they block), proposals, lost and postpone reasons, negotiation
+  notes, the won figures, the deal and its milestone plan, statements with the
+  day the money arrived, ticked To-Do tasks with who ticked them, and the
+  contract and payment proofs. Resolved through the chain where the schema has
+  no direct link: `won_deal` / `client` / `statement` history reaches the lead
+  via WonDeal.leadId, Client.leadId and Statement → Milestone → WonDeal.
+- **Every entry answers *when* twice** — the stored UTC instant, and the same
+  instant on the Cairo wall clock in the product's 12-hour convention (ADR-068,
+  through the shared formatter). A follow-up nobody timed still reads date-only
+  (ADR-063): the file never invents a clock.
+- **Every entry answers *who*, or says it does not know.** The field groups
+  carry no author column in this schema; the log leaves `by` null rather than
+  borrowing the admin who ran the export.
+- **The phrases are ADR-081's**, imported rather than rewritten, so the daily
+  report, the History panel and this file cannot drift into three descriptions
+  of one event.
+- **The restore is untouched.** `tables` is byte-for-byte the shape it was; the
+  log is a derived top-level section the restore path never reads. Asserted both
+  ways: a new export restores, an old export with the keys deleted restores, and
+  a file whose log has been replaced with nonsense restores correctly anyway.
+- **`BACKUP_VERSION` stays at 1** — deliberately. It gates whether a file can be
+  restored, and this change cannot stop one being restored; bumping it would
+  have refused a file that works. Pinned by a test.
+- **`?log=0`** omits the section (keys absent, never an empty array). The log is
+  55% of the file's bytes, and the file that rebuilds the company must stay
+  producible however large its history grows.
+- **BUG FOUND AND FIXED: ADR-071's calendar was never in the backup.**
+  `meetingAttendee` and `calendarEvent` were in `src/tests/db-reset.ts` and
+  absent from `MODELS`. The export omitted them, and a restore DELETED them by
+  cascading off `user` and `meeting` — so every restore performed before today
+  silently destroyed the calendar entries and meeting rosters that existed at
+  that moment. Both are now exported and restored, ADR-071's default-private
+  `shared` intact.
+- **And the mechanism, not just the fix:** `backup-models.test.ts` reads
+  `prisma/schema.prisma` and the `MODELS` list and fails on any difference, with
+  a duplicate check, a both-ways diff against the reset list, and a test proving
+  the guard can actually fail. A table has now fallen out of that list twice
+  (`undoEntry` was the first, found by hand). It cannot happen quietly again.
+
+### Verified
+
+`npx tsc --noEmit` clean · `npx vitest run` **64 files / 1099 tests passed**,
+exit 0 (+22 from this work) · `npm run build` clean, route list unchanged ·
+Playwright recorded in Run 101 · both new suites **mutation-checked** against
+deliberately broken code, including re-injecting the exact `calendarEvent` bug,
+which the guard reports by name.
+
+**Measured cost** (2,000 leads / 20,000 history rows / 24,000 entries): whole
+file 15.74 MB, log section 8.68 MB (55.1%), full export 898 ms, log build alone
+517 ms, ~379 bytes per entry. No extra database queries — built from the tables
+already in memory, bucketed by lead id in one pass.
+
+### Needs founder confirmation
+
+1. **The same per-lead log for PROSPECT cards (partner/agent)?** His word was
+   "lead", so prospects are out today. Contained change if he wants them.
+2. **`GET /api/b-systems/backup` is still unscoped** — now 44 tables *plus*
+   every lead's comment text and complete history, behind `requireBsAdmin()`
+   alone. Already contained password hashes; ADR-080 raised it and it is still
+   open. The log makes the prize bigger, which argues for answering it.
+3. **The calendar data already lost to a pre-today restore is unrecoverable.**
+   Nothing can bring it back. Flagged so he knows rather than discovers it.
+
+### Carried forward, still open
+
+ADR-083's three. ADR-082's six. ADR-081's six. ADR-080's three (the Mindoo data
+is unrecoverable from production; the unscoped backup endpoint — now also item 2
+above; historical Mindoo references remain in code COMMENTS where they explain a
+safety property). ADR-071's four, less item 1 for the daily report only.
+ADR-063's one accepted false negative. The standing hosting issue on
+`/api/health`'s `uploads` section (`persistentDirConfigured: false`, 9
+referenced attachments missing) — untouched by this work and unrelated to it.
+
+### In flight
+
+The founder asked mid-session for **search to span both companies**: *"I want the
+search to be valid across both crm so if I searched for something and it's not in
+bsystesm's crm but it's in byteforce's it will automatically switch to byteforce
+crm and it will show me the lead."* Not started at the time of this entry;
+reconnaissance done (`leadSearchWhere` is already brand-agnostic and has three
+consumers; `companiesFor` / `withCompany` give the permission-safe hop).
+
+## 2026-10-08 — ADR-085: one search box, both companies
+
+**Founder, verbatim:** *"I want the search to be valid across both crm so if I
+searched for something and it's not in bsystesm's crm but it's in byteforce's it
+will automatically switch to byteforce crm and it will show me the lead."*
+
+### Done
+
+- **The CRM board's search now spans both companies.** Search as usual; if this
+  company has nothing and the other one has it, the page redirects to the other
+  company's board with `q` (and `type`) intact and the lead on screen. The
+  company switch in the chrome follows the URL, so the screen never disagrees
+  with itself.
+- **It cannot widen access by one row** — the design decision that shaped
+  everything else. The probe runs **the target board's own predicate**, imported
+  rather than restated: `bsLeadsWhere` / `ownLeadsWhere` (extracted verbatim out
+  of `listBsLeads` / `listOwnLeads`) and `byteforceBoardWhere`, with the role
+  resolved by the same `crmEngineRole` the page guard uses. An agent is moved
+  only for his own card, a `bsystems_sales` only for the internal bucket, and
+  `bsystems_data_entry` or an account with no role for that company counts zero
+  — fail closed. The lazy version (a brand-only `count`) would have told a rep
+  that somebody else's lead matched his search.
+- **It only fires on an empty result** — a search that worked is never
+  interrupted.
+- **It hops at most once.** Two companies that both find nothing would redirect
+  to each other for ever. `switched` on the URL is the loop guard, and it does
+  double duty as the notice's source so the two can never disagree: pointed at
+  the OTHER company it means "a hop happened, say so"; pointed at the CURRENT
+  one it means "he pressed Back" — guard still held, nothing announced. Junk on
+  the wire reads as absent, exactly as `?company=` junk does (BUG-019).
+- **The screen says it moved**, naming both companies and the search, with a
+  one-click **Back** that keeps his search. A silent switch was the one way this
+  feature could go wrong in a way that matters.
+- **An ordinary board load costs nothing.** The three free checks run before any
+  query, so no search, or a locked account, means zero extra queries. Only a
+  search by a two-company account reaches the counts — two `count`s on the
+  predicate the board was about to run anyway.
+- **`q` and `type` cross; `owner`, `stage` and `sort` do not** — ADR-067's
+  CompanySwitch rule, inherited rather than reinvented.
+
+### Verified
+
+`npx tsc --noEmit` clean · `npm run build` clean (compiled in 2.9 min, route
+list unchanged — the hop adds no route) · 23 new unit + integration tests, all
+green · 4 new Playwright tests green alongside `company-switch.spec.ts` and
+`leads-filters.spec.ts` (14 passed) · full suites recorded in Run 102.
+
+**Mutation-checked.** Removing the loop guard fails 2 tests; removing the
+empty-result gate fails 1 with `expected { to: 'byteforce' } to be null`. Both
+are the bugs that would matter, and both are caught.
+
+### Needs founder confirmation
+
+1. **Should the hop also work from the LEADS page?** It does not today, because
+   ByteForce's Leads page is a directory of sales-rep cards with no search box —
+   there is no equivalent screen to switch to. Making it work there means giving
+   ByteForce a searchable leads table first, which is a bigger change than this
+   one.
+2. **Should it hop for a DIRECT lookup too** — a phone number pasted into a
+   lead's address, or the call sheet? Only the board's search box hops today;
+   his sentence was about searching.
+
+### Carried forward, still open
+
+ADR-084's three (prospect logs; the unscoped backup endpoint, now also carrying
+every lead's comment text and history; the calendar data already lost to a
+pre-today restore, which is unrecoverable). ADR-083's three. ADR-082's six.
+ADR-081's six. ADR-080's three. ADR-071's four, less item 1 for the daily report
+only. ADR-063's one accepted false negative. The standing hosting issue on
+`/api/health`'s `uploads` section (`persistentDirConfigured: false`, 9 referenced
+attachments missing) — untouched by this work and unrelated to it.

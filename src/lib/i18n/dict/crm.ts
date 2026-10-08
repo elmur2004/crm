@@ -143,6 +143,24 @@ export const leadsFilters = {
   view: { en: "View", ar: "العرض" },
   clear: { en: "Clear filters", ar: "مسح التصفية" },
   activeCount: { en: "active filters", ar: "تصفية نشطة" },
+
+  /* ADR-085 — the arrival notice after a cross-company search hop. Founder:
+     "if I searched for something and it's not in bsystesm's crm but it's in
+     byteforce's it will automatically switch to byteforce crm and it will show
+     me the lead."
+
+     The screen MUST say it moved. A silent switch is the one thing this feature
+     could get wrong that would matter: the company switch, the board's columns
+     and every card would change under him, and without a sentence he would read
+     that as the app losing his place. It names BOTH companies — the one that had
+     nothing and the one he is now in — because "we switched" without saying from
+     where is barely better than silence. */
+  switchedNotice: {
+    en: "Nothing in {from} matched “{q}”, so you are now in {to}, where it does.",
+    ar: "لا توجد نتائج في {from} لـ «{q}»، لذا تم الانتقال إلى {to} حيث توجد النتيجة.",
+  },
+  /* the way back, because an automatic move must be undoable in one click */
+  switchedBack: { en: "Back to {from}", ar: "الرجوع إلى {from}" },
 } satisfies Record<string, Msg>;
 
 

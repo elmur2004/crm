@@ -8062,3 +8062,341 @@ question nobody should have to answer.
      looking at" button is a small change if he wants both.
   3. **Should the export be available anywhere else** — the CRM board, Won Leads, a
      rep's own page? He named the Leads page, and that is where it is.
+
+## ADR-084 — 2026-10-08 — THE EXACT LOG FOR EACH SINGLE LEAD, ADDED TO THE BACKUP AND NEVER RESHAPING IT — and the two ADR-071 tables the backup had silently stopped carrying
+
+- Context: the founder, verbatim — *"when I export the data as json I want the
+  exact log for each single lead to be extracted"*. Asked WHICH export and HOW
+  DEEP, he answered: **the full system backup**, and **"activities entries
+  comments dates hours meetings each single action and when it happend"**.
+
+  He was told, when he chose it, that this was the risky one — *"that file is
+  what restores your system, so changing its shape can break importing it
+  back"*. He chose it anyway, so honouring that caveat is the first design
+  constraint rather than an afterthought.
+
+### 1. THE GOVERNING CONSTRAINT: IT IS ADDED, NOT RESHAPED
+
+`importBackup` wipes the database and re-inserts `payload.tables` verbatim with
+ids preserved. That file is the only thing standing between this company and
+starting again from nothing. So **not one byte inside `tables` moves**: no
+re-keying, no nesting a lead's children under the lead, no reordering. The log
+is a SECOND, DERIVED, top-level section (`leadLogs`) that the restore path never
+reads.
+
+The suite asserts the constraint in both directions, because a one-directional
+check is how this kind of thing breaks six months later:
+
+- a NEW export (log included) wipes and restores a system exactly;
+- an OLD export with the keys **deleted** — exactly what a file downloaded
+  yesterday looks like — still restores, unchanged;
+- a file whose `leadLogs` has been replaced with nonsense restores correctly
+  anyway, proving the restore really does not read it.
+
+### 2. `BACKUP_VERSION` STAYS AT 1, AND THE REASONING IS THE OPPOSITE OF THE INSTINCT
+
+The instinct on adding a field is to bump the version. That would have been a
+bug. `importBackup` rejects a payload whose `version` is **greater than** the
+build it is fed to, so that number answers exactly one question: *can this file
+still be restored here?* ADR-084 adds a key the restore path never reads and
+leaves `tables` untouched — so a file written today restores **perfectly** on a
+build that predates the log. Bumping it would invent an incompatibility that does
+not exist and refuse a restore that would have worked, which is the one failure
+mode a backup system must not have. Pinned by a test.
+
+The log carries its own `LEAD_LOG_VERSION`, for readers of the log. A real
+change to the shape of `tables` is what moves `BACKUP_VERSION`.
+
+### 3. WHAT "EACH SINGLE ACTION" WAS READ TO MEAN
+
+Every lead gets a header (name, company, brand, stage, owner bucket, archived,
+and the WhatsApp mark as *state*) and its entries **oldest first**, so the file
+reads as a story. The sources, with the resolution each one needed:
+
+- **Its history** — `ActivityLog` `entityType: "lead"`: every stage move,
+  automatic transfer, same-stage record, create, edit, assignment, archive,
+  didn't-answer press and its clear, WhatsApp open, undo, delete.
+- **Its deal's history**, resolved through the chain the schema gives:
+  `won_deal` via `WonDeal.leadId`, `client` via `Client.leadId`, `statement` via
+  Statement → Milestone → WonDeal → Lead. The daily report deliberately EXCLUDES
+  this post-win money admin because it is a report about a *person's day*; a
+  LEAD's own log is the opposite question, and a statement paid is unarguably
+  something that happened to this lead. Each entry names which record it is
+  `about`, so the two kinds are never confused.
+- **Its chat** (`LeadComment`) with the body text and the resolved @mentions.
+- **Its field groups**: follow-ups, meetings (with the ADR-071 accounts whose
+  calendars they block), proposals, lost reasons, postpone reasons, negotiation
+  notes, the won figures.
+- **Its milestones and statements**, each emitting a SECOND entry at the instant
+  it was completed or paid — because "when it happened" for a payment is the day
+  the money arrived, not the day the row was raised.
+- **Its ticked To-Do tasks** (`TodoDone`), resolved through the record the mark
+  is keyed to (ADR-062 keys marks to records, never to leads), with who ticked.
+- **Its attached files** — the contract and the payment proofs, reachable only
+  through the deal and its statements.
+
+The phrases come from `interactionPhrase` — **ADR-081's vocabulary, imported
+rather than rewritten**, so the daily report, the History panel and this file
+cannot drift into three descriptions of one event.
+
+**Deliberately outside it**, so the scope is a decision and not an oversight:
+`UndoEntry` (machinery, and the undo itself is already a logged row);
+`Notification` (a message to a person, derived from an action already logged — it
+would print every event twice); the WhatsApp mark **columns** (every press writes
+its own history row, so an entry built from the columns would duplicate the first
+of them — the mark is current state, and rides the header); `MeetingAttendee` as
+its own entry (folded into its meeting, the only place the roster means
+anything); and **prospect cards**, because his word was "lead".
+
+### 4. "DATES HOURS" — EVERY ENTRY ANSWERS *WHEN*, TWICE
+
+Each entry carries `at` (the stored UTC instant, ISO-8601, for anything reading
+the file as data) and `atCairo` (the same instant on the Cairo wall clock in the
+product's 12-hour convention, ADR-068) — via `formatCairo`, never a clock built
+in this module. Asserted on **every** entry of the fixture, not on a sample.
+
+And the one place where printing a clock would be a lie is honoured: a follow-up
+nobody gave a time to (ADR-063) reads **date-only** in its DUE reading, while its
+own LOGGED-AT stamp still carries the hour. Those are two different questions and
+the file answers both.
+
+### 5. "WHO" — OR AN HONEST SILENCE
+
+`by` is the stored actor label where the row has one, and `null` where it does
+not. The field groups (§6.2) carry no actor column in this schema at all; their
+author is in the paired history entry at the same instant. **Borrowing it, or
+defaulting to the admin who ran the export, would be fabricating attribution
+inside an audit artefact** — so the log says it does not know. Asserted per kind.
+
+### 6. THE BUG THIS WORK FOUND: ADR-071's CALENDAR WAS NOT IN THE BACKUP
+
+`meetingAttendee` and `calendarEvent` were in `src/tests/db-reset.ts` and **not
+in `MODELS`**. The export omitted them — and far worse, **a restore DELETED
+them**: both cascade from parents the restore wipes (`user`, `meeting`), so
+importing a backup took out calendar data the backup had never carried. Every
+personal calendar entry and every meeting's "also blocks" roster, gone, silently.
+This is the second time a table has fallen out of that list (`undoEntry` was the
+first, found by hand).
+
+Both are now in `MODELS` in FK-safe order, needing no restore twin (new tables,
+no legacy shape; a pre-ADR-071 payload simply has no such key, which the `?? []`
+rule already handles).
+
+And the mechanism, because a comment saying *"keep in sync with schema.prisma"*
+is not one: **`backup-models.test.ts` reads the schema and the list and fails on
+any difference** — plus a duplicate check, a both-ways diff against the reset
+list, and a test that proves the guard can actually fail. It is deliberately NOT
+an integration round-trip: one of those needs a database and would only catch a
+missing table whose rows the fixture happened to create, which is precisely how
+both of these got through.
+
+### 7. WHAT IT COSTS, MEASURED — AND THE ESCAPE HATCH THAT MEASUREMENT BOUGHT
+
+Built from the tables **already in memory**, so it costs **no extra database
+queries**. Every source is bucketed by lead id in one pass; the naive
+filter-per-lead shape is leads × rows, which at 10k leads and 200k history rows
+is two billion comparisons inside a web request.
+
+Measured at **2,000 leads / 20,000 history rows / 24,000 log entries**:
+
+| measurement | value |
+|---|---|
+| whole file | **15.74 MB** |
+| the log section | **8.68 MB — 55.1% of it** |
+| full export | **898 ms** |
+| the log alone | **517 ms** |
+| per entry | **~379 bytes** |
+
+So the log **roughly doubles the file**, because it restates as prose what
+`tables` holds as rows. Extrapolating linearly: ~10k leads is roughly 43 MB of
+log, ~80 MB of file, ~2.5 s. The real ceiling is not the log but the route, which
+`JSON.stringify`s the whole payload into one string and one `Response` — and that
+ceiling now arrives twice as early.
+
+That is why **`?log=0` omits the log**: this file is the one that rebuilds the
+company, and there must always be a way to produce it that the size of the log
+cannot defeat. The default is to include it, because including it is what he
+asked for. The keys are **absent** when omitted, never `leadLogs: []` — an empty
+array would state that no lead has a history, which is a different and false
+claim. `tables` is byte-identical either way, so both files restore the same
+system, and a test asserts it.
+
+Streaming the export (NDJSON per table) is the real remedy if his database ever
+grows past the tens of thousands of leads. It is not built today, with a measured
+threshold rather than a shrug.
+
+- Alternatives considered and rejected:
+  - **Nesting each lead's children under the lead inside `tables`** — rejected,
+    §1. It is the shape he literally described, and it would break the restore.
+  - **Bumping `BACKUP_VERSION`** — rejected, §2, and it would have been a bug.
+  - **A separate "lead log" endpoint or file** — rejected: he was asked which
+    export and said this one.
+  - **Writing a second phrase vocabulary for the file** — rejected, §3: ADR-081's
+    is imported, so one event cannot acquire three descriptions.
+  - **Carrying a "milestone created" entry** — rejected: `Milestone` has no
+    `createdAt` in this schema, so the entry would have to invent an instant. The
+    milestone PLAN rides the deal entry (whose instant is real) and a COMPLETION,
+    which has a real instant, is its own dated event.
+  - **Emitting the phrases in both languages** — rejected: the raw fields are
+    present for any other rendering, and a second string per entry on a section
+    that is already 55% of the file buys nothing a reader needs.
+  - **Defaulting `by` to the exporting admin where the row has no actor** —
+    rejected, §5, and it is the worst available answer.
+  - **Including `Notification` rows** — rejected, §3: every event twice.
+  - **Making the log opt-IN** — rejected: he asked for the export to contain it.
+
+- Resolves: one founder request (no SPEC §11 A-#), and one unreported production
+  bug (§6). No migration, no schema change, no permission change. The endpoint's
+  guard is **unchanged** (`requireBsAdmin()`), and the log widens what that one
+  guard hands over — which is noted below, not fixed here.
+- Status: Accepted. **Needs founder confirmation (three):**
+  1. **The same per-lead log for PROSPECT cards (partner/agent)?** His word was
+     "lead", so prospects are out. They have their own stages and groups, and
+     adding them is a contained change.
+  2. **`GET /api/b-systems/backup` is still unscoped** — now 44 tables *plus*
+     every lead's comment text and complete history, behind `requireBsAdmin()`
+     alone. It already contained password hashes; ADR-080 raised this and it
+     remains open. The log makes the prize bigger, which is a reason to answer it
+     rather than a new problem.
+  3. **Does he want the calendar data he has already lost?** Any restore
+     performed before today silently deleted the calendar entries and meeting
+     rosters that existed at that moment (§6). Nothing can bring those back; what
+     is in the database now is safe from here on.
+
+## ADR-085 — 2026-10-08 — ONE SEARCH BOX, BOTH COMPANIES: the board hops when the other company has it, and says so
+
+- Context: the founder, verbatim — *"I want the search to be valid across both
+  crm so if I searched for something and it's not in bsystesm's crm but it's in
+  byteforce's it will automatically switch to byteforce crm and it will show me
+  the lead."*
+
+  ADR-067 merged the two CRMs behind one shell with the company in the URL, and
+  the search box has been scoped to the company you are looking at ever since —
+  which is correct, and leaves one dead end: you know the lead exists, you
+  cannot remember which company it is in, and the box says nothing.
+
+### 1. IT CANNOT WIDEN ACCESS BY ONE ROW, AND THAT DECIDED THE DESIGN
+
+The obvious implementation is a `count` by brand: *does this search match
+anything in the other company?* It is also a disclosure. A partner or an agent
+would learn that **somebody else's lead** matches his search — the probe names
+nothing, but it answers a question he is not entitled to ask, and then
+redirects him to a board that would show him nothing when he got there.
+
+So the probe runs **the target board's own predicate**, imported and never
+restated: `bsLeadsWhere` / `ownLeadsWhere` (extracted verbatim out of
+`listBsLeads` / `listOwnLeads` for this purpose) and `byteforceBoardWhere`. The
+account's B-Systems role is resolved by `crmEngineRole` — the same function the
+page guard uses — so the three shapes the board really has are the three shapes
+the probe has:
+
+| role | what the probe can find |
+|---|---|
+| `bsystems_admin` | the whole company, as the board shows it |
+| `bsystems_sales` | the internal bucket only |
+| `bsystems_agent` / `_partner` | that account's own cards only |
+| `bsystems_data_entry`, or no role for that company | **nothing** — fail closed |
+
+A copy of a predicate is how a probe starts reporting rows the page it sends you
+to would not show you. There is no copy.
+
+And the hop is only ever offered between companies `companiesFor(roles)` already
+reports, so it inherits ADR-067's law: *nobody gains access they do not have
+today.* A ByteForce-only teammate holds one company, and no probe runs at all.
+
+### 2. IT ONLY FIRES ON AN EMPTY RESULT
+
+A search that found something is a search that worked. Moving the founder off a
+screen that is answering him would be the opposite of help.
+
+### 3. IT HOPS AT MOST ONCE — A LOOP GUARD, NOT A POLICY
+
+Two companies that both find nothing would redirect to each other for ever:
+B-Systems finds nothing → ByteForce → finds nothing → B-Systems. `switched` on
+the URL is the evidence a hop already happened, and its presence forbids another.
+
+**The parameter does two jobs on purpose**, so the guard and the notice can
+never disagree about whether a hop happened:
+
+- `switched` = the **other** company → a hop just occurred; show the notice.
+- `switched` = the **current** company → he pressed *Back*. The guard still
+  holds, and there is nothing to announce, so the notice renders nothing.
+  Without that second case the Back link lands on a board that finds nothing and
+  bounces him straight back, and he could never return to where he started.
+
+Junk on the wire (repeated, empty, or a dead company name) reads as **absent**,
+exactly as `?company=` junk does (BUG-019) — so junk cannot silently disable the
+feature, and the hop's own fresh marker is what guards the next load.
+
+### 4. IT SAYS SO, AND THE SENTENCE IS NOT OPTIONAL
+
+He asked for it to happen by itself, so it does — and then the screen states it:
+*"Nothing in B-Systems matched “X”, so you are now in ByteForce, where it does."*
+
+A silent switch is the one way this feature could go wrong in a way that
+matters. The company switch, the board's columns and every card change at once;
+with no sentence, that reads as the app losing his place rather than as it
+answering him. The notice names **both** companies — "we switched" without
+saying from where is barely better than silence — and carries a one-click
+**Back** that keeps his search.
+
+### 5. THE SEARCH SURVIVES, THE COMPANY-SHAPED FILTERS DO NOT
+
+`q` and `type` cross; `owner`, `stage` and `sort` are dropped. That is not a
+shortcut — it is ADR-067's CompanySwitch rule, quoted in the code: *"`owner`,
+`stage` and `sort` are B-Systems-shaped and mean nothing to the ByteForce
+bodies, so carrying them over would leave a board that looks filtered but is
+not — which reads as data loss, not as a nav bug."* The hop is a switch, so it
+obeys the switch's rule.
+
+### 6. WHAT IT COSTS ON AN ORDINARY LOAD: NOTHING
+
+The three free questions are asked before any query — did he search, has a hop
+already happened, does this account hold a second company — and three of them
+end the matter. A board load with no search, or by a locked account, runs
+**zero** extra queries. Only a search by a two-company account reaches the
+counts, and then it is two `count`s on the predicate the board was about to run
+anyway, never a `findMany`.
+
+### 7. WHERE IT LIVES: THE BOARD, AND ONLY THE BOARD
+
+The CRM board is the one screen both companies render with a search box. The
+**Leads** page is not: under ByteForce it is a directory of sales-rep cards with
+no search box at all, and under B-Systems a flat filterable table — so there is
+no "the other company's Leads page" to hop to. Flagged for the founder rather
+than guessed at.
+
+- Alternatives considered and rejected:
+  - **A brand-only `count` for the probe** — rejected, §1, and it is the version
+    that leaks.
+  - **Searching both companies at once and showing a merged board** — rejected:
+    the two pipelines have different stage sets (six columns against eight), and
+    a merged board is the thing ADR-067 deliberately did not build. His words
+    were "it will automatically switch".
+  - **Offering a banner — "3 matches in ByteForce, show them?" — instead of
+    moving** — rejected: he said "automatically switch". The banner exists, but
+    it explains a move that already happened and offers the way back.
+  - **A silent redirect** — rejected, §4.
+  - **Dropping `q` from the Back link** — rejected: undoing an automatic move
+    must not also throw away what he typed.
+  - **Reusing `?company=` as the loop guard** — rejected: the company is where
+    he IS, and the guard is about where he CAME FROM. One parameter for two
+    different facts is how the Back link became unbuildable in the first draft.
+  - **Carrying `owner` / `stage` / `sort` across** — rejected, §5.
+  - **Putting the hop inside the board bodies** — rejected: the answer is a
+    redirect, and a redirect thrown from inside a rendered body is a worse place
+    to read it from than the page guard that already resolved the company.
+
+- Resolves: one founder request (no SPEC §11 A-#). No migration, no schema
+  change, **no permission change** — `bsLeadsWhere` / `ownLeadsWhere` are
+  extractions, byte-for-byte, and `bsRoleOf` / `bsRoleOrNull` / `crmEngineRole`
+  only had their parameter type WIDENED from `CurrentUser` to
+  `Pick<CurrentUser, "roles">`, which every existing caller satisfies.
+- Status: Accepted. **Needs founder confirmation (two):**
+  1. **Should the hop also work from the LEADS page?** It does not, because
+     ByteForce's Leads page is a rep directory with no search box (§7). If he
+     wants it there, the ByteForce side needs a searchable leads table first —
+     which is a bigger change than this one.
+  2. **Should it hop for a DIRECT lookup too** — pasting a phone number into a
+     lead's URL, or the call sheet? Today only the board's search box hops. His
+     sentence was about searching, so that is what was built.

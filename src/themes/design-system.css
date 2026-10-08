@@ -851,6 +851,21 @@ label:has(input[required]) .dropzone-title::after {
   border-inline-start: 3px solid var(--color-danger); border-radius: 8px; padding: 12px 14px;
   font: 400 13px/1.5 var(--font-body); color: var(--color-danger-ink);
 }
+/* ADR-085 — the cross-company search hop announcing itself. Built in
+   .alert-error's image with the PRIMARY tokens rather than the danger ones:
+   nothing went wrong, the app answered him in the other company. Every token
+   here exists in branding/byteforce, branding/b-systems AND themes/neutral —
+   checked, because a token missing from one scope has broken this product in
+   production twice. `border-inline-start` so the accent edge mirrors in Arabic. */
+.alert-switched {
+  display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap;
+  background: var(--color-primary-tint); border: 1px solid var(--color-border);
+  border-inline-start: 3px solid var(--color-primary); border-radius: 8px;
+  padding: 12px 14px; margin-block-end: 14px;
+  font: 400 13px/1.5 var(--font-body); color: var(--color-ink);
+}
+.alert-switched a { color: var(--color-primary); font-weight: 500; white-space: nowrap; }
+
 .toast-wrap { position: fixed; inset-inline: 0; bottom: 26px; z-index: 70; display: flex; justify-content: center; pointer-events: none; }
 .toast {
   display: flex; align-items: center; gap: 11px; max-width: min(520px, 88vw);

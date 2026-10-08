@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import type { Prisma } from "../../../generated/prisma/client";
 import { BSYSTEMS_STAGES, type Brand } from "@/lib/pipeline-engine/constants";
 import { leadSearchWhere, leadTypeWhere } from "./lead-search";
 import { internalDashboard, type InternalDashboard } from "./metrics";
@@ -80,26 +81,39 @@ export function listAgentsDetailed() {
     view passes { archived: true } — that IS the archive.
     Founder: `search` narrows by name / company / number and `type` by lead
     type — both server-side, shared with the board (§2.3). */
+/* ADR-085 — THE PREDICATE, NAMED. Extracted verbatim out of `listBsLeads` so
+   the cross-company search hop can ask "would the OTHER company's board show
+   this?" by running the board's OWN question rather than a second copy of it.
+   A copy is how a probe starts reporting matches on rows the page it sends you
+   to would not show you — which on this screen is somebody else's lead. */
+export function bsLeadsWhere(
+  brand: Brand,
+  ownerType?: string,
+  opts?: { archived?: boolean; search?: string; type?: string },
+): Prisma.LeadWhereInput {
+  return {
+    brand,
+    archived: opts?.archived ?? false,
+    /* ADR-051 — "unassigned" is not an owner BUCKET, it is the absence of an
+       owner inside the internal one (A-6): no rep, no account. It is where a
+       data-entry user's leads land and wait for the admin to decide. */
+    ...(ownerType === "unassigned"
+      ? { ownerType: "internal", salesRepId: null, ownerUserId: null }
+      : ownerType && ownerType !== "any"
+        ? { ownerType }
+        : {}),
+    ...leadSearchWhere(opts?.search),
+    ...leadTypeWhere(opts?.type),
+  };
+}
+
 export function listBsLeads(
   brand: Brand,
   ownerType?: string,
   opts?: { archived?: boolean; search?: string; type?: string },
 ) {
   return db.lead.findMany({
-    where: {
-      brand,
-      archived: opts?.archived ?? false,
-      /* ADR-051 — "unassigned" is not an owner BUCKET, it is the absence of an
-         owner inside the internal one (A-6): no rep, no account. It is where a
-         data-entry user's leads land and wait for the admin to decide. */
-      ...(ownerType === "unassigned"
-        ? { ownerType: "internal", salesRepId: null, ownerUserId: null }
-        : ownerType && ownerType !== "any"
-          ? { ownerType }
-          : {}),
-      ...leadSearchWhere(opts?.search),
-      ...leadTypeWhere(opts?.type),
-    },
+    where: bsLeadsWhere(brand, ownerType, opts),
     include: {
       owner: { select: { name: true } },
       salesRep: { select: { name: true } },
@@ -118,19 +132,29 @@ export function listBsLeads(
 
 /** Owner's own board (agent/partner) — same search/type narrowing as the
     admin board, so agents filter their own cards exactly like the admin. */
+/** ADR-085 — the own-cards predicate, named for the same reason as
+    `bsLeadsWhere`: an agent's hop must only ever find an agent's own lead. */
+export function ownLeadsWhere(
+  brand: Brand,
+  userId: string,
+  opts?: { search?: string; type?: string },
+): Prisma.LeadWhereInput {
+  return {
+    brand,
+    ownerUserId: userId,
+    archived: false,
+    ...leadSearchWhere(opts?.search),
+    ...leadTypeWhere(opts?.type),
+  };
+}
+
 export function listOwnLeads(
   brand: Brand,
   userId: string,
   opts?: { search?: string; type?: string },
 ) {
   return db.lead.findMany({
-    where: {
-      brand,
-      ownerUserId: userId,
-      archived: false,
-      ...leadSearchWhere(opts?.search),
-      ...leadTypeWhere(opts?.type),
-    },
+    where: ownLeadsWhere(brand, userId, opts),
     include: {
       owner: { select: { name: true } },
       salesRep: { select: { name: true } },

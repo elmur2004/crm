@@ -4214,3 +4214,201 @@ one runtime, one dev-only.
 change, no stage change, and not one line of new CSS.** The buttons are the house
 `btn-ghost` and `u-muted`, which is why there was nothing for the brand audit to
 find in the UI: a feature that adds no colour cannot get a colour wrong.
+
+## ADR-084 — the per-lead log in the backup: six traps, one of them a critical bug that had shipped
+
+### 1. THE SHAPE HE ASKED FOR WOULD HAVE BROKEN THE RESTORE
+
+"The exact log for each single lead to be extracted", applied literally to the
+backup, means nesting each lead's children under the lead. `importBackup` does
+`deleteMany` + `createMany` per table over `payload.tables` with ids preserved —
+so that reshape breaks restoring every backup file that exists, including the one
+the founder would reach for the day he needed it.
+
+What was built instead: `tables` is byte-for-byte untouched, and the log is a
+second top-level key (`leadLogs`) that the restore path never reads. He gets the
+per-lead view he asked for; the file keeps the only job it cannot fail at.
+
+The trap inside the trap: a one-directional test. "A new export restores" proves
+nothing about the file downloaded last month. Four tests, not one — new export,
+old export with the keys `delete`d, a file whose log is hostile nonsense, and the
+`?log=0` file.
+
+### 2. BUMPING `BACKUP_VERSION` WOULD HAVE BEEN THE BUG, NOT THE DILIGENCE
+
+The reflex on adding a field to a versioned payload is to bump the version. Here
+it inverts: `importBackup` rejects `payload.version > BACKUP_VERSION`, so the
+number answers only *can this file be restored here*. A file written today
+restores perfectly on a build that predates the log — so bumping would make the
+system REFUSE a file it could read. The one failure mode a backup must not have,
+reached by doing the careful-looking thing. It stays at 1, the log carries its
+own `LEAD_LOG_VERSION`, and a test pins `backup.version > 1 === false`.
+
+### 3. THE NAIVE BUILD IS LEADS × ROWS
+
+Filtering each source per lead (`rows.filter(r => r.entityId === lead.id)`) is
+the obvious shape and it is quadratic: at 10k leads and 200k history rows, two
+billion comparisons inside a web request. Every source is bucketed into a
+`Map<leadId, Row[]>` in one pass first (`groupBy`). Measured at 2,000 leads the
+whole log builds in 517 ms.
+
+The related near-miss: a second database pass. `exportBackup` has already read
+all 44 tables into memory, so `buildLeadLogs` takes the arrays and touches no
+database at all — which is also what makes it a pure function a test can call on
+a fixture.
+
+### 4. `Milestone` HAS NO `createdAt`, SO A "MILESTONE CREATED" ENTRY MUST INVENT ONE
+
+Written first, found by reading the schema rather than by a failing test: the
+model carries `completedAt` and nothing else dated. The entry would have had to
+borrow the deal's instant — asserting a time the database does not record, inside
+an audit artefact, which is the one thing it must never do.
+
+Resolved by moving the information to where its instant is real: the milestone
+PLAN rides the `won_deal` entry (the deal was created with it), and a COMPLETION,
+which owns a genuine instant, is its own dated event. Same reasoning produced the
+second entry for a PAID statement: "when it happened" for a payment is the day
+the money arrived, not the day the invoice was raised.
+
+### 5. THE ACTOR THE SCHEMA DOES NOT HAVE
+
+`FollowUp`, `Meeting`, `Proposal`, `LostInfo`, `PostponeInfo`, `NegotiationNote`
+and `WonInfo` carry **no author column**. The tempting fixes — borrow the actor
+from the history row written in the same transaction, or default to the admin
+running the export — both put a name on a line that the database never recorded.
+In an audit file that is fabrication, and it reads as authoritative precisely
+because the rest of the file is accurate.
+
+`by: null`, asserted per kind, and the ADR says where the real answer lives (the
+paired history entry at the same instant). The WhatsApp mark was declined on a
+related ground: every press already writes its own history row (ADR-069), so an
+entry built from the mark COLUMNS would print the first press twice. The mark is
+current state, so it rides the lead header instead of the timeline.
+
+### 6. THE BUG THAT HAD ALREADY SHIPPED — AND WHY NOTHING COULD HAVE CAUGHT IT
+
+`meetingAttendee` and `calendarEvent` were in `db-reset.ts` and not in `MODELS`.
+Full write-up in BUG-021; the implementation lesson is why it was invisible:
+
+- the array carried a comment saying "keep in sync with
+  `prisma/schema.prisma` and `src/tests/db-reset.ts`" — and a comment is not a
+  mechanism;
+- the round-trip integration test only ever asserts the tables ITS OWN FIXTURE
+  populates, and that fixture had no calendar rows. A missing table was
+  unobservable to it **by construction** — which is exactly how `undoEntry`
+  escaped before it.
+
+So the guard is a FILE-READING SWEEP, not an integration test: read the schema,
+read the array, diff. That shape (ADR-066/067/068 already use it) fails the
+moment a model is born, before anybody writes a fixture for it. Two further
+details earned by this repo's own history of guards that could not fail:
+
+- the parser matches **quoted entries at line start only**, so a model name
+  mentioned in the array's long prose comments is not membership — the exact way
+  a previous sweep was satisfiable by a comment naming the thing it checked;
+- the suite includes a test that **proves the guard fails**, and the whole thing
+  was verified by re-injecting the real bug (removing `"calendarEvent"` → red
+  twice, naming the table in both messages).
+
+### And the measurement that changed the design
+
+The log is **55% of the file** at 2,000 leads — it roughly doubles it, because it
+restates as prose what `tables` holds as rows. That is not a reason to refuse
+what he asked for; it is a reason the file must stay producible when his history
+is ten times larger. Hence `?log=0`, four lines in the route, the default
+unchanged. The keys are **absent** when omitted rather than `leadLogs: []`,
+because an empty array is a false claim — it says no lead has a history.
+
+## ADR-085 — the cross-company search hop: five traps, and one of them made the Back button unbuildable
+
+### 1. THE PROBE THAT LEAKS, AND IT IS THE OBVIOUS ONE
+
+Written first, in the first draft, and it is what every shortcut here looks
+like:
+
+```ts
+const matches = await db.lead.count({ where: { brand: other, ...leadSearchWhere(q) } });
+```
+
+Correct for the founder, who holds everything. **A disclosure for everybody
+else.** An agent searching a number he half-remembers would be told that the
+other company has it, redirected, and shown an empty board — because the lead is
+somebody else's. The probe answered a question about rows he cannot see.
+
+The fix is not a filter bolted onto the probe; it is refusing to have a second
+predicate at all. `bsLeadsWhere` and `ownLeadsWhere` were **extracted verbatim**
+out of `listBsLeads` / `listOwnLeads`, and the probe imports them and
+`byteforceBoardWhere`. The role comes from `crmEngineRole` — the page guard's own
+function — so "which shape of board does this account get" has exactly one
+answer in the codebase. A copy would have been right on the day it was written
+and wrong the first time either board's scope changed.
+
+### 2. THE INFINITE BOUNCE
+
+B-Systems finds nothing → redirect to ByteForce → finds nothing → redirect to
+B-Systems. Forever, with the address bar flickering. Trivially reachable: search
+for anything neither company has.
+
+`switched` on the URL is the guard. The subtle part is §3.
+
+### 3. THE GUARD MADE THE BACK BUTTON IMPOSSIBLE — AND THE FIX WAS TO GIVE ONE PARAMETER TWO MEANINGS
+
+An automatic move must be undoable, so the notice carries "Back to B-Systems",
+carrying his search so undoing the move does not also throw away what he typed.
+
+But that link lands on the B-Systems board **with the search that found nothing
+there** — so the hop fires again and he is thrown straight back to ByteForce. He
+can never return. Three candidate fixes, two of them wrong:
+
+- **drop `q` from the Back link** — works, and silently discards his search;
+- **a second parameter, `noHop=1`** — works, and now two parameters both claim
+  to know whether a hop happened, which is one more than can be kept consistent;
+- **what shipped:** the Back link sets `switched` to the company it is *landing
+  on*. The guard only asks whether the parameter parses, so it still holds; and
+  the notice renders only when `switched !== current`, so the arrival sentence
+  does not reappear claiming a move that did not happen.
+
+One parameter, two readings, both written down at both call sites. The e2e test
+presses Back and asserts the absence of the bounce, because that is the only
+place it is visible.
+
+### 4. JUNK MUST NOT DISABLE THE FEATURE
+
+If `switched` were trusted as "truthy means a hop happened", then
+`?switched=anything` — a stale bookmark, a repeated parameter (BUG-019's exact
+shape), a hand-edited URL — would permanently turn the hop off for that address
+with no way for the founder to know why.
+
+It goes through `parseCompany`, the same predicate `?company=` uses, so junk
+reads as **absent**: the hop runs, and its own fresh marker guards the next load.
+Five junk shapes are asserted (`["a","b"]`, a dead company name, `""`, `null`,
+`undefined`).
+
+### 5. THE COST ON A SCREEN THAT ISN'T SEARCHING
+
+The naive placement runs the probe on every board load. The board is the most
+opened screen in the product, and two extra `count`s on every open — for a
+feature that only applies when a search found nothing — is a real regression
+paid by everybody to serve one case.
+
+So the ordering is the design: the three **free** questions first (did he search,
+has a hop happened, does this account hold a second company), and three of them
+end the matter before any query. A board load with no search costs exactly
+nothing. `searchHop` also owns both counts rather than taking a `resultCount`
+from the caller, so the current company's count is only ever paid once a hop is
+genuinely possible.
+
+### And two smaller decisions worth the line
+
+**The widened parameter.** `bsRoleOf` / `bsRoleOrNull` / `crmEngineRole` took a
+full `CurrentUser` and read nothing but `.roles`. The probe holds roles and an
+id. Re-deriving the B-Systems role precedence in the probe would have been a
+second answer to a question answered three lines below; widening the parameter to
+`Pick<CurrentUser, "roles">` is backwards-compatible (every caller satisfies it)
+and keeps the precedence in one place.
+
+**Where the hop runs.** In the page, before either board body renders — not
+inside the bodies. The answer is a redirect, and the page guard has already
+resolved the company and the roles, which is exactly what the decision needs. A
+`redirect()` thrown from inside a rendered body works, and is a worse place to
+read it from a year later.

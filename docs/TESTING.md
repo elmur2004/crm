@@ -6584,3 +6584,254 @@ The `uploads` section of `/api/health` is unchanged and still not green
 (`persistentDirConfigured: false`, 9 referenced attachments missing). It is a
 STANDING hosting issue, recorded in full in Run 097, untouched by this deploy and
 unrelated to it — repeated here only so it is not read as new.
+
+## Run 101 — 2026-10-08 — ADR-084: the per-lead log in the backup, and the two tables the backup had stopped carrying
+
+**Tree:** clean working tree on `main`, ADR-084's four files (`backup-log.ts`,
+`backup.ts`, the backup route, and two new test files).
+**Command set:** `npx tsc --noEmit`, `npx vitest run`, `npm run build`,
+`npx playwright test` (port 3100 verified free before the run — the other
+workstream was not holding it, so the real config was used and no copy was made).
+
+### Unit + integration
+
+```
+ Test Files  64 passed (64)
+      Tests  1099 passed (1099)
+```
+
+Exit code 0. Up from 1077 by the 22 ADR-084 adds: 5 in
+`src/lib/services/backup-models.test.ts` and 17 in
+`src/lib/services/backup-lead-log.integration.test.ts`.
+
+`npx tsc --noEmit` clean. `npm run build` clean, route list unchanged — ADR-084
+adds no route and no page; `GET /api/b-systems/backup` already existed and only
+grew a query parameter.
+
+### What the 17 integration tests actually assert
+
+The fixture drags ONE B-Systems lead through its whole life using the REAL
+services — created, chased (a follow-up with a chosen time), not answering twice,
+commented on, WhatsApp'd, met (with a colleague's calendar blocked), quoted, sent
+(which returns it to Following Up and so produces a second, deliberately
+DATE-ONLY follow-up), won with a milestone, the milestone completed, a statement
+raised and paid, a payment proof attached, a task ticked, postponed, and a
+negotiation note added. Then:
+
+- **completeness** — 14 entry kinds must all be present, named one by one, so a
+  source silently dropped from the builder fails the suite rather than quietly
+  shrinking the file;
+- **every entry carries the hour, twice** — `at` matched against a full ISO-8601
+  instant and `atCairo` against `/\d{1,2}:\d{2}\s(AM|PM)$/`, on EVERY entry of
+  the fixture rather than on a sample;
+- **oldest first** — the stamp list equals its own sort;
+- **the product's own words** — "Added the lead", "Flagged didn't answer",
+  "Commented", "Sent WhatsApp" read out of `interactionPhrase`, and the
+  didn't-answer press appears TWICE, which is the founder's "how many times we
+  tried" surviving into the file;
+- **ADR-063 honesty** — the follow-up nobody timed reads `"5 Sept 2026"` with no
+  AM/PM, while its own logged-at stamp still carries a clock;
+- **ADR-071** — the meeting entry names the colleague whose calendar it blocks;
+- **the chain** — a statement and a milestone completion resolve back to the
+  lead through Statement → Milestone → WonDeal → Lead, and the payment proof
+  through the statement;
+- **the actor, or honest silence** — the comment names its author and carries the
+  user id; every history row has a stored label; and `follow_up`, `meeting`,
+  `proposal`, `won_deal` and `postponed` are asserted to carry `by: null`,
+  because this schema records no author for a field group and borrowing one would
+  be fabricating attribution;
+- **the other won shape** — a ByteForce lead's `WonInfo` figures, which are a
+  different table from B-Systems' `WonDeal` and cannot coexist on one lead;
+- **isolation** — no entry of one lead reaches another's log;
+- **a deleted lead** — an `ActivityLog` row naming a lead that does not exist
+  (ActivityLog has no FK) neither throws nor attaches itself to somebody else;
+- **determinism** — `buildLeadLogs(backup.tables)` re-run over the same tables
+  stringifies byte-identically, so two exports can be diffed;
+- **an empty system** — `{}` and `{ lead: [] }` return `[]` rather than failing.
+
+### The restore, which matters more than the log
+
+Four tests, because a one-directional check is how this breaks later:
+
+1. a NEW export (log included) wipes and restores the system exactly — ids,
+   relations, owner, stage, both follow-ups, the meeting, the statement. The
+   didn't-answer tally is asserted against the value read from the database
+   BEFORE the wipe rather than a literal, which also pins that ADR-064's
+   backfill does not fire on a modern payload;
+2. an OLD export — the two keys `delete`d, exactly what a file downloaded
+   yesterday looks like — restores unchanged;
+3. a file whose `leadLogs` has been replaced with nonsense and whose
+   `leadLogVersion` is 999 restores **correctly anyway**, proving the restore
+   path really does not read the section;
+4. `?log=0` produces a file with both keys ABSENT (not empty), whose `tables`
+   are identical, and which restores the same system.
+
+Plus the version decision pinned: `BACKUP_VERSION` is still 1, and
+`backup.version > 1` is asserted false — the simulation of an older build
+validating the file and accepting it.
+
+### MUTATION-CHECKED, because this repo has shipped guards that could not fail
+
+Both new suites were run against deliberately broken code and had to go red:
+
+| mutation | result |
+|---|---|
+| log sort reversed to newest-first | FAIL — the ordering assertion caught it |
+| comment author dropped to `null` | FAIL — `expected null to be 'Elmur'` |
+| `"calendarEvent"` removed from `MODELS` | FAIL ×2, naming `calendarEvent` in both the schema diff and the reset-list diff |
+
+The third is the important one: it is the exact bug this work found, re-injected,
+and the guard reports it by name.
+
+### The bug found, and what it cost
+
+`meetingAttendee` and `calendarEvent` were in `src/tests/db-reset.ts` and absent
+from `MODELS`. A new test asserts they are now exported AND restored, attached to
+the same accounts and the same meeting, with ADR-071's default-private `shared`
+intact. Before this commit the export omitted them and a restore DELETED them by
+cascading off `user` and `meeting` — so any restore performed before today
+silently destroyed the calendar data that existed at that moment. That is
+unrecoverable; what is in the database now is safe from here on.
+
+### Size and time, measured rather than assumed
+
+A throwaway scale test (seeded 2,000 leads / 20,000 `ActivityLog` rows / 24,000
+log entries, then deleted — it is not part of the suite):
+
+| measurement | value |
+|---|---|
+| whole file | 15.74 MB |
+| the log section | 8.68 MB — **55.1%** of the file |
+| full `exportBackup` | 898 ms |
+| the log build alone | 517 ms |
+| per entry | ~379 bytes |
+
+The log roughly DOUBLES the file. No extra database queries — it is built from
+the tables already in memory, bucketed by lead id in one pass. Extrapolated,
+~10k leads is ~43 MB of log and ~80 MB of file; the ceiling is the route's single
+`JSON.stringify` into one `Response`, and that ceiling now arrives twice as
+early. Hence `?log=0`, and hence the streaming remedy recorded in ADR-084 §7 with
+a measured threshold instead of a shrug.
+
+### Playwright
+
+Recorded below with the deploy. The e2e suite exercises no backup screen — the
+endpoint is admin-only and its file is a download — so the browser round is a
+regression check on everything ADR-084 touched incidentally, which is nothing on
+any page.
+
+## Run 102 — 2026-10-08 — ADR-085: the cross-company search hop, and the bounce it must not do
+
+**Tree:** `main`, one commit past ADR-084. Files: `src/lib/crm/search-hop.ts`
+(new), its two test files (new), `e2e/search-cross-company.spec.ts` (new), plus
+the board page, both board bodies, `bsystems-admin.ts` (two predicates
+extracted), `api/bsystems.ts` (three parameter types widened), the CRM
+dictionary and one new style block.
+**Command set:** `npx tsc --noEmit`, `npx vitest run`, `npm run build`,
+`npx playwright test` (port 3100 verified free — the real config, no copy made).
+
+### Unit + integration — the new 23
+
+```
+ Test Files  1 passed (1)      src/lib/crm/search-hop.test.ts
+      Tests  11 passed (11)
+
+ Test Files  1 passed (1)      src/lib/crm/search-hop.integration.test.ts
+      Tests  12 passed (12)
+```
+
+Whole-suite figure recorded below. `npx tsc --noEmit` clean. `npm run build`
+clean — "✓ Compiled successfully in 2.9min", route list unchanged (the hop is a
+redirect from an existing page, not a new address).
+
+### What the 11 pure tests pin
+
+Whether to hop, and where to, with no database in the way: it hops in **both**
+directions; never on an empty or whitespace search; never when the current
+company found anything; never for an account holding one company (B-Systems
+only, ByteForce only, no roles at all, and `bsystems_data_entry`, which holds
+B-Systems and no pipeline screen); and **never twice** — including the case that
+makes *Back* work at all, `switched` naming the company being landed on.
+
+Junk on the wire is asserted to read as ABSENT, not as a marker: a repeated
+parameter (BUG-019's shape), a dead company name, `""`, `null`, `undefined`. The
+point is that junk must not silently disable the feature.
+
+The URL: `q` and `type` survive; `owner`, `stage` and `sort` are dropped
+(ADR-067's CompanySwitch rule); `company` and `switched` are each asserted to
+appear EXACTLY once via `getAll`, so the hop cannot emit the
+`?company=a&company=b` shape the app discards; a search containing `&` and `=`
+round-trips intact.
+
+### What the 12 integration tests pin — the wall
+
+This is the half that could leak, so each case is a row somebody must not be
+moved for:
+
+- the admin finds his own company's lead and the other's, and **neither
+  company's count reaches the other's rows**;
+- the probe matches company name, a spaced phone number and mixed case, exactly
+  as the search box does;
+- **a `bsystems_sales` rep gets 0 for an agent-owned lead** and 1 for an
+  internal one;
+- **one agent gets 0 for another agent's lead** and 1 for his own;
+- `bsystems_data_entry` and an account with no B-Systems role get **0**, not a
+  wider fallback — fail closed;
+- an archived lead counts 1 before archiving and **0 after**, as the boards do;
+- the whole decision, end to end: moved when only the other company has it
+  (URL carrying `company`, `q` and `switched`); not moved when this company has
+  it; not moved when nobody has it; **not moved when the other company's match
+  is somebody else's lead**, then moved once it is his; refused on a second hop;
+  and never moved for a locked account.
+
+### Playwright — 4 new, run with their neighbours
+
+```
+  14 passed (2.4m)
+```
+
+`e2e/search-cross-company.spec.ts` + `e2e/company-switch.spec.ts` +
+`e2e/leads-filters.spec.ts`, exit 0. The new file does what no unit test can:
+creates a ByteForce lead through the UI, searches for it from the **B-Systems**
+board, and follows the real redirect — asserting the URL's three parameters, the
+card visible on the ByteForce board, the notice naming both companies and the
+search, and `.company-switch-current` reading "ByteForce" so the chrome agrees
+with the URL.
+
+**Then it presses Back and asserts the bounce does not happen** — his search
+still in the box, the card absent, the switch reading "B-Systems", no notice.
+Without the loop guard's second case that click would ping-pong him straight
+back to ByteForce for ever, and it is the only test that could see it.
+
+Plus: a search that matches HERE never moves him; a search nobody matches leaves
+him put with nothing announced; and a ByteForce-locked teammate
+(`sara@byteforce.example`) is never moved and is told nothing about the other
+company.
+
+### MUTATION-CHECKED
+
+| mutation | result |
+|---|---|
+| the loop guard (`if (parseCompany(opts.switched)) return null`) removed | **2 tests fail** |
+| the empty-result gate (`countMatchesIn(current) > 0`) removed | **1 test fails** — `expected { to: 'byteforce', …(1) } to be null` |
+
+Both are the bugs that would actually matter — an infinite bounce, and being
+moved off a screen that was already answering him. Restored and re-verified
+`tsc` clean afterwards.
+
+### Whole-product gate
+
+```
+ Test Files  66 passed (66)
+      Tests  1122 passed (1122)
+```
+
+Exit code 0 — up from 1099 by ADR-085's 23. Playwright re-run after the final
+reorder (the hop moved to AFTER each branch's guards) across the hop spec, the
+company switch, `data-entry.spec.ts` and `security-rbac.spec.ts` — the two that
+would notice a feature pre-empting a guard:
+
+```
+  16 passed (2.9m)
+  test-results/.last-run.json → { "status": "passed", "failedTests": [] }
+```

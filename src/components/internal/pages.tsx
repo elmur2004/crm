@@ -53,6 +53,7 @@ import {
 import { callSheet } from "@/lib/i18n/dict/call";
 import { FilterPanel } from "@/components/shared/FilterPanel";
 import { leadSearchWhere, leadTypeWhere } from "@/lib/services/lead-search";
+import { SearchSwitchedNotice } from "@/components/shared/SearchSwitchedNotice";
 import { ArchiveButton } from "@/components/shared/ArchiveButton";
 import { LeadEventPanel } from "./LeadEventPanel";
 import { InternalBoard, type InternalBoardLead } from "./InternalBoard";
@@ -492,9 +493,15 @@ const BOARD_STAGES = [...INTERNAL_STAGES];
 export async function CrmBoardBody({
   ctx,
   params,
+  switchedFrom,
 }: {
   ctx: InternalAppCtx;
-  params?: { q?: string; type?: string };
+  params?: { q?: string; type?: string; switched?: string };
+  /* ADR-085 — where this board lives and which company it is, so the arrival
+     notice after a cross-company search hop can announce itself and offer the
+     way back. Optional: a caller that does not pass it simply shows no notice,
+     which is right for any screen that is not reachable by a hop. */
+  switchedFrom?: { path: string; company: CrmCompany };
 }) {
   const locale = await getLocale();
   const t = tFor(locale);
@@ -602,6 +609,15 @@ export async function CrmBoardBody({
 
   return (
     <div className="space-y-6">
+      {/* ADR-085 — ABOVE the head, because it explains the whole screen he is
+          looking at rather than one control on it */}
+      {switchedFrom ? (
+        <SearchSwitchedNotice
+          current={switchedFrom.company}
+          params={params ?? {}}
+          path={switchedFrom.path}
+        />
+      ) : null}
       <div className="page-head">
         <div>
           <p className="u-eyebrow">{BRAND_EYEBROW[ctx.brand]} · {t(board.eyebrowCrm)}</p>

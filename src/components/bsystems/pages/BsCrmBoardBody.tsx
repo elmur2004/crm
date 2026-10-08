@@ -18,6 +18,8 @@ import { common, crmPage as m, leadsFilters as lf, ownerFilters } from "@/lib/i1
 import { BsBoard, type BsBoardLead } from "@/components/bsystems/BsBoard";
 import { BsAddLeadForm } from "@/components/bsystems/leadActions";
 import { FilterPanel } from "@/components/shared/FilterPanel";
+import { SearchSwitchedNotice } from "@/components/shared/SearchSwitchedNotice";
+import type { CrmCompany } from "@/lib/crm/company";
 import type { BsFormRole } from "@/components/bsystems/roleForms";
 
 /* V2 §2.3 — THE board: colored columns, drag & drop with the stage's role-aware
@@ -104,6 +106,9 @@ export interface BsBoardParams {
   owner?: string;
   q?: string;
   type?: string;
+  /* ADR-085 — the cross-company search hop's marker. Read only by the arrival
+     notice and the loop guard; this board narrows by nothing on it. */
+  switched?: string;
 }
 
 export async function BsCrmBoardBody({
@@ -111,6 +116,7 @@ export async function BsCrmBoardBody({
   params,
   role,
   userId,
+  switchedFrom,
 }: {
   ctx: CrmSurface;
   params: BsBoardParams;
@@ -118,6 +124,9 @@ export async function BsCrmBoardBody({
      guard out of its own engine role, never re-derived here */
   role: BsFormRole;
   userId: string;
+  /* ADR-085 — this board's own address and company, so the arrival notice after
+     a cross-company search hop can announce itself and offer the way back. */
+  switchedFrom?: { path: string; company: CrmCompany };
 }) {
   const locale = await getLocale();
   const t = tFor(locale);
@@ -203,6 +212,15 @@ export async function BsCrmBoardBody({
 
   return (
     <div className="space-y-6">
+      {/* ADR-085 — ABOVE the head, because it explains the whole screen he is
+          looking at rather than one control on it */}
+      {switchedFrom ? (
+        <SearchSwitchedNotice
+          current={switchedFrom.company}
+          params={params}
+          path={switchedFrom.path}
+        />
+      ) : null}
       <div className="page-head">
         <div>
           <p className="u-eyebrow">{t(m.eyebrow)}</p>
