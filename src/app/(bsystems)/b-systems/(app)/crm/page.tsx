@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { narrowRoles, requireCompanyPage } from "@/lib/auth/page-guards";
 import { crmEngineRole } from "@/lib/api/bsystems";
-import { crmQuery, crmRolesFor, type CrmCompany } from "@/lib/crm/company";
+import { crmQuery, crmRolesFor, oneValue, type CrmCompany } from "@/lib/crm/company";
 import { searchHop, SWITCHED_PARAM } from "@/lib/crm/search-hop";
 import type { Role } from "@/lib/pipeline-engine/constants";
 import { BSYSTEMS_SURFACE } from "@/lib/crm/surface";
@@ -37,7 +37,7 @@ async function hopOrRender(
   params: BsBoardParams & { company?: string },
 ): Promise<void> {
   const hop = await searchHop({
-    search: (params.q ?? "").trim(),
+    search: (oneValue(params.q) ?? "").trim(),
     user,
     current: company,
     path: BS_CRM_PATH,

@@ -5449,3 +5449,52 @@ ADR-081's six. ADR-080's three. ADR-071's four, less item 1 for the daily report
 only. ADR-063's one accepted false negative. The standing hosting issue on
 `/api/health`'s `uploads` section (`persistentDirConfigured: false`, 9 referenced
 attachments missing) — untouched by this work and unrelated to it.
+
+## 2026-10-08 (later) — the deploy landed, and one crash found on the way
+
+### Deployed and verified
+
+ADR-084 (the per-lead log in the backup) and ADR-085 (the cross-company search
+hop) went out together. The proof is in Run 102: the deployed stylesheet is
+`2o0ynp067ofgr.css`, **the same content hash the local build produces**, and it
+carries the new `.alert-switched` rule — so production is serving the bytes this
+tree compiles to. `/api/health`: `ok: true`, `schemaCurrent: true`,
+`pendingMigrations: []`. Smoke clean, and the two URLs this batch earns both
+refuse an anonymous caller: the board with `?q=` on it redirects to `/login`
+before any query runs, and `/api/b-systems/backup?log=0` answers 401 exactly as
+the bare endpoint does — the new parameter opened no door.
+
+**A method note worth keeping:** the first deploy poll watched the
+alphabetically first eight JS chunk names and said "unchanged" for 28 polls. It
+was right — chunk names here barely move — and the conclusion drawn from it
+would have been wrong. Asserting that a KNOWN NEW STRING is present in the
+deployed asset is the check that cannot give that false negative. Recorded in
+Run 102 so the next deploy uses it.
+
+### BUG-022 — a repeated `?q=` 500'd the CRM board
+
+Found while adding ADR-085's third reader of that parameter, not by any symptom.
+Next hands a server page `string[]` for a repeated query parameter, both board
+bodies did `(params.q ?? "").trim()`, and an array is not nullish — so
+`?q=a&q=b` reached `.trim()` on an array and took the board down with a 500. The
+filter form cannot produce the shape (one field, `method="get"`), which is why
+it had lived.
+
+Fixed with `oneValue()` in `src/lib/crm/company.ts` — the general case of the
+array rule `parseCompany` already applies to `?company=`. A repetition reads as
+ABSENT rather than as `"a,b"`: guessing which of two values somebody meant is
+worse than ignoring both, and it is the answer every other reader of a query
+parameter in this app already gives. Both board bodies, the hop and the arrival
+notice read through it, and the two `params` interfaces now declare
+`string | string[]` so the compiler stops agreeing with the lie.
+
+Five regression cases, including one that asserts the UNGUARDED expression
+really does throw `TypeError` — a test that only proved the fixed version works
+would not have shown there was a bug.
+
+### Needs founder confirmation — unchanged from the two entries above
+
+ADR-085's two (the hop from the Leads page; a direct phone-number lookup) and
+ADR-084's three (prospect logs; the unscoped backup endpoint, now also carrying
+every lead's comment text and history; the calendar data already lost to a
+pre-today restore, which is unrecoverable).

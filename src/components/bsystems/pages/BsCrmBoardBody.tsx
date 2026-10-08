@@ -19,7 +19,7 @@ import { BsBoard, type BsBoardLead } from "@/components/bsystems/BsBoard";
 import { BsAddLeadForm } from "@/components/bsystems/leadActions";
 import { FilterPanel } from "@/components/shared/FilterPanel";
 import { SearchSwitchedNotice } from "@/components/shared/SearchSwitchedNotice";
-import type { CrmCompany } from "@/lib/crm/company";
+import { oneValue, type CrmCompany } from "@/lib/crm/company";
 import type { BsFormRole } from "@/components/bsystems/roleForms";
 
 /* V2 §2.3 — THE board: colored columns, drag & drop with the stage's role-aware
@@ -104,7 +104,10 @@ function keyDatum(locale: Locale, lead: LeadRow, brand: Brand): string {
 
 export interface BsBoardParams {
   owner?: string;
-  q?: string;
+  /* `string | string[]` because that is what Next really hands a server page for
+     a repeated parameter; `oneValue` turns it into a value or into nothing
+     (ADR-085 — it used to reach `.trim()` and 500) */
+  q?: string | string[];
   type?: string;
   /* ADR-085 — the cross-company search hop's marker. Read only by the arrival
      notice and the loop guard; this board narrows by nothing on it. */
@@ -131,7 +134,7 @@ export async function BsCrmBoardBody({
   const locale = await getLocale();
   const t = tFor(locale);
   const filter = FILTERS.some((f) => f.key === params.owner) ? params.owner! : "any";
-  const search = (params.q ?? "").trim();
+  const search = (oneValue(params.q) ?? "").trim();
   const type = (LEAD_TYPES as readonly string[]).includes(params.type ?? "")
     ? params.type!
     : "any";

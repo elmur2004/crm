@@ -7,6 +7,7 @@ import {
   crmQuery,
   defaultCompanyFor,
   companyInParams,
+  oneValue,
   parseCompany,
   resolveCompany,
   withCompany,
@@ -284,5 +285,41 @@ describe("a REPEATED ?company= reads the same on the server and in the chrome", 
     });
     /* and the chrome now agrees, instead of printing "Company · ByteForce" */
     expect(companyInParams(new URLSearchParams("company=byteforce&company=byteforce"))).toBeNull();
+  });
+});
+
+/* ADR-085 — the general case of the same array rule, for the free-text
+   parameters. Found while adding a third reader of `?q=`: the board bodies did
+   `(params.q ?? "").trim()`, and Next hands a REPEATED parameter as an array,
+   so `?q=a&q=b` reached `.trim()` on an array and 500'd the board. Reachable by
+   hand-editing a URL, never by the filter form, which is why it had lived. */
+describe("oneValue — a repetition is not a value (ADR-085)", () => {
+  it("passes a single value through untouched", () => {
+    expect(oneValue("nile")).toBe("nile");
+    expect(oneValue("")).toBe(""); // empty is a value; the callers decide
+    expect(oneValue("a&b=c d")).toBe("a&b=c d");
+  });
+
+  it("reads a REPEATED parameter as absent rather than guessing", () => {
+    expect(oneValue(["a", "b"])).toBeUndefined();
+    /* even a single-element array: it arrived as a repetition shape, and the
+       point is not to infer intent from one */
+    expect(oneValue(["a"])).toBeUndefined();
+    expect(oneValue([])).toBeUndefined();
+  });
+
+  it("reads nothing as nothing", () => {
+    expect(oneValue(undefined)).toBeUndefined();
+    expect(oneValue(null)).toBeUndefined();
+  });
+
+  /* THE CRASH IT EXISTS TO PREVENT, stated as the call the boards really make */
+  it("makes the boards' own expression safe on an array", () => {
+    expect(() => (oneValue(["a", "b"]) ?? "").trim()).not.toThrow();
+    expect((oneValue(["a", "b"]) ?? "").trim()).toBe("");
+    /* and the unguarded version really does throw — so this is a fix, not a
+       precaution against something that could not happen */
+    const raw = ["a", "b"] as unknown as string;
+    expect(() => (raw ?? "").trim()).toThrow(TypeError);
   });
 });

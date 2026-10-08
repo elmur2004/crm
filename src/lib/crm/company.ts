@@ -179,6 +179,25 @@ export function resolveCompany(
   return { kind: "ok", company: asked ?? fallback, companies };
 }
 
+/** ONE query-string value, or undefined — the general case of `parseCompany`'s
+    array rule, for the parameters that are free text rather than a closed set.
+
+    Next hands a server page `string[]` for a REPEATED parameter (`?q=a&q=b`),
+    while every page in this app types its own `params` as `{ q?: string }`. The
+    board bodies therefore did `(params.q ?? "").trim()`, which on an array is a
+    TypeError and a 500 — reachable by hand-editing a URL, never by the filter
+    form, which is why it had lived. ADR-085 found it while adding a third reader
+    of the same parameter.
+
+    A repetition reads as ABSENT, the answer `parseCompany` already gives and the
+    answer the cross-company hop gives its own marker: junk is not a value, and
+    guessing which of two the person meant is worse than ignoring both. */
+export function oneValue(
+  raw: string | readonly string[] | undefined | null,
+): string | undefined {
+  return typeof raw === "string" ? raw : undefined;
+}
+
 /** The query string that keeps the current company when navigating — the twin
     of `acctQuery`. Every nav href, every switch link and every filter form in
     the merged shell carries it, so the company survives navigation. */

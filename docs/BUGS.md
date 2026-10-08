@@ -532,3 +532,32 @@ the moment a failure is found; close them with a reference to the fixing commit/
   moment, and no backup from before today contains them. They cannot be
   recovered by anything. What is in the database now is safe from here on.
   Flagged to the founder in PROGRESS rather than left to be discovered.
+
+## BUG-022 — 2026-10-08 — a repeated `?q=` 500'd the CRM board
+
+- Severity: minor (a 500 on a URL shape only hand-editing produces; no data at
+  risk, no wall bypassed)
+- Where: both board bodies — `src/components/internal/pages.tsx` and
+  `src/components/bsystems/pages/BsCrmBoardBody.tsx` — each doing
+  `const search = (params.q ?? "").trim()`, with `params` typed `{ q?: string }`.
+- Symptom: Next hands a server page `string[]` for a REPEATED query parameter,
+  so `/b-systems/crm?q=a&q=b` gave `params.q === ["a", "b"]`, which is not
+  nullish, so `??` passed it straight to `.trim()` — a `TypeError` in a server
+  component, i.e. a 500 on the board. The page's own type said `string`, so the
+  compiler had no reason to object.
+- Why it had lived: the filter form is a `method="get"` submit with ONE `q`
+  field, so the product cannot produce the shape. It takes a hand-edited URL, a
+  stale link, or a client that appends rather than replaces.
+- Found by: ADR-085, while adding a THIRD reader of the same parameter — which
+  is the honest reason it surfaced now rather than any new symptom.
+- Fixed: `oneValue()` in `src/lib/crm/company.ts`, the general case of the array
+  rule `parseCompany` already applies to `?company=`. A repetition reads as
+  ABSENT rather than as `"a,b"` — guessing which of two values the person meant
+  is worse than ignoring both, and it is the answer every other reader of a
+  query parameter in this app already gives (BUG-019). Both board bodies, the
+  hop and the arrival notice read through it, and the two `params` interfaces now
+  declare `string | string[]`, so the compiler stops agreeing with the lie.
+- Regression: `src/lib/crm/company.test.ts` → "oneValue — a repetition is not a
+  value (ADR-085)", five cases, including one that asserts the UNGUARDED
+  expression really does throw `TypeError`. A regression test that only proved
+  the fixed version works would not have shown there was a bug.

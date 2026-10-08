@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import type { Brand } from "@/lib/pipeline-engine/constants";
 import type { CrmSurface } from "@/lib/crm/surface";
-import type { CrmCompany } from "@/lib/crm/company";
+import { oneValue, type CrmCompany } from "@/lib/crm/company";
 import { INTERNAL_STAGES, LEAD_TYPES } from "@/lib/pipeline-engine/constants";
 import { internalCrmConfig } from "@/lib/pipeline-engine/configs/internal-crm";
 import { orderMeetingColumn } from "@/lib/board-order";
@@ -496,7 +496,10 @@ export async function CrmBoardBody({
   switchedFrom,
 }: {
   ctx: InternalAppCtx;
-  params?: { q?: string; type?: string; switched?: string };
+  /* `string | string[]` because that is what Next really hands a server page
+     for a repeated parameter — `oneValue` is what turns it back into a value or
+     into nothing (ADR-085) */
+  params?: { q?: string | string[]; type?: string; switched?: string | string[] };
   /* ADR-085 — where this board lives and which company it is, so the arrival
      notice after a cross-company search hop can announce itself and offer the
      way back. Optional: a caller that does not pass it simply shows no notice,
@@ -505,7 +508,7 @@ export async function CrmBoardBody({
 }) {
   const locale = await getLocale();
   const t = tFor(locale);
-  const search = (params?.q ?? "").trim();
+  const search = (oneValue(params?.q) ?? "").trim();
   const type = (LEAD_TYPES as readonly string[]).includes(params?.type ?? "")
     ? params!.type!
     : "any";

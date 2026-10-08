@@ -3,7 +3,7 @@ import { getLocale } from "@/lib/i18n/server";
 import { tFor, formatMsg } from "@/lib/i18n/core";
 import { leadsFilters } from "@/lib/i18n/dict/crm";
 import { acctCompanies } from "@/lib/i18n/dict/accounting";
-import { parseCompany, type CrmCompany } from "@/lib/crm/company";
+import { oneValue, parseCompany, type CrmCompany } from "@/lib/crm/company";
 import { SWITCHED_PARAM } from "@/lib/crm/search-hop";
 
 /* ============================================================================
@@ -41,14 +41,21 @@ export async function SearchSwitchedNotice({
   path,
 }: {
   current: CrmCompany;
-  params: { q?: string; type?: string; [SWITCHED_PARAM]?: string | string[] };
+  /* every value `string | string[]`, because that is what Next really hands a
+     server page for a repeated parameter. Each is read through `oneValue` /
+     `parseCompany`, so a repetition reads as absent rather than as "a,b". */
+  params: {
+    q?: string | string[];
+    type?: string | string[];
+    [SWITCHED_PARAM]?: string | string[];
+  };
   /** the address to go back to — the page's own, so the notice never guesses */
   path: string;
 }) {
   const from = parseCompany(params[SWITCHED_PARAM]);
   /* no hop, junk on the wire, or he already came back — say nothing */
   if (!from || from === current) return null;
-  const q = (params.q ?? "").trim();
+  const q = (oneValue(params.q) ?? "").trim();
   if (q === "") return null; // a notice about a search needs the search
 
   const locale = await getLocale();
@@ -56,7 +63,8 @@ export async function SearchSwitchedNotice({
 
   const back = new URLSearchParams();
   back.set("q", q);
-  if (params.type) back.set("type", params.type);
+  const type = oneValue(params.type);
+  if (type) back.set("type", type);
   back.set("company", from);
   /* the guard, kept ON and pointed at the company he is landing on — see the
      two jobs above. This is what stops Back from re-hopping. */

@@ -6835,3 +6835,83 @@ would notice a feature pre-empting a guard:
   16 passed (2.9m)
   test-results/.last-run.json → { "status": "passed", "failedTests": [] }
 ```
+
+### The deploy, verified (ADR-084 + ADR-085, pushed together)
+
+Chunk and stylesheet names recorded off the live `/login` **before** the push,
+then polled. The check this time is stronger than a changed name, because this
+batch adds real CSS: the deployed stylesheet is asserted to **contain the new
+class**.
+
+```
+POLL 13: DEPLOYED — alert-switched present in /_next/static/chunks/2o0ynp067ofgr.css
+```
+
+`2o0ynp067ofgr.css` is **the same content hash the local `npm run build`
+produced**, so the bytes serving from production are the bytes this tree
+compiles to — a stronger statement than "a name moved". The two stylesheets live
+before the push (`1xjdc_-2o6573.css`, `2lisf1bxin9qh.css`) are gone, which is
+what a content-hashed stylesheet does when its content changes.
+
+Worth recording as a method note: the FIRST poll of this deploy watched only the
+alphabetically first eight JS chunk names and reported "unchanged" for 28 polls.
+Those names really were unchanged — chunk names here are mostly stable, as Run
+101's own entry observed ("the two CSS chunks did not") — so the window was the
+flaw, not the deploy. Asserting a KNOWN NEW STRING is in the deployed asset is
+the check that cannot give that false negative.
+
+`/api/health`, live, after the restart:
+
+```
+ok: true | schemaCurrent: true | pendingMigrations: []
+db: { reachable: true, error: null }
+```
+
+**The empty list IS the migration proof** — `unappliedMigrations()` reads the
+deployed container's own `prisma/migrations` and subtracts `_prisma_migrations`.
+Neither ADR adds a migration, so empty is also the assertion that none was
+needed.
+
+Unauthenticated smoke, cold client:
+
+| URL | Result |
+| --- | --- |
+| `/login` | 200, `<title>Sign in — ByteForce × B-Systems Sales Platform</title>` |
+| `/` | 307 → `/login` |
+| `/b-systems/crm?company=bsystems` | 307 → `/login` |
+| `/b-systems/crm?company=byteforce&q=test` | **307 → `/login`** |
+| `/api/b-systems/backup` | **401** `{"error":"Not signed in"}` |
+| `/api/b-systems/backup?log=0` | **401** `{"error":"Not signed in"}` |
+| `/portal` | 200 |
+
+The last three are the ones this batch earns. The board with `?q=` on it is the
+hop's own code path, and it refuses an anonymous client **before** any query
+runs — the hop cannot be a door. And ADR-084's new `?log=0` parameter is
+refused exactly as the bare endpoint is, so the escape hatch did not open one
+either.
+
+**What this does NOT prove, plainly:** nobody pressed Export or ran a search on
+production. Every CRM address redirects an unauthenticated client to `/login`,
+and signing in needs the founder's own password. What stands in its place: the
+deployed stylesheet is byte-identical to this tree's build, the schema is
+current, the new query parameter answers with the right refusal, nothing 500s,
+and the suites that exercise both features 45 ways ran green against this exact
+tree.
+
+The `uploads` section of `/api/health` is unchanged and still not green
+(`persistentDirConfigured: false`, 9 referenced attachments missing). STANDING
+hosting issue, untouched by this deploy and unrelated to it — repeated only so
+it is not read as new.
+
+### BUG-022's fix, same session
+
+```
+ Test Files  66 passed (66)
+      Tests  1126 passed (1126)
+```
+
+Exit code 0, zero FAIL lines — up from 1122 by the five `oneValue` cases (one
+file gained 5 and the suite 4, because the fifth replaced nothing). `npm run
+build` clean, "✓ Compiled successfully in 27.4s", and `alert-switched` verified
+present in the local build output before the push so the deploy check had a
+known string to look for.
