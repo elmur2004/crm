@@ -561,3 +561,43 @@ the moment a failure is found; close them with a reference to the fixing commit/
   value (ADR-085)", five cases, including one that asserts the UNGUARDED
   expression really does throw `TypeError`. A regression test that only proved
   the fixed version works would not have shown there was a bug.
+
+## BUG-023 — 2026-10-16 — the accounting Undo/Redo pair parked the keyboard on the half it had just silenced
+
+- Severity: minor (accessibility; no money consequence — nothing was mis-applied
+  and focus was never lost from the control)
+- Where: `src/components/accounting/AcctUndoRedoButtons.tsx`, the focus-restoration
+  effect. Found by `e2e/accounting-undo-redo.spec.ts` on its first run, which is
+  exactly why that spec was written before the push rather than after.
+- Symptom: press Undo with the keyboard and focus landed on the Undo button —
+  which the press had just turned into "Nothing to undo" — while the Redo it had
+  lit up **in the same place** sat one Tab away. Mirror case after Redo. Measured
+  with a real Enter press, identically across three runs:
+  `Expected "Redo: Added income: E2E UR Focus" / Received "Nothing to undo"`.
+- Root cause, and it is a timing bug rather than a logic one: the effect fires
+  TWICE on a successful press. Once when `setBusy(null)` lands, and again a
+  server round trip later when `router.refresh()` delivers the new offers. The
+  first version cleared `pressed.current` on that FIRST pass, while the pressed
+  half still carried its old live label — so it focused the pressed half and
+  disarmed. When the refresh arrived and that half went quiet, the effect
+  re-ran (`undoWhat`/`redoWhat` are in its deps for precisely this) and returned
+  at `if (!was) return`. The partner branch the code's own comment promised was
+  therefore **unreachable**.
+- Why it cost nothing worse: the hide-vs-disable decision. Because the quiet half
+  carries `aria-disabled` rather than the real `disabled` attribute, it keeps its
+  slot in the tab order and an accessible name that explains itself — so the
+  keyboard was left somewhere useless but never nowhere.
+- Fixed: the press is now remembered together with the offer that half was
+  showing at press time, and the ref is held until that offer actually CHANGES —
+  the only honest signal that the refresh has landed. On that pass focus goes to
+  the partner if the press is what silenced the pressed half. A refusal (where
+  the offer never changes) keeps focus on the pressed half, stays armed for
+  exactly one more render and then disarms **without touching focus again**, so a
+  later unrelated refresh cannot steal it from wherever the person has tabbed to.
+- Regression: `e2e/accounting-undo-redo.spec.ts` → "after a press, focus lands on
+  the half that is still live". It failed before the change and passes after;
+  the whole file plus `e2e/accounting.spec.ts` now reads `20 passed`,
+  `test-results/.last-run.json` → `{"status":"passed","failedTests":[]}`.
+- Worth keeping: the spec was deliberately ordered so this assertion ran LAST,
+  because the file is serial and a failure skips everything after it. That is why
+  the other eleven behaviours were still provable while this one was red.

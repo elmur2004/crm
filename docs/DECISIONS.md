@@ -8400,3 +8400,127 @@ than guessed at.
   2. **Should it hop for a DIRECT lookup too** — pasting a phone number into a
      lead's URL, or the call sheet? Today only the board's search box hops. His
      sentence was about searching, so that is what was built.
+
+## ADR-086 — 2026-10-16 — UNDO AND REDO FOR THE BOOKS: one step, your own, and a state hash where there is no `updatedAt`
+
+- Context: the founder, verbatim — *"add an undo and redo button for the accounting system"*. Asked how far back Undo should reach and whose actions it may reverse, he chose **one step, then Redo** and **only your own**, which are exactly ADR-045's two semantics for the CRM's existing undo.
+
+  So this is not a new undo system. It is ADR-045's snapshot-inverse machinery extended to the one module that never had it — and the module where getting it wrong costs money rather than a mis-sorted card.
+
+### 0. THIS REVERSES A LOGGED DECISION, AND THAT IS THE FIRST THING TO SAY
+
+ADR-045 is titled *"Undo: a snapshot-inverse behind an allowlist, one step, **never financial**"*, and
+its HONESTY guard (5) names as NOT undoable "a Won transition, a lead delete, a
+partner conversion, a milestone check/uncheck, a statement created or marked
+paid". The founder has now asked for undo on the books. So the principle changes
+and the record should not be coy about it.
+
+The distinction that makes it defensible, stated precisely:
+
+- **ADR-045's exclusion list is NOT widened by one row.** A Won transition, a
+  lead delete, a partner conversion, a milestone tick and a statement created or
+  paid remain non-undoable, exactly as before. Those are CRM-side records whose
+  side effects reach into commissions and a closer's pay, and reversing them is
+  still refused.
+- **What gains undo is the ACCOUNTING MODULE (ADR-052)** — a separate module
+  that ADR-045 never addressed, whose rows are a ledger rather than a pipeline
+  with side effects. Nothing in the accounting module mints a statement, moves a
+  deal or pays a closer; every figure in it is computed at read time from stored
+  columns (§4).
+
+So the honest reading is not "money is now undoable". It is: the *pipeline's*
+money stays untouchable, and the *ledger* — where a mistyped expense currently
+has to be hunted down and retyped — gets one step back. If the founder intended
+the stronger reading, this ADR is the place he should say so.
+
+And the sentence that proves the old rule was load-bearing: before this change
+every accounting delete confirmation read *"Money records cannot be undone."*
+That was ADR-045's principle rendered as copy, and §9 records replacing it.
+
+### 1. NO NEW TABLE, AND THE CONSTRAINT THAT FORCED IT WAS ALSO THE RIGHT ANSWER
+
+It reuses `UndoEntry`. Accounting entries are distinguished by a `kind` prefixed `acct_`; the company and the redo flag live inside the existing `payload` Json column. **No schema change, no migration.**
+
+The immediate reason was a working-tree constraint: `prisma/schema.prisma` carried an unrelated unpushed feature, and a schema edit could not be separated from it by file. But the design stands on its own merits — ADR-045 already built the fingerprint discipline, the claim-first race guard, the consumed-never-deleted rule and the retire-the-rest honesty rule. A second table would have been a second set of all four, drifting.
+
+What it costs, recorded honestly: the `kind` comment in `prisma/schema.prisma` still lists only the lead/prospect kinds and does not mention the `acct_*` family. That comment is now incomplete and should be extended the next time the schema is touched for another reason.
+
+### 2. THE TWO STACKS ARE ISOLATED, AND THAT WAS THE REAL INTEGRATION RISK
+
+`pendingUndoFor(userId)` and `performUndo(actor)` took the user's newest unconsumed entry **regardless of kind**, and `performUndo` then retired *all* of that user's pending entries. Without a change:
+
+- the CRM's lead/vault undo button would have offered an accounting entry it cannot apply, and
+- a lead undo would have silently retired a pending accounting undo, and vice versa.
+
+So `acct_`-prefixed kinds are excluded from both of the CRM's queries and from its retire sweep, and the accounting stack's own sweep is scoped to `acct_` kinds. **Lead and vault undo behave byte-identically to before** — asserted by the existing suites, and four separate mutation checks (M1-M4) prove the exclusions are load-bearing rather than decorative.
+
+### 3. REDO IS THE INVERSE OF THE UNDO, CAPTURED LIVE
+
+Applying an accounting undo writes a counter-entry inside the same transaction: the state the undo just *read and verified* becomes the counter-entry's snapshot, and the state it just *wrote* becomes its fingerprint. So Undo and Redo can be pressed against each other indefinitely without the data drifting — proven by a test that toggles three times and compares the whole database at each stop.
+
+### 4. THE INVERSE IS A LIST OF WHOLE ROWS, NOT A DIFF AND NOT A PER-KIND SCRIPT
+
+Each entry carries every row in its scope, named by the key that makes it unique, with the state it must be returned to — `null` meaning "must not exist". Applying it is therefore provably a restore rather than a replay.
+
+Prisma 7 honours an explicit `id`, `createdAt` **and** `updatedAt` on both create and update (probed before the design relied on it), so a restore is byte-exact including timestamps. That matters beyond tidiness: `loadBooks` orders by `createdAt`, so a restored row that invented a new timestamp would come back in the wrong place in every list.
+
+All 24 mutating accounting functions participate, and each takes **both** branches — retire the user's outstanding entries, then record exactly one inverse. Not one of them records nothing.
+
+The scopes that are wider than they look, each because of a cascade or a `SetNull`:
+- deleting a roster member takes its salary segments (cascade), its payroll marks (cascade) and nulls `AcctExpense.rosterId` — all three are snapshotted, the overrides row by row so a later edit to one is still detected;
+- deleting a loan takes every repayment (cascade), restored with their own ids;
+- an expense create/update/toggle/delete also moves the payroll mark at `(member, month)`, so the mark is in scope — an expense edit that moves a person-month carries **both** marks, the one it left and the one it arrived at;
+- `mediaReceived` writes three rows (ledger entry, fee income, held deposit) and `mediaSent` two, so their inverses delete all of them.
+
+Nothing in the module is denormalised: treasury, dashboards, P&L, departments and payroll are all computed at read time from stored columns. An exact row restore is therefore an exact figure restore.
+
+### 5. THE FINGERPRINT IS A STATE HASH, BECAUSE SIX ACCOUNTING TABLES HAVE NO `updatedAt`
+
+ADR-045 fingerprints on the entity's `updatedAt`. That is unavailable here for more than half the module: `AcctTarget`, `AcctPayrollPayment`, `AcctSettings`, `AcctRosterSegment` and `AcctLoanPayment` have **neither** timestamp, and `AcctMediaEntry` has `createdAt` without `updatedAt`.
+
+So the fingerprint is a SHA-256 over the canonical key-sorted JSON of the live state of every row in the entry's scope. Where `updatedAt` exists this is strictly stronger than ADR-045's check; where it does not it is the honest equivalent, and arguably better, because it compares *state* rather than a touch counter — it refuses exactly when the state the inverse assumed is gone.
+
+Its one blind spot, on record: a net-zero edit (A→B→A) between the action and the undo. The restore is still correct in that case; it is simply not *detected*.
+
+Mutation check M6 is the demonstration: reducing the fingerprint to ADR-045's `id`+`updatedAt` turns the four timestamp-less tables' tests RED while the `AcctIncome` test stays green.
+
+### 6. THE FINGERPRINT CANNOT SEE EVERYTHING, SO FOUR HOLES ARE CLOSED EXPLICITLY
+
+- **Naturally-keyed refs.** The payroll mark is `(member, month)`, the target `(company, period)`, settings `(company)`. Naming them by id would have made "somebody put a *different* row at this key since" invisible to the hash and left it to crash on a unique index; named by key it is an ordinary changed-since refusal.
+- **Cascades inward.** Before deleting any row, the engine refuses (409) if a child exists that the entry never recorded — otherwise undoing a loan creation after a repayment arrived would delete the repayment too.
+- **Database-level collisions.** A unique collision (P2002), a dangling FK (P2003) and a vanished row (P2025) all map to 409 rather than a 500.
+- **ADR-058's single-owner invariant.** A payroll override is refused if another row now covers that person-month — the forward path guarded this only on the way in. This one is reachable in real life precisely because the retire sweep is per **user**: another admin's write leaves your inverse pending.
+
+### 7. REFUSALS CARRY A MACHINE-READABLE REASON CODE
+
+The first integration had the client choosing its explanation by pattern-matching the server's English message. That is brittle by construction, and the naive version of it was actively wrong: a bare `/already/i` test for 409 also matched the double-payroll guard, whose message contains "already" — it would have told a bookkeeper "that step was already applied" when in truth nothing applied at all.
+
+So the two routes return a closed set of reason codes beside the human message, defined once and imported by both halves, with the text match kept only as a fallback for an unrecognised shape. A wrong explanation of a refusal on a money screen is worse than a generic one.
+
+### 8. THE BUTTONS SAY WHAT THEY WILL DO, AND A QUIET ONE DOES NOT LOOK AVAILABLE
+
+Both halves render together whenever either is live, so the one flip that matters — press Undo, Undo goes quiet and Redo lights up **in the same place** — is legible as a pair; hiding one would reflow the cluster mid-interaction. When neither has anything to offer, the control renders nothing at all: an undo/redo pair is not permanent furniture, and a Redo that is always lit teaches people to distrust it.
+
+The quiet half carries `aria-disabled` and **stays focusable**, because the real `disabled` attribute leaves the tab order and would make "Nothing to redo" unreachable by exactly the people who need to hear it. Its ink is a muted token rather than an opacity multiplier, which would have landed near 3:1.
+
+Each button's accessible name is the verb plus the stored description of the action, never a bare arrow. The label is a finished bilingual sentence stored on the entry (ADR-045's rule), composed from row values, so it describes the **action** and travels unchanged through a toggle: "Undo: Deleted expense: Office rent" then "Redo: Deleted expense: Office rent".
+
+### 9. THE SENTENCE THAT WOULD HAVE BECOME A LIE
+
+Before this change every accounting delete confirmation read *"Delete this record? Money records cannot be undone."* That is the one sentence a bookkeeper reads before destroying a money row, and shipping undo would have made it false. It is replaced with copy that is true.
+
+- Alternatives considered and rejected:
+  - **A new `AcctUndoEntry` table** — rejected, §1: a second copy of ADR-045's four invariants, free to drift.
+  - **A full undo stack (Ctrl+Z style)** — rejected: the founder was asked and chose one step. A held button that unwinds five money entries is a different and worse product.
+  - **Undo any admin's last action** — rejected: the founder was asked and chose his own only, which is also ADR-045's rule and means two admins on the books cannot reverse each other.
+  - **Fingerprinting on `updatedAt`** — rejected, §5, and it would have silently failed to guard six tables.
+  - **Naming the payroll mark and the target by id** — rejected, §6.
+  - **A per-kind inverse function** — rejected, §4: twenty-four hand-written scripts is twenty-four places for a money bug.
+  - **A shorter window for money** — considered and NOT taken: the fingerprint already refuses once the rows move, and one constant beats two. Recorded rather than changed silently.
+  - **Leaving the refusal mapping on English text** — rejected, §7.
+
+- Resolves: one founder request (no SPEC §11 A-#). **Partially reverses ADR-045** — see §0 for exactly which half, and note that ADR-045's own exclusion list is unchanged. **No migration, no schema change, no permission change** — both routes use the existing `requireAccounting()` module guard (ADR-066) plus `acctCompanyOf()` (ADR-074), and `module-access.integration.test.ts` walks the accounting route directory and would fail if either route skipped the guard.
+- Status: Accepted. **Needs founder confirmation (three):**
+  1. **A write in one company's books quiets the other company's buttons.** There is one pair of buttons and one chronological history, so after a B-Systems write the last thing he did *is* a B-Systems thing, and offering the older ByteForce inverse would offer something older than his last action — which ADR-045 forbids. The company filter remains the safety wall (an inverse can never be *applied* from the wrong company's view). Flagged in case he expected two independent stacks.
+  2. **A non-undoable CRM action also quiets the accounting buttons.** `invalidateUndo` was deliberately left unscoped, because its other caller replaces a whole company's books and a surviving inverse could restore an old row into new books with a fingerprint that still matched. Over-retiring makes a button go quiet; under-retiring is a money bug. Per-stack independence is a small change if he wants it.
+  3. **The 10-minute window is inherited from ADR-045.** Money arguably deserves a shorter one, not a longer one.

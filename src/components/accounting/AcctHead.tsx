@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { tFor, type Locale, type Msg } from "@/lib/i18n/core";
 import type { AcctView } from "@/lib/accounting/params";
 import { AcctControls } from "./controls";
+import { AcctUndoRedo } from "./AcctUndoRedo";
 
 /* ADR-052 / ADR-054 — the shared accounting page chrome: eyebrow/title/sub on
    the left, the company + month controls on the right. The section nav lives
@@ -46,6 +47,16 @@ export function AcctHead({
         {sub ? <p className="u-sub">{t(sub)}</p> : null}
       </div>
       <div className="page-actions">
+        {/* founder: "add an undo and redo button for the accounting system".
+            Mounted HERE because every accounting page renders this head and
+            because the control needs the resolved company, which only a page
+            (never the shell layout) can read off ?company=. It is an async
+            server component rendered by a sync one, which RSC allows, and it
+            returns null when there is nothing on either side — so a fresh page
+            looks exactly as it did before. First in the cluster: at the inline
+            start, nearest the title and furthest from the company/month
+            switchers it must not be mistaken for. */}
+        <AcctUndoRedo company={view.company} />
         {actions}
         <AcctControls
           company={view.company}

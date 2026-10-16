@@ -2325,3 +2325,48 @@ The **CRM board**, which is the screen both companies have with a search box on
 it. The Leads page doesn't do this yet, because ByteForce's Leads page is a list
 of sales reps rather than a searchable table of leads — there's no equivalent
 screen to switch to. Say the word if you want that.
+
+## 16 October 2026 — Undo and Redo in the accounting module
+
+You asked for undo and redo buttons on the books. They're in the head of every accounting page.
+
+### What they do
+
+Make a mistake — a mistyped expense, a salary approved for the wrong month, a record deleted that shouldn't have been — and **Undo** puts it back exactly as it was. **Redo** re-applies it if you change your mind. Every one of the 24 things you can do in accounting is covered: creating, editing, deleting, marking paid or collected, approving a salary, recording ad money in or out, loans and their repayments, treasury movements, opening balances and targets.
+
+### Two deliberate limits
+
+**One step back.** Undo reverses the last thing *you* did, not a whole history. You chose this when I asked, and it's the right call on a ledger — a held button that unwinds five money entries is a different and much worse thing than one that fixes a typo.
+
+**Only your own.** If Ali deletes an expense, your Undo button has nothing to offer. Two people on the books can never reverse each other's work without knowing it.
+
+### The buttons tell you what they'll do
+
+Not bare arrows. Each one names the action: *"Undo: Deleted expense: Office rent"*. You know what you're about to reverse before you press it.
+
+When there's nothing to undo and nothing to redo, the pair isn't there at all. When one side is live, both show — the quiet one visibly unavailable — so that when you press Undo and Redo lights up, it lights up **in the same spot** rather than making the buttons jump around.
+
+### It refuses when it isn't safe, and says why
+
+If the record changed after you did the thing — you edited it again, or another admin did — Undo **refuses and touches nothing**, and tells you the record changed. It won't quietly overwrite somebody's later work to honour an older intention.
+
+It also refuses in three other situations, each with its own explanation rather than a generic error:
+- something was added that reversing would delete (a repayment on a loan you're about to un-create)
+- reversing would pay somebody twice
+- the step was already applied, or is older than the undo window
+
+Each of those is a real sentence in English and Arabic, chosen from a code the server sends — not guessed from the wording of an error message.
+
+### One sentence that had to change
+
+Every delete used to warn you: *"Money records cannot be undone."* That stops being true today, and it's the one sentence you read before destroying a money row — so it now says you can undo it for a few minutes.
+
+### Worth knowing
+
+The CRM's own undo button — the pill at the bottom of the lead screens — is a **separate** thing with a separate history. It still doesn't undo won deals, statements or milestone ticks, and this change didn't touch that. The accounting pair is its own stack.
+
+Two side effects of "one step, your own" that are worth having in mind rather than discovering:
+- Doing something in one company's books quiets the buttons for the other company's. There's one pair of buttons and one history, so the last thing you did is the last thing you did.
+- Touching a lead mid-session also quiets the accounting buttons, for the same reason.
+
+Both are the buttons going *quiet*, never the buttons doing something wrong.

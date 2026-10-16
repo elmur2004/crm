@@ -1222,6 +1222,67 @@ label:has(input[required]) .dropzone-title::after {
   .undo-what { display: none; } /* the accessible name still carries it */
 }
 
+/* ---------- accounting undo / redo (founder: "add an undo and redo button for
+   the accounting system") -------------------------------------------------
+   NOT the pill above. That one is ADR-045's CRM undo — fixed to the viewport,
+   /api/undo, the leads/vault UndoEntry stack. This pair sits in the accounting
+   module's own page head (AcctHead's .page-actions), posts to
+   /api/accounting/{undo,redo}, and has no class, no position and no endpoint in
+   common with it, so the two can never be mistaken for one another.
+
+   ZERO NEW TOKENS, by design: the three-scope law (ADR-057 / the brand-tokens
+   test) means a token that lands in two scopes and not the third paints
+   nothing in the third, and that has broken this product in production twice.
+   Everything below spends tokens that byteforce, b-systems AND neutral all
+   already declare, and the buttons are the house primitives (.btn-ghost +
+   .btn--sm) with only the icon row, the description and the two states added.
+
+   Logical properties throughout, so Arabic needs no second rule. */
+.acct-ur { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; min-width: 0; }
+.acct-ur-btn {
+  display: inline-flex; align-items: center; gap: 7px;
+  min-width: 0; max-inline-size: 260px; min-block-size: 38px;
+  text-align: start; /* the description is a sentence, not a centred word */
+}
+.acct-ur-icon { width: 14px; height: 14px; flex: none; }
+/* The undo and redo glyphs are each other's mirror, so DIRECTION is the only
+   thing telling them apart — and in Arabic "back" is the other way. Mirroring
+   both keeps undo pointing backwards and redo forwards in both scripts. */
+[dir="rtl"] .acct-ur-icon { transform: scaleX(-1); }
+.acct-ur-verb { flex: none; }
+.acct-ur-what {
+  font-weight: 400; color: var(--color-muted); min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* NOTHING TO DO. The half keeps its place in the pair (so the flip after a
+   press stays legible) and stops looking available: recessed onto the page
+   ground, hairline edge, muted ink, no hover response, no pointer. It is NOT
+   dimmed with opacity — `--color-muted` carries ≥4.5:1 against both
+   `--color-surface` and `--color-surface-card` in all three brand scopes
+   (machine-checked in acct-undo-redo.test.ts), and an opacity multiplier would
+   throw that away. It also keeps the `disabled` attribute OFF so it stays
+   focusable and can say why it is quiet. */
+.acct-ur-btn[aria-disabled="true"] {
+  background: var(--color-surface); color: var(--color-muted);
+  border-color: var(--color-hairline); cursor: default;
+}
+.acct-ur-btn[aria-disabled="true"]:hover { border-color: var(--color-hairline); }
+.acct-ur-btn[aria-disabled="true"]:active { transform: none; }
+/* IN FLIGHT. The real `disabled`, so a second press cannot land; the verb
+   already reads "Undoing…", so the state is visible as well as announced. */
+.acct-ur-btn:disabled { color: var(--color-muted); cursor: progress; }
+.acct-ur-btn:disabled:hover { border-color: var(--color-border); }
+/* Phone (the accounting module is used on one): a 44px minimum touch target in
+   BOTH axes, and the description drops — the accessible name still carries it,
+   exactly as the CRM pill's does. */
+@media (max-width: 820px) {
+  .acct-ur-btn {
+    min-block-size: 44px; min-inline-size: 44px;
+    justify-content: center; max-inline-size: none;
+  }
+  .acct-ur-what { display: none; }
+}
+
 /* ---------- filter sidebar (founder: "make it as a sidebar", not a top strip)
    Start-side column beside the list from 900px up; below that the same card
    collapses behind the .filter-toggle disclosure (count chip = active filters)

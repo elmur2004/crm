@@ -6960,3 +6960,171 @@ works — it is proof the guard runs first, which was true before the fix too.
 What proves the fix is the five unit cases, one of which asserts the unguarded
 expression throws `TypeError`, run green against this exact tree. The deploy
 check above proves only that this tree is what production is running.
+
+## Run 103 — 2026-10-16 — ADR-086: undo and redo on the books, and the focus the first version mislaid
+
+**Tree:** `main`, HEAD `4667296`. The accounting undo/redo files only — the
+working tree also carries an unrelated unpushed feature whose four shared-file
+edits (`next.config.ts`, `prisma/schema.prisma`, `src/lib/services/backup.ts`,
+`src/tests/db-reset.ts`) were deliberately NOT touched by this work and are NOT
+in its commit. Verified by mtime as well as by diff: all four are dated days
+before the first edit of this feature.
+
+**Command set:** `npx tsc --noEmit`, `npx vitest run`, `npm run build`,
+`npx playwright test` on the accounting specs, plus the brand-token guard. Port
+3100 was verified free before the browser runs, so `playwright.config.ts` was
+used unmodified and no copy was made; nothing was killed (PID 24288 on 3177 and
+PID 7076 on 5433 were left alone throughout).
+
+### Typecheck and build
+
+`npx tsc --noEmit` → exit 0, no output.
+
+`npm run build` → exit 0, `✓ Compiled successfully in 36.9s`, and both new
+endpoints in the route table:
+
+```
+├ ƒ /api/accounting/redo
+├ ƒ /api/accounting/undo
+```
+
+### Unit + integration
+
+```
+ Test Files  82 passed (82)
+      Tests  1755 passed (1755)
+```
+
+Judged on the PRINTED SUMMARY, not the exit code: this repo's `npx vitest run`
+exits 0 even when tests fail, because the embedded-Postgres teardown in
+`src/tests/global-setup.ts` swallows the status. Recorded again here because it
+is the single most misleading thing about verifying anything in this repo.
+
+Of that total, this feature contributes 71 integration tests
+(`accounting-undo-undo.integration.test.ts`) and 86 component tests
+(`acct-undo-redo.test.ts`).
+
+### What the 71 integration tests actually pin
+
+- a round trip for EVERY one of the 24 recorded mutations: do it, undo it, and
+  assert the **whole database** is byte-equal to before — not a field somebody
+  chose — then redo it and assert it matches the post-action state;
+- undo of a delete restores the row with its ORIGINAL id, and `deleteLoan`
+  restores every cascaded repayment with its own id;
+- the fingerprint refusal: edit the row after the action and undo REFUSES
+  rather than clobbering the edit — **including for the six tables that have no
+  `updatedAt`**, which is the case ADR-045's mechanism could not have covered;
+- personal scope (another user cannot undo your action) and company scope (the
+  other company's view is neither offered it nor able to apply it);
+- one step: after an undo the older entries are retired and Undo offers nothing;
+- Undo/Redo toggled three times leaves the data right at every stop, no drift;
+- a racing double-click applies ONCE;
+- the window: an expired entry is refused and the stack retired;
+- **isolation from the CRM**, both directions: a pending accounting entry is not
+  offered by `pendingUndoFor`, not applied by `performUndo` and not retired when
+  a lead undo runs; and a pending lead undo is not disturbed by an accounting one.
+
+### MUTATION-CHECKED, and one check found a guard that could not fail
+
+Ten deliberate breakages, each reverted afterwards:
+
+| # | What was broken | Result |
+|---|---|---|
+| M1 | `pendingUndoFor` loses the `acct_` exclusion | RED (3 tests) |
+| M2 | `performUndo`'s `findFirst` loses it | RED (2) |
+| M3 | `performUndo`'s one-step sweep loses it | RED |
+| M4 | the accounting sweep no longer scoped to `acct_` | RED (2) |
+| M5 | the fingerprint comparison removed | RED (8) |
+| M6 | fingerprint reduced to ADR-045's `id`+`updatedAt` | RED on exactly the four timestamp-less tables, GREEN on `AcctIncome` |
+| M7 | the cascade guard made a no-op | RED |
+| M8 | the single-covering-row guard made a no-op | RED |
+| M9 | the `acct_` prefix guard disabled | RED |
+| M10 | the claim-first `count !== 1` race guard disabled | **GREEN — a guard that could not fail** |
+
+**M6 is the justification for the whole fingerprint design** rather than an
+assertion about it: reducing the check to `updatedAt` turns the timestamp-less
+tables red while `AcctIncome` stays green, which is the demonstration that
+ADR-045's mechanism cannot serve over half this module.
+
+**M10 is the finding.** The race test passed with the claim-first guard removed,
+because the state-hash fingerprint can never match after a successful inverse
+and so caught the second press on its own — the test was asserting the right
+outcome for the wrong reason. It was strengthened to assert WHY the loser lost
+(409 and "already undone/redone", never a changed-since), re-run with M10 still
+applied, and both race tests went RED. Claim-first is now genuine
+defence-in-depth here rather than the sole guard, which is a stronger position
+than ADR-045 had.
+
+### The reason codes, mutation-checked on both sides
+
+- Route omits the code → 6 producer-side assertions fail, and the **entire
+  86-test component file stays green including every row of the "text fallback
+  still reads correctly with no code" block**, which is how we know the fallback
+  is real and exercised rather than dead.
+- A code made to mean the wrong thing (double-payroll throws `already_applied`)
+  → RED on both sides.
+- The client made to map `double_payroll` onto the already-applied sentence →
+  RED on three tests, including "the CODE decides, even when the English message
+  reads like another refusal".
+
+### Browser — and it earned its place
+
+`npx playwright test e2e/accounting-undo-redo.spec.ts e2e/accounting.spec.ts`
+
+**First run: `1 failed … 19 passed`**, `.last-run.json` →
+`{"status":"failed",...}`. The failure was a REAL PRODUCT DEFECT, filed as
+BUG-023: after a keyboard press, focus landed on the half the press had just
+silenced ("Nothing to undo") while the Redo it had lit up in the same place sat
+one Tab away. Diagnosed to the exact cause — the effect fires twice and the ref
+was cleared on the first pass, a round trip before `router.refresh()` delivers
+the new offers, making the code's own promised partner branch unreachable.
+
+**After the fix: `20 passed (3.2m)`**, exit 0,
+`test-results/.last-run.json` → `{"status":"passed","failedTests":[]}`.
+
+Proven in a real browser, none of which any unit test could see: the pair is
+ABSENT until there is something to undo; `router.refresh()` removes the row with
+no reload (a `window.__urAlive` stamp survives the press, so nothing navigated);
+the pair flips server-side and keeps its line, height and column across the
+flip; three toggles leave the row, its own figure and the month's tile exactly
+right; a double-click produces ONE POST and no false error; a real changed-since
+refusal says the record changed and touches nothing; one admin's action is not
+offered to another; an accounting action never lights the CRM's own pill; the
+Arabic pair carries Arabic names and mirrors its arrows; and the reworded delete
+confirm is what a person now reads — asserted by READING the dialog text rather
+than blindly accepting it.
+
+Three test artefacts were hit and fixed, worth recording because the third is
+evidence: `locator.click()` HANGS on the quiet half, because Playwright reads
+`aria-disabled` as disabled and waits for "enabled" until timeout. That is
+third-party confirmation the attribute is doing its job.
+
+### Brand and spec
+
+`npx vitest run src/lib/brand-tokens.test.ts` → `15 passed`. Zero hardcoded hex,
+`rgb(`, `hsl(`, named colour or `font-family` in the feature's UI, the routes or
+the `.acct-ur*` CSS block. The block spends exactly four tokens
+(`--color-muted`, `--color-surface`, `--color-hairline`, `--color-border`) and
+each was verified declared INSIDE the `[data-brand]` block of all three scopes —
+byteforce, b-systems and neutral — which is the real ADR-057 failure mode rather
+than merely being present somewhere in the file. Zero new tokens introduced.
+
+SPEC conformance: **SPEC §§5-10 contain no accounting rules**, so no accounting
+behaviour in SPEC is contradicted; its five `undo` mentions are all CRM-side and
+all untouched (`undo.integration.test.ts` passes). The four real deviations are
+from **ADR-045**, not SPEC, and are recorded in ADR-086 §0 — chief among them
+that ADR-045 is titled "never financial" and this feature gives the ledger undo.
+ADR-045's own exclusion list is **not widened by one row**.
+
+### NOT RUN, honestly
+
+- `too_old`, `double_payroll` and `children_added` were not driven from a
+  browser (they are covered by the integration tests). `double_payroll` IS
+  browser-drivable and carries the most dangerous near-miss copy — the best
+  candidate for the next e2e case.
+- `no_actor` / `not_permitted` / `no_company` are unreachable from the real UI at
+  all, and the 404 branch is unreachable *today* regardless, since
+  `moduleCompaniesFor` grants `bsystems_admin` both companies after ADR-080.
+- The dropped-network branch, phone-width touch targets, and whether a screen
+  reader actually SPEAKS the live region (the role/aria attributes and contents
+  are asserted, which is as far as Playwright reaches).

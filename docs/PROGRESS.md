@@ -5498,3 +5498,136 @@ ADR-085's two (the hop from the Leads page; a direct phone-number lookup) and
 ADR-084's three (prospect logs; the unscoped backup endpoint, now also carrying
 every lead's comment text and history; the calendar data already lost to a
 pre-today restore, which is unrecoverable).
+
+## 2026-10-16 — ADR-086: undo and redo for the books
+
+**Founder, verbatim:** *"add an undo and redo button for the accounting system"*,
+and *"keep the landing pages local just push the undo and redo buttons"*.
+
+Asked two questions that materially changed the build, he chose **one step, then
+Redo** (not a full stack) and **only your own actions** — which are exactly
+ADR-045's two semantics, so this extends the existing undo rather than inventing
+a second one.
+
+### Done
+
+- **Undo and Redo in the head of every accounting page**, covering all 24
+  mutating accounting functions: create/edit/delete for income, expenses, roster
+  members, loans, treasury movements and targets; the collected/paid/active
+  toggles; payroll approval; ad money received and sent; loan repayments; and the
+  opening balance. Every one of the 24 **retires the user's outstanding entries
+  and then records exactly one inverse** — ADR-045's honesty rule — so the button
+  can never offer something older than the last thing that happened.
+- **No schema change and no migration.** It reuses `UndoEntry` with `acct_`-prefixed
+  kinds, carrying the company and the redo flag in the existing `payload` Json
+  column. Forced by a working-tree constraint (see below) and right on the merits:
+  ADR-045 already owns the fingerprint discipline, the claim-first race guard, the
+  consumed-never-deleted rule and the retire-the-rest rule.
+- **The two stacks are isolated.** `pendingUndoFor` and `performUndo` took the
+  user's newest entry regardless of kind and then retired *all* of them — so
+  without a change the CRM's lead/vault button would have offered an accounting
+  entry it cannot apply, and each stack would have silently retired the other.
+  `acct_` kinds are now excluded from the CRM's queries and its sweep. Lead and
+  vault undo are byte-identical to before, and four mutation checks prove the
+  exclusions are load-bearing.
+- **The inverse is a list of whole rows**, named by the key that makes each
+  unique, with the state it must return to (`null` = must not exist) — so
+  applying it is provably a restore, not a replay. Prisma 7 honours an explicit
+  `id`, `createdAt` and `updatedAt`, so restores are byte-exact including
+  timestamps, which matters because `loadBooks` orders by `createdAt`.
+- **The fingerprint is a SHA-256 state hash**, because **six** accounting tables
+  have no `updatedAt` (`AcctTarget`, `AcctPayrollPayment`, `AcctSettings`,
+  `AcctRosterSegment`, `AcctLoanPayment`, and `AcctMediaEntry` which has only
+  `createdAt`). Stronger than ADR-045's check where `updatedAt` exists, honest
+  where it does not. Its one blind spot — a net-zero A→B→A edit — is on record.
+- **Four holes the hash cannot see are closed explicitly**: naturally-keyed refs
+  (the payroll mark is `(member, month)`, not an id), a cascade check that refuses
+  to delete a child the entry never recorded, database-level collisions
+  (P2002/P2003/P2025 → 409), and ADR-058's single-owner payroll invariant.
+- **Refusals carry a machine-readable reason code** (9, closed, defined once and
+  imported by both halves), replacing a first version that chose its explanation
+  by pattern-matching the server's English message — where a bare `/already/i`
+  test also matched the double-payroll guard and would have told a bookkeeper
+  "already applied" when nothing had applied at all.
+- **The buttons name the action** rather than showing a bare arrow, render
+  nothing when neither side has an offer, and keep both halves in place when one
+  is live so the Undo→Redo flip happens in the same spot. The quiet half carries
+  `aria-disabled` and **stays focusable**, because the real `disabled` attribute
+  would drop it from the tab order and hide its explanation from the people who
+  need it.
+- **One sentence that would have become a lie**: every accounting delete
+  confirmation said *"Money records cannot be undone."* It now promises the undo.
+  Nothing asserted the old literal — verified three ways before editing.
+
+### Found and fixed on the way: BUG-023
+
+The browser spec written before the push caught a real defect on its first run.
+After a keyboard press, focus landed on the half the press had just silenced
+while the Redo it had lit up in the same place sat one Tab away — the focus
+effect fires twice and the first version disarmed on the first pass, a round trip
+before `router.refresh()` delivers the new offers, making its own promised
+partner branch unreachable. Fixed by holding the press until the offer actually
+changes. This is the entire argument for writing that spec before shipping rather
+than after.
+
+### Verified
+
+`npx tsc --noEmit` clean · `npx vitest run` **82 files / 1755 tests passed** ·
+`npm run build` exit 0 with both routes in the table · `npx playwright test` on
+both accounting specs **20 passed**, `.last-run.json` `{"status":"passed"}` ·
+brand tokens 15 passed with zero hardcoded values and all four tokens confirmed
+inside all three `[data-brand]` scopes. Ten mutation checks, one of which
+(**M10**) found a race guard that could not fail and led to a stronger test.
+Full detail in Run 103.
+
+### The push was path-scoped, deliberately
+
+The working tree carries an unrelated unpushed feature (the ByteForce landing
+pages, staying local at the founder's instruction) whose changes include **four
+tracked shared files**. Git commits whole files, so those four were excluded and
+the commit was assembled by explicit path. Each exclusion was verified rather
+than assumed:
+
+| Excluded file | What committing it would have done |
+|---|---|
+| `next.config.ts` | **Broken the production build outright** — it imports `./src/content/landing/offers`, and `src/content/` has zero tracked files |
+| `prisma/schema.prisma` | Landing models with no migrations → schema drift → `/api/health` goes `ok: false` |
+| `src/lib/services/backup.ts` | References `db.landingLead`, absent from the generated client → runtime crash on export |
+| `src/tests/db-reset.ts` | Same missing delegate → breaks the suite |
+
+Because a local build proves nothing about what production receives in that
+situation, the commit was additionally checked out into an isolated worktree —
+which contains only tracked files, exactly what production gets — and built
+there.
+
+### Needs founder confirmation (three)
+
+1. **A write in one company's books quiets the other company's buttons.** One
+   pair, one chronological history: after a B-Systems write the last thing he did
+   *is* a B-Systems thing, and offering the older ByteForce inverse would offer
+   something older than his last action, which ADR-045 forbids. The company
+   filter remains the safety wall — an inverse can never be *applied* from the
+   wrong company's view.
+2. **A non-undoable CRM action also quiets the accounting buttons.**
+   `invalidateUndo` was left unscoped on purpose, because its other caller
+   replaces a whole company's books and a surviving inverse could restore an old
+   row into new books with a fingerprint that still matched. Over-retiring makes
+   a button go quiet; under-retiring would be a money bug.
+3. **The 10-minute window is inherited from ADR-045.** Money arguably deserves a
+   shorter one, not a longer one.
+
+### Carried forward, still open
+
+The landing pages remain LOCAL and uncommitted, with their own open items (the
+`font-display: optional` trade, the price-approval gate default, two Arabic
+price-clause edits, and the licensing decision on the Lama Sans binaries).
+ADR-085's two. ADR-084's three. ADR-083's three. ADR-082's six. ADR-081's six.
+ADR-080's three. ADR-071's four. ADR-063's one accepted false negative. The
+standing hosting issue on `/api/health`'s `uploads` section
+(`persistentDirConfigured: false`, 9 referenced attachments missing) — untouched
+by this work and unrelated to it.
+
+**One bookkeeping note:** the landing work's local `next.config.ts` comment cites
+ADR-086, which this feature now owns. That file is not committed, so no
+contradiction has entered the repo — but it needs renumbering whenever the
+landing work is documented.

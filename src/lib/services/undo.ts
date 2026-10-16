@@ -25,6 +25,37 @@ import { partnersConfigFor } from "@/lib/pipeline-engine/configs/partners";
 
 export const UNDO_WINDOW_MS = 10 * 60 * 1000; // founder-facing: "the last few minutes"
 
+/* ----------------------------------------------------------------------------
+   ADR-086 — THE ACCOUNTING STACK SHARES THIS TABLE AND NOTHING ELSE.
+
+   The founder asked for Undo AND Redo buttons inside Accounting. They are a
+   SECOND, INDEPENDENT one-step stack (lib/services/accounting-undo.ts) and they
+   reuse this table, told apart by one thing: every accounting `kind` is
+   prefixed "acct_". No new model, no migration (the UndoEntry table already has
+   the snapshot-inverse machinery; the redo flag and the company live inside
+   `payload`).
+
+   That sharing is only safe because of the three exclusions below. WITHOUT
+   them the CRM's single pill would OFFER an accounting entry it has no inverse
+   for (performUndo's entityType dispatch would fall through to
+   partnerProspect), and — worse — a lead undo's "one step, not a stack" sweep
+   would silently retire a pending accounting inverse the founder was about to
+   press. So: the CRM's two queries and its retire-the-rest sweep all skip
+   acct_ kinds, and the accounting stack's own sweep skips everything else.
+
+   `invalidateUndo` is DELIBERATELY left unscoped — see the note on it. */
+export const ACCT_KIND_PREFIX = "acct_";
+
+/** The CRM stack is every entry whose kind is NOT the accounting module's.
+    One constant, used by all three CRM queries, so the exclusion cannot drift
+    apart between "what the pill offers" and "what the pill applies". */
+export const CRM_KINDS_ONLY = { not: { startsWith: ACCT_KIND_PREFIX } } as const;
+
+/** Is this an accounting-stack entry? The one predicate both stacks agree on. */
+export function isAcctUndoKind(kind: string): boolean {
+  return kind.startsWith(ACCT_KIND_PREFIX);
+}
+
 export type UndoKind =
   | "lead_event"
   | "lead_no_answer"
@@ -168,7 +199,16 @@ export async function recordUndo(input: RecordUndoInput): Promise<void> {
 }
 
 /** An action outside the allowlist just happened: retire this user's pending
-    entries so "Undo" never points at something older than their last action. */
+    entries so "Undo" never points at something older than their last action.
+
+    ADR-086 — this one is NOT scoped to the CRM's kinds, on purpose. It is the
+    "this is not undoable at all" hammer, and over-retiring is always safe: it
+    can only ever make a button go quiet. Two call sites depend on that reach —
+    `importAccounting` replaces a whole company's books (every pending
+    accounting inverse points at rows it just deleted), and every accounting
+    mutation calls it through `logAndSeal` BEFORE recording its own fresh
+    inverse, which is what makes the accounting stack one step deep and kills
+    any stale redo. Narrowing it would leave both holes open. */
 export async function invalidateUndo(
   tx: Prisma.TransactionClient,
   actor: Actor,
@@ -193,7 +233,14 @@ export interface PendingUndo {
     still inside the window. */
 export async function pendingUndoFor(userId: string): Promise<PendingUndo | null> {
   const entry = await db.undoEntry.findFirst({
-    where: { userId, consumedAt: null, createdAt: { gt: new Date(Date.now() - UNDO_WINDOW_MS) } },
+    /* ADR-086 — the accounting stack has its own pair of buttons and its own
+       inverses; this pill could not apply one if it were offered it. */
+    where: {
+      userId,
+      kind: CRM_KINDS_ONLY,
+      consumedAt: null,
+      createdAt: { gt: new Date(Date.now() - UNDO_WINDOW_MS) },
+    },
     orderBy: { createdAt: "desc" },
     select: { id: true, label: true, labelAr: true, createdAt: true },
   });
@@ -209,8 +256,9 @@ export async function performUndo(actor: Actor): Promise<{ label: string; labelA
   const userId = actor.id;
   if (!userId) throw new ApiError(403, "Nothing to undo");
 
+  /* ADR-086 — the CRM's stack only (acct_ kinds belong to performAcctUndo) */
   const entry = await db.undoEntry.findFirst({
-    where: { userId, consumedAt: null },
+    where: { userId, kind: CRM_KINDS_ONLY, consumedAt: null },
     orderBy: { createdAt: "desc" },
   });
   if (!entry) throw new ApiError(400, "Nothing to undo");
@@ -218,7 +266,7 @@ export async function performUndo(actor: Actor): Promise<{ label: string; labelA
     /* the newest is expired ⇒ everything older is too: retire the lot so the
        button stops offering actions that can no longer be applied */
     await db.undoEntry.updateMany({
-      where: { userId, consumedAt: null },
+      where: { userId, kind: CRM_KINDS_ONLY, consumedAt: null },
       data: { consumedAt: new Date() },
     });
     throw new ApiError(400, "That action is too old to undo");
@@ -234,11 +282,25 @@ export async function performUndo(actor: Actor): Promise<{ label: string; labelA
 
     /* Undo is ONE step back, not a history stack (ADR-045): applying it retires
        this user's other pending entries. Walking further back would offer
-       inverses whose fingerprints this very undo has just invalidated. */
+       inverses whose fingerprints this very undo has just invalidated.
+
+       ADR-086 — CRM kinds ONLY. A pending accounting inverse is not something
+       this undo can have invalidated (different tables entirely), and retiring
+       it would kill the founder's accounting Undo button for a reason no screen
+       could explain. */
     await tx.undoEntry.updateMany({
-      where: { userId, consumedAt: null },
+      where: { userId, kind: CRM_KINDS_ONLY, consumedAt: null },
       data: { consumedAt: new Date() },
     });
+
+    /* ADR-086 — the belt to the query's braces. If an accounting entry ever
+       reached here (a hand-written kind, a restored backup, a future refactor
+       that drops the filter) the chain below would fall through to
+       partnerProspect and look an accounting row id up in the wrong table.
+       Refuse loudly instead of guessing. */
+    if (isAcctUndoKind(entry.kind)) {
+      throw new ApiError(400, "This action cannot be undone");
+    }
 
     if (entry.entityType === "lead") {
       const lead = await tx.lead.findUnique({ where: { id: entry.entityId } });

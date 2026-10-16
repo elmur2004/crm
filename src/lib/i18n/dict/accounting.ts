@@ -442,11 +442,89 @@ export const acct = {
   cancel: { en: "Cancel", ar: "إلغاء" },
   edit: { en: "Edit", ar: "تعديل" },
   delete: { en: "Delete", ar: "حذف" },
-  deleteConfirm: { en: "Delete this record? Money records cannot be undone.", ar: "حذف هذا السجل؟ السجلات المالية لا يمكن التراجع عنها." },
+  /* ADR-086 — the ONE existing English literal this feature changes, and it had
+     to change: before the accounting undo existed this sentence was true, and
+     the moment it shipped it became false on every accounting delete — the one
+     sentence a bookkeeper reads before destroying a money row. All six places
+     that render it (forms.tsx: income, expense, roster member, loan, treasury
+     move, target) are exactly six of the recorded `acct_*_delete` kinds, so the
+     replacement is true at every call site. No number of minutes is stated: the
+     window is UNDO_WINDOW_MS (ten minutes) but it is also ONE STEP, so a later
+     accounting action retires the offer before the clock runs out — "a few
+     minutes" is the honest promise, and the engine's own founder-facing comment
+     uses the same words. Verified before editing that nothing asserts the old
+     literal outside this feature's own unit test (e2e/ has no reference). */
+  deleteConfirm: { en: "Delete this record? You can undo it for a few minutes.", ar: "حذف هذا السجل؟ يمكنك التراجع عنه خلال الدقائق القليلة التالية." },
   none: { en: "— None —", ar: "— لا يوجد —" },
   overheadOption: { en: "— Overhead —", ar: "— مصروفات عامة —" },
   amountRequired: { en: "Amount required.", ar: "المبلغ مطلوب." },
   somethingWentWrong: { en: "Something went wrong", ar: "حدث خطأ ما" },
+
+  /* ---- undo / redo (founder: "add an undo and redo button for the accounting
+     system"). ONE STEP and PERSONAL, by his own choice, which is why the
+     disabled wording says so out loud rather than leaving him to guess why a
+     colleague's entry is not on offer.
+
+     ADR-045's rule, carried into the module: THE BUTTON NAMES WHAT IT WILL DO.
+     The `{what}` is the sentence the server stored when the action happened
+     (label / labelAr), filled with formatMsg so neither language is ever a
+     half-translated hybrid. Every string below is new — not one existing EN
+     literal in this file was touched, because the e2e suite asserts them. */
+  undoBtn: { en: "Undo", ar: "تراجع" },
+  redoBtn: { en: "Redo", ar: "إعادة" },
+  /* the ACCESSIBLE name (and the tooltip): the verb plus the thing itself, so a
+     screen reader never announces a bare arrow */
+  undoNameWhat: { en: "Undo: {what}", ar: "تراجع عن: {what}" },
+  redoNameWhat: { en: "Redo: {what}", ar: "إعادة تنفيذ: {what}" },
+  /* the nothing-to-do name — the whole accessible name of the quiet half of the
+     pair, so the reason it cannot be pressed is the first thing announced */
+  undoNothing: { en: "Nothing to undo", ar: "لا يوجد ما يمكن التراجع عنه" },
+  redoNothing: { en: "Nothing to redo", ar: "لا يوجد ما يمكن إعادته" },
+  undoWorking: { en: "Undoing…", ar: "جارٍ التراجع…" },
+  redoWorking: { en: "Redoing…", ar: "جارٍ الإعادة…" },
+  undoDone: { en: "Undone: {what}", ar: "تم التراجع عن: {what}" },
+  redoDone: { en: "Redone: {what}", ar: "تمت إعادة: {what}" },
+  undoRedoGroup: { en: "Undo and redo", ar: "التراجع والإعادة" },
+  undoRedoScope: {
+    en: "One step back, and only your own accounting entries.",
+    ar: "خطوة واحدة للخلف، ولقيودك المحاسبية وحدها.",
+  },
+  /* one honest line per documented refusal — never the generic message, and
+     never the server's English `error` string, which this module's reader may
+     not be reading the app in */
+  undoRefuseNothing: {
+    en: "That step is no longer available. The page has been refreshed.",
+    ar: "هذه الخطوة لم تعد متاحة. تم تحديث الصفحة.",
+  },
+  undoRefuseChanged: {
+    en: "This record changed since then, so the step was refused. Nothing was touched.",
+    ar: "تغيّر هذا السجل بعد ذلك، فتم رفض الخطوة. لم يُمسّ أي شيء.",
+  },
+  undoRefuseApplied: {
+    en: "That step was already applied. The page has been refreshed.",
+    ar: "تم تنفيذ هذه الخطوة بالفعل. تم تحديث الصفحة.",
+  },
+  undoRefuseDenied: {
+    en: "You are not permitted to do that on these books.",
+    ar: "غير مسموح لك بتنفيذ ذلك على هذه الدفاتر.",
+  },
+  /* three more causes the engine actually refuses on, each with its own honest
+     line — see the ACCT_UNDO_REFUSALS table in AcctUndoRedoButtons.tsx. They
+     matter because the nearest generic would have LIED: "already applied" for a
+     double-payroll guard tells the bookkeeper his click landed twice when in
+     truth it never landed at all. */
+  undoRefuseTooOld: {
+    en: "That action is too old to reverse now — the undo window has passed. The page has been refreshed.",
+    ar: "هذا الإجراء أقدم من أن يُعكس الآن — انتهت مهلة التراجع. تم تحديث الصفحة.",
+  },
+  undoRefuseChildren: {
+    en: "Records were added to this since, and reversing it would delete them, so it was refused. Nothing was touched.",
+    ar: "أُضيفت سجلات إلى هذا بعد ذلك، وعكسه كان سيحذفها، فتم الرفض. لم يُمسّ أي شيء.",
+  },
+  undoRefuseDoublePay: {
+    en: "That person already has another payroll row for this month — reversing this would pay them twice, so it was refused.",
+    ar: "لدى هذا الشخص صف رواتب آخر لهذا الشهر — عكس هذا كان سيدفع له مرتين، فتم الرفض.",
+  },
 } satisfies Record<string, Msg>;
 
 export const acctCompanies: Record<string, Msg> = {

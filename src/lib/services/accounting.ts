@@ -5,6 +5,18 @@ import { MAX_PIASTERS } from "@/lib/money";
 import { writeLog, type Actor } from "./activity";
 import { invalidateUndo } from "./undo";
 import {
+  acctLabel,
+  recordAcctUndo,
+  snapAbsent,
+  snapMaybe,
+  snapRow,
+  snapSet,
+  type AcctRowRef,
+  type AcctScopeItem,
+  type AcctUndoKind,
+  type AcctUndoRecord,
+} from "./accounting-undo";
+import {
   ACCT_COMPANIES,
   ACCT_DEPTS,
   ACCT_EXPENSE_TYPES,
@@ -20,9 +32,18 @@ import { cairoMonth, cairoToday } from "@/lib/accounting/now";
 /* ============================================================================
    Accounting mutations (ADR-052 Phase 2). Admin-only at the route layer; every
    write goes through here so each one carries an ActivityLog entry INSIDE its
-   own transaction and consumes the actor's pending undo entries — money is
-   NEVER undoable (ADR-045), so the undo button must stop offering anything
-   older the moment a financial action happens.
+   own transaction.
+
+   ADR-086 — AND ITS OWN INVERSE. The founder asked for Undo and Redo buttons
+   inside Accounting, so the line ADR-045 drew ("money is NEVER undoable") has
+   moved: money is undoable, ONE STEP, by its author, inside ten minutes, in the
+   company whose books it was written in, and only while nothing has edited the
+   rows since. Every one of the 24 mutations below records the inverse of what
+   it did — whole rows, captured before the write, inside the SAME transaction —
+   and every one of them first retires this user's outstanding entries, which is
+   what makes the stack one step deep and kills a stale Redo. The machinery is
+   lib/services/accounting-undo.ts; the two wires are `logAndSeal` here and
+   `invalidateUndo` there.
 
    Amounts arrive as Int piasters (the client converts EGP with toPiasters,
    the statements pattern). Months/dates are the module's calendar strings.
@@ -34,16 +55,73 @@ const zPiasters = z.number().int().min(0).max(MAX_PIASTERS);
 export const zCompany = z.enum(ACCT_COMPANIES);
 const zDept = z.enum(ACCT_DEPTS).or(z.literal(""));
 
+/** The tail every accounting mutation shares: the ActivityLog row, the retire
+    sweep, and (ADR-086) the inverse.
+
+    The ORDER is load-bearing. `invalidateUndo` retires every entry this user
+    has outstanding — ADR-045's honesty rule, unchanged, so a money write still
+    quiets the CRM's pill — and only THEN is the fresh inverse written. That is
+    what makes the accounting stack exactly one step deep: after any mutation
+    the newest acct entry is the only pending one, and any Redo left over from
+    an earlier undo is spent. Omitting `undo` is the other branch of the same
+    rule: the action retires the stack and records nothing. */
 async function logAndSeal(
   tx: Parameters<typeof writeLog>[0],
   actor: Actor,
   entityType: Parameters<typeof writeLog>[1]["entityType"],
   entityId: string,
   action: Parameters<typeof writeLog>[1]["action"],
-  trigger: string,
+  trigger: AcctUndoKind,
+  undo?: AcctUndoRecord,
 ): Promise<void> {
   await writeLog(tx, { entityType, entityId, actor, action, trigger });
   await invalidateUndo(tx, actor);
+  if (undo) {
+    await recordAcctUndo({ tx, actor, kind: trigger, entityType, entityId, ...undo });
+  }
+}
+
+/* --------------------------------------------------------------------------
+   ADR-086 — the two snapshot helpers this file needs beyond the generic ones.
+
+   A payroll row does not stand alone: ADR-058's single-owner approval rule
+   means writing one can CREATE or DELETE the AcctPayrollPayment mark for the
+   person-month it covers (`shadowPayrollMark`). That mark is part of the
+   action, so it is part of the inverse — and it has no `updatedAt` and no
+   stable id of its own before it exists, which is why it is addressed by its
+   NATURAL key (member, month) rather than by id.
+   ------------------------------------------------------------------------- */
+
+/** The mark a payroll row shadows, as a scope ref — or nothing, for a row that
+    covers no person-month (not payroll, or payroll with no roster link). */
+function payrollMarkRef(
+  type: string,
+  rosterId: string | null,
+  month: string,
+): AcctRowRef | null {
+  return type === "payroll" && rosterId ? { m: "mark", memberId: rosterId, month } : null;
+}
+
+/** Snapshot the marks these refs point at, BEFORE the write, de-duplicated: an
+    edit that moves a row off one person-month and onto another touches two, and
+    one that stays put touches the same one twice. */
+async function snapMarks(
+  tx: Parameters<typeof writeLog>[0],
+  refs: Array<AcctRowRef | null>,
+): Promise<AcctScopeItem[]> {
+  const out: AcctScopeItem[] = [];
+  const seen = new Set<string>();
+  for (const ref of refs) {
+    if (!ref || ref.m !== "mark") continue;
+    const key = `${ref.memberId}:${ref.month}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const row = await tx.acctPayrollPayment.findUnique({
+      where: { memberId_month: { memberId: ref.memberId, month: ref.month } },
+    });
+    out.push(snapMaybe(ref, row));
+  }
+  return out;
 }
 
 /** founder decision 5: B-Systems hides Media Buying — refuse its vocabulary */
@@ -88,7 +166,12 @@ export async function createIncome(input: IncomeInput, actor: Actor) {
         ...incomeCollectionFields(input),
       },
     });
-    await logAndSeal(tx, actor, "acct_income", row.id, "create", "acct_income_create");
+    await logAndSeal(tx, actor, "acct_income", row.id, "create", "acct_income_create", {
+      company: input.company,
+      ...acctLabel.incomeCreated(row),
+      /* the inverse of a create is deleting exactly the row it made */
+      scope: [snapAbsent({ m: "income", id: row.id })],
+    });
     return row;
   });
 }
@@ -110,7 +193,12 @@ export async function updateIncome(id: string, input: IncomeInput, actor: Actor)
         ...incomeCollectionFields(input),
       },
     });
-    await logAndSeal(tx, actor, "acct_income", id, "update", "acct_income_update");
+    await logAndSeal(tx, actor, "acct_income", id, "update", "acct_income_update", {
+      company: input.company,
+      ...acctLabel.incomeEdited(row),
+      /* the inverse of an edit is the row as it stood, every column of it */
+      scope: [snapRow({ m: "income", id }, existing)],
+    });
     return row;
   });
 }
@@ -127,7 +215,14 @@ export async function toggleIncomeCollected(id: string, company: AcctCompany, ac
         ? { collected: false, collectedDate: null, paidMonth: null }
         : { collected: true, collectedDate: today, paidMonth: ym(today) },
     });
-    await logAndSeal(tx, actor, "acct_income", id, "update", "acct_income_collect_toggle");
+    await logAndSeal(tx, actor, "acct_income", id, "update", "acct_income_collect_toggle", {
+      company,
+      ...acctLabel.incomeCollected(row, row.collected),
+      /* the inverse of a toggle is the three cash-basis columns put back —
+         collected, collectedDate AND paidMonth, which is the month the money
+         counts in; restoring the flag alone would move revenue between months */
+      scope: [snapRow({ m: "income", id }, existing)],
+    });
     return row;
   });
 }
@@ -137,7 +232,15 @@ export async function deleteIncome(id: string, company: AcctCompany, actor: Acto
     const existing = await tx.acctIncome.findUnique({ where: { id } });
     if (!existing || existing.company !== company) throw new ApiError(404, "Income not found");
     await tx.acctIncome.delete({ where: { id } });
-    await logAndSeal(tx, actor, "acct_income", id, "delete", "acct_income_delete");
+    await logAndSeal(tx, actor, "acct_income", id, "delete", "acct_income_delete", {
+      company,
+      ...acctLabel.incomeDeleted(existing),
+      /* the inverse of a delete is re-creating the row with its ORIGINAL id and
+         every field, `mediaEntryId` included — a media fee restored without its
+         provenance link would stop being a pass-through fee. If that media
+         entry is gone the insert hits the foreign key and the undo refuses. */
+      scope: [snapRow({ m: "income", id }, existing)],
+    });
   });
 }
 
@@ -329,11 +432,22 @@ export async function createExpense(input: ExpenseInput, actor: Actor) {
   return db.$transaction(async (tx) => {
     const data = await resolveExpenseData(tx, input);
     await refuseSecondCoveringRow(tx, input, data.rosterId as string | null, null);
+    /* ADR-086 — read the mark this create may ACQUIRE before it acquires it */
+    const marks = await snapMarks(tx, [
+      payrollMarkRef(input.type, data.rosterId as string | null, input.month),
+    ]);
     const row = await tx.acctExpense.create({ data: data as never });
     /* a create ACQUIRES coverage — it may write the approval it is carrying,
        never destroy one it found (that is the founder's ✓ to give up) */
     await shadowPayrollMark(tx, row);
-    await logAndSeal(tx, actor, "acct_expense", row.id, "create", "acct_expense_create");
+    await logAndSeal(tx, actor, "acct_expense", row.id, "create", "acct_expense_create", {
+      company: input.company,
+      ...acctLabel.expenseCreated(row),
+      /* delete the row AND put the approval mark back the way it was: a create
+         that minted a mark must not leave it behind, or the person-month stays
+         approved with nothing on any screen paying for it */
+      scope: [snapAbsent({ m: "expense", id: row.id }), ...marks],
+    });
     return row;
   });
 }
@@ -351,6 +465,12 @@ export async function updateExpense(id: string, input: ExpenseInput, actor: Acto
     /* keep the original approval date when the row was and stays paid */
     if (existing.paid && input.paid) data.paidDate = existing.paidDate;
     await refuseSecondCoveringRow(tx, input, data.rosterId, id);
+    /* ADR-086 — an edit can touch TWO person-months' approvals: the one this
+       row is leaving and the one it is arriving at. Both, before the write. */
+    const marks = await snapMarks(tx, [
+      payrollMarkRef(existing.type, existing.rosterId, existing.month),
+      payrollMarkRef(input.type, data.rosterId, input.month),
+    ]);
     const row = await tx.acctExpense.update({ where: { id }, data: data as never });
     /* ADR-058 — if this row stops covering the person-month it used to cover
        (moved month, moved person, or no longer payroll), hand that approval
@@ -369,7 +489,14 @@ export async function updateExpense(id: string, input: ExpenseInput, actor: Acto
     await shadowPayrollMark(tx, row, {
       unapprove: stillCovers && existing.paid && !row.paid,
     });
-    await logAndSeal(tx, actor, "acct_expense", id, "update", "acct_expense_update");
+    await logAndSeal(tx, actor, "acct_expense", id, "update", "acct_expense_update", {
+      company: input.company,
+      ...acctLabel.expenseEdited(row),
+      /* the row as it stood, plus BOTH approval marks as they stood — an edit
+         that handed an approval from a stored row back to the derived one is
+         only truly reversed when the mark goes back where it was too */
+      scope: [snapRow({ m: "expense", id }, existing), ...marks],
+    });
     return row;
   });
 }
@@ -379,6 +506,11 @@ export async function toggleExpensePaid(id: string, company: AcctCompany, actor:
   return db.$transaction(async (tx) => {
     const existing = await tx.acctExpense.findUnique({ where: { id } });
     if (!existing || existing.company !== company) throw new ApiError(404, "Expense not found");
+    /* ADR-086 — the ✓ is the ONE un-approval that deletes a mark, so the mark
+       is part of this action's inverse */
+    const marks = await snapMarks(tx, [
+      payrollMarkRef(existing.type, existing.rosterId, existing.month),
+    ]);
     const row = await tx.acctExpense.update({
       where: { id },
       data: existing.paid ? { paid: false, paidDate: null } : { paid: true, paidDate: cairoToday() },
@@ -393,6 +525,14 @@ export async function toggleExpensePaid(id: string, company: AcctCompany, actor:
       id,
       existing.paid ? "unapprove" : "approve",
       "acct_expense_paid_toggle",
+      {
+        company,
+        ...acctLabel.expensePaid(row, row.paid),
+        /* paid + paidDate back on the row, and the approval mark back too: the
+           ✓ is THE cash gate, and un-approving a salary moved a whole month's
+           worth of money. Both halves or neither. */
+        scope: [snapRow({ m: "expense", id }, existing), ...marks],
+      },
     );
     return row;
   });
@@ -402,6 +542,11 @@ export async function deleteExpense(id: string, company: AcctCompany, actor: Act
   return db.$transaction(async (tx) => {
     const existing = await tx.acctExpense.findUnique({ where: { id } });
     if (!existing || existing.company !== company) throw new ApiError(404, "Expense not found");
+    /* ADR-086 — deleting a covering row RELEASES its approval to the derived
+       row (below); the inverse has to take it back again */
+    const marks = await snapMarks(tx, [
+      payrollMarkRef(existing.type, existing.rosterId, existing.month),
+    ]);
     await tx.acctExpense.delete({ where: { id } });
     /* ADR-058 — the derived roster row comes back for this month; it must come
        back with the approval this row was carrying. Redundant while the shadow
@@ -411,7 +556,16 @@ export async function deleteExpense(id: string, company: AcctCompany, actor: Act
        A release never un-approves: an unpaid row leaves whatever was parked
        before it took over, which is precisely the state it interrupted. */
     await shadowPayrollMark(tx, existing);
-    await logAndSeal(tx, actor, "acct_expense", id, "delete", "acct_expense_delete");
+    await logAndSeal(tx, actor, "acct_expense", id, "delete", "acct_expense_delete", {
+      company,
+      ...acctLabel.expenseDeleted(existing),
+      /* re-create the row with its ORIGINAL id and every column, and put the
+         released approval back where the delete found it. The engine refuses
+         this one if another payroll row has taken over that person-month in the
+         meantime — restoring it would pay the person twice out of one month
+         (assertSingleCoveringRow in accounting-undo.ts). */
+      scope: [snapRow({ m: "expense", id }, existing), ...marks],
+    });
   });
 }
 
@@ -434,6 +588,14 @@ export async function togglePayrollMark(
     const existing = await tx.acctPayrollPayment.findUnique({
       where: { memberId_month: { memberId: input.memberId, month: input.month } },
     });
+    /* ADR-086 — the mark has no `updatedAt` and no id until it exists, so the
+       inverse addresses it by its natural key: "the mark at (this person, this
+       month) must be exactly this, or not exist at all". Captured before the
+       flip, which also carries the ORIGINAL paidDate back on an un-approve. */
+    const before: AcctScopeItem = snapMaybe(
+      { m: "mark", memberId: input.memberId, month: input.month },
+      existing,
+    );
     let paid: boolean;
     if (existing) {
       await tx.acctPayrollPayment.delete({ where: { id: existing.id } });
@@ -456,6 +618,11 @@ export async function togglePayrollMark(
       `${input.month}:${input.memberId}`,
       paid ? "approve" : "unapprove",
       "acct_payroll_toggle",
+      {
+        company: input.company,
+        ...acctLabel.salaryMark(member.name, input.month, paid),
+        scope: [before],
+      },
     );
     return { paid };
   });
@@ -489,7 +656,19 @@ export async function createMember(input: MemberInput, actor: Actor) {
         segments: { create: [{ from: input.from, salary: input.salary, active: true }] },
       },
     });
-    await logAndSeal(tx, actor, "acct_roster_member", row.id, "create", "acct_member_create");
+    await logAndSeal(tx, actor, "acct_roster_member", row.id, "create", "acct_member_create", {
+      company: input.company,
+      ...acctLabel.memberCreated(row.name),
+      /* a member is never alone: the create mints the first salary SEGMENT too,
+         and the segment is where the money is. The inverse names the whole
+         collection, so it takes the segment away with the person — and refuses
+         if anything else has since attached itself to them (a payroll mark, a
+         linked expense), because the cascade would take that too. */
+      scope: [
+        snapAbsent({ m: "member", id: row.id }),
+        snapSet({ s: "segmentsOf", memberId: row.id }, []),
+      ],
+    });
     return row;
   });
 }
@@ -503,6 +682,13 @@ export async function updateMember(id: string, input: MemberInput, actor: Actor)
       include: { segments: true },
     });
     if (!existing || existing.company !== input.company) throw new ApiError(404, "Roster member not found");
+    /* ADR-086 — the member row and its segments go back separately: the
+       identity columns update in place (so `updatedAt` moves), while
+       memberUpsert REPLACES every segment with a freshly-minted id. No old id
+       survives, so the segments are snapshotted as a whole collection. The
+       relation has to come off the row before it is snapshotted — a snapshot is
+       columns, never a join. */
+    const { segments: segmentsBefore, ...memberBefore } = existing;
     const segs = memberUpsert(
       {
         id,
@@ -527,7 +713,14 @@ export async function updateMember(id: string, input: MemberInput, actor: Actor)
         segments: { create: segs },
       },
     });
-    await logAndSeal(tx, actor, "acct_roster_member", id, "update", "acct_member_update");
+    await logAndSeal(tx, actor, "acct_roster_member", id, "update", "acct_member_update", {
+      company: input.company,
+      ...acctLabel.memberEdited(row.name),
+      scope: [
+        snapRow({ m: "member", id }, memberBefore),
+        snapSet({ s: "segmentsOf", memberId: id }, segmentsBefore),
+      ],
+    });
     return row;
   });
 }
@@ -540,6 +733,10 @@ export async function toggleMemberActive(id: string, company: AcctCompany, actor
       include: { segments: true },
     });
     if (!existing || existing.company !== company) throw new ApiError(404, "Roster member not found");
+    /* ADR-086 — same two halves as updateMember: the member row (its
+       `updatedAt` moves on the nested write) and the whole segment collection,
+       which this toggle re-mints from scratch */
+    const { segments: segmentsBefore, ...memberBefore } = existing;
     const m = cairoMonth();
     const shaped = {
       id,
@@ -559,7 +756,16 @@ export async function toggleMemberActive(id: string, company: AcctCompany, actor
     const segs = memberUpsert(shaped, m, { active: !now.active });
     await tx.acctRosterSegment.deleteMany({ where: { memberId: id } });
     await tx.acctRosterMember.update({ where: { id }, data: { segments: { create: segs } } });
-    await logAndSeal(tx, actor, "acct_roster_member", id, "update", "acct_member_toggle_active");
+    await logAndSeal(tx, actor, "acct_roster_member", id, "update", "acct_member_toggle_active", {
+      company,
+      /* the flip is read off the segment that governs the CURRENT month — the
+         same month the toggle writes from, which is what the ⇄ means */
+      ...acctLabel.memberActive(existing.name, !now.active),
+      scope: [
+        snapRow({ m: "member", id }, memberBefore),
+        snapSet({ s: "segmentsOf", memberId: id }, segmentsBefore),
+      ],
+    });
   });
 }
 
@@ -567,8 +773,32 @@ export async function deleteMember(id: string, company: AcctCompany, actor: Acto
   return db.$transaction(async (tx) => {
     const existing = await tx.acctRosterMember.findUnique({ where: { id } });
     if (!existing || existing.company !== company) throw new ApiError(404, "Roster member not found");
+    /* ADR-086 — THE WIDEST CASCADE IN THE MODULE. Removing one person takes
+       their whole salary history and every approval they ever had with them,
+       and quietly unlinks every payroll override that named them. All four
+       pieces are snapshotted, so the inverse puts the person back with their
+       original id, their segments, their marks and their overrides' links.
+
+       The two cascades are whole COLLECTIONS (nothing survives to name), but
+       the SetNull'd expenses are snapshotted one row at a time, by id: those
+       rows are still there after the delete, so naming them individually is
+       what lets the fingerprint notice if one of them is edited meanwhile. */
+    const [segmentsBefore, marksBefore, linkedBefore] = await Promise.all([
+      tx.acctRosterSegment.findMany({ where: { memberId: id } }),
+      tx.acctPayrollPayment.findMany({ where: { memberId: id } }),
+      tx.acctExpense.findMany({ where: { rosterId: id } }),
+    ]);
     await tx.acctRosterMember.delete({ where: { id } }); // segments/marks cascade; expenses SetNull
-    await logAndSeal(tx, actor, "acct_roster_member", id, "delete", "acct_member_delete");
+    await logAndSeal(tx, actor, "acct_roster_member", id, "delete", "acct_member_delete", {
+      company,
+      ...acctLabel.memberDeleted(existing.name),
+      scope: [
+        snapRow({ m: "member", id }, existing),
+        snapSet({ s: "segmentsOf", memberId: id }, segmentsBefore),
+        snapSet({ s: "marksOf", memberId: id }, marksBefore),
+        ...linkedBefore.map((e) => snapRow({ m: "expense", id: e.id }, e)),
+      ],
+    });
   });
 }
 
@@ -605,7 +835,7 @@ export async function mediaReceived(
         ref: input.ref,
       },
     });
-    await tx.acctIncome.create({
+    const fee = await tx.acctIncome.create({
       data: {
         company: input.company,
         month: input.month,
@@ -621,20 +851,34 @@ export async function mediaReceived(
       },
     });
     const held = input.amount - input.feeAmount;
-    if (held > 0) {
-      await tx.acctTreasuryMove.create({
-        data: {
-          company: input.company,
-          month: input.month,
-          kind: "deposit",
-          label: `Client ad budget held — ${input.client}`,
-          amount: held,
-          date: today,
-          tag: "media",
-        },
-      });
-    }
-    await logAndSeal(tx, actor, "acct_media_entry", entry.id, "create", "acct_media_received");
+    const move =
+      held > 0
+        ? await tx.acctTreasuryMove.create({
+            data: {
+              company: input.company,
+              month: input.month,
+              kind: "deposit",
+              label: `Client ad budget held — ${input.client}`,
+              amount: held,
+              date: today,
+              tag: "media",
+            },
+          })
+        : null;
+    await logAndSeal(tx, actor, "acct_media_entry", entry.id, "create", "acct_media_received", {
+      company: input.company,
+      ...acctLabel.mediaReceived(input.client),
+      /* ONE action, THREE rows — the ledger entry, the fee income it minted and
+         the held budget's deposit. Undoing it removes all three or none: a fee
+         left behind would be revenue with no budget, and a deposit left behind
+         would be cash the company does not have. The ids are exactly the ones
+         this write produced, never a query by date or client. */
+      scope: [
+        snapAbsent({ m: "media", id: entry.id }),
+        snapAbsent({ m: "income", id: fee.id }),
+        ...(move ? [snapAbsent({ m: "move", id: move.id })] : []),
+      ],
+    });
     return entry;
   });
 }
@@ -663,7 +907,7 @@ export async function mediaSent(input: z.infer<typeof mediaSentSchema>, actor: A
         ref: input.ref,
       },
     });
-    await tx.acctTreasuryMove.create({
+    const move = await tx.acctTreasuryMove.create({
       data: {
         company: input.company,
         month: input.month,
@@ -674,7 +918,15 @@ export async function mediaSent(input: z.infer<typeof mediaSentSchema>, actor: A
         tag: "media",
       },
     });
-    await logAndSeal(tx, actor, "acct_media_entry", entry.id, "create", "acct_media_sent");
+    await logAndSeal(tx, actor, "acct_media_entry", entry.id, "create", "acct_media_sent", {
+      company: input.company,
+      ...acctLabel.mediaSent(input.client),
+      /* the ledger entry and the withdrawal that paid for it, together */
+      scope: [
+        snapAbsent({ m: "media", id: entry.id }),
+        snapAbsent({ m: "move", id: move.id }),
+      ],
+    });
     return entry;
   });
 }
@@ -705,21 +957,32 @@ export async function createLoan(input: z.infer<typeof loanSchema>, actor: Actor
         note: input.note,
       },
     });
-    if (input.moveCash) {
-      const borrowed = input.direction === "borrowed";
-      await tx.acctTreasuryMove.create({
-        data: {
-          company: input.company,
-          month: ym(input.date),
-          kind: borrowed ? "deposit" : "withdraw",
-          label: borrowed ? `Loan received — ${input.party}` : `Loan given — ${input.party}`,
-          amount: input.principal,
-          date: input.date,
-          tag: "loan",
-        },
-      });
-    }
-    await logAndSeal(tx, actor, "acct_loan", loan.id, "create", "acct_loan_create");
+    const borrowed = input.direction === "borrowed";
+    const move = input.moveCash
+      ? await tx.acctTreasuryMove.create({
+          data: {
+            company: input.company,
+            month: ym(input.date),
+            kind: borrowed ? "deposit" : "withdraw",
+            label: borrowed ? `Loan received — ${input.party}` : `Loan given — ${input.party}`,
+            amount: input.principal,
+            date: input.date,
+            tag: "loan",
+          },
+        })
+      : null;
+    await logAndSeal(tx, actor, "acct_loan", loan.id, "create", "acct_loan_create", {
+      company: input.company,
+      ...acctLabel.loanCreated(input.party, borrowed),
+      /* the loan and the cash it moved. The engine refuses this undo once a
+         repayment has been recorded against the loan — deleting it would take
+         the payment with it (AcctLoanPayment cascades) and this entry has no
+         snapshot of a payment it never saw. */
+      scope: [
+        snapAbsent({ m: "loan", id: loan.id }),
+        ...(move ? [snapAbsent({ m: "move", id: move.id })] : []),
+      ],
+    });
     return loan;
   });
 }
@@ -743,21 +1006,31 @@ export async function addLoanPayment(
     const payment = await tx.acctLoanPayment.create({
       data: { loanId, amount: input.amount, date: input.date, note: input.note },
     });
-    if (input.moveCash) {
-      const borrowed = loan.direction === "borrowed";
-      await tx.acctTreasuryMove.create({
-        data: {
-          company: input.company,
-          month: ym(input.date),
-          kind: borrowed ? "withdraw" : "deposit",
-          label: borrowed ? `Loan repayment — ${loan.party}` : `Loan collected — ${loan.party}`,
-          amount: input.amount,
-          date: input.date,
-          tag: "loan",
-        },
-      });
-    }
-    await logAndSeal(tx, actor, "acct_loan_payment", payment.id, "create", "acct_loan_payment");
+    const borrowed = loan.direction === "borrowed";
+    const move = input.moveCash
+      ? await tx.acctTreasuryMove.create({
+          data: {
+            company: input.company,
+            month: ym(input.date),
+            kind: borrowed ? "withdraw" : "deposit",
+            label: borrowed ? `Loan repayment — ${loan.party}` : `Loan collected — ${loan.party}`,
+            amount: input.amount,
+            date: input.date,
+            tag: "loan",
+          },
+        })
+      : null;
+    await logAndSeal(tx, actor, "acct_loan_payment", payment.id, "create", "acct_loan_payment", {
+      company: input.company,
+      ...acctLabel.loanPaid(loan.party),
+      /* the payment row and the cash it moved. The loan itself is untouched, so
+         it is not in the inverse; if it has been deleted since, the payment
+         went with it and the fingerprint refuses. */
+      scope: [
+        snapAbsent({ m: "loanPayment", id: payment.id }),
+        ...(move ? [snapAbsent({ m: "move", id: move.id })] : []),
+      ],
+    });
     return payment;
   });
 }
@@ -766,8 +1039,21 @@ export async function deleteLoan(id: string, company: AcctCompany, actor: Actor)
   return db.$transaction(async (tx) => {
     const existing = await tx.acctLoan.findUnique({ where: { id } });
     if (!existing || existing.company !== company) throw new ApiError(404, "Loan not found");
+    /* ADR-086 — AcctLoanPayment CASCADES on the loan, so deleting one loan can
+       erase a dozen repayments at once. Every one of them is snapshotted with
+       its own id, and the inverse puts the loan back and then each payment back
+       under it — a loan restored without its repayments would say the whole
+       principal is still owed. */
+    const paymentsBefore = await tx.acctLoanPayment.findMany({ where: { loanId: id } });
     await tx.acctLoan.delete({ where: { id } }); // payments cascade
-    await logAndSeal(tx, actor, "acct_loan", id, "delete", "acct_loan_delete");
+    await logAndSeal(tx, actor, "acct_loan", id, "delete", "acct_loan_delete", {
+      company,
+      ...acctLabel.loanDeleted(existing.party),
+      scope: [
+        snapRow({ m: "loan", id }, existing),
+        snapSet({ s: "paymentsOf", loanId: id }, paymentsBefore),
+      ],
+    });
   });
 }
 
@@ -796,7 +1082,11 @@ export async function createMove(input: MoveInput, actor: Actor) {
         tag: "",
       },
     });
-    await logAndSeal(tx, actor, "acct_treasury_move", row.id, "create", "acct_move_create");
+    await logAndSeal(tx, actor, "acct_treasury_move", row.id, "create", "acct_move_create", {
+      company: input.company,
+      ...acctLabel.moveCreated(input.label, input.kind === "deposit"),
+      scope: [snapAbsent({ m: "move", id: row.id })],
+    });
     return row;
   });
 }
@@ -815,7 +1105,14 @@ export async function updateMove(id: string, input: MoveInput, actor: Actor) {
         date: input.date,
       },
     });
-    await logAndSeal(tx, actor, "acct_treasury_move", id, "update", "acct_move_update");
+    await logAndSeal(tx, actor, "acct_treasury_move", id, "update", "acct_move_update", {
+      company: input.company,
+      ...acctLabel.moveEdited(row.label),
+      /* `tag` is not in the update's data, so the inverse restores it to the
+         value it already has — which is the point of snapshotting whole rows:
+         a column the forward path forgot cannot be a column the inverse forgets */
+      scope: [snapRow({ m: "move", id }, existing)],
+    });
     return row;
   });
 }
@@ -825,7 +1122,13 @@ export async function deleteMove(id: string, company: AcctCompany, actor: Actor)
     const existing = await tx.acctTreasuryMove.findUnique({ where: { id } });
     if (!existing || existing.company !== company) throw new ApiError(404, "Movement not found");
     await tx.acctTreasuryMove.delete({ where: { id } });
-    await logAndSeal(tx, actor, "acct_treasury_move", id, "delete", "acct_move_delete");
+    await logAndSeal(tx, actor, "acct_treasury_move", id, "delete", "acct_move_delete", {
+      company,
+      ...acctLabel.moveDeleted(existing.label),
+      /* with its original id AND its `tag` — a restored media or loan movement
+         that lost its provenance tag would stop being traceable to what caused it */
+      scope: [snapRow({ m: "move", id }, existing)],
+    });
   });
 }
 
@@ -836,12 +1139,23 @@ export async function setOpeningBalance(
   actor: Actor,
 ) {
   return db.$transaction(async (tx) => {
+    /* ADR-086 — an UPSERT has two inverses and the snapshot picks the right one
+       by itself: restore the previous balance if a settings row was there, and
+       DELETE the row if this call is what created it. Absent and zero are the
+       same number to the engine (`settings?.openingBalance ?? 0`), so either
+       inverse restores the treasury to the piaster — but leaving a row behind
+       that nothing had created is still a lie about the books' history. */
+    const before = await tx.acctSettings.findUnique({ where: { company: input.company } });
     const row = await tx.acctSettings.upsert({
       where: { company: input.company },
       update: { openingBalance: input.openingBalance },
       create: { company: input.company, openingBalance: input.openingBalance },
     });
-    await logAndSeal(tx, actor, "acct_settings", input.company, "update", "acct_opening_balance");
+    await logAndSeal(tx, actor, "acct_settings", input.company, "update", "acct_opening_balance", {
+      company: input.company,
+      ...acctLabel.openingBalance(),
+      scope: [snapMaybe({ m: "settings", company: input.company }, before)],
+    });
     return row;
   });
 }
@@ -856,12 +1170,24 @@ export const targetSchema = z.object({
 
 export async function setTarget(input: z.infer<typeof targetSchema>, actor: Actor) {
   return db.$transaction(async (tx) => {
+    /* ADR-086 — the same two-inverse upsert as the opening balance: restore the
+       previous goal, or delete the row this call minted. AcctTarget has no
+       `updatedAt` at all, which is why the inverse addresses it by its UNIQUE
+       key (company, period): then "a different target now occupies this period"
+       is an ordinary changed-since refusal rather than a constraint crash. */
+    const before = await tx.acctTarget.findUnique({
+      where: { company_period: { company: input.company, period: input.period } },
+    });
     const row = await tx.acctTarget.upsert({
       where: { company_period: { company: input.company, period: input.period } },
       update: { goal: input.goal },
       create: { company: input.company, period: input.period, goal: input.goal },
     });
-    await logAndSeal(tx, actor, "acct_target", row.id, "update", "acct_target_set");
+    await logAndSeal(tx, actor, "acct_target", row.id, "update", "acct_target_set", {
+      company: input.company,
+      ...acctLabel.targetSet(input.period),
+      scope: [snapMaybe({ m: "target", company: input.company, period: input.period }, before)],
+    });
     return row;
   });
 }
@@ -871,6 +1197,13 @@ export async function deleteTarget(id: string, company: AcctCompany, actor: Acto
     const existing = await tx.acctTarget.findUnique({ where: { id } });
     if (!existing || existing.company !== company) throw new ApiError(404, "Target not found");
     await tx.acctTarget.delete({ where: { id } });
-    await logAndSeal(tx, actor, "acct_target", id, "delete", "acct_target_delete");
+    await logAndSeal(tx, actor, "acct_target", id, "delete", "acct_target_delete", {
+      company,
+      ...acctLabel.targetDeleted(existing.period),
+      /* re-created with its ORIGINAL id. Named by (company, period) so that a
+         target set for the same period in the meantime is refused instead of
+         colliding on the unique index. */
+      scope: [snapRow({ m: "target", company, period: existing.period }, existing)],
+    });
   });
 }
