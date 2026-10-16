@@ -7128,3 +7128,78 @@ ADR-045's own exclusion list is **not widened by one row**.
 - The dropped-network branch, phone-width touch targets, and whether a screen
   reader actually SPEAKS the live region (the role/aria attributes and contents
   are asserted, which is as far as Playwright reaches).
+
+### The deploy, verified (ADR-086)
+
+Pushed `c1eb382` to `main`. **The verification signal was the new endpoints
+themselves, not a chunk-hash comparison** — deliberately, because on the
+previous deploy a hash window gave a false negative for 28 polls while the
+deploy had not yet landed, and chunk names in this project barely move. Two
+brand-new routes give an unambiguous answer: 404 means absent from the artefact,
+401 means present and refusing.
+
+```
+poll 1-29 : 404   (not yet deployed)
+poll 30   : 502   (container restarting)
+POLL 31   : DEPLOYED — /api/accounting/undo answers 401
+```
+
+Both endpoints, after the restart:
+
+| URL | GET | POST (anonymous) |
+| --- | --- | --- |
+| `/api/accounting/undo` | **405** | **401** `{"error":"Not signed in"}` |
+| `/api/accounting/redo` | **405** | **401** `{"error":"Not signed in"}` |
+
+The 405 is worth recording rather than discarding: it proves the route is in the
+deployed build AND that it is POST-only, which is two facts for one request. The
+401 proves the guard answers before anything reads the body.
+
+`/api/health`, live, after the restart:
+
+```
+ok: true | schemaCurrent: true | pendingMigrations: [] | db.reachable: true
+```
+
+**The empty migration list is this feature's own proof**: ADR-086 deliberately
+added no migration (it reuses `UndoEntry`), so an empty list is the assertion
+that none was needed rather than merely that none is outstanding.
+
+Unauthenticated smoke, cold client:
+
+| URL | Result |
+| --- | --- |
+| `/login` | 200, `<title>Sign in — ByteForce × B-Systems Sales Platform</title>` |
+| `/` | 307 → `/login` |
+| `/accounting` | 307 → `/login` |
+| `/b-systems` | 307 → `/login` |
+| `/api/b-systems/backup` | 401 (unchanged) |
+
+**What this does NOT prove, stated plainly rather than dressed up: nobody has
+pressed Undo on production.** The accounting module redirects an unauthenticated
+client to `/login`, and signing in needs the founder's own password. What stands
+in its place: both endpoints are in the deployed artefact and refuse correctly,
+the schema is current with nothing pending, nothing 500s, the CRM's own routes
+are unchanged, and the 20 Playwright cases plus 1755 unit and integration tests
+that exercise this exact tree ran green before the push.
+
+**The landing pages are NOT in this deploy**, which was the founder's
+instruction. Confirmed structurally: `git diff 4667296 HEAD` touches 19 files and
+none of the four shared ones, so production's `next.config.ts`,
+`prisma/schema.prisma`, `backup.ts` and `db-reset.ts` are byte-identical to the
+previous deploy. A static resolution check additionally confirmed all 62 internal
+imports of the committed files resolve to committed files.
+
+**One verification I attempted and could not complete, for the record.** The plan
+was to check the commit out into an isolated worktree — which contains only
+tracked files, exactly what production receives — and build it there, because a
+build in a tree holding the uncommitted landing work proves nothing about what
+ships. Turbopack refuses a junctioned `node_modules` ("Symlink [project]/node_modules
+is invalid, it points out of the filesystem root") regardless of drive, and a
+fresh install was not worth the time once the delta was understood: the commit
+changes none of the four shared files, so the config production builds with is
+byte-identical to the one that had already built there. The static import check
+above is what stands in the worktree build's place. Both worktrees were removed
+and their `node_modules` junctions unlinked with `rmdir`/`Directory.Delete` rather
+than a recursive delete, which would have followed the link into the real
+`node_modules`.
