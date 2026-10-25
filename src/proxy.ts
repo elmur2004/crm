@@ -1,5 +1,5 @@
 import NextAuth from "next-auth";
-import { NextResponse } from "next/server";
+import { NextResponse, type NextFetchEvent, type NextRequest } from "next/server";
 import { authConfig } from "@/lib/auth/config";
 import { mergedByteforcePath } from "@/lib/crm/legacy-routes";
 import type { Role } from "@/lib/pipeline-engine/constants";
@@ -74,7 +74,7 @@ function allowed(pathname: string, roles: Role[]): boolean {
   return true; // /portal keeps only its public landing/signup pages
 }
 
-export default auth((req) => {
+const gate = auth((req) => {
   const { pathname } = req.nextUrl;
 
   /* ADR-067 — the retired shell, before anything else. It runs ahead of the
@@ -108,6 +108,40 @@ export default auth((req) => {
   }
   return NextResponse.next();
 });
+
+/* BUG-027 — a BACKGROUND fetch must never write the session cookie.
+
+   The auth wrapper re-issues `authjs.session-token` on every request it
+   handles (the sliding 24h session). A prefetch — or any RSC fetch the router
+   makes in the background — carries the session it had when it STARTED, and
+   when it finishes after a sign-out, an impersonation or a "Back to admin",
+   its Set-Cookie writes the OLD session back over the new one. Measured in a
+   trace: "Back to admin" set the admin's cookie, then twenty prefetches started
+   under the agent's session landed after it and put the agent back. Sign-out
+   has the same shape: a late prefetch silently signs the person back in —
+   likeliest on a slow phone connection.
+
+   How a background fetch is recognised: NOT by Next's router headers
+   (`Next-Router-Prefetch`, `RSC`) or the `_rsc` parameter — the proxy adapter
+   strips those before this code runs. By the browser's own `Sec-Fetch-Dest`:
+   a page load says "document", a fetch() says "empty". Only GETs lose the
+   refresh, so a page load and a server action (POST) still slide the session
+   exactly as before. A request without the header (plain-http LAN, where
+   browsers do not send Sec-Fetch-*) keeps the old behaviour. */
+function isBackgroundFetch(req: NextRequest): boolean {
+  return req.method === "GET" && req.headers.get("sec-fetch-dest") === "empty";
+}
+
+export default async function proxy(req: NextRequest, event: NextFetchEvent) {
+  const res = await gate(req, event as never);
+  if (!res || !isBackgroundFetch(req)) return res;
+  const kept = res.headers
+    .getSetCookie()
+    .filter((c) => !/^(__Secure-)?authjs\.session-token(\.\d+)?=/.test(c));
+  res.headers.delete("set-cookie");
+  for (const c of kept) res.headers.append("set-cookie", c);
+  return res;
+}
 
 export const config = {
   matcher: [

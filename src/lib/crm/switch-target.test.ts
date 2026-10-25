@@ -68,4 +68,31 @@ describe("the company switch keeps you where you are, when it can", () => {
       ).toContain(href);
     }
   });
+
+  it("the Home keeps its RANGE across the switch — and only the range", () => {
+    const params = new URLSearchParams("company=bsystems&range=last_month&owner=agent");
+    expect(targetFor("/b-systems", "byteforce", params)).toBe(
+      "/b-systems?company=byteforce&range=last_month",
+    );
+    /* no range → the plain address the switch has always produced */
+    expect(targetFor("/b-systems", "byteforce", new URLSearchParams("company=bsystems"))).toBe(
+      "/b-systems?company=byteforce",
+    );
+    expect(targetFor("/b-systems", "bsystems")).toBe("/b-systems?company=bsystems");
+  });
+
+  it("a junk range is never carried, and no other screen grows one", () => {
+    expect(targetFor("/b-systems", "byteforce", new URLSearchParams("range=forever"))).toBe(
+      "/b-systems?company=byteforce",
+    );
+    /* the board is a shared path, but the range is a Home parameter */
+    expect(targetFor("/b-systems/crm", "byteforce", new URLSearchParams("range=7d"))).toBe(
+      "/b-systems/crm?company=byteforce",
+    );
+    /* a deep link falls back to Home — and a range it happened to carry is the
+       Home's own parameter, so it may ride along */
+    expect(targetFor("/b-systems/users", "byteforce", new URLSearchParams("range=7d"))).toBe(
+      "/b-systems?company=byteforce&range=7d",
+    );
+  });
 });

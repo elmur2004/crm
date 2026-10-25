@@ -33,7 +33,8 @@ import { targetFor } from "@/lib/crm/switch-target";
    exactly as EntitySwitch has always done: a ByteForce-only teammate and a
    B-Systems-only rep get no switch, because there is nothing to switch to.
 
-   THE HREF CARRIES ONLY THE COMPANY. Every other parameter is dropped on
+   THE HREF CARRIES ONLY THE COMPANY — and, on the Home, its company-neutral
+   period (`range`; see targetFor). Every other parameter is dropped on
    purpose: `owner`, `stage` and `sort` are B-Systems-shaped and mean nothing to
    the ByteForce bodies, so carrying them over would leave a board that looks
    filtered but is not — which reads as data loss, not as a nav bug.
@@ -70,7 +71,7 @@ export function CompanySwitch({
         {companies.map((company) => (
           <Link
             key={company}
-            href={targetFor(pathname, company)}
+            href={targetFor(pathname, company, params)}
             className="switcher-seg"
             aria-current={company === current ? "true" : undefined}
           >

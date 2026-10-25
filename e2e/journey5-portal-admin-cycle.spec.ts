@@ -1,4 +1,5 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
+import { afterSignIn } from "./helpers/after-sign-in";
 
 /* V2 journey 5 — Admin win cycle on the unified pipeline:
    Home shows agent/partner counts → drag an agent's lead to Won opens the
@@ -117,9 +118,17 @@ test("journey 5: admin confirms a win with milestones; statement reaches the age
   await admin.getByLabel("Email or phone").fill("admin@byteforce.com");
   await admin.getByLabel("Password").fill("password123");
   await admin.getByRole("button", { name: "Sign in" }).click();
-  await expect(admin).toHaveURL(/\/b-systems$/);
+  await afterSignIn(admin, /\/b-systems$/);
   await expect(admin.getByRole("main").getByText("Agents", { exact: true })).toBeVisible();
   await expect(admin.getByText("Agent & partner pipeline")).toBeVisible();
+  /* dashboard spec §9.5 — the e2e proof of A1: the Home's Won value (WonDeal
+     under B-Systems) must rise by the deal's value once the win is confirmed */
+  const wonValue = () =>
+    admin
+      .locator('[data-metric="won_value"]')
+      .getAttribute("data-value")
+      .then((v) => Number(v));
+  const wonBefore = await wonValue();
 
   /* The seeded agent lead "Fresh Deal" sits in New — drag it to Won. */
   await admin.goto("/b-systems/crm");
@@ -146,6 +155,10 @@ test("journey 5: admin confirms a win with milestones; statement reaches the age
   await commissions.nth(2).fill("250");
   await admin.getByRole("button", { name: "Confirm move" }).click();
   await expect(admin.locator('[data-stage="won"]').getByText("Fresh Deal")).toBeVisible();
+
+  /* A1: EGP 10,000 = 1,000,000 piasters, on the admin's Home */
+  await admin.goto("/b-systems");
+  expect(await wonValue()).toBe(wonBefore + 1_000_000);
 
   /* Won Leads: the card shows name, value, closer, milestone checks (V2 §2.4). */
   await admin.goto("/b-systems/won-leads");
@@ -182,8 +195,9 @@ test("journey 5: admin confirms a win with milestones; statement reaches the age
      round trip, and every other sign-in in the suite waits for it that way. The
      assertion is identical — the landing must be the agent's board — but the
      expect timeout was never the right clock for it, and it started tipping as
-     the suite grew. */
-  await agent.waitForURL(/\/b-systems\/crm$/);
+     the suite grew. ADR-090: the landing is now the launcher; afterSignIn
+     waits for it, then opens the board. */
+  await afterSignIn(agent, /\/b-systems\/crm$/);
   await agent.goto("/b-systems/payments");
   const paymentRow = agent.getByRole("row", { name: /ST-0001/ });
   await expect(paymentRow.getByText("Pending")).toBeVisible();

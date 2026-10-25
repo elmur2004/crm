@@ -3,38 +3,46 @@ import { narrowRoles, requireCompanyPage } from "@/lib/auth/page-guards";
 import { crmEngineRole } from "@/lib/api/bsystems";
 import { crmHomeFor } from "@/lib/crm/nav";
 import { crmQuery, crmRolesFor } from "@/lib/crm/company";
-import { DashboardBody } from "@/components/internal/pages";
-import { BYTEFORCE_CTX } from "./ctx";
-import { adminHome } from "@/lib/services/bsystems-admin";
-import { BSYSTEMS_STAGES } from "@/lib/pipeline-engine/constants";
-import { formatEGP } from "@/lib/money";
-import { tFor } from "@/lib/i18n/core";
+import { parseRange } from "@/lib/dashboard/periods";
 import { getLocale } from "@/lib/i18n/server";
-import { stageLabel } from "@/lib/i18n/dict/labels";
-import { home as m } from "@/lib/i18n/dict/crm";
-import { StatCard } from "@/components/shared/StatCard";
-import { AnimatedValue } from "@/components/shared/AnimatedValue";
-import { BackupControls } from "@/components/bsystems/backup";
-import { stageAccent, stageKey } from "@/components/bsystems/stageColors";
+import { DashboardBody } from "@/components/dashboard/DashboardBody";
 
 export const metadata = { title: "Home — B-Systems CRM" };
 
-/* V2 §2.1 — admin Home: the v1 dashboard + agent/partner counts + their leads'
-   pipeline chart. Non-admins land on their CRM board.
+/* V2 §2.1 — admin Home; non-admins land on their CRM board.
 
    ADR-067 — one of the FOUR addresses both companies share, so it branches on
-   the company before it does anything else. Under ByteForce it is the ByteForce
-   dashboard (brand-scoped metrics, no partner/agent counts — those are
-   B-Systems concepts and must never render on a ByteForce Home). */
+   the company before it does anything else. Both companies now render ONE
+   body (components/dashboard — the dashboard upgrade), fed by one service call
+   whose every lead predicate is the To-Do's wall. The B-Systems-only figures
+   (agents, partners, milestones, Needs you) are produced only for the
+   B-Systems admin, and are never queried under ByteForce.
+
+   `?range=` is the period (This month by default); an unknown value renders
+   the default rather than an error, so a stale link still opens. */
 
 export default async function BSystemsHomePage({
   searchParams,
 }: {
-  searchParams: Promise<{ company?: string }>;
+  searchParams: Promise<{ company?: string; range?: string | string[] }>;
 }) {
-  const { user, company, companies } = await requireCompanyPage((await searchParams).company);
+  const params = await searchParams;
+  const { user, company, companies } = await requireCompanyPage(params.company);
+  const range = parseRange(params.range);
+  const locale = await getLocale();
+
   if (company === "byteforce") {
-    return <DashboardBody ctx={BYTEFORCE_CTX} />;
+    /* ByteForce staff see every ByteForce lead (SPEC §3) — the To-Do's
+       { kind: "all" } under brand byteforce */
+    return (
+      <DashboardBody
+        company="byteforce"
+        scope={{ kind: "all" }}
+        range={range}
+        locale={locale}
+        viewerName={user.name}
+      />
+    );
   }
 
   /* ADR-051 + ADR-067 — under ByteForce the company itself proves
@@ -43,112 +51,22 @@ export default async function BSystemsHomePage({
      pipeline roles this page always accepted, with the data-entry account still
      carved out of it and sent to its one destination.
 
-     ADR-074 — MINDOO IS NO LONGER HERE. It shared this screen while it was a
-     segment of this shell; it is its own app now, with its own Home, and this
-     one is B-Systems' again — partner and agent figures included, which is
-     what made it the wrong screen for a company that has neither. Only the
-     admin gets here; everybody else is bounced to their own first destination,
-     which by construction accepts that company and that role, so the bounce
-     cannot ping-pong. */
+     ADR-074 — only the admin gets here; everybody else is bounced to their own
+     first destination, which by construction accepts that company and that
+     role, so the bounce cannot ping-pong. (Homes for sales, agents and
+     partners are the dashboard spec's Phase B, a founder decision — D9.) */
   narrowRoles({ user, company, companies }, ...crmRolesFor(company));
   const role = crmEngineRole(company, user);
   if (role !== "bsystems_admin") redirect(`${crmHomeFor(company, role)}${crmQuery(company)}`);
 
-
-  const locale = await getLocale();
-  const t = tFor(locale);
-  /* ADR-067 — the COMPANY this render resolved, never the literal: the
-     figures on the page and the company in its URL cannot disagree. */
-  const home = await adminHome(company);
-  const d = home.base;
-  const maxCount = Math.max(1, ...Object.values(home.externalPipeline));
-
-  /* ADR-089 — one cell per stage the company's pipeline HAS, read from its
-     config; a hand-written list here once left Negotiation and Postpone out,
-     so the cells did not add up to Total leads. */
-  const stageCells = Object.entries(d.leadsPerStage).map(([id, value]) => ({
-    id,
-    label: id === "new" ? t(m.newNotActioned) : stageLabel(locale, id),
-    value,
-  }));
-
-  const today = new Date().toLocaleDateString(locale === "ar" ? "ar-EG" : "en-EG", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-    timeZone: "Africa/Cairo",
-  });
-
   return (
-    <div className="space-y-6">
-      <div className="page-head">
-        <div>
-          <p className="u-eyebrow">{t(m.eyebrow)}</p>
-          <h1 className="u-h1">{t(m.title)}</h1>
-          <p className="u-sub">{today}</p>
-        </div>
-        <div className="page-actions">
-          <BackupControls />
-        </div>
-      </div>
-      <div className="tile-grid tile-grid--vary">
-        <StatCard label={t(m.totalLeads)} value={String(d.totalLeads)} />
-        <StatCard label={t(m.pipelineValue)} value={formatEGP(d.pipelineValue)} hint={t(m.activeStagesOnly)} />
-        <StatCard label={t(m.wonValue)} value={formatEGP(d.wonValue)} />
-        <StatCard label={t(m.toBeCollected)} value={formatEGP(d.toBeCollected)} hint={t(m.openMilestones)} />
-      </div>
-      <div className="card card--flush0">
-        <div className="card-head">
-          <h2 className="u-h3">{t(m.leadsPerStage)}</h2>
-        </div>
-        <div className="stage-strip">
-          {stageCells.map((cell) => (
-            <div key={cell.id} className="stage-cell" data-stage-key={stageKey(cell.id)}>
-              <div className="stage-cell-bar" aria-hidden />
-              <p className="stage-cell-label">{cell.label}</p>
-              <p className="stage-cell-value">
-                <AnimatedValue value={String(cell.value)} />
-              </p>
-            </div>
-          ))}
-        </div>
-      </div>
-      <div className="grid md:grid-cols-3 gap-6 items-start">
-        <div className="tile-grid md:col-span-1">
-          <StatCard label={t(m.agents)} value={String(home.agentCount)} />
-          <StatCard label={t(m.partners)} value={String(home.partnerCount)} />
-        </div>
-        <div className="md:col-span-2 card card--flush0">
-          <div className="card-head">
-            <h2 className="u-h3">
-              {t(m.externalPipeline)}
-            </h2>
-          </div>
-          <div className="card-pad space-y-1">
-            {BSYSTEMS_STAGES.map((stage, i) => {
-              const count = home.externalPipeline[stage] ?? 0;
-              return (
-                <div key={stage} className="chart-row text-sm">
-                  <span className="w-36 shrink-0 text-brand-muted">{stageLabel(locale, stage)}</span>
-                  <div className="meter">
-                    <div
-                      className={`meter-fill ${stageAccent(stage)}`}
-                      style={{
-                        width: `${(count / maxCount) * 100}%`,
-                        animationDelay: `${i * 70}ms`,
-                      }}
-                    />
-                  </div>
-                  <span className="w-8 text-end font-medium">
-                    <AnimatedValue value={String(count)} />
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-    </div>
+    <DashboardBody
+      company="bsystems"
+      scope={{ kind: "all" }}
+      range={range}
+      locale={locale}
+      viewerName={user.name}
+      showBackup
+    />
   );
 }

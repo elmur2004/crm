@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { afterSignIn } from "./helpers/after-sign-in";
 
 /* SPEC §13 journey 2 — ByteForce lost path with reason; dashboard reflects it.
    Runs after journey 1 (serial): asserts by delta where journey 1 left state. */
@@ -8,27 +9,17 @@ test("journey 2: ByteForce lost path with reason", async ({ page }) => {
   await page.getByLabel("Email or phone").fill("sara@byteforce.example");
   await page.getByLabel("Password").fill("byteforce123");
   await page.getByRole("button", { name: "Sign in" }).click();
-  await expect(page).toHaveURL(/\/b-systems\?company=byteforce$/);
+  await afterSignIn(page, /\/b-systems\?company=byteforce$/);
 
-  /* Read current dashboard numbers for delta assertions. KPI values COUNT UP
-     on load — sample until two consecutive reads agree (animation settled). */
-  const settled = async (label: string, exact = false): Promise<number> => {
-    const read = async () =>
-      Number(
-        (await page.getByText(label, { exact }).locator("..").locator("p").nth(1).textContent()) ??
-          "0",
-      );
-    let previous = await read();
-    for (let i = 0; i < 20; i++) {
-      await page.waitForTimeout(150);
-      const current = await read();
-      if (current === previous) return current;
-      previous = current;
-    }
-    return previous;
-  };
-  const totalBefore = await settled("Total leads");
-  const lostBefore = await settled("Lost", true);
+  /* Read current dashboard numbers for delta assertions — from data-value,
+     the server value, so no polling is needed (dashboard spec §9.5). */
+  const metric = (key: string) =>
+    page
+      .locator(`[data-metric="${key}"]`)
+      .getAttribute("data-value")
+      .then((v) => Number(v));
+  const totalBefore = await metric("total_leads");
+  const lostBefore = await metric("stage:lost");
 
   /* New lead under the seeded rep. */
   await page.goto("/b-systems/leads?company=byteforce");
@@ -49,10 +40,9 @@ test("journey 2: ByteForce lost path with reason", async ({ page }) => {
 
   /* Dashboard reflects the change. */
   await page.goto("/b-systems?company=byteforce");
-  await expect(
-    page.getByText("Total leads").locator("..").getByText(String(totalBefore + 1), { exact: true }),
-  ).toBeVisible();
-  await expect(
-    page.getByText("Lost", { exact: true }).locator("..").getByText(String(lostBefore + 1), { exact: true }),
-  ).toBeVisible();
+  expect(await metric("total_leads")).toBe(totalBefore + 1);
+  expect(await metric("stage:lost")).toBe(lostBefore + 1);
+  /* the Lost bar still prints its stage name and its count as text */
+  await expect(page.locator('[data-metric="stage:lost"]')).toContainText("Lost");
+  await expect(page.locator('[data-metric="stage:lost"]')).toContainText(String(lostBefore + 1));
 });

@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { afterSignIn } from "./helpers/after-sign-in";
 
 /* Founder: "I want the CRM of the partners to be the CRM of the partners and
    agents... I will create for them a user and a password."
@@ -21,7 +22,7 @@ test("an agent card runs the shared pipeline, qualifies free, then gets a workin
   await page.getByLabel("Email or phone").fill("admin@byteforce.com");
   await page.getByLabel("Password").fill("password123");
   await page.getByRole("button", { name: "Sign in" }).click();
-  await expect(page).toHaveURL(/\/b-systems$/);
+  await afterSignIn(page, /\/b-systems$/);
 
   /* The one entry point asks WHICH kind first, then swaps the field set to the
      agent's — the same fields the applicant fills in on the public form. But
@@ -105,7 +106,7 @@ test("an agent card runs the shared pipeline, qualifies free, then gets a workin
   await agentPage.getByLabel("Email or phone").fill("mostafa.kamel@example.com");
   await agentPage.getByLabel("Password").fill("agentpass123");
   await agentPage.getByRole("button", { name: "Sign in" }).click();
-  await expect(agentPage).toHaveURL(/\/b-systems\/crm$/);
+  await afterSignIn(agentPage, /\/b-systems\/crm$/);
   await agentCtx.close();
 });
 
@@ -119,7 +120,7 @@ test("the Kind filter separates the two kinds, and cards expose Call + WhatsApp"
   await page.getByLabel("Email or phone").fill("admin@byteforce.com");
   await page.getByLabel("Password").fill("password123");
   await page.getByRole("button", { name: "Sign in" }).click();
-  await expect(page).toHaveURL(/\/b-systems$/);
+  await afterSignIn(page, /\/b-systems$/);
 
   const partnerRes = await page.request.post("/api/b-systems/partners-pipeline", {
     data: {

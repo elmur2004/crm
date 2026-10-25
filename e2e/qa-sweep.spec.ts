@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { afterSignIn } from "./helpers/after-sign-in";
 
 /* §15 Global DoD sweep, V2 edition: no console errors; no horizontal overflow
    on every major screen, per role. 601 is deliberate (ADR-060): the four-
@@ -47,7 +48,7 @@ test("ByteForce screens (in the merged shell): clean console, no horizontal over
   await page.getByLabel("Email or phone").fill("sara@byteforce.example");
   await page.getByLabel("Password").fill("byteforce123");
   await page.getByRole("button", { name: "Sign in" }).click();
-  await page.waitForURL(/\/b-systems\?company=byteforce$/);
+  await afterSignIn(page, /\/b-systems\?company=byteforce$/);
   await sweep(page, errors, [
     "/b-systems?company=byteforce",
     "/b-systems/leads?company=byteforce",
@@ -77,7 +78,7 @@ test("B-Systems admin: all twelve sections clean at every width", async ({ page 
   await page.getByLabel("Email or phone").fill("admin@byteforce.com");
   await page.getByLabel("Password").fill("password123");
   await page.getByRole("button", { name: "Sign in" }).click();
-  await page.waitForURL(/\/b-systems$/);
+  await afterSignIn(page, /\/b-systems$/);
   await sweep(page, errors, [
     "/b-systems",
     "/b-systems/leads",
@@ -102,7 +103,7 @@ test("B-Systems internal sales: CRM + Won Leads clean", async ({ page }) => {
   await page.getByLabel("Email or phone").fill("omar@b-systems.example");
   await page.getByLabel("Password").fill("bsystems123");
   await page.getByRole("button", { name: "Sign in" }).click();
-  await page.waitForURL(/\/b-systems\/crm$/);
+  await afterSignIn(page, /\/b-systems\/crm$/);
   await sweep(page, errors, ["/b-systems/crm", "/b-systems/won-leads"]);
   expect(errors).toEqual([]);
 });
@@ -116,7 +117,7 @@ test("B-Systems data entry: its one page clean at every width", async ({ page })
   await page.getByLabel("Email or phone").fill("entry@b-systems.example");
   await page.getByLabel("Password").fill("entry123");
   await page.getByRole("button", { name: "Sign in" }).click();
-  await page.waitForURL(/\/b-systems\/entry$/);
+  await afterSignIn(page, /\/b-systems\/entry$/);
   await sweep(page, errors, ["/b-systems/entry"]);
   expect(errors).toEqual([]);
 });
@@ -132,7 +133,7 @@ test("B-Systems admin: accounting screens clean at every width", async ({ page }
   await page.getByLabel("Email or phone").fill("admin@byteforce.com");
   await page.getByLabel("Password").fill("password123");
   await page.getByRole("button", { name: "Sign in" }).click();
-  await page.waitForURL(/\/b-systems$/);
+  await afterSignIn(page, /\/b-systems$/);
   await sweep(page, errors, [
     "/accounting",
     "/accounting?company=bsystems",
@@ -160,7 +161,7 @@ test("B-Systems admin: vault screens clean at every width", async ({ page }) => 
   await page.getByLabel("Email or phone").fill("admin@byteforce.com");
   await page.getByLabel("Password").fill("password123");
   await page.getByRole("button", { name: "Sign in" }).click();
-  await page.waitForURL(/\/b-systems$/);
+  await afterSignIn(page, /\/b-systems$/);
   await sweep(page, errors, [
     "/vault",
     "/vault/forms",
@@ -181,7 +182,7 @@ test("mobile menu reaches EVERY admin section at 390px (incl. switcher + logout)
   await page.getByLabel("Email or phone").fill("admin@byteforce.com");
   await page.getByLabel("Password").fill("password123");
   await page.getByRole("button", { name: "Sign in" }).click();
-  await page.waitForURL(/\/b-systems$/);
+  await afterSignIn(page, /\/b-systems$/);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/b-systems");
   await page.getByRole("button", { name: "Open menu" }).click();
@@ -246,7 +247,7 @@ test("the module switcher moves between all three modules, and the company switc
   await page.getByLabel("Email or phone").fill("admin@byteforce.com");
   await page.getByLabel("Password").fill("password123");
   await page.getByRole("button", { name: "Sign in" }).click();
-  await page.waitForURL(/\/b-systems$/);
+  await afterSignIn(page, /\/b-systems$/);
 
   const switcher = () => page.locator(".user").getByRole("group", { name: "Switch module" });
   await expect(switcher().getByRole("link", { name: "CRM", exact: true })).toHaveAttribute(
@@ -313,7 +314,7 @@ test("B-Systems agent + public screens: clean console, no horizontal overflow", 
   await page.getByLabel("Email or phone").fill("01001234567");
   await page.getByLabel("Password").fill("partner123");
   await page.getByRole("button", { name: "Sign in" }).click();
-  await page.waitForURL(/\/b-systems\/crm$/);
+  await afterSignIn(page, /\/b-systems\/crm$/);
   await sweep(page, errors, [
     "/b-systems/crm",
     "/b-systems/won-leads",

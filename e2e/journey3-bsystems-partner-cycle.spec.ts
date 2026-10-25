@@ -1,4 +1,5 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
+import { afterSignIn } from "./helpers/after-sign-in";
 
 /* V2 §6 journey 3 — Partners & Agents, the PARTNER card (ADMIN-owned in V2):
    prospect with mp3 record → Didn't Answer records WHICH number went unanswered
@@ -17,7 +18,7 @@ test("journey 3: partnership acquisition to attributed CRM lead (V2 numbers flow
   await page.getByLabel("Email or phone").fill("admin@byteforce.com");
   await page.getByLabel("Password").fill("password123");
   await page.getByRole("button", { name: "Sign in" }).click();
-  await expect(page).toHaveURL(/\/b-systems$/);
+  await afterSignIn(page, /\/b-systems$/);
 
   /* Create the prospect (§7.2 Lead stage fields). */
   await page.goto("/b-systems/partners-pipeline");
@@ -161,7 +162,7 @@ test("founder V4: partners board drag opens the stage form; edit + delete from d
   await page.getByLabel("Email or phone").fill("admin@byteforce.com");
   await page.getByLabel("Password").fill("password123");
   await page.getByRole("button", { name: "Sign in" }).click();
-  await expect(page).toHaveURL(/\/b-systems$/);
+  await afterSignIn(page, /\/b-systems$/);
 
   /* A fresh card to drag. */
   await page.goto("/b-systems/partners-pipeline");

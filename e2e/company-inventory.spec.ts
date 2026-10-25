@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { afterSignIn } from "./helpers/after-sign-in";
 
 /* ============================================================================
    ADR-067, decision 10 — NOTHING MAY BE QUIETLY LOST.
@@ -22,7 +23,7 @@ async function loginFounder(page: Page) {
   await page.getByLabel("Email or phone").fill("admin@byteforce.com");
   await page.getByLabel("Password").fill("password123");
   await page.getByRole("button", { name: "Sign in" }).click();
-  await page.waitForURL(/\/b-systems$/);
+  await afterSignIn(page, /\/b-systems$/);
 }
 
 const BF = "?company=byteforce";

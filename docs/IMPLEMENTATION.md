@@ -4435,3 +4435,30 @@ read it from a year later.
   - **No automated test targets this component.** The datetime sweep only
     allowlists its `toLocaleString`. Recorded as a gap in TESTING Run 104.
 - Last updated: 2026-10-25 (ADR-089, BUG-026, TESTING Run 104)
+
+## Two auth edges recorded by the pre-push review (2026-10-25, ADR-090, BUG-027)
+
+- **The launcher reads live roles; the proxy reads token roles.** `/apps` decides
+  its tiles from a fresh database read (`requireUser`), while `src/proxy.ts`
+  admits `/accounting`, `/vault` and `/b-systems/*` on the roles inside the
+  session JWT, minted at sign-in. Someone granted `bsystems_admin` mid-session
+  therefore sees the Accounting and Vault tiles but is sent to `/login` by the
+  proxy until they sign in again (up to 24h). It fails closed, and the same gap
+  already exists in `EntitySwitch.tsx`. ADR-090's "no tile redirects" holds for
+  every role a session was MINTED with. Add-only note; ADR-090 is unchanged.
+- **BUG-027's fix keys on `Sec-Fetch-Dest`, which Next does not strip.** The proxy
+  adapter removes Next's own router headers (`RSC`, `Next-Router-Prefetch`,
+  `Next-Router-State-Tree`, `Next-Router-Segment-Prefetch`) and the `_rsc`
+  parameter before `proxy.ts` runs (`next/dist/server/web/adapter.js`,
+  FLIGHT_HEADERS) — a first version keyed on `Next-Router-Prefetch` was a silent
+  no-op, caught by `e2e/session-prefetch.spec.ts`. Browsers send `Sec-Fetch-*`
+  only to secure origins, so over plain-http LAN the proxy keeps the old
+  behaviour. A test that fakes a background fetch must send `Sec-Fetch-Dest:
+  empty` itself: Playwright's APIRequestContext sends no Fetch Metadata.
+- **Touch targets in the app headers are 44px on `pointer: coarse`.** Found by
+  `e2e/device-sweep.spec.ts` on real device profiles: the logo/home links, the
+  language and theme switches, the header Log out and nav links, the nav
+  slider's chevrons and the launcher's "All apps" icon. A Playwright context
+  without `hasTouch` reports `pointer: fine`, so the desktop-width specs never
+  saw these rules.
+- Last updated: 2026-10-25 (ADR-090, BUG-027, TESTING Run 105)

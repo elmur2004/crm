@@ -141,8 +141,10 @@ export function cairoDayWindow(now: Date): { start: Date; end: Date } {
 /* The name every other owner surface shows, in the same order (CRM board,
    Leads table, lead detail): the owner ACCOUNT, else the internal rep, else
    the referring partner company. Null only for the genuinely unassigned
-   internal lead — no rep, no account (ADR-051). */
-function ownerNameOf(lead: {
+   internal lead — no rep, no account (ADR-051).
+   EXPORTED for the Home's team card and activity feed (dashboard spec W12),
+   so "who owns this" is answered by one function everywhere it is shown. */
+export function ownerNameOf(lead: {
   owner: { name: string } | null;
   salesRep: { name: string } | null;
   partner: { companyName: string } | null;

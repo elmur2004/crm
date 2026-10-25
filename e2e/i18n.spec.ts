@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { afterSignIn } from "./helpers/after-sign-in";
 
 /* Founder V5 — the AR ↔ EN toggle: switching flips the whole document to
    Arabic RTL and back; the choice survives navigation (cookie). */
@@ -17,7 +18,7 @@ test("the language toggle flips the app to Arabic (RTL) and back", async ({ page
   await page.getByLabel("كلمة المرور").fill("password123");
   await page.getByPlaceholder(/you@company\.com|01012345678|البريد/).fill("admin@byteforce.com");
   await page.getByRole("button", { name: /تسجيل الدخول/ }).click();
-  await expect(page).toHaveURL(/\/b-systems$/);
+  await afterSignIn(page, /\/b-systems$/);
   await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
 
   /* Back to English from the app header. */

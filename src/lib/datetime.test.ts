@@ -5,6 +5,10 @@ import {
   cairoToUtc,
   formatCairo,
   formatCairoDate,
+  formatCairoDateRange,
+  formatCairoLongDate,
+  formatCairoMonthShort,
+  formatCairoRelative,
   formatCairoShort,
   msUntilNextCairoDay,
   nextCairoDate,
@@ -362,5 +366,89 @@ describe("cairoDatesBack — the report's three days, newest first", () => {
   it("refuses a nonsense day count rather than returning an empty window", () => {
     expect(() => cairoDatesBack(new Date(), 0)).toThrow();
     expect(() => cairoDatesBack(new Date(), -1)).toThrow();
+  });
+});
+
+/* ------------------------------------------------ the Home's four helpers */
+
+describe("formatCairoLongDate — the Home heading, byte-identical to what it replaced", () => {
+  it("matches the page's old toLocaleDateString output in both languages", () => {
+    const at = cairoToUtc("2026-10-25", "13:00");
+    const old = (locale: "en" | "ar") =>
+      at.toLocaleDateString(locale === "ar" ? "ar-EG" : "en-EG", {
+        weekday: "long",
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+        timeZone: "Africa/Cairo",
+      });
+    expect(formatCairoLongDate(at, "en")).toBe(old("en"));
+    expect(formatCairoLongDate(at, "ar")).toBe(old("ar"));
+    expect(formatCairoLongDate(at, "en")).toContain("Sunday");
+    expect(formatCairoLongDate(at, "en")).toContain("2026");
+  });
+
+  it("is the CAIRO date — 00:30 on 1 Oct is still 30 Sep in UTC", () => {
+    expect(formatCairoLongDate(cairoToUtc("2026-10-01", "00:30"), "en")).toMatch(/October 1,|1 October/);
+  });
+});
+
+describe("formatCairoDateRange", () => {
+  const norm = (s: string) => s.replace(/[   ]/g, " ");
+  it("collapses a same-month range", () => {
+    expect(norm(formatCairoDateRange("2026-10-01", "2026-10-25", "en"))).toBe("1–25 Oct 2026");
+    expect(norm(formatCairoDateRange("2026-10-01", "2026-10-25", "en", { year: false }))).toBe("1–25 Oct");
+  });
+
+  it("spans months and years", () => {
+    /* en-GB's short September is "Sept" in current ICU and "Sep" in older
+       ones — the same month name formatCairoDate prints everywhere else */
+    expect(norm(formatCairoDateRange("2026-09-26", "2026-10-25", "en"))).toMatch(/^26 Sept? – 25 Oct 2026$/);
+    expect(norm(formatCairoDateRange("2025-12-30", "2026-01-02", "en"))).toBe("30 Dec 2025 – 2 Jan 2026");
+  });
+
+  it("a one-day range is a single date", () => {
+    expect(formatCairoDateRange("2026-10-25", "2026-10-25", "en")).toBe("25 Oct 2026");
+  });
+
+  it("Arabic keeps Latin digits (-u-nu-latn)", () => {
+    const ar = formatCairoDateRange("2026-10-01", "2026-10-25", "ar");
+    expect(ar).toMatch(/1/);
+    expect(ar).toMatch(/25/);
+    expect(ar).not.toMatch(/[٠-٩]/);
+  });
+});
+
+describe("formatCairoMonthShort", () => {
+  it("names the Cairo month, optionally with its year", () => {
+    const sep = cairoToUtc("2026-09-01", "00:30"); // UTC is still 31 Aug
+    expect(formatCairoMonthShort(sep, "en")).toMatch(/^Sept?$/);
+    expect(formatCairoMonthShort(sep, "en", { year: true })).toMatch(/^Sept? 2026$/);
+    expect(formatCairoMonthShort(cairoToUtc("2026-10-01", "00:30"), "en")).toBe("Oct");
+    expect(formatCairoMonthShort(sep, "ar")).not.toMatch(/[٠-٩]/);
+  });
+});
+
+describe("formatCairoRelative — the activity feed's time", () => {
+  const now = cairoToUtc("2026-10-25", "13:00");
+  it("seconds are 'now', then minutes, then hours on the same Cairo day", () => {
+    expect(formatCairoRelative(new Date(now.getTime() - 20_000), now, "en")).toBe("now");
+    expect(formatCairoRelative(new Date(now.getTime() - 3 * 60_000), now, "en")).toBe("3 minutes ago");
+    expect(formatCairoRelative(cairoToUtc("2026-10-25", "10:00"), now, "en")).toBe("3 hours ago");
+  });
+
+  it("days are CALENDAR days in Cairo — 23:00 last night is yesterday", () => {
+    expect(formatCairoRelative(cairoToUtc("2026-10-24", "23:00"), now, "en")).toBe("yesterday");
+    expect(formatCairoRelative(cairoToUtc("2026-10-20", "09:00"), now, "en")).toBe("5 days ago");
+  });
+
+  it("older than six days falls back to the absolute twelve-hour stamp", () => {
+    const old = cairoToUtc("2026-10-10", "14:30");
+    expect(formatCairoRelative(old, now, "en")).toBe(formatCairoShort(old, "en"));
+  });
+
+  it("a future instant reads as now; Arabic keeps Latin digits", () => {
+    expect(formatCairoRelative(new Date(now.getTime() + 60_000), now, "en")).toBe("now");
+    expect(formatCairoRelative(new Date(now.getTime() - 3 * 60_000), now, "ar")).toMatch(/3/);
   });
 });

@@ -72,6 +72,8 @@
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
   --radius-card: 10px;
   --radius-control: 8px;
+  /* D1 (dashboard spec §5.1): dashboard cards only — declared so no scope resolves it to nothing (ADR-019). Theme-invariant like every --radius-*. */
+  --radius-panel: 14px;
   --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.05), 0 6px 18px rgba(0, 0, 0, 0.05);
   --shadow-lift: 0 14px 30px rgba(0, 0, 0, 0.18);
   --shadow-modal: 0 30px 70px rgba(0, 0, 0, 0.4);
@@ -108,6 +110,15 @@
   --color-on-chrome: var(--color-ink);
   --color-focus-ring: color-mix(in srgb, var(--color-primary) 45%, transparent);
   --color-border-control: var(--color-border);
+  /* The CATEGORICAL cap for any future multi-series chart (dashboard spec
+     §5.1) — three slots, validated (dataviz palette check: lightness band,
+     chroma, CVD separation) and >= 3:1 on --color-surface-card in both
+     themes (theme-tokens.test.ts). Nothing on the Home needs more than one
+     series today; these exist so the first chart that does never invents
+     its colours. Text is never a series colour. */
+  --color-chart-1: #5A3A96;
+  --color-chart-2: #D8468B;
+  --color-chart-3: #3D4BB8;
 }
 
 /* ---- hub (`/`) — spec §2.15 ---- */
@@ -438,6 +449,10 @@
     --color-focus-ring: #ECEAE5;
     /* NEW — input boundary: 42% ink into the card, >=3:1 */
     --color-border-control: #757370;
+    /* NEW — the chart cap, lifted to >= 3:1 on the dark card */
+    --color-chart-1: #8466CC;
+    --color-chart-2: #D85C93;
+    --color-chart-3: #5E70D6;
     /* stage vars: contract parity only (the neutral shell never renders
        boards) — the same aliases as light, which resolve to the dark values */
     --color-stage-intake: var(--color-surface-tint); --color-stage-intake-accent: var(--color-border); --color-stage-intake-chip: var(--color-surface-tint); --color-stage-intake-chip-ink: var(--color-muted);
@@ -532,6 +547,9 @@
     --color-on-chrome: var(--color-ink);
     --color-focus-ring: #ECEAE5;
     --color-border-control: #757370;
+    --color-chart-1: #8466CC;
+    --color-chart-2: #D85C93;
+    --color-chart-3: #5E70D6;
     --color-stage-intake: var(--color-surface-tint); --color-stage-intake-accent: var(--color-border); --color-stage-intake-chip: var(--color-surface-tint); --color-stage-intake-chip-ink: var(--color-muted);
     --color-stage-following: var(--color-surface-tint); --color-stage-following-accent: var(--color-border); --color-stage-following-chip: var(--color-surface-tint); --color-stage-following-chip-ink: var(--color-muted);
     --color-stage-meeting: var(--color-surface-tint); --color-stage-meeting-accent: var(--color-border); --color-stage-meeting-chip: var(--color-surface-tint); --color-stage-meeting-chip-ink: var(--color-muted);

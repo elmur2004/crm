@@ -2436,3 +2436,94 @@ ByteForce's money figures didn't change.
 **The Home**
 - Is "open milestones" what you want "To be collected" to mean for B-Systems? Other options: remove the tile, or the won value minus the milestones already checked off.
 - Archived won deals still drop out of Won value. Should their money count?
+
+## 25 October 2026 (second update) — All your apps on one screen, a new Home, a new sign-in page, and Import leads on the board
+
+You asked for an app screen with an icon for each section, a more modern and animated dashboard, a glass sign-in page with no Google or Facebook buttons, and the Import leads button where you can see it, all tested on phones and tablets and pushed. Here is what changed.
+
+### Import leads is on the board now
+
+It was already there, but only on each company's **Leads** page. You work from the **CRM board**, so the same **Import leads** button now sits beside **Add lead** on both boards. It shows only for people who are allowed to import (ByteForce staff on the ByteForce board, the admin on the B-Systems board). A sales rep doesn't see it.
+
+### All your apps on one screen
+
+- **Signing in now opens a screen of app icons**: ByteForce CRM, B-Systems CRM, Accounting, Data Vault, To-Do, Reports & Dashboards, and Partners & Agents.
+- **Everyone sees only the apps they can open.** You see all seven. An admin whose Accounting is switched off doesn't see Accounting. A sales rep, an agent or a partner sees three: the B-Systems CRM, the To-Do and their reports. Data entry sees one.
+- **To get back from anywhere**, press the small grid icon at the start of the header ("All apps") in the CRM, Accounting and the Vault. The menus inside each app work as before.
+- **Reports & Dashboards** opens a list of every report you can open, grouped by app: both company dashboards, the daily report, and the accounting dashboard, monthly P&L and departments. If someone has only one report, the icon takes them straight to it.
+- **Partners & Agents** opens the partners pipeline in one click. The Partners and Agents lists are still in that app's menu.
+- **Impersonating someone**, and coming back, also opens the app screen first.
+- It works in Arabic, in dark mode, and on a phone (three icons across).
+
+### The new Home
+
+The dashboard for B-Systems and for ByteForce is now one new design.
+
+- **Four headline figures, this month against the same point last month.**
+  - **Won this month**: the value of deals won, labelled as booked value, not cash collected.
+  - **New leads**.
+  - **Win rate**: deals won out of deals decided, with the counts printed beside it.
+  - **Pipeline value (now)**: what is in play today, including the part parked in Postpone.
+  
+  Each shows how it moved ("↑12%", "New", "No change"). On 25 October, "vs last month" means 1–25 September, not all of September.
+- **Pick the period** from the button at the top: this month, last month, the last 7 or 30 days, this quarter or this year. Switching company keeps the period you picked.
+- **Below that:**
+  - **leads per stage**, with every figure the old Home had (total, won value, won, lost, and to be collected or milestones outstanding);
+  - **a funnel**: of the leads added in the period, how many got at least as far as each stage;
+  - **lead sources**, as ranked bars as you chose;
+  - **today's tasks**, which you can tick right there;
+  - **what needs you** (B-Systems);
+  - **recent wins**;
+  - **win rate over six months**;
+  - **your team**;
+  - **the latest activity**.
+- **Every chart has "View as table"** with the exact numbers, and a tooltip when you hover, tap or tab to it.
+- **Rounded 20px cards**, as you chose. The big numbers use the brand's data font, so they don't jiggle when they change.
+- **Animated, calmly.** Bars and lines draw in once. A number moves only when it actually changes, for example after you switch the period or tick a task. It never flashes to zero when the page opens. If your device is set to reduce motion, nothing moves.
+- **Agents** now counts only active, approved agents, with "+N pending" beside it for sign-ups still waiting.
+- **The two companies now use the same Arabic words** for the same figures.
+- **Small change elsewhere:** the small figure boxes in the Vault, the daily report, the import result and the accounting pages no longer lift when you hover over them. They aren't buttons, so they shouldn't look like they are.
+
+### The new sign-in page
+
+- **Frosted glass, as in your reference**, with both logos at the top ("ByteForce × B-Systems"). Each logo is the real file, unchanged, on its own background colour, so it reads in light and dark.
+- **On a phone** the fields float on the background. **On a tablet or computer** they sit on one glass card.
+- **Animated:** the logos come together, the heading comes into focus, the fields and button follow, and soft lights drift behind. On a computer with a mouse, a light follows the pointer. If your device is set to reduce motion, none of it plays.
+- **A show-password eye** that works with the keyboard and with screen readers, not just with a mouse.
+- **Nothing about signing in changed.** Same email-or-phone, same password, same messages. As you said, **there is no Google, Facebook or any other sign-in button.**
+
+### Signing out now always signs you out
+
+We found and fixed a problem that was already there before this update. When you signed out, or pressed **Back to admin** after impersonating someone, a page the browser was loading in the background could quietly put the old session back. You could end up signed in again, or still inside the agent's account. It was likeliest on a slow phone connection. Background loads can no longer do that.
+
+### Phones and tablets
+
+The final check before this goes live includes a full round on real phone and tablet sizes (two phones, a tablet upright and sideways), in light and English and in dark and Arabic, over the sign-in page and the 13 screens you use most.
+
+### Still only on our computer
+
+The **landing pages** are still not live, as you asked. They stay local until you tell us how you want them integrated.
+
+### Questions for you
+
+**The app screen**
+- The two CRMs come first, then Accounting, the Vault, the To-Do, Reports, and Partners & Agents. Your message listed Accounting first. Is this order right?
+- Data entry gets an app screen with one icon. Should they go straight to their page instead?
+- When someone has only one report, the icon opens it directly. OK?
+- Impersonating someone, and coming back, opens the app screen first. OK?
+- The "All apps" button is a grid, not a house, because the CRM menu already has a "Home". OK?
+
+**The Home**
+- Is "Milestones outstanding" right for B-Systems? It also still includes any old client balances from before the restructure.
+- The big numbers use the brand's data font (Inter) instead of Raleway, and the "Won this month" card is indigo. OK?
+- Nothing from Accounting (cash collected) appears on the CRM Home. OK?
+- Time on the charts runs left to right in Arabic too. Or should it run right to left?
+- Postponed leads stay inside Pipeline value, shown as "of which … parked". OK?
+- A B-Systems win is dated by when it was confirmed in the CRM, not by the contract date. OK?
+- One Arabic wording each: «قيمة الصفقات الجارية» for Pipeline value and «المطلوب تحصيله» for To be collected. Are those the words you want?
+- The ByteForce Home uses the B-Systems look, like the rest of the CRM. OK?
+- Still open from before: should archived won deals' money count; should ByteForce money come from the client record instead of the win record; should sales, agents and partners get their own Home?
+
+**The sign-in page**
+- "Remember me" and "Forgot password?" are not there, because neither exists behind the scenes yet. Do you want either built? Or, for the second, simply the line "Forgot your password? Ask your admin."?
+- The heading is still "One door, every account." rather than "Welcome back". Keep it?

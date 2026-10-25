@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { afterSignIn } from "./helpers/after-sign-in";
 
 /* ============================================================================
    ADR-065 — founder: "I want the website to sent actual notification so I
@@ -23,7 +24,7 @@ async function login(page: Page) {
   await page.getByLabel("Email or phone").fill(ADMIN.id);
   await page.getByLabel("Password").fill(ADMIN.password);
   await page.getByRole("button", { name: "Sign in" }).click();
-  await expect(page).toHaveURL(/\/b-systems$/);
+  await afterSignIn(page, /\/b-systems$/);
 }
 
 test("with NO keys configured the app is exactly what it was — and the worker is still served", async ({

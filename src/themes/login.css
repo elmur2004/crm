@@ -1,0 +1,1144 @@
+/* =========================================================================
+   THE GLASS SIGN-IN — /login (src/components/login/LoginGlass.tsx).
+
+   Founder: "upgrade the log in page to something like this / add crazy high
+   quality animations and designs and the glassy effect". The reference is a
+   pale-blue glassmorphism phone screen; this is that mood in THIS product's
+   two brands, in the brand-neutral (home) scope that serves both companies.
+
+   Imported by the login component, not by a layout, so it loads only on
+   /login. It lives in src/themes/ because that is the sanctioned home for
+   neutral values (SPEC §4.1). Every class is `lg-*`: the old `.login-*` rules
+   in neutral.css simply stop matching this page (/no-access still uses some).
+
+   ---------------------------------------------------------------- COLOUR
+   NOT ONE LITERAL COLOUR LIVES IN THIS FILE. Three sources, all tokens:
+   · the neutral scope's semantic tokens (--color-*), which already flip with
+     the theme. The CTA is --color-link — in light that IS B-Systems Systems
+     Indigo, the brand's primary-button colour (and the reference's blue);
+     dark lifts it, as the B-Systems dark scope lifts its primary.
+   · the brand files' raw palettes (--bs-*, --bf-*), reached the house way
+     (ADR-054, as AppIcon does): purely decorative or artwork-holding
+     elements re-stamp data-brand, so the palette resolves on that element
+     and nowhere else. Never nested. The ground re-stamps B-Systems (the
+     reference's pale blue is the Systems Indigo / Lavender family, and SPEC
+     §4.3 names the login as Indigo Deep's home); each mark's tile re-stamps
+     its own brand so its plate can be that brand's own canvas.
+   · --lg-* custom properties declared on .lg-shell. They are COMPUTED there,
+     in the neutral scope, and inherited as resolved values — so a re-stamped
+     descendant still paints the neutral value, never its brand's.
+
+   Brand rules held (the brand-auditor pass, folded in):
+   · logos are shown unaltered — never recoloured, filtered, rotated or
+     scaled out of ratio — each on a FLAT plate of its brand's own canvas
+     (ByteForce Off-white, B-Systems Paper), in both themes. The glass and its
+     sweeping sheen are only the bezel AROUND the plate; nothing ever passes
+     behind or over the artwork, and no gradient sits under a gradient mark.
+   · no two-hue gradient anywhere except the ground's own wash (Paper into
+     Lavender Mist; Indigo Deep into the neutral ink in dark). The CTA is one
+     flat colour under a white gloss; the heading is flat --color-heading.
+     Neither is, or imitates, either brand's --gradient-hero.
+   · Signal Pink and ByteForce orange are not spent at all outside the logos.
+   · no surface is pure #FFFFFF: the light canvas is Paper washed with
+     Lavender Mist.
+   · meta lines (kicker, tagline) are mono, uppercase, 0.24em — the neutral
+     eyebrow tracking (neutral.css .hub-eyebrow / .login-eyebrow).
+
+   CONTRAST (WCAG 2.1) — recomputed from the token files and this file's own
+   mix strengths by src/themes/login-glass.test.ts, against a deliberately
+   pessimistic model of the ground (its most lavender stop with half of each
+   corner glow veiled over it; on a phone the words sit straight on it).
+   Light / dark:
+   · CTA words 12.92:1 / 7.35:1 (white on Systems Indigo; dark ink on the
+     lifted indigo), and still >=10:1 / 7:1 under the gloss.
+   · heading 10.6:1 / 12.0:1; body (ink-soft) 7.1:1 / 8.8:1; quiet text
+     (--lg-quiet) 5.0:1 / 7.6:1; links 7.9:1 / 6.1:1.
+   · input boundary (1.4.11) 3.06:1 / 3.2:1 on the ground, 4.2:1 / 3.9:1
+     against the field's own fill; typed text and labels >=6.9:1 on it.
+
+   ---------------------------------------------------------------- MOTION
+   EVERY animation and transition is inside @media (prefers-reduced-motion:
+   no-preference). Without that query the page is complete and static: all
+   entrance keyframes use fill-mode `both`, so their "from" state only ever
+   exists while the motion is allowed to run. Only transform and opacity are
+   animated (plus one blur on the heading's entrance). The blurred layers —
+   backdrop-filter glass and the CTA's glow — never animate their size.
+
+   Nothing a test clicks animates forever: the button, fields and toggles
+   settle after the entrance (Playwright waits for a stable box before a
+   click). Only decorative, aria-hidden, pointer-events:none layers loop.
+
+   ---------------------------------------------------------------- DARK
+   The contract of src/lib/theme: rules match html[data-theme="dark"] inside
+   @media screen, and an identical html[data-theme="system"] twin inside
+   @media screen and (prefers-color-scheme: dark). Print stays light. The
+   dark block only re-points custom properties; login-glass.test.ts holds the
+   two blocks identical.
+
+   ---------------------------------------------------------------- RTL
+   Logical properties only. --lg-dir is 1 in LTR and -1 in RTL; every
+   directional motion (the CTA's arrow and sheen, the tile sheen) multiplies
+   by it. The two-mark lockup keeps its written order (ByteForce × B-Systems),
+   as the name does inside Arabic text.
+   ========================================================================= */
+
+/* ------------------------------------------------------------- the shell */
+
+.lg-shell {
+  /* direction, for motion */
+  --lg-dir: 1;
+  /* where the floating label scales from: the inline-start edge */
+  --lg-origin: 0% 50%;
+  /* the specular white of glass — white in BOTH themes (on-dark is #FFFFFF in
+     every scope and every theme), which is what a highlight is */
+  --lg-white: var(--color-on-dark);
+  /* the neutral canvas, captured here so a re-stamped descendant (the ground)
+     can still reach it */
+  --lg-ink-ground: var(--color-surface);
+
+  /* glass */
+  --lg-card: color-mix(in srgb, var(--color-surface-card) 50%, transparent);
+  --lg-card-edge: color-mix(in srgb, var(--lg-white) 72%, transparent);
+  --lg-glass: color-mix(in srgb, var(--color-surface-card) 62%, transparent);
+  --lg-glass-hi: color-mix(in srgb, var(--lg-white) 86%, transparent);
+  --lg-field: color-mix(in srgb, var(--color-surface-card) 64%, transparent);
+  --lg-field-solid: color-mix(in srgb, var(--color-surface-card) 94%, var(--color-link));
+  /* the input boundary: Systems Indigo at 58% — >=3:1 on the deepest light
+     ground (1.4.11) */
+  --lg-field-edge: color-mix(in srgb, var(--color-link) 58%, transparent);
+  --lg-field-edge-focus: var(--color-link);
+  /* quiet text — the kicker, the foot, the tagline, resting labels, icons.
+     NOT plain --color-muted: on a phone these lines sit straight on the
+     ground, and muted measures 3.3:1 where the ground is most lavender. Just
+     over half ink-soft, the rest muted, holds 5.0:1 there (7.6:1 in dark)
+     and stays the quiet grey the reference uses (login-glass.test.ts
+     measures both). */
+  --lg-quiet: color-mix(in srgb, var(--color-ink-soft) 55%, var(--color-muted));
+  --lg-icon: var(--lg-quiet);
+  --lg-shadow: color-mix(in srgb, var(--color-link) 22%, transparent);
+  /* the glass bezel round each mark's plate */
+  --lg-bezel-fill: color-mix(in srgb, var(--color-surface-card) 58%, transparent);
+  --lg-x-fill: color-mix(in srgb, var(--color-surface-card) 70%, transparent);
+
+  /* the CTA: ONE flat colour — Systems Indigo (lifted in dark) — under a
+     white gloss. Its words are on-primary: white in light, the near-black
+     ink in dark (the neutral dark scope inverts exactly like this). */
+  --lg-cta: var(--color-link);
+  --lg-cta-ink: var(--color-on-primary);
+  --lg-cta-gloss: color-mix(in srgb, var(--lg-white) 24%, transparent);
+  --lg-glow: color-mix(in srgb, var(--color-link) 40%, transparent);
+
+  /* the ground's mix strengths (the hues come from the brand files) */
+  --lg-lavender-a: 62%;
+  --lg-indigo-a: 20%;
+  --lg-mist-a: 80%;
+  --lg-orb-fill: 18%;
+  --lg-orb-rim: 62%;
+  --lg-orb-hi: 92%;
+  --lg-orb-tint: 34%;
+  --lg-spot: color-mix(in srgb, var(--lg-white) 34%, transparent);
+  --lg-rim: var(--lg-white);
+
+  position: relative;
+  isolation: isolate;
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  padding-block: max(12px, env(safe-area-inset-top)) max(14px, env(safe-area-inset-bottom));
+  /* the notch insets are PHYSICAL (left/right) while padding-inline is
+     logical, so both sides take the larger of the two: correct in either
+     direction, at the cost of a few px on the side without the notch */
+  padding-inline: max(20px, env(safe-area-inset-left), env(safe-area-inset-right));
+  color: var(--color-ink);
+  font-family: var(--font-body);
+  overflow-x: clip;
+}
+[dir="rtl"] .lg-shell {
+  --lg-dir: -1;
+  --lg-origin: 100% 50%;
+}
+
+/* ------------------------------------------------------------- the ground
+   A fixed, aria-hidden layer behind everything, B-Systems-stamped: a Paper →
+   Lavender Mist wash, three soft single-hue glows (Process Lavender, Systems
+   Indigo, Lavender Mist — each one colour fading to nothing, soft by
+   construction, no blur filter), and four glass bubbles like the reference's
+   corner orbs. */
+
+.lg-ground {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+}
+.lg-aurora {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(
+      168deg,
+      var(--bs-paper) 0%,
+      color-mix(in srgb, var(--bs-lavendermist) 34%, var(--bs-paper)) 48%,
+      color-mix(in srgb, var(--bs-lavendermist) 56%, var(--bs-paper)) 100%
+    );
+}
+.lg-depth { position: absolute; inset: 0; }
+
+.lg-blob {
+  position: absolute;
+  width: var(--lg-s);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, var(--lg-c), transparent);
+}
+.lg-blob--lavender {
+  --lg-s: max(560px, 78vmax);
+  --lg-c: color-mix(in srgb, var(--bs-lavender) var(--lg-lavender-a), transparent);
+  inset-block-start: calc(var(--lg-s) * -0.42);
+  inset-inline-start: calc(var(--lg-s) * -0.36);
+}
+.lg-blob--indigo {
+  --lg-s: max(520px, 70vmax);
+  --lg-c: color-mix(in srgb, var(--bs-indigo) var(--lg-indigo-a), transparent);
+  inset-block-end: calc(var(--lg-s) * -0.46);
+  inset-inline-end: calc(var(--lg-s) * -0.34);
+}
+.lg-blob--mist {
+  --lg-s: max(380px, 50vmax);
+  --lg-c: color-mix(in srgb, var(--bs-lavendermist) var(--lg-mist-a), transparent);
+  inset-block-start: calc(var(--lg-s) * -0.12);
+  inset-inline-end: calc(var(--lg-s) * -0.42);
+}
+
+.lg-orb {
+  position: absolute;
+  width: var(--lg-s);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 32% 26%, color-mix(in srgb, var(--lg-white) var(--lg-orb-hi), transparent) 0 5%, transparent 24%),
+    radial-gradient(circle at 50% 50%, transparent 58%, color-mix(in srgb, var(--lg-white) var(--lg-orb-rim), transparent) 100%),
+    radial-gradient(circle at 70% 82%, color-mix(in srgb, var(--bs-lavender) var(--lg-orb-tint), transparent), transparent 62%),
+    color-mix(in srgb, var(--lg-white) var(--lg-orb-fill), transparent);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--lg-white) var(--lg-orb-rim), transparent),
+    0 40px 70px -40px color-mix(in srgb, var(--bs-indigo) 40%, transparent);
+}
+.lg-orb--1 { --lg-s: clamp(150px, 26vmin, 300px); inset-block-start: -4vmin; inset-inline-end: -6vmin; }
+.lg-orb--2 { --lg-s: clamp(170px, 30vmin, 340px); inset-block-end: -8vmin; inset-inline-start: -9vmin; }
+.lg-orb--3 { --lg-s: clamp(54px, 9vmin, 110px); inset-block-start: 34%; inset-inline-start: 5%; }
+.lg-orb--4 { --lg-s: clamp(38px, 6vmin, 74px); inset-block-end: 16%; inset-inline-end: 7%; }
+
+/* ------------------------------------------------------------- the toolbar
+   The language and theme toggles, as glass pills — the reference's moon
+   button in the top corner. Every segment is a >=44px thumb target. */
+
+.lg-top {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.lg-top .switcher {
+  padding: 3px;
+  gap: 2px;
+  border-radius: 999px;
+  background: var(--lg-glass);
+  border: 1px solid var(--lg-card-edge);
+  box-shadow: inset 0 1px 0 var(--lg-glass-hi), 0 10px 26px -16px var(--lg-shadow);
+  -webkit-backdrop-filter: blur(14px) saturate(150%);
+  backdrop-filter: blur(14px) saturate(150%);
+}
+.lg-top .switcher-seg {
+  min-block-size: 44px;
+  min-inline-size: 44px;
+  padding-inline: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  color: var(--lg-quiet);
+}
+.lg-top .switcher-seg:hover { color: var(--color-ink); }
+.lg-top .switcher-seg:is([aria-current], [aria-pressed="true"]) {
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+}
+.lg-top .theme-toggle[data-compact] .switcher-seg { padding-inline: 0; }
+
+/* ------------------------------------------------------------- the stage */
+
+.lg-stage {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  padding-block: 10px 6px;
+  min-width: 0;
+}
+.lg-card {
+  position: relative;
+  isolation: isolate;
+  width: 100%;
+  max-width: 400px;
+  display: flex;
+  flex-direction: column;
+  text-align: center;
+}
+/* the pointer's specular light (desktop only — LoginAmbient). Its box is set
+   LTR so inline-start is always the physical origin the pointer's clientX is
+   measured from; the light itself is not directional. */
+.lg-light {
+  display: none;
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  overflow: hidden;
+  pointer-events: none;
+  direction: ltr;
+}
+.lg-spot {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: 0;
+  width: 560px;
+  height: 560px;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, var(--lg-spot), transparent);
+  opacity: 0;
+  transform: translate3d(calc(var(--lg-sx, 50%) - 280px), calc(var(--lg-sy, 0px) - 280px), 0);
+}
+.lg-shell[data-live] .lg-spot { opacity: 1; }
+
+/* ------------------------------------------------------------- the marks
+   Two glass app tiles — ByteForce × B-Systems, the product's own name — each
+   holding its company's mark exactly as supplied (src/themes/assets.ts).
+   A tile is a frosted glass BEZEL (smoked in dark, with the page) around a
+   FLAT, OPAQUE plate in that brand's own canvas colour — ByteForce Off-white,
+   B-Systems Paper — in both themes. The ByteForce lockup is drawn for a light
+   surface (its tagline is near-black) and may not be filtered, so it never
+   stands on a dark ground (BrandLogo's dark-plate rule); the B-Systems
+   gradient mark never sits on a gradient. The light sheen sweeps the bezel
+   only: the plate is stacked above it and opaque, so nothing ever passes
+   behind or over the artwork. */
+
+.lg-duo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  direction: ltr;
+}
+.lg-tile {
+  --lg-t: 88px;
+  --lg-bezel: 6px;
+  position: relative;
+  width: var(--lg-t);
+  height: var(--lg-t);
+  flex: none;
+}
+/* each plate is its brand's canvas; the typographic fallback (only if a mark
+   file were ever missing) is that brand's own heading ink — Royal Violet, and
+   Systems Indigo (the B-Systems mono colour). Neither changes with the theme. */
+.lg-tile--byteforce { --lg-plate: var(--bf-offwhite); --lg-plate-ink: var(--bf-violet); }
+.lg-tile--bsystems { --lg-plate: var(--bs-paper); --lg-plate-ink: var(--bs-indigo); }
+.lg-tile-glass {
+  position: absolute;
+  inset: 0;
+  isolation: isolate;
+  overflow: hidden;
+  border-radius: calc(var(--lg-t) * 0.3);
+  background: var(--lg-bezel-fill);
+  border: 1px solid var(--lg-card-edge);
+  box-shadow:
+    inset 0 1px 0 var(--lg-glass-hi),
+    0 22px 36px -20px var(--lg-shadow),
+    0 3px 8px -4px var(--lg-shadow);
+  -webkit-backdrop-filter: blur(16px) saturate(160%);
+  backdrop-filter: blur(16px) saturate(160%);
+}
+/* the sheen lives in the bezel: the opaque plate is stacked above it */
+.lg-tile-sheen {
+  position: absolute;
+  inset: -10% -70%;
+  z-index: 0;
+  background: linear-gradient(
+    calc(100deg * var(--lg-dir)),
+    transparent 38%,
+    color-mix(in srgb, var(--lg-white) 80%, transparent) 50%,
+    transparent 62%
+  );
+  opacity: 0;
+}
+.lg-tile-plate {
+  position: absolute;
+  inset: var(--lg-bezel);
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  border-radius: calc(var(--lg-t) * 0.3 - var(--lg-bezel));
+  background: var(--lg-plate);
+  box-shadow: 0 1px 3px var(--lg-shadow);
+}
+.lg-mark {
+  display: block;
+  max-width: none;
+}
+.lg-mark--byteforce { width: 58px; height: auto; }
+.lg-mark--bsystems { height: 46px; width: auto; }
+/* the typographic fallback, should a mark ever be missing from assets.ts */
+.lg-mark-word {
+  font: 700 12px/1.1 var(--font-display);
+  letter-spacing: .02em;
+  color: var(--lg-plate-ink);
+}
+.lg-x {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--lg-x-fill);
+  border: 1px solid var(--lg-card-edge);
+  box-shadow: inset 0 1px 0 var(--lg-glass-hi), 0 6px 14px -8px var(--lg-shadow);
+  color: var(--lg-quiet);
+  font: 600 15px/1 var(--font-body);
+}
+
+/* ------------------------------------------------------------- the words */
+
+.lg-title {
+  margin: 22px auto 0;
+  width: fit-content;
+  max-width: 100%;
+  font: 700 clamp(27px, 7.4vw, 32px)/1.08 var(--font-display);
+  letter-spacing: -.032em;
+  text-wrap: balance;
+  color: var(--color-heading);
+}
+.lg-kicker {
+  margin: 12px 0 0;
+  /* letter-spacing trails the last letter: pad the start by the same amount
+     so the line is optically centred */
+  padding-inline-start: .24em;
+  font: 700 11px/1.3 var(--font-mono);
+  letter-spacing: .24em;
+  text-transform: uppercase;
+  color: var(--lg-quiet);
+}
+.lg-sub {
+  margin: 10px auto 0;
+  max-width: 36ch;
+  font: 400 14px/1.55 var(--font-body);
+  color: var(--color-ink-soft);
+  text-wrap: pretty;
+}
+/* Arabic is a joined script: tracking pulls its letters apart, and it has no
+   capitals. The meta lines drop both and take the body face. */
+:lang(ar) .lg-kicker,
+:lang(ar) .lg-tagline {
+  letter-spacing: 0;
+  padding-inline-start: 0;
+  text-transform: none;
+  font-family: var(--font-body);
+  font-size: 13px;
+}
+:lang(ar) .lg-title { letter-spacing: 0; line-height: 1.3; }
+
+/* ------------------------------------------------------------- the alert */
+
+.lg-alert {
+  margin: 18px 0 0;
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  text-align: start;
+  padding: 12px 16px;
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--color-danger-tint) 92%, transparent);
+  border: 1px solid var(--color-danger-border);
+  border-inline-start: 3px solid var(--color-danger);
+  box-shadow: 0 12px 26px -18px var(--color-danger);
+  font: 500 13.5px/1.5 var(--font-body);
+  color: var(--color-danger-ink);
+}
+.lg-alert-icon {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  margin-block-start: 1px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--color-danger);
+  color: var(--color-on-danger);
+  font: 700 12px/1 var(--font-body);
+}
+
+/* ------------------------------------------------------------- the fields
+   Pill-shaped frosted glass, a line icon at the inline start, a REAL <label>
+   floating inside the pill (never placeholder-only). The input comes first in
+   the DOM so the label can read its state with the sibling combinator: the
+   label rests in the middle of an empty, unfocused field, and floats above
+   the value otherwise. */
+
+.lg-form {
+  margin-block-start: 22px;
+  display: grid;
+  gap: 14px;
+  text-align: start;
+}
+.lg-field { position: relative; }
+.lg-input {
+  display: block;
+  width: 100%;
+  height: 60px;
+  margin: 0;
+  -webkit-appearance: none;
+  appearance: none;
+  border-radius: 999px;
+  border: 1px solid var(--lg-field-edge);
+  background: var(--lg-field);
+  box-shadow: inset 0 1px 0 var(--lg-glass-hi), 0 12px 28px -18px var(--lg-shadow);
+  -webkit-backdrop-filter: blur(14px) saturate(150%);
+  backdrop-filter: blur(14px) saturate(150%);
+  padding-block: 21px 5px;
+  padding-inline: 54px 24px;
+  /* 16px: iOS zooms the page into any field set smaller */
+  font: 500 16px/1.25 var(--font-body);
+  color: var(--color-ink);
+  caret-color: var(--color-link);
+}
+.lg-field--secret .lg-input { padding-inline-end: 60px; }
+.lg-input::placeholder { color: var(--lg-quiet); opacity: 1; }
+.lg-input:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 3px;
+}
+.lg-input:focus {
+  border-color: var(--lg-field-edge-focus);
+  background: var(--lg-glass);
+  box-shadow:
+    inset 0 1px 0 var(--lg-glass-hi),
+    0 0 0 4px color-mix(in srgb, var(--color-link) 16%, transparent),
+    0 14px 34px -14px var(--lg-glow);
+}
+/* autofill would paint the UA's tint over the glass; a solid near-card fill
+   keeps the field legible instead */
+.lg-input:-webkit-autofill,
+.lg-input:-webkit-autofill:hover,
+.lg-input:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--color-ink);
+  box-shadow: inset 0 0 0 40px var(--lg-field-solid);
+}
+
+.lg-label {
+  position: absolute;
+  inset-block-start: 50%;
+  inset-inline-start: 54px;
+  max-width: calc(100% - 54px - 24px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  pointer-events: none;
+  transform-origin: var(--lg-origin);
+  /* floated: the default, so a browser that cannot read the field's state
+     still shows the label clear of the value */
+  transform: translate3d(0, -112%, 0) scale(.76);
+  font: 600 15px/20px var(--font-body);
+  color: var(--color-ink-soft);
+}
+.lg-field--secret .lg-label { max-width: calc(100% - 54px - 60px); }
+/* resting: the field is empty and not focused */
+.lg-input:placeholder-shown:not(:focus) + .lg-label {
+  transform: translate3d(0, -50%, 0);
+  font-weight: 500;
+  color: var(--lg-quiet);
+}
+.lg-input:focus + .lg-label { color: var(--color-link); }
+/* the hint appears only once the label has moved out of its way */
+.lg-input:placeholder-shown:not(:focus)::placeholder { color: transparent; }
+
+.lg-lead {
+  position: absolute;
+  inset-block-start: 50%;
+  inset-inline-start: 20px;
+  width: 20px;
+  height: 20px;
+  margin-block-start: -10px;
+  color: var(--lg-icon);
+  pointer-events: none;
+}
+.lg-input:focus ~ .lg-lead { color: var(--color-link); }
+
+.lg-eye {
+  position: absolute;
+  inset-block-start: 8px;
+  inset-inline-end: 8px;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: transparent;
+  color: var(--lg-icon);
+  cursor: pointer;
+}
+.lg-eye:hover { color: var(--color-ink); background: color-mix(in srgb, var(--color-ink) 7%, transparent); }
+.lg-eye[aria-pressed="true"] { color: var(--color-link); }
+.lg-eye:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 1px; }
+.lg-eye svg { display: block; }
+
+/* ------------------------------------------------------------- the CTA
+   A glossy pill: flat Systems Indigo under a white gloss, a soft indigo glow
+   under it, and a round arrow badge at the inline end. The glow is a sibling layer
+   (a child of the button could only ever paint ABOVE the button's own
+   background), blurred once and only ever faded. */
+
+.lg-cta {
+  position: relative;
+  isolation: isolate;
+  margin-block-start: 6px;
+}
+.lg-cta-glow {
+  position: absolute;
+  inset-inline: 10%;
+  inset-block: 34% -10px;
+  z-index: -1;
+  border-radius: 999px;
+  background: var(--lg-glow);
+  filter: blur(16px);
+  opacity: .75;
+  pointer-events: none;
+}
+.lg-submit {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  width: 100%;
+  height: 60px;
+  margin: 0;
+  padding-inline: 64px;
+  border: 0;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--lg-cta);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--lg-white) 34%, transparent),
+    inset 0 -3px 8px -2px color-mix(in srgb, var(--color-surface-dark) 22%, transparent);
+  color: var(--lg-cta-ink);
+  font: 600 16px/1 var(--font-body);
+  letter-spacing: .01em;
+  cursor: pointer;
+}
+/* gloss: the top half catches the light */
+.lg-submit::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: linear-gradient(180deg, var(--lg-cta-gloss) 0%, transparent 56%);
+  pointer-events: none;
+}
+.lg-submit:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 4px;
+}
+.lg-submit[data-pending] { cursor: progress; }
+.lg-submit-label { white-space: nowrap; }
+.lg-cta:hover .lg-cta-glow { opacity: 1; }
+
+.lg-submit-sheen {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  overflow: hidden;
+  pointer-events: none;
+}
+.lg-submit-sheen::before {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  width: 100%;
+  background: linear-gradient(
+    calc(100deg * var(--lg-dir)),
+    transparent 30%,
+    color-mix(in srgb, var(--lg-white) 30%, transparent) 50%,
+    transparent 70%
+  );
+  transform: translate3d(calc(-110% * var(--lg-dir)), 0, 0);
+}
+
+.lg-badge {
+  position: absolute;
+  inset-block: 7px;
+  inset-inline-end: 7px;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, currentColor 16%, transparent);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, currentColor 26%, transparent),
+    inset 0 1px 0 color-mix(in srgb, var(--lg-white) 36%, transparent);
+}
+.lg-arrow {
+  grid-area: 1 / 1;
+  display: block;
+  /* the arrow points to the inline end: mirrored in Arabic */
+  transform: scaleX(var(--lg-dir));
+}
+.lg-spinner {
+  grid-area: 1 / 1;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid color-mix(in srgb, currentColor 28%, transparent);
+  border-block-start-color: currentColor;
+  opacity: 0;
+}
+.lg-submit[data-pending] .lg-arrow { opacity: 0; }
+.lg-submit[data-pending] .lg-spinner { opacity: 1; }
+
+/* ------------------------------------------------------------- the foot */
+
+/* the question on one line, the link under it as its own >=44px target */
+.lg-foot {
+  margin: 20px 0 0;
+  font: 400 13.5px/1.5 var(--font-body);
+  color: var(--lg-quiet);
+}
+.lg-foot a {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: fit-content;
+  min-height: 44px;
+  margin: -6px auto -10px;
+  padding-inline: 8px;
+  font-weight: 600;
+  color: var(--color-link);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+.lg-foot a:hover { text-decoration-thickness: 2px; }
+
+.lg-tagline {
+  position: relative;
+  z-index: 1;
+  margin: 0;
+  padding-block-start: 8px;
+  padding-inline-start: .24em;
+  text-align: center;
+  font: 700 10px/1.4 var(--font-mono);
+  letter-spacing: .24em;
+  text-transform: uppercase;
+  color: var(--lg-quiet);
+}
+
+/* ------------------------------------------------------------- larger screens
+   From a tablet up, the column becomes one glass card. Inside it the fields
+   and tiles drop their own backdrop blur: a backdrop-filter element is the
+   backdrop root of everything inside it, so theirs would only ever see the
+   card — the card's one blur does the work for all of them. */
+
+@media (min-width: 600px) {
+  .lg-shell { padding-inline: max(28px, env(safe-area-inset-left), env(safe-area-inset-right)); }
+  .lg-stage { padding-block: 28px; }
+  .lg-card {
+    max-width: 468px;
+    padding: 40px 40px 30px;
+    border-radius: 36px;
+    background: var(--lg-card);
+    border: 1px solid var(--lg-card-edge);
+    box-shadow:
+      inset 0 1px 0 var(--lg-glass-hi),
+      0 40px 80px -40px var(--lg-shadow),
+      0 18px 40px -30px var(--lg-shadow);
+    -webkit-backdrop-filter: blur(26px) saturate(160%);
+    backdrop-filter: blur(26px) saturate(160%);
+  }
+  .lg-light { display: block; }
+  /* the rim: light catches the card's top edge and fades round the sides —
+     a 1px gradient ring cut out with a mask (the mask reads alpha only) */
+  .lg-card::before {
+    content: "";
+    position: absolute;
+    inset: -1px;
+    z-index: -1;
+    border-radius: inherit;
+    padding: 1px;
+    background: linear-gradient(
+      165deg,
+      var(--lg-rim) 0%,
+      transparent 38%,
+      transparent 70%,
+      color-mix(in srgb, var(--lg-rim) 45%, transparent) 100%
+    );
+    -webkit-mask: linear-gradient(var(--lg-white) 0 0) content-box, linear-gradient(var(--lg-white) 0 0);
+    -webkit-mask-composite: xor;
+    mask: linear-gradient(var(--lg-white) 0 0) content-box exclude, linear-gradient(var(--lg-white) 0 0);
+    pointer-events: none;
+  }
+  /* two bubbles straddle the card's edges, so its frost has something to
+     soften — the glass reads as glass */
+  .lg-orb--3 { --lg-s: 120px; inset-block-start: 21%; inset-inline-start: calc(50% - 300px); }
+  .lg-orb--4 { --lg-s: 96px; inset-block-end: 19%; inset-inline-end: calc(50% - 290px); }
+  .lg-input,
+  .lg-tile-glass {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+  .lg-tile { --lg-t: 96px; --lg-bezel: 7px; }
+  .lg-mark--byteforce { width: 62px; }
+  .lg-mark--bsystems { height: 50px; }
+  .lg-title { font-size: 34px; }
+  .lg-sub { font-size: 14.5px; }
+}
+
+/* Desktop / landscape tablet: the toggles float in the top corners and the
+   tagline at the foot, so the card is centred on the whole viewport. */
+@media (min-width: 900px) {
+  .lg-shell { padding-block: 84px 56px; }
+  .lg-top {
+    position: absolute;
+    inset-block-start: max(20px, env(safe-area-inset-top));
+    inset-inline: max(24px, env(safe-area-inset-left), env(safe-area-inset-right));
+  }
+  .lg-tagline {
+    position: absolute;
+    inset-block-end: 20px;
+    inset-inline: 0;
+  }
+  .lg-stage { padding-block: 0; }
+}
+
+/* short landscape screens (a 1024×768 tablet, a laptop with a tall dock):
+   the card tightens so it still fits without scrolling */
+@media (min-width: 600px) and (max-height: 820px) {
+  .lg-shell { padding-block: 72px 44px; }
+  .lg-card { padding: 30px 38px 22px; }
+  .lg-tile { --lg-t: 84px; --lg-bezel: 6px; }
+  .lg-mark--byteforce { width: 54px; }
+  .lg-mark--bsystems { height: 44px; }
+  .lg-title { margin-block-start: 16px; font-size: 31px; }
+  .lg-form { margin-block-start: 18px; gap: 12px; }
+  .lg-foot { margin-block-start: 14px; }
+}
+@media (min-width: 600px) and (max-width: 899px) and (max-height: 820px) {
+  .lg-shell { padding-block: 12px 14px; }
+}
+
+/* the narrowest phones (320px): a little more room for the words */
+@media (max-width: 359px) {
+  .lg-shell { padding-inline: max(16px, env(safe-area-inset-left), env(safe-area-inset-right)); }
+  .lg-tile { --lg-t: 78px; --lg-bezel: 5px; }
+  .lg-mark--byteforce { width: 52px; }
+  .lg-mark--bsystems { height: 42px; }
+  .lg-title { margin-block-start: 18px; }
+  .lg-sub { font-size: 13.5px; }
+  .lg-top .switcher-seg { padding-inline: 10px; }
+}
+
+/* ------------------------------------------------------------- fallbacks */
+
+/* no backdrop-filter: the glass thickens so text never sits on a busy ground */
+@supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+  .lg-shell {
+    --lg-card: color-mix(in srgb, var(--color-surface-card) 88%, transparent);
+    --lg-glass: color-mix(in srgb, var(--color-surface-card) 90%, transparent);
+    --lg-field: color-mix(in srgb, var(--color-surface-card) 90%, transparent);
+  }
+}
+/* the OS asked for less transparency: solid glass, no blur */
+@media (prefers-reduced-transparency: reduce) {
+  .lg-shell {
+    --lg-card: var(--color-surface-card);
+    --lg-glass: var(--color-surface-card);
+    --lg-field: var(--color-surface-card);
+  }
+  .lg-card,
+  .lg-input,
+  .lg-tile-glass,
+  .lg-top .switcher {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+/* Windows High Contrast and friends: the system colours take over; the
+   decorative ground goes */
+@media (forced-colors: active) {
+  .lg-ground,
+  .lg-light,
+  .lg-cta-glow,
+  .lg-submit-sheen { display: none; }
+  .lg-input,
+  .lg-submit { border: 1px solid ButtonBorder; }
+}
+
+/* =========================================================================
+   MOTION — only for people who have not asked for less. Outside this block
+   every element above is already at its final, complete state.
+   ========================================================================= */
+
+@keyframes lg-rise {
+  from { opacity: 0; transform: translate3d(0, 16px, 0); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes lg-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes lg-focus-pull {
+  from { opacity: 0; transform: translate3d(0, 14px, 0); filter: blur(8px); }
+  to { opacity: 1; transform: none; filter: blur(0); }
+}
+@keyframes lg-card-in {
+  from { opacity: 0; transform: translate3d(0, 26px, 0) scale(.965); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes lg-tile-from-start {
+  from { opacity: 0; transform: translate3d(-30px, 12px, 0) scale(.6); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes lg-tile-from-end {
+  from { opacity: 0; transform: translate3d(30px, 12px, 0) scale(.6); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes lg-pop {
+  0% { opacity: 0; transform: scale(.3); }
+  60% { opacity: 1; transform: scale(1.14); }
+  100% { opacity: 1; transform: none; }
+}
+@keyframes lg-bob {
+  from { transform: translate3d(0, -3px, 0); }
+  to { transform: translate3d(0, 4px, 0); }
+}
+@keyframes lg-tile-sheen {
+  0% { opacity: 1; transform: translate3d(calc(-62% * var(--lg-dir)), 0, 0); }
+  22% { opacity: 1; transform: translate3d(calc(62% * var(--lg-dir)), 0, 0); }
+  22.01%, 100% { opacity: 0; transform: translate3d(calc(62% * var(--lg-dir)), 0, 0); }
+}
+@keyframes lg-badge-in {
+  from { opacity: 0; transform: translate3d(calc(-10px * var(--lg-dir)), 0, 0) scale(.7); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes lg-shake {
+  0%, 100% { transform: none; }
+  14% { transform: translate3d(-8px, 0, 0); }
+  28% { transform: translate3d(7px, 0, 0); }
+  42% { transform: translate3d(-5px, 0, 0); }
+  56% { transform: translate3d(4px, 0, 0); }
+  70% { transform: translate3d(-2px, 0, 0); }
+  84% { transform: translate3d(1px, 0, 0); }
+}
+@keyframes lg-spin { to { transform: rotate(1turn); } }
+@keyframes lg-shimmer {
+  from { transform: translate3d(calc(-110% * var(--lg-dir)), 0, 0); }
+  to { transform: translate3d(calc(110% * var(--lg-dir)), 0, 0); }
+}
+@keyframes lg-drift-a {
+  from { transform: translate3d(0, 0, 0) scale(1); }
+  to { transform: translate3d(7vmax, 5vmax, 0) scale(1.1); }
+}
+@keyframes lg-drift-b {
+  from { transform: translate3d(0, 0, 0) scale(1.06); }
+  to { transform: translate3d(-6vmax, -4vmax, 0) scale(.94); }
+}
+@keyframes lg-drift-c {
+  from { transform: translate3d(0, 0, 0) scale(.96); }
+  to { transform: translate3d(-4vmax, 6vmax, 0) scale(1.08); }
+}
+@keyframes lg-orb-float {
+  from { transform: translate3d(0, 0, 0) scale(1); }
+  to { transform: translate3d(-12px, 22px, 0) scale(1.05); }
+}
+@keyframes lg-orb-float-b {
+  from { transform: translate3d(0, 0, 0) scale(1.03); }
+  to { transform: translate3d(16px, -18px, 0) scale(.97); }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  /* -- the ground: slow, out of phase, forever (decorative only) -- */
+  /* the wash is there from the first frame; what floats on it fades in */
+  .lg-depth { animation: lg-fade 1.2s ease-out both; }
+  .lg-blob { will-change: transform; }
+  .lg-blob--lavender { animation: lg-drift-a 26s ease-in-out -4s infinite alternate; }
+  .lg-blob--indigo { animation: lg-drift-b 31s ease-in-out -12s infinite alternate; }
+  .lg-blob--mist { animation: lg-drift-c 23s ease-in-out -7s infinite alternate; }
+  .lg-orb { will-change: transform; }
+  .lg-orb--1 { animation: lg-orb-float 14s ease-in-out -3s infinite alternate; }
+  .lg-orb--2 { animation: lg-orb-float-b 17s ease-in-out -9s infinite alternate; }
+  .lg-orb--3 { animation: lg-orb-float-b 11s ease-in-out -2s infinite alternate; }
+  .lg-orb--4 { animation: lg-orb-float 9s ease-in-out -5s infinite alternate; }
+
+  /* -- the pointer (LoginAmbient sets --lg-mx / --lg-my in -1…1, desktop
+        mouse only): the two depths drift against it, the far one less -- */
+  .lg-depth { transition: transform 1.1s cubic-bezier(.2, .8, .2, 1); }
+  .lg-depth--far { transform: translate3d(calc(var(--lg-mx, 0) * -10px), calc(var(--lg-my, 0) * -8px), 0); }
+  .lg-depth--near { transform: translate3d(calc(var(--lg-mx, 0) * 26px), calc(var(--lg-my, 0) * 18px), 0); }
+  .lg-spot { transition: transform .5s cubic-bezier(.2, .8, .2, 1), opacity .6s ease; }
+
+  /* -- the entrance: one sequence, ~1.2s, nothing clickable still moving
+        after it -- */
+  .lg-top { animation: lg-fade .6s ease-out .1s both; }
+  .lg-tagline { animation: lg-fade .8s ease-out .65s both; }
+  .lg-tile--byteforce { animation: lg-tile-from-start .9s cubic-bezier(.34, 1.4, .64, 1) .08s both; }
+  .lg-tile--bsystems { animation: lg-tile-from-end .9s cubic-bezier(.34, 1.4, .64, 1) .14s both; }
+  .lg-x { animation: lg-pop .55s cubic-bezier(.34, 1.4, .64, 1) .42s both; }
+  .lg-title { animation: lg-focus-pull .8s cubic-bezier(.2, .8, .2, 1) .2s both; }
+  .lg-kicker { animation: lg-rise .7s cubic-bezier(.2, .8, .2, 1) .27s both; }
+  .lg-sub { animation: lg-rise .7s cubic-bezier(.2, .8, .2, 1) .31s both; }
+  .lg-alert {
+    animation:
+      lg-rise .45s cubic-bezier(.2, .8, .2, 1) .12s both,
+      lg-shake .5s cubic-bezier(.36, .07, .19, .97) .5s;
+  }
+  /* by class, never :nth-child — React puts hidden inputs for the server
+     action at the top of the form, which would shift every index */
+  .lg-field--id { animation: lg-rise .65s cubic-bezier(.2, .8, .2, 1) .34s both; }
+  .lg-field--secret { animation: lg-rise .65s cubic-bezier(.2, .8, .2, 1) .39s both; }
+  .lg-cta { animation: lg-rise .65s cubic-bezier(.2, .8, .2, 1) .44s both; }
+  .lg-badge { animation: lg-badge-in .6s cubic-bezier(.34, 1.4, .64, 1) .72s both; }
+  .lg-foot { animation: lg-rise .65s cubic-bezier(.2, .8, .2, 1) .5s both; }
+
+  /* -- the tiles, once in: they breathe, and a light sweeps their glass
+        (behind the marks) every seven seconds -- */
+  .lg-tile-glass { animation: lg-bob 5.5s ease-in-out 1.1s infinite alternate; }
+  .lg-tile--bsystems .lg-tile-glass { animation-delay: 1.9s; }
+  .lg-tile-sheen { animation: lg-tile-sheen 7s cubic-bezier(.45, 0, .2, 1) 1.15s infinite; }
+  .lg-tile--bsystems .lg-tile-sheen { animation-delay: 1.35s; }
+
+  /* -- the fields -- */
+  .lg-input {
+    transition:
+      border-color .25s ease,
+      background-color .25s ease,
+      box-shadow .35s cubic-bezier(.2, .8, .2, 1);
+  }
+  .lg-label {
+    transition:
+      transform .28s cubic-bezier(.2, .8, .2, 1),
+      color .2s ease;
+  }
+  .lg-lead { transition: color .2s ease, transform .3s cubic-bezier(.34, 1.4, .64, 1); }
+  .lg-input:focus ~ .lg-lead { transform: scale(1.08); }
+  .lg-eye { transition: color .15s ease, background-color .15s ease, transform .15s ease; }
+  .lg-eye:active { transform: scale(.9); }
+
+  /* -- the CTA -- */
+  /* the lift is on the BUTTON: its wrapper carries the entrance, whose
+     filled end state would override a hover transform on the same element */
+  .lg-submit { transition: transform .35s cubic-bezier(.34, 1.4, .64, 1); }
+  .lg-cta:hover .lg-submit { transform: translate3d(0, -2px, 0); }
+  .lg-submit:active { transform: translate3d(0, 0, 0) scale(.985); transition-duration: .1s; }
+  .lg-cta-glow { transition: opacity .35s ease; }
+  .lg-arrow { transition: transform .35s cubic-bezier(.34, 1.4, .64, 1), opacity .2s ease; }
+  .lg-cta:hover .lg-arrow { transform: translate3d(calc(4px * var(--lg-dir)), 0, 0) scaleX(var(--lg-dir)); }
+  .lg-spinner { transition: opacity .2s ease; }
+  .lg-cta:hover .lg-submit-sheen::before {
+    transform: translate3d(calc(110% * var(--lg-dir)), 0, 0);
+    transition: transform .9s cubic-bezier(.2, .8, .2, 1);
+  }
+  .lg-submit[data-pending] .lg-spinner { animation: lg-spin .75s linear infinite; }
+  .lg-submit[data-pending] .lg-submit-sheen::before { animation: lg-shimmer 1.2s cubic-bezier(.4, 0, .2, 1) infinite; }
+
+  /* -- the toolbar and link -- */
+  .lg-top .switcher-seg { transition: background-color .2s ease, color .2s ease; }
+}
+
+/* the card arrives as one pane of glass from a tablet up (on a phone there is
+   no pane, so only its contents move) */
+@media (prefers-reduced-motion: no-preference) and (min-width: 600px) {
+  .lg-card { animation: lg-card-in .9s cubic-bezier(.2, .8, .2, 1) both; }
+}
+
+/* =========================================================================
+   DARK — smoked glass on a deep indigo-to-ink ground. Custom properties
+   only (plus the ground's own base), so the twin below stays trivially in
+   step; login-glass.test.ts holds the two blocks identical.
+   ========================================================================= */
+
+@media screen {
+  html[data-theme="dark"] .lg-shell {
+    --lg-card: color-mix(in srgb, var(--color-surface-card) 44%, transparent);
+    --lg-card-edge: color-mix(in srgb, var(--lg-white) 13%, transparent);
+    --lg-glass: color-mix(in srgb, var(--color-surface-card) 58%, transparent);
+    --lg-glass-hi: color-mix(in srgb, var(--lg-white) 16%, transparent);
+    --lg-field: color-mix(in srgb, var(--color-surface-dark) 46%, transparent);
+    --lg-field-solid: color-mix(in srgb, var(--color-surface-card) 92%, var(--color-link));
+    --lg-field-edge: color-mix(in srgb, var(--color-link) 62%, transparent);
+    --lg-shadow: color-mix(in srgb, var(--color-surface-dark) 70%, transparent);
+    --lg-bezel-fill: color-mix(in srgb, var(--color-surface-card) 50%, transparent);
+    --lg-x-fill: color-mix(in srgb, var(--color-surface-card) 72%, transparent);
+    --lg-cta-gloss: color-mix(in srgb, var(--lg-white) 30%, transparent);
+    --lg-glow: color-mix(in srgb, var(--color-link) 32%, transparent);
+    --lg-lavender-a: 16%;
+    --lg-indigo-a: 62%;
+    --lg-mist-a: 10%;
+    --lg-orb-fill: 4%;
+    --lg-orb-rim: 18%;
+    --lg-orb-hi: 34%;
+    --lg-orb-tint: 18%;
+    --lg-spot: color-mix(in srgb, var(--lg-white) 11%, transparent);
+    --lg-rim: color-mix(in srgb, var(--lg-white) 42%, transparent);
+  }
+  html[data-theme="dark"] .lg-aurora {
+    background:
+      linear-gradient(
+        168deg,
+        var(--bs-indigodeep) 0%,
+        color-mix(in srgb, var(--bs-indigodeep) 62%, var(--lg-ink-ground)) 52%,
+        var(--lg-ink-ground) 100%
+      );
+  }
+}
+
+@media screen and (prefers-color-scheme: dark) {
+  html[data-theme="system"] .lg-shell {
+    --lg-card: color-mix(in srgb, var(--color-surface-card) 44%, transparent);
+    --lg-card-edge: color-mix(in srgb, var(--lg-white) 13%, transparent);
+    --lg-glass: color-mix(in srgb, var(--color-surface-card) 58%, transparent);
+    --lg-glass-hi: color-mix(in srgb, var(--lg-white) 16%, transparent);
+    --lg-field: color-mix(in srgb, var(--color-surface-dark) 46%, transparent);
+    --lg-field-solid: color-mix(in srgb, var(--color-surface-card) 92%, var(--color-link));
+    --lg-field-edge: color-mix(in srgb, var(--color-link) 62%, transparent);
+    --lg-shadow: color-mix(in srgb, var(--color-surface-dark) 70%, transparent);
+    --lg-bezel-fill: color-mix(in srgb, var(--color-surface-card) 50%, transparent);
+    --lg-x-fill: color-mix(in srgb, var(--color-surface-card) 72%, transparent);
+    --lg-cta-gloss: color-mix(in srgb, var(--lg-white) 30%, transparent);
+    --lg-glow: color-mix(in srgb, var(--color-link) 32%, transparent);
+    --lg-lavender-a: 16%;
+    --lg-indigo-a: 62%;
+    --lg-mist-a: 10%;
+    --lg-orb-fill: 4%;
+    --lg-orb-rim: 18%;
+    --lg-orb-hi: 34%;
+    --lg-orb-tint: 18%;
+    --lg-spot: color-mix(in srgb, var(--lg-white) 11%, transparent);
+    --lg-rim: color-mix(in srgb, var(--lg-white) 42%, transparent);
+  }
+  html[data-theme="system"] .lg-aurora {
+    background:
+      linear-gradient(
+        168deg,
+        var(--bs-indigodeep) 0%,
+        color-mix(in srgb, var(--bs-indigodeep) 62%, var(--lg-ink-ground)) 52%,
+        var(--lg-ink-ground) 100%
+      );
+  }
+}

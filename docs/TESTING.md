@@ -7396,3 +7396,252 @@ it carries `data-theme="dark"` — the server stamp, live. `/api/health`:
 migration). **Not verifiable from outside:** the B-Systems Home's corrected
 figures need an admin session; the founder will see "Won value" rise by the
 B-Systems wins it used to miss.
+
+## Run 105 — 2026-10-25 — ADR-090/091/092 + BUG-027: the launcher, the new Home, the glass sign-in, the board's import button, and the prefetch that undid a sign-out, one push
+
+- Suites/commands: `npx tsc --noEmit`; `npx vitest run` (full, in the D:/CRM
+  working tree; full, in the dashboard builder's copy; targeted, for the
+  login); `npx playwright test` (full, in the dashboard builder's copy; the
+  Home specs; `e2e/login-glass.spec.ts`; the existing sign-in specs); 48
+  full-page Home screenshots; first-load motion frame capture; brand audits on
+  the Home and on the login. Still to run: the coordinator's clean-checkout
+  gate, including the FULL Playwright suite and the new `e2e/device-sweep.spec.ts`.
+- Cases: working-tree vitest **2118 passed in 96 files**; dashboard builder's
+  full Playwright **254 passed (22.2m), 2 skipped**; Home specs **28 passed**;
+  `login-glass.spec.ts` **51 passed, 7 skipped**; login vitest **246 passed in
+  10 files**; existing sign-in specs **20 passed**. **0 failed in every final
+  run reported.** No full Playwright figure exists yet for the final working
+  tree; that is the gate.
+- Failures:
+  - **BUG-027**, found by the full e2e run once ADR-090 made the impersonation
+    spec navigate after "Back to admin". Fixed in this push; regression
+    `e2e/session-prefetch.spec.ts`.
+  - **One open investigation:** reduced motion set suite-wide turned
+    `e2e/zoom.spec.ts`'s case "A5" red (below). Reverted to per-spec; not a bug
+    filed.
+  - Brand-audit findings on the login (first pass failed) and four Low findings
+    on the Home, all fixed before the final runs.
+- SPEC coverage touched:
+  - §2: the chart stack deviation (ADR-091 §7).
+  - §3: the launcher only narrows, through the real guards for 9 personas;
+    the import wall on the board; the session cookie on prefetch (BUG-027).
+  - §4: three scopes × three blocks for `--radius-panel` and
+    `--color-chart-1..3`; zero literals in components; the login's colours
+    from tokens only.
+  - §6.5: every figure kept and backed by `dashboard.integration.test.ts`.
+  - §13 widths: 320 / 375 / 390 / 768 / 1024 / 1440, plus real device profiles.
+  - Journeys 1, 2 and 5 re-premised onto `data-value`; all five journeys sign
+    in through `afterSignIn`.
+  - No T-*/PP-*/P-* row changed. No SPEC §11 A-#.
+- Verdict: **green at every point it was measured.** These are figures from
+  three builders' trees and the working tree at different moments, not one run
+  over the final tree. The push's verdict is the clean-checkout gate at the end
+  of this run.
+
+**Tree:** `main`, HEAD `f074751`, the D:/CRM working tree. It also carries the
+uncommitted **landing work**, which stays local at the founder's instruction,
+so every figure above is a working-tree figure.
+
+### Part 1 — the app launcher (ADR-090) and the board's import button (ADR-088 addendum)
+
+Working tree, after wiring the launcher's sign-in redirect, its header icon and
+the board import button, **before the login patch**:
+
+```
+ Test Files  96 passed (96)
+      Tests  2118 passed (2118)
+```
+
+`npx tsc --noEmit` → exit 0, after the login patch.
+
+| Suite | Tests | What it would catch |
+| --- | --- | --- |
+| `src/lib/launcher/apps.test.ts` | 18 | a tile offered to the wrong persona; any of 64 role sets × 4 flag pairs offered a company it does not hold, a module tile out of step with `canUseModule`, a repeated tile; an href that resolves to zero or two `page.tsx` files (11 destinations, read off the disk); a greeting on the server's clock |
+| `src/lib/launcher/launcher.integration.test.ts` | 27 | for 9 personas, ANY redirect while rendering a tile's destination through its real layout guard and page; anonymous, deactivated, pending or deleted accounts reaching `/apps`; a withheld door that is not really shut |
+| `e2e/launcher.spec.ts` (new) | 8 | the founder's 7 tiles out of order; a tile that does not open its app; "All apps" not coming back; a sales rep shown more than 3 tiles; signed-out `/apps` not going to `/login`; sideways scroll or a tile under 44px at 320/375/768/1024 in EN or AR |
+| `e2e/leads-import.spec.ts` | 8 (1 new) | the board's import button missing for the admin, showing the other company's menu, or appearing for internal sales |
+
+- **No isolated pass figure was reported to the docs-keeper for
+  `e2e/launcher.spec.ts` or the new board-import case.** The full Playwright
+  run in the clean-checkout gate is what speaks for them.
+- **The post-sign-in migration.** The builder reported 79 waits across 53 spec
+  files converted to `afterSignIn(page, landing)`. A grep at writing time
+  counts **83 `await afterSignIn(` call sites in 54 spec files**. That count
+  includes the two new Home specs, the impersonation spec's two non-sign-in
+  steps, and `e2e/i18n.spec.ts`'s **Arabic** sign-in, converted by hand
+  afterwards because the migration script only matched the English "Sign in"
+  click. The helper's landing table is strict: an unknown landing throws.
+
+### Part 2 — the new Home (ADR-091)
+
+Run by the dashboard builder, in its own copy of the tree:
+
+- `npx tsc --noEmit` → exit 0.
+- `npx vitest run` → `Test Files  96 passed (96)` / `Tests  2118 passed (2118)`.
+- `npx playwright test` (FULL) → **`254 passed (22.2m)`, 2 skipped**,
+  `.last-run.json` passed.
+- The Home specs, re-run after the last CSS change → **`28 passed (2.8m)`**.
+- **48 full-page screenshots** (B-Systems and ByteForce × 320/375/390/768/1024/1440
+  × light/dark × EN/AR) → **0 horizontal overflow**.
+- Every interactive Home element is at least **44px tall** at 320, 375 and 390.
+- **42 first-load motion frames**: every KPI shows its server value in every
+  frame. This is BUG-026's regression, measured.
+- Brand audit **PASS**, after four Low findings were fixed.
+
+New suites: `src/lib/dashboard/{periods,delta,geometry}.test.ts`,
+`src/lib/services/dashboard.integration.test.ts`, `src/lib/crm/switch-target.test.ts`
+(extended for `range`), `e2e/dashboard.spec.ts` (7) and `e2e/motion.spec.ts` (3).
+
+- **BUG-026's gap is closed.** Run 104 recorded that `AnimatedValue` had no
+  automated test. `AnimatedValue` is deleted, and `e2e/motion.spec.ts` → "first
+  load: every KPI shows its server value from the first frame — no frame shows
+  0" is now the test.
+- **Re-premised, not weakened.** Journeys 1, 2 and 5 and
+  `e2e/company-switch.spec.ts` read `data-value`, the server's figure, instead
+  of polling animated text until it stopped moving. `e2e/byteforce-redirects.spec.ts`
+  asserted the old "Home" h1 and now asserts the new heading.
+
+### Part 3 — the glass sign-in (ADR-092)
+
+- `npx tsc --noEmit` → exit 0.
+- Vitest, `src/themes/login-glass.test.ts` plus the theme, brand and i18n
+  sweeps → `Test Files  10 passed (10)` / `Tests  246 passed (246)`.
+- `npx playwright test e2e/login-glass.spec.ts` → **`51 passed (1.6m)`, 7
+  skipped**. The touch sign-in runs once by design, which accounts for the skips.
+  - Sign-in by email, phone and touch; wrong password; all four errors; the eye
+    toggle; tab order and visible focus in both themes.
+  - No horizontal scroll at 320/375/768/1024 in EN and AR; the whole form on
+    screen at 375×812 and 768×1024 even with an error showing.
+  - Targets of at least 44px; Arabic mirroring; zero animations under reduced
+    motion; smoked glass in dark; no other sign-in method on the page.
+- The existing sign-in specs → **20 passed**.
+- Measured: layout shift **0.0000**; page CSS 25.7 KB (5.3 KB gz); added client
+  JS ≈3.2 KB min (≈1.3 KB gz).
+- Brand audit: **failed** first, on five counts (two-colour gradients, ByteForce
+  colours in the background, effects behind the logos, unsafe notch padding,
+  letter spacing). All fixed; re-audit **PASS**.
+
+### Part 4 — BUG-027, the prefetch that undid a sign-out
+
+- **Found by** the full e2e run, on `e2e/impersonation.spec.ts`, once ADR-090
+  made it navigate after "Back to admin": the next page load landed on the
+  agent's board.
+- **Diagnosed from the trace's network log:** about 20 prefetches, started
+  under the agent's session, landed after the server action had set the admin's
+  cookie, and each re-issued the agent's `authjs.session-token`.
+- **Regression:** `e2e/session-prefetch.spec.ts`, 3 tests at the HTTP level, so
+  the race needs no timing:
+  - a prefetch response carries no session cookie;
+  - a real page load still does (the sliding 24h kept);
+  - a late prefetch carrying the pre-sign-out cookie cannot undo a sign-out.
+- **No pass figure yet**; the gate runs it with the full suite.
+
+### Part 5 — the phone and tablet round the founder asked for
+
+`e2e/device-sweep.spec.ts` (new) answers *"do a complete round of testing to
+make sure everything works perfectly for a phone interface and a tablet
+interface also"*. It uses real device profiles rather than resized desktop
+windows: `isMobile`, touch, a mobile user agent, and DPR 3 on phones and 2 on
+tablets.
+
+| Device | Viewport | DPR |
+| --- | --- | --- |
+| phone | 390×844 | 3 |
+| small phone | 360×740 | 3 |
+| tablet portrait | 768×1024 | 2 |
+| tablet landscape | 1024×768 | 2 |
+
+Each device runs twice, **light + English** and **dark + Arabic**, for 8 tests.
+Each one opens `/login` (theme and direction stamped, no overflow), signs in,
+and walks 13 founder screens: `/apps`, `/apps/reports`, both Homes, both CRM
+boards, both Leads pages, the To-Do, the daily report, the partners pipeline,
+`/accounting` and `/vault`. At every stop it requires:
+
+- no redirect away;
+- the page's h1 visible;
+- no sideways scroll (overflow ≤ 1px);
+- no header link or button under 32px in either dimension;
+- a screenshot attached.
+
+Across the walk, no console or page error.
+
+**Results come in the clean-checkout gate below.** None are claimed here.
+
+### The standing caveat, recorded again
+
+`npx vitest run` in this repo **exits 0 even when tests fail**, because the
+global-setup teardown swallows the status. Every vitest figure in this run is a
+printed summary line, never an exit code.
+
+### NOT RUN, honestly
+
+- **No full vitest over the final tree.** The working tree's 2118 / 96 predates
+  the login patch, and the login's 246 / 10 is a targeted subset. The gate's
+  full run is the first to include everything.
+- **No full Playwright over the final tree.** The 254 comes from the dashboard
+  builder's own copy, so it cannot speak for anything changed in the main tree
+  apart from it, including BUG-027's proxy fix and the i18n spec's conversion.
+  The new specs `launcher`, `session-prefetch` and `device-sweep`, and the new
+  board-import case, have no recorded pass figure yet.
+- **Open investigation: reduced motion suite-wide breaks `zoom.spec` "A5".**
+  With `reducedMotion: "reduce"` in `playwright.config.ts`, the zoom spec's
+  "A5: the board does not jump sideways when the page gains a scrollbar" failed
+  with a **15px** shift at **50%** zoom, which could not be reproduced by hand.
+  Reduced motion is therefore set per spec (`dashboard.spec.ts` "reduce",
+  `motion.spec.ts` "no-preference"), and the config is untouched. Cause
+  unknown. "A5" is that spec's own case label: not SPEC §11 A-5, and not the
+  dashboard audit's A5.
+- **Known limit, not tested, not fixed:** a JWT issued before a sign-out stays
+  valid until its expiry (BUG-027's out-of-scope note).
+- **A counting note for the gate.** In Run 104 the clean checkout ran 76 of 92
+  test files, because the 14 landing tests and the 2 then-unpushed launcher
+  tests were absent. This time the launcher tests ship, so only the landing
+  tests should be missing.
+
+**Clean-checkout gate.** The 145 pushed paths (139 code + 6 docs, two of
+them deletions: `StatCard.tsx`, `AnimatedValue.tsx`) were laid onto a fresh
+`git worktree` at `f074751` — tracked files only, no landing and nothing
+else local — with a REAL `npm ci` (no junctions) and no `.env` (a dummy
+`DATABASE_URL`, a throwaway `AUTH_SECRET`).
+
+| Check | Result (verbatim) |
+|---|---|
+| `npx tsc --noEmit` | `tsc exit: 0` |
+| `npx vitest run` | `Test Files  83 passed (83)` / `Tests  1690 passed \| 3 skipped (1693)` — 83 is every test file in the copy, counted |
+| `npx next build` | `build exit: 0`; `/apps` and `/apps/reports` in the route table |
+| `npx playwright test` (FULL suite, own build + seeded DB) | `315 passed (30.9m)`, `9 skipped`; `.last-run.json` `{"status": "passed", "failedTests": []}` |
+| after the brand-audit fixes (below), the 11 specs their CSS can reach — launcher, device-sweep, module-bar, qa-sweep, nav-slider, zoom, board-touch, dashboard, login-glass, accounting, vault | `116 passed (14.9m)`, `7 skipped`; `.last-run.json` passed; tsc 0 |
+
+- **Skips:** vitest's 3 are ADR-087's two landing-conditional guards and the
+  accounting export's real-file case (reads the gitignored archive).
+  Playwright's 9 are `audit.spec.ts` (opt-in, 2) and `login-glass.spec.ts`'s
+  touch sign-in, which runs once by design (7).
+- **The phone and tablet round (the founder's request) — `e2e/device-sweep.spec.ts`,
+  10/10:** 5 real device profiles (390×844 and 360×740 phones, a 740×360 phone
+  held sideways, 768×1024 and 1024×768 tablets; touch, mobile viewport, DPR
+  2–3, a mobile user agent) × (light + English, dark + Arabic), over `/login`
+  and the founder's 13 screens. Every stop: no sideways scroll, no console or
+  page error, its heading on screen, no header tap target under 32px; a
+  screenshot attached to the report. **Its first runs failed, honestly:** the
+  launcher's language/theme switches (26px), the B-Systems, Accounting and
+  Vault home links on phones (23, 34 and 21px wide), the header Log out (31px)
+  and the nav slider's chevrons (24×30) on tablets. All now take 44px on
+  `pointer: coarse` (design-system.css, launcher.css). The desktop-width specs
+  could never see these: a context without `hasTouch` reports `pointer: fine`.
+- **BUG-027 — the first fix did not work, and the spec said so.** Keyed on
+  `Next-Router-Prefetch`, which the proxy adapter strips; the regression spec
+  failed (the late prefetch still got a session cookie) and the impersonation
+  spec still timed out. Re-keyed on `Sec-Fetch-Dest: empty`; both green in the
+  full run above.
+- **Reviews before the push.** `spec-guardian` on the launcher + proxy: no code
+  deviation; four doc corrections, all made (BUG-027's status now says "fixed
+  over HTTPS and localhost, open over plain-http LAN"; the stale-token window
+  between the launcher's live roles and the proxy's token roles is recorded in
+  IMPLEMENTATION). `brand-auditor` on the launcher: FAIL with three Mediums —
+  a ByteForce-orange cue and a 1.88:1 lavender cue on shared tiles, and white
+  glyphs on orange — fixed (To-Do → `--color-success`, Partners →
+  `--color-faint` 3.57:1, ByteForce icon → Ink cards with one white cue via
+  `--color-on-dark`); Lows fixed: the "All apps" icon 44px on touch, header
+  touch targets 44 not 40, the To-Do tick no longer mirrored in Arabic. Left
+  open: the B-Systems icon's rounder corner (L5) and no test for launcher.css's
+  contrast table (L6).

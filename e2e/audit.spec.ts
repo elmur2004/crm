@@ -1,5 +1,6 @@
 import { test, type Page } from "@playwright/test";
 import { mkdirSync } from "node:fs";
+import { afterSignIn } from "./helpers/after-sign-in";
 
 /* Visual responsiveness audit (opt-in: AUDIT=1). Screenshots every role's
    pages at key widths into .audit/ for human review. Not an assertion suite —
@@ -25,7 +26,7 @@ async function login(page: Page, id: string, pw: string, landing: RegExp) {
   await page.getByLabel("Email or phone").fill(id);
   await page.getByLabel("Password").fill(pw);
   await page.getByRole("button", { name: "Sign in" }).click();
-  await page.waitForURL(landing);
+  await afterSignIn(page, landing);
 }
 
 test.skip(!RUN, "audit is opt-in (AUDIT=1)");

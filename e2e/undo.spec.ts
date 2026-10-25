@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { afterSignIn } from "./helpers/after-sign-in";
 
 /* ADR-082 — follow-up dates are RELATIVE to today. A hardcoded date silently
    drifts into the past, and a past date now puts the card in the derived
@@ -26,7 +27,7 @@ test("admin moves a card, undoes it from the header, and the card is back", asyn
   await page.getByLabel("Email or phone").fill("admin@byteforce.com");
   await page.getByLabel("Password").fill("password123");
   await page.getByRole("button", { name: "Sign in" }).click();
-  await page.waitForURL(/\/b-systems$/);
+  await afterSignIn(page, /\/b-systems$/);
 
   const created = await page.request.post("/api/b-systems/leads", {
     data: {

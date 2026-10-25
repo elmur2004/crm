@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { afterSignIn } from "./helpers/after-sign-in";
 
 /* the filter sidebar collapses behind a "Filters" disclosure only under 900px;
    at desktop width the form is already open, so opening it is best-effort */
@@ -27,7 +28,7 @@ async function login(page: Page, identifier: string, password: string, landing: 
   await page.getByLabel("Email or phone").fill(identifier);
   await page.getByLabel("Password").fill(password);
   await page.getByRole("button", { name: "Sign in" }).click();
-  await page.waitForURL(landing);
+  await afterSignIn(page, landing);
 }
 
 const switcher = (page: Page) => page.getByRole("group", { name: "Switch company" });
@@ -59,6 +60,20 @@ test("the founder switches company, and the CHROME never changes with it", async
      change. I don't want it." */
   expect(await skin()).toEqual(before);
   await expect(page.getByText("BYTEFORCE ·", { exact: false })).toBeVisible();
+});
+
+test("switching company on the Home keeps the PERIOD (and only the period)", async ({ page }) => {
+  await login(page, "admin@byteforce.com", "password123", /\/b-systems$/);
+  await page.goto("/b-systems?company=bsystems&range=last_month");
+  await expect(page.locator(".db-range-value")).toHaveText("Last month");
+  await switcher(page).getByRole("link", { name: "ByteForce" }).click();
+  await page.waitForURL(/\/b-systems\?company=byteforce&range=last_month$/);
+  await expect(page.getByText("BYTEFORCE ·", { exact: false })).toBeVisible();
+  await expect(page.locator(".db-range-value")).toHaveText("Last month");
+  /* and back — still Last month */
+  await switcher(page).getByRole("link", { name: "B-Systems" }).click();
+  await page.waitForURL(/\/b-systems\?company=bsystems&range=last_month$/);
+  await expect(page.locator(".db-range-value")).toHaveText("Last month");
 });
 
 test("the nav ADAPTS per company, and no rendered nav link 404s or shows the other company", async ({

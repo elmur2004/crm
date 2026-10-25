@@ -3,6 +3,7 @@ import { narrowRoles, requireCompanyPage } from "@/lib/auth/page-guards";
 import { crmEngineRole } from "@/lib/api/bsystems";
 import { crmQuery, crmRolesFor, oneValue, type CrmCompany } from "@/lib/crm/company";
 import { searchHop, SWITCHED_PARAM } from "@/lib/crm/search-hop";
+import { canImportLeads } from "@/lib/crm/leads-import";
 import type { Role } from "@/lib/pipeline-engine/constants";
 import { BSYSTEMS_SURFACE } from "@/lib/crm/surface";
 import { CrmBoardBody } from "@/components/internal/pages";
@@ -71,6 +72,10 @@ export default async function BsCrmPage({
 }) {
   const params = await searchParams;
   const { user, company, companies } = await requireCompanyPage(params.company);
+  /* ADR-088 — founder: "push the import leads button I don't see it". He works
+     from the board, where Add lead lives, so the import sits beside it too —
+     offered only to an account the import route would accept. */
+  const importCompany = canImportLeads(user.roles, company) ? company : null;
 
   if (company === "byteforce") {
     await hopOrRender(user, company, params);
@@ -79,6 +84,7 @@ export default async function BsCrmPage({
         ctx={BYTEFORCE_CTX}
         params={params}
         switchedFrom={{ path: BS_CRM_PATH, company }}
+        importCompany={importCompany}
       />
     );
   }
@@ -116,6 +122,7 @@ export default async function BsCrmPage({
       role={role}
       userId={user.id}
       switchedFrom={{ path: BS_CRM_PATH, company }}
+      importCompany={importCompany}
     />
   );
 }

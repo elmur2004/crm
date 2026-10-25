@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { afterSignIn } from "./helpers/after-sign-in";
 
 /* ADR-043 smoke: archive from the lead detail → the card leaves the board and
    the default list → the Archived view still has it → unarchive restores it. */
@@ -10,7 +11,7 @@ test("archive a lead from the detail; it leaves the board; the Archived view res
   await page.getByLabel("Email or phone").fill("admin@byteforce.com");
   await page.getByLabel("Password").fill("password123");
   await page.getByRole("button", { name: "Sign in" }).click();
-  await page.waitForURL(/\/b-systems$/);
+  await afterSignIn(page, /\/b-systems$/);
 
   const created = await page.request.post("/api/b-systems/leads", {
     data: {

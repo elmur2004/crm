@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { strFromU8, unzipSync } from "fflate";
+import { afterSignIn } from "./helpers/after-sign-in";
 
 /* ============================================================================
    ADR-083 — the two export buttons, in a browser.
@@ -25,7 +26,7 @@ async function login(page: Page, id: string, landing: RegExp, password = "passwo
   await page.getByLabel("Email or phone").fill(id);
   await page.getByLabel("Password").fill(password);
   await page.getByRole("button", { name: "Sign in" }).click();
-  await page.waitForURL(landing);
+  await afterSignIn(page, landing);
 }
 
 const btn = (page: Page, company: "ByteForce" | "B-Systems") =>

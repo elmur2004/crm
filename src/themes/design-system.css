@@ -411,6 +411,11 @@
 .tile--warn .tile-dot { background: var(--color-danger); }
 .tile-label { font: 500 10.5px var(--font-mono); letter-spacing: .16em; color: var(--color-muted); text-transform: uppercase; }
 .tile-value { font: 700 27px/1 var(--font-display); letter-spacing: -.025em; color: var(--color-heading); }
+/* A13 (dashboard spec) — Raleway's default figures are old-style, so a column
+   of tile numbers bounces on its baseline; LINING figures sit on one line (and
+   tabular ones keep their width wherever the face has them). The Home's own
+   KPI numerals go further — Inter 700, tabular (D2, dashboard.css). */
+.tile-value, .stage-cell-value { font-variant-numeric: lining-nums tabular-nums; }
 .tile-delta { font: 400 11.5px var(--font-body); color: var(--color-muted); }
 .tile--warn .tile-delta { color: var(--color-danger); }
 
@@ -1170,7 +1175,13 @@ label:has(input[required]) .dropzone-title::after {
     background-color .15s ease, border-color .15s ease, color .15s ease,
     box-shadow .18s ease, transform .18s ease, opacity .15s ease;
 }
-.tile:hover, .ecard:hover {
+/* A12 / D18 (dashboard spec) — a tile is not a link, so it no longer LIFTS on
+   hover anywhere (the vault, the daily report, the import result): a lift
+   promises a click that does nothing. Entity cards (.ecard) are links and keep
+   it. The accounting dashboard is untouched (D16): its KPIs are .acct-kpi,
+   which never lifted. The Home's own cards lift only when they are links
+   (a.db-card, dashboard.css). */
+.ecard:hover {
   transform: translateY(-2px);
   box-shadow: var(--shadow-card), 0 10px 26px color-mix(in srgb, var(--color-surface-dark) 8%, transparent);
 }
@@ -1925,4 +1936,25 @@ label:has(input[required]) .dropzone-title::after {
     border-radius: var(--radius-control);
     background: var(--color-toast-surface);
   }
+}
+
+/* Touch targets in the app headers, measured by e2e/device-sweep.spec.ts on
+   real phone and tablet profiles (the founder's "complete round of testing …
+   for a phone interface and a tablet interface"):
+   · ≤820px the wordmark hides and the B-Systems "S" mark alone left its home
+     link 23px wide — the link keeps a 44px thumb target around the mark;
+   · on a touch screen the header's language and theme switches (601px and up,
+     where they stay in the header rather than the sheet) were 26px tall — they
+     take the house 44px (44 + the switcher's 6px padding + 2px border = 52px,
+     inside the header's 54px). The sheet's own ≥44px rule above is more
+     specific and still wins inside the sheet. */
+@media (max-width: 820px), (pointer: coarse) {
+  .app-header .app-home-link { min-inline-size: 44px; min-block-size: 44px; justify-content: center; }
+}
+@media (pointer: coarse) {
+  .app-header .switcher-seg { min-block-size: 44px; min-inline-size: 44px; }
+  /* the nav links and the header's Log out (31px), and the slider's chevrons
+     (24×30) on a landscape tablet, where the desktop strip is shown */
+  .app-header .nav-item { min-block-size: 44px; display: inline-flex; align-items: center; }
+  .app-header .nav-scroll { width: 44px; height: 44px; }
 }

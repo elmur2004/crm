@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { afterSignIn } from "./helpers/after-sign-in";
 
 /* SPEC §13 journey 1 — ByteForce full cycle:
    add rep → add lead → Following Up → Meeting (attended → proposal) → Sent ✓ →
@@ -7,22 +8,15 @@ import { expect, test } from "@playwright/test";
 
 test.describe.configure({ mode: "serial" });
 
-async function tile(page: import("@playwright/test").Page, label: string): Promise<number> {
-  /* KPI values COUNT UP on load — read only once two consecutive samples agree
-     (the animation has settled on the final number). */
-  const read = async () => {
-    const text = await page.getByText(label).locator("..").locator("p").nth(1).textContent();
-    return Number((text ?? "0").replace(/[^\d.]/g, "") || "0");
-  };
-  let previous = await read();
-  for (let i = 0; i < 20; i++) {
-    await page.waitForTimeout(150);
-    const current = await read();
-    if (current === previous && current !== 0) return current;
-    previous = current;
-  }
-  return previous;
-}
+/* Dashboard spec §9.5 — the Home's figures are read from `data-value`, the
+   SERVER value the card renders, never from the visible (possibly animating)
+   text. No polling: the attribute is right on the first frame. Money is in
+   piasters (EGP × 100). */
+const metric = (page: import("@playwright/test").Page, key: string) =>
+  page
+    .locator(`[data-metric="${key}"]`)
+    .getAttribute("data-value")
+    .then((v) => Number(v));
 
 test("journey 1: ByteForce full cycle to Won", async ({ page }) => {
   /* Log in as ByteForce staff. */
@@ -30,13 +24,13 @@ test("journey 1: ByteForce full cycle to Won", async ({ page }) => {
   await page.getByLabel("Email or phone").fill("sara@byteforce.example");
   await page.getByLabel("Password").fill("byteforce123");
   await page.getByRole("button", { name: "Sign in" }).click();
-  await expect(page).toHaveURL(/\/b-systems\?company=byteforce$/);
+  await afterSignIn(page, /\/b-systems\?company=byteforce$/);
 
   /* Dashboard baseline — the seed populates every stage, so assert deltas. */
-  const totalBefore = await tile(page, "Total leads");
-  const pipelineBefore = await tile(page, "Pipeline value");
-  const wonValueBefore = await tile(page, "Won value");
-  const collectBefore = await tile(page, "To be collected");
+  const totalBefore = await metric(page, "total_leads");
+  const pipelineBefore = await metric(page, "pipeline_value");
+  const wonValueBefore = await metric(page, "won_value");
+  const collectBefore = await metric(page, "to_be_collected");
 
   /* Add a sales rep (§6.1 — reps unlimited). */
   await page.goto("/b-systems/leads?company=byteforce");
@@ -116,10 +110,13 @@ test("journey 1: ByteForce full cycle to Won", async ({ page }) => {
   await expect(page.getByText("EGP 3,000")).toBeVisible(); // to be collected = 5000 − 2000
 
   /* Dashboard numbers (§6.5) — deltas over the seeded baseline: +1 lead, won
-     value +5000, to-be-collected +3000, pipeline unchanged (the lead ended Won). */
+     value +EGP 5,000, to-be-collected +EGP 3,000, pipeline unchanged (the lead
+     ended Won). In data-value units: piasters. */
   await page.goto("/b-systems?company=byteforce");
-  expect(await tile(page, "Total leads")).toBe(totalBefore + 1);
-  expect(await tile(page, "Won value")).toBe(wonValueBefore + 5000);
-  expect(await tile(page, "To be collected")).toBe(collectBefore + 3000);
-  expect(await tile(page, "Pipeline value")).toBe(pipelineBefore);
+  expect(await metric(page, "total_leads")).toBe(totalBefore + 1);
+  expect(await metric(page, "won_value")).toBe(wonValueBefore + 500_000);
+  expect(await metric(page, "to_be_collected")).toBe(collectBefore + 300_000);
+  expect(await metric(page, "pipeline_value")).toBe(pipelineBefore);
+  /* and the period's hero card counted the win: it happened this month */
+  expect(await metric(page, "won_period")).toBeGreaterThanOrEqual(500_000);
 });

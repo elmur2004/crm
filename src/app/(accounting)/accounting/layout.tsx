@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ImpersonationBar } from "@/components/shared/ImpersonationBar";
+import { LauncherHomeLink } from "@/components/launcher/LauncherHomeLink";
 import { EntitySwitch } from "@/components/shared/EntitySwitch";
 import { LanguageToggle } from "@/components/shared/LanguageToggle";
 import { ThemeToggle } from "@/components/shared/ThemeToggle";
@@ -42,9 +43,10 @@ export default async function AccountingShellLayout({
     <ModuleBrandScope module="accounting" fallback={fallbackCompany} allowed={companies}>
       <ImpersonationBar />
       <header className="app-header">
+        <LauncherHomeLink locale={locale} />
         {/* the active COMPANY's real mark + the module wordmark (directive D);
             clicking it goes to THIS module's dashboard */}
-        <Link href="/accounting" className="shrink-0 flex items-center gap-3" aria-label={t(acct.navItem)}>
+        <Link href="/accounting" className="app-home-link shrink-0 flex items-center gap-3" aria-label={t(acct.navItem)}>
           <ModuleLogo
             module="accounting"
             fallback={fallbackCompany}

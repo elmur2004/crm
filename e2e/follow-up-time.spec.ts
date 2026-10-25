@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { afterSignIn } from "./helpers/after-sign-in";
 
 /* Founder (ADR-063): "let's get the time back for the follow up but it's not
    mandtory."
@@ -46,7 +47,7 @@ async function login(page: Page) {
   await page.getByLabel("Email or phone").fill("admin@byteforce.com");
   await page.getByLabel("Password").fill("password123");
   await page.getByRole("button", { name: "Sign in" }).click();
-  await page.waitForURL(/\/b-systems$/);
+  await afterSignIn(page, /\/b-systems$/);
 }
 
 /** A B-Systems lead parked in Following Up, its first follow-up due today with

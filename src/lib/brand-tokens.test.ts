@@ -365,3 +365,32 @@ describe("stage tokens exist in ALL THREE brand scopes (ADR-057)", () => {
     expect(PROSPECT_STAGES as readonly string[]).not.toContain("postponed");
   });
 });
+
+/* Dashboard spec §5.1 (D1) — the Home's two new token families, in ALL THREE
+   scopes (ADR-019 / ADR-057): a scope that missed one would paint a square
+   card or an unset series colour, with CI green. The full-set test above
+   already demands the names; this pins the values the founder chose. */
+describe("the dashboard tokens exist in all three scopes (D1)", () => {
+  const read = (p: string) => readFileSync(path.resolve(__dirname, "../..", p), "utf8");
+  const scopes: Array<[string, string, string]> = [
+    ["branding/b-systems/tokens.css", '[data-brand="bsystems"]', "20px"],
+    ["branding/byteforce/tokens.css", '[data-brand="byteforce"]', "14px"],
+    ["src/themes/neutral.css", '[data-brand="neutral"]', "14px"],
+  ];
+
+  it.each(scopes)("%s: --radius-panel is %s and the chart cap has three slots", (file, selector, radius) => {
+    const body = scopeBody(read(file), selector);
+    expect(body).toContain(`--radius-panel: ${radius};`);
+    /* a slot is a hex, or a brand palette value by name (ByteForce's cap IS
+       its own violet and orange — never a near-copy of them) */
+    for (const k of [1, 2, 3]) {
+      expect(body).toMatch(new RegExp(`--color-chart-${k}:\\s*(#[0-9A-Fa-f]{6}|var\\(--(bf|bs)-[a-z-]+\\));`));
+    }
+  });
+
+  it("only the B-Systems scope (the merged CRM shell, ADR-067) rounds the Home to 20px", () => {
+    /* every other card keeps --radius-card: D1 is the dashboard's panels only */
+    const bs = scopeBody(read("branding/b-systems/tokens.css"), '[data-brand="bsystems"]');
+    expect(bs).toContain("--radius-card: 14px;");
+  });
+});

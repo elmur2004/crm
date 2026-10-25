@@ -700,3 +700,85 @@ the moment a failure is found; close them with a reference to the fixing commit/
 - Known follow-up, not fixed: the count-up's number regex ignores a leading
   minus sign, so a negative ByteForce To be collected crossing zero can show the
   wrong sign mid-animation before it settles correctly (ADR-089 §5).
+
+## BUG-027 — 2026-10-25 — a background prefetch could undo a sign-out or a "Back to admin"
+
+- Severity: **major, security-relevant.** A sign-out could be silently reversed,
+  so a session came back after logout (fixation-like resurrection). The session
+  that came back was always one the same browser had held a moment before; no
+  account reached anyone else's data. But "I signed out" stopped being a
+  promise, and an admin snapping back from impersonation could be put back
+  inside the agent's account.
+- Where: `src/proxy.ts`. The NextAuth wrapper (`auth(...)`) re-issues
+  `authjs.session-token` on **every** request it handles, because the session
+  is a sliding 24-hour JWT (`session: { strategy: "jwt", maxAge: 24 * 60 * 60 }`,
+  `src/lib/auth/config.ts`). That includes Next's background prefetches
+  (`Next-Router-Prefetch: 1`, `RSC: 1`).
+- Repro:
+  1. **Impersonation.** Sign in as the admin, impersonate an agent, open a
+     screen whose links get prefetched (the board), press "Back to admin", then
+     navigate. You land on the agent's board, still impersonating.
+  2. **Sign-out.** The same shape: sign out while prefetches are still in
+     flight, and one that lands late signs the person back in. Likeliest on a
+     slow phone connection.
+- Root cause, read from the Playwright trace's network log: a prefetch carries
+  the session it **started** with. About **20 prefetches** started under the
+  impersonated agent's session landed **after** the "Back to admin" server
+  action had set the admin's cookie. Each one's `Set-Cookie` wrote the agent's
+  session back over the admin's, so the next page load went to the agent's
+  board.
+- Why it had lived: **it is pre-existing, not introduced by this push.** The old
+  impersonation spec never navigated after snapping back, so nothing ever read
+  the cookie the late prefetches had rewritten. ADR-090 made the spec land on
+  the launcher and then open the admin's page, and the full e2e run caught it.
+- Found by: the full Playwright run after ADR-090, on
+  `e2e/impersonation.spec.ts`.
+- Fixed: `src/proxy.ts` now wraps the auth gate. For a **GET fetched in the
+  background** — recognised by the browser's own `Sec-Fetch-Dest: empty` — it
+  strips every `Set-Cookie` for `authjs.session-token` from the response,
+  including the `__Secure-` prefix and the chunked `.N` variants
+  (`/^(__Secure-)?authjs\.session-token(\.\d+)?=/`), and keeps any other cookie.
+  **Page loads (`Sec-Fetch-Dest: document`) and server actions (POST) keep the
+  sliding refresh.** Router prefetches and RSC client navigations (both fetch()
+  GETs) lose it — so with the 24h `maxAge`, the session now slides on every full
+  page load and every action rather than on every click; an account that opens
+  the app at least once a day sees no difference.
+- **The first fix did not work, and why (recorded so nobody repeats it):** it
+  keyed on `Next-Router-Prefetch`. The proxy adapter strips Next's router
+  headers (`RSC`, `Next-Router-Prefetch`, `Next-Router-State-Tree`,
+  `Next-Router-Segment-Prefetch`) and the `_rsc` parameter before the proxy runs
+  (`node_modules/next/dist/server/web/adapter.js`, FLIGHT_HEADERS), so the check
+  never fired; the regression spec caught it. `Sec-Fetch-Dest` is a browser
+  header Next leaves alone. A request without it (plain-http LAN, where browsers
+  do not send `Sec-Fetch-*`) keeps the old behaviour.
+- Regression: **`e2e/session-prefetch.spec.ts`**, 3 tests, pinned at the HTTP
+  level so the race needs no timing to reproduce:
+  - a prefetch response carries no session cookie;
+  - a real page load still refreshes it (the sliding 24h stays);
+  - a late prefetch carrying the pre-sign-out cookie cannot undo a sign-out:
+    it gets no session cookie back, and the next page load goes to `/login`.
+
+  `e2e/impersonation.spec.ts`, which now navigates after "Back to admin", is the
+  end-to-end witness.
+- Status: **fixed over HTTPS and localhost; still open over plain-http LAN and
+  on browsers without Fetch Metadata (Safari before 16.4).** Browsers send
+  `Sec-Fetch-*` only to secure origins, so where the header is absent the
+  proxy keeps the old behaviour and a late prefetch can still undo a sign-out.
+  Production (crm.byteforceinc.com) is HTTPS, so it is covered. Ships with
+  ADR-090–092 (ref: Run 105). Needs founder confirmation: whether anyone uses
+  the app over plain-http LAN — if so, the full fix is server-side session
+  state (see the stateless-JWT note below).
+- **Remaining shapes of the same race, recorded (spec-guardian):** a server
+  action already in flight, or a page load in another tab, that started under
+  the old session still refreshes it (POSTs and document loads keep the slide
+  by design); and a late prefetch's page DATA, rendered under the old session,
+  can still land in the router's client cache — the cookie is fixed, that
+  cached payload is not, until the next navigation re-fetches it.
+- **Known, out of scope, recorded:** a JWT session is stateless, so a token
+  issued before a sign-out **remains valid until its own expiry** (up to 24
+  hours). Signing out clears the cookie in that browser; it does not revoke a
+  copy of the token held elsewhere. ADR-017's per-request database re-read means
+  a **deactivated** account still loses access on its next request; it is only
+  sign-out that does not revoke. Closing that would need server-side session
+  state (a revocation list or a token version on the User row), which is a
+  decision of its own.

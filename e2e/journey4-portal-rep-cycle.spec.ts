@@ -1,4 +1,5 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
+import { afterSignIn } from "./helpers/after-sign-in";
 
 /* ADR-082 — follow-up dates are RELATIVE to today. A hardcoded date silently
    drifts into the past, and a past date now puts the card in the derived
@@ -97,7 +98,7 @@ test("journey 4: agent requests to join, admin approves, agent works the board w
   await adminPage.getByLabel("Email or phone").fill("admin@byteforce.com");
   await adminPage.getByLabel("Password").fill("password123");
   await adminPage.getByRole("button", { name: "Sign in" }).click();
-  await adminPage.waitForURL(/\/b-systems$/);
+  await afterSignIn(adminPage, /\/b-systems$/);
   await adminPage.goto("/b-systems/registrations");
   const requestRow = adminPage.getByRole("row", { name: /Nadia Sami/ }).first();
   await expect(requestRow.getByText("nadia@agents.example")).toBeVisible();
@@ -112,7 +113,7 @@ test("journey 4: agent requests to join, admin approves, agent works the board w
   await page.getByLabel("Email or phone").fill("nadia@agents.example");
   await page.getByLabel("Password").fill("nadia12345");
   await page.getByRole("button", { name: "Sign in" }).click();
-  await expect(page).toHaveURL(/\/b-systems\/crm$/);
+  await afterSignIn(page, /\/b-systems\/crm$/);
 
   /* …then the phone (ADR-008/028 round-trip). */
   await page.getByRole("button", { name: "Log out" }).click();
@@ -120,7 +121,7 @@ test("journey 4: agent requests to join, admin approves, agent works the board w
   await page.getByLabel("Email or phone").fill("01212121212");
   await page.getByLabel("Password").fill("nadia12345");
   await page.getByRole("button", { name: "Sign in" }).click();
-  await expect(page).toHaveURL(/\/b-systems\/crm$/);
+  await afterSignIn(page, /\/b-systems\/crm$/);
 
   /* Agent isolation: the seeded agent Karim's leads are invisible (§3). */
   await expect(page.getByText("Fresh Deal")).toHaveCount(0);

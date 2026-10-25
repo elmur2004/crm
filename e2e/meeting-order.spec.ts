@@ -1,4 +1,5 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
+import { afterSignIn } from "./helpers/after-sign-in";
 
 /* Founder (ADR-064): "the column of meeting setting should be in time order
    always in order of these meetings taking place and also add the today filter
@@ -26,7 +27,7 @@ async function login(page: Page, identifier: string, password: string, landing: 
   await page.getByLabel("Email or phone").fill(identifier);
   await page.getByLabel("Password").fill(password);
   await page.getByRole("button", { name: "Sign in" }).click();
-  await page.waitForURL(landing);
+  await afterSignIn(page, landing);
 }
 
 /** A lead parked in Meeting Setting. `at` null ⇒ the meeting is recorded but

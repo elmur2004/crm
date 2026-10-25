@@ -178,6 +178,8 @@
   /* Shape & effects (prototype tok.r / tok.rc / shadows) */
   --radius-card: 14px;
   --radius-control: 10px;
+  /* D1 (dashboard spec §5.1): the Home's cards only, rounder like the founder's references; every other card keeps --radius-card (14px). Theme-invariant like every --radius-*. */
+  --radius-panel: 20px;
   --shadow-card: 0 1px 2px rgba(11, 15, 61, 0.04), 0 8px 24px rgba(11, 15, 61, 0.06);
   --shadow-lift: 0 14px 30px rgba(0, 0, 0, 0.18);
   --shadow-modal: 0 30px 70px rgba(0, 0, 0, 0.4);
@@ -227,6 +229,15 @@
   --color-on-chrome: #FFFFFF;
   --color-focus-ring: color-mix(in srgb, var(--color-primary) 45%, transparent);
   --color-border-control: var(--color-border);
+  /* The CATEGORICAL cap for any future multi-series chart (dashboard spec
+     §5.1) — three slots, validated (dataviz palette check: lightness band,
+     chroma, CVD separation) and >= 3:1 on --color-surface-card in both
+     themes (theme-tokens.test.ts). Nothing on the Home needs more than one
+     series today; these exist so the first chart that does never invents
+     its colours. Text is never a series colour. */
+  --color-chart-1: #5A3A96;
+  --color-chart-2: #D8468B;
+  --color-chart-3: #3D4BB8;
 
 }
 
@@ -503,6 +514,10 @@
     --color-focus-ring: var(--bs-lavender);
     /* NEW — input/select boundary: 52% Lavender into the card, >=3:1 */
     --color-border-control: #7D69A9;
+    /* NEW — the chart cap, lifted to >= 3:1 on the dark card */
+    --color-chart-1: #8466CC;
+    --color-chart-2: #D85C93;
+    --color-chart-3: #5E70D6;
     /* Per-stage board colours. Same rule for every column (derived, not
        picked): the ACCENT keeps the light accent's hue + saturation, its HSL
        lightness raised only as far as needed to read >= 4.8:1 on the canvas,
@@ -587,6 +602,9 @@
     --color-on-chrome: var(--bs-paper);
     --color-focus-ring: var(--bs-lavender);
     --color-border-control: #7D69A9;
+    --color-chart-1: #8466CC;
+    --color-chart-2: #D85C93;
+    --color-chart-3: #5E70D6;
     --color-stage-intake: #121432; --color-stage-intake-accent: #8E96E5; --color-stage-intake-chip: #373971; --color-stage-intake-chip-ink: #BCC0EF;
     --color-stage-following: #141430; --color-stage-following-accent: #A890D4; --color-stage-following-chip: #3D386D; --color-stage-following-chip-ink: #CCBEE6;
     --color-stage-meeting: #161230; --color-stage-meeting-accent: #C683CF; --color-stage-meeting-chip: #44356C; --color-stage-meeting-chip-ink: #DEB6E3;

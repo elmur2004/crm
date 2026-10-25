@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { afterSignIn } from "./helpers/after-sign-in";
 
 /* ADR-051 — the data-entry role. Founder: "I want to add a type of user called
    data entry. This user is just able to add leads or partners or agents...
@@ -16,7 +17,7 @@ async function login(page: Page, identifier: string, password: string, landing: 
   await page.getByLabel("Email or phone").fill(identifier);
   await page.getByLabel("Password").fill(password);
   await page.getByRole("button", { name: "Sign in" }).click();
-  await expect(page).toHaveURL(landing);
+  await afterSignIn(page, landing);
 }
 
 test("data entry: adds a lead and a card, owns neither, and is walled out of everything else", async ({

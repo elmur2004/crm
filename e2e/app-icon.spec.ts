@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { afterSignIn } from "./helpers/after-sign-in";
 
 /* ============================================================================
    ADR-060 (founder 4.2) — the saved app's identity is the OFFICIAL B-Systems
@@ -49,7 +50,7 @@ test("login screen and shells carry the real B-Systems install identity", async 
   await page.getByLabel("Email or phone").fill("admin@byteforce.com");
   await page.getByLabel("Password").fill("password123");
   await page.getByRole("button", { name: "Sign in" }).click();
-  await page.waitForURL(/\/b-systems$/);
+  await afterSignIn(page, /\/b-systems$/);
   await expect(page.locator('link[rel="apple-touch-icon"]')).toHaveCount(1);
   await expect(page.locator('link[rel="manifest"]')).toHaveCount(1);
   const bsIconHref = await page.locator('link[rel="icon"]').first().getAttribute("href");

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ImpersonationBar } from "@/components/shared/ImpersonationBar";
+import { LauncherHomeLink } from "@/components/launcher/LauncherHomeLink";
 import { EntitySwitch } from "@/components/shared/EntitySwitch";
 import { LanguageToggle } from "@/components/shared/LanguageToggle";
 import { ThemeToggle } from "@/components/shared/ThemeToggle";
@@ -45,6 +46,7 @@ export default async function VaultShellLayout({
     <ModuleBrandScope module="vault" fallback={fallbackCompany} allowed={visible}>
       <ImpersonationBar />
       <header className="app-header">
+        <LauncherHomeLink locale={locale} />
         {/* founder: "add the bsystems logo for the vault" — the module's header
             identity is PINNED to the real B-Systems mark whatever the company
             FILTER shows, because the vault is B-Systems' registry and the
@@ -54,7 +56,7 @@ export default async function VaultShellLayout({
             holds decide, so an account that does not hold the untagged rows
             wears its own company's mark instead. `ModuleLogo` resolves that
             from the same fallback the brand scope uses. */}
-        <Link href="/vault" className="shrink-0 flex items-center gap-3" aria-label={t(vault.navItem)}>
+        <Link href="/vault" className="app-home-link shrink-0 flex items-center gap-3" aria-label={t(vault.navItem)}>
           {seesUntagged(visible) ? (
             <>
               <BrandLogo brand="bsystems" variant="mark" height={36} />

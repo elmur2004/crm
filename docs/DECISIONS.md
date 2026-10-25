@@ -8809,3 +8809,460 @@ Mutation check: mapping B-Systems back to `WonInfo` failed 6 of 9; restored, 9 p
   2. **Legacy B-Systems `WonInfo` wins still count** in Won value, where no `WonDeal` exists for that lead.
   3. **Archived won deals still drop out of Won value** (ADR-043 kept). The redesign's D7 recommends counting the money of archived deals; that was not changed here.
   4. **The count-up no longer plays on page load.** The new dashboard design adds entrance motion to bars and cards instead.
+
+## ADR-090 — 2026-10-25 — THE APP LAUNCHER IS THE HOME AFTER SIGN-IN: one grid of the apps you can open, an "All apps" icon in every header, and a tile only where the door really opens
+
+- Context: the founder, verbatim — *"add import lead button … also I need to change the interface alittle bit / it should be something like this [an Odoo-style app grid] / with little icons opening each section / accounting / Each CRM byteforce and bsystems / vault / to-do / reports +dashboards / Partners and agents group them in a icon also"*. Asked where it should live, he chose **"Home after sign-in"**, with a home icon in the header to come back to it. Approving the push: *"finish everything and push"*.
+
+  The PROGRESS entry of 2026-10-25 recorded the launcher as LOCAL: its files existed, but the sign-in redirect and the header icon were not wired, and it was promised its own ADR on approval. This is that ADR. Both are now wired, and it ships.
+
+- Decision: signing in lands every account on `/apps`, a grid of at most seven tiles. A tile is shown only when the page behind it renders for that account **without any redirect**, judged by the same predicate the destination's own guard runs, imported rather than restated. The grid narrows what an account can already open; it grants nothing.
+
+### 1. WHERE IT LIVES, AND ITS WALL
+
+- `/apps` (`src/app/(home)/apps/page.tsx`) and `/apps/reports` (`.../apps/reports/page.tsx`) sit in the neutral `(home)` route group. That group's root layout already stamps `data-brand="neutral"`, the theme and the language, so the launcher has no layout of its own.
+- **It is outside `src/proxy.ts`'s matcher**, so nothing at the edge stops an anonymous request. The page guard is the only wall: `requireLauncherUser()` (`src/lib/launcher/guard.ts`) wraps the house `requireUser`, which re-reads `active`, the registration status, the roles and both module flags from the database on every request (ADR-017 / ADR-066). Anything short of a live, approved account goes to `/login`: no session, a deactivated account, a pending signup, or a session whose user no longer exists.
+- **An account that can open no app is not shown an empty grid.** It goes to its old `landingFor(roles)` page; for a role-less account that is `/login?error=1`, the answer sign-in itself gives it.
+- `/apps/reports` with no report to list sends the account back to `/apps`, which will not show it the tile either.
+- This does not contradict the root's "no hub stop" directive (`src/app/(home)/page.tsx`). That directive is about the page before sign-in; an anonymous visitor never sees the grid.
+
+### 2. EVERY WAY IN NOW LANDS ON IT
+
+- `login` in `src/lib/auth/actions.ts` redirects to `LAUNCHER_PATH` (`/apps`) instead of `landingFor(roles)`.
+- `impersonate` and `endImpersonation` redirect to `/apps` too. **This part is the builder's recommendation, not the founder's words**, and is flagged below.
+- `landingFor` stays. It still serves the page guards and the launcher's no-app fallback.
+
+### 3. THE WAY BACK
+
+`LauncherHomeLink` (`src/components/launcher/LauncherHomeLink.tsx`) is the first child of the header in the CRM shell (`src/app/(bsystems)/b-systems/(app)/layout.tsx`), the Accounting layout and the Vault layout. Its accessible name and hover title are "All apps". It wears `.bell`, the header's existing 36px icon button, so it needed no new CSS and inherits every scope's hover treatment.
+
+The glyph is a 3×3 grid of rounded squares, **not a house**: the CRM's own menu already has a "Home" (the dashboard), and two "home" icons in one header would point at two different places. Flagged below.
+
+### 4. THE TILES, AND THE PREDICATE BEHIND EACH
+
+`src/lib/launcher/apps.ts`, `launcherTilesFor(user)`:
+
+| # | Tile | Opens | Shown when |
+| --- | --- | --- | --- |
+| 1 | ByteForce CRM | `/b-systems/crm?company=byteforce` | the account holds ByteForce (`companiesFor`, which only reports a company a role carries, i.e. `byteforce_staff`) |
+| 2 | B-Systems CRM | `/b-systems/crm?company=bsystems` | any of `BS_PIPELINE_ROLES` (admin, sales, agent, partner) |
+| 2′ | B-Systems CRM (data entry) | `/b-systems/entry?company=bsystems` | `bsystems_data_entry` without a pipeline role: its one destination (ADR-051), never the board that would bounce it |
+| 3 | Accounting | `/accounting` | `canUseModule(user, "accounting")` (ADR-066) |
+| 4 | Data Vault | `/vault` | `canUseModule(user, "vault")` (ADR-066) |
+| 5 | To-Do | `/b-systems/todo?company=…` | `workingCompanyFor(roles)`: the first company, in the shell's order, where the account holds a role that works leads |
+| 6 | Reports & Dashboards | `/apps/reports`, or straight to the only report | `reportsFor(user)` is not empty |
+| 7 | Partners & Agents | `/b-systems/partners-pipeline?company=bsystems` | `bsystems_admin` (the board is B-Systems-only and admin-only) |
+
+- **The To-Do names its company on purpose.** An account whose only B-Systems role is data entry but which is also ByteForce staff would default to B-Systems and be sent away; it gets ByteForce's To-Do instead.
+- **Reports & Dashboards is one tile for six screens spread over three app chromes**: the B-Systems dashboard (admin only, because the page bounces every other B-Systems role to its board), the ByteForce dashboard (anyone holding ByteForce), ONE daily report (it spans every company the account holds, ADR-081), and, with accounting access, the accounting dashboard, the monthly P&L and department profitability. `/apps/reports` lists only the ones this account can open, grouped as CRM and Accounting. **When there is exactly one, the tile opens it directly** (a sales rep's daily report): a list of one is a click that asks nothing. Flagged below.
+- **Partners & Agents is one click to the pipeline** that already carries both kinds of card (ADR-059). The Partners and Agents lists stay one click away in that app's own header menu, which the founder kept for moving inside an app.
+
+### 5. WHO SEES WHAT
+
+| Persona | Tiles |
+| --- | --- |
+| Founder (`bsystems_admin` + `byteforce_staff`, both modules on) | **7**: ByteForce CRM, B-Systems CRM, Accounting, Data Vault, To-Do, Reports & Dashboards, Partners & Agents |
+| B-Systems admin blocked from Accounting (ADR-066) | **5**: B-Systems CRM, Data Vault, To-Do, Reports & Dashboards, Partners & Agents. The accounting reports leave the Reports screen with the tile |
+| B-Systems admin blocked from both modules | **4**: the above without the Vault |
+| B-Systems sales, agent or partner | **3**: B-Systems CRM, To-Do, Reports (straight to the daily report) |
+| ByteForce-only staff | **3**: ByteForce CRM, To-Do, Reports (the Reports screen: his dashboard and his day) |
+| Data entry | **1**: B-Systems CRM, which opens the entry page |
+
+A non-admin is never offered Accounting, the Vault or Partners & Agents, whatever its flags say. `canAccessAccounting` defaults to true on every row, so the flags alone must never be enough; that is ADR-066's whole point.
+
+### 6. THE LOOK
+
+- **Two kinds of tile.** The two CRMs are the companies' own apps and wear their brand as a solid plate. They are brand artwork and do not re-skin with the theme, exactly as the logos do not.
+  - ByteForce: Bold Orange plate, white cards, one Ink "won" card.
+  - B-Systems: Systems Indigo plate, Process Lavender cards, one Signal Pink "won" card. Pink is a small cue, never the surface.
+  - `AppIcon` re-stamps `data-brand` on the plate (ADR-054's idiom), so each brand file's palette resolves on that one element and nowhere else.
+- **The five shared apps** sit on the neutral card with the neutral ink glyph and one accent each, so they read as one family and still tell themselves apart. Almost everything is a semantic token, so they switch with the theme.
+- **Three colour literals, all in `src/themes/launcher.css`, each with its contrast recorded there.** None is in a component.
+  - `#FFFFFF`, the ByteForce icon's cards: 3.34:1 on the orange, the brand's own on-primary pairing. It is fixed because `--color-on-primary` turns to Ink in dark mode and an icon does not re-skin. Off-white would measure 2.96:1, under the 3:1 a graphic should hold.
+  - `#F15C24`, the To-Do's done tick: 3.34:1 on white, 5.05:1 on the dark card.
+  - `#D4ADFC`, the partner figure standing behind the agent: 8.97:1 in dark, and a deliberately quiet 1.88:1 in light, where the charcoal agent in front carries the silhouette.
+- **Accessibility and layout.**
+  - Every tile is a real link named by its visible text.
+  - Tab order follows the tile order.
+  - Phones show 3 across; 560px and wider, up to 4 across at 128px. Nothing scrolls sideways at 320px, and every tile is at least 44px.
+  - Logical properties only, so Arabic mirrors.
+  - The entrance is a short staggered fade-and-rise (transform and opacity), only under `prefers-reduced-motion: no-preference`.
+  - The page ships no JavaScript of its own, so every tile is on screen without it.
+- **The greeting** goes by the Cairo hour, never the server's ("Good morning, {first name}"), above the Cairo date.
+
+### 7. THE E2E SUITE HAD TO LEARN THE NEW LANDING
+
+- Every spec that signed in and then waited for its old role landing now calls `afterSignIn(page, landing)` (`e2e/helpers/after-sign-in.ts`). It waits for `/apps` and its h1, then opens the page the spec goes on to test through a **strict** regex→path table that throws on an unknown landing, so a new spec cannot silently land somewhere it never asserted.
+  - The builder reported **79 waits across 53 spec files**. A grep of the tree at writing time counts **83 `await afterSignIn(` call sites in 54 spec files**. That count includes the two new Home specs (`dashboard`, `motion`), the impersonation spec's two non-sign-in steps, and `e2e/i18n.spec.ts`'s Arabic sign-in, which was converted by hand afterwards because the migration script only matched the English "Sign in" click.
+- `e2e/impersonation.spec.ts` waits for the launcher after Impersonate and after Back to admin.
+- New **`e2e/launcher.spec.ts`**, 8 tests:
+  - the founder's seven tiles in order;
+  - tiles open their apps (B-Systems CRM, Accounting, Vault, Reports), and "All apps" comes back each time;
+  - a sales rep sees exactly three tiles, and `/accounting` does not open for him;
+  - signed out, `/apps` → `/login`;
+  - at 320, 375, 768 and 1024 wide, in English and then Arabic: no sideways scroll, seven tiles, every tile at least 44×44.
+
+### 8. UNIT AND INTEGRATION
+
+- **`src/lib/launcher/apps.test.ts`, 18 tests.**
+  - The tile set per persona.
+  - All 64 role combinations × 4 flag pairs: a company in a tile's href is always one the account holds; the module tiles follow `canUseModule` exactly; no tile repeats; the Reports tile exists exactly when a report does.
+  - Every href, over every combination, resolves to **exactly one** real `page.tsx`, read off the disk, across 11 destinations. A page renamed tomorrow fails this test by name instead of shipping a tile that 404s.
+  - The greeting reads the Cairo hour, DST included.
+- **`src/lib/launcher/launcher.integration.test.ts`, 27 tests.** Real User rows in the test Postgres; the session is the only stub.
+  - For 9 personas it renders `/apps`, then every tile's destination (the section's layout guard, then the page, with the tile's query string), and fails on **any** redirect. The same is done for every entry on the Reports screen.
+  - Anonymous, deactivated, pending and deleted accounts are refused.
+  - The doors the launcher withholds are really shut: the blocked admin's Accounting → `/no-access?module=accounting`; a sales rep sent to Partners & Agents or to the admin dashboard is bounced; data entry sent to the board → `/b-systems/entry`; a ByteForce-only teammate sent to B-Systems → `/b-systems?company=byteforce`.
+
+- Alternatives considered:
+  - **A permission list of the launcher's own.** Rejected: it would drift from the guards. Every rule is the destination's own predicate, imported.
+  - **Keeping `landingFor` as the sign-in landing, with the launcher reachable only from the header icon.** Not taken: the founder chose "Home after sign-in".
+  - **A Reports tile that opens "the main dashboard".** Rejected: it hides the other five, and for a sales rep the B-Systems dashboard is a redirect.
+  - **A Partners & Agents sub-grid (Partners list, Agents list, pipeline).** Not taken: one click to the pipeline that holds both, with the lists one click further in its menu.
+  - **A house glyph.** Not taken: the CRM menu already has a "Home". Flagged.
+  - **Sending data entry straight to its page instead of a one-tile grid.** Not taken, so that every account has the same Home. Flagged.
+  - **Ending impersonation on the target's (or the admin's) old role landing.** Not taken, so that impersonation behaves like a sign-in. Flagged.
+
+- Resolves: one founder request; **no SPEC §11 A-#**. Changes where the consolidated sign-in (ADR-028) sends an account after authentication, which was `landingFor(roles)`; ADR-028 is not rewritten. **No permission change, no migration, no schema change, no new dependency.**
+- Status: Accepted. **Needs founder confirmation (five):**
+  1. **The tile order.** The grid puts the two CRMs first: ByteForce CRM, B-Systems CRM, Accounting, Vault, To-Do, Reports & Dashboards, Partners & Agents. His message named Accounting first.
+  2. **Data entry gets a one-tile grid** rather than going straight to its entry page.
+  3. **"One report means straight to it":** a sales rep's Reports tile opens his daily report directly instead of a list of one.
+  4. **Starting and ending impersonation also land on the grid**, not inside the impersonated account's app or back on the admin's old landing.
+  5. **A grid icon rather than a house** for "All apps" in every header.
+
+## ADR-091 — 2026-10-25 — THE NEW HOME: one dashboard for both companies, period figures that say what they compare against, charts drawn on the server with a table behind each, and numbers that move only when they change
+
+- Context: the founder, verbatim — *"we need to upgrade the dashboord and make sure that it works / you can use some of these refrences / but we need to make the system more modern and more animated and professional looking"*. Asked three questions, he chose KPI cards compared **"This month vs last"** (D4), cards **"Rounded, like the references"** at 20px (D1), and **"Ranked bars"** for lead sources rather than a donut (D5). Approving the push: *"finish everything and push"*.
+
+  ADR-089 fixed the numbers on the old Home in the previous push and recorded that the redesign would stay local for his approval. It now ships.
+
+  **Where the D- and audit numbers come from.** The design is an implementation spec written on 2026-10-25 in the session's scratchpad (`dashboard-spec.md`, not committed). Its §8 lists 21 founder decisions, D1–D19 plus D7b and D11b, and its §1 is an audit labelled A1–A16. **The audit labels are not SPEC §11's A-#s**, as ADR-089 §5 already warned. The spec's §9.6 proposed logging its decisions as ADR-087 to ADR-091; those numbers went to dark mode, the import, the Home's numbers and the launcher, so its five proposed ADRs are folded into this one. The D-items are restated in §9 so this entry stands on its own.
+
+- Decision: `/b-systems` renders one body, `DashboardBody` (`src/components/dashboard/DashboardBody.tsx`), for the B-Systems admin and for ByteForce staff, fed by one service call, `dashboardFor()` (`src/lib/services/dashboard.ts`). The four headline figures are period figures with an honest comparison. The charts are drawn on the server as SVG/HTML with no chart library, each with a "View as table". A number animates only when it changes.
+
+### 1. ONE BODY, ONE CALL, AND THE TO-DO'S WALL
+
+- **Who gets it.** The B-Systems admin (`scope: all`, plus the backup buttons) and ByteForce staff (`scope: all`). Every other B-Systems role is still redirected to its own first destination, exactly as before. Homes for sales, agents and partners are D9 (Phase B) and are not built.
+- **Every lead predicate is `leadScopeWhere(brand, scope)`**, the To-Do's and the daily report's own branches of `requireLeadAccess`. No dashboard query writes an owner filter of its own. The money records (`WonInfo`, `WonDeal`, `Client`, `Milestone`) are reached through their lead, so they inherit the same wall.
+- **Under ByteForce, the agent and partner roster, "Needs you" and the milestone money are never computed at all**: not hidden, absent.
+- **One dictionary**, `src/lib/i18n/dict/dashboard.ts`, holds every string the Home prints. It replaces the two that had drifted into two Arabic words for one figure (§5).
+- **One period read.** The KPIs, the funnel cohort, the sources, the trend and the team table are all counted over the same single lead read, so they cannot disagree with each other.
+
+### 2. THE WIDGETS, IN ORDER
+
+- **Head.** A mono eyebrow ("B-SYSTEMS · HOME" / "BYTEFORCE · HOME"), the h1 **"Welcome back, {name}"** / «مرحبًا بعودتك، {name}», the Cairo date, the range picker and (B-Systems admin) the backup buttons. The range picker is zero-JavaScript: a Popover-API button over plain links to `?company=…&range=…`. It is a bottom sheet on phones.
+- **Four KPIs.**
+  - **K1, the hero, "Won this month"** (the title follows the range): booked value, the delta, "Deals won: N", a 6-month sparkline, and the line "Booked value · not cash collected". On Systems Indigo (D3).
+  - **K2, New leads**: count, delta, 6-month sparkline.
+  - **K3, Win rate**: the rate on a semicircle gauge, the change in points, and "{won} won · {lost} lost", so a 100% from one deal reads as what it is.
+  - **K4, Pipeline value, NOW**: no delta, "Open: N", "of which EGP X parked", and a thin stacked bar by stage.
+- **Cards.**
+  - **Leads per stage** (now): one bar per stage from the pipeline config, in board order. The footer carries every remaining SPEC §6.5 figure: Total leads · Won value · Won · Lost · To be collected (ByteForce) or Milestones outstanding (B-Systems). For the B-Systems admin, an "Agent & partner pipeline" section follows, with Agents (and "+N pending"), Partners, and the same bars over agent- and partner-owned leads.
+  - **Pipeline funnel**: the cohort (§3).
+  - **Lead sources**: ranked bars over all five lead types, zero rows kept; on B-Systems, "N referred by partners".
+  - **Today's tasks**: the To-Do's own projection (`todoFor`, called as the To-Do page calls it), the first 6 rows, the To-Do's own `TodoCheckbox`, and an "N of M done" ring.
+  - **Needs you** (B-Systems admin only): ready-to-close leads, with up to 5 named, and pending registrations.
+  - **Recent wins**: the newest 5 in the period.
+  - **Win rate, last 6 months**: a line in which a month with nothing decided is a gap, never 0%.
+  - **Team performance**.
+  - **Activity**: the newest 8 history rows.
+- **Every chart is a `<figure>`** with a caption, an eyebrow naming its time scope (TODAY, NOW, or the period's dates), a one-sentence summary, and a `<details>` **"View as table"** holding the exact values. The chart marks are `aria-hidden`. Tooltips hang off focusable HTML elements that carry the label and value as text, and open on hover, focus and tap.
+
+### 3. THE DEFINITIONS, READ FROM THE CODE
+
+**Periods** (`src/lib/dashboard/periods.ts`). Pure and string-based, the discipline of ADR-081's `cairoDatesBack`. Every boundary is a Cairo calendar date, stepped with date arithmetic, and becomes an instant only at the end through `startOfCairoDay`. A period is inclusive in dates and half-open, [start, end), in instants, the To-Do's and the daily report's own tiling, so no lead falls between two adjacent periods or counts in both. Nothing subtracts hours from an instant, because Egypt has a 23-hour day (2026-04-24) and a 25-hour day (2026-10-29/30). `parseRange` reads an unknown or missing value as the default and never throws, so a stale link still renders.
+
+| Key | Label | Current | Compared with |
+| --- | --- | --- | --- |
+| `mtd` (**default**) | This month | 1st of this month → today | 1st of last month → the same day of the month, **clamped** to that month's length. On 25 Oct that is 1–25 Sep; on 31 Oct, 1–30 Sep |
+| `last_month` | Last month | the whole previous month | the whole month before it |
+| `7d` | Last 7 days | today−6 → today | the 7 days before |
+| `30d` | Last 30 days | today−29 → today | the 30 days before |
+| `qtd` | This quarter | 1st of the quarter → today | the same number of elapsed days from the previous quarter's 1st, clamped to that quarter's end |
+| `ytd` | This year | 1 Jan → today | 1 Jan last year → the same month and day last year, clamped (29 Feb → 28 Feb) |
+
+"vs last month" therefore always means **"vs the same point last month"**, and the card prints the compared dates. The trend is the six Cairo months ending with the month of the period's last day.
+
+**The delta badge** (`src/lib/dashboard/delta.ts`):
+
+| Case | Badge |
+| --- | --- |
+| a count equal on both sides, 0 and 0 included | "No change" |
+| previous 0, current above 0 | **"New"**, never "+∞%" |
+| previous above 0 | `round((cur − prev) ÷ prev × 100)`%, so a fall to 0 is −100% |
+| a real change that rounds to 0% | **"<1%"**, with its direction |
+| a rate (win rate) | the change in **percentage points**, never "% of a %": 33% → 50% is "+17 pts"; "<1" when it rounds to 0 |
+| a rate with nothing decided on either side | "—" (n.a.), with "Not enough closed deals to compare" |
+
+The badge uses the true minus sign U+2212, vertical arrows (↑ ↓, which need no mirroring) and Latin digits inside `<bdi>`. Every KPI treats ↑ as good, and the tone is a second channel beside the arrow and the sign, never the only one. The screen-reader sentence names both periods' figures.
+
+**Won** (K1, the trend, Recent wins, the team). A lead counts as won in a period when it is not archived, its **current** stage is the config's won stage, and its won record's `createdAt` falls in the period. The won record is ADR-089's `WON_RECORD`: `WonDeal` for B-Systems (a pre-V2 win falls back to its `WonInfo`), `WonInfo` for ByteForce. The value follows `metrics.ts` field by field: B-Systems `WonDeal.estimatedValue ?? WonInfo.estimatedValue ?? 0`, ByteForce `WonInfo.estimatedValue ?? 0`. **The B-Systems win date is `WonDeal.createdAt`**, the moment the win was confirmed in the CRM, never the back-datable `contractDate` (D15). The contract date is printed on Recent wins and never used for bucketing, so back-dating a contract cannot rewrite last month's figure.
+
+**Legacy B-Systems wins** (a `WonInfo` and no `WonDeal`) **still count** in the period figures and are listed in Recent wins. This matches ADR-089 (its needs-confirmation item 2) and **contradicts the spec's older A1/A5 note**, which said such a win should not inflate Won value. ADR-089 is the decision on record.
+
+**Win rate** (K3 and the 6-month line) = won ÷ (won + lost), **decided in the period**; null, shown "—", when nothing was decided. **The lost date is the newest `LostInfo.createdAt` of a lead whose current stage is the lost stage**, not archived. Lost is terminal, and undoing a Lost move deletes its `LostInfo`, so an undone loss leaves no trace. The lead-to-win rate of the leads *added* in the period was not chosen: those leads have not had time to close, so every month in progress would look like a collapse.
+
+**New leads** (K2): non-archived leads in scope whose `createdAt` falls in the period. An imported lead with a filled Created date (ADR-088 §5) counts in its backdated period, not on the day of the import. That is a consequence of ADR-088's needs-confirmation item 4.
+
+**Pipeline value** (K4): SPEC §6.5's figure, unchanged, from `internalDashboard(brand, scope)`, i.e. the latest-proposal value (ADR-012) of every non-won, non-lost, non-archived lead. Beside it are the open count and the **parked** value and count, the same restricted to the Postpone stage. **Postpone stays inside the figure** (§6.5 is normative) and is shown as "of which EGP X parked" (D14). There is **no delta**: no pipeline history is stored, and proposals are corrected in place (ADR-078), so last month's pipeline cannot be rebuilt honestly.
+
+**The funnel is a cohort**: *"of the leads added in the period, how many got at least this far"*.
+
+- **The cohort** is the non-archived leads in scope created in the period (D13).
+- **The steps come from the config**, never a hand list: Added → Following up → Meeting → Proposal → Negotiation (B-Systems only) → Won.
+- **A lead's rank** is the highest step among its current stage and every `stage_change` / `auto_transfer` log row into a step stage. Postpone, Lost and New have no rank, because they are not progress.
+- **The Won step counts only leads that are Won now.** Log rows into Won are ignored, so the funnel can never claim a win the Won KPI on the same screen does not.
+- **Known overcount:** an undone move leaves its `stage_change` row behind, so an earlier step can count a move that was undone. The undo row carries no stages. The tests pin this behaviour.
+- A snapshot of current stage counts drawn as a narrowing shape was rejected: those numbers are not nested (ADR-011's direct Won, skipped stages, Won accumulating), so the shape would invent conversions. Current counts are shown honestly in Leads per stage.
+
+**Lead sources**: the cohort grouped by `type` over all five `LEAD_TYPES`, zero rows kept, ranked by count. A legacy type outside the list still counts rather than vanishing.
+
+**Team credit goes to each lead's CURRENT owner**: the owner account, else the sales-rep card, else the referring partner company, else Unassigned (`ownerNameOf`, now exported from `todo.ts`). A row shows new, won (count and value), lost and open-now. Only owners with activity in the period or open leads get a row, sorted by won value and then new leads. There is no card for an "own" scope (agents and partners, not reached in this phase). Owner history is not recorded, so a reassigned lead's earlier credit moves with it.
+
+**The activity feed** shows only the reader's own leads' history, **queried, not filtered after**. The reader's leads are read first through `leadScopeWhere`, archived leads included (badged, as in the daily report, ADR-081). Only their `ActivityLog` rows are then asked for, in chunks of 2,000 ids, keeping the newest 8 overall. Another company's history, and its actors' names, never leave the database. A deleted lead has no row, so its history drops out. Rows are phrased by the daily report's own `interactionPhrase`, so the two screens can never describe one row differently. **This departs from the spec**, which proposed fetching newest rows and filtering them afterwards; the wall in the query is the stronger form of the same rule.
+
+**Agents** (D8) counts `bsystems_agent` holders who are `active` **and** `registrationStatus = approved`, the assignable roster's own predicate. Still-pending sign-ups are shown beside it as **"+N pending"**, never inside it. This closes the dashboard audit's A8, which ADR-089 §5 left open.
+
+**Needs you** (B-Systems admin only): ready-to-close leads in an active stage, not archived (the count, plus up to 5 by name), and pending registrations, the Registrations page's own "Awaiting approval" set.
+
+**"Milestones outstanding"** is the B-Systems label in the Leads-per-stage footer for the figure ADR-089 computes as B-Systems "To be collected": open milestones on won deals, **plus any legacy B-Systems Client balance**, which the new label does not mention either (ADR-089's needs-confirmation item 1 carries). ByteForce keeps **"To be collected"** = Σ `Client.toBeCollected` (SPEC §6.4 / A-1 / ADR-024).
+
+### 4. WHAT EACH COMPANY SEES
+
+The same body. ByteForce has no "Needs you", no agent and partner section and no milestone money, and its footer shows To be collected. **The ByteForce Home wears the B-Systems skin** (D19): ADR-067 makes the merged CRM shell `data-brand="bsystems"` for both companies, so ByteForce's orange and violet tokens do not appear on the CRM Home.
+
+### 5. WORDS, TYPE AND SURFACES
+
+- **One Arabic wording per metric (D17).** "Pipeline value" → **قيمة الصفقات الجارية** (ByteForce's Home also said قيمة خط المبيعات); "To be collected" → **المطلوب تحصيله** (B-Systems' Home also said قيد التحصيل); "Milestones outstanding" → قيمة المراحل المتبقية. The English labels the journeys read are kept verbatim: "Pipeline value", "Total leads", "Won value", "To be collected", "Agents", "Agent & partner pipeline".
+- **KPI numerals are Inter 700 with `tabular-nums lining-nums` (D2)**, following the B-Systems brand book's "KPIs/data 700". Raleway has no tabular figures, so a changing number jittered in width. `.tile-value` and `.stage-cell-value` also get tabular lining figures app-wide.
+- **The hero is Systems Indigo** (`--color-chrome`) in both themes (D3), with a lavender sparkline. No gradient.
+- **Tiles no longer lift on hover anywhere (D18).** A lift promises a click, and a `.tile` is not a link. The rule in `src/themes/design-system.css` now lifts only `.ecard`, the entity cards, which are links. This reaches every non-link tile: the Vault, the daily report, the import result and the accounting sub-page heads (`AcctHead.tsx`). The accounting dashboard's `.acct-kpi` never lifted and is untouched (D16). The Home's own cards lift only when they are links (`a.db-card`, under `@media (hover: hover)`).
+- **This month is the default, and the company switch keeps `range` (D11).** `targetFor()` in `src/lib/crm/switch-target.ts` (used by `CompanySwitch.tsx`) carries `range`, and only `range`, only to `/b-systems`, and only when it is a known key. A period is company-neutral; every other parameter is still dropped.
+- **Time axes run left to right in Arabic too (D11b)**, on the 6-month line and the sparklines. Material's bidirectionality guide lists charts and graphs among the things not mirrored. It is one flag in `src/lib/dashboard/geometry.ts`. Category charts follow the document direction, and meters fill from the inline start.
+
+### 6. TOKENS
+
+- **`--radius-panel`** (D1), on dashboard cards only: **B-Systems 20px**, ByteForce 14px, neutral 14px. The Home lives in the B-Systems scope, so its cards are 20px. It is theme-invariant, like the other `--radius-*`.
+- **`--color-chart-1..3`** is declared in all three scopes, `branding/byteforce/tokens.css`, `branding/b-systems/tokens.css` and `src/themes/neutral.css`, in the light, dark and system blocks, so ADR-019's identical token contract still holds. Nothing on the Home uses more than one series yet. They exist so that the first multi-series chart does not invent colours.
+- The layout, the cards, the charts and the motion live in **`src/themes/dashboard.css`**. Components carry no literals.
+
+### 7. THE CHARTS ARE HAND-ROLLED, AND THAT DEVIATES FROM SPEC §2
+
+SPEC §2's stack table reads: **"Charts (dashboards) | Recharts or simple stat cards | Dashboards are numeric-first; charts vary tints of the brand palette only"**, under the rule "The agent may substitute any item with justification logged as an ADR".
+
+The Home now draws seven chart forms: bars, a ranked bar list, a centred funnel, a line with gaps, sparklines, a semicircle meter and a progress ring. They are server-rendered SVG/HTML from pure geometry in `src/lib/dashboard/geometry.ts`. That is neither of SPEC §2's two options: not Recharts, and more than simple stat cards. **It is a deviation from SPEC §2's charting default, and this ADR is the justification SPEC §2 asks for.** The note's two other conditions hold: the dashboards stay numeric-first, because every chart prints its values and has "View as table", and the charts use brand tokens only.
+
+The deciding facts are the bundle and server rendering. Sizes are minified + gzipped, from bundlephobia, 2026-10-25:
+
+| Option | gzip | Why not |
+| --- | --- | --- |
+| Recharts 3.10.1 | **149.9 KB** | +62% on a shell measured at about 243 KB; responsive charts measure after mount; no RTL mode |
+| Chart.js 4.6.1 | **69.6 KB** | canvas: client-only, cannot read CSS variables, re-draws on every theme switch, no DOM for focus or tooltips |
+| ECharts 6.1.0 | **368 KB** | size; theme objects rather than CSS variables; a second render path for SSR |
+| **Hand-rolled SVG/HTML** | **≈1–2 KB client JS in total** (`LiveNumber`, `DashboardRefresh`; `TodoCheckbox` already ships with the To-Do) | chosen: in the HTML, visible without JS, tokens and dark mode for free, mirrors through logical properties |
+
+The `@visx/*` packages present in `node_modules` are a transitive dependency of `@prisma/studio-core`, not ours, and are not imported.
+
+### 8. MOTION
+
+- **`LiveNumber`** (`src/components/dashboard/LiveNumber.tsx`) is where **BUG-026's count-on-change fix now lives**.
+  - Its first render is the server's figure, with no mount animation.
+  - When the prop changes (a range switch, a To-Do tick's refresh, a refresh on returning to the tab), it eases from the number on screen to the new one over 600 ms, cubic-out.
+  - While it runs, the moving digits are `aria-hidden` and a visually hidden twin holds the final value.
+  - Under reduced motion it swaps.
+  - It animates the numeric prop, not parsed text, so the regex that ignored a leading minus (ADR-089 §5) went with `AnimatedValue`.
+- **Bars, funnel steps and meters draw once**, scaling from their baseline. **Lines, sparklines and the gauge draw once** by `stroke-dashoffset`. `router.refresh()` keeps the DOM, so a range switch eases them rather than redrawing.
+- **`DashboardRefresh`**: when the tab becomes visible again and the last refresh is more than 60 s old, it calls `router.refresh()`. Changed numbers then count to their new values.
+- **All motion is inside `@media (prefers-reduced-motion: no-preference)`**, and only transform, opacity and stroke properties animate. Without JavaScript every chart is at its final geometry.
+
+### 9. THE FOUNDER'S DECISIONS (D1–D19), AND WHERE EACH STANDS
+
+| D | Decision | In this push |
+| --- | --- | --- |
+| D1 | `--radius-panel` 20px on dashboard cards only | **his choice** ("Rounded, like the references") |
+| D2 | KPI numerals Inter 700, tabular | applied from the recommendation |
+| D3 | hero on Systems Indigo, not the gradient | applied from the recommendation |
+| D4 | four period KPIs replace the four all-time tiles; every §6.5 figure kept in Leads per stage | **his choice** ("This month vs last") |
+| D5 | lead sources as ranked bars, not a donut | **his choice** ("Ranked bars") |
+| D6 | B-Systems figure = open milestones, now labelled "Milestones outstanding" | applied from the recommendation (meaning since ADR-089; the label is new) |
+| D7 | money of archived won deals | **untouched**: ADR-043 kept (ADR-089 item 3) |
+| D7b | ByteForce won money from `Client` rather than `WonInfo` | **untouched**: `WonInfo`, ADR-012 |
+| D8 | Agents = active and approved, "+N pending" | applied from the recommendation |
+| D9 | Homes for sales, agents and partners | **untouched** (Phase B) |
+| D10 | no cash collected on the CRM Home | applied from the recommendation ("Booked value · not cash collected") |
+| D11 | This month by default; the company switch keeps the range | applied from the recommendation |
+| D11b | time axes left to right in Arabic | applied from the recommendation |
+| D12 | draw once, count on change, refresh on return | applied from the recommendation |
+| D13 | funnel = cohort "got at least this far", archived excluded | applied from the recommendation |
+| D14 | Postpone stays in Pipeline value, parked share shown | applied from the recommendation |
+| D15 | B-Systems win date = `WonDeal.createdAt` | applied from the recommendation |
+| D16 | accounting dashboard kept; its A15/A16 not fixed | **untouched** |
+| D17 | one Arabic wording per metric | applied from the recommendation |
+| D18 | non-link tiles stop lifting, app-wide | applied from the recommendation |
+| D19 | the ByteForce Home in the B-Systems skin | applied from the recommendation |
+
+### 10. DELETED, AND THE TESTS THAT MOVED
+
+- **Deleted:** `src/components/shared/StatCard.tsx` and `src/components/shared/AnimatedValue.tsx`. Nothing else used them.
+- **Journeys 1, 2 and 5 and `e2e/company-switch.spec.ts` read `data-value`**, the server's figure, never animated, instead of polling animated text. `e2e/byteforce-redirects.spec.ts` was updated because it asserted the old "Home" h1.
+- **New `e2e/dashboard.spec.ts`, 7 tests**, with reduced motion set in this spec:
+  - both companies' Homes, each with only its own furniture;
+  - range switching: the URL, the eyebrows and the counts follow;
+  - a tooltip reachable by keyboard, and "View as table";
+  - a tap opens a tooltip on a phone, with no sideways scroll at 320px in either language;
+  - Arabic right to left, figures Latin inside `<bdi>`;
+  - dark theme paints no pure-white surface;
+  - ticking a task on the Home marks it done on the To-Do.
+- **New `e2e/motion.spec.ts`, 3 tests**, under `no-preference`:
+  - on first load, every KPI shows its server value from the first frame, so no frame shows 0. **This is the automated test BUG-026 lacked**, the gap Run 104 recorded;
+  - the bars draw once, and switching the period keeps the DOM so they ease;
+  - under reduced motion nothing on the Home animates.
+- **New unit and integration:** `src/lib/dashboard/{periods,delta,geometry}.test.ts` and `src/lib/services/dashboard.integration.test.ts`; `src/lib/crm/switch-target.test.ts` extended for `range`.
+- **Reduced motion is set per spec, not suite-wide.** Setting `reducedMotion: "reduce"` in `playwright.config.ts` made `e2e/zoom.spec.ts`'s case "A5" fail, with a 15px sideways shift at 50% zoom that could not be reproduced by hand. It is recorded as an open investigation in Run 105. ("A5" there is that spec's own case label: not SPEC §11's A-5 and not the dashboard audit's A5.)
+
+### 11. VERIFIED BY THE BUILDER
+
+`npx tsc --noEmit` → exit 0. Vitest `Test Files 96 passed (96)` / `Tests 2118 passed (2118)`. Full Playwright in its own copy of the tree: **`254 passed (22.2m)`, 2 skipped**, `.last-run.json` passed. The Home specs re-run after the last CSS change: **`28 passed (2.8m)`**. **48 full-page screenshots** (B-Systems and ByteForce × 320/375/390/768/1024/1440 × light/dark × EN/AR) with **0 horizontal overflow**. Every interactive Home element is at least 44px tall at 320, 375 and 390. **42 first-load motion frames** in which every KPI shows its server value in every frame. Brand audit **PASS** after four Low findings were fixed. Run 105 has the figures in context.
+
+### 12. DEFERRED, AND RECORDED
+
+- **The `ActivityLog` `@@index([entityType, createdAt])`.** No schema change this round, because `prisma/schema.prisma` carries the local landing work. The feed reads per lead id through the existing `[entityType, entityId, createdAt]` index.
+- **Phase B Homes** for sales, agents and partners (D9).
+- **The seed fix**: the B-Systems demo win is still a `WonInfo`, the shape that hid BUG-024.
+- **Custom ranges, pipeline snapshots** (which would give K4 a delta), and a **7-day task look-ahead** (ADR-061 keeps the To-Do to today).
+- **Removing the now-unused `home` entries** (`dict/crm.ts`) and **`dash` entries** (`dict/internal.ts`).
+- **Stage-bar tooltips open at the chart's top corner** rather than above their own bar.
+- **B-Systems chart slot 2 (`#D8468B`, light) is pink-ish**, though unused today. Pink is meant for Won only, so the first multi-series chart should check it.
+- **The team table can list one sales person twice**, once as the account and once as a name-matched rep card, because ADR-038 deferred that foreign key.
+- **Noticed while writing this entry:** the launcher's Reports descriptions (`dict/launcher.ts`) still say «ما زال قيد التحصيل» for the money still to collect, a third Arabic phrasing beside D17's choice.
+
+- Alternatives considered:
+  - **Recharts, Chart.js, ECharts or visx.** Rejected, §7.
+  - **A snapshot funnel.** Rejected, §3.
+  - **A donut for lead sources.** Not taken: the founder chose ranked bars (D5). Five categories also cannot get five distinguishable in-brand hues; the palette validator passed in-brand sets at three slots and failed them at four.
+  - **Bumping `--radius-card` to 20px app-wide.** Not taken: D1 confines 20px to dashboard cards.
+  - **The signature gradient for the hero.** Not taken (D3).
+  - **"Revenue" as a KPI.** Rejected: in this product it is three different numbers (booked, commission, cash). Cash is accounting's, behind ADR-066's per-admin flag, and not linked to any lead (D10).
+  - **"Total leads" as a KPI.** Rejected: it only ever grows, so a delta on it means nothing. It moved into the Leads-per-stage footer, still the tested query.
+  - **Lead-to-win rate of the period's new leads.** Rejected, §3.
+  - **Reduced motion suite-wide in `playwright.config.ts`.** Tried and reverted, §10.
+  - **Adding the `ActivityLog` index now.** Deferred, §12.
+
+- Resolves: one founder request; **no SPEC §11 A-#**. **Deviates from SPEC §2's chart default** ("Recharts or simple stat cards"); this ADR is the justification SPEC §2 requires. Keeps every SPEC §6.5 formula, backed by tested queries (§6.5: "Each dashboard number must be backed by a tested query"), and A-1's ByteForce To be collected. Keeps ADR-043 (archive), ADR-012 and ADR-089 (the won record) and ADR-061 (today-only To-Do). Restores DESIGN-APPLICATION-SPEC screen-map items that were approved and never built: the activity feed, the reps card, and the "Needs the admin" card. Departs from ADR-031's approved prototype on D1, D2 and D3. Closes the dashboard audit's A8 (ADR-089 §5) and BUG-026's missing automated test. **No migration, no schema change, no permission change, no new dependency.**
+- Status: Accepted. **Needs founder confirmation (fourteen),** every D-item applied from a recommendation rather than chosen by him: **D2** Inter KPI numerals; **D3** the indigo hero; **D6** "Milestones outstanding" for B-Systems, which still includes legacy Client balances (continues ADR-089 item 1); **D8** Agents counted active and approved, plus "+N pending"; **D10** no cash on the CRM Home; **D11** This month by default, and the company switch keeps the range; **D11b** time running left to right in Arabic; **D12** draw once, count on change, refresh on return (continues ADR-089 item 4); **D13** the cohort funnel with archived leads excluded; **D14** Postpone kept inside Pipeline value as a parked share; **D15** B-Systems wins dated by `WonDeal.createdAt`, not the contract date; **D17** one Arabic wording per metric (قيمة الصفقات الجارية, المطلوب تحصيله); **D18** tiles stop lifting app-wide, the Vault, the daily report, the import result and the accounting sub-pages included; **D19** the ByteForce Home in the B-Systems skin. Untouched and still his to decide: D7, D7b, D9, D16.
+
+## ADR-092 — 2026-10-25 — THE GLASS SIGN-IN: the same form and the same action behind frosted glass, both real logos on their own flat plates, motion only for those who want it, and no other way to sign in
+
+- Context: the founder, verbatim — *"upgrade the log in page to something like this / add crazy high quailty animations and designs and the glassy effect also I like it / don't add sign in with other methods like google or facebook thata's just in the reference / after you finish everything do a copmlete round of testing to make sure everything works perfectly for a phone interface and a tablet interface also"*. Approving the push: *"finish everything and push"*.
+
+- Decision: `/login` renders `LoginGlass` (`src/components/login/LoginGlass.tsx`), styled only by `src/themes/login.css`. It **supersedes DESIGN-APPLICATION-SPEC §2.14**'s split form + brand billboard, which had itself replaced ADR-028's centred card. That document is not edited. Everything a sign-in does is unchanged; only the glass is new.
+
+### 1. WHAT DID NOT CHANGE
+
+- The `login` server action and its two fields, `identifier` and `password`.
+- The four `?error=` messages (default, pending, rejected, health), each in a `role="alert"`.
+- The `/portal` link.
+- The heading **"One door, every account."**, kept because `e2e/i18n.spec.ts` checks it.
+- Every label and placeholder. These and the items above are still read from `dict/auth.ts`, byte-identical, because about 50 e2e specs sign in through them.
+- The shared `LanguageToggle` and `ThemeToggle`.
+- **No Google, Facebook or any other sign-in method.** The reference has them; the founder said they were only in the reference.
+- After sign-in, every account lands on `/apps` (ADR-090).
+
+### 2. THE LAYOUT, BY WIDTH
+
+- **Phones** (under 600px): the elements float directly on the background, like the reference.
+- **600px and wider**: one frosted card.
+- **900px and wider**: the language and theme toggles move to the top corners.
+- The theme toggle is icon-only, the reference's moon (`ThemeToggle compact`).
+
+### 3. THE HERO: TWO REAL LOGOS, EACH ON ITS OWN PLATE
+
+- Two glass tiles read **"ByteForce × B-Systems"**, announced as one image with that name.
+- **Each holds its real logo file, unaltered** (`src/themes/assets.ts`), on a **flat, opaque plate in its own brand's background colour**: ByteForce Off-white, B-Systems Paper, **in both themes**.
+- Why plates: the ByteForce logo's tagline is near-black and may not be filtered, so it can never sit on dark. The B-Systems mark is a gradient, so it cannot sit on a gradient. Glass and the sweeping sheen live only in the frame around the plate; nothing passes over or behind the artwork.
+- ByteForce shows `logoHorizontal`, because `logoMark` is `null` (pending from the founder, SPEC §11 A-13). At this size its tagline renders about 3px tall, until he supplies the mark.
+
+### 4. COLOUR
+
+- **No colour literal in the components or in `login.css`.** `src/themes/login-glass.test.ts` enforces both, and allows system colours only under forced-colours mode.
+- **Background:** B-Systems Paper, Lavender Mist, Lavender and Indigo. In dark it runs from Indigo Deep into the neutral near-black.
+- **The button** is flat Systems Indigo with a white gloss. In dark it is lavender-indigo with dark text.
+- **Not used at all:** Signal Pink; ByteForce orange outside the logo; a hero gradient; any two-hue gradient outside the background's own wash.
+- **Glass highlights use `--color-on-dark` as their white**, in both themes.
+- **Dark follows ADR-087's contract:** `html[data-theme="dark"]` inside `@media screen`, with a verbatim `system` twin inside `@media screen and (prefers-color-scheme: dark)`. Print stays light.
+
+### 5. MOTION, ALL OF IT OFF UNDER REDUCED MOTION
+
+- **Entrance, about 1.2 s, staggered:** the tiles converge with a spring, the "×" pops, the heading comes into focus, then the fields, the button and the arrow badge.
+- **Ambient:** drifting glows and bubbles; the tiles float, with a sheen every 7 s.
+- **Interaction:** floating labels, a focus glow, the button lifting with an arrow nudge, a spinner and shimmer while signing in (`GlassSubmit` reads `useFormStatus`), and a shake on the error banner.
+- **Desktop with a mouse only:** a pointer-following light and a slight background parallax, from `LoginAmbient`, a small client island that is inert on touch and under reduced motion.
+- Only transform and opacity animate, plus one blur on the heading's entrance. Every animation, transition and `will-change` sits inside `prefers-reduced-motion: no-preference`, and reduced motion leaves nothing hidden. There are also rules for `prefers-reduced-transparency`, forced colours, and browsers without `backdrop-filter` (the glass thickens).
+
+### 6. THE PASSWORD FIELD
+
+`GlassPasswordField` replaces `PasswordInput` on this page. `PasswordInput`'s eye sits inside the field's label, so it is `aria-hidden` with `tabIndex=-1`, and keyboard and screen-reader users can never reach it.
+
+Here the eye sits outside the label and is a real toggle button in the tab order (identifier → password → eye → Sign in), with `aria-pressed` for its state. **Its name is "Show" / «إظهار», not "Show password"**: Playwright's `getByLabel` matches any aria-label that contains the text, so "Show password" would make `getByLabel("Password")` match two elements in about 50 specs. The full "Show password" / "Hide password" rides on `title`, which no label query reads.
+
+A mouse-down on the eye does not steal focus from the field. The input is the same: `name="password"`, `autocomplete="current-password"`, required.
+
+### 7. PERFORMANCE
+
+- Backdrop blur on **6 elements on phones and 3 when wider**: on wider screens the card's own blur replaces the per-element ones.
+- Added client JavaScript **≈3.2 KB minified (≈1.3 KB gzipped)**.
+- The page's CSS chunk is **25.7 KB (5.3 KB gzipped)**.
+- Measured layout shift: **0.0000**.
+
+### 8. TESTS
+
+- `npx tsc --noEmit` → exit 0.
+- **Vitest**, the new `src/themes/login-glass.test.ts` with the theme, brand and i18n sweeps: `Test Files 10 passed (10)` / `Tests 246 passed (246)`.
+- **`e2e/login-glass.spec.ts`: `51 passed (1.6m)`, 7 skipped**; the touch sign-in runs once by design. It covers:
+  - sign-in by email, by phone and by touch; a wrong password; all four errors;
+  - the eye toggle; tab order, with visible focus in both themes;
+  - no horizontal scroll at 320, 375, 768 and 1024, in English and Arabic;
+  - the whole form on screen at 375×812 and 768×1024, even with an error;
+  - targets of at least 44px; Arabic mirroring;
+  - reduced motion with zero animations; smoked glass in dark; no other sign-in methods.
+- The existing sign-in specs: **20 passed**.
+
+### 9. BRAND AUDIT
+
+The first pass **failed**, on five counts: two-colour gradients, ByteForce colours in the background, effects behind the logos, unsafe notch padding, and letter spacing. All were fixed, and the re-audit **passed**. It left three items for this ADR:
+
+1. The neutral page's background and shadows use **B-Systems colours only**.
+2. The B-Systems S-mark cannot have its full clear space at app-icon size.
+3. The ByteForce tagline renders about 3px tall until the founder supplies the ByteForce mark (§3).
+
+### 10. LEFT BEHIND, ON PURPOSE
+
+- **Dead CSS, not removed**, in `src/themes/neutral.css`: `.login-error`, `.login-error-icon`, `.login-form` and its children, `.login-billboard`, `.login-bb*`, the 900px billboard lines, and their dark and system twins. **Keep** `.login-shell`, `.login-pane`, `.login-inner`, `.login-eyebrow`, `.login-title`, `.login-sub` and `.login-foot`: `/no-access` still uses them.
+- **Unused strings kept** in `dict/auth.ts` under the never-delete-a-key rule: `login.eyebrow`, `bbAEyebrow`, `bbALine`, `bbBEyebrow`, `bbBLine`.
+
+- Alternatives considered:
+  - **Restyling `PasswordInput`.** Rejected: its eye cannot be reached by keyboard, and fixing it in place would change every other password field in the product.
+  - **Naming the eye "Show password".** Rejected, §6.
+  - **Logos straight on the glass, or filtered for dark.** Rejected: logos are never recoloured (ADR-087 §5), and the ByteForce tagline cannot sit on dark.
+  - **"Remember me" and "Forgot password?", as in the reference.** Left out: neither would work today, and a control that does nothing is worse than none. What building each would take is listed below.
+  - **Google, Facebook or any third-party sign-in.** Rejected: the founder's instruction.
+  - **The reference's "Welcome back" heading.** Not taken: `e2e/i18n.spec.ts` checks "One door, every account.". Flagged.
+  - **Removing the dead billboard CSS now.** Deferred, so that this change touches only the login.
+
+- Resolves: one founder request; **no SPEC §11 A-#** (A-13's ByteForce mark is still pending, §3). **Supersedes DESIGN-APPLICATION-SPEC §2.14** for the sign-in screen. Keeps ADR-028 (one consolidated sign-in) and ADR-087 (the dark contract; logos never recoloured). **No migration, no schema change, no permission change, no new dependency.**
+- Status: Accepted. **Needs founder confirmation (three):**
+  1. **"Remember me" is left out.** Sessions have one fixed length (24 hours). Building it means a flag through the credentials provider, a per-session expiry in the auth callback, a session-only versus long-lived cookie, and choosing the two lengths.
+  2. **"Forgot password?" is left out.** There is no reset flow. Building one means a delivery channel (email, or SMS/WhatsApp for phone-only accounts), a reset-token table and migration, a `/reset` page, rate limiting, and hashed, expiring tokens. The no-build alternative is one line on the page: "Forgot your password? Ask your admin."
+  3. **The heading stays "One door, every account."** rather than the reference's "Welcome back".
+
+### ADR-088 addendum — 2026-10-25 — the import button also sits on the CRM board
+
+- Context: the founder, verbatim — *"also push the import leads button I don't see it"*. It had shipped in `efb6a24`, but only on each company's **Leads** page (ADR-088 §1). He works from the **CRM board**, where "Add lead" lives, so he never met it.
+- Change: `src/app/(bsystems)/b-systems/(app)/crm/page.tsx` computes `importCompany = canImportLeads(user.roles, company) ? company : null`. That is the same predicate the import route enforces (`src/lib/api/leads-import-route.ts`) and the Leads page already used. The page passes it to both board bodies, `CrmBoardBody` in `src/components/internal/pages.tsx` (ByteForce) and `BsCrmBoardBody` (B-Systems), which render the same `LeadsImportMenu` beside Add lead.
+- Who sees it is unchanged from ADR-088 §1:
+  - ByteForce board: `byteforce_staff`.
+  - B-Systems board: `bsystems_admin` only. **A sales rep on the B-Systems board gets no button**, and the route would refuse him regardless.
+  - Data entry has no board (ADR-051), so ADR-088's needs-confirmation item 6 is unchanged.
+- **Nothing else about the import changed**: the same menu, the same four routes, the same wall. No new route, no permission change.
+- Test: `e2e/leads-import.spec.ts` → **"the CRM board carries the same button beside Add lead — and only for whom the server would accept"**. The admin sees only B-Systems' button on the B-Systems board and only ByteForce's on the ByteForce board; the menu opens from the board as from the Leads page; internal sales sees the B-Systems board with no button. The spec now holds 8 tests.

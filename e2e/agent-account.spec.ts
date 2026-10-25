@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { afterSignIn } from "./helpers/after-sign-in";
 
 /* ADR-059 — the founder's second sentence, end to end: an agent is qualified
    (which asks for nothing at all), his login is created afterwards on purpose,
@@ -10,7 +11,7 @@ async function login(page: Page, identifier: string, password: string, landing: 
   await page.getByLabel("Email or phone").fill(identifier);
   await page.getByLabel("Password").fill(password);
   await page.getByRole("button", { name: "Sign in" }).click();
-  await page.waitForURL(landing);
+  await afterSignIn(page, landing);
 }
 
 /* Founder: "...and I can assing leads for agents also." ADR-059 split the

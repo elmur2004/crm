@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { strFromU8, strToU8, unzipSync, zipSync } from "fflate";
+import { afterSignIn } from "./helpers/after-sign-in";
 
 /* ============================================================================
    IMPORT LEADS FROM EXCEL — in a browser, through the real UI.
@@ -23,7 +24,7 @@ async function login(page: Page, id: string, landing: RegExp, password = "passwo
   await page.getByLabel("Email or phone").fill(id);
   await page.getByLabel("Password").fill(password);
   await page.getByRole("button", { name: "Sign in" }).click();
-  await page.waitForURL(landing);
+  await afterSignIn(page, landing);
 }
 
 const importButton = (page: Page, company: "B-Systems" | "ByteForce") =>
@@ -377,6 +378,30 @@ test("the wall: sales and data entry get no button and the server refuses them; 
     multipart: { file: { name: "bf.xlsx", mimeType: XLSX, buffer: filled } },
   });
   expect(theirs.status()).toBe(403);
+});
+
+test("the CRM board carries the same button beside Add lead — and only for whom the server would accept", async ({
+  page,
+}) => {
+  /* founder: "push the import leads button I don't see it" — he works from the board */
+  await login(page, "admin@byteforce.com", /\/b-systems$/);
+  await page.goto(`/b-systems/crm${BS}`);
+  await expect(importButton(page, "B-Systems")).toBeVisible();
+  await expect(importButton(page, "ByteForce")).toHaveCount(0);
+  await page.goto(`/b-systems/crm${BF}`);
+  await expect(importButton(page, "ByteForce")).toBeVisible();
+  await expect(importButton(page, "B-Systems")).toHaveCount(0);
+  /* the menu opens from the board exactly as from the Leads page */
+  await importButton(page, "ByteForce").click();
+  await expect(page.getByRole("menuitem", { name: /template/i })).toBeVisible();
+  await page.keyboard.press("Escape");
+
+  /* internal sales works the B-Systems board but may not import: no button */
+  await page.context().clearCookies();
+  await login(page, "omar@b-systems.example", /\/b-systems\/crm/, "bsystems123");
+  await page.goto(`/b-systems/crm${BS}`);
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+  await expect(importButton(page, "B-Systems")).toHaveCount(0);
 });
 
 test("a signed-out request is refused at all four addresses", async ({ page }) => {

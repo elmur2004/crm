@@ -283,3 +283,93 @@ export function formatCairoShort(instant: Date, locale: Locale): string {
     locale,
   );
 }
+
+/* ---------------------------------------------- the Home's four (dashboard) */
+
+/** The Home's heading date — "Sunday, 25 October 2026" / "الأحد، ٢٥ أكتوبر ٢٠٢٦".
+
+    Moved here VERBATIM from the dashboard page, which built it with its own
+    `toLocaleDateString` (ADR-068 §3 listed it as the one known exception). The
+    output is byte-identical: the same `en-EG` / `ar-EG` tags, the same options.
+    `ar-EG` WITHOUT the -u-nu-latn subtag is deliberate and kept — this one line
+    is prose, not a stamp beside a record, and the ADR names the departure. It
+    carries no clock. */
+export function formatCairoLongDate(instant: Date, locale: Locale): string {
+  const cacheKey = `${locale}|long-prose`;
+  let fmt = displayFmts.get(cacheKey);
+  if (!fmt) {
+    fmt = new Intl.DateTimeFormat(locale === "ar" ? "ar-EG" : "en-EG", {
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+      timeZone: TIME_ZONE,
+    });
+    displayFmts.set(cacheKey, fmt);
+  }
+  return fmt.format(instant);
+}
+
+/** A Cairo DATE RANGE from two inclusive "YYYY-MM-DD" dates — "1–25 Oct 2026",
+    "1 Sep – 25 Oct 2026" / "1–25 أكتوبر 2026" (Latin digits, the house
+    convention). `Intl.DateTimeFormat#formatRange` collapses the shared parts,
+    and a one-day range is a single date. The dates are read at Cairo NOON, so
+    the zone offset can never move either end onto a neighbouring day. */
+export function formatCairoDateRange(
+  from: string,
+  to: string,
+  locale: Locale,
+  opts: { year?: boolean } = {},
+): string {
+  const withYear = opts.year ?? true;
+  const fmt = displayFmt(
+    locale,
+    withYear ? DATE_OPTS : { day: "numeric", month: "short" },
+    withYear ? "range-y" : "range",
+  );
+  const a = cairoToUtc(from, "12:00");
+  const b = cairoToUtc(to, "12:00");
+  return from === to ? fmt.format(a) : fmt.formatRange(a, b);
+}
+
+/** A month's short name — "Sep" / "سبتمبر" — or with its year, "Sep 2026".
+    The win-rate trend's tick labels and tooltips. */
+export function formatCairoMonthShort(
+  instant: Date,
+  locale: Locale,
+  opts: { year?: boolean } = {},
+): string {
+  const withYear = opts.year ?? false;
+  return displayFmt(
+    locale,
+    withYear ? { month: "short", year: "numeric" } : { month: "short" },
+    withYear ? "mon-y" : "mon",
+  ).format(instant);
+}
+
+const relativeFmts = new Map<Locale, Intl.RelativeTimeFormat>();
+
+/** "3 minutes ago" / "قبل 3 دقائق", "yesterday" / "أمس" — the activity feed's
+    time. Calendar-aware for days (yesterday is the previous CAIRO date, not
+    "24 hours before"), and anything older than six days falls back to the
+    absolute `formatCairoShort` stamp, which carries the twelve-hour clock. A
+    future instant (a skewed clock) reads as "now", never "in 2 minutes". */
+export function formatCairoRelative(instant: Date, now: Date, locale: Locale): string {
+  let rtf = relativeFmts.get(locale);
+  if (!rtf) {
+    rtf = new Intl.RelativeTimeFormat(localeTag(locale), { numeric: "auto" });
+    relativeFmts.set(locale, rtf);
+  }
+  const seconds = Math.max(0, Math.round((now.getTime() - instant.getTime()) / 1000));
+  if (seconds < 60) return rtf.format(0, "second");
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return rtf.format(-minutes, "minute");
+  const a = utcToCairo(instant).date;
+  const b = utcToCairo(now).date;
+  const [ay, am, ad] = a.split("-").map(Number);
+  const [by, bm, bd] = b.split("-").map(Number);
+  const days = Math.round((Date.UTC(by!, bm! - 1, bd!) - Date.UTC(ay!, am! - 1, ad!)) / 86_400_000);
+  if (days === 0) return rtf.format(-Math.floor(minutes / 60), "hour");
+  if (days <= 6) return rtf.format(-days, "day");
+  return formatCairoShort(instant, locale);
+}

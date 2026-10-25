@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { afterSignIn } from "./helpers/after-sign-in";
 
 /* Founder, looking at /b-systems/todo: "I can assign these to do as an admin
    or just take it myself."
@@ -25,7 +26,7 @@ async function login(page: Page, identifier: string, password: string, landing: 
   await page.getByLabel("Email or phone").fill(identifier);
   await page.getByLabel("Password").fill(password);
   await page.getByRole("button", { name: "Sign in" }).click();
-  await page.waitForURL(landing);
+  await afterSignIn(page, landing);
 }
 
 /** A B-Systems lead parked in Following Up with a follow-up due on `date`. */

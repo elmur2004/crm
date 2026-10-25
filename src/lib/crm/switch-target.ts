@@ -1,4 +1,5 @@
 import { crmQuery, type CrmCompany } from "./company";
+import { RANGE_KEYS } from "@/lib/dashboard/periods";
 
 /* ============================================================================
    ADR-067 — WHERE THE COMPANY SWITCH LANDS YOU.
@@ -32,7 +33,22 @@ export const SHARED_PATHS = [
   "/b-systems/crm",
 ];
 
-export function targetFor(pathname: string, company: CrmCompany): string {
+/** The Home's period (`?range=`) is COMPANY-NEUTRAL — "Last month" means the
+    same thing for both companies — so a switch made on the Home keeps it. It
+    is the ONE parameter that survives: every other one (`owner`, `stage`,
+    `sort`, a search) is shaped by one company's pipeline and is still dropped
+    (see CompanySwitch). Only a known range is carried, so a junk value in the
+    address can never be laundered into the next URL. */
+export function targetFor(
+  pathname: string,
+  company: CrmCompany,
+  params?: { get(name: string): string | null } | null,
+): string {
   const path = SHARED_PATHS.includes(pathname) ? pathname : "/b-systems";
-  return `${path}${crmQuery(company)}`;
+  const range = params?.get("range") ?? null;
+  const keep =
+    path === "/b-systems" && range !== null && (RANGE_KEYS as readonly string[]).includes(range)
+      ? `&range=${range}`
+      : "";
+  return `${path}${crmQuery(company)}${keep}`;
 }

@@ -15,12 +15,10 @@ import {
   board,
   clientsPage,
   common,
-  dash,
   leadDetail,
   leadsPage,
   nav,
 } from "@/lib/i18n/dict/internal";
-import { internalDashboard } from "@/lib/services/metrics";
 import {
   listRepsWithCounts,
   listReps,
@@ -34,13 +32,10 @@ import { formatCairo, formatCairoDate } from "@/lib/datetime";
 import { waHref } from "@/lib/phone-dial";
 import { waSentLabel, whatsappMarkOf } from "@/components/shared/whatsappMark";
 import { WhatsappChip } from "@/components/shared/WhatsappChip";
-import { StatCard } from "@/components/shared/StatCard";
-import { AnimatedValue } from "@/components/shared/AnimatedValue";
 import { StageBadge } from "@/components/shared/StageBadge";
 import { LeadsExportButtons } from "@/components/shared/LeadsExportButtons";
 import { LeadsImportMenu } from "@/components/shared/LeadsImportMenu";
 import { NoAnswerBadge } from "@/components/shared/NoAnswerBadge";
-import { stageKey } from "@/components/bsystems/stageColors";
 import { AddLeadForm, AddRepForm, ClientEditForm } from "./forms";
 import { LeadChat } from "@/components/shared/LeadChat";
 import { listLeadComments, mentionableUsersFor } from "@/lib/services/comments";
@@ -91,57 +86,10 @@ function markInitials(name: string): string {
     .join("");
 }
 
-/* ---------------- Home dashboard (§6.5) ---------------- */
-
-export async function DashboardBody({ ctx }: { ctx: InternalAppCtx }) {
-  const locale = await getLocale();
-  const t = tFor(locale);
-  const d = await internalDashboard(ctx.brand);
-  /* ADR-089 — the cells follow the company's own stage list (Postpone was
-     missing from the hand-written one, so a parked lead counted in Total
-     leads and appeared in no cell). */
-  const stageCells = Object.entries(d.leadsPerStage).map(([stage, value]) => ({
-    key: stageKey(stage),
-    label: stage === "new" ? t(dash.newNotActioned) : stageLabel(locale, stage),
-    value: String(value),
-  }));
-  return (
-    <div className="space-y-6">
-      <div className="page-head">
-        <div>
-          <p className="u-eyebrow">{BRAND_EYEBROW[ctx.brand]} · {t(dash.eyebrowHome)}</p>
-          <h1 className="u-h1">{t(nav.home)}</h1>
-        </div>
-      </div>
-      <div className="tile-grid tile-grid--vary">
-        <StatCard label={t(dash.totalLeads)} value={String(d.totalLeads)} />
-        <StatCard
-          label={t(dash.pipelineValue)}
-          value={formatEGP(d.pipelineValue)}
-          hint={t(dash.activeStagesOnly)}
-        />
-        <StatCard label={t(dash.wonValue)} value={formatEGP(d.wonValue)} />
-        <StatCard label={t(dash.toBeCollected)} value={formatEGP(d.toBeCollected)} hint={t(dash.acrossAllClients)} />
-      </div>
-      <div className="card card--flush0">
-        <div className="card-head">
-          <h2 className="u-h3">
-            {t(dash.leadsPerStage)}
-          </h2>
-        </div>
-        <div className="stage-strip">
-          {stageCells.map((cell) => (
-            <div key={cell.key} className="stage-cell" data-stage-key={cell.key}>
-              <div className="stage-cell-bar" aria-hidden />
-              <p className="stage-cell-label">{cell.label}</p>
-              <p className="stage-cell-value"><AnimatedValue value={String(cell.value)} /></p>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
+/* ---------------- Home dashboard (§6.5) ----------------
+   Moved to components/dashboard/DashboardBody — ONE body for both companies
+   (the dashboard upgrade). The §6.5 figures it shows are still
+   services/metrics.ts `internalDashboard`, unchanged for the whole company. */
 
 /* ---------------- Leads: rep cards grid (§6.1) ---------------- */
 
@@ -506,6 +454,7 @@ export async function CrmBoardBody({
   ctx,
   params,
   switchedFrom,
+  importCompany = null,
 }: {
   ctx: InternalAppCtx;
   /* `string | string[]` because that is what Next really hands a server page
@@ -517,6 +466,9 @@ export async function CrmBoardBody({
      way back. Optional: a caller that does not pass it simply shows no notice,
      which is right for any screen that is not reachable by a hop. */
   switchedFrom?: { path: string; company: CrmCompany };
+  /* ADR-088 — the import button, beside Add lead, decided by the PAGE with
+     `canImportLeads` (the predicate the import route enforces). Null = none. */
+  importCompany?: CrmCompany | null;
 }) {
   const locale = await getLocale();
   const t = tFor(locale);
@@ -646,6 +598,12 @@ export async function CrmBoardBody({
             one (the picker defaults to Unassigned, a state this board already
             renders and the Leads page already buckets). */}
         <div className="page-actions">
+          {importCompany ? (
+            <LeadsImportMenu
+              company={importCompany}
+              unassignedHref={`${ctx.basePath}/leads/rep/unassigned${ctx.query}`}
+            />
+          ) : null}
           <AddLeadForm apiBase={ctx.apiBase} reps={reps} />
         </div>
       </div>

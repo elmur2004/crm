@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { afterSignIn } from "./helpers/after-sign-in";
 
 /* Founder (screenshot: "Registrations" clipped to "Regi"): the header nav must
    be "a slider, so when I am pressing on the arrow ... it slides". When the
@@ -20,7 +21,7 @@ test("the admin nav strip slides: the end chevron reveals the clipped sections",
   await page.getByLabel("Email or phone").fill("admin@byteforce.com");
   await page.getByLabel("Password").fill("password123");
   await page.getByRole("button", { name: "Sign in" }).click();
-  await page.waitForURL(/\/b-systems$/);
+  await afterSignIn(page, /\/b-systems$/);
 
   const strip = page.locator(".nav-strip");
   const users = strip.getByRole("link", { name: "Users", exact: true });
@@ -75,7 +76,7 @@ test("A9: a chevron exists whenever the nav strip really clips a section", async
   await page.getByLabel("Email or phone").fill("admin@byteforce.com");
   await page.getByLabel("Password").fill("password123");
   await page.getByRole("button", { name: "Sign in" }).click();
-  await page.waitForURL(/\/b-systems$/);
+  await afterSignIn(page, /\/b-systems$/);
 
   /* the strip's own overflow, measured sub-pixel — never via scrollWidth */
   const clips = () =>

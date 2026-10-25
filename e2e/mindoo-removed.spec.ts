@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { afterSignIn } from "./helpers/after-sign-in";
 
 /* ============================================================================
    ADR-080 — MINDOO IS GONE, PROVED BY ABSENCE.
@@ -24,7 +25,7 @@ async function loginFounder(page: Page) {
   await page.getByLabel("Email or phone").fill("admin@byteforce.com");
   await page.getByLabel("Password").fill("password123");
   await page.getByRole("button", { name: "Sign in" }).click();
-  await page.waitForURL(/\/b-systems$/);
+  await afterSignIn(page, /\/b-systems$/);
 }
 
 test("no /mindoo address serves an app any more", async ({ page }) => {

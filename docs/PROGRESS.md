@@ -5833,3 +5833,304 @@ price-clause edits, and the licensing decision on the Lama Sans binaries).
   wired yet. It gets its own ADR when he approves it.
 - **Landing assets.** `public/favicon.ico` and `public/brand/byteforce/fonts/`
   belong to the landing work and stay local with it.
+
+## 2026-10-25 (later) — ADR-090/091/092: the app launcher, the new Home, the glass sign-in, the import button on the board, and BUG-027
+
+**Founder, verbatim, authorising this push:** *"finish everything and push / also
+push the import leads button I don't see it"*.
+
+Earlier, for the three features:
+
+- **Launcher:** *"add import lead button … also I need to change the interface
+  alittle bit / it should be something like this [an Odoo-style app grid] / with
+  little icons opening each section / accounting / Each CRM byteforce and
+  bsystems / vault / to-do / reports +dashboards / Partners and agents group them
+  in a icon also"*. Asked where it lives, he chose **"Home after sign-in"**, with
+  a home icon in the header to return.
+- **Dashboard:** *"we need to upgrade the dashboord and make sure that it works /
+  you can use some of these refrences / but we need to make the system more
+  modern and more animated and professional looking"*. He chose KPI cards
+  **"This month vs last"**, **"Rounded, like the references"** (20px), and
+  **"Ranked bars"** for lead sources.
+- **Login:** *"upgrade the log in page to something like this / add crazy high
+  quailty animations and designs and the glassy effect also I like it / don't add
+  sign in with other methods like google or facebook thata's just in the
+  reference / after you finish everything do a copmlete round of testing to make
+  sure everything works perfectly for a phone interface and a tablet interface
+  also"*.
+
+**The landing pages STILL stay local.** He said he would tell us how to
+integrate them.
+
+### Done
+
+- **The app launcher is the Home after sign-in (ADR-090).**
+  - Sign-in, starting impersonation and ending it all land on `/apps`, a grid of
+    at most seven tiles: ByteForce CRM, B-Systems CRM, Accounting, Data Vault,
+    To-Do, Reports & Dashboards, Partners & Agents.
+  - Each tile is gated by its destination page's own check, imported rather
+    than restated, and the integration test renders every tile's destination
+    through the real guards for 9 personas and fails on any redirect.
+  - Founder 7 tiles; admin blocked from Accounting 5; B-Systems sales, agent or
+    partner 3; ByteForce-only 3; data entry 1.
+  - `/apps` is outside the proxy, so its page guard is the wall.
+  - An "All apps" grid icon is now the first item in the CRM, Accounting and
+    Vault headers.
+  - The e2e suite's post-sign-in waits now go through the strict `afterSignIn`
+    helper. The builder reported 79 waits in 53 spec files; a grep at writing
+    time counts 83 call sites in 54 (Run 105 explains the gap).
+    `e2e/i18n.spec.ts`'s Arabic sign-in was converted by hand, because the
+    script only matched the English click.
+- **The new Home (ADR-091).** One dashboard body for the B-Systems admin and
+  ByteForce staff, replacing both old Homes.
+  - Four period KPIs: the Won hero, New leads, Win rate, Pipeline value (now).
+  - Leads per stage carries every remaining SPEC §6.5 figure, plus the agent and
+    partner section.
+  - A cohort funnel, ranked lead sources, today's tasks with the To-Do's own
+    checkbox, Needs you, recent wins, the 6-month win-rate line, the team table
+    and an activity feed.
+  - Every lead query goes through the To-Do's `leadScopeWhere`.
+  - Charts are hand-rolled server SVG/HTML, each with "View as table": **a SPEC
+    §2 deviation**, since §2 names "Recharts or simple stat cards". It is
+    justified in ADR-091 §7 by bundle size (Recharts 149.9 KB gz against ours at
+    ≈1–2 KB client JS) and by rendering without JS.
+  - Numbers count only on change (`LiveNumber`, where BUG-026's fix now lives).
+  - `--radius-panel` (20px in B-Systems) and `--color-chart-1..3` in all three
+    scopes × light/dark/system.
+  - `StatCard.tsx` and `AnimatedValue.tsx` deleted.
+- **The glass sign-in (ADR-092).** It supersedes DESIGN-APPLICATION-SPEC §2.14.
+  - Phones float on the background; from 600px, one frosted card; from 900px,
+    the toggles move to the top corners.
+  - Both real logos sit unaltered on flat plates in their own brand's
+    background colour.
+  - No colour literal in the components or `login.css`.
+  - Motion is entirely off under reduced motion.
+  - A keyboard-reachable password eye named "Show".
+  - Same action, same fields, same four errors, same heading, and no other
+    sign-in method.
+- **The import button is on the CRM board (ADR-088 addendum, in DECISIONS.md
+  after ADR-092).** It had shipped in `efb6a24` only on each Leads page; he works
+  from the board.
+  - `crm/page.tsx` computes `importCompany` with `canImportLeads`, the
+    predicate the import route enforces, and both board bodies render
+    `LeadsImportMenu` beside Add lead.
+  - A sales rep on the B-Systems board gets no button.
+  - New e2e case in `e2e/leads-import.spec.ts`.
+- **BUG-027 found and fixed: a background prefetch could undo a sign-out or a
+  "Back to admin".**
+  - The proxy's NextAuth wrapper re-issued the sliding session cookie on every
+    request, prefetches included. About 20 prefetches started under the
+    impersonated agent landed after "Back to admin" and put the agent's session
+    back. A late prefetch could undo a sign-out the same way.
+  - Pre-existing; exposed because ADR-090 made the impersonation spec navigate
+    after snapping back.
+  - `src/proxy.ts` now strips `authjs.session-token` `Set-Cookie` headers from
+    background GET fetches (`Sec-Fetch-Dest: empty`: prefetches, RSC client
+    navigations, refreshes); page loads and server actions keep the slide.
+  - **Needs founder confirmation:** fixed over HTTPS (production) and
+    localhost, still open over plain-http LAN, where browsers send no
+    `Sec-Fetch-*` — does anyone use the app that way?
+  - Regression `e2e/session-prefetch.spec.ts`.
+- **The phone and tablet round** the founder asked for is written as
+  `e2e/device-sweep.spec.ts`:
+  - 4 real device profiles × (light+EN, dark+AR);
+  - `/login` and 13 founder screens;
+  - no sideways scroll, no console or page error, the h1 on screen, no header
+    target under 32px;
+  - a screenshot per stop.
+  
+  It runs in the gate.
+- **Follow-ups from the previous entry, now closed:**
+  - BUG-026's missing automated test: `e2e/motion.spec.ts`'s first-load test.
+  - The count-up ignoring a minus sign: `AnimatedValue` is deleted, and
+    `LiveNumber` animates a number, not parsed text.
+  - Dashboard-audit A8, Agents counting pending and deactivated accounts: D8,
+    now active and approved plus "+N pending".
+  - Hand-typed `"won"`/`"lost"`/`"new"` in the two Homes: both pages are
+    replaced. A grep of `metrics.ts` finds them only in a type comment.
+
+### Verified
+
+Full detail in Run 105.
+
+- Working tree, before the login patch: vitest **96 files / 2118 tests
+  passed**; `tsc` exit 0 after the login patch.
+- Dashboard builder's copy: vitest **96 / 2118**, full Playwright **254 passed
+  (22.2m), 2 skipped**, Home specs **28 passed (2.8m)**, 48 screenshots with 0
+  overflow, 42 first-load frames all showing the server values, brand audit
+  PASS.
+- Login: vitest **10 files / 246 passed**, `login-glass.spec.ts` **51 passed
+  (1.6m), 7 skipped**, existing sign-in specs **20 passed**, layout shift
+  0.0000, brand audit PASS on re-audit.
+- Launcher: unit **18**, integration **27** (counted in the files).
+
+**The clean-checkout gate is pending; the coordinator fills it in Run 105**:
+`tsc`, vitest, build, the FULL Playwright suite on a clean worktree, and the
+phone/tablet round. No full run over the final tree exists yet. Vitest figures
+are printed summaries, because this repo's vitest exits 0 on failure.
+
+### In progress
+
+- **The push itself**: the launcher, the new Home, the glass sign-in, the board
+  import button and BUG-027's fix together. It waits on Run 105's clean-checkout
+  gate.
+- **Open investigation**: setting `reducedMotion: "reduce"` suite-wide made
+  `e2e/zoom.spec.ts`'s case "A5" fail with a 15px shift at 50% zoom, which could
+  not be reproduced by hand. Reduced motion is set per spec for now. ("A5" is
+  that spec's own label, not SPEC §11 A-5.)
+
+### Next steps
+
+1. **Coordinator:** fill Run 105's clean-checkout gate, then push. Assemble the
+   commit by explicit path, as in ADR-086's and ADR-087–089's pushes, because
+   the landing work's edits to shared tracked files must stay out (below).
+2. **After the push, verify by addresses that did not exist before**, not by
+   chunk hashes:
+   - anonymous `GET /apps` should go from `404` to a redirect to `/login`;
+   - `/login`'s HTML should carry the glass shell;
+   - `/api/health` should show no pending migrations, since none were added.
+   
+   BUG-027's fix cannot be seen anonymously: it needs a session and a
+   background (`Sec-Fetch-Dest: empty`) request.
+3. **Founder:** confirm the items below.
+4. **Recorded and not done:**
+   - the `ActivityLog` `[entityType, createdAt]` index (blocked on
+     `prisma/schema.prisma` carrying the landing work);
+   - Phase B Homes for sales, agents and partners (D9);
+   - the seed's B-Systems `WonInfo` demo win;
+   - custom range, pipeline snapshots and the 7-day task look-ahead;
+   - removing the now-unused `home` (`dict/crm.ts`) and `dash`
+     (`dict/internal.ts`) entries;
+   - stage-bar tooltips opening at the chart's top corner;
+   - B-Systems chart slot 2 (`#D8468B`) being pink-ish;
+   - the funnel's undo overcount;
+   - the team table possibly listing one sales person twice (ADR-038's deferred
+     foreign key);
+   - dashboard-audit A5 and A6 (ADR-089 §5) and A15/A16 (accounting, D16);
+   - SPEC §6.5 and DESIGN-BRIEF §4.1 still listing six stage cells;
+   - the dead login CSS in `neutral.css` and the unused `dict/auth.ts` billboard
+     strings (ADR-092 §10);
+   - the ByteForce `logoMark`, still pending from the founder (A-13);
+   - the launcher's Arabic Reports descriptions saying «ما زال قيد التحصيل»
+     beside D17's المطلوب تحصيله;
+   - BUG-027's known limit: a JWT issued before a sign-out stays valid until
+     its expiry;
+   - the zoom "A5" investigation above.
+5. **Two stale code comments** — both since corrected by the coordinator in
+   the same push (recorded as they were found):
+   - `src/components/launcher/LauncherHomeLink.tsx` still says "BUILT, NOT YET
+     WIRED", but it is mounted in all three headers;
+   - `src/components/login/LoginGlass.tsx`'s header says each account "lands
+     where its roles point", but it now lands on `/apps`. The login page's own
+     comment is already correct.
+6. **When the landing work is documented, renumber its `next.config.ts`
+   comment.** It cites ADR-086 for a font cache header, and **ADR-086 through
+   ADR-092 are now all taken**, so it needs **ADR-093 or later**.
+
+### Blockers
+
+None. The push waits on the clean-checkout gate, which is a matter of order,
+not a blocker.
+
+### Needs founder confirmation
+
+**New this session: twenty-two.**
+
+ADR-090, the launcher (five):
+1. **The tile order** puts the two CRMs first (ByteForce, B-Systems, Accounting,
+   Vault, To-Do, Reports, Partners & Agents). His message named Accounting
+   first.
+2. **Data entry gets a one-tile grid** rather than going straight to its entry
+   page.
+3. **"One report means straight to it":** a sales rep's Reports tile opens his
+   daily report directly.
+4. **Starting and ending impersonation land on the grid** too.
+5. **A grid icon, not a house**, for "All apps", because the CRM menu already
+   has a "Home".
+
+ADR-091, the new Home (fourteen; every D-item applied from a recommendation
+rather than chosen by him):
+1. **D2:** KPI numerals in Inter 700, tabular.
+2. **D3:** the hero card on Systems Indigo.
+3. **D6:** B-Systems shows **"Milestones outstanding"**, which still includes
+   legacy Client balances. This continues ADR-089 item 1.
+4. **D8:** Agents counts active and approved accounts, with "+N pending".
+5. **D10:** no cash collected on the CRM Home; it says "Booked value · not cash
+   collected".
+6. **D11:** This month is the default, and the company switch keeps the range.
+7. **D11b:** time axes run left to right in Arabic.
+8. **D12:** draw once, count on change, refresh on return. This continues
+   ADR-089 item 4.
+9. **D13:** the funnel is a cohort, "got at least this far", with archived
+   leads excluded.
+10. **D14:** Postpone stays inside Pipeline value, shown as a parked share.
+11. **D15:** B-Systems wins are dated by `WonDeal.createdAt`, not the contract
+    date.
+12. **D17:** one Arabic wording per metric: قيمة الصفقات الجارية for Pipeline
+    value, المطلوب تحصيله for To be collected.
+13. **D18:** tiles stop lifting on hover app-wide (the Vault, the daily report,
+    the import result, the accounting sub-pages).
+14. **D19:** the ByteForce Home wears the B-Systems skin.
+
+Untouched and still his: D7 (archived won deals' money; ADR-089 item 3), D7b
+(ByteForce money from `Client`), D9 (Homes for sales, agents and partners), D16
+(the accounting dashboard and its A15/A16).
+
+ADR-092, the sign-in (three):
+1. **"Remember me" is left out.** Building it means a flag through the
+   credentials provider, a per-session expiry, a session-only versus long-lived
+   cookie, and two lengths to choose.
+2. **"Forgot password?" is left out.** Building it means a delivery channel
+   (email, or SMS/WhatsApp for phone-only accounts), a reset-token table and
+   migration, a `/reset` page, rate limiting, and hashed, expiring tokens. The
+   no-build alternative is the line "Forgot your password? Ask your admin."
+3. **Keep "One door, every account."** rather than the reference's "Welcome
+   back".
+
+### Carried forward, still open
+
+- **ADR-089's four:**
+  1. B-Systems To be collected = open milestones plus legacy Client balance,
+     now labelled "Milestones outstanding" (D6 above).
+  2. Legacy B-Systems `WonInfo` wins still count, now also in the period
+     figures and Recent wins (ADR-091 §3).
+  3. Archived won deals still drop out of Won value (D7).
+  4. The count-up no longer plays on load (now D12 above).
+- **ADR-088's seven**, unchanged by the board button: the "Unassigned (Partner
+  leads)" card name; no per-lead owner notification; normalised 7–15-digit
+  numbers; the backdated `createdAt`, which also places an imported lead in its
+  backdated period on the Home's New leads (ADR-091 §3); imported B-Systems
+  leads Unassigned, overriding V2 §2.2; data entry cannot import; the ByteForce
+  template's four extra columns.
+- **ADR-087's two:** "system" as the default theme; where the toggle lives. On
+  the sign-in page it is now an icon-only toggle in the top corner from 900px.
+- **ADR-086's three.** ADR-085's two. ADR-084's three. ADR-083's three.
+  ADR-082's six. ADR-081's six. ADR-080's three. ADR-071's four. ADR-063's one
+  accepted false negative.
+- **The standing hosting issue** on `/api/health`'s `uploads` section
+  (`persistentDirConfigured: false`, 9 referenced attachments missing),
+  untouched by this work and unrelated to it.
+- **The landing pages' own open items:** the `font-display: optional` trade, the
+  price-approval gate default, two Arabic price-clause edits, and the licensing
+  decision on the Lama Sans binaries.
+
+### Left in the working tree, and the landing bookkeeping
+
+- **The landing pages remain LOCAL and uncommitted**, at the founder's
+  instruction, repeated for this push: they stay local until he says how to
+  integrate them. Among them:
+  - `src/app/(landing)/`, `src/components/landing/`, `src/app/api/landing/`;
+  - the two `landing_*` migrations, `LANDING_BRIEF.md`, `e2e/landing.spec.ts`;
+  - `public/favicon.ico` and `public/brand/byteforce/fonts/`;
+  - the landing edits to shared tracked files. As recorded on 2026-10-16 those
+    are `next.config.ts`, `prisma/schema.prisma`, `src/lib/services/backup.ts`
+    and `src/tests/db-reset.ts`.
+  
+  `prisma/schema.prisma` carrying the landing work is also why ADR-091's
+  `ActivityLog` index was deferred.
+- **The renumbering note moves again:** the landing work's local `next.config.ts`
+  comment cites ADR-086, and with ADR-090, 091 and 092 now taken it **needs
+  ADR-093 or later**. It is local and uncommitted, so no contradiction has
+  entered the repo.
+- **The app launcher is no longer local.** The previous entry recorded it as
+  awaiting approval; it ships in this push as ADR-090.

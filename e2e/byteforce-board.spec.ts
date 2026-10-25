@@ -1,4 +1,5 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
+import { afterSignIn } from "./helpers/after-sign-in";
 
 /* ADR-082 — follow-up dates are RELATIVE to today. A hardcoded date silently
    drifts into the past, and a past date now puts the card in the derived
@@ -53,7 +54,7 @@ test("ByteForce board: drag opens the stage form; didn't-answer toggles; whole c
   await page.getByLabel("Email or phone").fill("sara@byteforce.example");
   await page.getByLabel("Password").fill("byteforce123");
   await page.getByRole("button", { name: "Sign in" }).click();
-  await page.waitForURL(/\/b-systems\?company=byteforce$/);
+  await afterSignIn(page, /\/b-systems\?company=byteforce$/);
 
   const created = await page.request.post("/api/byteforce/leads", {
     data: { name: "Parity Deal", number: "01055512345", type: "cold_call" },
@@ -108,7 +109,7 @@ test("a long column scrolls inside itself and a scrolled-to card still drags out
   await page.getByLabel("Email or phone").fill("sara@byteforce.example");
   await page.getByLabel("Password").fill("byteforce123");
   await page.getByRole("button", { name: "Sign in" }).click();
-  await page.waitForURL(/\/b-systems\?company=byteforce$/);
+  await afterSignIn(page, /\/b-systems\?company=byteforce$/);
 
   const ids: string[] = [];
   for (let i = 1; i <= 7; i++) {
@@ -184,7 +185,7 @@ test("ByteForce board: the head's Add lead form creates a lead that lands on the
   await page.getByLabel("Email or phone").fill("sara@byteforce.example");
   await page.getByLabel("Password").fill("byteforce123");
   await page.getByRole("button", { name: "Sign in" }).click();
-  await page.waitForURL(/\/b-systems\?company=byteforce$/);
+  await afterSignIn(page, /\/b-systems\?company=byteforce$/);
 
   await page.goto("/b-systems/crm?company=byteforce");
 

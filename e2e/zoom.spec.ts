@@ -1,4 +1,5 @@
 import { expect, test, type Browser, type Page } from "@playwright/test";
+import { afterSignIn } from "./helpers/after-sign-in";
 
 /* Founder: "when I zoom in and out the UI gets so scattered."
  *
@@ -37,7 +38,7 @@ async function signedInState(browser: Browser, baseURL: string) {
   await page.getByLabel("Email or phone").fill("admin@byteforce.com");
   await page.getByLabel("Password").fill("password123");
   await page.getByRole("button", { name: "Sign in" }).click();
-  await page.waitForURL(/\/b-systems$/);
+  await afterSignIn(page, /\/b-systems$/);
   const state = await ctx.storageState();
   await ctx.close();
   return state;
@@ -232,7 +233,7 @@ test("A6: a long column shows at least two whole cards at every zoom, and still 
   await sp.getByLabel("Email or phone").fill("sara@byteforce.example");
   await sp.getByLabel("Password").fill("byteforce123");
   await sp.getByRole("button", { name: "Sign in" }).click();
-  await sp.waitForURL(/\/b-systems\?company=byteforce$/);
+  await afterSignIn(sp, /\/b-systems\?company=byteforce$/);
   const ids: string[] = [];
   for (let i = 1; i <= 7; i++) {
     /* The names WRAP to the `.bcard-name` 2-line clamp on purpose. The floor is

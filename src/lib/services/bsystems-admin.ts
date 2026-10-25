@@ -1,8 +1,10 @@
 import { db } from "@/lib/db";
 import type { Prisma } from "../../../generated/prisma/client";
-import { BSYSTEMS_STAGES, type Brand } from "@/lib/pipeline-engine/constants";
+import type { Brand } from "@/lib/pipeline-engine/constants";
 import { leadSearchWhere, leadTypeWhere } from "./lead-search";
 import { internalDashboard, type InternalDashboard } from "./metrics";
+import { leadScopeWhere } from "./todo";
+import { configForBrand } from "@/lib/pipeline-engine/configs/for-brand";
 
 /* V2 §2.1 — the admin Home: the v1 dashboard PLUS agent/partner counts and their
    leads' stage distribution. Plus the Agents-section queries (§2.7) and the
@@ -10,7 +12,11 @@ import { internalDashboard, type InternalDashboard } from "./metrics";
 
 export interface AdminHomeV2 {
   base: InternalDashboard;
+  /** agents who can WORK: active and approved (the assignable roster's own
+      predicate, users.ts listAssignableOwners) — dashboard spec A8 / D8 */
   agentCount: number;
+  /** self-signups still waiting on the Registrations page */
+  pendingAgentCount: number;
   partnerCount: number;
   /** stage → count over agent+partner-owned leads (the chart's data) */
   externalPipeline: Record<string, number>;
@@ -24,20 +30,44 @@ export interface AdminHomeV2 {
    ByteForce the merged page returns the ByteForce dashboard long before it
    gets here. */
 export async function adminHome(brand: Brand): Promise<AdminHomeV2> {
-  const [base, agentCount, partnerCount, stageGroups] = await Promise.all([
-    internalDashboard(brand),
-    db.userRole.count({ where: { role: "bsystems_agent" } }),
+  const [base, external] = await Promise.all([internalDashboard(brand), adminExternal(brand)]);
+  return { base, ...external };
+}
+
+export type AdminExternal = Omit<AdminHomeV2, "base">;
+
+/** The admin Home's agent & partner half on its own (V2 §2.1) — the new Home
+    already holds the §6.5 figures, scoped, and must not query them twice. */
+export async function adminExternal(brand: Brand): Promise<AdminExternal> {
+  /* D8 (dashboard spec A8) — "Agents" used to count every holder of the role,
+     which includes pending self-signups, rejected sign-ups (rejectRegistration
+     keeps the row) and deactivated accounts: people who cannot work a lead.
+     It now counts the roster the admin can actually assign to, and the
+     still-pending requests are reported beside it, never inside it. */
+  const [agentCount, pendingAgentCount, partnerCount, stageGroups] = await Promise.all([
+    db.userRole.count({
+      where: { role: "bsystems_agent", user: { active: true, registrationStatus: "approved" } },
+    }),
+    db.userRole.count({
+      where: { role: "bsystems_agent", user: { registrationStatus: "pending" } },
+    }),
     db.partner.count(),
     db.lead.groupBy({
       by: ["stage"],
-      where: { brand, ownerType: { in: ["agent", "partner"] }, archived: false },
+      /* the admin's own wall (the To-Do's predicate), narrowed to the agent
+         and partner BUCKETS — a bucket, not a second owner filter */
+      where: {
+        ...leadScopeWhere(brand, { kind: "all" }),
+        ownerType: { in: ["agent", "partner"] },
+        archived: false,
+      },
       _count: { _all: true },
     }),
   ]);
   const externalPipeline: Record<string, number> = {};
-  for (const stage of BSYSTEMS_STAGES) externalPipeline[stage] = 0;
+  for (const stage of configForBrand(brand).stages) externalPipeline[stage] = 0;
   for (const g of stageGroups) externalPipeline[g.stage] = g._count._all;
-  return { base, agentCount, partnerCount, externalPipeline };
+  return { agentCount, pendingAgentCount, partnerCount, externalPipeline };
 }
 
 /** V2 §2.7 — Agents section, Detailed view: profile + join date + their leads. */

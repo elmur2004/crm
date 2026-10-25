@@ -1,4 +1,5 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
+import { afterSignIn } from "./helpers/after-sign-in";
 
 /* ADR-082 — follow-up dates are RELATIVE to today. A hardcoded date silently
    drifts into the past, and a past date now puts the card in the derived
@@ -142,7 +143,7 @@ async function loginByteForce(page: Page) {
   await page.getByLabel("Email or phone").fill("sara@byteforce.example");
   await page.getByLabel("Password").fill("byteforce123");
   await page.getByRole("button", { name: "Sign in" }).click();
-  await page.waitForURL(/\/b-systems\?company=byteforce$/);
+  await afterSignIn(page, /\/b-systems\?company=byteforce$/);
 }
 
 async function seedLeads(page: Page, prefix: string, count: number) {
@@ -375,7 +376,7 @@ test.describe(() => {
     await page.getByLabel("Email or phone").fill("admin@byteforce.com");
     await page.getByLabel("Password").fill("password123");
     await page.getByRole("button", { name: "Sign in" }).click();
-    await page.waitForURL(/\/b-systems$/);
+    await afterSignIn(page, /\/b-systems$/);
 
     for (const path of ["/b-systems/crm", "/b-systems/partners-pipeline", "/b-systems/crm?company=byteforce"]) {
       await page.goto(path);

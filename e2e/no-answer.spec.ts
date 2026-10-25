@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { afterSignIn } from "./helpers/after-sign-in";
 
 /* Founder (ADR-039): the "didn't answer" marker on the main CRM board — a
    toggle on the card shows a "No answer" badge "just so we know"; clearing it
@@ -14,7 +15,7 @@ test('admin flags a card "Didn\'t answer", sees the badge, then clears it', asyn
   await page.getByLabel("Email or phone").fill("admin@byteforce.com");
   await page.getByLabel("Password").fill("password123");
   await page.getByRole("button", { name: "Sign in" }).click();
-  await page.waitForURL(/\/b-systems$/);
+  await afterSignIn(page, /\/b-systems$/);
 
   await page.goto("/b-systems/crm");
   /* Scoped to the New column: proves the toggle is not a stage transition. */
@@ -46,7 +47,7 @@ test("the button COUNTS: a second try reads 2, a third reads 3, and Answered wip
   await page.getByLabel("Email or phone").fill("admin@byteforce.com");
   await page.getByLabel("Password").fill("password123");
   await page.getByRole("button", { name: "Sign in" }).click();
-  await page.waitForURL(/\/b-systems$/);
+  await afterSignIn(page, /\/b-systems$/);
 
   await page.goto("/b-systems/crm");
   const card = page
@@ -106,7 +107,7 @@ test("Arabic: the tally reads right-to-left, in real Arabic (ADR-064)", async ({
   await page.getByLabel("Email or phone").fill("admin@byteforce.com");
   await page.getByLabel("Password").fill("password123");
   await page.getByRole("button", { name: "Sign in" }).click();
-  await page.waitForURL(/\/b-systems$/);
+  await afterSignIn(page, /\/b-systems$/);
 
   await page.goto("/b-systems/crm");
   await page.getByRole("button", { name: "عربي" }).click();
@@ -164,7 +165,7 @@ async function loginFounder(page: import("@playwright/test").Page) {
   await page.getByLabel("Email or phone").fill("admin@byteforce.com");
   await page.getByLabel("Password").fill("password123");
   await page.getByRole("button", { name: "Sign in" }).click();
-  await page.waitForURL(/\/b-systems$/);
+  await afterSignIn(page, /\/b-systems$/);
 }
 
 async function leadDueOn(page: import("@playwright/test").Page, name: string, number: string, date: string) {

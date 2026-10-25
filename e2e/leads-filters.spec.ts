@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { afterSignIn } from "./helpers/after-sign-in";
 
 /* Founder (filters round 2): the Leads controls live in a sidebar and lead with
    ONE search box — name, company, or number, matched server-side. This covers
@@ -15,7 +16,7 @@ test("admin: search the Leads sidebar by a partial number, then clear the filter
   await page.getByLabel("Email or phone").fill("admin@byteforce.com");
   await page.getByLabel("Password").fill("password123");
   await page.getByRole("button", { name: "Sign in" }).click();
-  await page.waitForURL(/\/b-systems$/);
+  await afterSignIn(page, /\/b-systems$/);
 
   const created = await page.request.post("/api/b-systems/leads", {
     data: {
@@ -95,7 +96,7 @@ test("admin: search and filter the CRM board cards; ByteForce board filters too"
   await page.getByLabel("Email or phone").fill("admin@byteforce.com");
   await page.getByLabel("Password").fill("password123");
   await page.getByRole("button", { name: "Sign in" }).click();
-  await page.waitForURL(/\/b-systems$/);
+  await afterSignIn(page, /\/b-systems$/);
 
   await page.goto("/b-systems/crm");
   await expect(page.locator('[data-deal-card="Delta Fresh Foods"]')).toBeVisible();

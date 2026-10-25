@@ -5,14 +5,13 @@ import { redirect } from "next/navigation";
 import { signIn, signOut } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { identifierKind, normalizePhone } from "./phone";
-import { landingFor } from "./landing";
-import type { Role } from "@/lib/pipeline-engine/constants";
+import { LAUNCHER_PATH } from "@/lib/launcher/apps";
 
-/* Consolidated sign-in (ADR-028): one action, one page. After authentication the
-   user lands where their roles point. NOTE: auth() cannot see the just-set session
-   cookie within the same request, so the landing roles are read from the DB. */
-
-/* the map itself lives in ./landing so the page guards can share it */
+/* Consolidated sign-in (ADR-028): one action, one page. After authentication
+   every account lands on the app launcher (ADR-090, founder: "Home after
+   sign-in"), which reads the session's roles itself and shows only the apps
+   they open. The role map (./landing) still serves the page guards and the
+   launcher's fallback for an account that can open no app. */
 
 export async function login(formData: FormData): Promise<void> {
   /* self-healing: the admin account is guaranteed usable (created/repaired,
@@ -41,12 +40,10 @@ export async function login(formData: FormData): Promise<void> {
     }
     throw err;
   }
-  const where =
-    identifierKind(identifier) === "email"
-      ? { email: identifier.trim().toLowerCase() }
-      : { phone: normalizePhone(identifier) };
-  const user = await db.user.findUnique({ where: where as never, include: { roles: true } });
-  redirect(landingFor((user?.roles.map((r) => r.role) ?? []) as Role[]));
+  /* founder: HOME AFTER SIGN-IN — every account lands on the app launcher,
+     which shows it only the apps it can open (an account with none is sent on
+     to landingFor from there, exactly as before) */
+  redirect(LAUNCHER_PATH);
 }
 
 export async function logout(redirectTo: string): Promise<void> {
@@ -75,11 +72,7 @@ export async function impersonate(targetUserId: string): Promise<void> {
     if (err instanceof AuthError) redirect("/b-systems/users?error=impersonation");
     throw err;
   }
-  const target = await db.user.findUnique({
-    where: { id: targetUserId },
-    include: { roles: true },
-  });
-  redirect(landingFor((target?.roles.map((r) => r.role) ?? []) as Role[]));
+  redirect(LAUNCHER_PATH);
 }
 
 /* Snap back to the admin who started the impersonation (founder: "back and
@@ -111,5 +104,5 @@ export async function endImpersonation(): Promise<void> {
     if (err instanceof AuthError) redirect("/login");
     throw err;
   }
-  redirect(landingFor(admin.roles.map((r) => r.role) as Role[]));
+  redirect(LAUNCHER_PATH);
 }

@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { afterSignIn } from "./helpers/after-sign-in";
 
 /* ADR-041 smoke: a follow-up dated today (Cairo) shows on /b-systems/todo and
    clicks through to its lead. Setup drives the existing APIs — no new surface,
@@ -9,7 +10,7 @@ test("admin sees today's follow-up on the To-Do page and opens the lead", async 
   await page.getByLabel("Email or phone").fill("admin@byteforce.com");
   await page.getByLabel("Password").fill("password123");
   await page.getByRole("button", { name: "Sign in" }).click();
-  await page.waitForURL(/\/b-systems$/);
+  await afterSignIn(page, /\/b-systems$/);
 
   /* Create a lead and move it to Following Up, due today (Cairo wall date). */
   const created = await page.request.post("/api/b-systems/leads", {

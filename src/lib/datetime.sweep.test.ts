@@ -61,27 +61,17 @@ const RENDERS_HOUR =
 /* Every file under the swept roots that is allowed to touch DATE_API at all,
    and why. Keep the reasons — they are the review. */
 const ALLOWED: Array<{ file: string; kind: "number" | "date-only"; why: string }> = [
-  {
-    file: "src/app/(bsystems)/b-systems/(app)/page.tsx",
-    kind: "date-only",
-    /* ADR-068 §3 names this one as known. It is the dashboard's "Saturday, 29
-       August 2026" heading: a DATE with a weekday and no clock, and
-       formatCairoDate deliberately offers no weekday. It also renders ar-EG
-       WITHOUT the -u-nu-latn subtag, i.e. in Arabic-Indic digits — the one
-       surface that departs from the house convention, on purpose, because it
-       is prose rather than a stamp beside a record. Listed here so the
-       departure is visible in the suite instead of only in the ADR. */
-    why: "dashboard date heading: weekday + date, no clock (ADR-068 §3)",
-  },
+  /* The dashboard's "Saturday, 29 August 2026" heading used to be listed here
+     (ADR-068 §3): the page built it with its own toLocaleDateString. It moved
+     into src/lib/datetime.ts as `formatCairoLongDate`, byte-identical output,
+     so the page no longer touches a locale API at all and its entry is gone.
+     So is AnimatedValue's — the count-on-change number is now
+     components/dashboard/LiveNumber, which formats through lib/money and
+     plain digit grouping and never calls a locale API. */
   {
     file: "src/components/bsystems/roleForms.tsx",
     kind: "number",
     why: "Number.prototype.toLocaleString — the EGP money preview, not a date",
-  },
-  {
-    file: "src/components/shared/AnimatedValue.tsx",
-    kind: "number",
-    why: "Number.prototype.toLocaleString — the count-up animation, not a date",
   },
 ];
 

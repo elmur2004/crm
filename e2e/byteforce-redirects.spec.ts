@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { afterSignIn } from "./helpers/after-sign-in";
 
 /* ============================================================================
    ADR-067 — THE PROMISE TO EVERY OLD LINK.
@@ -18,7 +19,7 @@ async function loginByteForce(page: Page) {
   await page.getByLabel("Email or phone").fill("sara@byteforce.example");
   await page.getByLabel("Password").fill("byteforce123");
   await page.getByRole("button", { name: "Sign in" }).click();
-  await page.waitForURL(/\/b-systems\?company=byteforce$/);
+  await afterSignIn(page, /\/b-systems\?company=byteforce$/);
 }
 
 /** A real seeded ByteForce lead, read off the board itself, so the id-bearing
@@ -39,7 +40,10 @@ test("the five sections all land in the merged shell with ByteForce preselected"
 
   await page.goto("/byteforce");
   await expect(page).toHaveURL(/\/b-systems\?company=byteforce$/);
-  await expect(page.getByRole("heading", { name: "Home" })).toBeVisible();
+  /* the Home — its h1 greets the reader since the dashboard upgrade; the
+     eyebrow still names the company and the screen */
+  await expect(page.getByRole("heading", { level: 1, name: /^Welcome back, / })).toBeVisible();
+  await expect(page.getByText("BYTEFORCE · HOME")).toBeVisible();
 
   await page.goto("/byteforce/todo");
   await expect(page).toHaveURL(/\/b-systems\/todo\?company=byteforce$/);
@@ -155,6 +159,6 @@ test("an anonymous visitor following an old bookmark reaches sign-in, not a loop
   await page.getByLabel("Email or phone").fill("sara@byteforce.example");
   await page.getByLabel("Password").fill("byteforce123");
   await page.getByRole("button", { name: "Sign in" }).click();
-  await page.waitForURL(/\/b-systems\?company=byteforce$/);
+  await afterSignIn(page, /\/b-systems\?company=byteforce$/);
   await ctx.close();
 });

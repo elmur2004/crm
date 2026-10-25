@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import type { Brand } from "@/lib/pipeline-engine/constants";
 import { configForBrand } from "@/lib/pipeline-engine/configs/for-brand";
 import { latestProposalValue } from "./leads";
+import { leadScopeWhere, type TodoScope } from "./todo";
 
 /* §6.5 — every dashboard number is a tested query. Missing money values count as 0.
    Pipeline value excludes Won and Lost. Per-card Estimated value follows ADR-012
@@ -15,6 +16,16 @@ export interface InternalDashboard {
   wonCount: number;
   lostCount: number;
   toBeCollected: number; // piasters
+  /* The Home's "Pipeline value (now)" card (dashboard spec W4) — the SAME
+     active-lead set the pipeline value above is summed over, so the three can
+     never describe different leads. ADR-072's parked column is shown as a
+     share of the pipeline rather than excluded from it (§6.5 is normative:
+     "not Won and not Lost"). */
+  openCount: number;
+  parkedValue: number; // piasters
+  parkedCount: number;
+  /** active stage → its share of the pipeline value, in the company's stage order */
+  pipelineByStage: Record<string, number>;
 }
 
 /* ADR-089 — the two pipelines record a win in two different tables, and the
@@ -32,28 +43,48 @@ const WON_RECORD: Record<Brand, "wonInfo" | "wonDeal"> = {
   bsystems: "wonDeal",
 };
 
-export async function internalDashboard(brand: Brand): Promise<InternalDashboard> {
+/** Which won record a company's money reads (exported for the Home's period
+    figures, which must read the same table this file does). */
+export function wonRecordFor(brand: Brand): "wonInfo" | "wonDeal" {
+  return WON_RECORD[brand];
+}
+
+/* The Home (dashboard spec §2.3) — `scope` is the To-Do's own wall,
+   `leadScopeWhere`, so a narrower reader can only ever be handed a SUBSET of
+   these figures. It defaults to the whole company, which is every caller this
+   file had before the Home asked for one: their numbers are unchanged. */
+export async function internalDashboard(
+  brand: Brand,
+  scope: TodoScope = { kind: "all" },
+): Promise<InternalDashboard> {
+  const scoped = leadScopeWhere(brand, scope);
+  /* the terminal pair from the company's own config (ADR-073), never literals */
+  const { wonStage, lostStage } = configForBrand(brand);
+  /* the money records that hang off a lead follow the lead's wall; under the
+     whole company they keep the exact predicate they always had (a legacy
+     Client row with no lead still counts there, as it did before) */
+  const clientWhere = scope.kind === "all" ? { brand } : { brand, lead: scoped };
   /* ADR-043: archived leads leave every lead-based number; client money
      (toBeCollected) survives archiving — the financial trail is untouched. */
   const [totalLeads, stageGroups, activeLeads, wonLeads, clients, openMilestones] =
     await Promise.all([
-      db.lead.count({ where: { brand, archived: false } }),
-      db.lead.groupBy({ by: ["stage"], where: { brand, archived: false }, _count: { _all: true } }),
+      db.lead.count({ where: { ...scoped, archived: false } }),
+      db.lead.groupBy({ by: ["stage"], where: { ...scoped, archived: false }, _count: { _all: true } }),
       db.lead.findMany({
-        where: { brand, archived: false, stage: { notIn: ["won", "lost"] } },
-        select: { proposals: { select: { estimatedValue: true, createdAt: true } } },
+        where: { ...scoped, archived: false, stage: { notIn: [wonStage, lostStage] } },
+        select: { stage: true, proposals: { select: { estimatedValue: true, createdAt: true } } },
       }),
       db.lead.findMany({
-        where: { brand, stage: "won", archived: false },
+        where: { ...scoped, stage: wonStage, archived: false },
         select: {
           wonInfo: { select: { estimatedValue: true } },
           wonDeal: { select: { estimatedValue: true } },
         },
       }),
-      db.client.findMany({ where: { brand }, select: { toBeCollected: true } }),
+      db.client.findMany({ where: clientWhere, select: { toBeCollected: true } }),
       WON_RECORD[brand] === "wonDeal"
         ? db.milestone.findMany({
-            where: { completed: false, wonDeal: { lead: { brand } } },
+            where: { completed: false, wonDeal: { lead: scoped } },
             select: { value: true },
           })
         : Promise.resolve([]),
@@ -70,6 +101,21 @@ export async function internalDashboard(brand: Brand): Promise<InternalDashboard
     (sum, lead) => sum + (latestProposalValue(lead.proposals) ?? 0),
     0,
   );
+  const config = configForBrand(brand);
+  const pipelineByStage: Record<string, number> = {};
+  for (const stage of config.stages) {
+    if (stage !== config.wonStage && stage !== config.lostStage) pipelineByStage[stage] = 0;
+  }
+  let parkedValue = 0;
+  let parkedCount = 0;
+  for (const lead of activeLeads) {
+    const value = latestProposalValue(lead.proposals) ?? 0;
+    pipelineByStage[lead.stage] = (pipelineByStage[lead.stage] ?? 0) + value;
+    if (config.postponeStage && lead.stage === config.postponeStage) {
+      parkedValue += value;
+      parkedCount += 1;
+    }
+  }
   /* One value per won lead, so Won value and Won count describe the same set
      of leads. A B-Systems lead won before V2 carries a WonInfo and no WonDeal;
      it keeps its WonInfo value rather than vanishing from the money. */
@@ -94,8 +140,12 @@ export async function internalDashboard(brand: Brand): Promise<InternalDashboard
     leadsPerStage,
     pipelineValue,
     wonValue,
-    wonCount: leadsPerStage["won"] ?? 0,
-    lostCount: leadsPerStage["lost"] ?? 0,
+    wonCount: leadsPerStage[wonStage] ?? 0,
+    lostCount: leadsPerStage[lostStage] ?? 0,
     toBeCollected,
+    openCount: activeLeads.length,
+    parkedValue,
+    parkedCount,
+    pipelineByStage,
   };
 }

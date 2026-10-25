@@ -71,7 +71,7 @@ export function CrmHomeLink({
   return (
     <Link
       href={`${homes[company] ?? "/b-systems"}?company=${company}`}
-      className="shrink-0 flex items-center gap-3"
+      className="app-home-link shrink-0 flex items-center gap-3"
       aria-label={label}
     >
       {children}

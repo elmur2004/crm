@@ -343,6 +343,11 @@ function pairsFor(scope: Scope): Pair[] {
     ["focus-ring", "surface-card", UI],
     ["focus-ring", "surface-tint", UI],
     ["danger-border-strong", "danger-tint", UI],
+    /* the Home's categorical chart cap (dashboard spec §5.1): a series mark
+       is a graphical object, so 3:1 on the card it is drawn on */
+    ["chart-1", "surface-card", UI],
+    ["chart-2", "surface-card", UI],
+    ["chart-3", "surface-card", UI],
   );
   /* the B-Systems external (agent/partner) header paints the chrome text on
      --color-surface-dark */
@@ -533,5 +538,49 @@ describe("the dark-mode contract tokens are byte-identical to today's light pain
     /* [data-brand="bsystems"] .app-header: primary / on-primary */
     expect(bs!.get("--color-chrome")).toBe(bs!.get("--color-primary")); // var(--bs-indigo)
     expect(bs!.get("--color-on-chrome")).toBe(bs!.get("--color-on-primary")); // #FFFFFF
+  });
+});
+
+/* ------------------------------------------- the Home's tokens (§5.1) */
+
+/** The LIGHT twin of `resolver`: the light block alone. */
+function lightResolver(scope: Scope) {
+  const lightMap = toMap(blocks(scope).light[0]!.decls);
+  const resolve = (name: string, depth = 0): string => {
+    if (depth > 10) throw new Error(`var() cycle at ${name}`);
+    const raw = lightMap.get(name);
+    if (raw === undefined) throw new Error(`${scope.name}: ${name} is not declared`);
+    const ref = /^var\(\s*(--[\w-]+)\s*\)$/.exec(raw);
+    return ref ? resolve(ref[1]!, depth + 1) : raw;
+  };
+  return (token: string) => resolve(token).toUpperCase();
+}
+
+describe("the dashboard tokens (dashboard spec §5.1)", () => {
+  it.each(SCOPES)("$name: the chart cap clears 3:1 on the card in LIGHT too", (scope) => {
+    const res = lightResolver(scope);
+    const card = res("--color-surface-card");
+    for (const k of [1, 2, 3]) {
+      const c = res(`--color-chart-${k}`);
+      expect(c, `--color-chart-${k}`).toMatch(/^#[0-9A-F]{6}$/);
+      expect(contrast(c, card), `${scope.name} chart-${k} ${c} on ${card}`).toBeGreaterThanOrEqual(UI);
+    }
+  });
+
+  it.each(SCOPES)("$name: --radius-panel is theme-invariant (light block only)", (scope) => {
+    const { light, dark, system } = blocks(scope);
+    expect(toMap(light[0]!.decls).get("--radius-panel")).toMatch(/^\d+px$/);
+    expect(toMap(dark[0]!.decls).has("--radius-panel")).toBe(false);
+    expect(toMap(system[0]!.decls).has("--radius-panel")).toBe(false);
+  });
+
+  it("b-systems: the chart cap is never Signal Pink and never pure white or black", () => {
+    for (const res of [resolver(SCOPES[1]!), lightResolver(SCOPES[1]!)]) {
+      for (const k of [1, 2, 3]) {
+        expect(res(`--color-chart-${k}`)).not.toBe("#FF4F87");
+        expect(res(`--color-chart-${k}`)).not.toBe("#FFFFFF");
+        expect(res(`--color-chart-${k}`)).not.toBe("#000000");
+      }
+    }
   });
 });

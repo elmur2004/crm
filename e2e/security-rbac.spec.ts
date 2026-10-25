@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { afterSignIn } from "./helpers/after-sign-in";
 
 /* ADR-073 — take the id from the PATHNAME, not the raw href. Card links carry
    `?company=` now that the lead detail is shared between companies, and a bare
@@ -18,7 +19,7 @@ async function login(page: Page, identifier: string, password: string, landing: 
   await page.getByLabel("Email or phone").fill(identifier);
   await page.getByLabel("Password").fill(password);
   await page.getByRole("button", { name: "Sign in" }).click();
-  await page.waitForURL(landing);
+  await afterSignIn(page, landing);
 }
 
 test("agents cannot touch admin surfaces (server-side 403)", async ({ page }) => {

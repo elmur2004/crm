@@ -159,6 +159,8 @@
   /* Shape & effects (prototype tok.r / tok.rc / shadows) */
   --radius-card: 10px;
   --radius-control: 8px;
+  /* D1 (dashboard spec §5.1): dashboard cards only. The CRM Home wears the B-Systems skin for both companies (ADR-067), so this value is the scope contract, not the founder-facing look. Theme-invariant like every --radius-*. */
+  --radius-panel: 14px;
   --shadow-card: 0 1px 2px rgba(35, 31, 32, 0.05), 0 6px 18px rgba(35, 31, 32, 0.05);
   --shadow-lift: 0 14px 30px rgba(0, 0, 0, 0.18);
   --shadow-modal: 0 30px 70px rgba(0, 0, 0, 0.4);
@@ -213,6 +215,15 @@
   --color-on-chrome: var(--color-ink);
   --color-focus-ring: color-mix(in srgb, var(--color-primary) 45%, transparent);
   --color-border-control: var(--color-border);
+  /* The CATEGORICAL cap for any future multi-series chart (dashboard spec
+     §5.1) — three slots, validated (dataviz palette check: lightness band,
+     chroma, CVD separation) and >= 3:1 on --color-surface-card in both
+     themes (theme-tokens.test.ts). Nothing on the Home needs more than one
+     series today; these exist so the first chart that does never invents
+     its colours. Text is never a series colour. */
+  --color-chart-1: var(--bf-violet);
+  --color-chart-2: var(--bf-orange);
+  --color-chart-3: #8C7FCB;
 
 }
 
@@ -470,6 +481,10 @@
     --color-focus-ring: var(--bf-orange);
     /* NEW — input/select boundary: 40% off-white into Ink, >=3:1 (1.4.11) */
     --color-border-control: #777371;
+    /* NEW — the chart cap, lifted to >= 3:1 on the dark card */
+    --color-chart-1: #8676D2;
+    --color-chart-2: var(--bf-orange);
+    --color-chart-3: #6C5CC0;
     /* Per-stage board colours. Same rule for every column (derived, not
        picked): the ACCENT keeps the light accent's hue + saturation, its HSL
        lightness raised only as far as needed to read >= 4.8:1 on the canvas,
@@ -552,6 +567,9 @@
     --color-on-chrome: var(--color-ink);
     --color-focus-ring: var(--bf-orange);
     --color-border-control: #777371;
+    --color-chart-1: #8676D2;
+    --color-chart-2: var(--bf-orange);
+    --color-chart-3: #6C5CC0;
     --color-stage-intake: #191718; --color-stage-intake-accent: #B4AEB0; --color-stage-intake-chip: #433E40; --color-stage-intake-chip-ink: #C8C3C5;
     --color-stage-following: #19161C; --color-stage-following-accent: #9489CB; --color-stage-following-chip: #3C3646; --color-stage-following-chip-ink: #BEB7DF;
     --color-stage-meeting: #19161C; --color-stage-meeting-accent: #948BC4; --color-stage-meeting-chip: #3C3744; --color-stage-meeting-chip-ink: #BDB7DA;

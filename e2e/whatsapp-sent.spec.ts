@@ -1,4 +1,5 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
+import { afterSignIn } from "./helpers/after-sign-in";
 
 /* ============================================================================
    ADR-069 — the WhatsApp chip turns GREEN once the record has been messaged.
@@ -35,7 +36,7 @@ async function login(page: Page, identifier: string, password: string, landing: 
   await page.getByLabel("Email or phone").fill(identifier);
   await page.getByLabel("Password").fill(password);
   await page.getByRole("button", { name: "Sign in" }).click();
-  await expect(page).toHaveURL(landing);
+  await afterSignIn(page, landing);
 }
 
 /** wa.me must never actually be reached from a test run — the chip's link is

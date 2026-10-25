@@ -1,0 +1,644 @@
+/* =========================================================================
+   THE HOME — layout, cards, charts and motion (dashboard spec §5, §7).
+
+   Imported by components/dashboard/DashboardBody (never by a layout), after
+   design-system.css. TOKENS ONLY: every colour, font and shadow here is a
+   semantic var() from the three scope files — no literal anywhere (SPEC §4.1,
+   brand-audit rule 1); derived tints use color-mix() over tokens. Corners use
+   the shape tokens (--radius-panel / -card / -control); the only literal radii
+   are pills (999px), circles and the 4px foot of a stage column.
+
+   B-Systems skin for both companies (ADR-067): the merged CRM shell is
+   [data-brand="bsystems"], so these resolve to Systems Indigo / Process
+   Lavender, with Signal Pink only where a figure IS a win.
+
+   MOTION follows landing-motion.css rule for rule:
+   · tokens are declared once, OUTSIDE any media query;
+   · EVERY animation and transition lives inside
+     @media (prefers-reduced-motion: no-preference) — nothing animates and is
+     then undone; under reduced motion the page is simply still;
+   · only transform, opacity and stroke(-dashoffset) are animated;
+   · nothing runs longer than 600 ms, no stagger exceeds 200 ms (5 × 40 ms);
+   · animation-fill-mode is `backwards` only (a filling transform would keep
+     the element a containing block and trap a fixed modal — design-system.css);
+   · bars, funnel steps, meters and lines draw ONCE per visit: an animation
+     runs when its element is inserted, and router.refresh() / a range switch
+     keep the DOM, so a changed value EASES (a transition on --v) instead of
+     redrawing. Numbers never animate on load (LiveNumber).
+   Every chart is server-rendered at its final geometry, so with no JavaScript
+   and no motion it is already correct.
+   ========================================================================= */
+
+.db {
+  --db-gap: 16px;
+  --db-pad: 20px;
+  --db-dur-bar: 480ms;
+  --db-dur-draw: 600ms;
+  --db-dur-value: 320ms;
+  --db-dur-tip: 120ms;
+  --db-dur-lift: 180ms;
+  --db-stagger: 40ms;
+  --db-ease: cubic-bezier(.22, .8, .3, 1);
+  --db-gutter: 40px;
+  container: db / inline-size;
+  color: var(--color-ink);
+}
+
+/* ------------------------------------------------------------ page head */
+.db-head {
+  display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between;
+  gap: 14px 18px; margin-bottom: 20px;
+}
+.db-head-text { min-width: 0; }
+.db-title {
+  margin: 10px 0 0; font: 700 28px/1.15 var(--font-display); letter-spacing: -.02em;
+  color: var(--color-heading); overflow-wrap: anywhere;
+}
+.db-date { margin: 6px 0 0; font: 400 13.5px/1.5 var(--font-body); color: var(--color-muted); }
+.db-head-actions { display: flex; flex-wrap: wrap; gap: 9px; align-items: center; }
+/* a thumb-sized head on a phone — the backup buttons included */
+@media (pointer: coarse), (max-width: 639px) {
+  .db-head-actions .btn-ghost, .db-head-actions .btn-primary { min-height: 44px; }
+}
+
+/* ------------------------------------------------------------ the grid */
+.db-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--db-gap); }
+.db-kpis { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--db-gap); }
+/* phone order: the KPIs, then what he acts on (tasks, Needs you), then the rest */
+.db-kpis { order: -2; }
+.db-w-tasks, .db-w-needs { order: -1; }
+
+@container db (min-width: 560px) {
+  .db-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@container db (min-width: 700px) {
+  .db-grid { grid-template-columns: repeat(12, minmax(0, 1fr)); }
+  .db-grid > * { grid-column: span 12; order: 0; }
+  .db-w-stages, .db-w-funnel, .db-w-tasks, .db-w-needs, .db-w-sources, .db-w-trend { grid-column: span 6; }
+  .db-grid--no-needs .db-w-tasks { grid-column: span 12; }
+}
+@container db (min-width: 1100px) {
+  /* explicit placement: the tall Leads-per-stage card (it carries §6.5's
+     figures and, for the admin, the agent & partner pipeline) spans two rows,
+     with the funnel and Needs you stacked beside it — no dead space */
+  .db-kpis { grid-template-columns: repeat(4, minmax(0, 1fr)); grid-column: 1 / -1; grid-row: 1; }
+  .db-w-stages { grid-column: 1 / span 7; grid-row: 2 / span 2; }
+  .db-w-funnel { grid-column: 8 / span 5; grid-row: 2; }
+  .db-w-needs { grid-column: 8 / span 5; grid-row: 3; }
+  .db-w-tasks { grid-column: 1 / span 6; grid-row: 4; }
+  .db-w-wins { grid-column: 7 / span 6; grid-row: 4; }
+  .db-w-sources { grid-column: 1 / span 5; grid-row: 5; }
+  .db-w-trend { grid-column: 6 / span 7; grid-row: 5; }
+  .db-w-team { grid-column: 1 / span 7; grid-row: 6; }
+  .db-w-activity { grid-column: 8 / span 5; grid-row: 6; }
+  /* ByteForce has no Needs you and no agent & partner sub-section */
+  .db-grid--no-needs .db-w-stages { grid-row: 2; }
+  .db-grid--no-needs .db-w-tasks { grid-column: 1 / span 6; grid-row: 3; }
+  .db-grid--no-needs .db-w-wins { grid-column: 7 / span 6; grid-row: 3; }
+  .db-grid--no-needs .db-w-sources, .db-grid--no-needs .db-w-trend { grid-row: 4; }
+  .db-grid--no-needs .db-w-team, .db-grid--no-needs .db-w-activity { grid-row: 5; }
+}
+
+/* ------------------------------------------------------------ cards (D1) */
+.db-card {
+  min-width: 0;
+  background: var(--color-surface-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-panel);
+  box-shadow: var(--shadow-card);
+  padding: var(--db-pad);
+  container-type: inline-size;
+  color: var(--color-ink);
+}
+@container db (max-width: 559px) {
+  .db-card { padding: 16px; }
+}
+a.db-card { text-decoration: none; }
+a.db-card:focus-visible { outline-offset: 3px; }
+@media (hover: hover) {
+  a.db-card:hover { border-color: var(--color-border-control); }
+}
+
+.db-panel { display: flex; flex-direction: column; gap: 12px; }
+.db-panel-head {
+  display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 4px 12px;
+}
+.db-panel-titles { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.db-panel-title {
+  margin: 0; font: 700 16px/1.25 var(--font-display); letter-spacing: -.01em; color: var(--color-heading);
+}
+.db-panel-action { margin-inline-start: auto; }
+.db-eyebrow {
+  font: 500 10px/1.3 var(--font-mono); letter-spacing: .16em; text-transform: uppercase;
+  color: var(--color-muted);
+}
+.db-summary { margin: 0; font: 400 13px/1.5 var(--font-body); color: var(--color-ink); }
+.db-caption { margin: 0; font: 400 11.5px/1.5 var(--font-body); color: var(--color-muted); }
+.db-empty { margin: 0; font: 400 13px/1.5 var(--font-body); color: var(--color-muted); }
+.db-foot-note { margin: 0; font: 500 12px/1.5 var(--font-body); color: var(--color-muted); }
+.db-link {
+  display: inline-flex; align-items: center; min-height: 44px; gap: 4px;
+  font: 600 12.5px/1.2 var(--font-body); color: var(--color-link); text-decoration: none;
+}
+.db-link:hover { text-decoration: underline; text-underline-offset: 3px; }
+.db-pill {
+  display: inline-flex; align-items: center; padding: 4px 9px; border-radius: 999px;
+  font: 600 10.5px/1 var(--font-body); background: var(--color-surface-tint); color: var(--color-heading);
+  white-space: nowrap;
+}
+.db-pill--muted { background: var(--color-surface); color: var(--color-muted); border: 1px solid var(--color-border); }
+
+/* Arabic: no tracking and no uppercase on the mono eyebrows (research R12) */
+:lang(ar) .db-head .u-eyebrow,
+:lang(ar) .db-eyebrow, :lang(ar) .db-stat dt, :lang(ar) .db-team thead th,
+:lang(ar) .db-roster-label, :lang(ar) .db-range-label, :lang(ar) .db-team td::before {
+  letter-spacing: 0; text-transform: none;
+}
+
+/* ------------------------------------------------------------ KPI cards */
+.db-kpi { display: flex; flex-direction: column; gap: 10px; }
+.db-kpi-top { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 10px; }
+.db-kpi-label { font: 600 13px/1.3 var(--font-body); color: var(--color-muted); }
+/* D2 — KPI numerals are Inter 700 with TABULAR, LINING figures (the brand
+   book's "KPIs/data 700"): Raleway has no tabular figures, so a count jitters
+   in width and baseline (A13). In the B-Systems scope --font-body is Inter. */
+.db-kpi-value {
+  margin: 0; font: 700 clamp(25px, 10cqi, 34px)/1.12 var(--font-body);
+  font-variant-numeric: tabular-nums lining-nums; letter-spacing: -.02em;
+  color: var(--color-heading); overflow-wrap: anywhere;
+}
+.db-kpi-delta-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
+.db-kpi-vs { font: 400 12px/1.3 var(--font-body); color: var(--color-muted); }
+.db-kpi-sub { display: flex; flex-direction: column; gap: 3px; font: 500 12.5px/1.4 var(--font-body); color: var(--color-ink); }
+.db-kpi-note { font: 400 11.5px/1.4 var(--font-body); color: var(--color-muted); }
+.db-kpi-visual { margin-top: auto; padding-top: 4px; }
+.db-chip-now {
+  display: inline-flex; align-items: center; padding: 4px 9px; border-radius: 999px;
+  font: 600 10px/1 var(--font-mono); letter-spacing: .12em; text-transform: uppercase;
+  background: var(--color-surface-tint); color: var(--color-heading);
+}
+:lang(ar) .db-chip-now { letter-spacing: 0; text-transform: none; }
+
+/* K1 — the hero on Systems Indigo (D3), in both themes */
+.db-kpi--hero {
+  background: var(--color-chrome); border-color: var(--color-chrome); color: var(--color-on-chrome);
+  --db-on-muted: color-mix(in srgb, var(--color-on-chrome) 80%, var(--color-chrome));
+}
+.db-kpi--hero .db-kpi-label, .db-kpi--hero .db-kpi-vs, .db-kpi--hero .db-kpi-note,
+.db-kpi--hero .db-eyebrow { color: var(--db-on-muted); }
+.db-kpi--hero .db-kpi-value, .db-kpi--hero .db-kpi-sub { color: var(--color-on-chrome); }
+@media (hover: hover) {
+  a.db-kpi--hero:hover { border-color: var(--color-secondary); }
+}
+
+/* the delta badge (§2.2) — never green, never pink */
+.db-delta {
+  display: inline-flex; align-items: center; gap: 3px; padding: 3px 8px; border-radius: 999px;
+  font: 700 12px/1.25 var(--font-body); font-variant-numeric: tabular-nums lining-nums; white-space: nowrap;
+}
+.db-delta-face { display: inline-flex; align-items: center; gap: 3px; }
+.db-delta-unit { font-weight: 600; }
+.db-delta--good { background: var(--color-primary-tint); color: var(--color-primary-tint-ink); }
+.db-delta--bad { background: var(--color-danger-tint); color: var(--color-danger-ink); }
+.db-delta--neutral { background: var(--color-surface); color: var(--color-muted); border: 1px solid var(--color-border); }
+.db-delta--on-dark {
+  background: color-mix(in srgb, var(--color-on-chrome) 14%, transparent); color: var(--color-on-chrome);
+}
+
+/* sparklines — a TIME axis, never mirrored */
+.db-spark { display: block; width: 100%; height: auto; overflow: visible; }
+.db-spark-line {
+  fill: none; stroke: var(--color-primary); stroke-width: 2.25; stroke-linecap: round; stroke-linejoin: round;
+}
+.db-spark-dot { fill: var(--color-primary); }
+.db-spark--hero .db-spark-line { stroke: var(--color-secondary); }
+.db-spark--hero .db-spark-dot { fill: var(--color-secondary); }
+
+/* the win-rate meter */
+.db-meter { display: block; width: min(100%, 150px); height: auto; overflow: visible; }
+.db-meter-track { fill: none; stroke: var(--color-surface-tint); stroke-width: 10; stroke-linecap: round; }
+.db-meter-fill { fill: none; stroke: var(--color-primary); stroke-width: 10; stroke-linecap: round; }
+
+/* the pipeline's thin stacked bar, by active stage */
+.db-stack {
+  display: flex; gap: 2px; height: 8px; border-radius: 999px; overflow: hidden;
+  background: var(--color-surface-tint);
+}
+.db-stack-seg { flex: var(--share) 1 0; min-width: 0; background: var(--stage-bar, var(--color-primary)); }
+
+/* a geometry the stroke draws through; the dash IS the final shape */
+.db-draw { stroke-dasharray: var(--dash, 1) 1; }
+
+/* ------------------------------------------------------------ tooltips */
+.db-chart { position: relative; }
+.db-tipwrap { outline-offset: 2px; border-radius: var(--radius-control); cursor: default; }
+.db-tip {
+  position: absolute; z-index: 6; inset-inline-start: 0; inset-block-end: calc(100% + 6px);
+  width: max-content; max-width: min(100%, 22rem);
+  padding: 6px 10px; border-radius: var(--radius-control);
+  background: var(--color-toast-surface); color: var(--color-toast-ink);
+  font: 500 12px/1.35 var(--font-body); font-variant-numeric: tabular-nums;
+  box-shadow: var(--shadow-lift);
+  pointer-events: none; opacity: 0; visibility: hidden;
+}
+.db-tipwrap:hover + .db-tip, .db-tipwrap:focus + .db-tip, .db-tipwrap:focus-visible + .db-tip {
+  opacity: 1; visibility: visible;
+}
+
+/* ------------------------------------------------------------ W5 stage bars */
+.db-stagebars {
+  list-style: none; margin: 0; padding: 0;
+  display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 6px; align-items: end;
+}
+.db-stagebar-hit {
+  display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 6px 2px 4px; min-height: 44px;
+}
+.db-stagebar-track {
+  display: block; width: 100%; max-width: 46px; height: 132px; border-radius: var(--radius-control) var(--radius-control) 4px 4px;
+  background: color-mix(in srgb, var(--stage-bar, var(--color-primary)) 12%, transparent); overflow: hidden;
+}
+.db-stagebar-fill {
+  display: block; width: 100%; height: 100%; border-radius: inherit;
+  background: var(--stage-bar, var(--color-primary));
+  transform: scaleY(var(--v)); transform-origin: 50% 100%;
+}
+.db-stagebar-label {
+  font: 500 11px/1.25 var(--font-body); color: var(--color-muted); text-align: center;
+  overflow-wrap: anywhere; min-height: 2.5em;
+}
+.db-stagebar-value {
+  font: 700 17px/1 var(--font-body); font-variant-numeric: tabular-nums lining-nums; color: var(--color-heading);
+}
+/* below 520px of card: the SAME list as horizontal rows */
+@container (max-width: 519px) {
+  .db-stagebars { grid-auto-flow: row; grid-template-columns: minmax(0, 1fr); gap: 2px; }
+  .db-stagebar-hit {
+    display: grid; grid-template-columns: minmax(0, 8.5rem) minmax(0, 1fr) 2.5rem;
+    grid-template-areas: "label track value"; align-items: center; gap: 10px; padding: 6px 4px;
+  }
+  .db-stagebar-label { grid-area: label; text-align: start; min-height: 0; }
+  .db-stagebar-track { grid-area: track; max-width: none; height: 10px; border-radius: 999px; }
+  .db-stagebar-value { grid-area: value; text-align: end; font-size: 14px; }
+  .db-stagebar-fill { transform: scaleX(var(--v)); transform-origin: 0 50%; }
+  [dir="rtl"] .db-stagebar-fill { transform-origin: 100% 50%; }
+}
+
+/* the agent & partner chart is a second, smaller read of the same shape */
+.db-external-bars .db-stagebar-track { height: 76px; }
+
+/* §6.5's remaining figures, in the card's foot */
+.db-stats {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 8.5rem), 1fr));
+  gap: 12px; margin: 4px 0 0; padding-top: 14px; border-top: 1px solid var(--color-hairline);
+}
+.db-stat { min-width: 0; }
+.db-stat dt {
+  font: 500 10px/1.3 var(--font-mono); letter-spacing: .14em; text-transform: uppercase; color: var(--color-muted);
+}
+.db-stat dd {
+  margin: 4px 0 0; font: 700 16px/1.2 var(--font-body); font-variant-numeric: tabular-nums lining-nums;
+  color: var(--color-heading); overflow-wrap: anywhere;
+}
+
+/* the B-Systems admin's agent & partner sub-section (V2 §2.1) */
+.db-external {
+  display: flex; flex-direction: column; gap: 10px;
+  margin-top: 6px; padding-top: 16px; border-top: 1px solid var(--color-hairline);
+}
+.db-external-title { margin: 0; font: 700 14px/1.3 var(--font-display); color: var(--color-heading); }
+.db-external-roster { display: flex; flex-wrap: wrap; gap: 10px; }
+.db-roster {
+  display: flex; flex-direction: column; gap: 2px; min-width: 7.5rem; min-height: 44px;
+  padding: 10px 14px; border: 1px solid var(--color-border); border-radius: var(--radius-card);
+  color: var(--color-ink); text-decoration: none; background: var(--color-surface);
+}
+.db-roster:hover { border-color: var(--color-border-control); }
+.db-roster-label {
+  font: 500 10px/1.3 var(--font-mono); letter-spacing: .14em; text-transform: uppercase; color: var(--color-muted);
+}
+.db-roster-value {
+  font: 700 20px/1.1 var(--font-body); font-variant-numeric: tabular-nums lining-nums; color: var(--color-heading);
+}
+.db-roster-sub { font: 500 11px/1.3 var(--font-body); color: var(--color-muted); }
+
+/* ------------------------------------------------------------ W6 funnel */
+.db-funnel { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.db-funnel-step { position: relative; }
+.db-funnel-hit {
+  display: grid; grid-template-columns: minmax(0, 8rem) minmax(0, 1fr) auto;
+  grid-template-areas: "label track value"; align-items: center; gap: 10px;
+  min-height: 44px; padding: 4px;
+}
+.db-funnel-label { grid-area: label; font: 500 12.5px/1.25 var(--font-body); color: var(--color-ink); overflow-wrap: anywhere; }
+.db-funnel-track { grid-area: track; display: block; height: 24px; }
+.db-funnel-bar {
+  display: block; height: 100%; width: 100%; border-radius: var(--radius-control); background: var(--color-primary);
+  transform: scaleX(var(--w)); transform-origin: 50% 50%;
+}
+.db-funnel-step--won .db-funnel-bar { background: var(--color-stage-won-accent); }
+.db-funnel-value {
+  grid-area: value; font: 700 13px/1.2 var(--font-body); font-variant-numeric: tabular-nums lining-nums;
+  color: var(--color-heading); white-space: nowrap;
+}
+.db-funnel-pct { font-weight: 400; color: var(--color-muted); }
+@container (max-width: 419px) {
+  .db-funnel-hit { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "label value" "track track"; gap: 4px 10px; }
+  .db-funnel-track { height: 16px; }
+}
+
+/* ------------------------------------------------------------ W7 ranked bars */
+.db-ranked { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.db-ranked-row { position: relative; }
+.db-ranked-hit {
+  display: grid; grid-template-columns: minmax(0, 8.5rem) minmax(0, 1fr) auto;
+  grid-template-areas: "label track value"; align-items: center; gap: 10px; min-height: 44px; padding: 4px;
+}
+.db-ranked-label { grid-area: label; font: 500 12.5px/1.25 var(--font-body); color: var(--color-ink); overflow-wrap: anywhere; }
+.db-ranked-track {
+  grid-area: track; display: block; height: 10px; border-radius: 999px; overflow: hidden;
+  background: var(--color-surface-tint);
+}
+.db-ranked-bar {
+  display: block; width: 100%; height: 100%; border-radius: inherit; background: var(--color-primary);
+  transform: scaleX(var(--v)); transform-origin: 0 50%;
+}
+[dir="rtl"] .db-ranked-bar { transform-origin: 100% 50%; }
+.db-ranked-value {
+  grid-area: value; display: inline-flex; gap: 8px; justify-content: flex-end; min-width: 4.5rem;
+  font: 700 13px/1.2 var(--font-body); font-variant-numeric: tabular-nums lining-nums; color: var(--color-heading);
+}
+.db-ranked-pct { font-weight: 400; color: var(--color-muted); min-width: 2.5rem; text-align: end; }
+@container (max-width: 419px) {
+  .db-ranked-hit { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "label value" "track track"; gap: 4px 10px; }
+}
+
+/* ------------------------------------------------------------ W11 trend */
+.db-trend { display: flex; flex-direction: column; gap: 6px; }
+.db-trend-plot { position: relative; padding-inline-start: var(--db-gutter); }
+.db-trend-svg { display: block; width: 100%; height: auto; overflow: visible; }
+/* two drawings of the same plot: a wide one, and a taller one for a narrow
+   card — so a phone gets a readable chart, not a 90px strip. One shows. */
+.db-trend-svg--narrow { display: none; }
+@container (max-width: 479px) {
+  .db-trend-svg--wide { display: none; }
+  .db-trend-svg--narrow { display: block; }
+}
+.db-gridline { stroke: var(--color-hairline); stroke-width: 1.5; }
+.db-axis { stroke: var(--color-border); stroke-width: 1.5; }
+.db-trend-line { fill: none; stroke: var(--color-primary); stroke-width: 3.5; stroke-linecap: round; stroke-linejoin: round; }
+.db-trend-dot { fill: var(--color-surface-card); stroke: var(--color-primary); stroke-width: 3.5; }
+.db-trend-y {
+  position: absolute; inset-inline-start: 0; transform: translateY(-50%);
+  font: 500 10px/1 var(--font-mono); color: var(--color-muted); font-variant-numeric: tabular-nums;
+}
+.db-trend-cols { position: absolute; inset-block: 0; inset-inline-start: var(--db-gutter); inset-inline-end: 0; }
+.db-trend-cols-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); height: 100%; }
+.db-trend-col { display: flex; min-width: 0; }
+.db-trend-hit { position: relative; flex: 1; min-height: 44px; }
+.db-trend-hit::before {
+  content: ""; position: absolute; inset-block: 0; inset-inline-start: 50%; width: 1px;
+  background: var(--color-border-control); opacity: 0;
+}
+.db-trend-hit:hover::before, .db-trend-hit:focus::before, .db-trend-hit:focus-visible::before { opacity: 1; }
+.db-trend-x { padding-inline-start: var(--db-gutter); }
+.db-trend-x-grid {
+  display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); text-align: center;
+  font: 500 11px/1.2 var(--font-body); color: var(--color-muted);
+}
+@container (max-width: 419px) {
+  .db-trend { --db-gutter: 30px; }
+}
+
+/* ------------------------------------------------------------ W8 tasks */
+.db-tasks-head { display: flex; align-items: center; gap: 12px; }
+.db-ring { width: 40px; height: 40px; flex: none; }
+.db-ring-track { fill: none; stroke: var(--color-surface-tint); stroke-width: 5; }
+.db-ring-fill { fill: none; stroke: var(--color-primary); stroke-width: 5; stroke-linecap: round; }
+.db-tasks-count { margin: 0; font: 600 13.5px/1.3 var(--font-body); color: var(--color-ink); font-variant-numeric: tabular-nums; }
+.db-tasks { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.db-task {
+  display: flex; align-items: center; gap: 4px; min-height: 48px; border-top: 1px solid var(--color-hairline);
+}
+.db-task-check {
+  display: inline-flex; align-items: center; justify-content: center; flex: none;
+  min-width: 44px; min-height: 44px; cursor: pointer;
+}
+.db-task-check input[type="checkbox"] { width: 20px; height: 20px; accent-color: var(--color-primary); cursor: pointer; }
+.db-task-body {
+  flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 2px 10px;
+}
+.db-task-title {
+  display: inline-flex; align-items: center; min-height: 44px; min-width: 0;
+  font: 600 13.5px/1.3 var(--font-body); color: var(--color-ink); text-decoration: none; overflow-wrap: anywhere;
+}
+.db-task-title:hover { text-decoration: underline; text-underline-offset: 3px; }
+.db-task-meta { display: inline-flex; align-items: center; gap: 8px; }
+.db-task-time { font: 500 12px/1 var(--font-body); color: var(--color-muted); font-variant-numeric: tabular-nums; }
+
+/* ------------------------------------------------------------ W9 needs you */
+.db-needs { display: flex; flex-direction: column; gap: 14px; }
+.db-needs-group { display: flex; flex-direction: column; gap: 2px; }
+.db-needs-title { margin: 0; font: 700 13px/1.3 var(--font-body); color: var(--color-heading); }
+.db-needs-list { list-style: none; margin: 0; padding: 0; }
+.db-row-link {
+  display: flex; align-items: center; min-height: 44px; font: 500 13px/1.3 var(--font-body);
+  color: var(--color-link); text-decoration: none; overflow-wrap: anywhere;
+  border-bottom: 1px solid var(--color-hairline);
+}
+.db-row-link:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+/* ------------------------------------------------------------ W10 wins */
+.db-wins { list-style: none; margin: 0; padding: 0; }
+.db-win {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 3px 12px; align-items: baseline;
+  min-height: 44px; padding: 10px 0; border-top: 1px solid var(--color-hairline);
+  color: var(--color-ink); text-decoration: none;
+}
+.db-win:hover .db-win-name { text-decoration: underline; text-underline-offset: 3px; }
+.db-win-name { font: 600 13.5px/1.3 var(--font-body); overflow-wrap: anywhere; }
+.db-win-value {
+  font: 700 13.5px/1.3 var(--font-body); font-variant-numeric: tabular-nums lining-nums;
+  color: var(--color-heading); text-align: end;
+}
+.db-win-meta { font: 400 12px/1.4 var(--font-body); color: var(--color-muted); overflow-wrap: anywhere; }
+/* the ONE sanctioned pink chip: the Won pair */
+.db-win-pill {
+  justify-self: end; padding: 4px 9px; border-radius: 999px; font: 600 11px/1.2 var(--font-body);
+  background: var(--color-stage-won-chip); color: var(--color-stage-won-chip-ink); text-align: center;
+}
+@container (max-width: 419px) {
+  .db-win { grid-template-columns: minmax(0, 1fr); }
+  .db-win-value { text-align: start; }
+  .db-win-pill { justify-self: start; }
+}
+
+/* ------------------------------------------------------------ W12 team */
+.db-team-wrap { overflow-x: auto; }
+.db-team { width: 100%; border-collapse: collapse; font: 400 13px/1.35 var(--font-body); }
+.db-team th, .db-team td {
+  text-align: start; padding: 10px 8px; border-top: 1px solid var(--color-hairline);
+  font-variant-numeric: tabular-nums lining-nums; vertical-align: middle;
+}
+.db-team thead th {
+  border-top: 0; padding-block: 4px 8px;
+  font: 500 10px/1.3 var(--font-mono); letter-spacing: .14em; text-transform: uppercase; color: var(--color-muted);
+}
+.db-team-name { font-weight: 600; color: var(--color-heading); overflow-wrap: anywhere; }
+.db-team-money { color: var(--color-muted); }
+.db-team-rate { white-space: nowrap; }
+.db-team-track {
+  display: inline-block; vertical-align: middle; width: 72px; height: 6px; margin-inline-end: 8px;
+  border-radius: 999px; background: var(--color-surface-tint); overflow: hidden;
+}
+.db-team-bar {
+  display: block; width: 100%; height: 100%; border-radius: inherit; background: var(--color-primary);
+  transform: scaleX(var(--v)); transform-origin: 0 50%;
+}
+[dir="rtl"] .db-team-bar { transform-origin: 100% 50%; }
+/* below 560px of card: each owner becomes a block — never a sideways scroll */
+@container (max-width: 559px) {
+  .db-team thead {
+    position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+  }
+  .db-team, .db-team tbody { display: block; }
+  .db-team tbody tr {
+    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 12px;
+    padding: 12px 0; border-top: 1px solid var(--color-hairline);
+  }
+  .db-team tbody th, .db-team tbody td { display: block; padding: 0; border: 0; }
+  .db-team tbody th { grid-column: 1 / -1; }
+  .db-team td::before {
+    content: attr(data-label); display: block; margin-bottom: 2px;
+    font: 500 10px/1.3 var(--font-mono); letter-spacing: .14em; text-transform: uppercase; color: var(--color-muted);
+  }
+  .db-team-rate { white-space: normal; }
+}
+
+/* ------------------------------------------------------------ W13 activity */
+.db-feed { list-style: none; margin: 0; padding: 0; }
+.db-feed-row {
+  display: grid; grid-template-columns: 10px minmax(0, 1fr); gap: 10px; min-height: 44px;
+  padding: 9px 0; border-top: 1px solid var(--color-hairline); color: var(--color-ink); text-decoration: none;
+}
+.db-feed-row:hover .db-feed-lead { text-decoration: underline; text-underline-offset: 3px; }
+.db-feed-dot { width: 8px; height: 8px; margin-top: 6px; border-radius: 50%; background: var(--color-primary); }
+.db-feed-body { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.db-feed-line { font: 400 13px/1.4 var(--font-body); overflow-wrap: anywhere; }
+.db-feed-actor { font-weight: 600; color: var(--color-heading); }
+.db-feed-meta {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px;
+  font: 400 12px/1.4 var(--font-body); color: var(--color-muted);
+}
+.db-feed-lead { font-weight: 600; color: var(--color-link); overflow-wrap: anywhere; }
+
+/* ------------------------------------------------------------ View as table */
+.db-table { margin-top: auto; border-top: 1px solid var(--color-hairline); }
+.db-table-summary {
+  display: flex; align-items: center; gap: 6px; min-height: 44px; cursor: pointer; list-style: none;
+  font: 600 12.5px/1.2 var(--font-body); color: var(--color-link);
+}
+.db-table-summary::-webkit-details-marker { display: none; }
+.db-table-summary::before { content: "▸"; font-size: 11px; }
+[dir="rtl"] .db-table-summary::before { content: "◂"; }
+.db-table[open] > .db-table-summary::before { content: "▾"; }
+.db-table-scroll { overflow-x: auto; padding-bottom: 4px; }
+.db-table-grid { width: 100%; border-collapse: collapse; font: 400 12.5px/1.4 var(--font-body); font-variant-numeric: tabular-nums; }
+.db-table-grid th, .db-table-grid td { text-align: start; padding: 6px 8px; border-bottom: 1px solid var(--color-hairline); }
+.db-table-grid thead th { font: 600 11px/1.3 var(--font-body); color: var(--color-muted); }
+.db-table-grid tbody th { font-weight: 500; color: var(--color-ink); }
+
+/* ------------------------------------------------------------ W0b range picker */
+.db-range { position: relative; }
+.db-range-btn {
+  display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding-block: 0; padding-inline: 16px 14px;
+  border: 1px solid var(--color-border-control); border-radius: 999px;
+  background: var(--color-surface-card); color: var(--color-ink);
+  font: 600 13px/1 var(--font-body); cursor: pointer;
+}
+.db-range-btn:hover { border-color: var(--color-primary); }
+.db-range-label {
+  font: 500 10px/1 var(--font-mono); letter-spacing: .14em; text-transform: uppercase; color: var(--color-muted);
+}
+.db-range-caret { font-size: 11px; color: var(--color-muted); }
+.db-range-menu {
+  margin: auto; padding: 8px; min-width: 240px; max-width: calc(100vw - 32px);
+  border: 1px solid var(--color-border); border-radius: var(--radius-card);
+  background: var(--color-surface-card); color: var(--color-ink); box-shadow: var(--shadow-modal);
+}
+.db-range-menu-title {
+  margin: 4px 10px 6px; font: 500 10px/1.3 var(--font-mono); letter-spacing: .14em; text-transform: uppercase;
+  color: var(--color-muted);
+}
+:lang(ar) .db-range-menu-title { letter-spacing: 0; text-transform: none; }
+.db-range-menu ul { list-style: none; margin: 0; padding: 0; }
+.db-range-opt {
+  display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 12px; border-radius: var(--radius-control);
+  font: 500 14px/1.2 var(--font-body); color: var(--color-ink); text-decoration: none;
+}
+.db-range-opt:hover, .db-range-opt:focus-visible { background: var(--color-surface-tint); }
+.db-range-opt[aria-current="true"] { font-weight: 700; color: var(--color-heading); background: var(--color-primary-tint); }
+.db-range-check { width: 14px; flex: none; color: var(--color-primary); }
+/* desktop: a menu under the button (anchor positioning where it exists;
+   without it the popover centres, which is still a usable menu) */
+@supports (anchor-name: --db-range) {
+  .db-range-btn { anchor-name: --db-range; }
+  .db-range-menu {
+    position-anchor: --db-range; inset: auto;
+    inset-block-start: anchor(end); inset-inline-end: anchor(end); margin: 6px 0 0;
+  }
+}
+/* phone: a bottom sheet */
+@media (max-width: 639px) {
+  .db-range-menu {
+    inset: auto 0 0 0; margin: 0; width: 100%; max-width: none; min-width: 0;
+    border-radius: var(--radius-panel) var(--radius-panel) 0 0; padding: 12px 12px 20px;
+  }
+  .db-range-menu::backdrop { background: color-mix(in srgb, var(--color-surface-dark) 40%, transparent); }
+}
+
+/* =========================================================================
+   MOTION — all of it, and only here.
+   ========================================================================= */
+@keyframes db-grow-y { from { transform: scaleY(0); } }
+@keyframes db-grow-x { from { transform: scaleX(0); } }
+@keyframes db-draw { from { stroke-dashoffset: var(--dash, 1); } }
+@keyframes db-pop { from { opacity: 0; transform: translateY(6px); } }
+@keyframes db-fade { from { opacity: 0; } }
+
+@media (prefers-reduced-motion: no-preference) {
+  /* bars: grow once from the baseline (inline-start in RTL), then EASE when
+     a value changes (a new --v re-computes the transform) */
+  .db-stagebar-fill {
+    animation: db-grow-y var(--db-dur-bar) var(--db-ease) backwards;
+    animation-delay: calc(var(--i, 0) * var(--db-stagger));
+    transition: transform var(--db-dur-value) var(--db-ease);
+  }
+  @container (max-width: 519px) {
+    .db-stagebar-fill { animation-name: db-grow-x; }
+  }
+  .db-funnel-bar, .db-ranked-bar, .db-team-bar {
+    animation: db-grow-x var(--db-dur-bar) var(--db-ease) backwards;
+    animation-delay: calc(var(--i, 0) * var(--db-stagger));
+    transition: transform var(--db-dur-value) var(--db-ease);
+  }
+  .db-stack { animation: db-grow-x var(--db-dur-bar) var(--db-ease) backwards; transform-origin: 0 50%; }
+  [dir="rtl"] .db-stack { transform-origin: 100% 50%; }
+
+  /* lines, sparklines and the gauge arc draw once */
+  .db-draw { animation: db-draw var(--db-dur-draw) var(--db-ease) backwards; }
+  /* the points arrive as the line reaches them */
+  .db-spark-dot, .db-trend-dot { animation: db-fade 200ms ease-out 400ms backwards; }
+  .db-ring-fill { transition: stroke-dashoffset var(--db-dur-value) var(--db-ease); }
+
+  /* tooltips: opacity + a 2px rise */
+  .db-tip { transform: translateY(2px); transition: opacity var(--db-dur-tip) ease, transform var(--db-dur-tip) ease; }
+  .db-tipwrap:hover + .db-tip, .db-tipwrap:focus + .db-tip, .db-tipwrap:focus-visible + .db-tip { transform: none; }
+
+  .db-range-menu:popover-open { animation: db-pop 160ms ease-out backwards; }
+}
+
+/* the hover LIFT — only on cards that are links (A12), only where hovering exists */
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  a.db-card { transition: transform var(--db-dur-lift) ease; }
+  a.db-card:hover { transform: translateY(-2px); }
+}

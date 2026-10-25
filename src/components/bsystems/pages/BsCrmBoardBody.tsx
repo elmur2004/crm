@@ -17,6 +17,7 @@ import { leadTypeLabel, ownerTypeLabel } from "@/lib/i18n/dict/labels";
 import { common, crmPage as m, leadsFilters as lf, ownerFilters } from "@/lib/i18n/dict/crm";
 import { BsBoard, type BsBoardLead } from "@/components/bsystems/BsBoard";
 import { BsAddLeadForm } from "@/components/bsystems/leadActions";
+import { LeadsImportMenu } from "@/components/shared/LeadsImportMenu";
 import { FilterPanel } from "@/components/shared/FilterPanel";
 import { SearchSwitchedNotice } from "@/components/shared/SearchSwitchedNotice";
 import { oneValue, type CrmCompany } from "@/lib/crm/company";
@@ -120,6 +121,7 @@ export async function BsCrmBoardBody({
   role,
   userId,
   switchedFrom,
+  importCompany = null,
 }: {
   ctx: CrmSurface;
   params: BsBoardParams;
@@ -130,6 +132,9 @@ export async function BsCrmBoardBody({
   /* ADR-085 — this board's own address and company, so the arrival notice after
      a cross-company search hop can announce itself and offer the way back. */
   switchedFrom?: { path: string; company: CrmCompany };
+  /* ADR-088 — the import button, beside Add lead, decided by the PAGE with
+     `canImportLeads` (the predicate the import route enforces). Null = none. */
+  importCompany?: CrmCompany | null;
 }) {
   const locale = await getLocale();
   const t = tFor(locale);
@@ -230,6 +235,14 @@ export async function BsCrmBoardBody({
           <h1 className="u-h1">{t(m.title)}</h1>
         </div>
         <div className="page-actions">
+          {importCompany ? (
+            <LeadsImportMenu
+              company={importCompany}
+              /* ADR-051's queue — internal bucket, no rep, no owner — is where
+                 every imported lead waits */
+              unassignedHref={`${ctx.basePath}/leads${ctx.query}&owner=unassigned`}
+            />
+          ) : null}
           <BsAddLeadForm apiBase={ctx.apiBase} />
         </div>
       </div>

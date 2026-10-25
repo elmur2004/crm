@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { afterSignIn } from "./helpers/after-sign-in";
 
 /* Founder — the dial button and the call sheet: "a button to call the lead
    instantly so it dials the lead. And whenever you dial, it opens the page
@@ -13,7 +14,7 @@ test("dial from the board card opens the call sheet with a dialable tel: link", 
   await page.getByLabel("Email or phone").fill("admin@byteforce.com");
   await page.getByLabel("Password").fill("password123");
   await page.getByRole("button", { name: "Sign in" }).click();
-  await page.waitForURL(/\/b-systems$/);
+  await afterSignIn(page, /\/b-systems$/);
 
   const created = await page.request.post("/api/b-systems/leads", {
     data: {
@@ -115,7 +116,7 @@ test("the call sheet honours the lead walls — an agent cannot open someone els
   await adminPage.getByLabel("Email or phone").fill("admin@byteforce.com");
   await adminPage.getByLabel("Password").fill("password123");
   await adminPage.getByRole("button", { name: "Sign in" }).click();
-  await adminPage.waitForURL(/\/b-systems$/);
+  await afterSignIn(adminPage, /\/b-systems$/);
   const created = await adminPage.request.post("/api/b-systems/leads", {
     data: {
       name: "Private Call Lead",
@@ -133,7 +134,7 @@ test("the call sheet honours the lead walls — an agent cannot open someone els
   await agentPage.getByLabel("Email or phone").fill("01001234567");
   await agentPage.getByLabel("Password").fill("partner123");
   await agentPage.getByRole("button", { name: "Sign in" }).click();
-  await agentPage.waitForURL(/\/b-systems\/crm$/);
+  await afterSignIn(agentPage, /\/b-systems\/crm$/);
 
   await agentPage.goto(`/b-systems/crm/lead/${id}/call`);
   await expect(agentPage.getByText(/could not be found|404/i).first()).toBeVisible();

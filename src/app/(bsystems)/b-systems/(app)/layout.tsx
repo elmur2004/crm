@@ -8,6 +8,7 @@ import {
   type PerCompany,
 } from "@/components/shared/CrmShellNav";
 import { ImpersonationBar } from "@/components/shared/ImpersonationBar";
+import { LauncherHomeLink } from "@/components/launcher/LauncherHomeLink";
 import { EntitySwitch } from "@/components/shared/EntitySwitch";
 import { LanguageToggle } from "@/components/shared/LanguageToggle";
 import { ThemeToggle } from "@/components/shared/ThemeToggle";
@@ -117,6 +118,7 @@ export default async function BSystemsAppLayout({
     <>
       <ImpersonationBar />
       <header className="app-header" data-shell={external ? "external" : undefined}>
+        <LauncherHomeLink locale={locale} />
         {/* founder: the REAL B-Systems mark; clicking it goes to THIS app's
             landing for the current role AND company — never the platform root,
             and never the other company's home */}
