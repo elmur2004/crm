@@ -7645,3 +7645,21 @@ else local — with a REAL `npm ci` (no junctions) and no `.env` (a dummy
   touch targets 44 not 40, the To-Do tick no longer mirrored in Arabic. Left
   open: the B-Systems icon's rounder corner (L5) and no test for launcher.css's
   contrast table (L6).
+
+### Run 105 — the deploy, verified (2026-10-25)
+
+`e457c3a` pushed fast-forward over `f074751`. Verified against production by
+an address that did not exist before, not by chunk hashes:
+
+| Probe (anonymous) | Before push | After |
+|---|---|---|
+| `GET /apps` | `404` | `307` → `/login` after 513 s (the launcher's own guard) |
+| `GET /login` | the split form + billboard | the glass page (`lg-aurora`, `lg-blob--indigo`, `lg-blob--lavender`, `lg-badge` in the HTML) |
+
+`/api/health`: `"ok":true`, `"schemaCurrent":true`, `"pendingMigrations":[]`
+(this push has no migration); `GET /api/b-systems/leads/import/template` still
+`401`. **Not verifiable from outside:** the launcher's tiles, the new Home, the
+board's import button and BUG-027's fix all need a session; the founder sees
+them on his next sign-in. The local preview (3210 / 5436) was stopped — it
+served a build from before the import, and everything it showed is now in
+production.
