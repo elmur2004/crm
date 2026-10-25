@@ -4412,3 +4412,26 @@ inside the bodies. The answer is a redirect, and the page guard has already
 resolved the company and the roles, which is exactly what the decision needs. A
 `redirect()` thrown from inside a rendered body works, and is a worse place to
 read it from a year later.
+
+## AnimatedValue counts on CHANGE, not on load — supersedes "AnimatedValue count-up vs E2E numeric reads" (2026-10-25, ADR-089)
+- Location: `src/components/shared/AnimatedValue.tsx`, rendered through
+  `src/components/shared/StatCard.tsx` on both Homes.
+- What exists / how it works: the earlier entry "AnimatedValue count-up vs E2E
+  numeric reads" (Last updated 2026-08-10) says dashboard numbers "count up on
+  load". **That no longer holds.** Counting from 0 on every mount was BUG-026:
+  the server painted the real figure, the first frame replaced it with 0, and it
+  climbed back over 700 ms on every visit. Since ADR-089 the first frame is the
+  server's figure, with no mount animation. A later change eases from the number
+  on screen to the new one (600 ms, ease-out cubic), and reduced motion snaps.
+  The earlier entry is left as written; this note supersedes it.
+- Limitations / gotchas:
+  - **Keep the settle-poll pattern anyway.** A figure that changes while the
+    page is open still animates for 600 ms, so a read taken right after a
+    change can still catch a transient value. Only the first read after a fresh
+    load is now guaranteed to be the real figure.
+  - **A leading minus sign is ignored** by the component's number regex. A
+    negative ByteForce To be collected that crosses zero can show the wrong sign
+    mid-animation, though it settles correctly. Not fixed (ADR-089 §5).
+  - **No automated test targets this component.** The datetime sweep only
+    allowlists its `toLocaleString`. Recorded as a gap in TESTING Run 104.
+- Last updated: 2026-10-25 (ADR-089, BUG-026, TESTING Run 104)

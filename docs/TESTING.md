@@ -7203,3 +7203,177 @@ above is what stands in the worktree build's place. Both worktrees were removed
 and their `node_modules` junctions unlinked with `rmdir`/`Directory.Delete` rather
 than a recursive delete, which would have followed the link into the real
 `node_modules`.
+
+## Run 104 — 2026-10-25 — ADR-087/088/089: dark mode, import leads from Excel, and the Home's numbers, one push
+
+- Suites/commands: `npx tsc --noEmit`; `npx vitest run` (full, and the targeted
+  metrics and related suites); `npm run build`; `npx playwright test` (the full
+  suite in the dark-mode build, and `e2e/leads-import.spec.ts`); the light-theme
+  pixel/computed-style audit; mutation checks on the import and on the metrics.
+- Cases: dark-mode build **1852 vitest passed / 236 Playwright passed**; final
+  import code **1995 vitest passed in 91 files**, e2e leads-import **7 passed**;
+  Home numbers **metrics.integration 9 passed**, related suites **70 passed**.
+  **0 failed** in every final run. Skips: none printed in the vitest summaries
+  (1995 of 1995); not reported for the Playwright runs.
+- Failures: none in the final runs. BUG-024, BUG-025 and BUG-026 were found by
+  the dashboard audit, not by a failing test, and their regressions are in this
+  run. Every red recorded below is a deliberate mutation, restored afterwards.
+- SPEC coverage touched: §3 (the import's wall, server-side, 64 role subsets ×
+  2 companies); §4 (dark tokens in all three scopes, logos never recoloured,
+  ByteForce on-orange contrast); §6.1 / §7.1 Leads pages (the import menu); §6.5
+  Home dashboard (Won value, To be collected, Leads per stage — **§6.5's
+  six-cell list is now stale**, ADR-089 §2); §11 A-1 (ByteForce To be collected
+  unchanged) and A-6 (imports land in the Unassigned state). No T-*/PP-*/P-* row
+  changed; T-11's Postpone column now has its Home cell.
+- Verdict: **green on the working tree for all three parts.** The push's
+  verdict waits on the clean-checkout gate at the end of this run.
+
+**Tree:** `main`, HEAD `71a7c4d`, the D:/CRM working tree. That tree also
+carries the uncommitted landing work, so every figure above is a working-tree
+figure. The clean-checkout gate is what speaks for what ships.
+
+**These figures come from three points in the build, not one run over the final
+tree.** The 1852 / 236 are from the dark-mode build, the 1995 from the final
+import code, and the Home numbers were verified with targeted suites. The
+combined run is the clean-checkout gate.
+
+### Part 1 — dark mode (ADR-087)
+
+- `npx vitest run` → **1852 passed**. `npx playwright test` → **236 passed**.
+- **The light theme did not move.** A pixel and computed-style audit compared
+  **2,456,892 values and found 0 differences.** This is the assertion the whole
+  change rests on, because a dark mode that shifts the light theme by a pixel is
+  a regression nobody asked for.
+- **188 dark screenshots** reviewed.
+- New suites: `src/lib/theme/core.test.ts` (including `parseTheme`'s tolerance
+  of junk, case, whitespace and array-shaped cookies, and the `themeColorFor`
+  table: light emits nothing, dark emits the dark colour, system emits a
+  media-qualified meta),
+  `dark-components.test.ts`, `theme-stamp.sweep.test.ts`, and
+  `src/lib/theme-tokens.test.ts`.
+- **One count changed, and it is legitimate.** `e2e/module-bar.spec.ts` now
+  expects 8 where it expected 5, because the theme toggle adds segments the spec
+  counts. Checked: the screen really has the extra segments, and the assertion
+  was not weakened.
+- **The landing guard is conditional on purpose.** The sweep tests asserting
+  that the landing pages never stamp `data-theme` run only if the landing folder
+  exists (`existsSync`). A clean checkout without the landing work, which is
+  what production receives, passes rather than failing on a missing folder.
+
+### Part 2 — import leads from Excel (ADR-088)
+
+Run by the agent on the final import code.
+
+`npx tsc --noEmit` → exit 0.
+
+```
+ Test Files  91 passed (91)
+      Tests  1995 passed (1995)
+```
+
+`npm run build` → exit 0, with the four import routes in the route table:
+`/api/b-systems/leads/import`, `/api/b-systems/leads/import/template`,
+`/api/byteforce/leads/import`, `/api/byteforce/leads/import/template`. **Built in
+a copy, not in place**, because the founder's local preview serves
+`D:/CRM/.next`, and a build there would have replaced the build he was
+reviewing.
+
+`npx playwright test e2e/leads-import.spec.ts` → **`7 passed (1.8m)`**.
+
+What the import's own suites hold:
+
+| Suite | Passed |
+| --- | --- |
+| pure rules (`src/lib/crm/leads-import.test.ts`) | 58 |
+| template & reader (`src/lib/services/leads-import-template.test.ts`) | 19 |
+| integration (`src/lib/services/leads-import.integration.test.ts`) | 20 |
+| browser (`e2e/leads-import.spec.ts`) | 7 |
+
+- **Atomicity proven by failure, not assumed:** an injected Postgres failure on
+  row 4 of 4 leaves **zero leads and zero log rows**.
+- **The wall:** swept across all 64 role combinations × both companies, and the
+  create lists checked against the real create routes for every role.
+- **Timing:** 1000 rows ≈ **4.0 s** locally.
+
+**Mutation-checked**, each restored byte for byte afterwards:
+
+| # | What was broken | Result |
+| --- | --- | --- |
+| M1 | system-duplicate check removed | RED (4) |
+| M2 | in-file duplicate check removed | RED (2) |
+| M3 | leading-zero repair removed | RED (3) |
+| M4 | template Number column not formatted as Text | RED (1) |
+
+M4 is the template's own check. The Number column must reach Excel as Text so
+the zero survives typing. The repair rules cover only the two shapes whose
+missing character is certain, and everything else would be skipped.
+
+### Part 3 — the Home's numbers (ADR-089)
+
+`npx tsc --noEmit` → exit 0.
+
+`src/lib/services/metrics.integration.test.ts` (new) → **9 passed**:
+
+- a milestone-tab win is counted (BUG-024);
+- a pre-V2 `WonInfo` win is kept;
+- one value per lead even with both records;
+- open-milestone value falls 900k → 600k → 0 as milestones are checked;
+- a legacy Client balance is kept;
+- archiving drops value and count but keeps open milestones;
+- no cross-company leak;
+- B-Systems has a cell for every stage, Negotiation and Postpone included, and
+  the cells sum to Total (BUG-025);
+- ByteForce has Postpone and no Negotiation, and its cells sum to Total.
+
+Related suites (leads, bsystems, company-scope integration, the datetime sweep)
+→ **70 passed**.
+
+| # | What was broken | Result |
+| --- | --- | --- |
+| M5 | B-Systems mapped back to `WonInfo` | **RED, 6 of 9**; restored → 9 passed |
+
+### The standing caveat, recorded again
+
+`npx vitest run` in this repo **exits 0 even when tests fail**, because the
+global-setup teardown swallows the status. Every vitest figure in this run was
+read from the PRINTED SUMMARY, never from the exit code.
+
+### NOT RUN, honestly
+
+- **BUG-026 has no automated test.** Nothing targets `AnimatedValue`; the
+  datetime sweep only allowlists the file's `toLocaleString`. The count-on-change
+  behaviour (server figure first, 600 ms ease on change, reduced-motion snap) is
+  unasserted. A component test is the obvious next case.
+- **No browser run is recorded for the Home-number fixes.** Their figures are
+  the targeted vitest suites above.
+- **The full Playwright suite is recorded only for the dark-mode build** (236).
+  After the import and the Home fixes, the browser figure recorded here is the
+  import spec's 7.
+- **Known, not tested, not fixed:** the count-up's regex ignores a leading
+  minus, so a negative ByteForce To be collected crossing zero can show the wrong
+  sign mid-animation (ADR-089 §5). A Mac workbook on the 1904 date system would
+  read numeric date cells about four years off (ADR-088 §5).
+
+**Clean-checkout gate (supersedes the two "NOT RUN" browser lines above).**
+The 64 pushed code paths were copied into a fresh `git worktree` at `71a7c4d` —
+tracked files only, exactly what production receives, with no landing and no
+launcher file present — and given a REAL `npm ci` (314 packages, no junctions).
+No `.env`: a dummy `DATABASE_URL` and a throwaway `AUTH_SECRET` only.
+
+| Check | Result (verbatim) |
+|---|---|
+| `npx tsc --noEmit` | `tsc exit: 0` |
+| `npx vitest run` | `Test Files  76 passed (76)` / `Tests  1497 passed \| 3 skipped (1500)` |
+| `npx next build` | `build exit: 0`; the four `/api/{b-systems,byteforce}/leads/import[/template]` routes in the table; the 5 warnings are the long-standing `src/lib/storage/index.ts` tracing ones (file untouched) |
+| `npx playwright test` (FULL suite, its own build + seeded DB) | `231 passed (19.7m)`, `2 skipped`; `.last-run.json` `{"status": "passed", "failedTests": []}` |
+
+- **76 files is exactly right:** the working tree holds 92 test files, and the
+  16 not pushed are the 14 landing tests and the 2 launcher tests — counted,
+  not assumed.
+- **The 3 vitest skips:** the two landing-conditional guards of ADR-087 (no
+  landing folder in a clean checkout, by design) and the accounting export's
+  real-file case, which reads the gitignored reference archive.
+- **The 2 Playwright skips** are `e2e/audit.spec.ts`, opt-in via `AUDIT=1`.
+- **The Home-number fixes did get a browser run after all:** journey 1 reads the
+  ByteForce "Won value" and "To be collected" tiles before and after a win, and
+  passed against the count-on-change `AnimatedValue`.

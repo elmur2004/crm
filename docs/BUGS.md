@@ -601,3 +601,102 @@ the moment a failure is found; close them with a reference to the fixing commit/
 - Worth keeping: the spec was deliberately ordered so this assertion ran LAST,
   because the file is serial and a failure skips everything after it. That is why
   the other eleven behaviours were still provable while this one was red.
+
+## BUG-024 — 2026-10-25 — the B-Systems Home's money read tables B-Systems stopped writing in V2, so every win since counted as EGP 0
+
+- Severity: major (a wrong money figure on the founder's Home, every day since
+  V2; no stored record was wrong, but the sum read the wrong records)
+- Where: `src/lib/services/metrics.ts`. **Won value** was Σ
+  `WonInfo.estimatedValue` and **To be collected** was Σ `Client.toBeCollected`,
+  for BOTH companies.
+- Repro: on B-Systems, confirm a win through the milestone tab
+  (`create_won_deal`, V2 §4) with an estimated value, then open the B-Systems
+  Home. Won count goes up by one and Won value does not move. To be collected
+  does not move either, whatever the milestones say.
+- Symptom: a B-Systems win writes a `WonDeal` and its milestones and never a
+  `WonInfo`, and B-Systems Clients were dropped in V2. So every B-Systems win
+  confirmed since V2 counted as EGP 0, and To be collected stayed frozen at
+  whatever legacy Client rows existed. Won value and Won count were counting
+  different sets of leads.
+- Why it had lived, two reasons:
+  1. **The demo seed hid it.** It gives a B-Systems lead a ByteForce-style
+     `WonInfo`, so the demo Home showed money.
+  2. **No test covered B-Systems money**, so nothing failed when the sum read
+     the wrong records.
+  The rule itself had been on record since day one: ADR-012 names
+  `WonDeal.estimatedValue` as the won record for portal deals. The code had
+  drifted from a decision, not from an ambiguity.
+- Fixed in ADR-089: a `WON_RECORD: Record<Brand, "wonInfo" | "wonDeal">` table,
+  so the compiler demands an answer per company (ADR-073). B-Systems Won value is
+  `WonDeal.estimatedValue` ?? (legacy) `WonInfo.estimatedValue` ?? 0 per won,
+  non-archived lead, so a pre-V2 win keeps its value and no lead counts twice.
+  B-Systems To be collected is the value of milestones not yet completed on the
+  company's won deals (archived included, ADR-043), plus any legacy Client
+  balance. The hint now reads "Open milestones on won deals". ByteForce is
+  unchanged on both tiles.
+- Regression: `src/lib/services/metrics.integration.test.ts`, 9 tests. The
+  money ones: a milestone-tab win is counted; a pre-V2 `WonInfo` win is kept;
+  one value per lead even with both records; open-milestone value falls 900k →
+  600k → 0 as milestones are checked; a legacy Client balance is kept; archiving
+  drops value and count but keeps open milestones; no cross-company leak.
+  **Mutation-checked:** mapping B-Systems back to `WonInfo` turns 6 of 9 red;
+  restored, 9 pass.
+- Status: fixed (ref: ADR-089, Run 104)
+- **The founder will see it:** B-Systems Won value jumps, because it starts
+  counting wins it always missed. That jump is the fix. To be collected changes
+  meaning to open milestone value.
+- Still open, same family: the demo seed still gives a B-Systems lead a
+  `WonInfo`, the exact shape that hid this bug (ADR-089 §5).
+
+## BUG-025 — 2026-10-25 — Leads per stage omitted live stages, so a parked lead counted in Total leads and in no cell
+
+- Severity: minor (a breakdown that did not add up; the total itself was right)
+- Where: both Home pages hand-listed six stage cells:
+  `src/app/(bsystems)/b-systems/(app)/page.tsx` (B-Systems) and
+  `src/components/internal/pages.tsx` (ByteForce). `leadsPerStage` in
+  `src/lib/services/metrics.ts` was filled the same way.
+- Repro: put a lead in Postpone / Not answering (T-11) on either company, or in
+  Negotiation on B-Systems, and open that Home. Total leads counts it, and no
+  cell does.
+- Symptom: B-Systems left out Negotiation and Postpone; ByteForce left out
+  Postpone (ADR-072). The cells summed to less than Total leads by exactly the
+  parked and negotiating leads.
+- Why it had lived: the hand list matches SPEC §6.5's "Leads per stage" row,
+  which still lists six cells and predates both stages, and DESIGN-BRIEF §4.1
+  lists the same six. Both stages reached the pipeline config and never reached
+  the Home.
+- Fixed in ADR-089: `leadsPerStage` is keyed by `configForBrand(brand).stages`,
+  and both pages render one cell per key, with labels from `stageLabel` ("new"
+  keeps "New / not actioned") and colours from `stageKey`. B-Systems now shows
+  8 cells and ByteForce 7, and the cells sum to Total leads.
+- Regression: `metrics.integration.test.ts`: B-Systems has a cell for every
+  stage, Negotiation and Postpone included, and its cells sum to Total.
+  ByteForce has Postpone and no Negotiation, and its cells sum to Total.
+- Status: fixed (ref: ADR-089, Run 104)
+- Doc drift left open: SPEC §6.5 and DESIGN-BRIEF §4.1 still say six cells
+  (ADR-089 §2). A smaller cousin also stays open: `metrics.ts` and the two Home
+  pages still type `"won"`, `"lost"` and `"new"` by hand (ADR-089 §5).
+
+## BUG-026 — 2026-10-25 — every dashboard number flashed to 0 on load and climbed back
+
+- Severity: minor (a visual glitch on every visit; the figures were right once
+  settled)
+- Where: `src/components/shared/AnimatedValue.tsx`, used by the dashboard KPI
+  tiles through `StatCard.tsx`.
+- Repro: open either Home. The server's real figure paints, the next frame shows
+  0, and the number climbs back to the real figure over about 700 ms. It happens
+  again on every visit. When a figure really changed, it also restarted from 0
+  instead of moving from the old value.
+- Root cause: the component counted from 0 on every mount by design. That was
+  the original "count up on load" behaviour (IMPLEMENTATION.md, "AnimatedValue
+  count-up vs E2E numeric reads"). With a server-rendered first paint, the first
+  animation frame overwrote a correct number with a wrong one.
+- Fixed in ADR-089: the component animates only on CHANGE. The first frame is the
+  server's figure, with no mount animation. A later change eases from the number
+  on screen to the new one (600 ms, ease-out cubic), and reduced motion snaps.
+- Regression: **none automated.** No test targets `AnimatedValue`; the datetime
+  sweep only allowlists its `toLocaleString`. Recorded as a gap in Run 104.
+- Status: fixed (ref: ADR-089, Run 104)
+- Known follow-up, not fixed: the count-up's number regex ignores a leading
+  minus sign, so a negative ByteForce To be collected crossing zero can show the
+  wrong sign mid-animation before it settles correctly (ADR-089 §5).

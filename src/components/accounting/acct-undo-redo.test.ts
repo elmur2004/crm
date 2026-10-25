@@ -797,8 +797,16 @@ describe("the nothing-to-do half is recessed but still readable (WCAG AA)", () =
      comment. The ink lands on --color-surface (the recessed, unavailable half)
      and the description sits on --color-surface-card (the live half), so both
      grounds are measured, in all three scopes. */
-  it.each(SCOPES)("$name: muted ink clears 4.5:1 on both grounds", ({ file }) => {
-    const map = varMap(read(file));
+  it.each(SCOPES)("$name: muted ink clears 4.5:1 on both grounds", ({ file, selector }) => {
+    /* Read from the LIGHT block only. Each token file now also carries dark
+       blocks further down, and varMap keeps the LAST declaration of a name —
+       so a file-wide map silently measured the DARK values and stopped
+       checking light at all. The light block holds the raw palette its
+       aliases resolve through (--bf-offwhite, --bs-paper), so it is
+       self-contained. */
+    const light = scopeBody(read(file), selector);
+    expect(light, `no light ${selector} block found in ${file}`).toContain("--color-muted");
+    const map = varMap(light);
     const ink = resolveVar(map, "--color-muted");
     expect(ink, "--color-muted does not resolve to a value").toMatch(/^#[0-9a-fA-F]{3,8}$/);
     for (const ground of ["--color-surface", "--color-surface-card"]) {

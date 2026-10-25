@@ -49,6 +49,7 @@ const INVENTORY: Array<{ why: string; row: InteractionRow }> = [
   /* ---- services/leads.ts, the flat triggers */
   { why: "leads.ts:105 create", row: mk("create", "create", null, "new") },
   { why: "leads.ts:105 partner attribution", row: mk("create", "PP-5", null, "new") },
+  { why: "leads-import.ts the Excel import (createLead trigger)", row: mk("create", "leads_import", null, "new") },
   { why: "leads.ts:150 ready to close", row: mk("update", "B-RTC") },
   { why: "leads.ts:224 didn't answer", row: mk("update", "no_answer") },
   { why: "leads.ts:224 answered", row: mk("update", "no_answer_cleared") },

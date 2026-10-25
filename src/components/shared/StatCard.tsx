@@ -1,6 +1,7 @@
 import { AnimatedValue } from "./AnimatedValue";
 
-/* KPI tile (spec §2.3) — numeric-first dashboard stat with count-up. */
+/* KPI tile (spec §2.3) — numeric-first dashboard stat; the number animates
+   only when it changes, never on load (ADR-089). */
 export function StatCard({
   label,
   value,

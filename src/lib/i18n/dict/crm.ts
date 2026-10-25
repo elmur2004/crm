@@ -175,6 +175,9 @@ export const home = {
   wonValue: { en: "Won value", ar: "قيمة الصفقات المكسوبة" },
   toBeCollected: { en: "To be collected", ar: "قيد التحصيل" },
   acrossAllClients: { en: "Across all clients", ar: "عبر جميع العملاء" },
+  /* ADR-089 — B-Systems has no Clients screen (V2 dropped it); its figure is
+     the value of the milestones won deals have not yet completed. */
+  openMilestones: { en: "Open milestones on won deals", ar: "المراحل غير المكتملة في الصفقات المكسوبة" },
   leadsPerStage: { en: "Leads per stage", ar: "العملاء المحتملون حسب المرحلة" },
   newNotActioned: { en: "New / not actioned", ar: "جديد / بدون إجراء" },
   agents: { en: "Agents", ar: "الوكلاء" },

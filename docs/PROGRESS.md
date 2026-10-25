@@ -5631,3 +5631,205 @@ by this work and unrelated to it.
 ADR-086, which this feature now owns. That file is not committed, so no
 contradiction has entered the repo — but it needs renumbering whenever the
 landing work is documented.
+
+## 2026-10-25 — ADR-087/088/089: dark mode, import leads, and the Home's numbers
+
+**Founder, verbatim.** On dark mode: *"create an entire dark mode for the entire
+system / also research a way to make the system more animated and more modern
+looking and have a better UI and UX in general / don't push anything until I
+approve here locally first"*. Approving the push, with the import added: *"add
+import lead button when I click on it it gives me the option to download the
+import template or import the leads actually / after you finish it test it and
+them push it along with the dark version"*. Asked how the import should behave,
+he answered that imports land **Unassigned** and that a duplicate phone number
+is **skipped and reported**: *"Skip it and tell me"*.
+
+On the dashboard: *"we need to upgrade the dashboord and make sure that it
+works"*. Asked *"The four dashboard number bugs — ship the fixes with dark mode
+and import?"*, he chose *"Yes, ship them in this push"*. **The new dashboard
+design is not in this push.** It stays local for his approval.
+
+### Done
+
+- **Dark mode for the whole system (ADR-087).** A System / Light / Dark toggle
+  in each app header and on login. `<html data-theme>` is stamped server-side by
+  every route-group root layout from an httpOnly `theme` cookie with the locale
+  cookie's shape (one year, `SameSite=Lax`, no `Secure` because of plain-http
+  LAN access). "system" is resolved purely in CSS, so it cannot flash. One
+  writer (`setTheme`), tolerant parsing (`parseTheme`), and nothing in the
+  database.
+  - Dark token blocks in all three scopes, plus five new semantic tokens in each.
+  - **Print is always light**: everything dark sits inside `@media screen`, and
+    `PrintLight.tsx` covers the print path.
+  - The phone's browser bar goes dark only in dark: light emits no
+    `theme-color`, exactly as before.
+  - **Brand rules held.** Ink, not white, on ByteForce orange (3.34:1 fails,
+    4.89:1 passes). The ByteForce logo sits on a light plate and is never
+    recoloured. B-Systems dark is Indigo Deep, and Signal Pink is never a
+    surface or body text.
+  - **The light theme is unchanged: 0 differences in 2,456,892 compared
+    values.**
+- **Import leads from Excel (ADR-088).** An "Import leads" menu on each
+  company's Leads page with Download template / Import leads.
+  - A company-named template with every typing cell formatted as Text, a Type
+    dropdown, a skipped example row, and English and Arabic instructions.
+  - Phone repairs only where the missing character is certain, each one listed
+    by row.
+  - Duplicates matched by the WhatsApp rule against all of the company's leads
+    (archived, won and lost included), skipped and named. Existing leads are
+    never touched, and duplicates are per company.
+  - An optional Created date that backdates `createdAt` to the start of that
+    Cairo day, while History keeps the real import time.
+  - Every lead Unassigned. The whole file runs in one transaction under a
+    per-company lock, so "nothing was imported" is a real promise.
+  - Every row goes through the existing `createLead`.
+  - Who may import: ByteForce `byteforce_staff`; B-Systems `bsystems_admin`
+    only.
+- **ADR-083 corrected, not rewritten.** Its line that `read-excel-file` is
+  "a DEV dependency only … It never ships" **no longer holds**. The package moved
+  to `dependencies` because the server now reads uploaded files with it. The
+  lockfile changed only flags, with no version and no integrity change. Recorded
+  in ADR-088 §10.
+- **The Home's numbers (ADR-089): four fixes, filed as three bugs.**
+  - **BUG-024:** B-Systems Won value and To be collected read `WonInfo` /
+    `Client`, which B-Systems has not written since V2, so every win since
+    counted as EGP 0. They now read `WonDeal` and its open milestones, with
+    legacy rows kept, and the hint says "Open milestones on won deals".
+  - **BUG-025:** Leads per stage omitted Negotiation and Postpone. The cells
+    now follow the pipeline config (B-Systems 8, ByteForce 7) and sum to Total
+    leads.
+  - **BUG-026:** every figure flashed to 0 on load. It now animates only on
+    change.
+- **IMPLEMENTATION.md:** a note appended that supersedes the 2026-08-10 entry
+  "AnimatedValue count-up vs E2E numeric reads" (numbers no longer count up on
+  load). The old entry is untouched.
+
+### Verified
+
+Full detail in Run 104. Dark-mode build: vitest **1852 passed**, Playwright
+**236 passed**, light-theme audit **0 / 2,456,892**, 188 dark screenshots
+reviewed. Import, final code: `tsc` exit 0, vitest **91 files / 1995 tests
+passed**, `npm run build` exit 0 with the four import routes (built in a copy,
+because his preview serves `D:/CRM/.next`), e2e leads-import **7 passed
+(1.8m)**, and four mutation checks that each went red. Home numbers: `tsc` exit
+0, metrics.integration **9 passed**, related suites **70 passed**, and the
+mutation turned 6 of 9 red. Vitest figures were read from the printed summary,
+because this repo's vitest exits 0 on failure.
+
+**The clean-checkout gate is pending; the coordinator fills it in Run 104.**
+These are working-tree figures from three points in the build. Recorded gaps:
+BUG-026 has no automated test, and there is no browser run of the Home fixes.
+
+### In progress
+
+- **The dashboard redesign**, local only and awaiting his approval. It is the
+  answer to the "more animated and more modern looking" half of his dark-mode
+  message. **Not in this push.** He has already made three choices for it.
+  They are **decided for the next step, not shipped**:
+  1. KPI cards compare **"This month vs last"**;
+  2. dashboard cards are rounded **20px**;
+  3. lead sources are **ranked bars instead of a donut**.
+  It also carries the entrance motion for bars and cards that replaces the
+  count-up the Home no longer plays on load.
+- **The push itself** (dark mode + import + the four number fixes together)
+  waits on Run 104's clean-checkout gate.
+
+### Next steps
+
+1. Coordinator: fill in Run 104's clean-checkout gate, then push.
+2. After the push, verify the deploy the way Run 103 did, by new routes rather
+   than chunk hashes: the four import routes should answer rather than 404.
+   `/api/health` should show no pending migrations, since none were added.
+3. Founder: review the dashboard redesign locally.
+4. Follow-ups recorded and not done:
+   - an automated test for `AnimatedValue` (BUG-026);
+   - dashboard-audit items A5, A6 and A8 (ADR-089 §5; **not** SPEC §11's A-#s);
+   - the demo seed's `WonInfo` on a B-Systems lead;
+   - hand-typed `"won"` / `"lost"` / `"new"` in `metrics.ts` and both Homes;
+   - the count-up regex ignoring a minus sign;
+   - SPEC §6.5 and DESIGN-BRIEF §4.1 still listing six stage cells.
+5. When the landing work is documented, renumber its `next.config.ts` comment
+   (below).
+
+### Blockers
+
+None. The push waits on the clean-checkout gate, which is a matter of order,
+not a blocker.
+
+### Needs founder confirmation
+
+**New this session: thirteen.**
+
+ADR-087 (two):
+1. The default theme is **"system"** (follows the phone or computer) rather than
+   light, so a dark-set device will show the app dark the first time after this
+   push without anyone choosing it.
+2. The toggle lives in **each app header and on login**.
+
+ADR-088 (seven):
+1. The ByteForce card still reads **"Unassigned (Partner leads)"**, though
+   imported leads land there.
+2. Imports send **no per-lead "needs an owner" notification**, because a big
+   file would spam.
+3. Imported numbers are **stored normalised and need 7–15 digits**, while the
+   Add-lead form stores any 1–50 characters as typed.
+4. A Created date **backdates `Lead.createdAt`**, which SPEC §9/§7.4 never
+   anticipated and §11 does not cover. Backdated leads sort into their real
+   dates and show **12:00 AM** in the export's Created column.
+5. Imported B-Systems leads land **Unassigned (`ownerType: internal`, no
+   owner), overriding V2 §2.2**, which puts an admin-added lead in the `admin`
+   bucket.
+6. **Data entry (ADR-051) can add B-Systems leads by hand but cannot import**,
+   because it has no Leads page.
+7. The ByteForce template accepts **Company, Position, Industry and
+   Requirements** (ADR-083's shared set), which ByteForce's lead detail and
+   Add-lead form do not show. Keep or trim.
+
+ADR-089 (four):
+1. B-Systems **"To be collected" = open milestone value** plus any pre-V2 Client
+   balance, which the hint does not mention. The alternatives: remove the tile
+   under B-Systems, keep legacy rows only, or Won value − completed milestone
+   value (differs when milestones do not sum to the estimate, which A-11
+   allows, or a deal has none yet).
+2. **Legacy B-Systems `WonInfo` wins still count** in Won value.
+3. **Archived won deals still drop out of Won value** (ADR-043 kept). The
+   redesign's D7 recommends counting their money; not changed here.
+4. **The count-up no longer plays on page load.** The new design adds entrance
+   motion to bars and cards instead.
+
+### Carried forward, still open
+
+ADR-086's three: one company's write quiets the other company's accounting
+buttons; a non-undoable CRM action quiets them too (now also true of an import,
+ADR-088 §9); the 10-minute window inherited from ADR-045. ADR-085's two.
+ADR-084's three. ADR-083's three. ADR-082's six. ADR-081's six. ADR-080's
+three. ADR-071's four. ADR-063's one accepted false negative. The standing
+hosting issue on `/api/health`'s `uploads` section
+(`persistentDirConfigured: false`, 9 referenced attachments missing), untouched
+by this work and unrelated to it. The landing pages' own open items (the
+`font-display: optional` trade, the price-approval gate default, two Arabic
+price-clause edits, and the licensing decision on the Lama Sans binaries).
+
+### Left in the working tree, and the landing bookkeeping
+
+- **The landing pages remain LOCAL and uncommitted**, at the founder's
+  instruction, exactly as in ADR-086's push. Among them: `src/app/(landing)/`,
+  `src/components/landing/`, `src/app/api/landing/`, the two `landing_*`
+  migrations, `LANDING_BRIEF.md` and `e2e/landing.spec.ts`, plus the landing
+  edits to shared tracked files. ADR-087's landing sweep tests are conditional on
+  the landing folder existing, so their absence from the commit is safe.
+- **The renumbering note, now one step further out.** The landing work's local
+  `next.config.ts` comment cites **ADR-086** for a font cache header. ADR-086 is
+  the books' undo/redo, and **ADR-087, 088 and 089 are now taken too**. When the
+  landing work is documented it will need ADR-090 or later, and that comment
+  must be renumbered then. The comment is local and uncommitted, so no
+  contradiction has entered the repo.
+- **The app launcher is also LOCAL, awaiting the founder's approval.** He asked
+  for an Odoo-style grid of app icons as the Home after sign-in ("with little
+  icons opening each section"). Its 13 new files — `src/app/(home)/apps/`,
+  `src/components/launcher/`, `src/lib/launcher/`, `src/lib/i18n/dict/launcher.ts`,
+  `src/themes/launcher.css` — are deliberately outside this push, and the
+  sign-in redirect and header home icon that would make it the Home are not
+  wired yet. It gets its own ADR when he approves it.
+- **Landing assets.** `public/favicon.ico` and `public/brand/byteforce/fonts/`
+  belong to the landing work and stay local with it.

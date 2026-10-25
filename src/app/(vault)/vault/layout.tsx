@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ImpersonationBar } from "@/components/shared/ImpersonationBar";
 import { EntitySwitch } from "@/components/shared/EntitySwitch";
 import { LanguageToggle } from "@/components/shared/LanguageToggle";
+import { ThemeToggle } from "@/components/shared/ThemeToggle";
 import { ModuleBrandScope, ModuleLogo } from "@/components/shared/ModuleBrandScope";
 import { BrandLogo } from "@/components/shared/BrandLogo";
 import { UndoControl } from "@/components/shared/UndoControl";
@@ -72,6 +73,7 @@ export default async function VaultShellLayout({
           extras={
             <>
               <LanguageToggle />
+              <ThemeToggle />
               <EntitySwitch user={user} current="vault" />
               <form action={logout.bind(null, "/login")}>
                 <button type="submit" className="nav-item">
@@ -83,6 +85,7 @@ export default async function VaultShellLayout({
         />
         <div className="user">
           <LanguageToggle />
+          <ThemeToggle compact />
           <EntitySwitch user={user} current="vault" />
           <span className="user-avatar" aria-hidden>
             {initials}

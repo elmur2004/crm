@@ -10,6 +10,7 @@ import {
 import { ImpersonationBar } from "@/components/shared/ImpersonationBar";
 import { EntitySwitch } from "@/components/shared/EntitySwitch";
 import { LanguageToggle } from "@/components/shared/LanguageToggle";
+import { ThemeToggle } from "@/components/shared/ThemeToggle";
 import { UndoControl } from "@/components/shared/UndoControl";
 import { logout } from "@/lib/auth/actions";
 import { landingFor } from "@/lib/auth/landing";
@@ -127,7 +128,7 @@ export default async function BSystemsAppLayout({
           navs={navs}
           fallback={fallback}
           /* The sheet carries the header controls whose header twin is hidden
-             at <=820px (LanguageToggle, EntitySwitch, Log out — see
+             at <=820px (LanguageToggle, ThemeToggle, EntitySwitch, Log out — see
              design-system.css). The company switch is deliberately NOT among
              them: it does not live in the header at all, it lives in the page
              below, where it is on screen at EVERY width. Putting it here too
@@ -136,6 +137,7 @@ export default async function BSystemsAppLayout({
           extras={
             <>
               <LanguageToggle />
+              <ThemeToggle />
               <EntitySwitch user={user} current="crm" />
               <form action={logout.bind(null, "/login")}>
                 <button type="submit" className="nav-item">
@@ -147,6 +149,7 @@ export default async function BSystemsAppLayout({
         />
         <div className="user">
           <LanguageToggle />
+          <ThemeToggle compact />
           <CrmShellBell bases={bells} fallback={fallback} />
           <EntitySwitch user={user} current="crm" />
           <span className="user-avatar" aria-hidden>

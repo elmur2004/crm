@@ -197,6 +197,23 @@
   --color-contact-made: #1B7A44;
   --color-contact-made-tint: #E6F4EC;
 
+  /* DARK-MODE CONTRACT tokens — ADDED for the dark theme (see the DARK THEME
+     section at the end of this file), in all three scopes. Each LIGHT value
+     is exactly what its consumer paints today, so a component that switches
+     to one renders byte-identically in light:
+     · on-dark: text on --color-surface-dark and on --gradient-hero (today
+       that is --color-on-primary: the accounting hero, the logo mark, the
+       admin owner chip). It stays white in dark; on-primary does not.
+     · chrome / on-chrome: the app header's ground and text (today the
+       generic .app-header paints surface-card / ink).
+     · focus-ring: today's :focus-visible colour (globals.css), verbatim.
+     · border-control: an input/select boundary (today --color-border). */
+  --color-on-dark: #FFFFFF;
+  --color-chrome: var(--color-surface-card);
+  --color-on-chrome: var(--color-ink);
+  --color-focus-ring: color-mix(in srgb, var(--color-primary) 45%, transparent);
+  --color-border-control: var(--color-border);
+
 }
 
 /* Rules encoded as comments (enforced by /brand-audit):
@@ -205,3 +222,348 @@
    - Orange = action & emphasis; Violet = structure (headings, nav, links).
    - Bilingual EN/AR: use CSS logical properties; layouts must survive dir="rtl".
    - No emoji in UI copy. Logo: never rotate, recolor, stretch, or add effects. */
+
+/* =========================================================================
+   DARK THEME — ByteForce
+   Founder: "create an entire dark mode for the entire system".
+
+   ADDED BLOCKS ONLY. Not one light value or selector above was changed; the
+   light theme renders exactly as before. (New tokens were ADDED to the light
+   block with values equal to what components already paint today.)
+
+   SELECTOR CONTRACT — src/lib/theme/core.ts; the app root layouts stamp it:
+       <html data-theme="light" | "dark" | "system">
+   The landing pages never set data-theme, so nothing here can match them.
+   data-brand sits on <html> AND is re-stamped on inner wrappers (ADR-054:
+   the accounting / vault modules re-brand per company), so every dark block
+   matches BOTH shapes:
+       html[data-theme="dark"][data-brand="byteforce"]
+       html[data-theme="dark"] [data-brand="byteforce"]
+   "system" follows the OS: the same declarations under prefers-color-scheme:
+   dark. The two blocks must stay IDENTICAL — src/lib/theme-tokens.test.ts
+   fails the build the moment they drift.
+
+   PRINT IS ALWAYS LIGHT. Every dark rule sits inside `@media screen`, so a
+   printed statement can never come out dark, whatever the toggle says.
+
+   color-scheme: dark turns the NATIVE controls dark too — scrollbars, inputs,
+   selects, date pickers, autofill — which tokens cannot reach.
+
+   THEME-INVARIANT, deliberately NOT redeclared so they can never drift:
+   --font-*, --radius-*, and --gradient-hero (the brand's fixed hero).
+
+   BRAND DECISIONS — the byteforce-brand rules bind dark mode too. No hue is
+   invented: every value below is a palette colour or a stated derivation.
+   · ELEVATION. Ink #231F20 is the brand's own dark, so Ink is the CARD — the
+     surface the eye reads on — and the page canvas is the same hue one step
+     down (#181516). Raised surfaces get LIGHTER (tint, primary tint), never a
+     shadow on black. No #000 anywhere.
+   · ORANGE stays the primary and the accent, unchanged. What reads ON it is
+     INK, 4.89:1 — white on orange is 3.34:1 and fails AA (the same law the
+     landing pages already follow), so on-primary and on-accent are Ink here.
+   · VIOLET. Royal Violet #53449B is 2.07:1 on Ink — unreadable as a heading
+     or a link. Headings, links, secondary and success use the SAME violet
+     lifted: hue 250, saturation 39% (the book's own), HSL lightness
+     44% -> 72% = #A59CD3. Not a new hue.
+   · TEXT is the brand's Off-white #F4F1EA, never pure white.
+   · SUCCESS stays violet (founder ruling R4: no green). The two fenced green
+     exceptions keep their one shared green, lifted (ADR-054 / ADR-069).
+   · DANGER and WARNING are the shared functional red and amber, lifted, and
+     identical in all three scopes exactly as in light (ADR-014 / ADR-054).
+
+   CONTRAST — COMPUTED (WCAG 2.1 relative luminance, sRGB), not asserted.
+   Text 4.5:1; UI boundaries / focus / state 3:1 (WCAG 1.4.11). Every PASS row
+   is recomputed from this file by src/lib/theme-tokens.test.ts.
+   | ink on surface                                           | #F4F1EA | #181516 | 16.08:1 | 4.5:1 | PASS |
+   | ink-soft on surface                                      | #F4F1EA | #181516 | 16.08:1 | 4.5:1 | PASS |
+   | muted on surface                                         | #AEABA6 | #181516 |  7.93:1 | 4.5:1 | PASS |
+   | faint on surface                                         | #989591 | #181516 |  6.08:1 | 4.5:1 | PASS |
+   | heading on surface                                       | #A59CD3 | #181516 |  7.17:1 | 4.5:1 | PASS |
+   | link on surface                                          | #A59CD3 | #181516 |  7.17:1 | 4.5:1 | PASS |
+   | ink on surface-card                                      | #F4F1EA | #231F20 | 14.45:1 | 4.5:1 | PASS |
+   | ink-soft on surface-card                                 | #F4F1EA | #231F20 | 14.45:1 | 4.5:1 | PASS |
+   | muted on surface-card                                    | #AEABA6 | #231F20 |  7.12:1 | 4.5:1 | PASS |
+   | faint on surface-card                                    | #989591 | #231F20 |  5.47:1 | 4.5:1 | PASS |
+   | heading on surface-card                                  | #A59CD3 | #231F20 |  6.44:1 | 4.5:1 | PASS |
+   | link on surface-card                                     | #A59CD3 | #231F20 |  6.44:1 | 4.5:1 | PASS |
+   | ink on surface-tint                                      | #F4F1EA | #2A2431 | 13.34:1 | 4.5:1 | PASS |
+   | ink-soft on surface-tint                                 | #F4F1EA | #2A2431 | 13.34:1 | 4.5:1 | PASS |
+   | muted on surface-tint                                    | #AEABA6 | #2A2431 |  6.58:1 | 4.5:1 | PASS |
+   | faint on surface-tint                                    | #989591 | #2A2431 |  5.05:1 | 4.5:1 | PASS |
+   | heading on surface-tint                                  | #A59CD3 | #2A2431 |  5.95:1 | 4.5:1 | PASS |
+   | link on surface-tint                                     | #A59CD3 | #2A2431 |  5.95:1 | 4.5:1 | PASS |
+   | primary on surface                                       | #F15C24 | #181516 |  5.44:1 | 4.5:1 | PASS |
+   | primary on surface-card                                  | #F15C24 | #231F20 |  4.89:1 | 4.5:1 | PASS |
+   | primary on primary-tint                                  | #F15C24 | #2E1C17 |  4.86:1 | 4.5:1 | PASS |
+   | accent on surface                                        | #F15C24 | #181516 |  5.44:1 | 4.5:1 | PASS |
+   | success on surface                                       | #A59CD3 | #181516 |  7.17:1 | 4.5:1 | PASS |
+   | warning on surface                                       | #DFA820 | #181516 |  8.43:1 | 4.5:1 | PASS |
+   | danger on surface                                        | #F07D71 | #181516 |  6.80:1 | 4.5:1 | PASS |
+   | accent on surface-card                                   | #F15C24 | #231F20 |  4.89:1 | 4.5:1 | PASS |
+   | success on surface-card                                  | #A59CD3 | #231F20 |  6.44:1 | 4.5:1 | PASS |
+   | warning on surface-card                                  | #DFA820 | #231F20 |  7.58:1 | 4.5:1 | PASS |
+   | danger on surface-card                                   | #F07D71 | #231F20 |  6.11:1 | 4.5:1 | PASS |
+   | danger on surface-tint                                   | #F07D71 | #2A2431 |  5.65:1 | 4.5:1 | PASS |
+   | muted on primary-tint                                    | #AEABA6 | #2E1C17 |  7.09:1 | 4.5:1 | PASS |
+   | ink on primary-tint                                      | #F4F1EA | #2E1C17 | 14.38:1 | 4.5:1 | PASS |
+   | on-primary on primary                                    | #231F20 | #F15C24 |  4.89:1 | 4.5:1 | PASS |
+   | on-secondary on secondary                                | #231F20 | #A59CD3 |  6.44:1 | 4.5:1 | PASS |
+   | on-accent on accent                                      | #231F20 | #F15C24 |  4.89:1 | 4.5:1 | PASS |
+   | on-danger on danger                                      | #1A191C | #F07D71 |  6.57:1 | 4.5:1 | PASS |
+   | on-success on success                                    | #231F20 | #A59CD3 |  6.44:1 | 4.5:1 | PASS |
+   | danger on danger-tint                                    | #F07D71 | #3A1C1D |  5.78:1 | 4.5:1 | PASS |
+   | danger-ink on danger-tint                                | #F9C0B8 | #3A1C1D |  9.72:1 | 4.5:1 | PASS |
+   | primary-tint-ink on primary-tint                         | #F5906A | #2E1C17 |  7.01:1 | 4.5:1 | PASS |
+   | secondary-tint-ink on secondary-tint                     | #B3ACDA | #262036 |  7.32:1 | 4.5:1 | PASS |
+   | secondary-tint-ink on surface-tint                       | #B3ACDA | #2A2431 |  7.05:1 | 4.5:1 | PASS |
+   | toast-ink on toast-surface                               | #1A191C | #ECEAE5 | 14.56:1 | 4.5:1 | PASS |
+   | acct-positive on acct-positive-tint                      | #5CC188 | #173323 |  6.15:1 | 4.5:1 | PASS |
+   | acct-positive on surface-card                            | #5CC188 | #231F20 |  7.33:1 | 4.5:1 | PASS |
+   | contact-made on contact-made-tint                        | #5CC188 | #173323 |  6.15:1 | 4.5:1 | PASS |
+   | on-chrome on chrome                                      | #F4F1EA | #231F20 | 14.45:1 | 4.5:1 | PASS |
+   | on-dark on surface-dark                                  | #FFFFFF | #0F0D0E | 19.37:1 | 4.5:1 | PASS |
+   | border-control on surface                                | #777371 | #181516 |  3.87:1 | 3:1   | PASS |
+   | border-control on surface-card                           | #777371 | #231F20 |  3.47:1 | 3:1   | PASS |
+   | focus-ring on surface                                    | #F15C24 | #181516 |  5.44:1 | 3:1   | PASS |
+   | focus-ring on surface-card                               | #F15C24 | #231F20 |  4.89:1 | 3:1   | PASS |
+   | focus-ring on surface-tint                               | #F15C24 | #2A2431 |  4.51:1 | 3:1   | PASS |
+   | danger-border-strong on danger-tint                      | #C25A4F | #3A1C1D |  3.57:1 | 3:1   | PASS |
+   | stage-intake-chip-ink on stage-intake-chip               | #C8C3C5 | #433E40 |  6.03:1 | 4.5:1 | PASS |
+   | stage-intake-accent on stage-intake                      | #B4AEB0 | #191718 |  8.17:1 | 4.5:1 | PASS |
+   | stage-intake-accent on surface-card                      | #B4AEB0 | #231F20 |  7.47:1 | 4.5:1 | PASS |
+   | stage-following-chip-ink on stage-following-chip         | #BEB7DF | #3C3646 |  6.10:1 | 4.5:1 | PASS |
+   | stage-following-accent on stage-following                | #9489CB | #19161C |  5.71:1 | 4.5:1 | PASS |
+   | stage-following-accent on surface-card                   | #9489CB | #231F20 |  5.20:1 | 4.5:1 | PASS |
+   | stage-meeting-chip-ink on stage-meeting-chip             | #BDB7DA | #3C3744 |  6.01:1 | 4.5:1 | PASS |
+   | stage-meeting-accent on stage-meeting                    | #948BC4 | #19161C |  5.75:1 | 4.5:1 | PASS |
+   | stage-meeting-accent on surface-card                     | #948BC4 | #231F20 |  5.24:1 | 4.5:1 | PASS |
+   | stage-proposal-chip-ink on stage-proposal-chip           | #F8AF92 | #51362D |  6.02:1 | 4.5:1 | PASS |
+   | stage-proposal-accent on stage-proposal                  | #F5865B | #1E1513 |  7.21:1 | 4.5:1 | PASS |
+   | stage-proposal-accent on surface-card                    | #F5865B | #231F20 |  6.55:1 | 4.5:1 | PASS |
+   | stage-negotiation-chip-ink on stage-negotiation-chip     | #F8A88A | #513127 |  6.03:1 | 4.5:1 | PASS |
+   | stage-negotiation-accent on stage-negotiation            | #F37140 | #201512 |  6.16:1 | 4.5:1 | PASS |
+   | stage-negotiation-accent on surface-card                 | #F37140 | #231F20 |  5.63:1 | 4.5:1 | PASS |
+   | stage-didnt-answer-chip-ink on stage-didnt-answer-chip   | #BDBBB9 | #3C3838 |  6.05:1 | 4.5:1 | PASS |
+   | stage-didnt-answer-accent on stage-didnt-answer          | #96928F | #191718 |  5.78:1 | 4.5:1 | PASS |
+   | stage-didnt-answer-accent on surface-card                | #96928F | #231F20 |  5.28:1 | 4.5:1 | PASS |
+   | stage-contacted-chip-ink on stage-contacted-chip         | #BEB8DA | #3C3744 |  6.07:1 | 4.5:1 | PASS |
+   | stage-contacted-accent on stage-contacted                | #968CC3 | #19171C |  5.79:1 | 4.5:1 | PASS |
+   | stage-contacted-accent on surface-card                   | #968CC3 | #231F20 |  5.31:1 | 4.5:1 | PASS |
+   | stage-qualified-chip-ink on stage-qualified-chip         | #ECAD79 | #4D3220 |  6.04:1 | 4.5:1 | PASS |
+   | stage-qualified-accent on stage-qualified                | #E0761F | #1F150F |  5.78:1 | 4.5:1 | PASS |
+   | stage-qualified-accent on surface-card                   | #E0761F | #231F20 |  5.26:1 | 4.5:1 | PASS |
+   | stage-waiting-chip-ink on stage-waiting-chip             | #D4B5B0 | #443635 |  6.05:1 | 4.5:1 | PASS |
+   | stage-waiting-accent on stage-waiting                    | #B9867F | #1C1616 |  5.77:1 | 4.5:1 | PASS |
+   | stage-waiting-accent on surface-card                     | #B9867F | #231F20 |  5.26:1 | 4.5:1 | PASS |
+   | stage-won-chip-ink on stage-won-chip                     | #F7A281 | #502C21 |  6.06:1 | 4.5:1 | PASS |
+   | stage-won-accent on stage-won                            | #F15C24 | #221410 |  5.36:1 | 4.5:1 | PASS |
+   | stage-won-accent on surface-card                         | #F15C24 | #231F20 |  4.89:1 | 4.5:1 | PASS |
+   | stage-postponed-chip-ink on stage-postponed-chip         | #E7BF5A | #4C3D20 |  6.01:1 | 4.5:1 | PASS |
+   | stage-postponed-accent on stage-postponed                | #DFA820 | #1D170F |  8.26:1 | 4.5:1 | PASS |
+   | stage-postponed-accent on surface-card                   | #DFA820 | #231F20 |  7.58:1 | 4.5:1 | PASS |
+   | stage-fallen-behind-chip-ink on stage-fallen-behind-chip | #F9C0B8 | #4A2426 |  8.44:1 | 4.5:1 | PASS |
+   | stage-fallen-behind-accent on stage-fallen-behind        | #F07D71 | #2A1718 |  6.38:1 | 4.5:1 | PASS |
+   | stage-fallen-behind-accent on surface-card               | #F07D71 | #231F20 |  6.11:1 | 4.5:1 | PASS |
+   | stage-lost-chip-ink on stage-lost-chip                   | #BFBABC | #3D3839 |  6.01:1 | 4.5:1 | PASS |
+   | stage-lost-accent on stage-lost                          | #989093 | #191718 |  5.73:1 | 4.5:1 | PASS |
+   | stage-lost-accent on surface-card                        | #989093 | #231F20 |  5.24:1 | 4.5:1 | PASS |
+   | border on surface-card                                   | #444140 | #231F20 |  1.61:1 |   -   | decorative |
+   | border on surface                                        | #444140 | #181516 |  1.79:1 |   -   | decorative |
+   | hairline on surface-card                                 | #343030 | #231F20 |  1.25:1 |   -   | decorative |
+   ========================================================================= */
+@media screen {
+  html[data-theme="dark"][data-brand="byteforce"],
+  html[data-theme="dark"] [data-brand="byteforce"] {
+    color-scheme: dark;
+    /* Bold Orange stays THE action colour */
+    --color-primary: var(--bf-orange);
+    /* INK on orange: 4.89:1 (white is 3.34:1 and fails AA) */
+    --color-on-primary: var(--bf-ink);
+    /* Royal Violet lifted: same hue 250, same sat 39%, lightness 44% -> 72% */
+    --color-secondary: #A59CD3;
+    --color-on-secondary: var(--bf-ink);
+    /* accent = the orange, as in light */
+    --color-accent: var(--bf-orange);
+    /* ink on orange, as on-primary */
+    --color-on-accent: var(--bf-ink);
+    /* violet = headings/nav structure, lifted */
+    --color-heading: #A59CD3;
+    /* violet = links, lifted */
+    --color-link: #A59CD3;
+    /* the brand's own Off-white becomes the text */
+    --color-ink: var(--bf-offwhite);
+    /* alias of ink, as in light */
+    --color-ink-soft: var(--bf-offwhite);
+    /* off-white 68% into the canvas */
+    --color-muted: #AEABA6;
+    /* off-white 58% into the canvas — still AA (light's faint is not) */
+    --color-faint: #989591;
+    /* page canvas: Ink, one step down */
+    --color-surface: #181516;
+    /* cards ARE the brand Ink, raised above the canvas */
+    --color-surface-card: var(--bf-ink);
+    /* violet-family tint: 14% violet into Ink */
+    --color-surface-tint: #2A2431;
+    /* rare dark blocks + scrims: below the canvas */
+    --color-surface-dark: #0F0D0E;
+    /* dividers/card edges (decorative): 16% off-white into Ink */
+    --color-border: #444140;
+    /* inner soft dividers: 8% */
+    --color-hairline: #343030;
+    /* functional red, lifted to H6 S80 L68: light #C0392B measures 3.34:1 on
+       this canvas. Identical in all three scopes (ADR-014) */
+    --color-danger: #F07D71;
+    /* dark text on the lifted red (white measures 2.67:1) */
+    --color-on-danger: #1A191C;
+    /* error box / blocked well — a dark red ground */
+    --color-danger-tint: #3A1C1D;
+    /* box edge (decorative) */
+    --color-danger-border: #6A302D;
+    /* blocked drag-over edge — >=3:1 on the tint (state, 1.4.11) */
+    --color-danger-border-strong: #C25A4F;
+    /* error body text */
+    --color-danger-ink: #F9C0B8;
+    /* founder ruling R4: no green — success stays violet, lifted */
+    --color-success: #A59CD3;
+    --color-on-success: var(--bf-ink);
+    /* functional amber, lifted: light #B8860B measures 4.13:1 on the
+       B-Systems tint, and the amber is one value in all three scopes
+       (ADR-054) */
+    --color-warning: #DFA820;
+    /* active nav well: 10% orange into the canvas */
+    --color-primary-tint: #2E1C17;
+    /* orange lifted to >=7:1 on its tint */
+    --color-primary-tint-ink: #F5906A;
+    /* partner/converted badge: 24% violet into the canvas */
+    --color-secondary-tint: #262036;
+    /* violet lifted to >=7:1 on its tint */
+    --color-secondary-tint-ink: #B3ACDA;
+    /* INVERSE surface (the M3 inverse-surface role): light puts a dark toast
+       on a light page, dark puts a light toast on a dark one. Uniform across
+       brands, as in light */
+    --color-toast-surface: #ECEAE5;
+    /* light's toast surface becomes the toast ink */
+    --color-toast-ink: #1A191C;
+    /* a light hairline replaces light's 7% black (uniform across brands) */
+    --color-board-card-border: rgba(255, 255, 255, 0.08);
+    /* deeper — a shadow barely reads on dark; the lighter card carries the
+       elevation */
+    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.32), 0 6px 18px rgba(0, 0, 0, 0.24);
+    --shadow-lift: 0 14px 30px rgba(0, 0, 0, 0.45);
+    --shadow-modal: 0 30px 70px rgba(0, 0, 0, 0.6);
+    --shadow-toast: 0 18px 44px rgba(0, 0, 0, 0.55);
+    /* the product's ONE green, lifted; its two fences are unchanged (ADR-054
+       accounting, ADR-069 .wa-sent) */
+    --color-acct-positive: #5CC188;
+    --color-acct-positive-tint: #173323;
+    /* same values as the accounting pair, on purpose (ADR-069) */
+    --color-contact-made: #5CC188;
+    --color-contact-made-tint: #173323;
+    /* NEW — text on --color-surface-dark and on --gradient-hero; both stay
+       dark, so it stays white */
+    --color-on-dark: #FFFFFF;
+    /* NEW — app header = the card surface, as in light */
+    --color-chrome: var(--color-surface-card);
+    /* NEW — header text = ink, as in light */
+    --color-on-chrome: var(--color-ink);
+    /* NEW — SOLID orange: the light 45% mix measures 2.03:1 on this canvas */
+    --color-focus-ring: var(--bf-orange);
+    /* NEW — input/select boundary: 40% off-white into Ink, >=3:1 (1.4.11) */
+    --color-border-control: #777371;
+    /* Per-stage board colours. Same rule for every column (derived, not
+       picked): the ACCENT keeps the light accent's hue + saturation, its HSL
+       lightness raised only as far as needed to read >= 4.8:1 on the canvas,
+       the card and the tint (it is the column TITLE's text colour, so 4.5:1
+       binds, not 3:1). The WELL is that hue mixed toward the scrim colour
+       (--color-surface-dark) until it sits at the canvas's own luminance
+       (+8%), so cards rise off a well by the same step they rise off the
+       page — the light theme's relationship.
+       The CHIP is 22% of the accent into the card; CHIP-INK is the accent
+       lifted until >= 6:1 on its chip. Won keeps the brand's own cue
+       unchanged (Bold Orange). Postpone rides the shared amber (ADR-072).
+       Fallen-behind is the shared functional red, IDENTICAL in both brands
+       (ADR-082), its well a shade off --color-danger-tint as in light. */
+    --color-stage-intake: #191718; --color-stage-intake-accent: #B4AEB0; --color-stage-intake-chip: #433E40; --color-stage-intake-chip-ink: #C8C3C5;
+    --color-stage-following: #19161C; --color-stage-following-accent: #9489CB; --color-stage-following-chip: #3C3646; --color-stage-following-chip-ink: #BEB7DF;
+    --color-stage-meeting: #19161C; --color-stage-meeting-accent: #948BC4; --color-stage-meeting-chip: #3C3744; --color-stage-meeting-chip-ink: #BDB7DA;
+    --color-stage-proposal: #1E1513; --color-stage-proposal-accent: #F5865B; --color-stage-proposal-chip: #51362D; --color-stage-proposal-chip-ink: #F8AF92;
+    --color-stage-negotiation: #201512; --color-stage-negotiation-accent: #F37140; --color-stage-negotiation-chip: #513127; --color-stage-negotiation-chip-ink: #F8A88A;
+    --color-stage-didnt-answer: #191718; --color-stage-didnt-answer-accent: #96928F; --color-stage-didnt-answer-chip: #3C3838; --color-stage-didnt-answer-chip-ink: #BDBBB9;
+    --color-stage-contacted: #19171C; --color-stage-contacted-accent: #968CC3; --color-stage-contacted-chip: #3C3744; --color-stage-contacted-chip-ink: #BEB8DA;
+    --color-stage-qualified: #1F150F; --color-stage-qualified-accent: #E0761F; --color-stage-qualified-chip: #4D3220; --color-stage-qualified-chip-ink: #ECAD79;
+    --color-stage-waiting: #1C1616; --color-stage-waiting-accent: #B9867F; --color-stage-waiting-chip: #443635; --color-stage-waiting-chip-ink: #D4B5B0;
+    --color-stage-won: #221410; --color-stage-won-accent: #F15C24; --color-stage-won-chip: #502C21; --color-stage-won-chip-ink: #F7A281;
+    --color-stage-postponed: #1D170F; --color-stage-postponed-accent: #DFA820; --color-stage-postponed-chip: #4C3D20; --color-stage-postponed-chip-ink: #E7BF5A;
+    --color-stage-fallen-behind: #2A1718; --color-stage-fallen-behind-accent: #F07D71; --color-stage-fallen-behind-chip: #4A2426; --color-stage-fallen-behind-chip-ink: #F9C0B8;
+    --color-stage-lost: #191718; --color-stage-lost-accent: #989093; --color-stage-lost-chip: #3D3839; --color-stage-lost-chip-ink: #BFBABC;
+  }
+}
+
+/* "system" + a dark OS — the SAME declarations as the block above, verbatim
+   (comments aside). theme-tokens.test.ts compares the two. */
+@media screen and (prefers-color-scheme: dark) {
+  html[data-theme="system"][data-brand="byteforce"],
+  html[data-theme="system"] [data-brand="byteforce"] {
+    color-scheme: dark;
+    --color-primary: var(--bf-orange);
+    --color-on-primary: var(--bf-ink);
+    --color-secondary: #A59CD3;
+    --color-on-secondary: var(--bf-ink);
+    --color-accent: var(--bf-orange);
+    --color-on-accent: var(--bf-ink);
+    --color-heading: #A59CD3;
+    --color-link: #A59CD3;
+    --color-ink: var(--bf-offwhite);
+    --color-ink-soft: var(--bf-offwhite);
+    --color-muted: #AEABA6;
+    --color-faint: #989591;
+    --color-surface: #181516;
+    --color-surface-card: var(--bf-ink);
+    --color-surface-tint: #2A2431;
+    --color-surface-dark: #0F0D0E;
+    --color-border: #444140;
+    --color-hairline: #343030;
+    --color-danger: #F07D71;
+    --color-on-danger: #1A191C;
+    --color-danger-tint: #3A1C1D;
+    --color-danger-border: #6A302D;
+    --color-danger-border-strong: #C25A4F;
+    --color-danger-ink: #F9C0B8;
+    --color-success: #A59CD3;
+    --color-on-success: var(--bf-ink);
+    --color-warning: #DFA820;
+    --color-primary-tint: #2E1C17;
+    --color-primary-tint-ink: #F5906A;
+    --color-secondary-tint: #262036;
+    --color-secondary-tint-ink: #B3ACDA;
+    --color-toast-surface: #ECEAE5;
+    --color-toast-ink: #1A191C;
+    --color-board-card-border: rgba(255, 255, 255, 0.08);
+    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.32), 0 6px 18px rgba(0, 0, 0, 0.24);
+    --shadow-lift: 0 14px 30px rgba(0, 0, 0, 0.45);
+    --shadow-modal: 0 30px 70px rgba(0, 0, 0, 0.6);
+    --shadow-toast: 0 18px 44px rgba(0, 0, 0, 0.55);
+    --color-acct-positive: #5CC188;
+    --color-acct-positive-tint: #173323;
+    --color-contact-made: #5CC188;
+    --color-contact-made-tint: #173323;
+    --color-on-dark: #FFFFFF;
+    --color-chrome: var(--color-surface-card);
+    --color-on-chrome: var(--color-ink);
+    --color-focus-ring: var(--bf-orange);
+    --color-border-control: #777371;
+    --color-stage-intake: #191718; --color-stage-intake-accent: #B4AEB0; --color-stage-intake-chip: #433E40; --color-stage-intake-chip-ink: #C8C3C5;
+    --color-stage-following: #19161C; --color-stage-following-accent: #9489CB; --color-stage-following-chip: #3C3646; --color-stage-following-chip-ink: #BEB7DF;
+    --color-stage-meeting: #19161C; --color-stage-meeting-accent: #948BC4; --color-stage-meeting-chip: #3C3744; --color-stage-meeting-chip-ink: #BDB7DA;
+    --color-stage-proposal: #1E1513; --color-stage-proposal-accent: #F5865B; --color-stage-proposal-chip: #51362D; --color-stage-proposal-chip-ink: #F8AF92;
+    --color-stage-negotiation: #201512; --color-stage-negotiation-accent: #F37140; --color-stage-negotiation-chip: #513127; --color-stage-negotiation-chip-ink: #F8A88A;
+    --color-stage-didnt-answer: #191718; --color-stage-didnt-answer-accent: #96928F; --color-stage-didnt-answer-chip: #3C3838; --color-stage-didnt-answer-chip-ink: #BDBBB9;
+    --color-stage-contacted: #19171C; --color-stage-contacted-accent: #968CC3; --color-stage-contacted-chip: #3C3744; --color-stage-contacted-chip-ink: #BEB8DA;
+    --color-stage-qualified: #1F150F; --color-stage-qualified-accent: #E0761F; --color-stage-qualified-chip: #4D3220; --color-stage-qualified-chip-ink: #ECAD79;
+    --color-stage-waiting: #1C1616; --color-stage-waiting-accent: #B9867F; --color-stage-waiting-chip: #443635; --color-stage-waiting-chip-ink: #D4B5B0;
+    --color-stage-won: #221410; --color-stage-won-accent: #F15C24; --color-stage-won-chip: #502C21; --color-stage-won-chip-ink: #F7A281;
+    --color-stage-postponed: #1D170F; --color-stage-postponed-accent: #DFA820; --color-stage-postponed-chip: #4C3D20; --color-stage-postponed-chip-ink: #E7BF5A;
+    --color-stage-fallen-behind: #2A1718; --color-stage-fallen-behind-accent: #F07D71; --color-stage-fallen-behind-chip: #4A2426; --color-stage-fallen-behind-chip-ink: #F9C0B8;
+    --color-stage-lost: #191718; --color-stage-lost-accent: #989093; --color-stage-lost-chip: #3D3839; --color-stage-lost-chip-ink: #BFBABC;
+  }
+}

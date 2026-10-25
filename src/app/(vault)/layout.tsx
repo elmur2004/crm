@@ -1,6 +1,8 @@
 import { dirFor } from "@/lib/i18n/core";
 import { getLocale } from "@/lib/i18n/server";
 import { LocaleProvider } from "@/components/shared/LocaleProvider";
+import { ThemeProvider } from "@/components/shared/ThemeProvider";
+import { getTheme, themeViewport } from "@/lib/theme/server";
 import type { Metadata } from "next";
 import "@fontsource/raleway/500.css";
 import "@fontsource/raleway/600.css";
@@ -32,14 +34,24 @@ export const metadata: Metadata = {
    build time (a fresh container has no database while `next build` runs). */
 export const dynamic = "force-dynamic";
 
+/* Dark mode: the mobile browser chrome follows the theme cookie too (see
+   themeColorFor — light emits nothing, exactly as before). */
+export async function generateViewport() {
+  return themeViewport();
+}
+
 export default async function VaultRootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   const locale = await getLocale();
+  /* dark mode: data-theme is stamped HERE, on the server, so the document's
+     first byte — and therefore its first paint — already carries the theme.
+     Swept by src/lib/theme/theme-stamp.sweep.test.ts. */
+  const theme = await getTheme();
   return (
-    <html lang={locale} dir={dirFor(locale)} data-brand="neutral">
+    <html lang={locale} dir={dirFor(locale)} data-brand="neutral" data-theme={theme}>
       <body className="min-h-screen bg-brand-surface text-brand-ink font-brand-body antialiased">
-        <LocaleProvider locale={locale}>{children}</LocaleProvider>
+        <LocaleProvider locale={locale}><ThemeProvider theme={theme}>{children}</ThemeProvider></LocaleProvider>
       </body>
     </html>
   );

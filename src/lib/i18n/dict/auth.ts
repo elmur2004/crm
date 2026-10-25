@@ -218,6 +218,15 @@ export const shell = {
      confusion in it", so the current company can never be carried by colour
      alone. */
   companyLabel: { en: "Company", ar: "الشركة" },
+  /* Dark mode — the theme toggle beside the language toggle (ThemeToggle).
+     "System" is NOT rendered as "النظام": in this product that word already
+     means the platform itself ("باقي النظام" on the no-access page), so a
+     segment reading "النظام" would read as "the system" rather than "follow my
+     device". "حسب الجهاز" says what the option does. */
+  themeGroup: { en: "Theme", ar: "المظهر" },
+  themeSystem: { en: "System", ar: "حسب الجهاز" },
+  themeLight: { en: "Light", ar: "فاتح" },
+  themeDark: { en: "Dark", ar: "داكن" },
 } satisfies Record<string, Msg>;
 
 /* ADR-066 — the honest refusal an admin sees when a module has been taken away

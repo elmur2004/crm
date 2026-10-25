@@ -8,6 +8,7 @@ import { ApiError } from "@/lib/api-error";
 import { formatEGP } from "@/lib/money";
 import { formatCairoDate } from "@/lib/datetime";
 import { PrintButton } from "@/components/shared/PrintButton";
+import { PrintLight } from "@/components/shared/PrintLight";
 import { BrandLogo } from "@/components/shared/BrandLogo";
 import { tFor } from "@/lib/i18n/core";
 import { getLocale } from "@/lib/i18n/server";
@@ -60,6 +61,9 @@ export default async function StatementDocumentPage({
 
   return (
     <div className="space-y-5">
+      {/* dark mode: the statement prints light by EVERY route into the print
+          dialog, not only this page's button (see PrintLight) */}
+      <PrintLight />
       <div className="page-head no-print">
         <div>
           <p className="u-eyebrow">{`${t(d.eyebrowDocument)} ${s.code}`}</p>

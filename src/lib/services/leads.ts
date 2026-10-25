@@ -4,7 +4,6 @@ import type { Prisma } from "../../../generated/prisma/client";
 import { transition } from "@/lib/pipeline-engine/transition";
 import type { EngineEvent } from "@/lib/pipeline-engine/types";
 import {
-  LEAD_TYPES,
   isSameStageAction,
   type Brand,
   type FollowUpContext,
@@ -54,21 +53,18 @@ export { configForBrand };
    write path for every pipeline move: engine-validated, group-gated, atomic, and
    activity-logged (T-10). Brand always comes from the route (never client input). */
 
-export const createLeadSchema = z.object({
-  salesRepId: z.string().optional(), // A-6: optional for partner-sourced leads
-  name: z.string().min(1).max(200),
-  number: z.string().min(1).max(50),
-  email: z.string().email().optional().or(z.literal("").transform(() => undefined)),
-  type: z.enum(LEAD_TYPES),
-  description: z.string().max(2000).optional(),
-  // V2 §1 — ex-portal deal fields, optional on every lead
-  position: z.string().max(200).optional(),
-  companyName: z.string().max(200).optional(),
-  industry: z.string().max(200).optional(),
-  requirements: z.string().max(4000).optional(),
-});
+/* The create rules moved to lib/crm/lead-create-schema.ts (pure, so the Excel
+   import can validate every row against them before it writes anything) and
+   are re-exported here unchanged, so every existing importer keeps its address. */
+import { createLeadSchema } from "@/lib/crm/lead-create-schema";
+export { createLeadSchema, createLeadSchemaFor } from "@/lib/crm/lead-create-schema";
 
 export const updateLeadSchema = createLeadSchema.partial();
+
+/** The ActivityLog trigger a lead's creation row carries. "create" for the
+    Add-lead form, "PP-5" when a partner sent it (§5.5), and "leads_import" when
+    it arrived in an Excel import — the twin of the export's "leads_export". */
+export type LeadCreateTrigger = "create" | "PP-5" | "leads_import";
 
 export async function createLead(
   brand: Brand,
@@ -79,13 +75,35 @@ export async function createLead(
     /* V2 §1 owner bucket: who this lead belongs to. Defaults to internal. */
     ownerType?: OwnerType;
     ownerUserId?: string;
+    /* The Excel import (lead import): run inside the CALLER's transaction, so
+       a whole file goes in as one all-or-nothing unit through THIS function
+       rather than through a second create path. Absent = this call opens its
+       own transaction, exactly as before. */
+    tx?: Prisma.TransactionClient;
+    /* Overrides the ActivityLog trigger. Only the import sets it today. */
+    trigger?: LeadCreateTrigger;
+    /* false = write no undo entry for this lead. The import sets it: a file of
+       five hundred leads would otherwise leave the founder's one-step Undo
+       offering to delete the LAST row of the file and nothing else, which is a
+       lie about what "undo" would do. The import retires the actor's pending
+       entries instead (ADR-045's honesty rule for actions that are not
+       undoable). Absent = recorded, exactly as before. */
+    undoable?: boolean;
+    /* The Excel import's optional "Created date": the day the lead was really
+       first had, so an import of old leads does not make each of them "new
+       this month". It dates the LEAD only. The ActivityLog row below keeps its
+       own column default — the real moment of the act — because the history
+       must say when the import happened, not when the customer first called.
+       Absent = now, exactly as before. */
+    createdAt?: Date;
   },
 ) {
+  const client = opts?.tx ?? db;
   if (input.salesRepId) {
-    const rep = await db.salesRep.findFirst({ where: { id: input.salesRepId, brand } });
+    const rep = await client.salesRep.findFirst({ where: { id: input.salesRepId, brand } });
     if (!rep) throw new ApiError(404, "Sales rep not found");
   }
-  return db.$transaction(async (tx) => {
+  const write = async (tx: Prisma.TransactionClient) => {
     const lead = await tx.lead.create({
       data: {
         brand,
@@ -107,6 +125,7 @@ export async function createLead(
         requirements: input.requirements ?? null,
         source: opts?.attribution ? "partner" : "direct",
         partnerId: opts?.attribution?.partnerId ?? null, // §5.5 — permanent
+        ...(opts?.createdAt ? { createdAt: opts.createdAt } : {}),
       },
     });
     await writeLog(tx, {
@@ -115,8 +134,9 @@ export async function createLead(
       actor,
       action: "create",
       toStage: "new",
-      trigger: opts?.attribution ? "PP-5" : "create",
+      trigger: opts?.trigger ?? (opts?.attribution ? "PP-5" : "create"),
     });
+    if (opts?.undoable === false) return lead;
     /* ADR-045: undoing a fresh lead deletes it — refused later if it has since
        grown any history (the guard lives in performUndo). */
     const undoLabel = formatMsg(undoLabels.added, { name: lead.name });
@@ -132,7 +152,8 @@ export async function createLead(
       payload: {},
     });
     return lead;
-  });
+  };
+  return opts?.tx ? write(opts.tx) : db.$transaction(write);
 }
 
 /* ADR-043 hardening: an archived lead is READ-ONLY except the chat and

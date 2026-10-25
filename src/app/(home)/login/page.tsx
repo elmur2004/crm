@@ -2,6 +2,7 @@ import { login } from "@/lib/auth/actions";
 import Link from "next/link";
 import { PasswordInput } from "@/components/shared/PasswordInput";
 import { LanguageToggle } from "@/components/shared/LanguageToggle";
+import { ThemeToggle } from "@/components/shared/ThemeToggle";
 import { tFor } from "@/lib/i18n/core";
 import { getLocale } from "@/lib/i18n/server";
 import { login as msgs } from "@/lib/i18n/dict/auth";
@@ -28,8 +29,9 @@ export default async function LoginPage({
     <main className="login-shell">
       <div className="login-pane">
         <div className="login-inner">
-          <div className="mb-4">
+          <div className="mb-4 flex flex-wrap items-center gap-2">
             <LanguageToggle />
+            <ThemeToggle />
           </div>
           <p className="login-eyebrow">{t(msgs.eyebrow)}</p>
           <h1 className="login-title">{t(msgs.title)}</h1>

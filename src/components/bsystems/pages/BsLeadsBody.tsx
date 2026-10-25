@@ -18,6 +18,7 @@ import { StageBadge } from "@/components/shared/StageBadge";
 import { BsAddLeadForm } from "@/components/bsystems/leadActions";
 import { FilterPanel } from "@/components/shared/FilterPanel";
 import { LeadsExportButtons } from "@/components/shared/LeadsExportButtons";
+import { LeadsImportMenu } from "@/components/shared/LeadsImportMenu";
 import type { CrmCompany } from "@/lib/crm/company";
 
 /* V2 §2.2 — the admin Leads section: every lead with the owner-bucket filter
@@ -66,6 +67,7 @@ export async function BsLeadsBody({
   ctx,
   params,
   exportCompanies = [],
+  importCompany = null,
 }: {
   ctx: CrmSurface;
   params: BsLeadsParams;
@@ -74,6 +76,10 @@ export async function BsLeadsBody({
      session, and a default that rendered a button would be a default that
      offers a company-wide customer list. */
   exportCompanies?: CrmCompany[];
+  /* The Excel import's ONE button, for this page's company — decided by the
+     PAGE from the live roles (`canImportLeads`). Defaults to NONE, for the
+     export's reason: a body cannot see a session. */
+  importCompany?: CrmCompany | null;
 }) {
   const locale = await getLocale();
   const t = tFor(locale);
@@ -117,6 +123,14 @@ export async function BsLeadsBody({
         </div>
         <div className="page-actions">
           <LeadsExportButtons companies={exportCompanies} />
+          {importCompany ? (
+            <LeadsImportMenu
+              company={importCompany}
+              /* ADR-051's queue — internal bucket, no rep, no owner — is where
+                 every imported lead waits */
+              unassignedHref={`${ctx.basePath}/leads${ctx.query}&owner=unassigned`}
+            />
+          ) : null}
           <BsAddLeadForm apiBase={ctx.apiBase} />
         </div>
       </div>

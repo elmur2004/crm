@@ -1,5 +1,6 @@
 import type { Msg } from "@/lib/i18n/core";
 import { history } from "@/lib/i18n/dict/internal";
+import { leadsImport } from "@/lib/i18n/dict/leads-import";
 import { agentsConfig, partnersConfig } from "@/lib/pipeline-engine/configs/partners";
 import type { PipelineConfig } from "@/lib/pipeline-engine/types";
 
@@ -31,6 +32,9 @@ export const TRIGGER_PHRASES: Record<string, Msg> = Object.fromEntries([
      not move and no config declares it), it is a side effect of the marker, so
      there is nothing on a config to derive it from. */
   ["FU-AUTO", history.nextFollowUpAuto],
+  /* the Excel import's create row — a LITERAL for the same reason: it is not a
+     pipeline transition, it is how the lead arrived */
+  ["leads_import", leadsImport.historyPill],
   ...NUMBER_ADDED_PIPELINES.map((config) => [
     /* the same default `transition.ts` stamps when a config declares no ids */
     config.triggers?.numberAdded ?? "PP-2",

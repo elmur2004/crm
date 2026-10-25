@@ -7,6 +7,7 @@ import type { Brand } from "@/lib/pipeline-engine/constants";
 import { handleRoute, requireUser } from "@/lib/auth/guards";
 import { db } from "@/lib/db";
 import { storage } from "@/lib/storage";
+import { parseTheme } from "@/lib/theme/core";
 
 /* ADR-074 — the Attachment.kind values the DATA VAULT owns. Listed rather than
    inferred: a kind added tomorrow falls into the won-deal branch below, which
@@ -25,9 +26,29 @@ function esc(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
-function missingFilePage(filename: string, backHref: string): string {
+/* Dark mode: this page is a standalone document outside the app shells, so it
+   never received the server-stamped data-theme — it followed the OS alone,
+   and a person who chose DARK on a light OS got a white page in the middle of
+   a dark app. An explicit "dark" now pins it dark. "light" and "system" emit
+   exactly the document they always did (it already follows the OS through
+   its own prefers-color-scheme block). */
+function themeAttr(req: Request): string {
+  const raw = /(?:^|;\s*)theme=([^;]*)/.exec(req.headers.get("cookie") ?? "")?.[1];
+  return parseTheme(raw === undefined ? undefined : decodeURIComponent(raw)) === "dark"
+    ? ' data-theme="dark"'
+    : "";
+}
+
+const DARK_PIN = `
+  :root[data-theme="dark"] { color-scheme: dark; }
+  :root[data-theme="dark"] body { background: #10151c; color: #e8ecf2; }
+  :root[data-theme="dark"] .card { background: #1a212b; border-color: #2a3441; }
+  :root[data-theme="dark"] .file { color: #93a0b0; } :root[data-theme="dark"] p { color: #b8c2cf; }
+  :root[data-theme="dark"] a.btn { background: #e8ecf2; color: #10151c; }`;
+
+function missingFilePage(filename: string, backHref: string, theme = ""): string {
   return `<!doctype html>
-<html lang="en">
+<html lang="en"${theme}>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -51,7 +72,7 @@ function missingFilePage(filename: string, backHref: string): string {
     .card { background: #1a212b; border-color: #2a3441; }
     .file { color: #93a0b0; } p { color: #b8c2cf; }
     a.btn { background: #e8ecf2; color: #10151c; }
-  }
+  }${theme ? DARK_PIN : ""}
 </style>
 </head>
 <body>
@@ -138,7 +159,7 @@ export const GET = handleRoute(
          a readable page; API consumers keep the JSON 404. */
       if (req.headers.get("accept")?.includes("text/html")) {
         const back = req.headers.get("referer") ?? "/";
-        return new Response(missingFilePage(attachment.filename, back), {
+        return new Response(missingFilePage(attachment.filename, back, themeAttr(req)), {
           status: 404,
           headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" },
         });

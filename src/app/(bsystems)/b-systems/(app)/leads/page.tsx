@@ -4,6 +4,7 @@ import { crmEngineRole } from "@/lib/api/bsystems";
 import { crmHomeFor } from "@/lib/crm/nav";
 import { crmQuery, crmRolesFor } from "@/lib/crm/company";
 import { leadsExportCompanies } from "@/lib/crm/leads-export";
+import { canImportLeads } from "@/lib/crm/leads-import";
 import { BSYSTEMS_SURFACE } from "@/lib/crm/surface";
 import { LeadsBody } from "@/components/internal/pages";
 import { BsLeadsBody, type BsLeadsParams } from "@/components/bsystems/pages/BsLeadsBody";
@@ -38,8 +39,16 @@ export default async function BsLeadsPage({
      only `bsystems_sales` on the B-Systems side can open the ByteForce Leads
      page and not the B-Systems one, so it is shown exactly one button. */
   const exportCompanies = leadsExportCompanies(user.roles);
+  /* The ONE import button, for THIS page's company only — the import lands in
+     the company whose Leads page you are on. Decided here from the live roles
+     with the predicate the import route enforces (`canImportLeads`: can open
+     this Leads page AND may create leads here), so the button is never offered
+     to an account the server would refuse. Null = no button. */
+  const importCompany = canImportLeads(user.roles, company) ? company : null;
   if (company === "byteforce") {
-    return <LeadsBody ctx={BYTEFORCE_CTX} exportCompanies={exportCompanies} />;
+    return (
+      <LeadsBody ctx={BYTEFORCE_CTX} exportCompanies={exportCompanies} importCompany={importCompany} />
+    );
   }
 
   /* ADR-051 + ADR-067 — under ByteForce the company itself proves
@@ -52,6 +61,11 @@ export default async function BsLeadsPage({
   if (role !== "bsystems_admin") redirect(`${crmHomeFor(company, role)}${crmQuery(company)}`);
 
   return (
-    <BsLeadsBody ctx={BSYSTEMS_SURFACE} params={params} exportCompanies={exportCompanies} />
+    <BsLeadsBody
+      ctx={BSYSTEMS_SURFACE}
+      params={params}
+      exportCompanies={exportCompanies}
+      importCompany={importCompany}
+    />
   );
 }

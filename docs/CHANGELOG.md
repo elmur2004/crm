@@ -2370,3 +2370,69 @@ Two side effects of "one step, your own" that are worth having in mind rather th
 - Touching a lead mid-session also quiets the accounting buttons, for the same reason.
 
 Both are the buttons going *quiet*, never the buttons doing something wrong.
+
+## 25 October 2026 — Dark mode, importing leads from Excel, and the Home's numbers fixed
+
+You asked for a dark mode for the whole system, and for an Import leads button that gives you the template or does the import, tested and pushed together. Both are in. So are four fixes to the numbers on the Home page, which you said to ship in the same push. The new dashboard design is **not** in this update; it's waiting for you locally.
+
+### Dark mode
+
+- **A three-way switch: System, Light, Dark.** It's in the header of each app and on the sign-in page.
+- **System is the default.** The app follows your phone or computer, so if your device is set to dark, the app opens dark.
+- **It remembers your choice on that device.** It's a setting of the browser, not of your account, so another phone keeps its own.
+- **No flash.** The page arrives already in the right colours.
+- **Printing is always light.** Statements and documents print exactly as they did before, even from a phone in dark mode.
+- **Light mode didn't change.** It was compared with the version before, value by value, nearly 2.5 million checks, and not one differs.
+- **The brands still look like themselves.** ByteForce's orange buttons carry dark text in dark mode, because white on that orange is too hard to read. The ByteForce logo sits on a light plate rather than being recoloured. B-Systems goes dark on its own Indigo Deep, and the pink is never used as a background.
+- **The phone's browser bar goes dark too**, but only in dark mode. In light, nothing changes.
+
+### Import leads from Excel
+
+On each company's **Leads** page there's now an **Import leads** button with two choices: **Download template** and **Import leads**.
+
+**The template.** One row per lead. Required: Name, Number, Type, and Company (for B-Systems). Optional: Email, Position, Industry, Requirements, Description and Created date. Type has a dropdown. There are instructions in English and in Arabic. The first row is an example; if you leave it in, it's skipped. Each company has its own template, and the other company's is refused, so a ByteForce file can't land in B-Systems by mistake.
+
+**Leading zeros survive.** The template formats the Number column as text, so Excel won't drop the 0. If Excel has already dropped it, the system puts it back only where that's certain (an Egyptian mobile), and tells you which rows it fixed. Anything else is skipped with a note to format the column as Text. It never guesses a digit.
+
+**Duplicates: skipped, and you're told.** As you asked: if a number is already in that company, archived, won and lost included, the row is skipped, named in the report, and the lead you already have isn't touched. 010…, +20… and 0020… count as the same number. A number the *other* company has isn't a duplicate.
+
+**Every imported lead lands Unassigned.** On B-Systems they're under Owner: Unassigned; on ByteForce, in the Unassigned card.
+
+**Created date, if you have it.** Fill it in and the lead is dated to that day, so old leads sort into their real place. A future date, one before 2000 or a day that doesn't exist is skipped, not adjusted. The lead's History still shows when it was actually imported.
+
+**All or nothing.** If anything goes wrong part-way, nothing is imported and the screen says so. Importing the same file twice is safe: the second time, everything is a duplicate.
+
+**Limits:** 1,000 rows, 2 MB, `.xlsx` files only. A full 1,000-row file takes about four seconds.
+
+**Who can import:** ByteForce staff, and on B-Systems the admin only.
+
+**Worth knowing:**
+- An import can't be undone with the Undo button, and it clears any Undo you had waiting, including the accounting one.
+- The daily report and the lead's History say "Imported the lead from Excel".
+- Imported numbers are stored in one standard form, and the import is stricter about what counts as a phone number than the Add lead form is.
+
+### The Home's numbers
+
+- **B-Systems "Won value" was missing every win since the system was restructured.** B-Systems wins are recorded as deals with milestones, and the Home was adding up a different record that B-Systems no longer writes. Expect this number to **jump**. That's the fix, not a new error.
+- **B-Systems "To be collected" now means the money still owed on won deals**: the milestones not yet checked off. Its hint says "Open milestones on won deals". Expect it to change.
+- **Leads per stage now has every stage.** Negotiation and Postpone were missing, so a parked lead was counted in the total and in no box. B-Systems now shows 8 boxes and ByteForce 7, and they add up to Total leads.
+- **Numbers no longer flash to 0** and count back up when a page opens. They appear as they are, and only animate when a figure actually changes.
+
+ByteForce's money figures didn't change.
+
+### Questions for you
+
+**Dark mode**
+- Is "follow my device" the right default, or should everyone start in light?
+- Is the switch in the right places?
+
+**Import**
+- ByteForce's card is still called "Unassigned (Partner leads)", though imports land there too. Rename it?
+- Imports send no "needs an owner" notification for each lead, because a big file would flood everyone. OK?
+- On B-Systems, a lead you add by hand goes to the admin bucket, but an imported lead goes to Unassigned, as you asked. OK?
+- Data entry can add B-Systems leads by hand but can't import. Should they?
+- The ByteForce template also takes Company, Position, Industry and Requirements, which the ByteForce lead screen doesn't show. Keep them or drop them?
+
+**The Home**
+- Is "open milestones" what you want "To be collected" to mean for B-Systems? Other options: remove the tile, or the won value minus the milestones already checked off.
+- Archived won deals still drop out of Won value. Should their money count?

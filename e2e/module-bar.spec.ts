@@ -217,8 +217,14 @@ test("the sheet's switchers are tap-sized and legible on the light card", async 
      hidden below 820px, and the company switch has no header twin — it lives in
      the page body and is on screen at every width (pinned at 390px with the
      sheet shut, in the test above). Duplicating it into the sheet put two live,
-     identically-named "Switch company" groups on one phone screen. */
-  await expect(sheetSegs).toHaveCount(5);
+     identically-named "Switch company" groups on one phone screen.
+     Dark mode added the THEME toggle beside the language toggle (System /
+     Light / Dark), and the sheet carries it exactly as it carries the
+     language toggle — its header twin leaves at the same width — so the
+     count is 3 modules + 2 languages + 3 themes. It sits on the same
+     .switcher-seg idiom on purpose, so the size and legibility checks below
+     hold it to the same thumb rule. */
+  await expect(sheetSegs).toHaveCount(8);
   /* thumb-sized in BOTH axes — height alone left the ~35px-wide EN segment
      sub-thumb-size, so the width is pinned too */
   for (const box of await sheetSegs.evaluateAll((els) => els.map((el) => el.getBoundingClientRect()))) {

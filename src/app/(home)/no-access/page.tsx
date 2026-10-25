@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth/guards";
 import { landingFor } from "@/lib/auth/landing";
 import { LanguageToggle } from "@/components/shared/LanguageToggle";
+import { ThemeToggle } from "@/components/shared/ThemeToggle";
 import { tFor } from "@/lib/i18n/core";
 import { getLocale } from "@/lib/i18n/server";
 import { noAccess as msgs } from "@/lib/i18n/dict/auth";
@@ -49,8 +50,9 @@ export default async function NoAccessPage({
             pinned to the left of a very wide screen. A utility class, not a new
             rule — nothing is added to any stylesheet. */}
         <div className="login-inner mx-auto">
-          <div className="mb-4">
+          <div className="mb-4 flex flex-wrap items-center gap-2">
             <LanguageToggle />
+            <ThemeToggle />
           </div>
           <p className="login-eyebrow">{t(msgs.eyebrow)}</p>
           <h1 className="login-title">{title}</h1>

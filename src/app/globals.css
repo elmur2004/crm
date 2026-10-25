@@ -49,6 +49,16 @@
   --color-brand-primary-tint-ink: var(--color-primary-tint-ink);
   --color-brand-secondary-tint: var(--color-secondary-tint);
   --color-brand-secondary-tint-ink: var(--color-secondary-tint-ink);
+  /* Dark-mode contract tokens (all three scopes; each LIGHT value is what its
+     consumer painted before, so mapping them changes nothing in light):
+     on-dark = text on --color-surface-dark / --gradient-hero; chrome /
+     on-chrome = the app header's ground and text; focus-ring = the
+     :focus-visible colour; border-control = an input boundary (3:1). */
+  --color-brand-on-dark: var(--color-on-dark);
+  --color-brand-chrome: var(--color-chrome);
+  --color-brand-on-chrome: var(--color-on-chrome);
+  --color-brand-focus-ring: var(--color-focus-ring);
+  --color-brand-border-control: var(--color-border-control);
   --color-stage-intake: var(--color-stage-intake);
   --color-stage-intake-accent: var(--color-stage-intake-accent);
   --color-stage-intake-chip: var(--color-stage-intake-chip);
@@ -146,8 +156,11 @@ body {
   font-synthesis: none; /* Lama Sans has 400/700 only — no faux weights (spec R5) */
 }
 
+/* --color-focus-ring is, in light, exactly the 45% primary mix this rule used
+   to write inline; in dark it is SOLID (the mix measured 2.03:1 / 2.87:1 on the
+   dark canvases — under the 3:1 a focus indicator needs). */
 :focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--color-primary) 45%, transparent);
+  outline: 2px solid var(--color-focus-ring);
   outline-offset: 2px;
 }
 

@@ -1,14 +1,13 @@
-import { z } from "zod";
 import { handleRoute, isDataEntry, requireRole } from "@/lib/auth/guards";
 import { bsRoleOf, bucketFor } from "@/lib/api/bsystems";
-import { createLead, createLeadSchema } from "@/lib/services/leads";
+import { createLead, createLeadSchemaFor } from "@/lib/services/leads";
 import { notifyAdminsOfEntry } from "@/lib/services/data-entry";
 
 /* founder: on B-Systems, the company name is MANDATORY at creation.
-   (ByteForce + partner-attributed routes keep the shared optional schema.) */
-const bsCreateLeadSchema = createLeadSchema.extend({
-  companyName: z.string().min(1, "Company name is required").max(200),
-});
+   (ByteForce + partner-attributed routes keep the shared optional schema.)
+   The schema lives in lib/crm/lead-create-schema.ts, unchanged, because the
+   Excel import holds every row to the very same rule. */
+const bsCreateLeadSchema = createLeadSchemaFor("bsystems");
 
 /* V2 §2.2 — role-aware creation: admins → admin bucket, agents/partners → their
    own bucket, sales → internal. ADR-051 adds data entry, which lands in the

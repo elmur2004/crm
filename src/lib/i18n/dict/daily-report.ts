@@ -90,6 +90,14 @@ export const dailyReport = {
     en: "Added the lead from a partner referral",
     ar: "أضاف العميل المحتمل من ترشيح شريك",
   },
+  /* leads_import — the same create, arriving in an Excel import. Its own
+     phrase rather than `addedTheLead`, because "added" claims he typed it in;
+     a five-hundred-row file is one act, and the report should say which. The
+     wordmark stays "Excel" in both languages (the WhatsApp rule in call.ts). */
+  importedTheLead: {
+    en: "Imported the lead from Excel",
+    ar: "استورد العميل المحتمل من ملف Excel",
+  },
   /* common.markNoAnswer — "Didn't answer" (his own example) */
   flaggedNoAnswer: { en: "Flagged didn't answer", ar: "سجّل عدم الرد" },
   /* common.clearNoAnswer — "Answered — clear flag" */
@@ -184,6 +192,7 @@ const IN_PLACE_BY_TRIGGER: Record<string, Msg> = {
 const BY_TRIGGER: Record<string, Msg> = {
   create: dailyReport.addedTheLead,
   "PP-5": dailyReport.addedFromPartner,
+  leads_import: dailyReport.importedTheLead,
   "B-RTC": dailyReport.markedReadyToClose,
   no_answer: dailyReport.flaggedNoAnswer,
   no_answer_cleared: dailyReport.clearedNoAnswer,

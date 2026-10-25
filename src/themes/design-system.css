@@ -23,14 +23,21 @@
 .u-ltr { direction: ltr; unicode-bidi: isolate; }
 
 /* ---------- 2.1 app shell / header ---------- */
+/* The header paints --color-chrome / --color-on-chrome (dark-mode contract).
+   In LIGHT those equal what it painted before in every scope — surface-card /
+   ink generically, Systems Indigo / white in B-Systems — so light is
+   unchanged. In DARK the B-Systems header stays Systems Indigo (the brand's
+   60% anchor) instead of following --color-primary, which turns Lavender
+   there; every on-primary mix inside the indigo header below follows
+   on-chrome for the same reason. */
 .app-header {
   display: flex; align-items: center; gap: 22px; padding-inline: 22px; height: 62px;
   border-bottom: 1px solid var(--color-border);
-  background: var(--color-surface-card); color: var(--color-ink);
+  background: var(--color-chrome); color: var(--color-on-chrome);
 }
 [data-brand="bsystems"] .app-header {
-  background: var(--color-primary); color: var(--color-on-primary);
-  border-bottom: 1px solid color-mix(in srgb, var(--color-on-primary) 12%, transparent);
+  background: var(--color-chrome); color: var(--color-on-chrome);
+  border-bottom: 1px solid color-mix(in srgb, var(--color-on-chrome) 12%, transparent);
 }
 /* agents/partners keep the deep-navy portal identity (spec R8) */
 [data-brand="bsystems"] .app-header[data-shell="external"] { background: var(--color-surface-dark); }
@@ -49,7 +56,7 @@
 .logo-b {
   width: 28px; height: 28px; border-radius: 9px; display: grid; place-items: center; flex: none;
   background: var(--gradient-hero); /* compact mark — sanctioned gradient use */
-  font: 800 14px var(--font-display); color: var(--color-on-primary);
+  font: 800 14px var(--font-display); color: var(--color-on-dark); /* on the gradient */
 }
 .wordmark { font: 700 16px var(--font-display); letter-spacing: -.02em; color: inherit; }
 
@@ -73,7 +80,7 @@
 .nav-scroll--end { inset-inline-end: -4px; }
 .nav-scroll:hover { background: var(--color-primary-tint); color: var(--color-primary); }
 [data-brand="bsystems"] .app-header .nav-scroll:hover {
-  background: color-mix(in srgb, var(--color-on-primary) 14%, transparent); color: var(--color-on-primary);
+  background: color-mix(in srgb, var(--color-on-chrome) 14%, transparent); color: var(--color-on-chrome);
 }
 .nav-strip[data-fade="start"] .app-nav {
   -webkit-mask-image: linear-gradient(to right, transparent, #000 34px);
@@ -104,7 +111,7 @@
   place-items: center;
 }
 .nav-burger:hover { background: var(--color-primary-tint); }
-[data-brand="bsystems"] .app-header .nav-burger:hover { background: color-mix(in srgb, var(--color-on-primary) 14%, transparent); }
+[data-brand="bsystems"] .app-header .nav-burger:hover { background: color-mix(in srgb, var(--color-on-chrome) 14%, transparent); }
 .nav-sheet-backdrop { position: fixed; inset: 0; top: 54px; z-index: 55; background: color-mix(in srgb, var(--color-surface-dark) 35%, transparent); }
 .nav-sheet {
   position: fixed; inset-inline: 0; top: 54px; z-index: 56; max-height: calc(100vh - 54px); overflow-y: auto;
@@ -139,9 +146,9 @@
   font: 500 13px var(--font-body); color: var(--color-muted); cursor: pointer; white-space: nowrap;
 }
 .nav-item[aria-current] { font-weight: 600; background: var(--color-primary-tint); color: var(--color-primary); }
-[data-brand="bsystems"] .app-header .nav-item { color: color-mix(in srgb, var(--color-on-primary) 72%, transparent); }
+[data-brand="bsystems"] .app-header .nav-item { color: color-mix(in srgb, var(--color-on-chrome) 72%, transparent); }
 [data-brand="bsystems"] .app-header .nav-item[aria-current] {
-  background: color-mix(in srgb, var(--color-on-primary) 14%, transparent); color: var(--color-on-primary);
+  background: color-mix(in srgb, var(--color-on-chrome) 14%, transparent); color: var(--color-on-chrome);
 }
 
 /* Entity switcher — dual-entity users only */
@@ -150,16 +157,16 @@
   background: var(--color-surface); border: 1px solid var(--color-border);
 }
 [data-brand="bsystems"] .app-header .switcher {
-  background: color-mix(in srgb, var(--color-on-primary) 12%, transparent);
-  border-color: color-mix(in srgb, var(--color-on-primary) 14%, transparent);
+  background: color-mix(in srgb, var(--color-on-chrome) 12%, transparent);
+  border-color: color-mix(in srgb, var(--color-on-chrome) 14%, transparent);
 }
 .switcher-seg {
   border: none; background: transparent; border-radius: 7px; padding: 6px 11px;
   font: 700 10.5px var(--font-mono); letter-spacing: .1em; color: var(--color-faint); cursor: pointer;
 }
-.switcher-seg[aria-current] { background: var(--color-primary); color: var(--color-on-primary); }
-[data-brand="bsystems"] .app-header .switcher-seg { color: color-mix(in srgb, var(--color-on-primary) 70%, transparent); }
-[data-brand="bsystems"] .app-header .switcher-seg[aria-current] { background: var(--color-surface-card); color: var(--color-primary); }
+.switcher-seg:is([aria-current], [aria-pressed="true"]) { background: var(--color-primary); color: var(--color-on-primary); }
+[data-brand="bsystems"] .app-header .switcher-seg { color: color-mix(in srgb, var(--color-on-chrome) 70%, transparent); }
+[data-brand="bsystems"] .app-header .switcher-seg:is([aria-current], [aria-pressed="true"]) { background: var(--color-surface-card); color: var(--color-primary); }
 
 /* The burger sheet is a light card in EVERY brand, but it lives INSIDE the
    header element — so the indigo-header overrides above used to bleed into it
@@ -179,9 +186,37 @@
   display: inline-grid;
   place-items: center;
 }
-.app-header .nav-sheet-extras .switcher-seg[aria-current] {
+.app-header .nav-sheet-extras .switcher-seg:is([aria-current], [aria-pressed="true"]) {
   background: var(--color-primary);
   color: var(--color-on-primary);
+}
+
+/* Dark mode's ThemeToggle (System · Light · Dark) — a sibling of the language
+   toggle on the same .switcher / .switcher-seg idiom, so every rule above
+   (brand header, burger sheet, 44px sheet targets) already applies to it. Its
+   segments are TOGGLE buttons, so the active one carries aria-pressed="true",
+   which the active-state rules above style exactly like aria-current. Only
+   what an icon beside a label needs is added here. */
+.theme-toggle .switcher-seg {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  text-transform: uppercase;
+}
+.theme-icon { flex: none; }
+/* the desktop header carries it compact: icons on screen, the words still the
+   accessible name (and the hover title) */
+.theme-toggle[data-compact] .switcher-seg { padding-inline: 8px; }
+/* the sheet's grid centring would stack the icon over its label */
+.app-header .nav-sheet-extras .theme-toggle .switcher-seg { display: inline-flex; }
+/* In the shells it follows the language toggle exactly: the header twin is a
+   .switcher, so the ≤600px rule above hides it, and the burger sheet carries
+   it at ≥44px (the sheet rules above). Measured before relying on that: shown
+   in the header across 601–820px, EN and AR, it adds no horizontal overflow.
+
+   The sign-in pages (/login, /no-access) have no sheet, so their two toggles
+   take the same thumb rule here, together — sizing only the theme toggle
+   left a 44px pill beside a 30px one. */
+@media (max-width: 820px), (pointer: coarse) {
+  .login-inner .switcher-seg { min-block-size: 44px; min-inline-size: 44px; }
 }
 
 /* ADR-060 — the MODULE BAR: how switching works on a phone. The header pill
@@ -262,14 +297,14 @@
 .app-header[data-shell="external"] .user-avatar { background: var(--color-accent); color: var(--color-on-accent); }
 .user-name { font: 600 12.5px var(--font-body); }
 .user-role { font: 400 10.5px var(--font-body); color: var(--color-faint); }
-[data-brand="bsystems"] .app-header .user-role { color: color-mix(in srgb, var(--color-on-primary) 60%, transparent); }
+[data-brand="bsystems"] .app-header .user-role { color: color-mix(in srgb, var(--color-on-chrome) 60%, transparent); }
 
 .bell {
   position: relative; width: 36px; height: 36px; border-radius: 7px; display: grid; place-items: center;
   background: transparent; border: none; color: inherit; cursor: pointer; flex: none;
 }
 .bell:hover { background: var(--color-primary-tint); }
-[data-brand="bsystems"] .app-header .bell:hover { background: color-mix(in srgb, var(--color-on-primary) 14%, transparent); }
+[data-brand="bsystems"] .app-header .bell:hover { background: color-mix(in srgb, var(--color-on-chrome) 14%, transparent); }
 .bell-count {
   position: absolute; top: 3px; inset-inline-end: 3px; min-width: 16px; height: 16px; padding: 0 4px;
   border-radius: 20px; display: grid; place-items: center;
@@ -737,7 +772,7 @@
 .owner-chip[data-owner-key="internal"] { background: var(--color-primary-tint); color: var(--color-primary-tint-ink); }
 .owner-chip[data-owner-key="agent"] { background: var(--color-stage-meeting-chip); color: var(--color-stage-meeting-chip-ink); }
 .owner-chip[data-owner-key="partner"] { background: var(--color-stage-won-chip); color: var(--color-stage-won-chip-ink); }
-.owner-chip[data-owner-key="admin"] { background: var(--color-surface-dark); color: var(--color-on-primary); }
+.owner-chip[data-owner-key="admin"] { background: var(--color-surface-dark); color: var(--color-on-dark); }
 .bcard-badge {
   display: inline-block; margin-bottom: 7px; font: 500 9.5px var(--font-mono); letter-spacing: .12em; text-transform: uppercase;
   border-radius: 4px; padding: 3px 6px; background: var(--color-secondary-tint); color: var(--color-secondary-tint-ink);
@@ -753,8 +788,11 @@
 .field { display: flex; flex-direction: column; gap: 7px; }
 .field--wide { grid-column: span 2; }
 .field-label { font: 600 11.5px var(--font-body); color: var(--color-ink); }
+/* --color-border-control: = --color-border in light (unchanged); in dark the
+   decorative border measures 1.4-1.6:1, so a control boundary takes its own
+   >=3:1 token (WCAG 1.4.11). */
 .field-input {
-  background: var(--color-surface-card); border: 1px solid var(--color-border); border-radius: var(--radius-control);
+  background: var(--color-surface-card); border: 1px solid var(--color-border-control); border-radius: var(--radius-control);
   padding: 10px 12px; font: 400 13px var(--font-body); color: var(--color-ink); width: 100%; outline: none;
 }
 .field-input::placeholder { color: var(--color-muted); }
@@ -1094,6 +1132,11 @@ label:has(input[required]) .dropzone-title::after {
 .print-foot { padding: 16px 32px; border-top: 1px solid var(--color-border); display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; font: 500 9.5px var(--font-mono); letter-spacing: .12em; color: var(--color-muted); text-transform: uppercase; }
 
 @media print {
+  /* Paper is light whatever the screen wears. The dark tokens are scoped to
+     `@media screen`, so they never reach print; this pins what tokens do not
+     govern — the UA's own colours (canvas, default text, form controls) —
+     should anything ever set `color-scheme: dark` outside that scope. */
+  :root { color-scheme: light !important; }
   .app-header, .no-print, .bell-wrap, .page-actions { display: none !important; }
   .page, .page--detail { padding: 0; }
   body { background: #fff; }
@@ -1496,7 +1539,7 @@ label:has(input[required]) .dropzone-title::after {
   position: relative; overflow: hidden; border-radius: var(--radius-card);
   background-color: var(--color-primary); /* paints while the gradient parses */
   background-image: var(--gradient-hero);
-  color: var(--color-on-primary);
+  color: var(--color-on-dark);
   padding: 30px 32px;
   box-shadow: var(--shadow-card);
 }
@@ -1504,7 +1547,7 @@ label:has(input[required]) .dropzone-title::after {
 .acct-hero-body { position: relative; }
 .acct-hero-eyebrow {
   font: 700 11px/1 var(--font-mono); letter-spacing: .16em; text-transform: uppercase;
-  color: color-mix(in srgb, var(--color-on-primary) 85%, transparent);
+  color: color-mix(in srgb, var(--color-on-dark) 85%, transparent);
 }
 .acct-hero-value {
   margin: 8px 0 4px; font-family: var(--font-display); font-weight: 700;
@@ -1758,5 +1801,128 @@ label:has(input[required]) .dropzone-title::after {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+}
+
+/* ============================================================================
+   DARK THEME — the component layer.
+   Founder: "create an entire dark mode for the entire system".
+
+   The token files (branding/*, themes/neutral.css) turn every colour; what is
+   left here is only what a token cannot say on its own — places where the
+   LIGHT design leans on a light page: a shadow as the only elevation cue, a
+   pill that inverts on the indigo header, a raster logo drawn for paper.
+
+   THE LIGHT THEME IS UNTOUCHED. Every rule below is reached only through a
+   POSITIVE data-theme match (never :not([data-theme="light"])), so a document
+   in light — and the landing pages, which carry no data-theme at all — can
+   never match one; and every rule sits inside `@media screen`, so a printed
+   statement is light whatever the screen wears (the token blocks' contract,
+   swept by src/lib/theme/theme-stamp.sweep.test.ts).
+
+   TWO BLOCKS, ONE TEXT: "dark" below, and "system" under a dark OS after it.
+   They must stay identical except for that one word — enforced by
+   src/lib/theme/dark-components.test.ts. Tokens only, no literal colour (the
+   same test).
+
+   data-brand sits on <html> in the CRM and on an inner wrapper in the
+   accounting / vault modules (ADR-054), so a brand-specific rule names both
+   shapes, exactly as the token blocks do.
+   ========================================================================== */
+@media screen {
+  /* THE INDIGO HEADER'S ACTIVE PILL. Light inverts it: a white (card) pill with
+     indigo (primary) text. In dark the card is #1F1F50 on a #1D267D header — a
+     pill nobody can see — so it takes the dark theme's own action pair,
+     Lavender / Indigo Deep (9.72:1), the same pair the page's company switch
+     wears. The burger sheet's segments resolve to the same pair, as before. */
+  html[data-theme="dark"][data-brand="bsystems"] .app-header .switcher-seg:is([aria-current], [aria-pressed="true"]),
+  html[data-theme="dark"] [data-brand="bsystems"] .app-header .switcher-seg:is([aria-current], [aria-pressed="true"]) {
+    background: var(--color-primary); color: var(--color-on-primary);
+  }
+
+  /* BOARD CARDS. Light elevates a card with a fixed 5% black shadow — on a dark
+     well that is invisible, so dark elevates by surface + hairline instead (the
+     card is a step LIGHTER than its well, edged by --color-board-card-border)
+     and drops the shadow. Hover, which light marks with a deeper shadow, marks
+     the edge: the control boundary token (>=3:1). */
+  html[data-theme="dark"] .bcard { box-shadow: none; }
+  html[data-theme="dark"] .bcard:hover { border-color: var(--color-border-control); }
+  /* THE DRAGGED CARD must still visibly lift: one step lighter again (the
+     tint), the column's own accent edge, the deep dark --shadow-lift, and
+     fully opaque — at light's .95 the cards it passes over read through it. */
+  html[data-theme="dark"] .bcard.bcard--lift {
+    background: var(--color-surface-tint);
+    border-color: var(--stage-bar, var(--color-primary));
+    box-shadow: var(--shadow-lift);
+    opacity: 1;
+  }
+
+  /* SCRIMS. Over a page that is already dark, light's 55% / 35% surface-dark
+     wash barely separates the dialog from the cards behind it (both are
+     --color-surface-card). Deeper scrims, and the dialog takes a hairline ring
+     (a shadow alone is no edge on black; box-shadow adds no layout). */
+  html[data-theme="dark"] .modal-overlay { background: color-mix(in srgb, var(--color-surface-dark) 78%, transparent); }
+  html[data-theme="dark"] .modal { box-shadow: var(--shadow-modal), 0 0 0 1px var(--color-border); }
+  html[data-theme="dark"] .nav-sheet-backdrop { background: color-mix(in srgb, var(--color-surface-dark) 70%, transparent); }
+
+  /* THE ACCOUNTING HERO. The B-Systems signature gradient opens on Indigo
+     Deep — which IS the dark canvas — so its top corner dissolved into the
+     page. A hairline ring outside the box restores the edge. Its colour layer
+     (only ever seen at the anti-aliased corners) drops primary, which is
+     Lavender in dark, for the scrim colour the gradient opens on. */
+  html[data-theme="dark"] .acct-hero {
+    box-shadow: var(--shadow-card), 0 0 0 1px var(--color-border);
+    background-color: var(--color-surface-dark); /* under the gradient: primary is Lavender here */
+  }
+
+  /* A LOCKED MILESTONE is recessed with opacity, which light can afford and
+     dark cannot: at .72 the muted ink on the dark card measured 4.42:1. */
+  html[data-theme="dark"] .ms-row--locked { opacity: .85; }
+
+  /* THE BYTEFORCE LOGO. The horizontal lockup is a raster drawn for a light
+     surface — Royal Violet wordmark, orange frame, a near-black "BY TELLING
+     FORCE" line on transparency. On Ink the line vanishes and the violet sinks
+     (2.07:1). The brand book forbids recolouring it or giving it effects, so
+     it is not filtered: it is shown, unaltered, on a light plate — the inverse
+     surface (--color-toast-surface, the M3 inverse-surface role: light in every
+     dark scope) — with the house control radius and a little air. Content-box
+     so the plate grows around the logo instead of shrinking it. */
+  html[data-theme="dark"] .brand-logo--plate {
+    box-sizing: content-box;
+    padding: 4px 7px;
+    border-radius: var(--radius-control);
+    background: var(--color-toast-surface);
+  }
+}
+
+/* "system" + a dark OS — the SAME rules as the block above, verbatim but for
+   the theme word (comments aside). src/lib/theme/dark-components.test.ts
+   compares the two. */
+@media screen and (prefers-color-scheme: dark) {
+  html[data-theme="system"][data-brand="bsystems"] .app-header .switcher-seg:is([aria-current], [aria-pressed="true"]),
+  html[data-theme="system"] [data-brand="bsystems"] .app-header .switcher-seg:is([aria-current], [aria-pressed="true"]) {
+    background: var(--color-primary); color: var(--color-on-primary);
+  }
+  html[data-theme="system"] .bcard { box-shadow: none; }
+  html[data-theme="system"] .bcard:hover { border-color: var(--color-border-control); }
+  html[data-theme="system"] .bcard.bcard--lift {
+    background: var(--color-surface-tint);
+    border-color: var(--stage-bar, var(--color-primary));
+    box-shadow: var(--shadow-lift);
+    opacity: 1;
+  }
+  html[data-theme="system"] .modal-overlay { background: color-mix(in srgb, var(--color-surface-dark) 78%, transparent); }
+  html[data-theme="system"] .modal { box-shadow: var(--shadow-modal), 0 0 0 1px var(--color-border); }
+  html[data-theme="system"] .nav-sheet-backdrop { background: color-mix(in srgb, var(--color-surface-dark) 70%, transparent); }
+  html[data-theme="system"] .acct-hero {
+    box-shadow: var(--shadow-card), 0 0 0 1px var(--color-border);
+    background-color: var(--color-surface-dark);
+  }
+  html[data-theme="system"] .ms-row--locked { opacity: .85; }
+  html[data-theme="system"] .brand-logo--plate {
+    box-sizing: content-box;
+    padding: 4px 7px;
+    border-radius: var(--radius-control);
+    background: var(--color-toast-surface);
   }
 }

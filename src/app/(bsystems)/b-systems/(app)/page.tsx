@@ -63,14 +63,14 @@ export default async function BSystemsHomePage({
   const d = home.base;
   const maxCount = Math.max(1, ...Object.values(home.externalPipeline));
 
-  const stageCells: Array<{ id: string; label: string; value: number }> = [
-    { id: "new", label: t(m.newNotActioned), value: d.leadsPerStage["new"] ?? 0 },
-    { id: "following_up", label: stageLabel(locale, "following_up"), value: d.leadsPerStage["following_up"] ?? 0 },
-    { id: "meeting_setting", label: stageLabel(locale, "meeting_setting"), value: d.leadsPerStage["meeting_setting"] ?? 0 },
-    { id: "sending_proposal", label: stageLabel(locale, "sending_proposal"), value: d.leadsPerStage["sending_proposal"] ?? 0 },
-    { id: "won", label: stageLabel(locale, "won"), value: d.wonCount },
-    { id: "lost", label: stageLabel(locale, "lost"), value: d.lostCount },
-  ];
+  /* ADR-089 — one cell per stage the company's pipeline HAS, read from its
+     config; a hand-written list here once left Negotiation and Postpone out,
+     so the cells did not add up to Total leads. */
+  const stageCells = Object.entries(d.leadsPerStage).map(([id, value]) => ({
+    id,
+    label: id === "new" ? t(m.newNotActioned) : stageLabel(locale, id),
+    value,
+  }));
 
   const today = new Date().toLocaleDateString(locale === "ar" ? "ar-EG" : "en-EG", {
     weekday: "long",
@@ -96,7 +96,7 @@ export default async function BSystemsHomePage({
         <StatCard label={t(m.totalLeads)} value={String(d.totalLeads)} />
         <StatCard label={t(m.pipelineValue)} value={formatEGP(d.pipelineValue)} hint={t(m.activeStagesOnly)} />
         <StatCard label={t(m.wonValue)} value={formatEGP(d.wonValue)} />
-        <StatCard label={t(m.toBeCollected)} value={formatEGP(d.toBeCollected)} hint={t(m.acrossAllClients)} />
+        <StatCard label={t(m.toBeCollected)} value={formatEGP(d.toBeCollected)} hint={t(m.openMilestones)} />
       </div>
       <div className="card card--flush0">
         <div className="card-head">

@@ -38,6 +38,7 @@ import { StatCard } from "@/components/shared/StatCard";
 import { AnimatedValue } from "@/components/shared/AnimatedValue";
 import { StageBadge } from "@/components/shared/StageBadge";
 import { LeadsExportButtons } from "@/components/shared/LeadsExportButtons";
+import { LeadsImportMenu } from "@/components/shared/LeadsImportMenu";
 import { NoAnswerBadge } from "@/components/shared/NoAnswerBadge";
 import { stageKey } from "@/components/bsystems/stageColors";
 import { AddLeadForm, AddRepForm, ClientEditForm } from "./forms";
@@ -96,14 +97,14 @@ export async function DashboardBody({ ctx }: { ctx: InternalAppCtx }) {
   const locale = await getLocale();
   const t = tFor(locale);
   const d = await internalDashboard(ctx.brand);
-  const stageCells: Array<{ key: string; label: string; value: string }> = [
-    { key: "intake", label: t(dash.newNotActioned), value: String(d.leadsPerStage["new"] ?? 0) },
-    { key: "following", label: stageLabel(locale, "following_up"), value: String(d.leadsPerStage["following_up"] ?? 0) },
-    { key: "meeting", label: stageLabel(locale, "meeting_setting"), value: String(d.leadsPerStage["meeting_setting"] ?? 0) },
-    { key: "proposal", label: stageLabel(locale, "sending_proposal"), value: String(d.leadsPerStage["sending_proposal"] ?? 0) },
-    { key: "won", label: stageLabel(locale, "won"), value: String(d.wonCount) },
-    { key: "lost", label: stageLabel(locale, "lost"), value: String(d.lostCount) },
-  ];
+  /* ADR-089 — the cells follow the company's own stage list (Postpone was
+     missing from the hand-written one, so a parked lead counted in Total
+     leads and appeared in no cell). */
+  const stageCells = Object.entries(d.leadsPerStage).map(([stage, value]) => ({
+    key: stageKey(stage),
+    label: stage === "new" ? t(dash.newNotActioned) : stageLabel(locale, stage),
+    value: String(value),
+  }));
   return (
     <div className="space-y-6">
       <div className="page-head">
@@ -147,6 +148,7 @@ export async function DashboardBody({ ctx }: { ctx: InternalAppCtx }) {
 export async function LeadsBody({
   ctx,
   exportCompanies = [],
+  importCompany = null,
 }: {
   ctx: InternalAppCtx;
   /* ADR-083 — the companies whose export button this account is shown. Decided
@@ -154,6 +156,9 @@ export async function LeadsBody({
      body cannot see a session, and the one thing this prop must never become is
      a default that renders a button for everybody. Hence `[]`. */
   exportCompanies?: CrmCompany[];
+  /* The Excel import's ONE button, for this page's company — decided by the
+     PAGE (`canImportLeads`), never here. Defaults to none. */
+  importCompany?: CrmCompany | null;
 }) {
   const locale = await getLocale();
   const t = tFor(locale);
@@ -171,6 +176,13 @@ export async function LeadsBody({
         </div>
         <div className="page-actions">
           <LeadsExportButtons companies={exportCompanies} />
+          {importCompany ? (
+            <LeadsImportMenu
+              company={importCompany}
+              /* no sales rep = the Unassigned card's own list */
+              unassignedHref={`${ctx.basePath}/leads/rep/unassigned${ctx.query}`}
+            />
+          ) : null}
           <AddRepForm apiBase={ctx.apiBase} />
         </div>
       </div>

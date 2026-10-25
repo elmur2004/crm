@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ImpersonationBar } from "@/components/shared/ImpersonationBar";
 import { EntitySwitch } from "@/components/shared/EntitySwitch";
 import { LanguageToggle } from "@/components/shared/LanguageToggle";
+import { ThemeToggle } from "@/components/shared/ThemeToggle";
 import { ModuleBrandScope, ModuleLogo } from "@/components/shared/ModuleBrandScope";
 import { UndoControl } from "@/components/shared/UndoControl";
 import { AcctModuleNav } from "@/components/accounting/AcctModuleNav";
@@ -56,6 +57,7 @@ export default async function AccountingShellLayout({
           extras={
             <>
               <LanguageToggle />
+              <ThemeToggle />
               <EntitySwitch user={user} current="accounting" />
               <form action={logout.bind(null, "/login")}>
                 <button type="submit" className="nav-item">
@@ -67,6 +69,7 @@ export default async function AccountingShellLayout({
         />
         <div className="user">
           <LanguageToggle />
+          <ThemeToggle compact />
           <EntitySwitch user={user} current="accounting" />
           <span className="user-avatar" aria-hidden>
             {initials}

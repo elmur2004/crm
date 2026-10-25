@@ -8524,3 +8524,288 @@ Before this change every accounting delete confirmation read *"Delete this recor
   1. **A write in one company's books quiets the other company's buttons.** There is one pair of buttons and one chronological history, so after a B-Systems write the last thing he did *is* a B-Systems thing, and offering the older ByteForce inverse would offer something older than his last action — which ADR-045 forbids. The company filter remains the safety wall (an inverse can never be *applied* from the wrong company's view). Flagged in case he expected two independent stacks.
   2. **A non-undoable CRM action also quiets the accounting buttons.** `invalidateUndo` was deliberately left unscoped, because its other caller replaces a whole company's books and a surviving inverse could restore an old row into new books with a fingerprint that still matched. Over-retiring makes a button go quiet; under-retiring is a money bug. Per-stack independence is a small change if he wants it.
   3. **The 10-minute window is inherited from ADR-045.** Money arguably deserves a shorter one, not a longer one.
+
+## ADR-087 — 2026-10-25 — DARK MODE FOR THE WHOLE SYSTEM: one attribute stamped by the server, "system" resolved in CSS, and print that stays light
+
+- Context: the founder, verbatim — *"create an entire dark mode for the entire system / also research a way to make the system more animated and more modern looking and have a better UI and UX in general / don't push anything until I approve here locally first"*. He reviewed it locally and then approved shipping it together with the leads import (ADR-088): *"after you finish it test it and them push it along with the dark version"*.
+
+  This ADR covers the dark mode. The "more animated and more modern looking" half of the same message is being answered by the dashboard redesign, which is **not in this push** and stays local for his approval (PROGRESS, 2026-10-25).
+
+- Decision: a three-value preference (System, Light, Dark), kept in a cookie with the locale cookie's exact shape, stamped on `<html>` by the server and resolved entirely in CSS. Dark is a second set of token values, not a second set of components. Print is always light. The light theme is unchanged, down to the computed value. Nothing touches the database.
+
+### 1. THE CONTRACT: ONE ATTRIBUTE, ON THE FIRST BYTE
+
+`<html data-theme="light|dark|system">`, stamped **server-side** by every route group's root layout from an httpOnly `theme` cookie. The first byte of the document already carries the theme, so the first paint cannot be the wrong one.
+
+- **"system" is the default, and it is resolved purely in CSS** by `@media (prefers-color-scheme: dark)`. No script decides it, so nothing can run late and flash.
+- **The cookie copies the locale cookie:** one-year max-age, `SameSite=Lax`, and **no `Secure` flag**, because the app is also reached over plain http on a LAN, where a Secure cookie would never be set.
+- **It is parsed tolerantly.** `parseTheme` (`src/lib/theme/core.ts`) treats the cookie as the user-controlled input it is. Absent, empty, junk, a non-string or a value from some future build all read as the default. It never throws and never stamps garbage into the attribute the CSS keys on.
+- **One writer.** The server action `setTheme` (`src/lib/theme/actions.ts`) is the only thing that sets the cookie. `ThemeToggle` (`src/components/shared/ThemeToggle.tsx`, three segments: System / Light / Dark) writes the attribute on `<html>` directly for an instant switch and calls the action, so the next server render agrees with what is on screen. `ThemeProvider` holds the value client-side.
+- **Nothing touches the database.** No migration, no column, and no database read on the stamping path.
+
+### 2. THE TOKENS: DARK IS A SECOND SET OF VALUES
+
+Dark blocks select `html[data-theme="dark"][data-brand=X], html[data-theme="dark"] [data-brand=X]` (the brand scope on `<html>` itself, or on an element inside it), plus the same pair under `html[data-theme="system"]` inside `@media (prefers-color-scheme: dark)`. All three scopes carry them: `branding/byteforce/tokens.css`, `branding/b-systems/tokens.css` and `src/themes/neutral.css`. `color-scheme: dark` is set with them so the browser's native controls follow.
+
+**Five new semantic tokens** are declared in all three scopes, so ADR-019's identical token contract still holds: `--color-on-dark`, `--color-chrome`, `--color-on-chrome`, `--color-focus-ring`, `--color-border-control`.
+
+### 3. PRINT IS ALWAYS LIGHT
+
+Everything dark sits inside `@media screen`. A statement or a document printed from a device in dark mode comes out exactly as it did before. `PrintLight.tsx` covers the print path, and the statement document page and the `api/files/[id]` route were changed for the same reason.
+
+### 4. THE PHONE'S BROWSER BAR
+
+`<meta name="theme-color">` comes from `themeViewport()`:
+
+| Theme | Meta emitted |
+| --- | --- |
+| light | **nothing**, exactly as before dark mode existed; the installed app keeps the manifest's colour |
+| dark | `#0B0F3D`, B-Systems Indigo Deep |
+| system | a media-qualified meta, so the dark bar appears only under a dark OS |
+
+`#0B0F3D` lives in `src/themes/theme-chrome.ts`. It is a sanctioned asset literal of the same kind as `manifest.ts`, needed because a meta tag cannot read a CSS variable. It is not a colour in a component.
+
+### 5. THE BRAND RULES HELD
+
+- **ByteForce orange `#F15C24` does not carry white text.** White on orange is 3.34:1 and fails; Ink on orange is 4.89:1. So in ByteForce dark, `on-primary` and `on-accent` are Ink.
+- **Logos are never recoloured.** In dark, the ByteForce logo sits on a light plate (`BrandLogo.tsx`). It is never inverted or tinted.
+- **The B-Systems dark canvas is Indigo Deep `#0B0F3D`.** Signal Pink is never a surface and never body text.
+
+### 6. THE LIGHT THEME DID NOT MOVE
+
+A change this wide puts the existing theme at risk, and nobody asked for that theme to change. A pixel and computed-style audit of the light theme compared **2,456,892 values and found 0 differences**. Separately, 188 dark screenshots were reviewed.
+
+### 7. TWO THINGS THE TESTS HAD TO KNOW
+
+- **The landing pages (local only) never stamp `data-theme`.** The sweep tests that guard this only apply when the landing folder exists (`existsSync`). A clean checkout without the landing work therefore passes instead of failing on a missing folder.
+- **`e2e/module-bar.spec.ts` now expects 8 where it expected 5**, because the theme toggle adds segments that spec counts. This was checked: the screen really has three more segments, and the assertion was not weakened.
+
+### 8. FILES
+
+`src/lib/theme/{core,actions,server}.ts` with `core.test.ts`, `dark-components.test.ts` and `theme-stamp.sweep.test.ts`; `src/lib/theme-tokens.test.ts`; `src/themes/theme-chrome.ts`; `src/components/shared/{ThemeProvider,ThemeToggle,PrintLight}.tsx`; the three token files, `design-system.css` and `globals.css`; every route-group root layout; `BrandLogo.tsx`; `dict/auth.ts` (the toggle's strings); the statement document page and `api/files/[id]` (the print and document paths).
+
+- Alternatives considered:
+  - **Light as the default.** Not taken: with "system", a person who never touches the toggle gets what their device already asks for. Flagged below, because some people will see the app dark the first time after this push without having chosen it.
+  - **Storing the choice on the account.** Not taken: a theme is a preference of the screen, not a business record, and the locale cookie set the precedent. The cost: the choice is per browser, not per account.
+  - **Resolving "system" in JavaScript.** Not taken: CSS answers it before any script runs, so it cannot flash.
+  - **White text on ByteForce orange in dark.** Rejected: at 3.34:1 it fails contrast.
+  - **Inverting or tinting the logos for dark.** Rejected: logos are never recoloured. The light plate shows them exactly as issued.
+  - **Dark print.** Rejected: statements and documents print as they always have.
+  - **A theme-color meta in light as well.** Rejected: emitting nothing in light keeps the light theme fully unchanged, browser bar included.
+
+- Resolves: one founder request (no SPEC §11 A-#). Keeps SPEC §4 and ADR-019: zero hardcoded colours or fonts in components, and one token contract in all three scopes, now five tokens larger. **No migration, no schema change, no permission change, no new dependency**; the theme layer is the project's own code.
+- Status: Accepted. **Needs founder confirmation (two):**
+  1. **The default is "system", which follows the phone or computer, rather than light.** Anyone whose device is set to dark will see the app dark the first time they open it after this push, without having chosen it. Changing the default to light is a one-line change.
+  2. **Where the toggle lives:** in each app's header and on the login page. Flagged in case he wants it somewhere else, or in only one place.
+
+## ADR-088 — 2026-10-25 — IMPORT LEADS FROM EXCEL: a template that keeps its zeros, every lead Unassigned, a duplicate skipped and named, and the whole file or nothing
+
+- Context: the founder, verbatim — *"add import lead button when I click on it it gives me the option to download the import template or import the leads actually / after you finish it test it and them push it along with the dark version"*. He answered two questions that shaped the build: imported leads land **Unassigned**, and a phone number that is already in the system is **skipped and reported**: *"Skip it and tell me"*.
+
+  This is ADR-083 in reverse. The export is a file for reading; this is the first file the system accepts that **creates** leads.
+
+- Decision: one "Import leads" menu on each company's Leads page with two items, **Download template** and **Import leads**. The template is named for its company. The whole file runs in one transaction, and every row is validated before anything is written. Every skip and every repair is reported by row, and every lead is created through the existing `createLead`.
+
+### 1. WHERE IT LIVES, AND THE WALL
+
+`LeadsImportMenu.tsx` sits on each company's Leads page. The routes are `/api/byteforce/leads/import`, `/api/b-systems/leads/import` and their `.../import/template` twins, four addresses in all, behind one shared handler, `src/lib/api/leads-import-route.ts`. The service is `src/lib/services/leads-import.ts`. The pure rules are in `src/lib/crm/leads-import.ts` and `leads-import-plan.ts`, and the strings are in `dict/leads-import.ts`. The create rules moved to `src/lib/crm/lead-create-schema.ts` and are re-exported from `leads.ts` unchanged.
+
+**The wall is the intersection of two existing lists; no new list was written.** An account may import into a company only if it can open that company's Leads page (ADR-083's check) **and** is on that company's create-lead list:
+
+- ByteForce: `byteforce_staff`;
+- B-Systems: `bsystems_admin` only.
+
+This is tested across all 64 role combinations × both companies. The create lists were checked against the real create routes for every role, so an import can never let someone create leads they could not create by hand.
+
+The intersection also means **data entry (ADR-051) can add B-Systems leads by hand but cannot import them**: `bsystems_data_entry` is on the create list but cannot open the Leads page, where the menu lives. Flagged below.
+
+### 2. THE TEMPLATE
+
+- **The sheet is named after its company**: "B-Systems leads" / "ByteForce leads". The other company's template is refused by name, so a ByteForce file cannot land in B-Systems through a wrong click.
+- **Columns:** `Name*`, `Number*`, `Type*`, `Email`, `Company*` (optional for ByteForce), `Position`, `Industry`, `Requirements`, `Description`, `Created date`.
+- **The ByteForce template takes the same column set**, ADR-083's shared one, so it also accepts Company, Position, Industry and Requirements. ByteForce's lead detail and Add-lead form do not show or edit those four fields; they appear on the call sheet and in the export. Flagged below: keep them or trim them.
+- **Every typing cell is formatted as Text, rows 2–1002, and the Number column most of all.** This is ADR-083's leading-zero problem in reverse: if the template let Excel read `01012345678` as a number, the zero would be gone before the file was ever saved.
+- **Type has a dropdown** of the five types. The reader also accepts the internal keys and the Arabic labels.
+- **Row 2 is a marked example** ("EXAMPLE —", number 01000000000) and is skipped if it is left in.
+- **Instructions sheets in English and in Arabic (RTL).**
+- **Headers:** a missing required header, an unknown header or a duplicate header refuses the file and names the columns. Column order does not matter.
+
+### 3. PHONE NUMBERS: REPAIR ONLY WHAT IS CERTAIN, NEVER GUESS A DIGIT
+
+Every number goes through the existing `normalizePhone` / `isValidPhone` after Arabic-Indic digits are converted. Where Excel has already turned a number into a numeric cell:
+
+| Numeric cell | Done |
+| --- | --- |
+| 10 digits starting 10 / 11 / 12 / 15 | the leading 0 is restored |
+| 12 digits starting 201[0125] | the + is restored |
+| anything else | the row is skipped with "format the column as Text" |
+
+No digit is ever guessed. Every repair is listed by row, so he can see exactly which numbers the system changed.
+
+**This is stricter than the Add-lead form.** The import requires 7–15 digits and stores the normalised number. The form accepts any 1–50 characters and stores them as typed.
+
+### 4. DUPLICATES: SKIPPED, NAMED, AND THE EXISTING LEAD NEVER TOUCHED
+
+Numbers are matched by `waDigits`, the WhatsApp rule: 010…, +20… and 0020… are one number, and landlines match digit for digit. The match runs against **all** of the company's leads, archived, won and lost included. A duplicate is skipped and reported, and the existing lead is never changed. Within the file, the first good row wins. This is his "Skip it and tell me", done literally.
+
+**Duplicates are per company.** A number the OTHER company already holds is not a duplicate, and the lead is created. Each company's lead list stays its own, as everywhere else in the product.
+
+### 5. CREATED DATE: OPTIONAL, AND NEVER CLAMPED
+
+- **Accepted formats:** DD/MM/YYYY or YYYY-MM-DD text (day first), Excel date cells, and General-format serials.
+- **Stored as the start of that Cairo day** (`startOfCairoDay`).
+- **Future dates, dates before 2000 and days that do not exist** are skipped with a reason. They are never clamped to a nearby date.
+- **The ActivityLog row and `updatedAt` keep the REAL import time** (SPEC §5.6). History says when the lead entered the system; the created date says when it actually came in.
+- **This backdates `Lead.createdAt`, which nothing anticipated.** SPEC §9 and §7.4 treat a lead's creation time as the moment it was created, and §11 is silent. The default chosen: the column is optional, a filled date backdates `createdAt` only, and the audit trail never moves. Flagged below.
+- **Known edge:** a Mac workbook saved on the 1904 date system would read numeric date cells about four years off. Text dates are unaffected.
+
+### 6. UNASSIGNED ON ARRIVAL
+
+An imported lead has no owner and no sales rep, and `createdByUserId` is the importer. Imported leads appear under **Owner: Unassigned** on B-Systems and in the **Unassigned** card on ByteForce. That card is SPEC §11 A-6's bucket and still reads "Unassigned (Partner leads)"; this is flagged below rather than renamed silently.
+
+**On B-Systems this overrides V2 §2.2.** V2 §2.2 puts a lead the admin adds into the `admin` bucket. An imported B-Systems lead instead lands `ownerType: internal` with no owner, which is the unassigned state A-6 describes. The override rests on the founder's explicit answer, "Unassigned". A lead the admin adds by hand still goes to the `admin` bucket, exactly as before. Flagged below.
+
+### 7. THE WHOLE FILE, OR NOTHING
+
+- **One transaction for the whole file.** All rows are validated first, so a bad row becomes a skip with a reason rather than a failure part-way through.
+- **One import per company at a time.** A transaction-scoped advisory lock on `leads_import:<company>` serialises concurrent imports into the same company, so two overlapping files are checked for duplicates one after the other, not side by side.
+- **Any unexpected failure rolls everything back**, and the screen says "nothing was imported". This was proven with an injected Postgres failure on row 4 of 4: zero leads and zero log rows.
+- **Re-running a file is harmless.** Every lead it already created is now a duplicate and is skipped.
+- **Limits:** 1000 rows, 2 MB, `.xlsx` only, and a 40 MB ceiling on the unzipped size. The ceiling is the zip-bomb guard, because the reader unpacks every entry into memory. 1000 rows take about 4.0 s locally.
+
+### 8. ONE CREATE PATH
+
+Every row goes through the existing `createLead`. It can now run inside the caller's transaction and takes three new options: an optional trigger, skip-undo, and a backdated `createdAt`. There is no second create path that could drift from the Add-lead form's rules.
+
+The trigger is `leads_import`. The daily-report phrase is "Imported the lead from Excel" / «استورد العميل المحتمل من ملف Excel», and the History pill reads "Imported from Excel".
+
+### 9. UNDO
+
+The import writes no per-lead undo entries, and it clears the importer's pending Undo. This is ADR-045's honesty rule: the button must never offer something older than the last thing that happened. Because `invalidateUndo` is unscoped (ADR-086, needs-confirmation item 2), an import also quiets the importer's accounting Undo/Redo pair.
+
+### 10. THE DEPENDENCY: ADR-083'S "IT NEVER SHIPS" NO LONGER HOLDS
+
+ADR-083 §2 says: *"`read-excel-file` is a DEV dependency only. It exists so the test can read the file back with a reader that is not the writer. It never ships."* **That line no longer holds.** The import reads the uploaded file on the server with `read-excel-file`, so `read-excel-file@^9.3.10` moved from `devDependencies` to `dependencies`. ADR-083 is not rewritten; this entry is the correction. The stack deviation ADR-083 recorded ("`write-excel-file` (runtime) and `read-excel-file` (dev)") now reads: both runtime.
+
+- **The lockfile change is only the flag.** The root dependency list changed, and so did the `dev` flag on `read-excel-file`, `saxen`, `unzipper-esm`, `worker-f` and `node-int64`. No version changed and no integrity hash changed.
+- **It still never reaches a browser.** It is imported at runtime only by `src/lib/services/leads-import.ts`, which only the import routes use.
+- **The template is written with `write-excel-file`**, ADR-083's library, which was already a runtime dependency.
+
+### 11. TESTS
+
+58 pure-rule tests, 19 template-and-reader tests, 20 integration tests (including the injected failure on row 4 of 4) and `e2e/leads-import.spec.ts` with 7 browser tests, all passed. Four mutation checks each went red and were restored byte for byte: removing the system-duplicate check failed 4, removing the in-file duplicate check failed 2, removing the leading-zero repair failed 3, and a template Number column not formatted as Text failed 1. Run 104 has the full figures.
+
+- Alternatives considered:
+  - **Assigning imported leads to the importer, or (B-Systems) to the `admin` bucket as V2 §2.2 does for a hand-added lead.** Not taken: the founder chose Unassigned.
+  - **Updating the existing lead on a duplicate.** Rejected: the founder chose "Skip it and tell me", and an import that silently changes a lead someone is working is the worse failure.
+  - **Committing the good rows and failing per row.** Rejected: one transaction. Validation first turns a bad row into a skip, and an unexpected failure leaves nothing half-imported.
+  - **Repairing any numeric phone cell.** Rejected: only the two shapes whose missing character is certain are repaired, and everything else is skipped.
+  - **Clamping an impossible or future date.** Rejected: such dates are skipped with a reason.
+  - **Accepting CSV.** Not taken: ADR-083 §1's reasons (the leading zero, the Arabic) apply in both directions.
+  - **A second create path for imports.** Rejected, §8.
+  - **An undo entry per imported lead.** Rejected, §9.
+  - **A "needs an owner" notification per imported lead.** Not sent: a big file would spam. Flagged below.
+
+- Resolves: one founder request. **No SPEC §11 A-# is resolved**; imported leads land in A-6's Unassigned state and A-6 itself is unchanged. **Overrides V2 §2.2** for imported B-Systems leads only (§6). **Corrects ADR-083 §2** on `read-excel-file` (dev → runtime). Backdating `createdAt` is a default chosen where SPEC §11 is silent (§5). Adds the `leads_import` trigger. **No migration, no schema change, no permission change**: the wall is the intersection of two existing lists.
+- Status: Accepted. **Needs founder confirmation (seven):**
+  1. **The ByteForce card still reads "Unassigned (Partner leads)"**, though imported leads land there too. Renaming it is a wording change he should make, not one to make for him.
+  2. **Imports send no per-lead "needs an owner" notification.** A file of several hundred leads would otherwise send several hundred notifications.
+  3. **Imported numbers are stored normalised and must have 7–15 digits.** The Add-lead form stores any 1–50 characters as typed. Two leads entered two ways can look different on screen, even though duplicate matching treats them the same.
+  4. **A filled Created date backdates `Lead.createdAt`**, which SPEC §9/§7.4 never anticipated and §11 does not cover. Backdated leads sort into their real dates (an imported lead dated last March sits with March, not at the top of the list), and they show **12:00 AM** in the export's Created column, because the stored instant is the start of that Cairo day. The History keeps the real import time.
+  5. **Imported B-Systems leads land Unassigned (`ownerType: internal`, no owner), overriding V2 §2.2**, under which a lead the admin adds goes to the `admin` bucket. This follows his answer, "Unassigned", and A-6's unassigned state.
+  6. **Data entry (ADR-051) can add B-Systems leads by hand but cannot import them**, because it has no Leads page. Widening that would mean giving data entry the Leads page, or a second door to the import.
+  7. **The ByteForce template accepts Company, Position, Industry and Requirements**, ADR-083's shared column set, though ByteForce's lead detail and Add-lead form do not show or edit them. They are visible on the call sheet and in the export. Keep or trim.
+
+## ADR-089 — 2026-10-25 — THE HOME'S NUMBERS: B-Systems money read from the records B-Systems actually writes, a cell for every stage, and no count-up from zero
+
+- Context: the founder, verbatim — *"we need to upgrade the dashboord and make sure that it works"*. An audit of the Home before any redesign found four wrong numbers, filed as three bugs. BUG-024 covers both B-Systems money tiles (Won value and To be collected), BUG-025 covers Leads per stage, and BUG-026 covers the count-up. Asked *"The four dashboard number bugs — ship the fixes with dark mode and import?"*, he chose *"Yes, ship them in this push"*.
+
+  **The new dashboard design is not part of this.** It stays local for his approval. This ADR fixes the numbers on the Home that exists today and changes no layout.
+
+- Decision: B-Systems money is read from `WonDeal` and its milestones, which are what a B-Systems win writes. Leads per stage is keyed by the pipeline's own stage list. A figure animates only when it changes, never on page load.
+
+### 1. B-SYSTEMS MONEY (BUG-024)
+
+`src/lib/services/metrics.ts` computed **Won value** as Σ `WonInfo.estimatedValue` and **To be collected** as Σ `Client.toBeCollected` for BOTH companies. But a B-Systems win (`create_won_deal`, V2 §4) writes a `WonDeal` and its milestones and never a `WonInfo`, and B-Systems Clients were dropped in V2. So every B-Systems win confirmed since V2 counted as **EGP 0** on its Home, and its To be collected stayed frozen at the legacy rows. The demo seed hid this, because it gives a B-Systems lead a ByteForce-style `WonInfo`. No test covered B-Systems money at all.
+
+**The decision was already on record, and the code had moved away from it.** ADR-012 names `WonDeal.estimatedValue` as the won record for portal deals and `WonInfo` for internal ones. Reading `WonInfo` for B-Systems went against ADR-012; this ADR puts the code back in line with it.
+
+**Which record holds a win is now a table**: `WON_RECORD: Record<Brand, "wonInfo" | "wonDeal">`. It is a table rather than a ternary for ADR-073's reason: the compiler then demands an answer for every company that exists.
+
+**Won value** is computed per won, non-archived lead:
+
+- **B-Systems:** `WonDeal.estimatedValue` ?? (legacy) `WonInfo.estimatedValue` ?? 0. A pre-V2 B-Systems win keeps its value instead of vanishing, and a lead with both records is counted once.
+- **ByteForce:** unchanged (`WonInfo`).
+
+Won value and Won count now describe the same set of leads.
+
+**To be collected (B-Systems)** is the sum of the milestones not yet completed on the company's won deals, archived deals included, because client money survives archiving (ADR-043). Any legacy B-Systems Client balance is added on top, so nothing the tile showed before silently disappears. The hint changed from "Across all clients", which named a Clients screen B-Systems does not have, to "Open milestones on won deals" / «المراحل غير المكتملة في الصفقات المكسوبة». **ByteForce To be collected is unchanged** (Σ `Client.toBeCollected`, SPEC §6.4 / ADR-024).
+
+**The legacy-Client part can only ever hold pre-V2 rows.** ADR-067 §9 says no B-Systems lead ever gets a Client, so the term cannot grow. It is also the one part of the figure the new hint does not mention. Flagged below.
+
+### 2. A CELL FOR EVERY STAGE (BUG-025)
+
+Both Homes hand-listed six stages. B-Systems left out Negotiation and Postpone, and ByteForce left out Postpone (ADR-072). A parked lead was counted in Total leads but appeared in no cell. `leadsPerStage` is now keyed by `configForBrand(brand).stages`, and both pages render one cell per key. Labels come from `stageLabel` ("new" keeps "New / not actioned") and colours from `stageKey`. **The cells now sum to Total leads**, and a stage added to a pipeline later gets its cell without anyone having to remember it.
+
+**Doc drift, recorded rather than hidden.** SPEC §6.5's "Leads per stage" row and DESIGN-BRIEF §4.1 both list six cells. The Home now shows one cell per configured stage: **B-Systems 8, ByteForce 7**. That follows SPEC §10's own T-11 (Postpone, ADR-072) and B-Systems' Negotiation stage. SPEC §6.5's row predates both and should be updated to say "one cell per stage of the company's pipeline". This entry does not edit SPEC.md.
+
+### 3. THE COUNT-UP FROM ZERO (BUG-026)
+
+`AnimatedValue` counted up from 0 on every mount. The server painted the real figure, the first animation frame replaced it with 0, and it climbed back over 700 ms, on every visit. A real change also restarted from 0. It now animates **only on change**:
+
+- the first frame is the server's figure, with no mount animation;
+- a later change eases from the number on screen to the new one (600 ms, ease-out cubic);
+- with reduced motion, it snaps.
+
+### 4. WHAT THE FOUNDER WILL SEE
+
+- **B-Systems "Won value" will jump**, because it now counts the wins it always missed. That jump is the fix, not a new error.
+- **B-Systems "To be collected" changes meaning**: it now shows the value of open milestones.
+- **More stage cells on both Homes**, and they add up to Total leads.
+- **Numbers no longer count up from zero** when a page opens.
+
+### 5. FOUND IN THE SAME AUDIT, NOT FIXED HERE, AND RECORDED AS OPEN
+
+These are labelled with the dashboard audit's own numbers. **They are not SPEC §11's A-5, A-6 or A-8.**
+
+- **Audit A5.** The B-Systems Won count still counts `stage = won`, while the Won Leads page lists `WonDeal` rows including archived ones, so the two can disagree.
+- **Audit A6.** ByteForce Won value reads `WonInfo`, while edits on the Clients screen write `Client`.
+- **Audit A8.** The Agents count includes pending, rejected and deactivated agents.
+- **The demo seed** still gives a B-Systems lead a `WonInfo`, the exact shape that hid BUG-024.
+
+Two code follow-ups from the review of this fix, also not done in this push:
+
+- **Hand-typed stage names.** `metrics.ts` and the two Home pages still write `"won"`, `"lost"` and `"new"` by hand instead of taking the config's stage names. That is the same habit that caused BUG-025, in a smaller place.
+- **The count-up ignores a minus sign.** `AnimatedValue`'s number regex does not read a leading minus. A negative ByteForce To be collected that crosses zero can therefore show the wrong sign mid-animation, though it settles on the correct figure.
+
+### 6. TESTS
+
+New: `src/lib/services/metrics.integration.test.ts`, with 9 tests:
+
+- a milestone-tab win is counted;
+- a pre-V2 `WonInfo` win is kept;
+- a lead with both records has one value;
+- open-milestone value falls 900k → 600k → 0 as milestones are checked;
+- a legacy Client balance is kept;
+- archiving drops value and count but keeps the open milestones;
+- no cross-company leak;
+- B-Systems has a cell for every stage, Negotiation and Postpone included, and the cells sum to Total;
+- ByteForce has Postpone and no Negotiation, and its cells sum to Total.
+
+Mutation check: mapping B-Systems back to `WonInfo` failed 6 of 9; restored, 9 passed. The related suites (leads, bsystems, company-scope integration, the datetime sweep) passed 70. **BUG-026 has no automated test**, which is recorded as a gap in Run 104.
+
+- Alternatives considered:
+  - **Read only `WonDeal` for B-Systems.** Rejected: pre-V2 B-Systems wins recorded in `WonInfo` would vanish from Won value.
+  - **Add `WonDeal` and `WonInfo` together.** Rejected: a lead holding both would count twice. One value per lead.
+  - **For B-Systems To be collected, remove the tile, or keep only the legacy rows.** Not taken. Open milestone value is the dashboard redesign's D6 recommendation; the other two remain open to the founder, below.
+  - **B-Systems To be collected = Won value − completed milestone value.** Not taken, but offered to the founder. It gives a different answer whenever a deal's milestones do not add up to its estimate (A-11 allows that, with a non-blocking warning only), or when a deal has no milestones yet. A deal with no milestones, for example, is owed its whole estimate under this formula, and nothing under the chosen one until its milestones are defined.
+  - **Count the money of archived won deals in Won value (the redesign's D7 recommendation).** Not changed here: ADR-043 is kept, and this push fixes numbers, not rules.
+  - **Add the two missing stages by hand.** Rejected: keying by the pipeline config means the next stage cannot go missing the same way.
+  - **Keep the count-up on page load.** Rejected: the load animation itself was the flash. The new design adds entrance motion to bars and cards instead.
+
+- Resolves: no SPEC §11 A-#. ByteForce's To be collected keeps A-1's definition. B-Systems' gets a new one because the Client card that A-1 assumes no longer exists for B-Systems after V2 (ADR-067 §9). Restores ADR-012's won record for B-Systems. Keeps ADR-043. Departs from SPEC §6.5's six-cell list in favour of SPEC §10's stage set (§2, doc drift noted). Fixes BUG-024, BUG-025 and BUG-026. **No migration, no schema change, no permission change.**
+- Status: Accepted. **Needs founder confirmation (four):**
+  1. **B-Systems "To be collected" now means open milestone value**, the redesign's D6 recommendation, plus any pre-V2 Client balance, which the hint does not mention. The alternatives are to remove the tile under B-Systems, to keep only the legacy Client rows, or **Won value − completed milestone value**. That last one differs when milestones do not sum to the estimate (A-11) or a deal has no milestones yet.
+  2. **Legacy B-Systems `WonInfo` wins still count** in Won value, where no `WonDeal` exists for that lead.
+  3. **Archived won deals still drop out of Won value** (ADR-043 kept). The redesign's D7 recommends counting the money of archived deals; that was not changed here.
+  4. **The count-up no longer plays on page load.** The new dashboard design adds entrance motion to bars and cards instead.

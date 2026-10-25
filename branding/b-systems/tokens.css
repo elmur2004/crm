@@ -210,6 +210,24 @@
   --color-contact-made: #1B7A44;
   --color-contact-made-tint: #E6F4EC;
 
+  /* DARK-MODE CONTRACT tokens — ADDED for the dark theme (see the DARK THEME
+     section at the end of this file), in all three scopes. Each LIGHT value
+     is exactly what its consumer paints today, so a component that switches
+     to one renders byte-identically in light:
+     · on-dark: text on --color-surface-dark and on --gradient-hero (today
+       that is --color-on-primary: the accounting hero, the logo mark, the
+       admin owner chip, the external header). It stays white in dark;
+       on-primary does not (it becomes Indigo Deep on Lavender).
+     · chrome / on-chrome: the app header's ground and text (today the
+       B-Systems header paints primary / on-primary = Systems Indigo / white).
+     · focus-ring: today's :focus-visible colour (globals.css), verbatim.
+     · border-control: an input/select boundary (today --color-border). */
+  --color-on-dark: #FFFFFF;
+  --color-chrome: var(--bs-indigo);
+  --color-on-chrome: #FFFFFF;
+  --color-focus-ring: color-mix(in srgb, var(--color-primary) 45%, transparent);
+  --color-border-control: var(--color-border);
+
 }
 
 /* System mesh — texture over hero gradients ONLY (never behind body text,
@@ -228,3 +246,359 @@
    - Gradient only in hero components + the compact logo mark.
    - Raleway above, Inter below: >2 lines of text = Inter.
    - UI copy voice: clear, confident, structured, direct. */
+
+/* =========================================================================
+   DARK THEME — B-Systems
+   Founder: "create an entire dark mode for the entire system".
+
+   ADDED BLOCKS ONLY. Not one light value or selector above was changed; the
+   light theme renders exactly as before. (New tokens were ADDED to the light
+   block with values equal to what components already paint today.)
+
+   SELECTOR CONTRACT — src/lib/theme/core.ts; the app root layouts stamp it:
+       <html data-theme="light" | "dark" | "system">
+   The landing pages never set data-theme, so nothing here can match them.
+   data-brand sits on <html> AND is re-stamped on inner wrappers (ADR-054:
+   the accounting / vault modules re-brand per company), so every dark block
+   matches BOTH shapes:
+       html[data-theme="dark"][data-brand="bsystems"]
+       html[data-theme="dark"] [data-brand="bsystems"]
+   "system" follows the OS: the same declarations under prefers-color-scheme:
+   dark. The two blocks must stay IDENTICAL — src/lib/theme-tokens.test.ts
+   fails the build the moment they drift.
+
+   PRINT IS ALWAYS LIGHT. Every dark rule sits inside `@media screen`, so a
+   printed statement can never come out dark, whatever the toggle says.
+
+   color-scheme: dark turns the NATIVE controls dark too — scrollbars, inputs,
+   selects, date pickers, autofill — which tokens cannot reach.
+
+   THEME-INVARIANT, deliberately NOT redeclared so they can never drift:
+   --font-*, --radius-*, and --gradient-hero (the brand's fixed hero).
+
+   BRAND DECISIONS — the bsystems-brand rules bind dark mode too.
+   · CANVAS = Indigo Deep #0B0F3D, the brand's documented "dramatic dark
+     canvas". Cards and tints lift toward Process Lavender (10% / 16% / 22%
+     into Indigo Deep): elevation by lightness, in the brand's own air.
+   · PRIMARY -> PROCESS LAVENDER (deliberate). "Primary buttons = indigo"
+     cannot survive on this canvas: Systems Indigo on Indigo Deep measures
+     1.41:1 (1.19:1 on a card), so the button vanishes and indigo TEXT (the
+     active nav item, the active switcher segment) is unreadable. The brand's
+     own secondary, Process Lavender #D4ADFC, is promoted: 9.72:1 on the
+     canvas, with Indigo Deep text on it at 9.72:1. Secondary stays Lavender,
+     so primary and secondary share a hue in dark — on purpose.
+   · 60-28-12 in spirit: Indigo becomes the GROUND (canvas, the header chrome,
+     partner chips) — the 60. Lavender is the air AND the action — the 28.
+     Pink stays the cue — the 12.
+   · SIGNAL PINK is never a surface and never body text: it stays
+     --color-accent (CTAs, badges, single-word emphasis) and the Won cue. It
+     reads 5.84:1 on Indigo Deep; text ON pink is Indigo Deep (5.84:1),
+     because white on pink is 3.12:1.
+   · NEVER PURE #FFFFFF as a surface: text is #E8E6F5, headings Lavender Mist,
+     header text Paper. (--color-on-dark is #FFFFFF TEXT on the hero gradient,
+     exactly as light's on-primary is today — not a canvas.)
+   · THE HEADER stays Systems Indigo once it reads the new --color-chrome
+     (the brand's own "dark headers/heroes"): the 60% anchor in both themes.
+   · SUCCESS stays in-palette (R4: no green): it follows primary, as in light.
+
+   CONTRAST — COMPUTED (WCAG 2.1 relative luminance, sRGB), not asserted.
+   Text 4.5:1; UI boundaries / focus / state 3:1 (WCAG 1.4.11). Every PASS row
+   is recomputed from this file by src/lib/theme-tokens.test.ts.
+   | ink on surface                                           | #E8E6F5 | #0B0F3D | 14.84:1 | 4.5:1 | PASS |
+   | ink-soft on surface                                      | #E8E6F5 | #0B0F3D | 14.84:1 | 4.5:1 | PASS |
+   | muted on surface                                         | #ACB0CD | #0B0F3D |  8.56:1 | 4.5:1 | PASS |
+   | faint on surface                                         | #ACB0CD | #0B0F3D |  8.56:1 | 4.5:1 | PASS |
+   | heading on surface                                       | #E8D4FE | #0B0F3D | 13.29:1 | 4.5:1 | PASS |
+   | link on surface                                          | #D4ADFC | #0B0F3D |  9.72:1 | 4.5:1 | PASS |
+   | ink on surface-card                                      | #E8E6F5 | #1F1F50 | 12.46:1 | 4.5:1 | PASS |
+   | ink-soft on surface-card                                 | #E8E6F5 | #1F1F50 | 12.46:1 | 4.5:1 | PASS |
+   | muted on surface-card                                    | #ACB0CD | #1F1F50 |  7.19:1 | 4.5:1 | PASS |
+   | faint on surface-card                                    | #ACB0CD | #1F1F50 |  7.19:1 | 4.5:1 | PASS |
+   | heading on surface-card                                  | #E8D4FE | #1F1F50 | 11.15:1 | 4.5:1 | PASS |
+   | link on surface-card                                     | #D4ADFC | #1F1F50 |  8.16:1 | 4.5:1 | PASS |
+   | ink on surface-tint                                      | #E8E6F5 | #2B285C | 10.94:1 | 4.5:1 | PASS |
+   | ink-soft on surface-tint                                 | #E8E6F5 | #2B285C | 10.94:1 | 4.5:1 | PASS |
+   | muted on surface-tint                                    | #ACB0CD | #2B285C |  6.31:1 | 4.5:1 | PASS |
+   | faint on surface-tint                                    | #ACB0CD | #2B285C |  6.31:1 | 4.5:1 | PASS |
+   | heading on surface-tint                                  | #E8D4FE | #2B285C |  9.79:1 | 4.5:1 | PASS |
+   | link on surface-tint                                     | #D4ADFC | #2B285C |  7.16:1 | 4.5:1 | PASS |
+   | primary on surface                                       | #D4ADFC | #0B0F3D |  9.72:1 | 4.5:1 | PASS |
+   | primary on surface-card                                  | #D4ADFC | #1F1F50 |  8.16:1 | 4.5:1 | PASS |
+   | primary on primary-tint                                  | #D4ADFC | #373267 |  6.16:1 | 4.5:1 | PASS |
+   | accent on surface                                        | #FF4F87 | #0B0F3D |  5.84:1 | 4.5:1 | PASS |
+   | success on surface                                       | #D4ADFC | #0B0F3D |  9.72:1 | 4.5:1 | PASS |
+   | warning on surface                                       | #DFA820 | #0B0F3D |  8.49:1 | 4.5:1 | PASS |
+   | danger on surface                                        | #F07D71 | #0B0F3D |  6.85:1 | 4.5:1 | PASS |
+   | accent on surface-card                                   | #FF4F87 | #1F1F50 |  4.90:1 | 4.5:1 | PASS |
+   | success on surface-card                                  | #D4ADFC | #1F1F50 |  8.16:1 | 4.5:1 | PASS |
+   | warning on surface-card                                  | #DFA820 | #1F1F50 |  7.12:1 | 4.5:1 | PASS |
+   | danger on surface-card                                   | #F07D71 | #1F1F50 |  5.75:1 | 4.5:1 | PASS |
+   | danger on surface-tint                                   | #F07D71 | #2B285C |  5.05:1 | 4.5:1 | PASS |
+   | muted on primary-tint                                    | #ACB0CD | #373267 |  5.43:1 | 4.5:1 | PASS |
+   | ink on primary-tint                                      | #E8E6F5 | #373267 |  9.41:1 | 4.5:1 | PASS |
+   | on-primary on primary                                    | #0B0F3D | #D4ADFC |  9.72:1 | 4.5:1 | PASS |
+   | on-secondary on secondary                                | #0B0F3D | #D4ADFC |  9.72:1 | 4.5:1 | PASS |
+   | on-accent on accent                                      | #0B0F3D | #FF4F87 |  5.84:1 | 4.5:1 | PASS |
+   | on-danger on danger                                      | #1A191C | #F07D71 |  6.57:1 | 4.5:1 | PASS |
+   | on-success on success                                    | #0B0F3D | #D4ADFC |  9.72:1 | 4.5:1 | PASS |
+   | danger on danger-tint                                    | #F07D71 | #3A1C1D |  5.78:1 | 4.5:1 | PASS |
+   | danger-ink on danger-tint                                | #F9C0B8 | #3A1C1D |  9.72:1 | 4.5:1 | PASS |
+   | primary-tint-ink on primary-tint                         | #E8D4FE | #373267 |  8.42:1 | 4.5:1 | PASS |
+   | secondary-tint-ink on secondary-tint                     | #E8D4FE | #1D267D |  9.40:1 | 4.5:1 | PASS |
+   | secondary-tint-ink on surface-tint                       | #E8D4FE | #2B285C |  9.79:1 | 4.5:1 | PASS |
+   | toast-ink on toast-surface                               | #1A191C | #ECEAE5 | 14.56:1 | 4.5:1 | PASS |
+   | acct-positive on acct-positive-tint                      | #5CC188 | #173323 |  6.15:1 | 4.5:1 | PASS |
+   | acct-positive on surface-card                            | #5CC188 | #1F1F50 |  6.89:1 | 4.5:1 | PASS |
+   | contact-made on contact-made-tint                        | #5CC188 | #173323 |  6.15:1 | 4.5:1 | PASS |
+   | on-chrome on chrome                                      | #FAFAFD | #1D267D | 12.40:1 | 4.5:1 | PASS |
+   | on-dark on surface-dark                                  | #FFFFFF | #060821 | 19.73:1 | 4.5:1 | PASS |
+   | on-chrome on surface-dark                                | #FAFAFD | #060821 | 18.94:1 | 4.5:1 | PASS |
+   | border-control on surface                                | #7D69A9 | #0B0F3D |  3.88:1 | 3:1   | PASS |
+   | border-control on surface-card                           | #7D69A9 | #1F1F50 |  3.26:1 | 3:1   | PASS |
+   | focus-ring on surface                                    | #D4ADFC | #0B0F3D |  9.72:1 | 3:1   | PASS |
+   | focus-ring on surface-card                               | #D4ADFC | #1F1F50 |  8.16:1 | 3:1   | PASS |
+   | focus-ring on surface-tint                               | #D4ADFC | #2B285C |  7.16:1 | 3:1   | PASS |
+   | danger-border-strong on danger-tint                      | #C25A4F | #3A1C1D |  3.57:1 | 3:1   | PASS |
+   | stage-intake-chip-ink on stage-intake-chip               | #BCC0EF | #373971 |  6.00:1 | 4.5:1 | PASS |
+   | stage-intake-accent on stage-intake                      | #8E96E5 | #121432 |  6.52:1 | 4.5:1 | PASS |
+   | stage-intake-accent on surface-card                      | #8E96E5 | #1F1F50 |  5.58:1 | 4.5:1 | PASS |
+   | stage-following-chip-ink on stage-following-chip         | #CCBEE6 | #3D386D |  6.08:1 | 4.5:1 | PASS |
+   | stage-following-accent on stage-following                | #A890D4 | #141430 |  6.49:1 | 4.5:1 | PASS |
+   | stage-following-accent on surface-card                   | #A890D4 | #1F1F50 |  5.55:1 | 4.5:1 | PASS |
+   | stage-meeting-chip-ink on stage-meeting-chip             | #DEB6E3 | #44356C |  6.04:1 | 4.5:1 | PASS |
+   | stage-meeting-accent on stage-meeting                    | #C683CF | #161230 |  6.49:1 | 4.5:1 | PASS |
+   | stage-meeting-accent on surface-card                     | #C683CF | #1F1F50 |  5.51:1 | 4.5:1 | PASS |
+   | stage-proposal-chip-ink on stage-proposal-chip           | #E5B5D7 | #473468 |  6.09:1 | 4.5:1 | PASS |
+   | stage-proposal-accent on stage-proposal                  | #D380BB | #17122E |  6.52:1 | 4.5:1 | PASS |
+   | stage-proposal-accent on surface-card                    | #D380BB | #1F1F50 |  5.53:1 | 4.5:1 | PASS |
+   | stage-negotiation-chip-ink on stage-negotiation-chip     | #EEB0CD | #4A3364 |  6.02:1 | 4.5:1 | PASS |
+   | stage-negotiation-accent on stage-negotiation            | #E379AB | #19122D |  6.51:1 | 4.5:1 | PASS |
+   | stage-negotiation-accent on surface-card                 | #E379AB | #1F1F50 |  5.54:1 | 4.5:1 | PASS |
+   | stage-didnt-answer-chip-ink on stage-didnt-answer-chip   | #C6C1EA | #3B396F |  6.11:1 | 4.5:1 | PASS |
+   | stage-didnt-answer-accent on stage-didnt-answer          | #9C93DB | #131431 |  6.49:1 | 4.5:1 | PASS |
+   | stage-didnt-answer-accent on surface-card                | #9C93DB | #1F1F50 |  5.55:1 | 4.5:1 | PASS |
+   | stage-contacted-chip-ink on stage-contacted-chip         | #CDBDE3 | #3E386C |  6.03:1 | 4.5:1 | PASS |
+   | stage-contacted-accent on stage-contacted                | #AA8FCF | #141330 |  6.47:1 | 4.5:1 | PASS |
+   | stage-contacted-accent on surface-card                   | #AA8FCF | #1F1F50 |  5.50:1 | 4.5:1 | PASS |
+   | stage-qualified-chip-ink on stage-qualified-chip         | #F2AFCE | #4B3264 |  6.08:1 | 4.5:1 | PASS |
+   | stage-qualified-accent on stage-qualified                | #E874AA | #1A122D |  6.43:1 | 4.5:1 | PASS |
+   | stage-qualified-accent on surface-card                   | #E874AA | #1F1F50 |  5.48:1 | 4.5:1 | PASS |
+   | stage-waiting-chip-ink on stage-waiting-chip             | #E5B6D6 | #463567 |  6.10:1 | 4.5:1 | PASS |
+   | stage-waiting-accent on stage-waiting                    | #D281B9 | #17122E |  6.52:1 | 4.5:1 | PASS |
+   | stage-waiting-accent on surface-card                     | #D281B9 | #1F1F50 |  5.53:1 | 4.5:1 | PASS |
+   | stage-won-chip-ink on stage-won-chip                     | #FFA1BF | #502A5C |  6.08:1 | 4.5:1 | PASS |
+   | stage-won-accent on stage-won                            | #FF4F87 | #200F2C |  5.76:1 | 4.5:1 | PASS |
+   | stage-won-accent on surface-card                         | #FF4F87 | #1F1F50 |  4.90:1 | 4.5:1 | PASS |
+   | stage-postponed-chip-ink on stage-postponed-chip         | #E9C263 | #4B4024 |  6.01:1 | 4.5:1 | PASS |
+   | stage-postponed-accent on stage-postponed                | #DFA820 | #1A160B |  8.39:1 | 4.5:1 | PASS |
+   | stage-postponed-accent on surface-card                   | #DFA820 | #1F1F50 |  7.12:1 | 4.5:1 | PASS |
+   | stage-fallen-behind-chip-ink on stage-fallen-behind-chip | #F9C0B8 | #4A2426 |  8.44:1 | 4.5:1 | PASS |
+   | stage-fallen-behind-accent on stage-fallen-behind        | #F07D71 | #2A1718 |  6.38:1 | 4.5:1 | PASS |
+   | stage-fallen-behind-accent on surface-card               | #F07D71 | #1F1F50 |  5.75:1 | 4.5:1 | PASS |
+   | stage-lost-chip-ink on stage-lost-chip                   | #C1C3D2 | #393A66 |  6.09:1 | 4.5:1 | PASS |
+   | stage-lost-accent on stage-lost                          | #9699B3 | #12142D |  6.45:1 | 4.5:1 | PASS |
+   | stage-lost-accent on surface-card                        | #9699B3 | #1F1F50 |  5.48:1 | 4.5:1 | PASS |
+   | border on surface-card                                   | #3C366C | #1F1F50 |  1.41:1 |   -   | decorative |
+   | border on surface                                        | #3C366C | #0B0F3D |  1.68:1 |   -   | decorative |
+   | hairline on surface-card                                 | #2D2A5E | #1F1F50 |  1.17:1 |   -   | decorative |
+   ========================================================================= */
+@media screen {
+  html[data-theme="dark"][data-brand="bsystems"],
+  html[data-theme="dark"] [data-brand="bsystems"] {
+    color-scheme: dark;
+    /* PROMOTED: Process Lavender carries primary actions (indigo vanishes on
+       Indigo Deep) */
+    --color-primary: var(--bs-lavender);
+    /* Indigo Deep on Lavender */
+    --color-on-primary: var(--bs-indigodeep);
+    /* unchanged from light — the brand secondary is already a light hue */
+    --color-secondary: var(--bs-lavender);
+    /* unchanged from light */
+    --color-on-secondary: var(--bs-indigodeep);
+    /* Signal Pink stays the cue — CTAs/badges/single words ONLY */
+    --color-accent: var(--bs-pink);
+    /* Indigo Deep on pink: 5.84:1 (white is 3.12:1) */
+    --color-on-accent: var(--bs-indigodeep);
+    /* Lavender Mist: the brand's own pale, max-contrast heading */
+    --color-heading: var(--bs-lavendermist);
+    /* links = the action hue */
+    --color-link: var(--bs-lavender);
+    /* lavender-tinted off-white — never pure #FFFFFF */
+    --color-ink: #E8E6F5;
+    /* alias of ink, as in light */
+    --color-ink-soft: #E8E6F5;
+    /* light muted's hue (233), sat 25%, lightness 74% */
+    --color-muted: #ACB0CD;
+    /* alias of muted in B, as in light (spec §1.2) */
+    --color-faint: #ACB0CD;
+    /* page canvas: Indigo Deep, the brand's own dark canvas */
+    --color-surface: var(--bs-indigodeep);
+    /* cards: 10% Lavender into Indigo Deep — elevation by lightness */
+    --color-surface-card: #1F1F50;
+    /* callouts (light: Lavender Mist): 16% Lavender into Indigo Deep */
+    --color-surface-tint: #2B285C;
+    /* scrims + the external header: below the canvas */
+    --color-surface-dark: #060821;
+    /* dividers/card edges (decorative): 16% Lavender into the card */
+    --color-border: #3C366C;
+    /* inner soft dividers: 8% */
+    --color-hairline: #2D2A5E;
+    /* functional red, lifted to H6 S80 L68: light #C0392B measures 3.36:1 on
+       this canvas. Identical in all three scopes (ADR-014) */
+    --color-danger: #F07D71;
+    /* dark text on the lifted red (white measures 2.67:1) */
+    --color-on-danger: #1A191C;
+    /* error box / blocked well — a dark red ground */
+    --color-danger-tint: #3A1C1D;
+    /* box edge (decorative) */
+    --color-danger-border: #6A302D;
+    /* blocked drag-over edge — >=3:1 on the tint (state, 1.4.11) */
+    --color-danger-border-strong: #C25A4F;
+    /* error body text */
+    --color-danger-ink: #F9C0B8;
+    /* R4: no green — success follows primary, as in light */
+    --color-success: var(--bs-lavender);
+    --color-on-success: var(--bs-indigodeep);
+    /* functional amber, lifted: light #B8860B measures 4.13:1 on the
+       B-Systems tint, and the amber is one value in all three scopes
+       (ADR-054) */
+    --color-warning: #DFA820;
+    /* active nav / rep chips: 22% Lavender into Indigo Deep */
+    --color-primary-tint: #373267;
+    /* Lavender Mist on the lavender tint */
+    --color-primary-tint-ink: var(--bs-lavendermist);
+    /* partner badges: Systems Indigo itself, as a chip */
+    --color-secondary-tint: var(--bs-indigo);
+    /* Lavender Mist on Systems Indigo */
+    --color-secondary-tint-ink: var(--bs-lavendermist);
+    /* INVERSE surface (the M3 inverse-surface role): light puts a dark toast
+       on a light page, dark puts a light toast on a dark one. Uniform across
+       brands, as in light */
+    --color-toast-surface: #ECEAE5;
+    /* light's toast surface becomes the toast ink */
+    --color-toast-ink: #1A191C;
+    /* a light hairline replaces light's 7% black (uniform across brands) */
+    --color-board-card-border: rgba(255, 255, 255, 0.08);
+    /* deeper — a shadow barely reads on dark; the lighter card carries the
+       elevation */
+    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.32), 0 6px 18px rgba(0, 0, 0, 0.24);
+    --shadow-lift: 0 14px 30px rgba(0, 0, 0, 0.45);
+    --shadow-modal: 0 30px 70px rgba(0, 0, 0, 0.6);
+    --shadow-toast: 0 18px 44px rgba(0, 0, 0, 0.55);
+    /* the product's ONE green, lifted; its two fences are unchanged (ADR-054
+       accounting, ADR-069 .wa-sent) */
+    --color-acct-positive: #5CC188;
+    --color-acct-positive-tint: #173323;
+    /* same values as the accounting pair, on purpose (ADR-069) */
+    --color-contact-made: #5CC188;
+    --color-contact-made-tint: #173323;
+    /* NEW — text on --color-surface-dark and on --gradient-hero; both stay
+       dark, so it stays white */
+    --color-on-dark: #FFFFFF;
+    /* NEW — the header stays Systems Indigo — the 60% anchor, in BOTH themes */
+    --color-chrome: var(--bs-indigo);
+    /* NEW — Paper on indigo (never pure #FFFFFF) */
+    --color-on-chrome: var(--bs-paper);
+    /* NEW — SOLID lavender: the light 45% mix measures 2.87:1 on this canvas */
+    --color-focus-ring: var(--bs-lavender);
+    /* NEW — input/select boundary: 52% Lavender into the card, >=3:1 */
+    --color-border-control: #7D69A9;
+    /* Per-stage board colours. Same rule for every column (derived, not
+       picked): the ACCENT keeps the light accent's hue + saturation, its HSL
+       lightness raised only as far as needed to read >= 4.8:1 on the canvas,
+       the card and the tint (it is the column TITLE's text colour, so 4.5:1
+       binds, not 3:1). The WELL is that hue mixed toward the scrim colour
+       (--color-surface-dark) until it sits at the canvas's own luminance
+       (+8%), so cards rise off a well by the same step they rise off the
+       page — the light theme's relationship.
+       The CHIP is 22% of the accent into the card; CHIP-INK is the accent
+       lifted until >= 6:1 on its chip. Won keeps the brand's own cue
+       unchanged (Signal Pink). Postpone rides the shared amber (ADR-072); its
+       well and chip keep the amber's HUE at that luminance, because amber
+       mixed into indigo greys out to mauve.
+       Fallen-behind is the shared functional red, IDENTICAL in both brands
+       (ADR-082), its well a shade off --color-danger-tint as in light. */
+    --color-stage-intake: #121432; --color-stage-intake-accent: #8E96E5; --color-stage-intake-chip: #373971; --color-stage-intake-chip-ink: #BCC0EF;
+    --color-stage-following: #141430; --color-stage-following-accent: #A890D4; --color-stage-following-chip: #3D386D; --color-stage-following-chip-ink: #CCBEE6;
+    --color-stage-meeting: #161230; --color-stage-meeting-accent: #C683CF; --color-stage-meeting-chip: #44356C; --color-stage-meeting-chip-ink: #DEB6E3;
+    --color-stage-proposal: #17122E; --color-stage-proposal-accent: #D380BB; --color-stage-proposal-chip: #473468; --color-stage-proposal-chip-ink: #E5B5D7;
+    --color-stage-negotiation: #19122D; --color-stage-negotiation-accent: #E379AB; --color-stage-negotiation-chip: #4A3364; --color-stage-negotiation-chip-ink: #EEB0CD;
+    --color-stage-didnt-answer: #131431; --color-stage-didnt-answer-accent: #9C93DB; --color-stage-didnt-answer-chip: #3B396F; --color-stage-didnt-answer-chip-ink: #C6C1EA;
+    --color-stage-contacted: #141330; --color-stage-contacted-accent: #AA8FCF; --color-stage-contacted-chip: #3E386C; --color-stage-contacted-chip-ink: #CDBDE3;
+    --color-stage-qualified: #1A122D; --color-stage-qualified-accent: #E874AA; --color-stage-qualified-chip: #4B3264; --color-stage-qualified-chip-ink: #F2AFCE;
+    --color-stage-waiting: #17122E; --color-stage-waiting-accent: #D281B9; --color-stage-waiting-chip: #463567; --color-stage-waiting-chip-ink: #E5B6D6;
+    --color-stage-won: #200F2C; --color-stage-won-accent: #FF4F87; --color-stage-won-chip: #502A5C; --color-stage-won-chip-ink: #FFA1BF;
+    --color-stage-postponed: #1A160B; --color-stage-postponed-accent: #DFA820; --color-stage-postponed-chip: #4B4024; --color-stage-postponed-chip-ink: #E9C263;
+    --color-stage-fallen-behind: #2A1718; --color-stage-fallen-behind-accent: #F07D71; --color-stage-fallen-behind-chip: #4A2426; --color-stage-fallen-behind-chip-ink: #F9C0B8;
+    --color-stage-lost: #12142D; --color-stage-lost-accent: #9699B3; --color-stage-lost-chip: #393A66; --color-stage-lost-chip-ink: #C1C3D2;
+  }
+}
+
+/* "system" + a dark OS — the SAME declarations as the block above, verbatim
+   (comments aside). theme-tokens.test.ts compares the two. */
+@media screen and (prefers-color-scheme: dark) {
+  html[data-theme="system"][data-brand="bsystems"],
+  html[data-theme="system"] [data-brand="bsystems"] {
+    color-scheme: dark;
+    --color-primary: var(--bs-lavender);
+    --color-on-primary: var(--bs-indigodeep);
+    --color-secondary: var(--bs-lavender);
+    --color-on-secondary: var(--bs-indigodeep);
+    --color-accent: var(--bs-pink);
+    --color-on-accent: var(--bs-indigodeep);
+    --color-heading: var(--bs-lavendermist);
+    --color-link: var(--bs-lavender);
+    --color-ink: #E8E6F5;
+    --color-ink-soft: #E8E6F5;
+    --color-muted: #ACB0CD;
+    --color-faint: #ACB0CD;
+    --color-surface: var(--bs-indigodeep);
+    --color-surface-card: #1F1F50;
+    --color-surface-tint: #2B285C;
+    --color-surface-dark: #060821;
+    --color-border: #3C366C;
+    --color-hairline: #2D2A5E;
+    --color-danger: #F07D71;
+    --color-on-danger: #1A191C;
+    --color-danger-tint: #3A1C1D;
+    --color-danger-border: #6A302D;
+    --color-danger-border-strong: #C25A4F;
+    --color-danger-ink: #F9C0B8;
+    --color-success: var(--bs-lavender);
+    --color-on-success: var(--bs-indigodeep);
+    --color-warning: #DFA820;
+    --color-primary-tint: #373267;
+    --color-primary-tint-ink: var(--bs-lavendermist);
+    --color-secondary-tint: var(--bs-indigo);
+    --color-secondary-tint-ink: var(--bs-lavendermist);
+    --color-toast-surface: #ECEAE5;
+    --color-toast-ink: #1A191C;
+    --color-board-card-border: rgba(255, 255, 255, 0.08);
+    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.32), 0 6px 18px rgba(0, 0, 0, 0.24);
+    --shadow-lift: 0 14px 30px rgba(0, 0, 0, 0.45);
+    --shadow-modal: 0 30px 70px rgba(0, 0, 0, 0.6);
+    --shadow-toast: 0 18px 44px rgba(0, 0, 0, 0.55);
+    --color-acct-positive: #5CC188;
+    --color-acct-positive-tint: #173323;
+    --color-contact-made: #5CC188;
+    --color-contact-made-tint: #173323;
+    --color-on-dark: #FFFFFF;
+    --color-chrome: var(--bs-indigo);
+    --color-on-chrome: var(--bs-paper);
+    --color-focus-ring: var(--bs-lavender);
+    --color-border-control: #7D69A9;
+    --color-stage-intake: #121432; --color-stage-intake-accent: #8E96E5; --color-stage-intake-chip: #373971; --color-stage-intake-chip-ink: #BCC0EF;
+    --color-stage-following: #141430; --color-stage-following-accent: #A890D4; --color-stage-following-chip: #3D386D; --color-stage-following-chip-ink: #CCBEE6;
+    --color-stage-meeting: #161230; --color-stage-meeting-accent: #C683CF; --color-stage-meeting-chip: #44356C; --color-stage-meeting-chip-ink: #DEB6E3;
+    --color-stage-proposal: #17122E; --color-stage-proposal-accent: #D380BB; --color-stage-proposal-chip: #473468; --color-stage-proposal-chip-ink: #E5B5D7;
+    --color-stage-negotiation: #19122D; --color-stage-negotiation-accent: #E379AB; --color-stage-negotiation-chip: #4A3364; --color-stage-negotiation-chip-ink: #EEB0CD;
+    --color-stage-didnt-answer: #131431; --color-stage-didnt-answer-accent: #9C93DB; --color-stage-didnt-answer-chip: #3B396F; --color-stage-didnt-answer-chip-ink: #C6C1EA;
+    --color-stage-contacted: #141330; --color-stage-contacted-accent: #AA8FCF; --color-stage-contacted-chip: #3E386C; --color-stage-contacted-chip-ink: #CDBDE3;
+    --color-stage-qualified: #1A122D; --color-stage-qualified-accent: #E874AA; --color-stage-qualified-chip: #4B3264; --color-stage-qualified-chip-ink: #F2AFCE;
+    --color-stage-waiting: #17122E; --color-stage-waiting-accent: #D281B9; --color-stage-waiting-chip: #463567; --color-stage-waiting-chip-ink: #E5B6D6;
+    --color-stage-won: #200F2C; --color-stage-won-accent: #FF4F87; --color-stage-won-chip: #502A5C; --color-stage-won-chip-ink: #FFA1BF;
+    --color-stage-postponed: #1A160B; --color-stage-postponed-accent: #DFA820; --color-stage-postponed-chip: #4B4024; --color-stage-postponed-chip-ink: #E9C263;
+    --color-stage-fallen-behind: #2A1718; --color-stage-fallen-behind-accent: #F07D71; --color-stage-fallen-behind-chip: #4A2426; --color-stage-fallen-behind-chip-ink: #F9C0B8;
+    --color-stage-lost: #12142D; --color-stage-lost-accent: #9699B3; --color-stage-lost-chip: #393A66; --color-stage-lost-chip-ink: #C1C3D2;
+  }
+}

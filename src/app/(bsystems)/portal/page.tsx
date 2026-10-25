@@ -28,20 +28,20 @@ export default async function PortalLanding() {
           <p className="text-brand-eyebrow text-brand-secondary mb-4">
             {t(msgs.eyebrow)}
           </p>
-          <h1 className="font-brand-display text-4xl font-extrabold tracking-tight text-brand-on-primary">
+          <h1 className="font-brand-display text-4xl font-extrabold tracking-tight text-brand-on-dark">
             {t(msgs.welcomeBefore)}
             <span className="text-brand-accent">B-Systems</span>
             {t(msgs.welcomeAfter)}
           </h1>
         </div>
-        <p className="mt-4 text-brand-on-primary opacity-80">{t(msgs.tagline)}</p>
+        <p className="mt-4 text-brand-on-dark opacity-80">{t(msgs.tagline)}</p>
         <div className="mt-10 flex justify-center gap-4">
           <Link href="/portal/signup" className="btn-accent inline-block">
             {t(msgs.signUp)}
           </Link>
           <Link
             href="/login"
-            className="inline-block border border-brand-secondary text-brand-on-primary rounded-brand-control px-6 py-3 font-medium"
+            className="inline-block border border-brand-secondary text-brand-on-dark rounded-brand-control px-6 py-3 font-medium"
           >
             {t(msgs.logIn)}
           </Link>

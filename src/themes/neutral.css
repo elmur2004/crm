@@ -94,6 +94,20 @@
   /* ADR-082 */
   --color-stage-fallen-behind: var(--color-surface-tint); --color-stage-fallen-behind-accent: var(--color-border); --color-stage-fallen-behind-chip: var(--color-surface-tint); --color-stage-fallen-behind-chip-ink: var(--color-muted);
   --color-stage-lost: var(--color-surface-tint); --color-stage-lost-accent: var(--color-border); --color-stage-lost-chip: var(--color-surface-tint); --color-stage-lost-chip-ink: var(--color-muted);
+
+  /* DARK-MODE CONTRACT tokens — ADDED for the dark theme (see the DARK THEME
+     section at the end of this file), in all three scopes. Each LIGHT value
+     is exactly what its consumer paints today, so a component that switches
+     to one renders byte-identically in light: on-dark = text on
+     --color-surface-dark / --gradient-hero (today's on-primary there);
+     chrome / on-chrome = the header's ground and text (surface-card / ink);
+     focus-ring = today's :focus-visible colour (globals.css), verbatim;
+     border-control = an input boundary (today --color-border). */
+  --color-on-dark: #FFFFFF;
+  --color-chrome: var(--color-surface-card);
+  --color-on-chrome: var(--color-ink);
+  --color-focus-ring: color-mix(in srgb, var(--color-primary) 45%, transparent);
+  --color-border-control: var(--color-border);
 }
 
 /* ---- hub (`/`) — spec §2.15 ---- */
@@ -224,4 +238,326 @@
   .login-pane { padding: 44px 24px; }
   .login-billboard { flex-direction: row; min-height: 200px; }
   .login-bb { padding: 24px; gap: 14px; }
+}
+
+/* =========================================================================
+   DARK THEME — Neutral (home / login / vault shells)
+   Founder: "create an entire dark mode for the entire system".
+
+   ADDED BLOCKS ONLY. Not one light value or selector above was changed; the
+   light theme renders exactly as before. (New tokens were ADDED to the light
+   block with values equal to what components already paint today.)
+
+   SELECTOR CONTRACT — src/lib/theme/core.ts; the app root layouts stamp it:
+       <html data-theme="light" | "dark" | "system">
+   The landing pages never set data-theme, so nothing here can match them.
+   data-brand sits on <html> AND is re-stamped on inner wrappers (ADR-054:
+   the accounting / vault modules re-brand per company), so every dark block
+   matches BOTH shapes:
+       html[data-theme="dark"][data-brand="neutral"]
+       html[data-theme="dark"] [data-brand="neutral"]
+   "system" follows the OS: the same declarations under prefers-color-scheme:
+   dark. The two blocks must stay IDENTICAL — src/lib/theme-tokens.test.ts
+   fails the build the moment they drift.
+
+   PRINT IS ALWAYS LIGHT. Every dark rule sits inside `@media screen`, so a
+   printed statement can never come out dark, whatever the toggle says.
+
+   color-scheme: dark turns the NATIVE controls dark too — scrollbars, inputs,
+   selects, date pickers, autofill — which tokens cannot reach.
+
+   THEME-INVARIANT, deliberately NOT redeclared so they can never drift:
+   --font-*, --radius-*, and --gradient-hero (the brand's fixed hero).
+
+   · A calm warm near-black (#151413): the light shell's warm grey family,
+     mirrored. Cards and tints step LIGHTER. Never #000.
+   · PRIMARY inverts exactly as light does: light puts a near-black button on
+     a pale page, dark puts a pale button (#ECEAE5) on a dark page.
+   · LINK is light's Systems Indigo, lifted (hue 234, sat 62%, lightness 76%).
+   · SECONDARY is the ByteForce violet, lifted exactly as ByteForce lifts it.
+   · The hub and login rules above carry LIGHT literals (the sanctioned
+     neutral home, spec §2.14), so tokens alone cannot turn them — a white
+     input under light ink would be invisible. They get dark twins below,
+     inside the same print guard.
+
+   CONTRAST — COMPUTED (WCAG 2.1 relative luminance, sRGB), not asserted.
+   Text 4.5:1; UI boundaries / focus / state 3:1 (WCAG 1.4.11). Every PASS row
+   is recomputed from this file by src/lib/theme-tokens.test.ts.
+   | ink on surface                       | #ECEAE5 | #151413 | 15.30:1 | 4.5:1 | PASS |
+   | ink-soft on surface                  | #CCCAC6 | #151413 | 11.24:1 | 4.5:1 | PASS |
+   | muted on surface                     | #ACAAA6 | #151413 |  7.93:1 | 4.5:1 | PASS |
+   | faint on surface                     | #92908D | #151413 |  5.78:1 | 4.5:1 | PASS |
+   | heading on surface                   | #ECEAE5 | #151413 | 15.30:1 | 4.5:1 | PASS |
+   | link on surface                      | #9CA3E8 | #151413 |  7.73:1 | 4.5:1 | PASS |
+   | ink on surface-card                  | #ECEAE5 | #1E1D1B | 14.01:1 | 4.5:1 | PASS |
+   | ink-soft on surface-card             | #CCCAC6 | #1E1D1B | 10.29:1 | 4.5:1 | PASS |
+   | muted on surface-card                | #ACAAA6 | #1E1D1B |  7.26:1 | 4.5:1 | PASS |
+   | faint on surface-card                | #92908D | #1E1D1B |  5.29:1 | 4.5:1 | PASS |
+   | heading on surface-card              | #ECEAE5 | #1E1D1B | 14.01:1 | 4.5:1 | PASS |
+   | link on surface-card                 | #9CA3E8 | #1E1D1B |  7.07:1 | 4.5:1 | PASS |
+   | ink on surface-tint                  | #ECEAE5 | #282624 | 12.54:1 | 4.5:1 | PASS |
+   | ink-soft on surface-tint             | #CCCAC6 | #282624 |  9.21:1 | 4.5:1 | PASS |
+   | muted on surface-tint                | #ACAAA6 | #282624 |  6.50:1 | 4.5:1 | PASS |
+   | faint on surface-tint                | #92908D | #282624 |  4.74:1 | 4.5:1 | PASS |
+   | heading on surface-tint              | #ECEAE5 | #282624 | 12.54:1 | 4.5:1 | PASS |
+   | link on surface-tint                 | #9CA3E8 | #282624 |  6.33:1 | 4.5:1 | PASS |
+   | primary on surface                   | #ECEAE5 | #151413 | 15.30:1 | 4.5:1 | PASS |
+   | primary on surface-card              | #ECEAE5 | #1E1D1B | 14.01:1 | 4.5:1 | PASS |
+   | primary on primary-tint              | #ECEAE5 | #2E2C29 | 11.58:1 | 4.5:1 | PASS |
+   | accent on surface                    | #ECEAE5 | #151413 | 15.30:1 | 4.5:1 | PASS |
+   | success on surface                   | #ECEAE5 | #151413 | 15.30:1 | 4.5:1 | PASS |
+   | warning on surface                   | #DFA820 | #151413 |  8.55:1 | 4.5:1 | PASS |
+   | danger on surface                    | #F07D71 | #151413 |  6.90:1 | 4.5:1 | PASS |
+   | accent on surface-card               | #ECEAE5 | #1E1D1B | 14.01:1 | 4.5:1 | PASS |
+   | success on surface-card              | #ECEAE5 | #1E1D1B | 14.01:1 | 4.5:1 | PASS |
+   | warning on surface-card              | #DFA820 | #1E1D1B |  7.83:1 | 4.5:1 | PASS |
+   | danger on surface-card               | #F07D71 | #1E1D1B |  6.32:1 | 4.5:1 | PASS |
+   | danger on surface-tint               | #F07D71 | #282624 |  5.65:1 | 4.5:1 | PASS |
+   | muted on primary-tint                | #ACAAA6 | #2E2C29 |  6.00:1 | 4.5:1 | PASS |
+   | ink on primary-tint                  | #ECEAE5 | #2E2C29 | 11.58:1 | 4.5:1 | PASS |
+   | on-primary on primary                | #1A191C | #ECEAE5 | 14.56:1 | 4.5:1 | PASS |
+   | on-secondary on secondary            | #1A191C | #A59CD3 |  6.91:1 | 4.5:1 | PASS |
+   | on-accent on accent                  | #1A191C | #ECEAE5 | 14.56:1 | 4.5:1 | PASS |
+   | on-danger on danger                  | #1A191C | #F07D71 |  6.57:1 | 4.5:1 | PASS |
+   | on-success on success                | #1A191C | #ECEAE5 | 14.56:1 | 4.5:1 | PASS |
+   | danger on danger-tint                | #F07D71 | #3A1C1D |  5.78:1 | 4.5:1 | PASS |
+   | danger-ink on danger-tint            | #F9C0B8 | #3A1C1D |  9.72:1 | 4.5:1 | PASS |
+   | primary-tint-ink on primary-tint     | #ECEAE5 | #2E2C29 | 11.58:1 | 4.5:1 | PASS |
+   | secondary-tint-ink on secondary-tint | #CCCAC6 | #282624 |  9.21:1 | 4.5:1 | PASS |
+   | secondary-tint-ink on surface-tint   | #CCCAC6 | #282624 |  9.21:1 | 4.5:1 | PASS |
+   | toast-ink on toast-surface           | #1A191C | #ECEAE5 | 14.56:1 | 4.5:1 | PASS |
+   | acct-positive on acct-positive-tint  | #5CC188 | #173323 |  6.15:1 | 4.5:1 | PASS |
+   | acct-positive on surface-card        | #5CC188 | #1E1D1B |  7.57:1 | 4.5:1 | PASS |
+   | contact-made on contact-made-tint    | #5CC188 | #173323 |  6.15:1 | 4.5:1 | PASS |
+   | on-chrome on chrome                  | #ECEAE5 | #1E1D1B | 14.01:1 | 4.5:1 | PASS |
+   | on-dark on surface-dark              | #FFFFFF | #0C0B0A | 19.67:1 | 4.5:1 | PASS |
+   | border-control on surface            | #757370 | #151413 |  3.89:1 | 3:1   | PASS |
+   | border-control on surface-card       | #757370 | #1E1D1B |  3.56:1 | 3:1   | PASS |
+   | focus-ring on surface                | #ECEAE5 | #151413 | 15.30:1 | 3:1   | PASS |
+   | focus-ring on surface-card           | #ECEAE5 | #1E1D1B | 14.01:1 | 3:1   | PASS |
+   | focus-ring on surface-tint           | #ECEAE5 | #282624 | 12.54:1 | 3:1   | PASS |
+   | danger-border-strong on danger-tint  | #C25A4F | #3A1C1D |  3.57:1 | 3:1   | PASS |
+   | border on surface-card               | #3F3E3B | #1E1D1B |  1.57:1 |   -   | decorative |
+   | border on surface                    | #3F3E3B | #151413 |  1.72:1 |   -   | decorative |
+   | hairline on surface-card             | #2E2D2B | #1E1D1B |  1.22:1 |   -   | decorative |
+   ========================================================================= */
+@media screen {
+  html[data-theme="dark"][data-brand="neutral"],
+  html[data-theme="dark"] [data-brand="neutral"] {
+    color-scheme: dark;
+    /* inverted, as light inverts: a light button on a dark page */
+    --color-primary: #ECEAE5;
+    /* light's primary becomes the button text */
+    --color-on-primary: #1A191C;
+    /* the ByteForce violet, lifted exactly as ByteForce lifts it */
+    --color-secondary: #A59CD3;
+    --color-on-secondary: #1A191C;
+    /* = primary, as in light */
+    --color-accent: #ECEAE5;
+    --color-on-accent: #1A191C;
+    /* = ink, as in light */
+    --color-heading: #ECEAE5;
+    /* light's indigo link, lifted: hue 234, sat 62%, lightness 76% */
+    --color-link: #9CA3E8;
+    /* warm off-white */
+    --color-ink: #ECEAE5;
+    /* ink 85% into the canvas */
+    --color-ink-soft: #CCCAC6;
+    /* ink 70% into the canvas */
+    --color-muted: #ACAAA6;
+    /* ink 58% into the canvas */
+    --color-faint: #92908D;
+    /* warm near-black canvas (never #000) */
+    --color-surface: #151413;
+    /* cards one step lighter */
+    --color-surface-card: #1E1D1B;
+    /* one step lighter again */
+    --color-surface-tint: #282624;
+    /* scrims: below the canvas */
+    --color-surface-dark: #0C0B0A;
+    /* dividers (decorative): 16% ink into the card */
+    --color-border: #3F3E3B;
+    /* inner soft dividers: 8% */
+    --color-hairline: #2E2D2B;
+    /* functional red, lifted to H6 S80 L68: light #C0392B measures 3.38:1 on
+       this canvas. Identical in all three scopes (ADR-014) */
+    --color-danger: #F07D71;
+    /* dark text on the lifted red (white measures 2.67:1) */
+    --color-on-danger: #1A191C;
+    /* error box / blocked well — a dark red ground */
+    --color-danger-tint: #3A1C1D;
+    /* box edge (decorative) */
+    --color-danger-border: #6A302D;
+    /* blocked drag-over edge — >=3:1 on the tint (state, 1.4.11) */
+    --color-danger-border-strong: #C25A4F;
+    /* error body text */
+    --color-danger-ink: #F9C0B8;
+    /* R4: no green — neutral uses ink, as in light */
+    --color-success: #ECEAE5;
+    /* functional amber, lifted: light #B8860B measures 4.13:1 on the
+       B-Systems tint, and the amber is one value in all three scopes
+       (ADR-054) */
+    --color-warning: #DFA820;
+    --color-on-success: #1A191C;
+    --color-primary-tint: #2E2C29;
+    --color-primary-tint-ink: #ECEAE5;
+    /* = surface-tint, as in light */
+    --color-secondary-tint: #282624;
+    /* = ink-soft, as in light */
+    --color-secondary-tint-ink: #CCCAC6;
+    /* INVERSE surface (the M3 inverse-surface role): light puts a dark toast
+       on a light page, dark puts a light toast on a dark one. Uniform across
+       brands, as in light */
+    --color-toast-surface: #ECEAE5;
+    /* light's toast surface becomes the toast ink */
+    --color-toast-ink: #1A191C;
+    /* a light hairline replaces light's 7% black (uniform across brands) */
+    --color-board-card-border: rgba(255, 255, 255, 0.08);
+    /* deeper — a shadow barely reads on dark; the lighter card carries the
+       elevation */
+    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.32), 0 6px 18px rgba(0, 0, 0, 0.24);
+    --shadow-lift: 0 14px 30px rgba(0, 0, 0, 0.45);
+    --shadow-modal: 0 30px 70px rgba(0, 0, 0, 0.6);
+    --shadow-toast: 0 18px 44px rgba(0, 0, 0, 0.55);
+    /* the product's ONE green, lifted; its two fences are unchanged (ADR-054
+       accounting, ADR-069 .wa-sent) */
+    --color-acct-positive: #5CC188;
+    --color-acct-positive-tint: #173323;
+    /* same values as the accounting pair, on purpose (ADR-069) */
+    --color-contact-made: #5CC188;
+    --color-contact-made-tint: #173323;
+    /* NEW — text on --color-surface-dark and on --gradient-hero; both stay
+       dark, so it stays white */
+    --color-on-dark: #FFFFFF;
+    /* NEW — app header = the card surface, as in light */
+    --color-chrome: var(--color-surface-card);
+    /* NEW — header text = ink, as in light */
+    --color-on-chrome: var(--color-ink);
+    /* NEW — SOLID, like the brand scopes (the light 45% mix would measure
+       3.9:1 here) */
+    --color-focus-ring: #ECEAE5;
+    /* NEW — input boundary: 42% ink into the card, >=3:1 */
+    --color-border-control: #757370;
+    /* stage vars: contract parity only (the neutral shell never renders
+       boards) — the same aliases as light, which resolve to the dark values */
+    --color-stage-intake: var(--color-surface-tint); --color-stage-intake-accent: var(--color-border); --color-stage-intake-chip: var(--color-surface-tint); --color-stage-intake-chip-ink: var(--color-muted);
+    --color-stage-following: var(--color-surface-tint); --color-stage-following-accent: var(--color-border); --color-stage-following-chip: var(--color-surface-tint); --color-stage-following-chip-ink: var(--color-muted);
+    --color-stage-meeting: var(--color-surface-tint); --color-stage-meeting-accent: var(--color-border); --color-stage-meeting-chip: var(--color-surface-tint); --color-stage-meeting-chip-ink: var(--color-muted);
+    --color-stage-proposal: var(--color-surface-tint); --color-stage-proposal-accent: var(--color-border); --color-stage-proposal-chip: var(--color-surface-tint); --color-stage-proposal-chip-ink: var(--color-muted);
+    --color-stage-negotiation: var(--color-surface-tint); --color-stage-negotiation-accent: var(--color-border); --color-stage-negotiation-chip: var(--color-surface-tint); --color-stage-negotiation-chip-ink: var(--color-muted);
+    --color-stage-didnt-answer: var(--color-surface-tint); --color-stage-didnt-answer-accent: var(--color-border); --color-stage-didnt-answer-chip: var(--color-surface-tint); --color-stage-didnt-answer-chip-ink: var(--color-muted);
+    --color-stage-contacted: var(--color-surface-tint); --color-stage-contacted-accent: var(--color-border); --color-stage-contacted-chip: var(--color-surface-tint); --color-stage-contacted-chip-ink: var(--color-muted);
+    --color-stage-qualified: var(--color-surface-tint); --color-stage-qualified-accent: var(--color-border); --color-stage-qualified-chip: var(--color-surface-tint); --color-stage-qualified-chip-ink: var(--color-muted);
+    --color-stage-waiting: var(--color-surface-tint); --color-stage-waiting-accent: var(--color-border); --color-stage-waiting-chip: var(--color-surface-tint); --color-stage-waiting-chip-ink: var(--color-muted);
+    --color-stage-won: var(--color-surface-tint); --color-stage-won-accent: var(--color-border); --color-stage-won-chip: var(--color-surface-tint); --color-stage-won-chip-ink: var(--color-muted);
+    --color-stage-postponed: var(--color-surface-tint); --color-stage-postponed-accent: var(--color-border); --color-stage-postponed-chip: var(--color-surface-tint); --color-stage-postponed-chip-ink: var(--color-muted);
+    --color-stage-fallen-behind: var(--color-surface-tint); --color-stage-fallen-behind-accent: var(--color-border); --color-stage-fallen-behind-chip: var(--color-surface-tint); --color-stage-fallen-behind-chip-ink: var(--color-muted);
+    --color-stage-lost: var(--color-surface-tint); --color-stage-lost-accent: var(--color-border); --color-stage-lost-chip: var(--color-surface-tint); --color-stage-lost-chip-ink: var(--color-muted);
+  }
+  /* light #5E5B57 sits between ink-soft and muted; so does this (9.42:1 on the canvas) */
+  html[data-theme="dark"] .hub-sub,
+  html[data-theme="dark"] .hub-card-desc,
+  html[data-theme="dark"] .login-sub { color: #BDB9B3; }
+  /* light #FBFAF7 sits between canvas and card; so does this */
+  html[data-theme="dark"] .hub-card { background: #191817; }
+  /* re-asserted: the rule above out-specifies the light :hover */
+  html[data-theme="dark"] .hub-card:hover { background: var(--color-surface-card); }
+  html[data-theme="dark"] .hub-card-title { color: var(--color-ink); }
+  /* B-Systems card title: Lavender Mist, the B dark heading (12.90:1) */
+  html[data-theme="dark"] .hub-card-title--b { color: #E8D4FE; }
+  /* Systems Indigo would be 1.37:1 here; Process Lavender is 9.44:1 */
+  html[data-theme="dark"] .hub-arrow--b { color: #D4ADFC; }
+  /* light paints #fff under --color-ink, which is now LIGHT: invisible text without this */
+  html[data-theme="dark"] .login-form input { background: var(--color-surface-card); border-color: var(--color-border-control); }
+  /* light hovers to #2C2C31 — under dark on-primary text that would vanish */
+  html[data-theme="dark"] .login-form button[type="submit"]:hover { background: #D6D3CD; }
+  /* the ByteForce billboard in its dark form: Ink ground (brand literals by design, spec §2.14) */
+  html[data-theme="dark"] .login-bb--a { background: #231F20; }
+  html[data-theme="dark"] .login-bb-word-a,
+  html[data-theme="dark"] .login-bb-line-a { color: #F4F1EA; }
+  /* the lifted violet (6.44:1 on Ink) */
+  html[data-theme="dark"] .login-bb-eyebrow-a { color: #A59CD3; }
+}
+
+/* "system" + a dark OS — the SAME declarations as the block above, verbatim
+   (comments aside). theme-tokens.test.ts compares the two. */
+@media screen and (prefers-color-scheme: dark) {
+  html[data-theme="system"][data-brand="neutral"],
+  html[data-theme="system"] [data-brand="neutral"] {
+    color-scheme: dark;
+    --color-primary: #ECEAE5;
+    --color-on-primary: #1A191C;
+    --color-secondary: #A59CD3;
+    --color-on-secondary: #1A191C;
+    --color-accent: #ECEAE5;
+    --color-on-accent: #1A191C;
+    --color-heading: #ECEAE5;
+    --color-link: #9CA3E8;
+    --color-ink: #ECEAE5;
+    --color-ink-soft: #CCCAC6;
+    --color-muted: #ACAAA6;
+    --color-faint: #92908D;
+    --color-surface: #151413;
+    --color-surface-card: #1E1D1B;
+    --color-surface-tint: #282624;
+    --color-surface-dark: #0C0B0A;
+    --color-border: #3F3E3B;
+    --color-hairline: #2E2D2B;
+    --color-danger: #F07D71;
+    --color-on-danger: #1A191C;
+    --color-danger-tint: #3A1C1D;
+    --color-danger-border: #6A302D;
+    --color-danger-border-strong: #C25A4F;
+    --color-danger-ink: #F9C0B8;
+    --color-success: #ECEAE5;
+    --color-warning: #DFA820;
+    --color-on-success: #1A191C;
+    --color-primary-tint: #2E2C29;
+    --color-primary-tint-ink: #ECEAE5;
+    --color-secondary-tint: #282624;
+    --color-secondary-tint-ink: #CCCAC6;
+    --color-toast-surface: #ECEAE5;
+    --color-toast-ink: #1A191C;
+    --color-board-card-border: rgba(255, 255, 255, 0.08);
+    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.32), 0 6px 18px rgba(0, 0, 0, 0.24);
+    --shadow-lift: 0 14px 30px rgba(0, 0, 0, 0.45);
+    --shadow-modal: 0 30px 70px rgba(0, 0, 0, 0.6);
+    --shadow-toast: 0 18px 44px rgba(0, 0, 0, 0.55);
+    --color-acct-positive: #5CC188;
+    --color-acct-positive-tint: #173323;
+    --color-contact-made: #5CC188;
+    --color-contact-made-tint: #173323;
+    --color-on-dark: #FFFFFF;
+    --color-chrome: var(--color-surface-card);
+    --color-on-chrome: var(--color-ink);
+    --color-focus-ring: #ECEAE5;
+    --color-border-control: #757370;
+    --color-stage-intake: var(--color-surface-tint); --color-stage-intake-accent: var(--color-border); --color-stage-intake-chip: var(--color-surface-tint); --color-stage-intake-chip-ink: var(--color-muted);
+    --color-stage-following: var(--color-surface-tint); --color-stage-following-accent: var(--color-border); --color-stage-following-chip: var(--color-surface-tint); --color-stage-following-chip-ink: var(--color-muted);
+    --color-stage-meeting: var(--color-surface-tint); --color-stage-meeting-accent: var(--color-border); --color-stage-meeting-chip: var(--color-surface-tint); --color-stage-meeting-chip-ink: var(--color-muted);
+    --color-stage-proposal: var(--color-surface-tint); --color-stage-proposal-accent: var(--color-border); --color-stage-proposal-chip: var(--color-surface-tint); --color-stage-proposal-chip-ink: var(--color-muted);
+    --color-stage-negotiation: var(--color-surface-tint); --color-stage-negotiation-accent: var(--color-border); --color-stage-negotiation-chip: var(--color-surface-tint); --color-stage-negotiation-chip-ink: var(--color-muted);
+    --color-stage-didnt-answer: var(--color-surface-tint); --color-stage-didnt-answer-accent: var(--color-border); --color-stage-didnt-answer-chip: var(--color-surface-tint); --color-stage-didnt-answer-chip-ink: var(--color-muted);
+    --color-stage-contacted: var(--color-surface-tint); --color-stage-contacted-accent: var(--color-border); --color-stage-contacted-chip: var(--color-surface-tint); --color-stage-contacted-chip-ink: var(--color-muted);
+    --color-stage-qualified: var(--color-surface-tint); --color-stage-qualified-accent: var(--color-border); --color-stage-qualified-chip: var(--color-surface-tint); --color-stage-qualified-chip-ink: var(--color-muted);
+    --color-stage-waiting: var(--color-surface-tint); --color-stage-waiting-accent: var(--color-border); --color-stage-waiting-chip: var(--color-surface-tint); --color-stage-waiting-chip-ink: var(--color-muted);
+    --color-stage-won: var(--color-surface-tint); --color-stage-won-accent: var(--color-border); --color-stage-won-chip: var(--color-surface-tint); --color-stage-won-chip-ink: var(--color-muted);
+    --color-stage-postponed: var(--color-surface-tint); --color-stage-postponed-accent: var(--color-border); --color-stage-postponed-chip: var(--color-surface-tint); --color-stage-postponed-chip-ink: var(--color-muted);
+    --color-stage-fallen-behind: var(--color-surface-tint); --color-stage-fallen-behind-accent: var(--color-border); --color-stage-fallen-behind-chip: var(--color-surface-tint); --color-stage-fallen-behind-chip-ink: var(--color-muted);
+    --color-stage-lost: var(--color-surface-tint); --color-stage-lost-accent: var(--color-border); --color-stage-lost-chip: var(--color-surface-tint); --color-stage-lost-chip-ink: var(--color-muted);
+  }
+  html[data-theme="system"] .hub-sub,
+  html[data-theme="system"] .hub-card-desc,
+  html[data-theme="system"] .login-sub { color: #BDB9B3; }
+  html[data-theme="system"] .hub-card { background: #191817; }
+  html[data-theme="system"] .hub-card:hover { background: var(--color-surface-card); }
+  html[data-theme="system"] .hub-card-title { color: var(--color-ink); }
+  html[data-theme="system"] .hub-card-title--b { color: #E8D4FE; }
+  html[data-theme="system"] .hub-arrow--b { color: #D4ADFC; }
+  html[data-theme="system"] .login-form input { background: var(--color-surface-card); border-color: var(--color-border-control); }
+  html[data-theme="system"] .login-form button[type="submit"]:hover { background: #D6D3CD; }
+  html[data-theme="system"] .login-bb--a { background: #231F20; }
+  html[data-theme="system"] .login-bb-word-a,
+  html[data-theme="system"] .login-bb-line-a { color: #F4F1EA; }
+  html[data-theme="system"] .login-bb-eyebrow-a { color: #A59CD3; }
 }
