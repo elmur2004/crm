@@ -7377,3 +7377,22 @@ No `.env`: a dummy `DATABASE_URL` and a throwaway `AUTH_SECRET` only.
 - **The Home-number fixes did get a browser run after all:** journey 1 reads the
   ByteForce "Won value" and "To be collected" tiles before and after a win, and
   passed against the count-on-change `AnimatedValue`.
+
+### Run 104 — the deploy, verified (2026-10-25)
+
+`efb6a24` pushed fast-forward over `71a7c4d`. Verified against production by
+**endpoints that did not exist before**, not by chunk hashes:
+
+| Probe (anonymous) | Before push | After |
+|---|---|---|
+| `GET /api/byteforce/leads/import/template` | `404` | `401` after 438 s |
+| `GET /api/b-systems/leads/import/template` | `404` | `401` after 438 s |
+
+`401` is the route's own `requireUser` answering, so the new build is live and
+the import refuses an anonymous caller. Dark mode: `GET /login` now carries
+`<html … data-brand="neutral" data-theme="system">`, and with `Cookie: theme=dark`
+it carries `data-theme="dark"` — the server stamp, live. `/api/health`:
+`"ok":true`, `"schemaCurrent":true`, `"pendingMigrations":[]` (this push has no
+migration). **Not verifiable from outside:** the B-Systems Home's corrected
+figures need an admin session; the founder will see "Won value" rise by the
+B-Systems wins it used to miss.
