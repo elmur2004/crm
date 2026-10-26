@@ -6,11 +6,8 @@ import Link from "next/link";
 import {
   DndContext,
   DragOverlay,
-  PointerSensor,
   useDraggable,
   useDroppable,
-  useSensor,
-  useSensors,
   type DragEndEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
@@ -35,6 +32,7 @@ import { TodayChip, useTodayFilter } from "@/components/shared/TodayChip";
 import { useCairoToday } from "@/components/shared/useCairoToday";
 import { NoAnswerBadge } from "@/components/shared/NoAnswerBadge";
 import { WhatsappChip } from "@/components/shared/WhatsappChip";
+import { CountPill, useBoardDropAnimation, useBoardSensors } from "@/components/shared/BoardMotion";
 import { stageKey } from "./stageColors";
 import {
   GroupFieldsV2,
@@ -394,7 +392,8 @@ function Column({
         <span className="col-title">{stageLabel(locale, stage)}</span>
         <span className="flex items-center gap-1.5">
           {hasChip ? <TodayChip count={todayCount} pressed={todayOnly} onToggle={toggle} /> : null}
-          <span className="count-pill">{visible.length}</span>
+          {/* pops once when the count CHANGES, never on load (BUG-026) */}
+          <CountPill count={visible.length} />
         </span>
       </div>
       {blocked ? (
@@ -470,7 +469,8 @@ export function BsBoard({
   const locale = useLocale();
   const t = tFor(locale);
   const router = useRouter();
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
+  /* pointer AND keyboard (column to column) — see BoardMotion */
+  const sensors = useBoardSensors();
   const [pendingDrop, setPendingDrop] = useState<{ leadId: string; to: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -480,6 +480,8 @@ export function BsBoard({
      on drop must not navigate (whole-card onClick checks this ref) */
   const suppressClickRef = useRef(false);
   const formState = useGroupFormState();
+  /* the overlay settles as it lands — and simply goes, under reduced motion */
+  const dropAnimation = useBoardDropAnimation();
 
   const canWin = role === "admin" || role === "sales";
 
@@ -634,12 +636,13 @@ export function BsBoard({
             card's links/buttons in the accessibility tree (the live region
             already narrates the drag), and it lingers briefly through the
             drop animation. */}
-        <DragOverlay>
+        <DragOverlay dropAnimation={dropAnimation}>
           {draggingId ? (
             (() => {
               const l = leads.find((x) => x.id === draggingId);
               return l ? (
-                <div className="bcard bcard--lift" aria-hidden>
+                /* the card's own stage rides along, so the lift glows in its hue */
+                <div className="bcard bcard--lift" data-stage-key={stageKey(l.stage)} aria-hidden>
                   <LeadCardBody
                     lead={l}
                     apiBase={apiBase}

@@ -11,11 +11,13 @@ import type { DashCtx } from "./ctx";
    pair (--color-stage-won-chip / -ink). No commission is ever shown here
    (V2 §4 hides it from sales; it is not a KPI for the admin either). The date
    is the won-date the period is bucketed by; a contract date that differs is
-   printed beside it, never used for bucketing (D15). */
+   printed beside it, never used for bucketing (D15).
+
+   Each win is a RECORD link and stays; "All won deals" / "All clients" went —
+   they repeated the CRM menus' Won Leads and Clients (one way to each page). */
 
 export function RecentWins({ wins, ctx }: { wins: RecentWin[]; ctx: DashCtx }) {
   const { t, f } = ctx;
-  const allHref = ctx.brand === "bsystems" ? "/b-systems/won-leads" : `/b-systems/clients${ctx.query}`;
   const status = (w: RecentWin) => {
     switch (w.status.kind) {
       case "collect":
@@ -39,11 +41,6 @@ export function RecentWins({ wins, ctx }: { wins: RecentWin[]; ctx: DashCtx }) {
       title={t(m.recentWins)}
       eyebrow={ctx.curDatesShort}
       data={{ "data-metric": "recent_wins", "data-value": wins.length }}
-      action={
-        <Link href={allHref} prefetch={false} className="db-link">
-          {t(ctx.brand === "bsystems" ? m.allWonDeals : m.allClients)}
-        </Link>
-      }
     >
       {wins.length === 0 ? (
         <p className="db-empty">{f(m.noWins, { dates: ctx.curDates })}</p>

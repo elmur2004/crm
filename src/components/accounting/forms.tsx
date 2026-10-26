@@ -17,6 +17,7 @@ import {
   type AcctCompany,
 } from "@/lib/accounting/constants";
 import { monthLabel } from "@/lib/accounting/format";
+import { armFresh, cancelLeaving, flashWhenChanged, leave, markLeaving, rowOf } from "./module-ui";
 
 /* ADR-052 Phase 2 — every accounting modal + row action, composed from the
    design system's modal/field/button classes. Amounts are typed in EGP and
@@ -41,6 +42,13 @@ async function send(
   return { ok: false, error: data?.error ?? null };
 }
 
+/* Every write ends in router.refresh(), which re-renders the page in place —
+   and the glass pass gives that moment a shape (module-ui.tsx, modules.css):
+   a row this write ADDED glows once as it arrives; the row it EDITED (the one
+   the control or its dialog sits in — `origin`, or wherever focus is) flashes
+   when its new figures land; a row being DELETED dims while the request is in
+   the air, then slides out before the refresh closes the gap. A refused write
+   leaves every row exactly as it was. None of it touches a figure. */
 function useAction() {
   const router = useRouter();
   const t = tFor(useLocale());
@@ -51,16 +59,28 @@ function useAction() {
     method: "POST" | "PATCH" | "PUT" | "DELETE",
     body: unknown,
     after?: () => void,
+    /** the control (or the dialog's form) the write came from */
+    origin?: Element | null,
   ) => {
+    const row = rowOf(origin ?? (typeof document === "undefined" ? null : document.activeElement));
+    const removing = method === "DELETE";
     setBusy(true);
     setError(null);
+    if (removing && row) markLeaving(row);
     const result = await send(url, method, body);
     setBusy(false);
     if (!result.ok) {
+      if (removing && row) cancelLeaving(row);
       setError(result.error ?? t(acct.somethingWentWrong));
       return false;
     }
     after?.();
+    if (removing && row) {
+      await leave(row);
+    } else {
+      armFresh();
+      if (row) flashWhenChanged(row);
+    }
     router.refresh();
     return true;
   };
@@ -78,7 +98,8 @@ function AcctModal({
 }: {
   title: string;
   onClose: () => void;
-  onSubmit: (fd: FormData) => void;
+  /** the form element rides along so the write knows which row it edits */
+  onSubmit: (fd: FormData, form: HTMLFormElement) => void;
   busy: boolean;
   error: string | null;
   submitLabel: string;
@@ -92,7 +113,7 @@ function AcctModal({
         onClick={(e) => e.stopPropagation()}
         onSubmit={(e) => {
           e.preventDefault();
-          onSubmit(new FormData(e.currentTarget));
+          onSubmit(new FormData(e.currentTarget), e.currentTarget);
         }}
       >
         <div className="modal-head">
@@ -200,7 +221,8 @@ function SettleToggle({
   name: string;
   hint: string;
   busy: boolean;
-  onClick: () => void;
+  /** handed the button itself — the row it sits in is the row that changes */
+  onClick: (origin: HTMLButtonElement) => void;
 }) {
   return (
     <button
@@ -210,7 +232,7 @@ function SettleToggle({
       aria-label={name}
       title={hint}
       disabled={busy}
-      onClick={onClick}
+      onClick={(e) => onClick(e.currentTarget)}
     >
       ✓
     </button>
@@ -257,7 +279,7 @@ function IncomeModal({
   const t = tFor(useLocale());
   const { busy, error, run } = useAction();
   const [collected, setCollected] = useState(initial?.collected ?? false);
-  const submit = (fd: FormData) => {
+  const submit = (fd: FormData, form: HTMLFormElement) => {
     const body = {
       company,
       month: String(fd.get("month") || month),
@@ -274,6 +296,7 @@ function IncomeModal({
       initial ? "PATCH" : "POST",
       body,
       onClose,
+      form,
     );
   };
   return (
@@ -370,11 +393,14 @@ export function IncomeActions({ row, company }: { row: IncomeRowDto; company: Ac
         name={t(acct.collected)}
         hint={t(row.collected ? acct.markPending : acct.markCollected)}
         busy={busy}
-        onClick={() =>
-          void run(`/api/accounting/income/${row.id}`, "PATCH", {
-            toggleCollected: true,
-            company,
-          })
+        onClick={(origin) =>
+          void run(
+            `/api/accounting/income/${row.id}`,
+            "PATCH",
+            { toggleCollected: true, company },
+            undefined,
+            origin,
+          )
         }
       />
       <button type="button" className="row-toggle row-toggle--restore" onClick={() => setEditing(true)}>
@@ -383,9 +409,10 @@ export function IncomeActions({ row, company }: { row: IncomeRowDto; company: Ac
       <button
         type="button"
         className="row-toggle"
-        onClick={() => {
+        onClick={(e) => {
+          const origin = e.currentTarget;
           if (window.confirm(t(acct.deleteConfirm)))
-            void run(`/api/accounting/income/${row.id}?company=${company}`, "DELETE", undefined);
+            void run(`/api/accounting/income/${row.id}?company=${company}`, "DELETE", undefined, undefined, origin);
         }}
       >
         {t(acct.delete)}
@@ -452,7 +479,7 @@ function ExpenseModal({
      nobody approved). Change the type away from payroll and it stops being an
      override — the banner goes and both fields open up. */
   const locked = override && !!seed && type === "payroll";
-  const submit = (fd: FormData) => {
+  const submit = (fd: FormData, form: HTMLFormElement) => {
     const body = {
       company,
       month: locked ? seed.month : String(fd.get("month") || month),
@@ -478,6 +505,7 @@ function ExpenseModal({
       initial ? "PATCH" : "POST",
       body,
       onClose,
+      form,
     );
   };
   return (
@@ -640,17 +668,22 @@ export function ExpenseActions({
   const { busy, error, run } = useAction();
   const [editing, setEditing] = useState(false);
   const [adjusting, setAdjusting] = useState(false);
-  const togglePaid = () =>
+  const togglePaid = (origin: HTMLButtonElement) =>
     row.auto
-      ? void run("/api/accounting/payroll-paid", "POST", {
-          company,
-          memberId: row.rosterId,
-          month: row.month,
-        })
-      : void run(`/api/accounting/expenses/${row.id}`, "PATCH", {
-          togglePaid: true,
-          company,
-        });
+      ? void run(
+          "/api/accounting/payroll-paid",
+          "POST",
+          { company, memberId: row.rosterId, month: row.month },
+          undefined,
+          origin,
+        )
+      : void run(
+          `/api/accounting/expenses/${row.id}`,
+          "PATCH",
+          { togglePaid: true, company },
+          undefined,
+          origin,
+        );
   return (
     <span className="flex gap-1.5 justify-end items-center">
       <RowError error={error} />
@@ -683,9 +716,10 @@ export function ExpenseActions({
           <button
             type="button"
             className="row-toggle"
-            onClick={() => {
+            onClick={(e) => {
+              const origin = e.currentTarget;
               if (window.confirm(t(acct.deleteConfirm)))
-                void run(`/api/accounting/expenses/${row.id}?company=${company}`, "DELETE", undefined);
+                void run(`/api/accounting/expenses/${row.id}?company=${company}`, "DELETE", undefined, undefined, origin);
             }}
           >
             {t(acct.delete)}
@@ -740,7 +774,7 @@ function RosterModal({
 }) {
   const t = tFor(useLocale());
   const { busy, error, run } = useAction();
-  const submit = (fd: FormData) => {
+  const submit = (fd: FormData, form: HTMLFormElement) => {
     const body = {
       company,
       name: String(fd.get("name") || ""),
@@ -756,6 +790,7 @@ function RosterModal({
       initial ? "PATCH" : "POST",
       body,
       onClose,
+      form,
     );
   };
   return (
@@ -842,11 +877,14 @@ export function RosterActions({
         type="button"
         className="row-toggle row-toggle--restore"
         title={t(acct.toggleActiveFromMonth)}
-        onClick={() =>
-          void run(`/api/accounting/roster/${member.id}`, "PATCH", {
-            toggleActive: true,
-            company,
-          })
+        onClick={(e) =>
+          void run(
+            `/api/accounting/roster/${member.id}`,
+            "PATCH",
+            { toggleActive: true, company },
+            undefined,
+            e.currentTarget,
+          )
         }
       >
         ⇄
@@ -857,9 +895,10 @@ export function RosterActions({
       <button
         type="button"
         className="row-toggle"
-        onClick={() => {
+        onClick={(e) => {
+          const origin = e.currentTarget;
           if (window.confirm(t(acct.deleteConfirm)))
-            void run(`/api/accounting/roster/${member.id}?company=${company}`, "DELETE", undefined);
+            void run(`/api/accounting/roster/${member.id}?company=${company}`, "DELETE", undefined, undefined, origin);
         }}
       >
         {t(acct.delete)}
@@ -905,7 +944,7 @@ export function MediaButtons({ company, month }: { company: AcctCompany; month: 
     setFeePct("15");
     setFeeMode("pct");
   };
-  const submit = (fd: FormData) => {
+  const submit = (fd: FormData, form: HTMLFormElement) => {
     const base = {
       company,
       month,
@@ -918,6 +957,7 @@ export function MediaButtons({ company, month }: { company: AcctCompany; month: 
       "POST",
       mode === "received" ? { ...base, mode, feeAmount: feeP } : { ...base, mode },
       close,
+      form,
     );
   };
   return (
@@ -1022,7 +1062,7 @@ export function AddLoanButton({ company, month: _month }: { company: AcctCompany
   const [open, setOpen] = useState(false);
   const [direction, setDirection] = useState<"borrowed" | "lent">("borrowed");
   const [moveCash, setMoveCash] = useState(true);
-  const submit = (fd: FormData) => {
+  const submit = (fd: FormData, form: HTMLFormElement) => {
     void run(
       "/api/accounting/loans",
       "POST",
@@ -1037,6 +1077,7 @@ export function AddLoanButton({ company, month: _month }: { company: AcctCompany
         moveCash,
       },
       () => setOpen(false),
+      form,
     );
   };
   return (
@@ -1099,7 +1140,7 @@ export function LoanActions({ loan, company }: { loan: LoanDto; company: AcctCom
   const [paying, setPaying] = useState(false);
   const [moveCash, setMoveCash] = useState(true);
   const settled = loan.outstanding <= 50;
-  const submit = (fd: FormData) => {
+  const submit = (fd: FormData, form: HTMLFormElement) => {
     void run(
       `/api/accounting/loans/${loan.id}/payments`,
       "POST",
@@ -1111,6 +1152,7 @@ export function LoanActions({ loan, company }: { loan: LoanDto; company: AcctCom
         moveCash,
       },
       () => setPaying(false),
+      form,
     );
   };
   return (
@@ -1123,9 +1165,10 @@ export function LoanActions({ loan, company }: { loan: LoanDto; company: AcctCom
       <button
         type="button"
         className="row-toggle"
-        onClick={() => {
+        onClick={(e) => {
+          const origin = e.currentTarget;
           if (window.confirm(t(acct.deleteConfirm)))
-            void run(`/api/accounting/loans/${loan.id}?company=${company}`, "DELETE", undefined);
+            void run(`/api/accounting/loans/${loan.id}?company=${company}`, "DELETE", undefined, undefined, origin);
         }}
       >
         {t(acct.delete)}
@@ -1194,7 +1237,7 @@ function MoveModal({
 }) {
   const t = tFor(useLocale());
   const { busy, error, run } = useAction();
-  const submit = (fd: FormData) => {
+  const submit = (fd: FormData, form: HTMLFormElement) => {
     const body = {
       company,
       month: String(fd.get("month") || month),
@@ -1210,6 +1253,7 @@ function MoveModal({
       initial ? "PATCH" : "POST",
       body,
       onClose,
+      form,
     );
   };
   return (
@@ -1277,9 +1321,10 @@ export function MoveActions({ row, company }: { row: MoveDto; company: AcctCompa
       <button
         type="button"
         className="row-toggle"
-        onClick={() => {
+        onClick={(e) => {
+          const origin = e.currentTarget;
           if (window.confirm(t(acct.deleteConfirm)))
-            void run(`/api/accounting/treasury/${row.id}?company=${company}`, "DELETE", undefined);
+            void run(`/api/accounting/treasury/${row.id}?company=${company}`, "DELETE", undefined, undefined, origin);
         }}
       >
         {t(acct.delete)}
@@ -1295,12 +1340,13 @@ export function OpeningButton({ company, current }: { company: AcctCompany; curr
   const t = tFor(useLocale());
   const { busy, error, run } = useAction();
   const [open, setOpen] = useState(false);
-  const submit = (fd: FormData) => {
+  const submit = (fd: FormData, form: HTMLFormElement) => {
     void run(
       "/api/accounting/settings",
       "PUT",
       { company, openingBalance: egp(fd, "openingBalance") },
       () => setOpen(false),
+      form,
     );
   };
   return (
@@ -1341,12 +1387,13 @@ export function AddTargetButton({ company, month }: { company: AcctCompany; mont
   const t = tFor(useLocale());
   const { busy, error, run } = useAction();
   const [open, setOpen] = useState(false);
-  const submit = (fd: FormData) => {
+  const submit = (fd: FormData, form: HTMLFormElement) => {
     void run(
       "/api/accounting/targets",
       "POST",
       { company, period: String(fd.get("period") || month), goal: egp(fd, "goal") },
       () => setOpen(false),
+      form,
     );
   };
   return (
@@ -1382,9 +1429,10 @@ export function TargetActions({ id, company }: { id: string; company: AcctCompan
     <button
       type="button"
       className="row-toggle"
-      onClick={() => {
+      onClick={(e) => {
+        const origin = e.currentTarget;
         if (window.confirm(t(acct.deleteConfirm)))
-          void run(`/api/accounting/targets/${id}?company=${company}`, "DELETE", undefined);
+          void run(`/api/accounting/targets/${id}?company=${company}`, "DELETE", undefined, undefined, origin);
       }}
     >
       {t(acct.delete)}

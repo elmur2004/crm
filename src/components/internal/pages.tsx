@@ -33,6 +33,7 @@ import { waHref } from "@/lib/phone-dial";
 import { waSentLabel, whatsappMarkOf } from "@/components/shared/whatsappMark";
 import { WhatsappChip } from "@/components/shared/WhatsappChip";
 import { StageBadge } from "@/components/shared/StageBadge";
+import { stageKey } from "@/components/bsystems/stageColors";
 import { LeadsExportButtons } from "@/components/shared/LeadsExportButtons";
 import { LeadsImportMenu } from "@/components/shared/LeadsImportMenu";
 import { NoAnswerBadge } from "@/components/shared/NoAnswerBadge";
@@ -125,11 +126,7 @@ export async function LeadsBody({
         <div className="page-actions">
           <LeadsExportButtons companies={exportCompanies} />
           {importCompany ? (
-            <LeadsImportMenu
-              company={importCompany}
-              /* no sales rep = the Unassigned card's own list */
-              unassignedHref={`${ctx.basePath}/leads/rep/unassigned${ctx.query}`}
-            />
+            <LeadsImportMenu company={importCompany} />
           ) : null}
           <AddRepForm apiBase={ctx.apiBase} />
         </div>
@@ -201,9 +198,9 @@ export async function RepLeadsBody({
     <div className="space-y-6">
       <div className="page-head">
         <div>
-          <Link href={`${ctx.basePath}/leads${ctx.query}`} className="text-sm text-brand-muted underline underline-offset-2">
-            {t(leadsPage.backToAllReps)}
-          </Link>
+          {/* no "Back to all reps": Leads is in the ByteForce CRM menu, the one
+              way back to the rep directory (one way to each page) */}
+          <p className="u-eyebrow">{BRAND_EYEBROW[ctx.brand]} · {t(leadsPage.eyebrowLeads)}</p>
           <h1 className="u-h1">
             {rep ? rep.name : t(leadsPage.unassignedPartnerLeads)}
           </h1>
@@ -240,7 +237,8 @@ export async function RepLeadsBody({
               </thead>
               <tbody>
                 {leads.map((lead) => (
-                  <tr key={lead.id}>
+                  /* the row's stage shows as an edge on hover (crm.css) */
+                  <tr key={lead.id} data-stage-key={stageKey(lead.stage)}>
                     <td>
                       <Link href={`${ctx.basePath}/leads/lead/${lead.id}${ctx.query}`} className="td-title">
                         {lead.name}
@@ -295,9 +293,9 @@ export async function LeadDetailBody({ ctx, leadId }: { ctx: InternalAppCtx; lea
     <div className="space-y-6">
       <div className="page-head">
         <div>
-          <Link href={`${ctx.basePath}/crm${ctx.query}`} className="text-sm text-brand-muted underline underline-offset-2">
-            {t(leadDetail.backToBoard)}
-          </Link>
+          {/* no "Back to the board": the board is the menu's first item, the
+              one way to it (one way to each page) */}
+          <p className="u-eyebrow">{BRAND_EYEBROW[ctx.brand]} · {t(board.eyebrowCrm)}</p>
         </div>
         <div className="page-actions">
           {/* founder: the dial entry point — opens the phone-first call sheet.
@@ -329,7 +327,8 @@ export async function LeadDetailBody({ ctx, leadId }: { ctx: InternalAppCtx; lea
         </div>
       </div>
 
-      <div className="card card--flush0">
+      {/* the identity card wears the lead's stage (crm.css); visual only */}
+      <div className="card card--flush0" data-stage-key={stageKey(lead.stage)}>
         <div className="identity-head">
           <h1 className="identity-name flex items-center gap-3 flex-wrap">
             {lead.name}
@@ -599,10 +598,7 @@ export async function CrmBoardBody({
             renders and the Leads page already buckets). */}
         <div className="page-actions">
           {importCompany ? (
-            <LeadsImportMenu
-              company={importCompany}
-              unassignedHref={`${ctx.basePath}/leads/rep/unassigned${ctx.query}`}
-            />
+            <LeadsImportMenu company={importCompany} />
           ) : null}
           <AddLeadForm apiBase={ctx.apiBase} reps={reps} />
         </div>
@@ -655,7 +651,7 @@ export async function CrmBoardBody({
         </form>
       </FilterPanel>
       {orderedCards.length === 0 && activeCount > 0 ? (
-        <p className="empty">{t(board.noMatches)}</p>
+        <p className="empty empty--search">{t(board.noMatches)}</p>
       ) : (
         <InternalBoard
           leads={orderedCards}

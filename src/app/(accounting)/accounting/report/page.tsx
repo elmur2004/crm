@@ -16,10 +16,15 @@ import { acctQuery, acctView } from "@/lib/accounting/params";
 import { moduleCompaniesFor } from "@/lib/module-companies";
 import { monthLabel } from "@/lib/accounting/format";
 import { AcctHead } from "@/components/accounting/AcctHead";
+import { ModSwap } from "@/components/accounting/module-ui";
 
 /* ADR-052 — the monthly income statement + 6-month trend. Pass-through media
    budgets and loans are excluded by construction (they never enter income or
-   expenses — only the fee does). */
+   expenses — only the fee does).
+   A new month cross-fades in and its six bars draw again (ModSwap); printed,
+   it is the plain light statement it always was (modules.css is screen-only
+   where it restyles, and motion never prints a half-way frame of a finished
+   page). */
 
 export async function generateMetadata() {
   const locale = await getLocale();
@@ -77,7 +82,7 @@ export default async function AcctReportPage({
   );
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-5 mod-page">
       <AcctHead
         view={view}
         locale={locale}
@@ -86,68 +91,70 @@ export default async function AcctReportPage({
         sub={acct.pnlSub}
       />
 
-      <div className="grid gap-5 md:grid-cols-2">
-        {typeCard(
-          t(acct.income),
-          Object.entries(p.incomeByType),
-          t(acct.noIncomeCollected),
-          p.totalIncome,
-          t(acct.totalIncome),
-          false,
-        )}
-        {typeCard(
-          t(acct.expensesWord),
-          Object.entries(p.expenseByType),
-          t(acct.noExpensesMonth),
-          p.totalExpenses,
-          t(acct.totalExpenses),
-          true,
-        )}
-      </div>
-
-      <section className="card card-pad flex items-end justify-between gap-4 flex-wrap">
-        <div>
-          <p className="u-eyebrow">
-            {t(acct.netProfitLoss)} · {monthLabel(view.month, locale)}
-          </p>
-          <p className={`u-h1 ${p.net >= 0 ? "" : "text-brand-danger"}`}>{formatEGP(p.net)}</p>
+      <ModSwap swapKey={`${view.company}|${view.month}`} className="space-y-5">
+        <div className="grid gap-5 md:grid-cols-2">
+          {typeCard(
+            t(acct.income),
+            Object.entries(p.incomeByType),
+            t(acct.noIncomeCollected),
+            p.totalIncome,
+            t(acct.totalIncome),
+            false,
+          )}
+          {typeCard(
+            t(acct.expensesWord),
+            Object.entries(p.expenseByType),
+            t(acct.noExpensesMonth),
+            p.totalExpenses,
+            t(acct.totalExpenses),
+            true,
+          )}
         </div>
-        <div className="text-end">
-          <p className="u-eyebrow">{t(acct.netMargin)}</p>
-          <p className="u-h1">{p.marginPct.toFixed(1)}%</p>
-        </div>
-      </section>
 
-      <section className="card card-pad">
-        <p className="u-eyebrow mb-3">{t(acct.sixMonthTrend)}</p>
-        <div className="space-y-2">
-          {points.map((x) => (
-            <div key={x.month} className="chart-row text-sm">
-              <span className="w-28 shrink-0 text-brand-muted">{monthLabel(x.month, locale)}</span>
-              <div className="flex-1 space-y-1">
-                <div className="meter" style={{ height: 8 }}>
-                  <div className="meter-fill bg-brand-success" style={{ width: `${(x.income / max) * 100}%` }} />
+        <section className="card card-pad flex items-end justify-between gap-4 flex-wrap">
+          <div>
+            <p className="u-eyebrow">
+              {t(acct.netProfitLoss)} · {monthLabel(view.month, locale)}
+            </p>
+            <p className={`u-h1 ${p.net >= 0 ? "" : "text-brand-danger"}`}>{formatEGP(p.net)}</p>
+          </div>
+          <div className="text-end">
+            <p className="u-eyebrow">{t(acct.netMargin)}</p>
+            <p className="u-h1">{p.marginPct.toFixed(1)}%</p>
+          </div>
+        </section>
+
+        <section className="card card-pad">
+          <p className="u-eyebrow mb-3">{t(acct.sixMonthTrend)}</p>
+          <div className="space-y-2">
+            {points.map((x) => (
+              <div key={x.month} className="chart-row text-sm">
+                <span className="w-28 shrink-0 text-brand-muted">{monthLabel(x.month, locale)}</span>
+                <div className="flex-1 space-y-1">
+                  <div className="meter" style={{ height: 8 }}>
+                    <div className="meter-fill bg-brand-success" style={{ width: `${(x.income / max) * 100}%` }} />
+                  </div>
+                  <div className="meter" style={{ height: 8 }}>
+                    <div className="meter-fill bg-brand-danger" style={{ width: `${(x.expenses / max) * 100}%` }} />
+                  </div>
                 </div>
-                <div className="meter" style={{ height: 8 }}>
-                  <div className="meter-fill bg-brand-danger" style={{ width: `${(x.expenses / max) * 100}%` }} />
-                </div>
+                <span className={`w-28 text-end font-medium ${x.net >= 0 ? "text-brand-success" : "text-brand-danger"}`}>
+                  {x.net >= 0 ? "+" : "−"}
+                  {formatEGP(Math.abs(x.net))}
+                </span>
               </div>
-              <span className={`w-28 text-end font-medium ${x.net >= 0 ? "text-brand-success" : "text-brand-danger"}`}>
-                {x.net >= 0 ? "+" : "−"}
-                {formatEGP(Math.abs(x.net))}
-              </span>
-            </div>
-          ))}
-        </div>
-        <div className="flex gap-4 mt-3 u-muted">
-          <span className="inline-flex items-center gap-2">
-            <span className="inline-block w-2.5 h-2.5 rounded-sm bg-brand-success" /> {t(acct.income)}
-          </span>
-          <span className="inline-flex items-center gap-2">
-            <span className="inline-block w-2.5 h-2.5 rounded-sm bg-brand-danger" /> {t(acct.expensesWord)}
-          </span>
-        </div>
-      </section>
+            ))}
+          </div>
+          <div className="flex gap-4 mt-3 u-muted">
+            <span className="inline-flex items-center gap-2">
+              <span className="inline-block w-2.5 h-2.5 rounded-sm bg-brand-success" /> {t(acct.income)}
+            </span>
+            <span className="inline-flex items-center gap-2">
+              <span className="inline-block w-2.5 h-2.5 rounded-sm bg-brand-danger" /> {t(acct.expensesWord)}
+            </span>
+          </div>
+        </section>
+      </ModSwap>
     </div>
   );
 }

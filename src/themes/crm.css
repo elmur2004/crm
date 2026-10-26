@@ -1,0 +1,640 @@
+/* =========================================================================
+   CRM BODIES — the sign-in's craft, on every CRM screen's DATA.
+
+   Founder: "the log in page is very nicely animated and designed the rest of
+   the system is still not". He chose "Glass frame, solid data": the frame
+   (headers, menus, dialogs, toasts, the ground, page heads, buttons, inputs)
+   is glass.css / motion.css — the FOUNDATION, which this file never restyles.
+   What lives here is the page BODIES of the merged CRM shell (/b-systems/**):
+   the three boards, their columns and cards, the lead lists and tables, the
+   lead details with their records and history, the call sheet, the To-Do,
+   the calendar, the daily report, Won Leads and the milestones, the Partners
+   & Agents screens, the empty states and the inline feedback.
+
+   Imported by src/app/(bsystems)/layout.tsx AFTER motion.css, so equal
+   specificity resolves here. Its own guard: src/themes/crm.test.ts.
+
+   ---------------------------------------------------------------- RULES
+   · SOLID DATA. Boards, columns, cards, rows, tables and forms stay on their
+     solid --color-surface-card / stage-well grounds. Not one backdrop-filter
+     in this file; no glass on anything repeated.
+   · TOKENS ONLY. Every colour is a semantic token from the three scope files,
+     a stage var the board defines (--stage-well / -bar / -chip / -chip-ink),
+     or a color-mix() over them. Glows are ONE hue fading to nothing.
+     Signal Pink is never spent here except through --stage-bar on the Won
+     column, where it IS the Won cue.
+   · SCREEN ONLY. Everything visual sits inside @media screen, so a printed
+     statement prints the plain design-system layer exactly as before.
+   · MOTION is inside @media screen and (prefers-reduced-motion: no-preference), moves
+     transform and opacity only, never longer than 600 ms, fills BACKWARDS
+     (a filling transform would trap a fixed dialog), staggers ≤ 200 ms.
+     Hover lifts only under (hover: hover). Numbers never count at load
+     (BUG-026): a figure's BLOCK may fade in; a count may pop only when it
+     CHANGES (CountPill, BoardMotion.tsx).
+   · Entrances are VERTICAL only (no sideways scroll at 320px, and the zoom
+     spec's "first column level with the title" is a left-edge measure).
+   · Logical properties; the one physical value (an inset shadow's x offset)
+     is multiplied by motion.css's --mo-dir.
+   · Dark: html[data-theme="dark"] … inside @media screen, positive matches.
+   ========================================================================= */
+
+/* ------------------------------------------------------------- keyframes
+   (transform / opacity only) */
+@keyframes crm-card-in {
+  from { opacity: 0; transform: translate3d(0, 4px, 0); }
+  to { opacity: 1; transform: none; }
+}
+/* the dragged card is picked up: from flat to its tilt (the tilt is the
+   element's own transform, so the keyframe names only where it starts) */
+@keyframes crm-pickup {
+  from { transform: none; }
+}
+/* a count that CHANGED gives one beat. Two names, so a second change
+   restarts it without remounting the pill (CountPill alternates them). */
+@keyframes crm-bump-a {
+  0% { transform: none; }
+  40% { transform: scale(1.22); }
+  100% { transform: none; }
+}
+@keyframes crm-bump-b {
+  0% { transform: none; }
+  40% { transform: scale(1.22); }
+  100% { transform: none; }
+}
+/* a ticked box answers the thumb */
+@keyframes crm-tick {
+  0% { transform: scale(.82); }
+  55% { transform: scale(1.14); }
+  100% { transform: none; }
+}
+/* a progress bar draws once from its start edge */
+@keyframes crm-grow-x {
+  from { transform: scaleX(0); }
+}
+/* a small mark arriving (the WhatsApp tick, an empty state's badge) */
+@keyframes crm-pop {
+  from { opacity: 0; transform: scale(.6); }
+  to { opacity: 1; transform: none; }
+}
+
+@media screen {
+  /* ====================================================== the board (§6.3)
+     The well keeps its stage tint (solid); a soft light of its OWN hue pools
+     under the head, and a hairline ring of the same hue gives the column an
+     edge on the ground. */
+  .col {
+    background-image: linear-gradient(
+      to bottom,
+      color-mix(in srgb, var(--stage-bar, var(--color-border)) 7%, transparent),
+      transparent 150px
+    );
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--stage-bar, var(--color-border)) 11%, transparent);
+  }
+  .col-head { padding-block-start: 13px; }
+  .col-title { letter-spacing: .15em; }
+  .count-pill {
+    display: inline-block;
+    font-variant-numeric: tabular-nums lining-nums;
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--stage-bar, var(--color-border)) 14%, transparent);
+  }
+  /* a card hovering over a column that will take it: the well brightens
+     toward the card surface and glows in its own hue */
+  .col.col--over-valid {
+    background-color: color-mix(in srgb, var(--stage-well, var(--color-surface-tint)) 55%, var(--color-surface-card));
+    box-shadow:
+      inset 0 0 0 1px var(--stage-bar, var(--color-primary)),
+      0 18px 36px -24px var(--stage-bar, var(--color-primary));
+  }
+  .col.col--over-blocked { box-shadow: inset 0 0 0 1px var(--color-danger-border-strong); }
+
+  /* the card: a lighter rest shadow in the ink of the dark canvas (tokens,
+     not the old literal black) */
+  .bcard {
+    box-shadow:
+      0 1px 2px color-mix(in srgb, var(--color-surface-dark) 7%, transparent),
+      0 2px 8px -4px color-mix(in srgb, var(--color-surface-dark) 8%, transparent);
+  }
+  .bcard-name { text-underline-offset: 3px; text-decoration-thickness: 1px; }
+  /* the card's quiet actions (Mark ready to close · Didn't answer · Answered):
+     a hairline underline in their own ink that firms up under the pointer */
+  .bcard-meta button {
+    text-decoration-color: color-mix(in srgb, currentColor 35%, transparent);
+    text-decoration-thickness: 1px;
+    text-underline-offset: 3px;
+  }
+  .bcard-meta button:not(:disabled):hover { color: var(--color-link); text-decoration-color: currentColor; }
+  /* keyboard: a focused link or chip inside the card rings the whole card in
+     its stage hue, so the reader sees WHICH card he is on */
+  .bcard:has(:focus-visible) {
+    border-color: color-mix(in srgb, var(--stage-bar, var(--color-primary)) 60%, transparent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--stage-bar, var(--color-primary)) 18%, transparent);
+  }
+  /* the source card while its visual rides the overlay: an outlined SLOT in
+     the column's hue, its content faint — "this is where it came from" */
+  .bcard.bcard--ghost {
+    opacity: 1;
+    background: color-mix(in srgb, var(--color-surface-card) 40%, transparent);
+    border-style: dashed;
+    border-color: color-mix(in srgb, var(--stage-bar, var(--color-border-control)) 60%, transparent);
+    box-shadow: none;
+  }
+  .bcard.bcard--ghost > * { opacity: .3; }
+  /* the dragged card — lifted, tilted toward the reading direction, glowing
+     in its own stage hue (the overlay carries data-stage-key) */
+  .bcard.bcard--lift {
+    opacity: 1; /* solid: the cards it passes over must not read through it */
+    transform: rotate(calc(-1.6deg * var(--mo-dir, 1))) scale(1.03);
+    border-color: var(--stage-bar, var(--color-primary));
+    box-shadow:
+      0 26px 44px -22px color-mix(in srgb, var(--stage-bar, var(--color-primary)) 55%, transparent),
+      var(--shadow-lift);
+  }
+  /* …and it SETTLES as it lands: the drop animation (BoardMotion's
+     useBoardDropAnimation) stamps .bcard-settling on the overlay for its
+     240 ms flight; the tilt and the lift ease out under it */
+  .bcard-settling > .bcard.bcard--lift {
+    transform: none;
+    box-shadow: var(--shadow-card);
+  }
+
+  /* the column's Today chip (ADR-061/064) — a real toggle: a press gives way */
+  .today-chip { font-variant-numeric: tabular-nums lining-nums; }
+  .today-chip[aria-pressed="true"] {
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--stage-bar, var(--color-border)) 40%, transparent);
+  }
+  /* a thumb target on touch, WITHOUT growing the column head: the hit area
+     reaches past the pill (only a pointer target — never touch-action) */
+  @media (pointer: coarse) {
+    .today-chip { position: relative; }
+    .today-chip::before { content: ""; position: absolute; inset: -12px -4px; }
+  }
+
+  /* ====================================================== lists & tables
+     Solid card, rows that answer the pointer: a tint of the action hue, and
+     on a lead row the lead's stage as an edge at the row's start. */
+  .page .table tbody tr:hover,
+  .page .table tbody tr:focus-within {
+    background: color-mix(in srgb, var(--color-primary) 4%, var(--color-surface-card));
+  }
+  .page .table tbody tr[data-stage-key]:is(:hover, :focus-within) > td:first-child {
+    box-shadow: inset calc(3px * var(--mo-dir, 1)) 0 0 var(--stage-bar);
+  }
+  .page .table a.td-title { text-decoration: none; text-underline-offset: 3px; }
+  .page .table a.td-title:hover { color: var(--color-link); text-decoration: underline; }
+  .page .table thead th { border-block-end-color: var(--color-border); }
+
+  /* in-page segmented links (Active · Archived on a rep's list, the agents'
+     tabs) — a pill that answers the pointer, outside the header's rules */
+  .page .page-actions nav .nav-item,
+  .page .page-head nav .nav-item {
+    border: 1px solid transparent;
+    color: var(--color-muted);
+  }
+  .page .page-actions nav .nav-item:hover:not([aria-current]) {
+    background: var(--color-surface-card);
+    border-color: var(--color-border);
+    color: var(--color-ink);
+  }
+  .page .page-actions nav .nav-item[aria-current] {
+    color: var(--color-primary-tint-ink);
+    border-color: color-mix(in srgb, var(--color-primary) 18%, transparent);
+  }
+
+  /* ====================================================== entity cards
+     (rep cards, partners, won leads, clients). The foundation lifts an
+     .ecard on hover; a card that is NOT a link — a client card, which only
+     holds its edit form — must not promise a click (A12), so it stays put. */
+  @media (hover: hover) {
+    .page .ecard:not(a):not(:has(a)):hover {
+      transform: none;
+      border-color: var(--color-border);
+      box-shadow: var(--shadow-card);
+    }
+    /* a card that IS (or holds) the link: its mark takes the action hue */
+    .page a.ecard:hover .ecard-mark,
+    .page .ecard:has(> a):hover .ecard-mark {
+      background: var(--color-primary);
+      color: var(--frame-on-primary, var(--color-on-primary));
+    }
+  }
+  .page .ecard-mark { box-shadow: inset 0 1px 0 var(--color-glass-highlight); }
+  /* a card that IS a link (a rep's list, a partner): the action hue's air
+     pools under its head, and an arrow at its foot says where it goes —
+     drawn as a mask (its colour is a token), mirrored in Arabic */
+  .page a.ecard {
+    position: relative;
+    background-image: linear-gradient(to bottom, color-mix(in srgb, var(--color-primary-tint) 55%, transparent), transparent 96px);
+  }
+  .page a.ecard::after {
+    content: "";
+    position: absolute;
+    inset-block-end: 16px;
+    inset-inline-end: 16px;
+    inline-size: 18px;
+    block-size: 18px;
+    background: var(--color-muted);
+    -webkit-mask: var(--ecard-arrow) center / contain no-repeat;
+    mask: var(--ecard-arrow) center / contain no-repeat;
+    transform: scaleX(var(--mo-dir, 1));
+    pointer-events: none;
+    --ecard-arrow: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12h14M13 6l6 6-6 6'/%3E%3C/svg%3E");
+  }
+  .page .ecard-title { text-wrap: balance; }
+
+  /* ====================================================== details (§6.1)
+     The identity card wears the lead's stage: a bar of its hue across the
+     top and the stage's own well fading down behind the name. */
+  .page .card[data-stage-key] > :first-child { box-shadow: inset 0 3px 0 var(--stage-bar); }
+  .page .card[data-stage-key] > .identity-head {
+    background-image: linear-gradient(to bottom, var(--stage-well), transparent);
+  }
+  .page .fields-cell:hover { background: color-mix(in srgb, var(--color-surface) 70%, var(--color-surface-card)); }
+
+  /* stage records (GroupHistory): each group wears its stage at its start */
+  .page .record-group {
+    border-color: var(--color-border);
+    background: color-mix(in srgb, var(--color-surface) 60%, var(--color-surface-card));
+  }
+  .page .record-group[data-stage-key] {
+    border-inline-start: 3px solid var(--stage-bar);
+    padding-inline-start: 12px;
+  }
+
+  /* the History timeline: each line's dot is the stage it moved to, and the
+     newest line carries a soft ring (the "now" of the record) */
+  .page .tl-row[data-stage-key] .tl-dot { background: var(--stage-bar); }
+  .page .tl-row:first-child .tl-dot {
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--stage-bar, var(--color-primary)) 20%, transparent);
+  }
+  .page .tl-list--tail .tl-row:first-child .tl-dot { box-shadow: none; }
+
+  /* the lead chat: each message is a solid bubble with a breath of lift, and
+     its tail sits at the bubble's LOGICAL end corner (brand audit: the
+     physical radii kept the tail on the left in Arabic too) */
+  .page .chat-msg {
+    box-shadow: 0 1px 2px color-mix(in srgb, var(--color-surface-dark) 5%, transparent);
+    border-radius: 12px;
+    border-end-start-radius: 4px;
+  }
+  .page .chat-msg--mine { border-radius: 12px; border-end-end-radius: 4px; }
+
+  /* the Ready-to-close badge: what reads on Signal Pink is Indigo Deep, not
+     white (5.84:1 against 3.12:1 — brand audit); the frame's own pair */
+  .page .badge--accent { color: var(--frame-on-accent, var(--color-on-accent)); }
+  /* "Mark ready to close" on the lead's Next-action card: a pink-edged cue
+     whose words read (the Won chip's ink — AA on the card in both themes) */
+  .page .crm-ready { color: var(--color-stage-won-chip-ink); background: var(--color-surface-card); }
+  .page .crm-ready:not(:disabled):hover { background: var(--color-stage-won); }
+  /* a stage form that opens under the Next-action select (crm-reveal) */
+  .page form.crm-reveal.card { border-color: color-mix(in srgb, var(--color-primary) 16%, var(--color-border)); }
+
+  /* ====================================================== the call sheet
+     The one true action glows like the house primary button. */
+  .page .call-cta:not(.call-cta--wa) {
+    background-image: linear-gradient(180deg, var(--frame-gloss, transparent), transparent 58%);
+    box-shadow:
+      inset 0 1px 0 color-mix(in srgb, var(--color-on-dark) 26%, transparent),
+      0 12px 26px -16px var(--color-glow);
+  }
+
+  /* ====================================================== the To-Do (§5.8)
+     The checkbox is a 44px thumb target on touch (its label wraps it — the
+     accessible name stays the input's own aria-label). While a tick is in
+     flight the row strikes its title through and quiets, so the press reads
+     at once; the row then moves under Done with the refresh. */
+  .todo-check {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+  }
+  .todo-check input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--color-primary);
+    cursor: pointer;
+  }
+  .todo-check input[type="checkbox"]:disabled { cursor: default; }
+  .todo-check input[type="checkbox"][aria-busy="true"] { cursor: progress; }
+  @media (pointer: coarse) {
+    .todo-check { min-inline-size: 44px; min-block-size: 44px; margin-inline: -12px -6px; }
+    .todo-check input[type="checkbox"] { width: 20px; height: 20px; }
+  }
+  .todo-list { list-style: none; margin: 0; padding: 0; }
+  .todo-row {
+    padding-block: 6px;
+    padding-inline: 8px;
+    margin-inline: -8px;
+    border-radius: var(--radius-control);
+  }
+  .todo-row:hover { background: color-mix(in srgb, var(--color-primary) 4%, var(--color-surface-card)); }
+  .todo-title { text-decoration-thickness: 1px; text-underline-offset: 3px; }
+  .todo-row:not(.todo-row--done):has(.todo-check input:checked) .todo-title {
+    color: var(--color-muted);
+    text-decoration-line: line-through;
+  }
+  .todo-row:not(.todo-row--done):has(.todo-check input:checked) > :not(.todo-check-wrap) { opacity: .7; }
+  /* a Done row IS struck through (ADR-062). Its link carries both Tailwind's
+     underline and line-through utilities, and the later of the two in the
+     utilities layer — underline — won, so the strike never actually showed;
+     this states it in the body layer. */
+  .todo-row--done .todo-title { text-decoration-line: line-through; }
+  /* a manual completion being restored: the strike lifts while it flies */
+  .todo-row--done:has(.todo-check input:not(:checked)) .todo-title {
+    text-decoration-line: underline;
+    color: var(--color-ink);
+  }
+  .todo-progress { margin-inline-start: auto; align-self: center; inline-size: min(200px, 45%); }
+
+  /* ====================================================== meters
+     A thin progress bar (Meter.tsx): the To-Do's day, a deal's milestones.
+     Drawn at its final geometry by the server; it draws in once per visit
+     and EASES when the value changes (a new --v re-computes the transform). */
+  .crm-meter {
+    display: block;
+    block-size: 6px;
+    min-inline-size: 64px;
+    border-radius: 999px;
+    overflow: hidden;
+    background: var(--color-surface-tint);
+  }
+  .crm-meter-fill {
+    display: block;
+    block-size: 100%;
+    inline-size: 100%;
+    border-radius: inherit;
+    background: var(--color-primary);
+    transform: scaleX(var(--v, 0));
+    transform-origin: 0 50%;
+  }
+  [dir="rtl"] .crm-meter-fill { transform-origin: 100% 50%; }
+  .crm-meter-row { display: flex; align-items: center; gap: 10px; min-inline-size: 0; }
+  .crm-meter-row .crm-meter { flex: 1 1 auto; }
+  .crm-meter-label {
+    flex: none;
+    font: 600 11.5px var(--font-body);
+    font-variant-numeric: tabular-nums lining-nums;
+    color: var(--color-muted);
+  }
+
+  /* ====================================================== milestones */
+  .ms-progress { margin-inline-start: auto; align-self: center; inline-size: min(220px, 55%); }
+  .page .ms-row--done .ms-label { color: var(--color-heading); }
+  .page .ms-row--next { box-shadow: 0 8px 20px -16px var(--color-glow); }
+
+  /* ====================================================== the calendar */
+  .cal-cell[aria-pressed="true"] .cal-daynum { font-weight: 700; }
+  .cal-row:hover { background: color-mix(in srgb, var(--color-primary) 3%, var(--color-surface-card)); }
+
+  /* ====================================================== inline feedback */
+  /* the WhatsApp chip's ✓ is a box of its own, so it can pop when it lands */
+  .wa-sent-tick { display: inline-block; }
+  .page .alert-error { box-shadow: 0 8px 20px -16px color-mix(in srgb, var(--color-danger) 50%, transparent); }
+
+  /* ====================================================== empty states
+     A quiet panel over the ground with a small illustrated badge: a tint
+     tile and a line icon drawn as a MASK, so its colour is a token (the SVG
+     itself carries none — currentColor, i.e. an opaque mask). The text is
+     the same element's text, so every accessible reading is unchanged.
+     Variants by class: --search (nothing matched), --calendar, --chat,
+     --history; the default is an empty tray. */
+  .page .empty {
+    --empty-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M22 12h-6l-2 3h-4l-2-3H2'/%3E%3Cpath d='M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z'/%3E%3C/svg%3E");
+    position: relative;
+    padding: 62px 20px 20px;
+    border: 1px dashed color-mix(in srgb, var(--color-border-control) 85%, transparent);
+    border-radius: var(--radius-card);
+    background: var(--color-glass);
+    font: 500 13px/1.55 var(--font-body);
+    color: var(--color-glass-quiet);
+    text-wrap: pretty;
+  }
+  .page .empty::before,
+  .page .empty::after {
+    content: "";
+    position: absolute;
+    inset-inline-start: 50%;
+    pointer-events: none;
+  }
+  .page .empty::before {
+    inset-block-start: 18px;
+    inline-size: 34px;
+    block-size: 34px;
+    margin-inline-start: -17px;
+    border-radius: 11px;
+    background: var(--color-primary-tint);
+    box-shadow:
+      inset 0 1px 0 var(--color-glass-highlight),
+      0 8px 18px -12px var(--color-glow);
+  }
+  .page .empty::after {
+    inset-block-start: 26px;
+    inline-size: 18px;
+    block-size: 18px;
+    margin-inline-start: -9px;
+    background: var(--color-primary-tint-ink);
+    -webkit-mask: var(--empty-icon) center / contain no-repeat;
+    mask: var(--empty-icon) center / contain no-repeat;
+  }
+  .page .empty--search {
+    --empty-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='m20 20-3.6-3.6'/%3E%3C/svg%3E");
+  }
+  .page .empty--calendar {
+    --empty-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3.5' y='5' width='17' height='15.5' rx='2.5'/%3E%3Cpath d='M3.5 10h17M8 3v4M16 3v4'/%3E%3C/svg%3E");
+  }
+  .page .empty--chat {
+    --empty-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M7.9 20A9 9 0 1 0 4 16.1L2 22z'/%3E%3C/svg%3E");
+  }
+  .page .empty--history {
+    --empty-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='8.5'/%3E%3Cpath d='M12 7.5V12l3 2'/%3E%3C/svg%3E");
+  }
+  /* inside a card the panel needs no ground of its own */
+  .page .card .empty { background: color-mix(in srgb, var(--color-surface) 55%, var(--color-surface-card)); color: var(--color-muted); }
+  /* the board's own empty column note keeps its quiet line, a touch rounder */
+  .col-empty { border-radius: 10px; }
+}
+
+/* ======================================================================
+   DARK — what a token cannot say on its own.
+   ====================================================================== */
+@media screen {
+  /* the design-system dark block flattens .bcard's shadow and rings the
+     dragged card in deep shadow; the settle must still let go of it */
+  html[data-theme="dark"] .bcard-settling > .bcard.bcard--lift { box-shadow: none; }
+  /* a ghost slot on a dark well: the dashed edge needs the control border */
+  html[data-theme="dark"] .bcard.bcard--ghost {
+    border-color: color-mix(in srgb, var(--stage-bar, var(--color-border-control)) 70%, transparent);
+  }
+  /* a row's tint over a dark card: the primary is Lavender here — a breath */
+  html[data-theme="dark"] .page .table tbody tr:hover,
+  html[data-theme="dark"] .page .table tbody tr:focus-within {
+    background: color-mix(in srgb, var(--color-primary) 7%, var(--color-surface-card));
+  }
+}
+
+/* ======================================================================
+   MOTION — all of it, and only here.
+   ====================================================================== */
+@media screen and (prefers-reduced-motion: no-preference) {
+  /* ---- the board: columns rise in turn ONCE per visit (an animation runs
+     when its element is inserted; router.refresh() keeps the DOM), five
+     steps at most. A card fades up when it is inserted — with its column on
+     the first paint, and on its own when it LANDS in a new column after a
+     move or comes back from behind the Today filter. */
+  .board > .col { animation: mo-rise-sm var(--duration-long) var(--ease-standard) backwards; animation-delay: 60ms; }
+  .board > .col:nth-child(2) { animation-delay: calc(60ms + var(--stagger-step)); }
+  .board > .col:nth-child(3) { animation-delay: calc(60ms + var(--stagger-step) * 2); }
+  .board > .col:nth-child(4) { animation-delay: calc(60ms + var(--stagger-step) * 3); }
+  .board > .col:nth-child(5) { animation-delay: calc(60ms + var(--stagger-step) * 4); }
+  .board > .col:nth-child(n + 6) { animation-delay: calc(60ms + var(--stagger-step) * 5); }
+  .col-cards > .bcard { animation: crm-card-in var(--duration-medium) var(--ease-standard) backwards; }
+  .col {
+    transition:
+      background-color var(--duration-short) ease,
+      border-color var(--duration-short) ease,
+      box-shadow var(--duration-medium) var(--ease-standard);
+  }
+  .bcard {
+    transition:
+      border-color var(--duration-short) ease,
+      background-color var(--duration-short) ease,
+      box-shadow var(--duration-medium) var(--ease-standard),
+      opacity var(--duration-short) ease;
+  }
+  .bcard > * { transition: opacity var(--duration-short) ease; }
+  /* the overlay: picked up on a spring, settled on the standard ease */
+  .bcard.bcard--lift {
+    animation: crm-pickup var(--duration-medium) var(--ease-spring) backwards;
+    transition:
+      transform var(--duration-medium) var(--ease-standard),
+      box-shadow var(--duration-medium) var(--ease-standard);
+  }
+  /* a count that changed (data-bump alternates a / b) */
+  .count-pill[data-bump="a"] { animation: crm-bump-a 320ms var(--ease-spring); }
+  .count-pill[data-bump="b"] { animation: crm-bump-b 320ms var(--ease-spring); }
+  .today-chip {
+    transition:
+      background-color var(--duration-short) ease,
+      color var(--duration-short) ease,
+      box-shadow var(--duration-medium) var(--ease-standard),
+      transform var(--duration-medium) var(--ease-spring);
+  }
+  .today-chip:active { transform: scale(.94); transition-duration: 90ms; }
+  .bcard-grip { transition: background-color var(--duration-short) ease, color var(--duration-short) ease, transform var(--duration-medium) var(--ease-spring); }
+  .bcard-grip:active { transform: scale(.94); transition-duration: 90ms; }
+
+  /* ---- grids and lists that are short by nature rise in turn (the
+     foundation's .u-stagger, applied by class so no page has to opt in):
+     entity cards, a day's tiles, the To-Do, the won deals */
+  .page :is(.ecard-grid, .tile-grid, .crm-stagger) > * {
+    animation: mo-rise-sm var(--duration-long) var(--ease-standard) backwards;
+  }
+  .page :is(.ecard-grid, .tile-grid, .crm-stagger) > :nth-child(2) { animation-delay: var(--stagger-step); }
+  .page :is(.ecard-grid, .tile-grid, .crm-stagger) > :nth-child(3) { animation-delay: calc(var(--stagger-step) * 2); }
+  .page :is(.ecard-grid, .tile-grid, .crm-stagger) > :nth-child(4) { animation-delay: calc(var(--stagger-step) * 3); }
+  .page :is(.ecard-grid, .tile-grid, .crm-stagger) > :nth-child(5) { animation-delay: calc(var(--stagger-step) * 4); }
+  .page :is(.ecard-grid, .tile-grid, .crm-stagger) > :nth-child(n + 6) { animation-delay: calc(var(--stagger-step) * 5); }
+  .page .ecard-mark {
+    transition: background-color var(--duration-short) ease, color var(--duration-short) ease;
+  }
+  .page a.ecard::after {
+    transition: transform var(--duration-medium) var(--ease-spring), background-color var(--duration-short) ease;
+  }
+
+  /* ---- rows and cells answer the pointer */
+  .page .table tbody tr { transition: background-color var(--duration-short) ease; }
+  .page .table tbody tr > td:first-child { transition: box-shadow var(--duration-medium) var(--ease-standard); }
+  .page .fields-cell, .page .cal-row, .todo-row { transition: background-color var(--duration-short) ease; }
+  .page .page-actions nav .nav-item { transition: background-color var(--duration-short) ease, border-color var(--duration-short) ease, color var(--duration-short) ease, transform var(--duration-medium) var(--ease-spring); }
+
+  /* ---- details: a stage form unfolds where it opens; a fold opened in the
+     daily report (.crm-fold) unfolds; the newest chat message arrives; the timeline's
+     first lines rise in turn (five steps at most) */
+  .crm-reveal { animation: mo-rise-sm var(--duration-medium) var(--ease-standard) backwards; }
+  .page .crm-fold[open] > :not(summary) { animation: mo-rise-sm var(--duration-medium) var(--ease-standard) backwards; }
+  .page .chat-thread > .chat-msg:last-child { animation: crm-card-in var(--duration-medium) var(--ease-standard) backwards; }
+  .page .tl-row { animation: mo-rise-sm var(--duration-medium) var(--ease-standard) backwards; }
+  .page .tl-row:nth-child(2) { animation-delay: 30ms; }
+  .page .tl-row:nth-child(3) { animation-delay: 60ms; }
+  .page .tl-row:nth-child(4) { animation-delay: 90ms; }
+  .page .tl-row:nth-child(n + 5) { animation-delay: 120ms; }
+  .page .record-group { transition: border-color var(--duration-short) ease; }
+
+  /* ---- the To-Do: the tick pops; the strike and the quiet ease in */
+  .todo-row:not(.todo-row--done) .todo-check input:checked { animation: crm-tick 320ms var(--ease-spring); }
+  .todo-title {
+    transition:
+      color var(--duration-medium) var(--ease-standard),
+      text-decoration-color var(--duration-medium) var(--ease-standard);
+  }
+  .todo-row > * { transition: opacity var(--duration-medium) var(--ease-standard); }
+  .todo-check input[type="checkbox"] { transition: transform var(--duration-medium) var(--ease-spring); }
+  .todo-check:active input[type="checkbox"]:not(:disabled) { transform: scale(.88); transition-duration: 90ms; }
+
+  /* ---- meters draw once, then ease */
+  .crm-meter-fill {
+    animation: crm-grow-x 520ms var(--ease-standard) 120ms backwards;
+    transition: transform var(--duration-long) var(--ease-standard);
+  }
+
+  /* ---- the calendar: a new month fades in; the chosen day's list rises in
+     turn (both are keyed, so they re-enter only when they change) */
+  .cal-grid { animation: mo-fade var(--duration-medium) var(--ease-standard) backwards; }
+  .cal-day > .cal-row { animation: mo-rise-sm var(--duration-medium) var(--ease-standard) backwards; }
+  .cal-day > .cal-row:nth-child(2) { animation-delay: 30ms; }
+  .cal-day > .cal-row:nth-child(3) { animation-delay: 60ms; }
+  .cal-day > .cal-row:nth-child(n + 4) { animation-delay: 90ms; }
+  .cal-cell { transition: background-color var(--duration-short) ease, box-shadow var(--duration-medium) var(--ease-standard); }
+  .cal-step { transition: border-color var(--duration-short) ease, color var(--duration-short) ease, transform var(--duration-medium) var(--ease-spring); }
+  .cal-step:active { transform: scale(.92); transition-duration: 90ms; }
+
+  /* ---- milestones: a row settles as it changes state; the box answers */
+  .page .ms-row { transition: background-color var(--duration-medium) ease, border-color var(--duration-medium) ease, box-shadow var(--duration-medium) var(--ease-standard), opacity var(--duration-medium) ease; }
+  .page .ms-row input[type="checkbox"]:checked:not(:disabled) { animation: crm-tick 320ms var(--ease-spring); }
+
+  /* ---- the call sheet's one true action gives way under the thumb */
+  .call-cta:active { transform: scale(.98); transition-duration: 90ms; }
+
+  /* ---- inline feedback arrives where it happened */
+  .page :is(.alert-error, .info-banner, .row-error) { animation: mo-rise-sm var(--duration-medium) var(--ease-standard) backwards; }
+  .wa-sent-tick { animation: crm-pop var(--duration-medium) var(--ease-spring) backwards; }
+
+  /* ---- an empty state's badge pops in after its panel fades (the panel's
+     own fade is the foundation's .empty) */
+  .page .empty::before,
+  .page .empty::after { animation: crm-pop var(--duration-long) var(--ease-spring) 80ms backwards; }
+}
+
+/* Hover — only where a pointer can hover. Board cards do NOT translate (a
+   lifted first card would clip under its scrolling column's top edge): they
+   answer with their stage-hued edge, the glow, and the name's underline. */
+@media screen and (hover: hover) {
+  .bcard:not(.bcard--ghost):not(.bcard--lift):hover {
+    border-color: color-mix(in srgb, var(--stage-bar, var(--color-primary)) 40%, var(--color-board-card-border));
+    box-shadow:
+      0 1px 2px color-mix(in srgb, var(--color-surface-dark) 7%, transparent),
+      0 14px 28px -18px var(--color-glow);
+  }
+  .bcard:not(.bcard--ghost):hover .bcard-name { text-decoration-line: underline; }
+  .bcard-grip:hover { color: var(--stage-bar, var(--color-ink)); }
+  .page a.ecard:hover .ecard-title,
+  .page .ecard:has(> a):hover .ecard-title { color: var(--color-link); }
+  .page a.ecard:hover::after { background: var(--color-link); }
+}
+@media screen and (prefers-reduced-motion: no-preference) and (hover: hover) {
+  .page .page-actions nav .nav-item:hover:not([aria-current]) { transform: translate3d(0, -1px, 0); }
+  .cal-step:hover { transform: translate3d(0, -1px, 0); }
+  /* the link card's arrow nudges toward where it goes */
+  .page a.ecard:hover::after { transform: translate3d(calc(3px * var(--mo-dir, 1)), 0, 0) scaleX(var(--mo-dir, 1)); }
+}
+
+/* the OS asked for less transparency: the empty panel is solid */
+@media screen and (prefers-reduced-transparency: reduce) {
+  .page .empty { background: var(--color-surface-card); color: var(--color-muted); }
+}
+/* system colours take over: the decorative badge goes */
+@media screen and (forced-colors: active) {
+  .page .empty::before,
+  .page .empty::after { display: none; }
+  .page .empty { padding-block-start: 20px; }
+}

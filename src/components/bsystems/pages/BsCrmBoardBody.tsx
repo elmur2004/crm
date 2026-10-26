@@ -236,12 +236,7 @@ export async function BsCrmBoardBody({
         </div>
         <div className="page-actions">
           {importCompany ? (
-            <LeadsImportMenu
-              company={importCompany}
-              /* ADR-051's queue — internal bucket, no rep, no owner — is where
-                 every imported lead waits */
-              unassignedHref={`${ctx.basePath}/leads${ctx.query}&owner=unassigned`}
-            />
+            <LeadsImportMenu company={importCompany} />
           ) : null}
           <BsAddLeadForm apiBase={ctx.apiBase} />
         </div>
@@ -314,7 +309,7 @@ export async function BsCrmBoardBody({
         </form>
       </FilterPanel>
       {orderedLeads.length === 0 && activeCount > 0 ? (
-        <p className="empty">{t(m.noMatches)}</p>
+        <p className="empty empty--search">{t(m.noMatches)}</p>
       ) : (
         <BsBoard
           leads={orderedLeads}

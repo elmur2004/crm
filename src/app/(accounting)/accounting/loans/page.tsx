@@ -9,8 +9,11 @@ import { acctView } from "@/lib/accounting/params";
 import { moduleCompaniesFor } from "@/lib/module-companies";
 import { AcctChip, AcctHead, AcctTile } from "@/components/accounting/AcctHead";
 import { AddLoanButton, LoanActions } from "@/components/accounting/forms";
+import { ModGroup, ModSwap } from "@/components/accounting/module-ui";
+import { ModEmpty } from "@/components/accounting/module-art";
 
-/* ADR-052 — loans & lending. Cash moves through treasury; profit never. */
+/* ADR-052 — loans & lending. Cash moves through treasury; profit never.
+   Borrowed and lent are two ledgers that fold away from their heads (ModGroup). */
 
 export async function generateMetadata() {
   const locale = await getLocale();
@@ -30,12 +33,9 @@ export default async function AcctLoansPage({
   const { owe, owed, net } = loanTotals(books);
 
   const group = (title: string, empty: string, loans: AcctLoanRow[]) => (
-    <section className="card card--flush0">
-      <div className="card-head">
-        <h2 className="u-h3">{title}</h2>
-      </div>
+    <ModGroup title={title}>
       {loans.length === 0 ? (
-        <p className="empty m-4">{empty}</p>
+        <ModEmpty kind="coins">{empty}</ModEmpty>
       ) : (
         <div className="table-scroll">
           <table className="table">
@@ -88,11 +88,11 @@ export default async function AcctLoansPage({
           </table>
         </div>
       )}
-    </section>
+    </ModGroup>
   );
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-5 mod-page">
       <AcctHead
         view={view}
         locale={locale}
@@ -104,17 +104,19 @@ export default async function AcctLoansPage({
       <div className="page-actions">
         <AddLoanButton company={view.company} month={view.month} />
       </div>
-      <div className="tile-grid">
-        <AcctTile label={t(acct.weOwePayable)} value={formatEGP(owe)} sub={t(acct.outstandingBorrowed)} tone={owe > 0 ? "danger" : undefined} />
-        <AcctTile label={t(acct.owedToUsReceivable)} value={formatEGP(owed)} sub={t(acct.outstandingLent)} />
-        <AcctTile
-          label={t(acct.netLoanPosition)}
-          value={formatEGP(Math.abs(net))}
-          sub={net >= 0 ? t(acct.netReceivable) : t(acct.netPayable)}
-        />
-      </div>
-      {group(t(acct.borrowedGroup), t(acct.noBorrowed), books.loans.filter((l) => l.direction === "borrowed"))}
-      {group(t(acct.lentGroup), t(acct.noLent), books.loans.filter((l) => l.direction === "lent"))}
+      <ModSwap swapKey={view.company} className="space-y-5">
+        <div className="tile-grid">
+          <AcctTile label={t(acct.weOwePayable)} amount={owe} sub={t(acct.outstandingBorrowed)} tone={owe > 0 ? "danger" : undefined} />
+          <AcctTile label={t(acct.owedToUsReceivable)} amount={owed} sub={t(acct.outstandingLent)} />
+          <AcctTile
+            label={t(acct.netLoanPosition)}
+            amount={Math.abs(net)}
+            sub={net >= 0 ? t(acct.netReceivable) : t(acct.netPayable)}
+          />
+        </div>
+        {group(t(acct.borrowedGroup), t(acct.noBorrowed), books.loans.filter((l) => l.direction === "borrowed"))}
+        {group(t(acct.lentGroup), t(acct.noLent), books.loans.filter((l) => l.direction === "lent"))}
+      </ModSwap>
     </div>
   );
 }

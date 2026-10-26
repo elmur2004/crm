@@ -175,7 +175,7 @@ export function LeadChat({
       </div>
       <div className="card-pad space-y-3">
         {comments.length === 0 ? (
-          <p className="empty">{t(chat.empty)}</p>
+          <p className="empty empty--chat">{t(chat.empty)}</p>
         ) : (
           <ul ref={threadRef} className="chat-thread">
             {comments.map((c) => (

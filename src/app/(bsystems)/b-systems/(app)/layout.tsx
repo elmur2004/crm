@@ -1,15 +1,15 @@
 import { redirect } from "next/navigation";
 import { BrandLogo } from "@/components/shared/BrandLogo";
-import { CompanySwitch } from "@/components/shared/CompanySwitch";
 import {
-  CrmHomeLink,
+  CrmAppName,
   CrmShellBell,
   CrmShellNav,
   type PerCompany,
 } from "@/components/shared/CrmShellNav";
 import { ImpersonationBar } from "@/components/shared/ImpersonationBar";
+import { AppGround } from "@/components/shared/AppGround";
+import { RoutePending } from "@/components/shared/RoutePending";
 import { LauncherHomeLink } from "@/components/launcher/LauncherHomeLink";
-import { EntitySwitch } from "@/components/shared/EntitySwitch";
 import { LanguageToggle } from "@/components/shared/LanguageToggle";
 import { ThemeToggle } from "@/components/shared/ThemeToggle";
 import { UndoControl } from "@/components/shared/UndoControl";
@@ -18,10 +18,11 @@ import { landingFor } from "@/lib/auth/landing";
 import { requirePageRole } from "@/lib/auth/page-guards";
 import { bsRoleOrNull } from "@/lib/api/bsystems";
 import { CRM_ROLES, companiesFor, defaultCompanyFor } from "@/lib/crm/company";
-import { crmHomeFor, crmNavFor } from "@/lib/crm/nav";
+import { crmAppNameFor, crmNavFor, partnersNavFor } from "@/lib/crm/nav";
 import { tFor, type Msg } from "@/lib/i18n/core";
 import { getLocale } from "@/lib/i18n/server";
 import { nav, roles } from "@/lib/i18n/dict/crm";
+import { launcher } from "@/lib/i18n/dict/launcher";
 import { regRoleBadges } from "@/lib/i18n/dict/admin";
 
 /* V2 §2 — ONE role-aware B-Systems app. Chrome per the approved prototype
@@ -45,7 +46,17 @@ import { regRoleBadges } from "@/lib/i18n/dict/admin";
    This layout can enforce only "does this account hold ANY company" — a server
    layout can read neither searchParams nor the pathname. The per-company wall
    is requireCompanyPage / requireCompanySection in every page, swept by
-   page-company-guards.integration.test so a page cannot quietly skip it. */
+   page-company-guards.integration.test so a page cannot quietly skip it.
+
+   ONE WAY TO EACH PAGE (founder: "there is multiple ways to get to each page
+   there should be one way each for each page to get to"). This shell hosts
+   five launcher apps — ByteForce CRM, B-Systems CRM, Partners & Agents, the
+   To-Do and the Reports pages — and the header carries the menu of the one on
+   screen (CrmShellNav), named in words beside the mark (CrmAppName). Gone, by
+   his answers: the company switch ("two CRM icons, no switch"), the module
+   switcher and its phone bar (the launcher is the one way between apps), and
+   the logo link (the grid icon is the one way back to the launcher). The
+   cross-company SEARCH hop (ADR-085) stays: it is automatic, not a menu. */
 
 const ROLE_LABELS: Record<string, Msg> = roles;
 
@@ -78,15 +89,18 @@ export default async function BSystemsAppLayout({
      chrome only picks between what it was handed, so a company he does not
      hold has no nav, no home and no bell to render. */
   const navs: PerCompany<Array<{ href: string; label: string }>> = {};
-  const homes: PerCompany<string> = {};
+  const crmNames: PerCompany<string> = {};
   const bells: PerCompany<{ apiBase: string; leadPathBase: string; leadQuery: string }> = {};
   for (const company of companies) {
     navs[company] = crmNavFor(company, role).map((item) => ({
       href: item.href,
       label: t(item.label),
     }));
-    homes[company] = crmHomeFor(company, role);
+    crmNames[company] = t(crmAppNameFor("crm", company));
   }
+  /* Partners & Agents — its own launcher app, B-Systems admin only; empty for
+     every other role (its four pages are admin-only, so a link would bounce) */
+  const partners = partnersNavFor(role).map((item) => ({ href: item.href, label: t(item.label) }));
   if (companies.includes("bsystems") && role !== "bsystems_data_entry") {
     /* ADR-051: a data-entry account receives no notifications and is not
        granted the notifications endpoint — a bell that can only ever poll a
@@ -116,31 +130,39 @@ export default async function BSystemsAppLayout({
 
   return (
     <>
+      {/* the ambient ground behind every CRM screen (glass.css): <body>'s
+          own background is the canvas, so a z-index:-1 layer sits between
+          the canvas and the content */}
+      <AppGround />
       <ImpersonationBar />
       <header className="app-header" data-shell={external ? "external" : undefined}>
+        {/* the ONE way back to the launcher, which is the one way between apps */}
         <LauncherHomeLink locale={locale} />
-        {/* founder: the REAL B-Systems mark; clicking it goes to THIS app's
-            landing for the current role AND company — never the platform root,
-            and never the other company's home */}
-        <CrmHomeLink homes={homes} fallback={fallback} label={t(nav.bsystemsHome)}>
+        {/* founder: the REAL B-Systems mark — a plain mark now, not a link (the
+            grid icon is the way back) — and the NAME of the app on screen */}
+        <div className="app-mark app-mark--named flex items-center gap-3">
           <BrandLogo brand="bsystems" variant="mark" height={40} />
-          <span className="wordmark">B-Systems</span>
-        </CrmHomeLink>
+          <CrmAppName
+            names={{
+              crm: crmNames,
+              partners: t(launcher.partners),
+              todo: t(launcher.todo),
+              reports: t(launcher.reports),
+            }}
+            fallback={fallback}
+          />
+        </div>
         <CrmShellNav
           navs={navs}
+          partners={partners}
           fallback={fallback}
           /* The sheet carries the header controls whose header twin is hidden
-             at <=820px (LanguageToggle, ThemeToggle, EntitySwitch, Log out — see
-             design-system.css). The company switch is deliberately NOT among
-             them: it does not live in the header at all, it lives in the page
-             below, where it is on screen at EVERY width. Putting it here too
-             would render two live "Switch company" groups on a phone whenever
-             the burger is open (review, Run 080). */
+             at <=820px (LanguageToggle, ThemeToggle, Log out — see
+             design-system.css). */
           extras={
             <>
               <LanguageToggle />
               <ThemeToggle />
-              <EntitySwitch user={user} current="crm" />
               <form action={logout.bind(null, "/login")}>
                 <button type="submit" className="nav-item">
                   {t(nav.logOut)}
@@ -153,7 +175,6 @@ export default async function BSystemsAppLayout({
           <LanguageToggle />
           <ThemeToggle compact />
           <CrmShellBell bases={bells} fallback={fallback} />
-          <EntitySwitch user={user} current="crm" />
           <span className="user-avatar" aria-hidden>
             {initials}
           </span>
@@ -168,9 +189,6 @@ export default async function BSystemsAppLayout({
           </form>
         </div>
       </header>
-      {/* ADR-060 — the phone module bar (<=820px), directly under the header.
-          ADR-067 shortened it to three segments: the two CRMs became one. */}
-      <EntitySwitch variant="bar" user={user} current="crm" />
       {/* ADR-056: the full-width query container the board measures itself
           against. 50cqw is the content width EXCLUDING the scrollbar —
           the quantity 50vw cannot express — so the full-bleed board is
@@ -178,11 +196,9 @@ export default async function BSystemsAppLayout({
           board silently falls back to the old vw arithmetic. */}
       <div className="shell-body">
         <main className="page max-w-7xl mx-auto w-full">
-          {/* ADR-067 — the company switch, in the page and labelled, so it can
-              never be mistaken for the module bar above it. In the SHELL, so
-              no screen can forget to render it. */}
-          <CompanySwitch companies={companies} fallback={fallback} />
-          {children}
+          {/* the instant skeleton on a click to another screen (client
+              navigations only — the server still renders the whole page) */}
+          <RoutePending>{children}</RoutePending>
         </main>
       </div>
       <UndoControl userId={user.id} />

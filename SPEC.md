@@ -191,6 +191,7 @@ The founder's original wording is preserved in meaning but normalized in the UI 
 - A manual mark is valid for the Cairo day it was made: a statement or milestone still pending the next day returns to Today unchecked — money never silently vanishes (the ADR-061 asymmetry).
 - **The negotiation response date is its own row (ADR-068).** A follow-up whose stored context is `after_negotiation` — the response date promised in Negotiation — appears under its own kind, labelled **"Check their response" / "التحقق من ردّهم"**, so an answer the person is WAITING for never reads as another call he owes. It is the same FollowUp record: same id, same checkbox, same completion mark, same today-only window, same scope wall. The kind is read from the RECORD's context, never from the lead's current stage, so a Done row keeps its wording after the deal moves on. ByteForce has no negotiation stage and its endpoint refuses the kind outright.
 - **One shared page since ADR-067**, at `/b-systems/todo`, showing whichever company the switch is on. Rows carry `?company=` so a link can be forwarded.
+- **Amended by ADR-095 (one way to each page).** The company switch is gone. The To-Do is its own launcher app — its one way in is the launcher's To-Do icon — and carries in-page ByteForce · B-Systems tabs for an account that works leads in both companies (a filter on the same page, not a second way in). It is no longer an item in either CRM's menu.
 
 ---
 
@@ -199,6 +200,8 @@ The founder's original wording is preserved in meaning but normalized in the UI 
 **Amended by ADR-067 — App A is no longer a separate application.** Every screen, rule, guard and field group below is unchanged and still normative; only its ADDRESS and its CHROME moved. The ByteForce CRM is now a MODE of the one merged shell, reached at `/b-systems/…?company=byteforce`, wearing B-Systems chrome, with the company switch shown only to an account that holds both. Old `/byteforce/…` addresses redirect with the company preselected, and the `/api/byteforce/**` namespace — which is where the brand wall actually lives — did not move at all. Read "App A" below as "the ByteForce company".
 
 Navigation: **Home (Dashboard) | Leads | CRM | Clients** — plus To-Do (ADR-041). Screens are themed B-Systems since ADR-067 (§4.1); the ByteForce brand tokens live on in the accounting module.
+
+**Amended by ADR-095 (one way to each page).** The ByteForce CRM is opened from its own launcher icon, which lands on the board; its menu is **CRM | Leads | Calendar | Clients**. The Home dashboard is reached only from the launcher's Reports & Dashboards icon, the To-Do only from its own launcher icon, and there is no company switch: each company is its own launcher icon. Every screen, rule, guard and field group below is unchanged — only how a person gets to it moved.
 
 ### 6.1 Leads section
 - Grid of **sales rep cards**; reps can be added without limit (name required; show lead count per rep on the card). Selecting a rep opens their assigned-leads table.
@@ -239,6 +242,8 @@ Navigation: **Home (Dashboard) | Leads | CRM | Clients** — plus To-Do (ADR-041
 | Technical support | text / rep select |
 | Meeting outcome | enum: `Attended` / `Cancelled` / `Delayed` |
 
+**Amended by ADR-096.** The founder: *"شيل الخطوة دي ملهاش اي معنى خش في المعاد علطول"* (remove this step — it means nothing — go straight to the appointment) and *"شيل برضو ال technical support"*. The **Arranged?** checkbox and the **Technical support** field are gone from the internal meeting forms (ByteForce, and the B-Systems admin and sales forms, on the board's drop window and the lead page alike). Moving a card to Meeting Setting asks for the meeting itself — **Date & time and Mode are required** — and every meeting set there is stored as arranged. The data model is unchanged: `arranged` and `technical_support` stay on `Meeting`, so older records keep and show what they hold, and the agents' and partners' own flow (V2 §3: *"Did you agree with the client on a time?"*, whose "no" records a proposed slot for the admin to confirm, plus *"Do you need a technical colleague with you?"*) is untouched.
+
 Outcome logic: `Attended` → user **must** pick a destination stage (`Sending proposal` / `Won` / `Lost` / `Following up`) and the card auto-transfers, opening that stage's group (a Following-up destination opens with context `after_meeting`). `Delayed` → require a new date & time, card stays in Meeting Setting (assumption A-3). `Cancelled` → user picks `Following up` or `Lost` (assumption A-3).
 
 **Sending proposal**
@@ -272,7 +277,7 @@ On saving Won fields, a Client card is auto-created/linked (assumption A-1, defa
 - Cards display: lead name, type badge, assigned rep, and the key datum of the current stage (next follow-up date, meeting datetime, estimated value…). Clicking a card opens the same detail as §6.1 with all accumulated field groups and the History panel.
 - All movement between columns is automatic per §6.2 / §10 (no free drag in v1).
 - **Column order (ADR-064).** Every column lists its cards most-recently-updated first, except **Meeting Setting**, which is a diary: it lists them by the meeting's own datetime, **soonest first, always** (not a toggle), with cards that have no meeting datetime yet last. The ordering is computed server-side, where the card list is built, and applies to all three boards that carry the column (App A §6.3, App B §2.3, the partners board §7.2).
-- **The Today chip (ADR-061, extended by ADR-064).** The Following Up and Meeting Setting column heads each carry a Today toggle: it names how many of that column's cards fall on today's **Cairo** calendar day and, pressed, shows only those. Default off, client-side over the loaded cards, and a filtered column still accepts drops — a card that LANDS in the column releases the filter, so a drop is never swallowed by it (the Meeting Setting drop form defaults to "not arranged", which stores no time and so can never match "today"). Pressed with no matches, the column says so rather than claiming to be empty.
+- **The Today chip (ADR-061, extended by ADR-064).** The Following Up and Meeting Setting column heads each carry a Today toggle: it names how many of that column's cards fall on today's **Cairo** calendar day and, pressed, shows only those. Default off, client-side over the loaded cards, and a filtered column still accepts drops — a card that LANDS in the column releases the filter, so a drop is never swallowed by it (the Meeting Setting drop form used to default to "not arranged", which stores no time and so could never match "today"; since ADR-096 it always asks for the date and time). Pressed with no matches, the column says so rather than claiming to be empty.
 - **The "didn't answer" marker is a tally (ADR-039, extended by ADR-064).** A card marker, never a stage: each press of "Didn't answer" records one more attempt, "Answered" resets it to none, and **any** stage move clears it with the flag. The badge shows the count from the second attempt on. Undo restores the exact previous count.
 
 ### 6.4 Clients section
@@ -311,6 +316,8 @@ Each dashboard number must be backed by a tested query — see §13.
 
 ### 7.1 Base
 Identical to App A in structure and behavior (§6.1–§6.5), themed B-Systems, operating on B-Systems data only. Navigation: **Home | Leads | CRM | Clients | Partners Pipeline | Partners**.
+
+**Amended by ADR-095 (one way to each page).** The B-Systems CRM is opened from its own launcher icon, which lands on the board. Its admin menu is **CRM | Leads | Calendar | Won Leads | Statements | Users** (sales: CRM | Calendar | Won Leads; agents and partners add Payments | Profile; data entry has its one page and no menu). The Partners Pipeline, Partners, Agents and Registrations form their own launcher app, **Partners & Agents** (admin only), with that menu. The Home dashboard and the daily report are reached only from Reports & Dashboards. Every rule and guard is unchanged — only how a person gets to a page moved.
 
 ### 7.2 Partners Pipeline (partner acquisition board)
 **Seven columns, the SAME set for BOTH kinds of card** (partner and agent), in this order:

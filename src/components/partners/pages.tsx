@@ -17,6 +17,7 @@ import { partnersConfigFor } from "@/lib/pipeline-engine/configs/partners";
 import { orderMeetingColumn } from "@/lib/board-order";
 import { formatCairo, formatCairoDate } from "@/lib/datetime";
 import { StageBadge } from "@/components/shared/StageBadge";
+import { stageKey } from "@/components/bsystems/stageColors";
 import { GroupHistory } from "@/components/internal/GroupHistory";
 import { HistoryPanel } from "@/components/internal/HistoryPanel";
 import {
@@ -230,7 +231,7 @@ export async function PartnersPipelineBody({
         </form>
       </FilterPanel>
       {orderedCards.length === 0 && activeCount > 0 ? (
-        <p className="empty">{t(pPipeline.noMatches)}</p>
+        <p className="empty empty--search">{t(pPipeline.noMatches)}</p>
       ) : (
         <PartnersBoard cards={orderedCards} />
       )}
@@ -276,13 +277,9 @@ export async function ProspectDetailBody({ prospectId }: { prospectId: string })
     <div className="space-y-6">
       <div className="page-head">
         <div>
-          <Link
-            href="/b-systems/partners-pipeline"
-            className="text-sm text-brand-muted underline underline-offset-2"
-          >
-            {t(pProspect.backToPipeline)}
-          </Link>
-          <p className="u-eyebrow mt-3">{t(pPipeline.eyebrow)}</p>
+          {/* no "Back to the pipeline": the pipeline is the Partners & Agents
+              menu's first item, the one way to it (one way to each page) */}
+          <p className="u-eyebrow">{t(pPipeline.eyebrow)}</p>
           <h1 className="u-h1 flex items-center gap-3 flex-wrap">
             {prospectTitle(prospect)}
             <span className="badge badge--entity">{prospectKindLabel(locale, prospect.kind)}</span>
@@ -356,7 +353,8 @@ export async function ProspectDetailBody({ prospectId }: { prospectId: string })
 
       <div className="grid md:grid-cols-2 gap-6">
         <section className="space-y-4">
-          <div className="card card--flush0">
+          {/* the card's details wear its stage (a bar of its hue — crm.css) */}
+          <div className="card card--flush0" data-stage-key={stageKey(prospect.stage)}>
             <div className="fields-grid">
               <div className="fields-cell">
                 <p className="fields-value">
@@ -486,7 +484,7 @@ export async function ProspectDetailBody({ prospectId }: { prospectId: string })
                 </div>
               ) : null}
               {/* PP-4a: the account this card minted — the admin's proof that the
-                  agent can sign in, and the way into the Agents section */}
+                  agent can sign in */}
               {prospect.agentUser ? (
                 <div className="fields-cell">
                   <p className="fields-value">
@@ -494,10 +492,9 @@ export async function ProspectDetailBody({ prospectId }: { prospectId: string })
                         LTR email inside RTL prose has to be its own bidi run,
                         which a {var} substitution cannot give it */}
                     {t(pProspect.agentAccountCreated)}{" "}
-                    <span className="u-ltr">{prospect.agentUser.email ?? "—"}</span>{" "}
-                    <Link href="/b-systems/agents" className="text-brand-primary underline underline-offset-2">
-                      {t(pProspect.viewInAgents)}
-                    </Link>
+                    <span className="u-ltr">{prospect.agentUser.email ?? "—"}</span>
+                    {/* no "View in Agents": Agents is in the Partners & Agents
+                        menu, the one way to it (one way to each page) */}
                   </p>
                 </div>
               ) : null}
@@ -635,15 +632,11 @@ export async function PartnerDetailBody({ partnerId }: { partnerId: string }) {
   return (
     <div className="space-y-6">
       <div>
-        <Link
-          href="/b-systems/partners"
-          className="text-sm text-brand-muted underline underline-offset-2"
-        >
-          {t(pDirectory.backToAll)}
-        </Link>
+        {/* no "Back to all partners": Partners is in the Partners & Agents
+            menu, the one way to the directory (one way to each page) */}
         <div className="page-head">
           <div>
-            <p className="u-eyebrow mt-3">{t(pDirectory.eyebrow)}</p>
+            <p className="u-eyebrow">{t(pDirectory.eyebrow)}</p>
             <h1 className="u-h1">{partner.companyName}</h1>
             <p className="text-brand-meta text-brand-muted mt-2">
               {t(pDirectory.dateJoined)} {formatCairoDate(partner.dateJoined, locale)}
@@ -744,7 +737,8 @@ export async function PartnerDetailBody({ partnerId }: { partnerId: string }) {
                 </thead>
                 <tbody>
                   {partner.leads.map((lead) => (
-                    <tr key={lead.id}>
+                    /* the row's stage shows as an edge on hover (crm.css) */
+                    <tr key={lead.id} data-stage-key={stageKey(lead.stage)}>
                       <td>
                         <Link href={`/b-systems/crm/lead/${lead.id}`} className="td-title">
                           {lead.name}

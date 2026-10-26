@@ -4462,3 +4462,65 @@ read it from a year later.
   without `hasTouch` reports `pointer: fine`, so the desktop-width specs never
   saw these rules.
 - Last updated: 2026-10-25 (ADR-090, BUG-027, TESTING Run 105)
+
+## Three gotchas from the glass and motion pass (2026-10-26, ADR-093)
+
+LOCAL work, not pushed; the founder previews it first.
+
+1. **A `loading.tsx` streams EVERY page load, the first document included.**
+   - **Why.** A `loading.tsx` is a Suspense boundary, and Next streams every
+     request through it. The skeleton is sent first; the real content arrives
+     later inside a hidden element and is revealed by an inline script.
+     - Without JavaScript the page **stays a skeleton forever**.
+       `e2e/fallen-behind.spec.ts`'s no-JS paint failed.
+     - With JavaScript the content appears **a beat after `load`**. Two more
+       specs failed.
+   - **Use `RoutePending` instead** (`src/components/shared/RoutePending.tsx`).
+     It wraps `{children}` in the CRM, Accounting and Vault shells, and works on
+     client navigations only. On a plain click to a different path inside
+     `/b-systems`, `/accounting` or `/vault`, it shows that page's
+     `RouteSkeleton` after 120 ms. It gives up after 8 s. Same-path changes
+     (filter, period, company) keep the page on screen. The server still sends
+     complete pages.
+   - **The guard's reach.** `src/themes/glass-motion.test.ts` ("…no route
+     streams through a loading.tsx") at first failed only if a `loading.tsx`
+     existed in one of **eight** directories:
+     - `(bsystems)`;
+     - `(bsystems)/b-systems/(app)` and its `crm`, `leads` and `todo`;
+     - `(accounting)/accounting`;
+     - `(vault)/vault`;
+     - `(home)`.
+
+     **Widened the same day:** that hand-picked list missed the `(accounting)`
+     and `(vault)` group roots and every other section folder, so the guard now
+     walks EVERY folder under `src/app` (the landing excepted). Proven by
+     planting a `loading.tsx` in `(vault)/vault/tasks`, which the old list did
+     not cover: the test failed, naming the file.
+     The same test also requires `<RoutePending>{children}</RoutePending>` in
+     the three shell layouts.
+2. **A pop-up that scales in measures under its real size mid-animation.**
+   - **The case.** The import menu's 44px items read **43.6px** while the menu
+     was still scaling in, and a touch-target assertion failed.
+   - **The rule** (`src/themes/motion.css`, `mo-pop` / `mo-drop`): **no pop-up
+     scales**. A dialog or menu arrives on opacity and a short translate only,
+     so any size read during the entrance is already the real size.
+   - **Related, in the same file.** `LeadsImportMenu` positions itself with an
+     inline `transform`, nudging back inside a narrow viewport. Its entrance
+     (`mo-drop-x`) therefore animates the individual `translate` property. A
+     `transform` keyframe would override the inline transform for the length
+     of the animation.
+3. **A backdrop blur on the header element itself breaks the fixed-position
+   phone menu inside it.**
+   - **Why.** `backdrop-filter` on `.app-header` makes the header the
+     **containing block** of the `position: fixed` phone sheet it contains
+     (`ShellNav`). The sheet then sizes to the header, and its backdrop
+     collapses to the header's own height.
+   - **The fix.** The frost lives on `.app-header::before`
+     (`src/themes/glass.css`, "the header"). The header itself stays
+     `background: transparent` with no filter.
+   - **Same family** (`motion.css` rules): an entrance keyframe that fills
+     `forwards` or `both` with a transform leaves the element a containing
+     block in Chromium. That traps a `position: fixed` dialog rendered inside
+     it, so entrances fill **backwards**.
+
+- Last updated: 2026-10-26 (ADR-093, TESTING Run 106)

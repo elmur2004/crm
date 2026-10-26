@@ -7663,3 +7663,331 @@ board's import button and BUG-027's fix all need a session; the founder sees
 them on his next sign-in. The local preview (3210 / 5436) was stopped — it
 served a build from before the import, and everything it showed is now in
 production.
+
+## Run 106 — 2026-10-26 — ADR-093/094/095: the glass frame, light and dark only, and one way to each page (LOCAL, not pushed)
+
+- Suites/commands: `npx tsc --noEmit`, `npx vitest run` (full) and
+  `npx playwright test` (FULL suite), each run by the two builders at the end
+  of their own pass:
+  - the **foundation agent** (ADR-093 glass + motion, ADR-094 the System theme
+    removed);
+  - the **navigation agent** (ADR-095).
+
+  Also `brand-auditor` on both, and `spec-guardian` on the navigation.
+  **No clean-checkout gate:** this work is local and not pushed.
+- Cases:
+  - Foundation: vitest **2263 passed, 1 skipped (2264) in 98 files**; full
+    Playwright **334 passed (34.9m), 9 skipped**.
+  - Navigation: vitest **2321 passed, 1 skipped (2322) in 98 files**; full
+    Playwright **339 passed (34.5m), 9 skipped**.
+  - `tsc` exit 0 in both. **0 failed in each final run reported.**
+- Failures (none in shipped code, so no BUG id):
+  - the foundation's first full e2e run had **12 failures**, all fixed;
+  - the navigation's testing found **one CSS ordering bug**, fixed;
+  - both brand audits **FAILED first** and were fixed.
+
+  Detail below.
+- SPEC coverage touched:
+  - **§3:** permissions unchanged; `spec-guardian` confirmed every guard admits
+    the same accounts. The launcher integration test now renders every
+    **menu item** through the real guards, not only every tile.
+  - **§4:** ten new colour tokens × light/dark and nine invariant tokens in all
+    three scopes; zero literals in components; every glass contrast figure
+    computed from the tokens; no `data-theme="system"` and no
+    `prefers-color-scheme` rule in an app sheet.
+  - **§5.8, §6, §7.1:** the navigation lines, superseded by ADR-095. SPEC.md
+    now carries the amendment notes.
+  - **§13 widths:** 320 and 601 (the sideways-scroll bug), 900 (the nav slider
+    clip), plus the device sweep's real profiles.
+  - All five journeys still sign in through `afterSignIn`, whose landing table
+    now names each landing's launcher tile.
+  - No T-*/PP-*/P-* row changed. No SPEC §11 A-#.
+- Verdict: **green at every point it was measured, and LOCAL.** These are two
+  builders' figures at the end of two passes, not one run over the final tree.
+  The CRM and Accounting/Vault body polish (two more agents) is still changing
+  the tree. A push needs the founder's preview first and then a clean-checkout
+  gate like Run 105's.
+
+**Tree:** `main`, HEAD `916ec65`, plus the uncommitted ADR-093/094/095 work and
+the landing work, which is still local. Neither agent reported a separate copy
+of the tree. The figures below are as each agent reported them.
+
+### Part 1 — the glass frame and motion (ADR-093) and the System theme removed (ADR-094)
+
+```
+tsc exit 0
+ Test Files  98 passed (98)
+      Tests  2263 passed | 1 skipped (2264)
+npx playwright test (FULL) → 334 passed (34.9m), 9 skipped; .last-run.json passed
+```
+
+| Suite | Tests | What it would catch |
+| --- | --- | --- |
+| `src/themes/glass-motion.test.ts` (new) | — (not reported) | a glass, glow or quiet-text contrast under its floor (every figure recomputed from the tokens); an animation outside `prefers-reduced-motion: no-preference`; a blur animated; frost on a card, row, column or tile; a `data-theme="system"` or `prefers-color-scheme` rule in glass.css/motion.css; a shell without `<RoutePending>`; a `loading.tsx` in any shell |
+| `e2e/glass-frame.spec.ts` (new) | 7 (counted at writing) | the toggle offering anything but Light and Dark, or a `system` cookie not rendering light; a non-sticky header, or the phone sheet not covering the screen under it; the ground in front of content, not `aria-hidden`, or printing; anything clickable still moving after the entrance; the switch pill not sliding; any motion under reduced motion; no skeleton on a click, or a document that is not the whole page |
+| `theme-tokens`, `theme-stamp`, `dark-components`, `core`, `login-glass` (changed) | — | a system selector or a `prefers-color-scheme` rule coming back; a theme value other than light/dark |
+
+**The first full e2e run had 12 failures, all fixed:**
+
+| # | Failure | Cause | Fix |
+| --- | --- | --- | --- |
+| 8 | the login's touch-target count | the System segment is gone (10 → 9) | the count updated, ADR-094 |
+| 1 | the import menu's 44px items measured 43.6px | they were still scaling in mid-entrance | pop-ups no longer scale (ADR-093 §2) |
+| 3 | `e2e/fallen-behind.spec.ts` (no-JS paint) and two others | `loading.tsx` streams the document: a skeleton forever without JS, content revealed a beat late with it | `loading.tsx` removed; `RoutePending` instead (ADR-093 §5) |
+
+- **e2e for ADR-094:**
+  - the login tab order loses its System stop, and its button count drops;
+  - the phone menu's segment count goes from 8 to 7;
+  - new assertions for exactly Light and Dark, and for a `system` cookie
+    rendering light.
+- **Brand audit: FAIL, then fixed.**
+  - Two causes: logos over glass (now the solid 248px zone) and ByteForce's dark
+    corner glow (now off). All the rest are Lows.
+  - Its third Medium is ADR-093 itself.
+  - Left open: the `byteforce-brand` skill's "orange on white text" line.
+
+### Part 2 — one way to each page (ADR-095)
+
+```
+tsc exit 0
+ Test Files  98 passed (98)
+      Tests  2321 passed | 1 skipped (2322)
+npx playwright test (FULL) → 339 passed (34.5m), 9 skipped; .last-run.json passed
+```
+
+| Suite | What it would catch |
+| --- | --- |
+| `src/lib/launcher/one-way.test.ts` (new) | a page with two menu-level ways in (tiles + Reports entries + every app menu), for 9 modelled accounts and 64 role sets × 4 flag pairs; a tile not opening its app's first menu item; a menu listing a page twice; an orphaned section page; a content link to a menu page in page code; the removed switches or a logo link coming back |
+| `nav.test` (changed) | the menus or the header names drifting; the Partners & Agents menu offered to a non-admin |
+| `apps.test` (changed) | an accounting report back on the Reports list; the To-Do tabs |
+| `launcher.integration` (changed) | ANY redirect while rendering every **menu item**, through the real guards (the agent fixture gains a profile row) |
+| `e2e/company-switch.spec`, `e2e/module-bar.spec` (rewritten) | the company switch or the module switch / phone bar **present** — they now assert the controls are gone |
+| `e2e/nav-slider` (changed) | the nav not clipping at 900px; the zoom check, now on Accounting's 12 items |
+
+- **Adjusted:** `qa-sweep`, `module-access`, `data-entry`, `daily-report`,
+  `calendar`, `dashboard`, `launcher`, `device-sweep`, `glass-frame`,
+  `search-cross-company`, `company-inventory`, `impersonation`, and
+  `helpers/after-sign-in.ts` (each landing names its launcher tile and checks
+  that it is shown).
+- **Removed with their code:** `src/lib/crm/switch-target.test.ts`.
+  `one-way.test.ts` is new, so the file count stays at 98.
+- **Mutation, run by the agent:** re-adding To-Do to the admin menu, and a
+  To-Do link on the dashboard, each turned `one-way.test.ts` red.
+- **ADR-085's search hop:** its notice and its way back still pass e2e.
+- **Found in testing and fixed:** a CSS ordering bug that caused a **5–26px
+  sideways scroll at 320px and 601px**.
+- **Brand audit:** one Medium, the app name wrapping on desktop, fixed; most
+  Lows fixed. Still an advisory: "ByteForce CRM" in words beside the B-Systems
+  mark.
+- **`spec-guardian`:** every guard admits the same accounts. Its FAIL was only
+  SPEC.md contradicting the new navigation. The coordinator answered it with
+  "Amended by ADR-095" notes at SPEC.md §5.8 (line 194), §6 (line 204) and
+  §7.1 (line 318), all verified at writing time.
+
+### The standing caveat, recorded again
+
+`npx vitest run` in this repo **exits 0 even when tests fail**, because the
+global-setup teardown swallows the status. Every vitest figure above is a
+printed summary line, never an exit code.
+
+### NOT RUN, honestly
+
+- **No run over the final tree.** The two figures come from two agents at the
+  end of two passes. The foundation's 2263 predates the navigation's
+  2321, and the body polish still running will change the tree again.
+- **No clean-checkout gate, no `next build` figure, and no deploy.** The work is
+  local at the founder's choice ("Preview locally first").
+- **No local preview with demo data yet.** That is the next step, after the
+  body polish.
+- **No isolated pass figure was reported** for `glass-motion.test.ts`,
+  `one-way.test.ts` or `glass-frame.spec.ts`. Only the full runs that contain
+  them speak for them.
+- **Vitest skips:** 1 here against 3 in Run 105's clean checkout. That is
+  expected in a working tree that carries the landing folder, where ADR-087's
+  two landing-conditional guards run. It was not re-derived for this run.
+- **Still open from Run 105:** the zoom "A5" reduced-motion investigation. It
+  was not revisited.
+
+## Run 107 — 2026-10-26 — ADR-093–097 + BUG-028–032: the glass frame, light and dark only, one way to each page, the meeting form, and the bodies' motion, one push
+
+- Suites/commands:
+  - **ADR-096, the meeting form:** `npx tsc --noEmit` and a targeted
+    `npx vitest run`.
+  - **The CRM body agent (ADR-097 §1):** `npx tsc --noEmit`, the full
+    `npx vitest run` twice, and the full `npx playwright test` twice.
+  - **The Accounting/Vault body agent (ADR-097 §2):** `npx tsc --noEmit`, the
+    full `npx vitest run`, the full `npx playwright test`, 192 screenshots, and
+    a 320px sweep over all 22 module URLs in both languages.
+  - `brand-auditor` on both areas.
+  - **The coordinator's clean-checkout gate**, at the end of this run, is the
+    authority for the push.
+
+  ADR-093–095's own runs are in Run 106. They are not repeated here; the gate
+  covers them.
+- Cases:
+  - **ADR-096 (targeted):** vitest **759 passed in 28 files**; `tsc` 0.
+  - **CRM:** vitest, final run, **2361 passed / 1 failed (2362) in 101 files**;
+    the earlier run, **2356 passed (2356) in 100 files**. Full Playwright: run
+    1 **339 passed (35.9m), 9 skipped**; run 2 **337 passed / 2 failed**.
+    `tsc` 0.
+  - **Accounting/Vault:** vitest **2364 passed, 1 skipped (2365) in 102
+    files**; full Playwright **339 passed (35.4m), 9 skipped**, with
+    `.last-run.json` passed, device-sweep included. `tsc` 0.
+- Failures:
+  - **CRM vitest, final run, 1 failed:** the Accounting agent's
+    `modules-css.test.ts`, which was still being written at the time. The
+    Accounting agent's own final run has 102 files passed. **No BUG id.**
+  - **CRM Playwright run 2, 2 failed, neither in shipped code, so no BUG id:**
+    - `e2e/accounting.spec.ts:114`: a colour read 230 against an expected 231,
+      while the Accounting agent was editing the same area in parallel. It
+      passed in run 1 and on repeat. It is BUG-012's family (a sampled paint),
+      not a new defect.
+    - `e2e/qa-sweep.spec.ts:185`: a phone-menu segment measured **43.99998px**
+      while the menu was still sliding open (ADR-093's phone-menu motion,
+      unshipped until this push). It failed 1 time in 3. **The spec now waits
+      for the menu to finish opening, 5/5.**
+  - **BUG-028–032**, shipped defects found during the CRM body pass, all
+    fixed:
+    - BUG-028: done tasks were never struck through;
+    - BUG-029: the Calendar's inset;
+    - BUG-030: the won deal at 390px;
+    - BUG-031: Ready-to-close contrast;
+    - BUG-032: two marks that did not mirror in Arabic.
+
+    No failing test found any of them.
+- SPEC coverage touched:
+  - **§4:** `crm.css` and `modules.css` held to ADR-093's law by
+    `crm.test.ts` and `modules-css.test.ts`. §4.3's 135° is kept on the
+    B-Systems hero. The ByteForce hero is drawn in the reading direction
+    (ADR-097 §3).
+  - **§5.8:** the To-Do's strike (BUG-028) and the optimistic tick.
+  - **§6.2 / §6.3:** the Meeting setting fields and the Today-chip note
+    (ADR-096). **T-2**'s group changed; the transition did not.
+  - **V2 §3:** the agent meeting flow, pinned by
+    `meeting-form.test.ts`.
+  - **§13 widths and §15's 390px:**
+    - 320px over the 22 module URLs;
+    - the won deal at 390px (BUG-030);
+    - the device sweep in the Accounting agent's full run.
+  - **Journey 1** (`journey1-byteforce-full-cycle.spec.ts`) changed at its
+    Meeting setting step.
+  - No transition row in the engine changed. No SPEC §11 A-#.
+- Verdict: **green at every point the agents measured, with each failure
+  explained.** The figures come from two agents' trees and a targeted run at
+  different moments, not from one run over the final tree. **The push's
+  verdict is the clean-checkout gate below.**
+
+**Tree:** `main`, HEAD `916ec65`, plus the uncommitted ADR-093–097 work, which
+**ships in this push** on the founder's instruction (PROGRESS "2026-10-26
+(later)"). The **landing work stays local** and must stay out of the pushed
+paths, including its edits to `next.config.ts`, `prisma/schema.prisma`,
+`src/lib/services/backup.ts` and `src/tests/db-reset.ts`.
+
+### Part 1 — the meeting form (ADR-096)
+
+```
+tsc exit 0
+ Test Files  28 passed (28)
+      Tests  759 passed (759)
+```
+
+| Suite | Tests | What it would catch |
+| --- | --- | --- |
+| `src/components/internal/meeting-form.test.ts` (new) | 3 | a ByteForce payload that is not arranged, forwards a stale `technicalSupport`, or fails `meetingSchema`; a B-Systems internal-role payload that obeys the old toggle; the agent flow losing its "not agreed" answer |
+| `e2e/journey1-byteforce-full-cycle.spec.ts` (changed) | — | an "Arranged?" step or a Technical support field back on the ByteForce lead page; Date not `required` |
+| `e2e/fallen-behind.spec.ts` (changed) | — | the B-Systems board's drop window into Meeting Setting showing "Arranged?" or Technical support, or not showing Date and Time |
+
+- **No isolated e2e figure was reported for the two changed specs.** Nobody
+  reported whether the agents' full Playwright runs already contained them.
+  The gate's full run certainly does.
+
+### Part 2 — the CRM bodies (ADR-097 §1)
+
+```
+tsc exit 0
+vitest (earlier)  Test Files  100 passed (100)   Tests  2356 passed (2356)
+vitest (final)    Test Files  1 failed | 100 passed (101)
+                  Tests  1 failed | 2361 passed (2362)
+                  (the 1 = the Accounting agent's in-progress modules-css test)
+npx playwright test (FULL), run 1 → 339 passed (35.9m), 9 skipped
+npx playwright test (FULL), run 2 → 2 failed, 337 passed
+  accounting.spec.ts:114 — a colour 230 vs 231 under the parallel Accounting edits; passed in run 1 and on repeat
+  qa-sweep.spec.ts:185  — a phone-menu segment at 43.99998px mid-slide (1 in 3); the spec now waits for the menu to open, 5/5
+```
+
+| Suite | What it would catch |
+| --- | --- |
+| `src/themes/crm.test.ts` (new) | in `crm.css`: a `backdrop-filter`; a literal colour or an off-list `var()`; a coloured empty-state icon; a rule outside `@media screen`; a motion outside the reduced-motion fence; a keyframe moving anything but transform or opacity; a `forwards`/`both` fill; a loop, or an animation over 600 ms; a stagger over 250 ms; a hover lift outside `(hover: hover)`; an animated figure, or a count pill animated without `data-bump` (BUG-026); a sideways entrance; a physical left/right property; an unmirrored sideways inset shadow; a non-positive or system dark rule; the sheet loaded out of order or by another shell |
+| `src/components/shared/BoardMotion.test.ts` (new) | the keyboard drag's arrow keys not jumping to the next column on screen, Arabic included |
+
+### Part 3 — Accounting and the Vault (ADR-097 §2)
+
+```
+tsc exit 0
+ Test Files  102 passed (102)
+      Tests  2364 passed | 1 skipped (2365)
+npx playwright test (FULL) → 339 passed (35.4m), 9 skipped; .last-run.json passed (device-sweep included)
+```
+
+- **192 screenshots:** 0 horizontal overflow, no console errors.
+- **320px over all 22 module URLs, English and Arabic:** 0 overflow, and no body
+  target under 44px.
+- New suite: `src/components/accounting/modules-css.test.ts`, which holds
+  `modules.css` to the same law. No isolated figure was reported.
+- **Brand audit, as recorded in ADR-097 §3.**
+  - The ByteForce hero now runs violet→orange in English. White on orange was
+    3.34:1.
+  - Under ByteForce, the Edit button, the resting ✓ and ⇄ use the link violet
+    (orange text was 3.3:1).
+  - Left for the founder: the B-Systems hero in Arabic (about 3.4–4.3:1).
+
+### The standing caveat, recorded again
+
+`npx vitest run` in this repo **exits 0 even when tests fail**, because the
+global-setup teardown swallows the status. Every vitest figure above is a
+printed summary line, never an exit code.
+
+### NOT RUN, honestly
+
+- **No run over the final combined tree before the gate.** The CRM agent's
+  101 files and the Accounting agent's 102 come from different moments. The
+  difference was not re-derived.
+- **Vitest skips:** the Accounting run shows 1, which matches Run 106's
+  working-tree note (the landing-conditional guard). The CRM run printed no
+  skip. Neither was re-derived. The gate's clean checkout, without the landing
+  folder, should show Run 105's pattern.
+- **No regressions for BUG-028–032 that read what is on screen:**
+  - the To-Do e2e still asserts the `line-through` class, not the computed
+    strike;
+  - the Calendar's inset, the won deal at 390px, the Ready-to-close contrast
+    and the Arabic arrow have no dedicated test;
+  - the 320px sweep covers the 22 module URLs, not the CRM's won deal.
+- **No local preview with demo data.** The founder's instruction to push
+  overtakes that step (PROGRESS "2026-10-26 (later)").
+- **Still open from Run 105:** the zoom "A5" reduced-motion investigation. It
+  was not revisited.
+
+**Clean-checkout gate.** The push's 162 code paths (four of them deletions:
+`CompanySwitch.tsx`, `EntitySwitch.tsx`, `switch-target.ts` and its test) were
+laid onto a fresh `git worktree` at `916ec65` — tracked files only, no landing
+and nothing else local — with a REAL `npm ci` (no junctions) and no `.env` (a
+dummy `DATABASE_URL`, a throwaway `AUTH_SECRET`). The docs written after the
+copy was made change no code.
+
+| Check | Result (verbatim) |
+|---|---|
+| `npx tsc --noEmit` | `tsc exit: 0` |
+| `npx vitest run` | `Test Files  88 passed (88)` / `Tests  1903 passed \| 3 skipped (1906)` — 88 is every test file in the copy, counted |
+| `npx next build` | `build exit: 0` (`✓ Compiled successfully`) |
+| `npx playwright test` (FULL suite, its own build + seeded DB; includes `device-sweep`, `glass-frame`, `one-way` guards' e2e twins, the meeting-form assertions) | `327 passed (35.0m)`, `9 skipped`; `.last-run.json` `{"status": "passed", "failedTests": []}` |
+
+- **327, not the agents' 339:** the agents ran in copies of the working tree,
+  which holds the local landing work and its 12 browser tests; the clean
+  checkout has neither.
+- **Skips as before:** vitest's 3 (ADR-087's two landing-conditional guards,
+  the accounting export's real-file case); Playwright's 9 (`audit.spec.ts`
+  opt-in, and `login-glass`'s touch sign-in that runs once by design).
+- **Both run-2 failures from the CRM agent's log are gone on the final code:**
+  `accounting.spec.ts:114` (a colour read under the parallel Accounting edits)
+  and `qa-sweep.spec.ts:185` (the phone menu measured mid-slide — the spec now
+  waits for it to open).

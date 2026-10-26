@@ -15,13 +15,16 @@ import type { DashCtx } from "./ctx";
 
    Ground: Systems Indigo (--color-chrome — the header's own anchor, in both
    themes; D3). The sparkline is Process Lavender on it. Pink stays the Won
-   cue elsewhere and never becomes a surface. */
+   cue elsewhere and never becomes a surface.
+
+   Not a link (one way to each page): Won Leads and Clients are in the CRM
+   menus; the period's wins themselves are listed, as records, under Recent
+   wins. */
 
 export function HeroKpi({ data, ctx }: { data: DashboardData; ctx: DashCtx }) {
   const { t, f } = ctx;
   const won = data.kpis.won;
   const key = data.period.key;
-  const href = data.brand === "bsystems" ? "/b-systems/won-leads" : `/b-systems/clients${ctx.query}`;
   const trendList = data.period.trendMonths
     .map((month, i) => `${formatCairoMonthShort(monthPeriod(month).start, ctx.locale)} ${formatEGP(won.spark[i] ?? 0)}`)
     .join(", ");
@@ -29,7 +32,6 @@ export function HeroKpi({ data, ctx }: { data: DashboardData; ctx: DashCtx }) {
     <KpiCard
       ctx={ctx}
       hero
-      href={href}
       metric="won_period"
       dataValue={won.value}
       extraData={{ "data-count": won.count }}

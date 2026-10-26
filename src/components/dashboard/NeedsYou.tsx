@@ -10,7 +10,12 @@ import type { DashCtx } from "./ctx";
    flagged ready to close (only the admin moves a deal to Won), and sign-ups
    waiting for approval. Statements and milestones are already rows on the
    tasks card and are not repeated here. Never rendered under ByteForce — the
-   service does not even query it there. */
+   service does not even query it there.
+
+   The waiting sign-ups are a COUNT here: Registrations is in the Partners &
+   Agents menu, so a "Review registrations" link would be a second way to it
+   (one way to each page). The deals ready to close are records, and stay
+   links. */
 
 export function NeedsYou({ data, ctx }: { data: NeedsYouData; ctx: DashCtx }) {
   const { t, f } = ctx;
@@ -48,9 +53,6 @@ export function NeedsYou({ data, ctx }: { data: NeedsYouData; ctx: DashCtx }) {
           {data.pendingRegistrations > 0 ? (
             <section className="db-needs-group">
               <h3 className="db-needs-title">{f(m.registrationsWaiting, { n: data.pendingRegistrations })}</h3>
-              <Link href="/b-systems/registrations" prefetch={false} className="db-row-link">
-                {t(m.reviewRegistrations)}
-              </Link>
             </section>
           ) : null}
         </div>

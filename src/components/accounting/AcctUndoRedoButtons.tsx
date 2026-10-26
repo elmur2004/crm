@@ -10,6 +10,7 @@ import {
   isAcctUndoReason,
   type AcctUndoReason,
 } from "@/lib/accounting/undo-reasons";
+import { armFresh } from "./module-ui";
 
 /* ============================================================================
    Founder: "add an undo and redo button for the accounting system."
@@ -387,6 +388,10 @@ export function AcctUndoRedoButtons({
     const what =
       echoed ?? (direction === "undo" ? undoWhat : redoWhat) ?? t(COPY[direction].name);
     setResult({ text: t(formatMsg(COPY[direction].done, { what })), ok: true });
+    /* a row the step brings back (an undone delete, a redone add) arrives the
+       way an added row does — it glows once (module-ui.tsx). Touches no focus
+       and no state of this control. */
+    armFresh();
     /* the figures, and BOTH buttons, come from the server — this is what makes
        the pair flip without any client-side bookkeeping of its own */
     router.refresh();

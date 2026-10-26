@@ -16,6 +16,7 @@ import { leadTypeLabel, ownerTypeLabel } from "@/lib/i18n/dict/labels";
 import { common, crmPage, leadDetail as m } from "@/lib/i18n/dict/crm";
 import { callSheet } from "@/lib/i18n/dict/call";
 import { StageBadge } from "@/components/shared/StageBadge";
+import { stageKey } from "@/components/bsystems/stageColors";
 import { NoAnswerBadge } from "@/components/shared/NoAnswerBadge";
 import { ArchiveButton } from "@/components/shared/ArchiveButton";
 import { archiveMsgs } from "@/lib/i18n/dict/crm";
@@ -137,13 +138,9 @@ export async function BsLeadDetailBody({
     <div className="space-y-6">
       <div className="page-head">
         <div>
+          {/* no "Back to the board": the board is the CRM menu's first item,
+              the one way to it (one way to each page) */}
           <p className="u-eyebrow">{t(crmPage.eyebrow)}</p>
-          <Link
-            href={`${ctx.basePath}/crm${ctx.query}`}
-            className="text-sm text-brand-muted underline underline-offset-2"
-          >
-            {t(m.backToBoard)}
-          </Link>
         </div>
         <div className="page-actions">
           {/* founder: the dial entry point — opens the phone-first call sheet.
@@ -196,7 +193,9 @@ export async function BsLeadDetailBody({
         </div>
       </div>
 
-      <div className="card card--flush0">
+      {/* the identity card wears the lead's stage (a bar of its hue and its
+          well behind the name — crm.css); visual only */}
+      <div className="card card--flush0" data-stage-key={stageKey(lead.stage)}>
         <div className="identity-head">
           <h1 className="identity-name flex items-center gap-3 flex-wrap">
             {lead.name}

@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { formatMsg, tFor, type Msg } from "@/lib/i18n/core";
 import { useLocale } from "@/components/shared/LocaleProvider";
@@ -61,14 +60,7 @@ const ITEM =
   "flex w-full min-h-11 items-center gap-2 px-4 py-2 text-start text-sm font-semibold " +
   "text-brand-ink hover:bg-brand-surface-tint focus-visible:bg-brand-surface-tint cursor-pointer";
 
-export function LeadsImportMenu({
-  company,
-  unassignedHref,
-}: {
-  company: CrmCompany;
-  /** where the imported (unassigned) leads are listed for this company */
-  unassignedHref: string;
-}) {
+export function LeadsImportMenu({ company }: { company: CrmCompany }) {
   const locale = useLocale();
   const t = tFor(locale);
   const router = useRouter();
@@ -288,10 +280,11 @@ export function LeadsImportMenu({
           aria-describedby={hintId}
           onKeyDown={onMenuKey}
           style={shift ? { transform: `translateX(${shift}px)` } : undefined}
+          /* the frame's dense glass (glass.css .glass-menu): the surface, rim,
+             frost and float shadow; the spring drop is motion.css */
           className={
-            "absolute start-0 top-full z-50 mt-2 flex w-max min-w-full max-w-[min(20rem,calc(100vw-2rem))] " +
-            "flex-col overflow-hidden rounded-brand-card border border-brand-border " +
-            "bg-brand-surface-card py-1 shadow-brand-modal"
+            "glass-menu absolute start-0 top-full z-50 mt-2 flex w-max min-w-full " +
+            "max-w-[min(20rem,calc(100vw-2rem))] flex-col overflow-hidden py-1"
           }
         >
           <a
@@ -378,9 +371,7 @@ export function LeadsImportMenu({
                 <ImportResult
                   result={phase.result}
                   company={company}
-                  unassignedHref={unassignedHref}
                   skippedUrl={skippedUrl}
-                  onNavigate={() => setPhase({ kind: "idle" })}
                 />
               ) : null}
             </div>
@@ -413,15 +404,11 @@ export function LeadsImportMenu({
 function ImportResult({
   result,
   company,
-  unassignedHref,
   skippedUrl,
-  onNavigate,
 }: {
   result: ImportResultBody;
   company: CrmCompany;
-  unassignedHref: string;
   skippedUrl: string | null;
-  onNavigate: () => void;
 }) {
   const locale = useLocale();
   const t = tFor(locale);
@@ -443,18 +430,14 @@ function ImportResult({
         {t(formatMsg(m.skippedCount, { n: String(result.skipped.length) }))}.
       </p>
 
+      {/* WHERE the new leads are, said in words. No "Show the unassigned
+          leads" link (one way to each page): Leads is in the CRM menu, and the
+          sentence names the bucket to open there. */}
       {result.imported > 0 ? (
         <div className="space-y-2">
           <p className="u-sub">
             {t(company === "bsystems" ? m.unassignedBsystems : m.unassignedByteforce)}
           </p>
-          <Link
-            href={unassignedHref}
-            className={`btn-ghost inline-flex items-center ${TOUCH}`}
-            onClick={onNavigate}
-          >
-            {t(m.showUnassigned)}
-          </Link>
         </div>
       ) : null}
 

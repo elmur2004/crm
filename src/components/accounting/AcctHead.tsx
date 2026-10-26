@@ -3,6 +3,7 @@ import { tFor, type Locale, type Msg } from "@/lib/i18n/core";
 import type { AcctView } from "@/lib/accounting/params";
 import { AcctControls } from "./controls";
 import { AcctUndoRedo } from "./AcctUndoRedo";
+import { LiveNumber } from "@/components/dashboard/LiveNumber";
 
 /* ADR-052 / ADR-054 — the shared accounting page chrome: eyebrow/title/sub on
    the left, the company + month controls on the right. The section nav lives
@@ -77,13 +78,17 @@ export type AcctKpiTone = "success" | "danger" | "warning" | "net" | "muted";
 
 export function AcctKpi({
   label,
-  value,
+  amount,
   sub,
   tone,
   accent = false,
 }: {
   label: string;
-  value: string;
+  /** piasters. Shown through formatEGP exactly as before — the server's figure
+      from the first frame (BUG-026) — and, when it CHANGES under the same card
+      (a month flicked, an undo landed), it counts to the new figure
+      (LiveNumber, the Home's count-on-change). */
+  amount: number;
   sub?: string;
   tone?: AcctKpiTone;
   accent?: boolean;
@@ -92,7 +97,9 @@ export function AcctKpi({
     <div className="acct-kpi" data-tone={tone}>
       {accent ? <span className="acct-kpi-accent" aria-hidden /> : null}
       <span className="acct-kpi-label">{label}</span>
-      <span className="acct-kpi-value">{value}</span>
+      <span className="acct-kpi-value">
+        <LiveNumber value={amount} format="egp" />
+      </span>
       {sub ? <span className="acct-kpi-sub">{sub}</span> : null}
     </div>
   );
@@ -109,12 +116,14 @@ export function AcctChip({ kind, children }: { kind: "good" | "wait" | "off"; ch
 /** dashboard stat tile (tokens only; tone via brand utilities) */
 export function AcctTile({
   label,
-  value,
+  amount,
   sub,
   tone,
 }: {
   label: string;
-  value: string;
+  /** piasters — formatEGP on the first frame, counting only on CHANGE (a row
+      added, edited, approved or deleted on this page; see AcctKpi) */
+  amount: number;
   sub?: string;
   /* no "accent" tone by design: accent is a cue, never KPI data ink */
   tone?: "success" | "danger";
@@ -124,7 +133,9 @@ export function AcctTile({
   return (
     <div className="tile">
       <span className="tile-label">{label}</span>
-      <span className={`tile-value${toneCls}`}>{value}</span>
+      <span className={`tile-value${toneCls}`}>
+        <LiveNumber value={amount} format="egp" />
+      </span>
       {sub ? <span className="tile-delta">{sub}</span> : null}
     </div>
   );

@@ -6,6 +6,7 @@ import { tFor } from "@/lib/i18n/core";
 import { useLocale } from "@/components/shared/LocaleProvider";
 import { bell } from "@/lib/i18n/dict/admin";
 import { PushToggle } from "@/components/shared/PushToggle";
+import { usePresence } from "@/components/shared/usePresence";
 
 /* V2 §10 — the admin nav bell: polls /api/b-systems/notifications (ADR-009's
    polling pattern), shows unread count, click-through opens the lead. */
@@ -40,6 +41,8 @@ export function NotificationsBell({
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [open, setOpen] = useState(false);
   const boxRef = useRef<HTMLDivElement>(null);
+  /* the menu keeps itself for its exit (motion.css [data-closing]) */
+  const menu = usePresence(open);
 
   useEffect(() => {
     let alive = true;
@@ -92,45 +95,55 @@ export function NotificationsBell({
         </svg>
         {unread > 0 ? <span className="bell-count">{unread}</span> : null}
       </button>
-      {open ? (
-        <div className="bell-menu">
-          {items.length === 0 ? (
-            <p className="empty m-3">{t(bell.empty)}</p>
-          ) : (
-            items.map((n) => (
-              <button
-                key={n.id}
-                type="button"
-                onClick={() => void openItem(n)}
-                className="bell-item"
-                /* the cue the CSS keys on — and the one an e2e can assert
-                   without reading a colour */
-                data-unread={n.readAt ? "false" : "true"}
-              >
-                <span className="bell-item-head">
-                  {n.readAt ? null : (
-                    /* role=img, not a bare <span>: ARIA 1.2 forbids a name on
-                       role=generic, so a bare span's aria-label is dropped by
-                       conforming assistive tech (ADR-064's finding). */
-                    <span
-                      className="bell-dot"
-                      role="img"
-                      aria-label={t(bell.unread)}
-                      title={t(bell.unread)}
-                    />
-                  )}
-                  <span className="bell-item-title">{n.title}</span>
-                </span>
-                <span className="feed-text text-brand-muted mt-0.5 whitespace-pre-wrap block">
-                  {n.body}
-                </span>
-              </button>
-            ))
-          )}
-          {/* ADR-065 — the enable-notifications control. Renders NOTHING unless
-              the host has VAPID keys, so with none configured this menu is
-              exactly the menu it was before. */}
-          <PushToggle />
+      {menu.mounted ? (
+        /* "Glass frame, solid data": a frosted bezel (.bell-menu) round a
+           SOLID plate (.bell-plate) — every row, unread well and AA figure
+           stays on the opaque card (glass.css) */
+        <div
+          className="bell-menu"
+          data-closing={menu.closing ? "" : undefined}
+          inert={menu.closing}
+          aria-hidden={menu.closing || undefined}
+        >
+          <div className="bell-plate">
+            {items.length === 0 ? (
+              <p className="empty m-3">{t(bell.empty)}</p>
+            ) : (
+              items.map((n) => (
+                <button
+                  key={n.id}
+                  type="button"
+                  onClick={() => void openItem(n)}
+                  className="bell-item"
+                  /* the cue the CSS keys on — and the one an e2e can assert
+                     without reading a colour */
+                  data-unread={n.readAt ? "false" : "true"}
+                >
+                  <span className="bell-item-head">
+                    {n.readAt ? null : (
+                      /* role=img, not a bare <span>: ARIA 1.2 forbids a name on
+                         role=generic, so a bare span's aria-label is dropped by
+                         conforming assistive tech (ADR-064's finding). */
+                      <span
+                        className="bell-dot"
+                        role="img"
+                        aria-label={t(bell.unread)}
+                        title={t(bell.unread)}
+                      />
+                    )}
+                    <span className="bell-item-title">{n.title}</span>
+                  </span>
+                  <span className="feed-text text-brand-muted mt-0.5 whitespace-pre-wrap block">
+                    {n.body}
+                  </span>
+                </button>
+              ))
+            )}
+            {/* ADR-065 — the enable-notifications control. Renders NOTHING unless
+                the host has VAPID keys, so with none configured this menu is
+                exactly the menu it was before. */}
+            <PushToggle />
+          </div>
         </div>
       ) : null}
     </div>

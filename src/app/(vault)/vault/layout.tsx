@@ -1,11 +1,11 @@
-import Link from "next/link";
 import { ImpersonationBar } from "@/components/shared/ImpersonationBar";
 import { LauncherHomeLink } from "@/components/launcher/LauncherHomeLink";
-import { EntitySwitch } from "@/components/shared/EntitySwitch";
 import { LanguageToggle } from "@/components/shared/LanguageToggle";
 import { ThemeToggle } from "@/components/shared/ThemeToggle";
 import { ModuleBrandScope, ModuleLogo } from "@/components/shared/ModuleBrandScope";
 import { BrandLogo } from "@/components/shared/BrandLogo";
+import { AppGround } from "@/components/shared/AppGround";
+import { RoutePending } from "@/components/shared/RoutePending";
 import { UndoControl } from "@/components/shared/UndoControl";
 import { VaultModuleNav } from "@/components/vault/VaultModuleNav";
 import { logout } from "@/lib/auth/actions";
@@ -17,9 +17,11 @@ import { getLocale } from "@/lib/i18n/server";
 import { nav, roles } from "@/lib/i18n/dict/crm";
 import { vault } from "@/lib/i18n/dict/vault";
 
-/* ADR-054 — the Data Vault module's app shell: same chrome contract as the two
-   CRM shells (header, module nav, switcher, language toggle, user cluster,
-   logout), composed from the same components. Admin-only: the proxy gates the
+/* ADR-054 — the Data Vault module's app shell: same chrome contract as the
+   CRM shell (header, module nav, language toggle, user cluster, logout),
+   composed from the same components. One way to each page: the launcher is
+   the way between apps (its grid icon heads every header), so the module
+   switcher and its phone bar are gone. Admin-only: the proxy gates the
    route group coarsely and this guard is the real wall. No notifications bell —
    the bell belongs to the CRM pipelines, not the registry. */
 
@@ -44,6 +46,9 @@ export default async function VaultShellLayout({
 
   return (
     <ModuleBrandScope module="vault" fallback={fallbackCompany} allowed={visible}>
+      {/* the ambient ground — INSIDE the brand scope, so it glows in the
+          filtered company's own colours (glass.css) */}
+      <AppGround />
       <ImpersonationBar />
       <header className="app-header">
         <LauncherHomeLink locale={locale} />
@@ -56,7 +61,9 @@ export default async function VaultShellLayout({
             holds decide, so an account that does not hold the untagged rows
             wears its own company's mark instead. `ModuleLogo` resolves that
             from the same fallback the brand scope uses. */}
-        <Link href="/vault" className="app-home-link shrink-0 flex items-center gap-3" aria-label={t(vault.navItem)}>
+        {/* a plain mark, not a link: the menu's Overview is the one way to the
+            overview, and the grid icon the one way back to the launcher */}
+        <div className="app-mark shrink-0 flex items-center gap-3">
           {seesUntagged(visible) ? (
             <>
               <BrandLogo brand="bsystems" variant="mark" height={36} />
@@ -70,13 +77,12 @@ export default async function VaultShellLayout({
               wordmark={t(vault.navItem)}
             />
           )}
-        </Link>
+        </div>
         <VaultModuleNav
           extras={
             <>
               <LanguageToggle />
               <ThemeToggle />
-              <EntitySwitch user={user} current="vault" />
               <form action={logout.bind(null, "/login")}>
                 <button type="submit" className="nav-item">
                   {t(nav.logOut)}
@@ -88,7 +94,6 @@ export default async function VaultShellLayout({
         <div className="user">
           <LanguageToggle />
           <ThemeToggle compact />
-          <EntitySwitch user={user} current="vault" />
           <span className="user-avatar" aria-hidden>
             {initials}
           </span>
@@ -105,15 +110,17 @@ export default async function VaultShellLayout({
           </form>
         </div>
       </header>
-      {/* ADR-060 — the phone's module bar (≤820px), directly under the header */}
-      <EntitySwitch variant="bar" user={user} current="vault" />
       {/* ADR-056: the full-width query container the board measures itself
           against. `50cqw` is the content width EXCLUDING the scrollbar —
           the quantity `50vw` cannot express — so the full-bleed board is
           pixel-exact at every browser zoom. Drop this wrapper and the
           board silently falls back to the old vw arithmetic. */}
       <div className="shell-body">
-        <main className="page max-w-7xl mx-auto w-full">{children}</main>
+        <main className="page max-w-7xl mx-auto w-full">
+          {/* the instant skeleton on a click to another screen (client
+              navigations only — the server still renders the whole page) */}
+          <RoutePending>{children}</RoutePending>
+        </main>
       </div>
       <UndoControl userId={user.id} />
     </ModuleBrandScope>

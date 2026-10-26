@@ -9,16 +9,21 @@ import {
 } from "./core";
 
 /* Dark mode — the cookie's reader. The cookie is user-controlled input, so the
-   parser must turn ANYTHING into one of the three values the CSS keys on. */
+   parser must turn ANYTHING into one of the two values the CSS keys on.
+
+   Founder (amending ADR-087): "remove the system theme option". Two themes
+   remain; the default is light, and a cookie still holding the retired
+   "system" reads as light. */
 
 describe("the theme default", () => {
-  it('is "system" — no cookie follows the OS', () => {
-    expect(DEFAULT_THEME).toBe("system");
-    expect(parseTheme(undefined)).toBe("system");
+  it('is "light" — what every screen looked like before dark mode', () => {
+    expect(DEFAULT_THEME).toBe("light");
+    expect(parseTheme(undefined)).toBe("light");
   });
 
-  it("offers exactly three states, the default first", () => {
-    expect([...THEMES]).toEqual(["system", "light", "dark"]);
+  it("offers exactly two states, light first — no system option", () => {
+    expect([...THEMES]).toEqual(["light", "dark"]);
+    expect(THEMES as readonly string[]).not.toContain("system");
   });
 
   it("is a long-lived cookie named for what it holds", () => {
@@ -31,15 +36,20 @@ describe("parseTheme", () => {
   it.each([
     ["light", "light"],
     ["dark", "dark"],
-    ["system", "system"],
   ] as const)("keeps %s", (raw, want) => {
     expect(parseTheme(raw)).toBe(want);
+  });
+
+  it('reads a stored "system" — the retired third value — as light', () => {
+    expect(parseTheme("system")).toBe("light");
+    expect(parseTheme("\tSystem\n")).toBe("light");
+    expect(parseTheme("SYSTEM")).toBe("light");
   });
 
   it("forgives case and surrounding whitespace (a hand-edited cookie)", () => {
     expect(parseTheme("Dark")).toBe("dark");
     expect(parseTheme(" LIGHT ")).toBe("light");
-    expect(parseTheme("\tSystem\n")).toBe("system");
+    expect(parseTheme(" dark\n")).toBe("dark");
   });
 
   it.each([
@@ -55,15 +65,15 @@ describe("parseTheme", () => {
     ["a boolean", true],
     ["an object", { value: "dark" }],
   ])("reads %s as the default", (_label, raw) => {
-    expect(parseTheme(raw)).toBe("system");
+    expect(parseTheme(raw)).toBe("light");
   });
 
   it("reads an ARRAY as the default, even one holding a valid value", () => {
     /* a cookie is one string; an array means something upstream is confused,
        and guessing which element was meant is how a bad value gets stamped */
-    expect(parseTheme(["dark"])).toBe("system");
-    expect(parseTheme(["light", "dark"])).toBe("system");
-    expect(parseTheme([])).toBe("system");
+    expect(parseTheme(["dark"])).toBe("light");
+    expect(parseTheme(["light", "dark"])).toBe("light");
+    expect(parseTheme([])).toBe("light");
   });
 });
 
@@ -78,9 +88,7 @@ describe("themeColorFor — the mobile browser chrome", () => {
     expect(themeColorFor("dark", DARK)).toBe(DARK);
   });
 
-  it("system paints it dark only under a dark OS", () => {
-    expect(themeColorFor("system", DARK)).toEqual([
-      { media: "(prefers-color-scheme: dark)", color: DARK },
-    ]);
+  it("a stored system cookie gets the light chrome (no media-qualified meta)", () => {
+    expect(themeColorFor(parseTheme("system"), DARK)).toBeUndefined();
   });
 });

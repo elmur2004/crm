@@ -4,7 +4,9 @@ import { afterSignIn } from "./helpers/after-sign-in";
 /* §15 Global DoD sweep, V2 edition: no console errors; no horizontal overflow
    on every major screen, per role. 601 is deliberate (ADR-060): the four-
    segment header switcher overflowed by a measured +44px in the ~601–645px
-   band, exactly BETWEEN the old sampled widths — this sweep now stands on it. */
+   band, exactly BETWEEN the old sampled widths — the switcher is gone (one way
+   to each page), and the sweep still stands on the band, because the header's
+   app name now lives there. */
 
 const VIEWPORTS = [1440, 1024, 768, 601, 560, 390];
 
@@ -64,7 +66,7 @@ test("ByteForce screens (in the merged shell): clean console, no horizontal over
   expect(errors).toEqual([]);
 });
 
-test("B-Systems admin: all twelve sections clean at every width", async ({ page }) => {
+test("B-Systems admin: all twelve screens of the shell clean at every width", async ({ page }) => {
   /* 12 paths × 6 widths = 72 page loads. This case had always run on the
      DEFAULT 60s while its two siblings below carry explicit 240s and 210s for
      strictly less work — it passed only because these pages are quicker than
@@ -175,132 +177,106 @@ test("B-Systems admin: vault screens clean at every width", async ({ page }) => 
   expect(errors).toEqual([]);
 });
 
-test("mobile menu reaches EVERY admin section at 390px (incl. switcher + logout)", async ({
-  page,
-}) => {
+/* ONE WAY TO EACH PAGE — each app of the shell carries ITS menu, and on a phone
+   the burger sheet is that menu: every section of the app, then the language,
+   the theme and Log out. There is no module strip in it any more (the launcher
+   is the one way between apps) and no company switch (each CRM is its own
+   launcher app). */
+test("mobile menu reaches EVERY section of each app at 390px — and only that app's", async ({ page }) => {
   await page.goto("/login");
   await page.getByLabel("Email or phone").fill("admin@byteforce.com");
   await page.getByLabel("Password").fill("password123");
   await page.getByRole("button", { name: "Sign in" }).click();
-  await afterSignIn(page, /\/b-systems$/);
+  await afterSignIn(page, /\/b-systems\/crm$/);
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto("/b-systems");
+
+  const sheetLinks = () => page.getByRole("menu").locator(".nav-sheet-link");
+  for (const [path, labels] of [
+    ["/b-systems/crm?company=bsystems", ["CRM", "Leads", "Calendar", "Won Leads", "Statements", "Users"]],
+    ["/b-systems/crm?company=byteforce", ["CRM", "Leads", "Calendar", "Clients"]],
+    ["/b-systems/partners-pipeline?company=bsystems", ["Pipeline", "Partners", "Agents", "Registrations"]],
+    /* the To-Do and the Reports pages are one-page apps: the sheet has no rows */
+    ["/b-systems/todo?company=bsystems", []],
+    ["/b-systems?company=bsystems", []],
+    ["/b-systems/daily-report?company=bsystems", []],
+  ] as const) {
+    await page.goto(path);
+    await page.getByRole("button", { name: "Open menu" }).click();
+    await expect(page.getByRole("menu")).toBeVisible();
+    /* the sheet unfolds (motion.css mo-sheet, ~240 ms) and its rows rise in:
+       measure the thumb targets AT REST — a box read mid-translate comes back
+       a float hair short (43.99998 for a 44px segment) */
+    await page
+      .getByRole("menu")
+      .evaluate((el) => Promise.all(el.getAnimations({ subtree: true }).map((a) => a.finished)));
+    await expect(sheetLinks(), path).toHaveText([...labels]);
+    await expect(page.getByRole("menu").getByRole("button", { name: "Log out" })).toBeVisible();
+    await expect(page.getByRole("menu").getByRole("group", { name: "Switch module" })).toHaveCount(0);
+    await expect(page.getByRole("group", { name: "Switch company" })).toHaveCount(0);
+    /* every switcher segment in the sheet is a real thumb target — BOTH axes
+       (the language toggle's EN segment is the narrow one) */
+    for (const box of await page
+      .getByRole("menu")
+      .locator(".switcher-seg")
+      .evaluateAll((els) => els.map((el) => el.getBoundingClientRect()))) {
+      expect(box.height).toBeGreaterThanOrEqual(44);
+      expect(box.width).toBeGreaterThanOrEqual(44);
+    }
+    await page.getByRole("button", { name: "Close menu" }).click();
+    await expect(page.getByRole("menu")).toHaveCount(0);
+  }
+  await page.goto("/b-systems/crm?company=bsystems");
   await page.getByRole("button", { name: "Open menu" }).click();
-  for (const label of [
-    "Home",
-    "Leads",
-    "CRM",
-    "Won Leads",
-    "Partners & Agents",
-    "Partners",
-    "Agents",
-    "Registrations",
-    "Statements",
-    "Users",
-  ]) {
-    /* the sheet's NAV rows specifically: ADR-067's module strip also carries a
-       "CRM" segment down here, and the two are different controls — the nav row
-       opens the board, the segment picks the module. Scoped by the nav row's
-       own class so the assertion says which one it means. */
-    await expect(
-      page.getByRole("menu").locator(".nav-sheet-link").filter({ hasText: new RegExp(`^${label}$`) }),
-    ).toBeVisible();
-  }
-  await expect(page.getByRole("menu").getByRole("button", { name: "Log out" })).toBeVisible();
-  const sheetSwitcher = page.getByRole("menu").getByRole("group", { name: "Switch module" });
-  await expect(sheetSwitcher).toBeVisible();
-  /* ADR-054: Accounting and Data Vault left the nav — they are MODULE segments
-     on the switcher now, reachable from the sheet too. */
-  await expect(sheetSwitcher.getByRole("link", { name: "ACCOUNTING" })).toBeVisible();
-  await expect(sheetSwitcher.getByRole("link", { name: "VAULT" })).toBeVisible();
-  /* ADR-067: the COMPANY switch is reachable at this width WITHOUT the sheet —
-     it lives on the page ground under the module bar, on screen at every width
-     (module-bar.spec.ts pins it there at 390px with the sheet shut). So unlike
-     Log out / the language toggle / the module strip, whose header twins ARE
-     hidden below 820px, it must NOT be duplicated into the sheet: the first
-     draft rendered it in both places and a phone with the burger open carried
-     two live, identically-named "Switch company" groups (review, Run 080).
-     Asserted as a COUNT, because "visible" would have passed on both. */
-  await expect(page.getByRole("menu").getByRole("group", { name: "Switch company" })).toHaveCount(0);
-  await expect(page.getByRole("group", { name: "Switch company" })).toHaveCount(1);
-  /* ADR-060: every switcher segment in the sheet is a real thumb target —
-     BOTH axes (the language toggle's EN segment is the narrow one) */
-  for (const box of await page
-    .getByRole("menu")
-    .locator(".switcher-seg")
-    .evaluateAll((els) => els.map((el) => el.getBoundingClientRect()))) {
-    expect(box.height).toBeGreaterThanOrEqual(44);
-    expect(box.width).toBeGreaterThanOrEqual(44);
-  }
   await page.getByRole("menu").getByRole("link", { name: "Statements", exact: true }).click();
-  /* ADR-067 — every nav href in the merged shell spells the company out */
+  /* ADR-067 — every menu href in the merged shell spells the company out */
   await page.waitForURL(/\/b-systems\/statements\?company=bsystems$/);
 });
 
-/* ADR-054 — the founder's module directive: Accounting and Data Vault are
-   switcher PEERS of the CRM. ADR-067 merged the two company CRMs into ONE
-   segment, so one admin session walks the three MODULES through the switcher
-   and then the two COMPANIES through the separate company switch — each
-   control marking its own current segment. */
-test("the module switcher moves between all three modules, and the company switch between the two companies", async ({ page }) => {
+/* ADR-054 made Accounting and the Data Vault switcher peers of the CRM, and
+   ADR-067 added a company switch beside it. Both are gone: the founder asked
+   for ONE way to each page, and the launcher is the one way between apps. So
+   one admin session walks every app through the LAUNCHER — each tile opens its
+   app, the header names it, no header carries a switch, and the grid icon is
+   the way back. The chrome of the two CRMs is one skin (ADR-067). */
+test("the launcher moves between every app; no header carries a module or company switch", async ({ page }) => {
   await page.goto("/login");
   await page.getByLabel("Email or phone").fill("admin@byteforce.com");
   await page.getByLabel("Password").fill("password123");
   await page.getByRole("button", { name: "Sign in" }).click();
-  await afterSignIn(page, /\/b-systems$/);
+  await afterSignIn(page, /\/b-systems\/crm$/);
 
-  const switcher = () => page.locator(".user").getByRole("group", { name: "Switch module" });
-  await expect(switcher().getByRole("link", { name: "CRM", exact: true })).toHaveAttribute(
-    "aria-current",
-    "true",
-  );
+  const noSwitches = async (where: string) => {
+    await expect(page.getByRole("group", { name: "Switch module" }), where).toHaveCount(0);
+    await expect(page.getByRole("group", { name: "Switch company" }), where).toHaveCount(0);
+  };
 
-  await switcher().getByRole("link", { name: "ACCOUNTING" }).click();
-  await page.waitForURL(/\/accounting/);
-  await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
-  await expect(switcher().getByRole("link", { name: "ACCOUNTING" })).toHaveAttribute(
-    "aria-current",
-    "true",
-  );
+  for (const [tile, url, heading] of [
+    ["accounting", /\/accounting$/, "Dashboard"],
+    ["vault", /\/vault$/, "Overview"],
+  ] as const) {
+    await page.goto("/apps");
+    await page.locator(`[data-app="${tile}"]`).click();
+    await page.waitForURL(url);
+    await expect(page.getByRole("heading", { name: heading })).toBeVisible();
+    await noSwitches(tile);
+    /* the menu's first item is the page the tile opened */
+    await expect(page.locator(".app-nav .nav-item").first()).toHaveAttribute("aria-current", "page");
+  }
 
-  await switcher().getByRole("link", { name: "VAULT" }).click();
-  await page.waitForURL(/\/vault/);
-  await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();
-  await expect(switcher().getByRole("link", { name: "VAULT" })).toHaveAttribute(
-    "aria-current",
-    "true",
-  );
-
-  await switcher().getByRole("link", { name: "CRM", exact: true }).click();
-  await page.waitForURL(/\/b-systems$/);
-  await expect(switcher().getByRole("link", { name: "CRM", exact: true })).toHaveAttribute(
-    "aria-current",
-    "true",
-  );
-
-  /* ADR-067 — and now the OTHER axis: the company, on its own labelled control
-     inside the page, which states which company you are on in words. */
-  const company = () => page.getByRole("group", { name: "Switch company" });
-  await expect(page.locator(".company-switch-current")).toHaveText("B-Systems");
-  await expect(company().getByRole("link", { name: "B-Systems" })).toHaveAttribute(
-    "aria-current",
-    "true",
-  );
-
-  await company().getByRole("link", { name: "ByteForce" }).click();
-  await page.waitForURL(/\/b-systems\?company=byteforce$/);
-  await expect(page.locator(".company-switch-current")).toHaveText("ByteForce");
-  await expect(company().getByRole("link", { name: "ByteForce" })).toHaveAttribute(
-    "aria-current",
-    "true",
-  );
-  /* the CHROME did not change — same brand scope, same wordmark, same header */
-  await expect(page.locator("html")).toHaveAttribute("data-brand", "bsystems");
-  await expect(page.locator(".app-header .wordmark")).toHaveText("B-Systems");
-
-  await company().getByRole("link", { name: "B-Systems" }).click();
-  await page.waitForURL(/\/b-systems\?company=bsystems$/);
-  await expect(page.locator(".company-switch-current")).toHaveText("B-Systems");
+  for (const [tile, name] of [
+    ["crm-bsystems", "B-Systems CRM"],
+    ["crm-byteforce", "ByteForce CRM"],
+    ["partners", "Partners & Agents"],
+  ] as const) {
+    await page.getByRole("link", { name: "All apps" }).click();
+    await page.waitForURL(/\/apps$/);
+    await page.locator(`[data-app="${tile}"]`).click();
+    await expect(page.locator(".app-header .app-name")).toHaveText(name);
+    await noSwitches(tile);
+    await expect(page.locator(".app-nav .nav-item").first()).toHaveAttribute("aria-current", "page");
+    /* the CHROME did not change — same brand scope in every app of the shell */
+    await expect(page.locator("html")).toHaveAttribute("data-brand", "bsystems");
+  }
 });
 
 test("B-Systems agent + public screens: clean console, no horizontal overflow", async ({

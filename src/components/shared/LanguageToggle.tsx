@@ -3,8 +3,9 @@
 import { useRouter } from "next/navigation";
 import { setLocale } from "@/lib/i18n/actions";
 import { useLocale } from "./LocaleProvider";
+import { SwitchIndicator } from "./SwitchIndicator";
 
-/* Founder V5: the AR ↔ EN toggle, styled like the entity switcher. */
+/* Founder V5: the AR ↔ EN toggle, on the house segmented control (.switcher). */
 
 export function LanguageToggle() {
   const router = useRouter();
@@ -32,6 +33,8 @@ export function LanguageToggle() {
       >
         عربي
       </button>
+      {/* the sliding active pill (glass.css / motion.css) — aria-hidden */}
+      <SwitchIndicator />
     </div>
   );
 }

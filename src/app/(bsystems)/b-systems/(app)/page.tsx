@@ -7,7 +7,8 @@ import { parseRange } from "@/lib/dashboard/periods";
 import { getLocale } from "@/lib/i18n/server";
 import { DashboardBody } from "@/components/dashboard/DashboardBody";
 
-export const metadata = { title: "Home — B-Systems CRM" };
+/* a page of Reports & Dashboards now (one way to each page) */
+export const metadata = { title: "Dashboard — Reports & Dashboards" };
 
 /* V2 §2.1 — admin Home; non-admins land on their CRM board.
 

@@ -8,9 +8,10 @@ import { afterSignIn } from "./helpers/after-sign-in";
    accounting or data vault."
 
    The whole loop, through the real UI: the founder makes a second admin with
-   the Data Vault withheld; that admin does not see the segment in EITHER
-   switcher shape (the desktop header pill AND the phone module bar); typing the
-   URL gets an honest refusal, not a crash, a loop, or a blank page; the API
+   the Data Vault withheld; that admin is not offered the Data Vault TILE on the
+   launcher — the one way between apps since the module switcher (header pill
+   and phone bar) went (one way to each page) — at any width; typing the URL
+   gets an honest refusal, not a crash, a loop, or a blank page; the API
    refuses him too; and everything else he owns still works. The founder's own
    account is untouched throughout.
    ========================================================================== */
@@ -89,20 +90,20 @@ test("the founder withholds the Data Vault from a new admin, and the row says so
   await expect(other.getByText("No Accounting")).toHaveCount(0);
 });
 
-test("the blocked admin never sees VAULT in the header pill, and the URL refuses him", async ({
+test("the blocked admin is never offered the Data Vault tile, and the URL refuses him", async ({
   page,
 }) => {
   await login(page, BLOCKED_EMAIL, PASSWORD, /\/b-systems$/);
 
-  /* desktop header pill: ACCOUNTING is there, VAULT is gone */
+  /* the launcher — the one way between apps: Accounting is there, the Vault
+     is not, and no header anywhere carries a module switch to offer it */
   await page.setViewportSize({ width: 1280, height: 900 });
-  await page.goto("/b-systems");
-  const pill = page.locator(".app-header .user .switcher-entity");
-  await expect(pill).toBeVisible();
-  await expect(pill.getByRole("link", { name: "ACCOUNTING" })).toBeVisible();
-  await expect(pill.getByRole("link", { name: "VAULT" })).toHaveCount(0);
-  /* ADR-067 — the two company segments became one CRM segment */
-  await expect(pill.getByRole("link", { name: "CRM", exact: true })).toBeVisible();
+  await page.goto("/apps");
+  await expect(page.locator('[data-app="accounting"]')).toHaveCount(1);
+  await expect(page.locator('[data-app="vault"]')).toHaveCount(0);
+  await page.goto("/b-systems/crm?company=bsystems");
+  await expect(page.getByRole("group", { name: "Switch module" })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "VAULT" })).toHaveCount(0);
 
   /* typing the URL: an honest refusal that NAMES the module, and a way back */
   await page.goto("/vault");
@@ -111,10 +112,12 @@ test("the blocked admin never sees VAULT in the header pill, and the URL refuses
     page.getByRole("heading", { name: "The Data Vault is not open to your account" }),
   ).toBeVisible();
   await expect(page.getByText("Nothing else changed", { exact: false })).toBeVisible();
-  /* a real page, not a blank one, and not a loop */
-  await expect(page.getByRole("link", { name: "Back to your dashboard" })).toBeVisible();
-  await page.getByRole("link", { name: "Back to your dashboard" }).click();
-  await page.waitForURL(/\/b-systems$/);
+  /* a real page, not a blank one, and not a loop — its way out is the
+     launcher, the one way between apps */
+  await expect(page.getByRole("link", { name: "Back to all apps" })).toBeVisible();
+  await page.getByRole("link", { name: "Back to all apps" }).click();
+  await page.waitForURL(/\/apps$/);
+  await expect(page.locator('[data-app="vault"]')).toHaveCount(0);
 
   /* a deep URL inside the module is refused just the same */
   await page.goto("/vault/tasks");
@@ -140,31 +143,29 @@ test("the blocked admin still has ACCOUNTING and everything else", async ({ page
   await expect(page).toHaveURL(/\/b-systems\/crm$/);
 });
 
-test("the phone MODULE BAR drops the segment too, and never overflows", async ({ page }) => {
+test("on a phone the launcher drops the tile too, there is no module bar, and nothing overflows", async ({ page }) => {
   await login(page, BLOCKED_EMAIL, PASSWORD, /\/b-systems$/);
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto("/b-systems");
+  await page.goto("/apps");
+  await expect(page.locator('[data-app="accounting"]')).toHaveCount(1);
+  await expect(page.locator('[data-app="vault"]')).toHaveCount(0);
 
-  const bar = page.locator(".switcher--bar");
-  await expect(bar).toBeVisible();
-  await expect(bar.getByRole("link", { name: "ACCOUNTING" })).toBeVisible();
-  await expect(bar.getByRole("link", { name: "VAULT" })).toHaveCount(0);
-  /* ADR-060's contract still holds on the shortened bar */
+  await page.goto("/b-systems/crm?company=bsystems");
+  await expect(page.locator(".switcher--bar")).toHaveCount(0);
   const overflow = await page.evaluate(
     () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
   );
   expect(overflow).toBeLessThanOrEqual(1);
 });
 
-test("an allowed admin is completely unaffected — both segments, both modules", async ({
+test("an allowed admin is completely unaffected — both tiles, both modules", async ({
   page,
 }) => {
   await login(page, ALLOWED_EMAIL, PASSWORD, /\/b-systems$/);
   await page.setViewportSize({ width: 1280, height: 900 });
-  await page.goto("/b-systems");
-  const pill = page.locator(".app-header .user .switcher-entity");
-  await expect(pill.getByRole("link", { name: "ACCOUNTING" })).toBeVisible();
-  await expect(pill.getByRole("link", { name: "VAULT" })).toBeVisible();
+  await page.goto("/apps");
+  await expect(page.locator('[data-app="accounting"]')).toHaveCount(1);
+  await expect(page.locator('[data-app="vault"]')).toHaveCount(1);
 
   await page.goto("/vault");
   await expect(page).toHaveURL(/\/vault$/);

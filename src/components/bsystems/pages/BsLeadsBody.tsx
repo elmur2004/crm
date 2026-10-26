@@ -15,6 +15,7 @@ import {
   ownerFilters,
 } from "@/lib/i18n/dict/crm";
 import { StageBadge } from "@/components/shared/StageBadge";
+import { stageKey } from "@/components/bsystems/stageColors";
 import { BsAddLeadForm } from "@/components/bsystems/leadActions";
 import { FilterPanel } from "@/components/shared/FilterPanel";
 import { LeadsExportButtons } from "@/components/shared/LeadsExportButtons";
@@ -124,12 +125,7 @@ export async function BsLeadsBody({
         <div className="page-actions">
           <LeadsExportButtons companies={exportCompanies} />
           {importCompany ? (
-            <LeadsImportMenu
-              company={importCompany}
-              /* ADR-051's queue — internal bucket, no rep, no owner — is where
-                 every imported lead waits */
-              unassignedHref={`${ctx.basePath}/leads${ctx.query}&owner=unassigned`}
-            />
+            <LeadsImportMenu company={importCompany} />
           ) : null}
           <BsAddLeadForm apiBase={ctx.apiBase} />
         </div>
@@ -235,7 +231,9 @@ export async function BsLeadsBody({
         </FilterPanel>
         <div className="filter-main">
           {leads.length === 0 ? (
-            <p className="empty">{activeCount > 0 ? t(m.noMatches) : t(m.empty)}</p>
+            <p className={activeCount > 0 ? "empty empty--search" : "empty"}>
+              {activeCount > 0 ? t(m.noMatches) : t(m.empty)}
+            </p>
           ) : (
             <div className="card card--flush0">
               <div className="table-scroll">
@@ -253,7 +251,8 @@ export async function BsLeadsBody({
                   </thead>
                   <tbody>
                     {leads.map((lead) => (
-                      <tr key={lead.id}>
+                      /* the row's stage shows as an edge on hover (crm.css) */
+                      <tr key={lead.id} data-stage-key={stageKey(lead.stage)}>
                         <td>
                           <Link
                             /* ADR-074 — the lead detail of THIS surface.

@@ -18,6 +18,9 @@ export const nav = {
   /* founder rename: the section carries partner AND agent cards. It is the
      PAGE'S OWN title, not a copy — nav and h1 can never disagree. */
   partnersAndAgents: pPipeline.title,
+  /* the Partners & Agents app's own first menu item — its board. The app's
+     NAME is in the header (pPipeline.title), so the item names the screen */
+  partnersPipeline: { en: "Pipeline", ar: "المسار" },
   partners: { en: "Partners", ar: "الشركاء" },
   agents: { en: "Agents", ar: "الوكلاء" },
   registrations: { en: "Registrations", ar: "طلبات التسجيل" },

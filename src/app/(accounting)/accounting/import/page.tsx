@@ -27,7 +27,7 @@ export default async function AcctImportPage({
   const view = acctView(await searchParams, moduleCompaniesFor(user.roles));
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-5 mod-page">
       <AcctHead
         view={view}
         locale={locale}

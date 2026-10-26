@@ -16,10 +16,12 @@ import {
 import { VaultHead } from "@/components/vault/VaultHead";
 import { ArchiveButton } from "@/components/shared/ArchiveButton";
 import { vaultCompaniesOf } from "@/lib/services/vault/tenancy";
+import { ModGroup } from "@/components/accounting/module-ui";
+import { ModEmpty } from "@/components/accounting/module-art";
 
 /* ADR-053 Phase 5 — the archive: nothing in the vault is deleted, ever.
    Five per-kind sections since ADR-070 added Links, each row restorable in one
-   click. Admin only. */
+   click. Admin only. Each section folds away from its head (ModGroup). */
 
 export async function generateMetadata() {
   const locale = await getLocale();
@@ -114,23 +116,26 @@ export default async function VaultArchivePage() {
   const total = sections.reduce((s, x) => s + x.rows.length, 0);
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-5 mod-page">
       <VaultHead locale={locale} title={vault.archiveTitle} sub={vault.archiveSub} />
 
       {total === 0 ? (
         <section className="card card-pad">
-          <p className="empty">{t(vault.archiveEmpty)}</p>
+          <ModEmpty kind="archive" className="">
+            {t(vault.archiveEmpty)}
+          </ModEmpty>
         </section>
       ) : (
         sections.map((section) =>
           section.rows.length === 0 ? null : (
-            <section key={section.label.en} className="card card--flush0">
-              <div className="card-pad">
-                <h2 className="u-h3">
-                  {t(section.label)}{" "}
-                  <span className="count-pill">{section.rows.length}</span>
-                </h2>
-              </div>
+            <ModGroup
+              key={section.label.en}
+              title={
+                <>
+                  {t(section.label)} <span className="count-pill">{section.rows.length}</span>
+                </>
+              }
+            >
               <div className="table-scroll">
                 <table className="table">
                   <thead>
@@ -159,7 +164,7 @@ export default async function VaultArchivePage() {
                   </tbody>
                 </table>
               </div>
-            </section>
+            </ModGroup>
           ),
         )
       )}

@@ -209,7 +209,9 @@ export function CalendarBoard(props: CalendarBoardProps) {
           </button>
         </div>
 
-        <div className="cal-grid" role="grid">
+        {/* keyed by the month: a new month fades in (crm.css); within a month
+            the grid is the same element, so choosing a day never redraws it */}
+        <div key={props.monthKey} className="cal-grid" role="grid">
           {props.weekdays.map((label, i) => (
             <div key={label + i} className="cal-dow" role="columnheader" data-weekend={i >= 5}>
               {label}
@@ -295,9 +297,10 @@ export function CalendarBoard(props: CalendarBoardProps) {
         </div>
 
         {dayEntries.length === 0 ? (
-          <div className="empty card-pad">{t(m.nothingOn)}</div>
+          <div key={selected} className="empty empty--calendar card-pad">{t(m.nothingOn)}</div>
         ) : (
-          <div className="cal-day">
+          /* keyed by the chosen day: its list rises in when the day changes */
+          <div key={selected} className="cal-day">
             {dayEntries.map((entry) => (
               <div key={`${entry.kind}-${entry.id}`} className="cal-row">
                 <span className="cal-row-time">{entry.rangeLabel}</span>

@@ -125,7 +125,7 @@ export async function DailyReportBody({
           {row.interactions.slice(0, VISIBLE_INTERACTIONS).map((i) => interactionLine(i))}
         </ol>
         {hidden > 0 ? (
-          <details className="mt-1">
+          <details className="crm-fold mt-1">
             {/* `list-none` is what actually removes the triangle: Chromium draws a
                 summary's marker through `::marker` on `display: list-item`, and
                 Firefox never supported the WebKit pseudo-element at all — which is

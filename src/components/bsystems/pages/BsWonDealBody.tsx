@@ -5,6 +5,7 @@ import type { CrmSurface } from "@/lib/crm/surface";
 import { formatEGP } from "@/lib/money";
 import { formatCairoDate } from "@/lib/datetime";
 import { MilestoneCheckbox, WonDocumentUpload } from "@/components/bsystems/wonLeads";
+import { Meter } from "@/components/shared/Meter";
 import { tFor } from "@/lib/i18n/core";
 import { getLocale } from "@/lib/i18n/server";
 import { common, wonLeads } from "@/lib/i18n/dict/admin";
@@ -44,18 +45,17 @@ export async function BsWonDealBody({ ctx, wonId }: { ctx: CrmSurface; wonId: st
     <div className="space-y-6">
       <div className="page-head">
         <div>
-          <Link
-            href={`${ctx.basePath}/won-leads${ctx.query}`}
-            className="text-sm text-brand-muted underline underline-offset-2"
-          >
-            {t(wonLeads.backToWonLeads)}
-          </Link>
-          <p className="u-eyebrow mt-3">{t(wonLeads.eyebrowDetail)}</p>
+          {/* no "Back to Won Leads": Won Leads is in the CRM menu, the one way
+              to it (one way to each page) */}
+          <p className="u-eyebrow">{t(wonLeads.eyebrowDetail)}</p>
           <h1 className="u-h1">{w.lead.name}</h1>
         </div>
       </div>
 
-      <div className="grid md:grid-cols-2 gap-6 items-start">
+      {/* grid-cols-1 = minmax(0, 1fr): one column on a phone that may shrink to
+          the screen (an implicit auto track grew to its widest child, and the
+          upload row pushed the page 32px sideways at 390px) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
         <section className="space-y-4">
           <div className="card card--flush0">
             <div className="card-pad flex gap-2 flex-wrap">
@@ -143,6 +143,16 @@ export async function BsWonDealBody({ ctx, wonId }: { ctx: CrmSurface; wonId: st
         <section className="card card--flush0">
           <div className="card-head">
             <h2 className="u-h3">{t(wonLeads.milestonesHeading)}</h2>
+            {/* the deal's progress through its milestones, drawn (the rows
+                below carry each tick in words) */}
+            {w.milestones.length > 0 ? (
+              <span className="crm-meter-row ms-progress">
+                <Meter value={w.milestones.filter((m) => m.completed).length} total={w.milestones.length} />
+                <span className="crm-meter-label">
+                  {w.milestones.filter((m) => m.completed).length}/{w.milestones.length}
+                </span>
+              </span>
+            ) : null}
           </div>
           <div className="card-pad space-y-2 text-sm">
             {w.milestones.map((m, i) => {
@@ -174,7 +184,18 @@ export async function BsWonDealBody({ ctx, wonId }: { ctx: CrmSurface; wonId: st
                       ? `${t(common.commissionSep)}${formatEGP(m.commissionValue)}`
                       : ""}
                     {m.expectedStart ? ` · ${formatCairoDate(m.expectedStart, locale)}` : ""}
-                    {m.expectedEnd ? ` → ${formatCairoDate(m.expectedEnd, locale)}` : ""}
+                    {m.expectedEnd ? (
+                      <>
+                        {/* the range's arrow turns with the reading direction */}
+                        {/* the spaces sit OUTSIDE the inline-block, where they
+                            do not collapse */}
+                        {" "}
+                        <span className="inline-block rtl:-scale-x-100" aria-hidden>
+                          →
+                        </span>{" "}
+                        {formatCairoDate(m.expectedEnd, locale)}
+                      </>
+                    ) : null}
                   </span>
                 </div>
               );

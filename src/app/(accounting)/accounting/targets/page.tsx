@@ -12,6 +12,8 @@ import { moduleCompaniesFor } from "@/lib/module-companies";
 import { monthLabel } from "@/lib/accounting/format";
 import { AcctHead } from "@/components/accounting/AcctHead";
 import { AddTargetButton, TargetActions } from "@/components/accounting/forms";
+import { ModSwap } from "@/components/accounting/module-ui";
+import { ModEmpty } from "@/components/accounting/module-art";
 
 /* ADR-052 — monthly collected-income targets; the dashboard shows the
    selected month's progress bar. */
@@ -36,7 +38,7 @@ export default async function AcctTargetsPage({
   ]);
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-5 mod-page">
       <AcctHead
         view={view}
         locale={locale}
@@ -48,52 +50,54 @@ export default async function AcctTargetsPage({
       <div className="page-actions">
         <AddTargetButton company={view.company} month={view.month} />
       </div>
-      <section className="card card--flush0">
-        {targets.length === 0 ? (
-          <p className="empty m-4">{t(acct.noTargets)}</p>
-        ) : (
-          <div className="table-scroll">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>{t(acct.monthCol)}</th>
-                  <th>{t(acct.goal)}</th>
-                  <th>{t(acct.collected)}</th>
-                  <th>{t(acct.progress)}</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {targets.map((target) => {
-                  const got = incomeIn(books, target.period);
-                  const pct = target.goal > 0 ? (got / target.goal) * 100 : 0;
-                  return (
-                    <tr key={target.id}>
-                      <td className="td-title">{monthLabel(target.period, locale)}</td>
-                      <td>{formatEGP(target.goal)}</td>
-                      <td className="text-brand-success">{formatEGP(got)}</td>
-                      <td>
-                        <span className="flex items-center gap-2 min-w-40">
-                          <span className="meter" style={{ height: 8 }}>
-                            <span
-                              className={`meter-fill block ${pct >= 100 ? "bg-brand-success" : "bg-brand-primary"}`}
-                              style={{ width: `${Math.min(100, pct)}%` }}
-                            />
+      <ModSwap swapKey={view.company}>
+        <section className="card card--flush0">
+          {targets.length === 0 ? (
+            <ModEmpty kind="target">{t(acct.noTargets)}</ModEmpty>
+          ) : (
+            <div className="table-scroll">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>{t(acct.monthCol)}</th>
+                    <th>{t(acct.goal)}</th>
+                    <th>{t(acct.collected)}</th>
+                    <th>{t(acct.progress)}</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {targets.map((target) => {
+                    const got = incomeIn(books, target.period);
+                    const pct = target.goal > 0 ? (got / target.goal) * 100 : 0;
+                    return (
+                      <tr key={target.id}>
+                        <td className="td-title">{monthLabel(target.period, locale)}</td>
+                        <td>{formatEGP(target.goal)}</td>
+                        <td className="text-brand-success">{formatEGP(got)}</td>
+                        <td>
+                          <span className="flex items-center gap-2 min-w-40">
+                            <span className="meter" style={{ height: 8 }}>
+                              <span
+                                className={`meter-fill block ${pct >= 100 ? "bg-brand-success" : "bg-brand-primary"}`}
+                                style={{ width: `${Math.min(100, pct)}%` }}
+                              />
+                            </span>
+                            <span className="font-medium">{pct.toFixed(0)}%</span>
                           </span>
-                          <span className="font-medium">{pct.toFixed(0)}%</span>
-                        </span>
-                      </td>
-                      <td>
-                        <TargetActions id={target.id} company={view.company} />
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
+                        </td>
+                        <td>
+                          <TargetActions id={target.id} company={view.company} />
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      </ModSwap>
     </div>
   );
 }

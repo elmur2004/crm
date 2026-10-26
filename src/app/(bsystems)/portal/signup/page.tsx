@@ -1,4 +1,5 @@
 import { BrandLogo } from "@/components/shared/BrandLogo";
+import { AppGround } from "@/components/shared/AppGround";
 import { SignupForm } from "@/components/portal/SignupForm";
 import { tFor } from "@/lib/i18n/core";
 import { getLocale } from "@/lib/i18n/server";
@@ -11,20 +12,30 @@ export async function generateMetadata() {
 
 /* §8.1 sign-up — all fields required, CV mandatory (pdf/doc/docx ≤ 10 MB).
    Split layout per spec §2.17: gradient identity pane + form pane. Perk copy
-   does not exist yet — strings are frozen in this pass. */
+   does not exist yet — strings are frozen in this pass.
+
+   The system-wide glass pass ("Glass frame, solid data"): the form pane stands
+   on the sign-in's ground, and the FORM itself on a solid card inside a glass
+   bezel (glass.css .portal-form-card) — fields stay sharp. The B-Systems mark
+   leaves the gradient for a flat Paper plate in a glass bezel: a gradient mark
+   never sits on a gradient. Same form, same fields, same names. */
 
 export default async function PortalSignup() {
   const locale = await getLocale();
   const t = tFor(locale);
   return (
-    <main className="min-h-screen flex flex-col md:flex-row items-stretch bg-brand-surface">
-      <div className="bg-brand-hero md:flex-[0.85] md:min-w-72 flex flex-col justify-center p-10 md:p-14">
-        <div className="bs-mesh py-8">
-          <BrandLogo brand="bsystems" variant="mark" height={48} />
-        </div>
+    <main className="portal-split">
+      <AppGround variant="rich" />
+      <div className="portal-split-hero bg-brand-hero">
+        <div className="portal-mesh bs-mesh" aria-hidden="true" />
+        <span className="glass-tile portal-tile" data-brand="bsystems">
+          <span className="glass-tile-plate">
+            <BrandLogo brand="bsystems" variant="mark" height={44} />
+          </span>
+        </span>
       </div>
-      <div className="flex-1 flex flex-col justify-center px-7 py-11 md:px-14">
-        <div className="w-full max-w-lg">
+      <div className="portal-split-pane">
+        <div className="portal-form-card">
           <p className="u-eyebrow">{t(msgs.eyebrow)}</p>
           <h1 className="u-h1 mb-5">{t(msgs.title)}</h1>
           <SignupForm />

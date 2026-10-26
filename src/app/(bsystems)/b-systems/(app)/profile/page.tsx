@@ -1,7 +1,8 @@
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { requireCompanySection } from "@/lib/auth/page-guards";
-import { BS_PIPELINE_ROLES } from "@/lib/crm/company";
+import { BS_PIPELINE_ROLES, crmQuery } from "@/lib/crm/company";
+import { crmHomeFor } from "@/lib/crm/nav";
 import { bsRoleOf } from "@/lib/api/bsystems";
 import { getRepProfile } from "@/lib/services/portal-reps";
 import { formatCairoDate } from "@/lib/datetime";
@@ -38,7 +39,11 @@ export default async function ProfilePage({
     BS_PIPELINE_ROLES,
   );
   const role = bsRoleOf(user);
-  if (role !== "bsystems_agent" && role !== "bsystems_partner") redirect("/b-systems");
+  /* one way to each page: a bounce lands on the role's first menu item — the
+     board (crmHomeFor), never the dashboard, which is a Reports page */
+  if (role !== "bsystems_agent" && role !== "bsystems_partner") {
+    redirect(`${crmHomeFor("bsystems", role)}${crmQuery("bsystems")}`);
+  }
   const locale = await getLocale();
   const t = tFor(locale);
 

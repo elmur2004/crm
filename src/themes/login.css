@@ -70,10 +70,10 @@
 
    ---------------------------------------------------------------- DARK
    The contract of src/lib/theme: rules match html[data-theme="dark"] inside
-   @media screen, and an identical html[data-theme="system"] twin inside
-   @media screen and (prefers-color-scheme: dark). Print stays light. The
-   dark block only re-points custom properties; login-glass.test.ts holds the
-   two blocks identical.
+   @media screen. Print stays light. The dark block only re-points custom
+   properties. (Its "system" twin under prefers-color-scheme went with the
+   founder's "remove the system theme option" — light and dark render exactly
+   as before; login-glass.test.ts guards that no system rule returns.)
 
    ---------------------------------------------------------------- RTL
    Logical properties only. --lg-dir is 1 in LTR and -1 in RTL; every
@@ -1069,8 +1069,7 @@
 
 /* =========================================================================
    DARK — smoked glass on a deep indigo-to-ink ground. Custom properties
-   only (plus the ground's own base), so the twin below stays trivially in
-   step; login-glass.test.ts holds the two blocks identical.
+   only (plus the ground's own base).
    ========================================================================= */
 
 @media screen {
@@ -1098,41 +1097,6 @@
     --lg-rim: color-mix(in srgb, var(--lg-white) 42%, transparent);
   }
   html[data-theme="dark"] .lg-aurora {
-    background:
-      linear-gradient(
-        168deg,
-        var(--bs-indigodeep) 0%,
-        color-mix(in srgb, var(--bs-indigodeep) 62%, var(--lg-ink-ground)) 52%,
-        var(--lg-ink-ground) 100%
-      );
-  }
-}
-
-@media screen and (prefers-color-scheme: dark) {
-  html[data-theme="system"] .lg-shell {
-    --lg-card: color-mix(in srgb, var(--color-surface-card) 44%, transparent);
-    --lg-card-edge: color-mix(in srgb, var(--lg-white) 13%, transparent);
-    --lg-glass: color-mix(in srgb, var(--color-surface-card) 58%, transparent);
-    --lg-glass-hi: color-mix(in srgb, var(--lg-white) 16%, transparent);
-    --lg-field: color-mix(in srgb, var(--color-surface-dark) 46%, transparent);
-    --lg-field-solid: color-mix(in srgb, var(--color-surface-card) 92%, var(--color-link));
-    --lg-field-edge: color-mix(in srgb, var(--color-link) 62%, transparent);
-    --lg-shadow: color-mix(in srgb, var(--color-surface-dark) 70%, transparent);
-    --lg-bezel-fill: color-mix(in srgb, var(--color-surface-card) 50%, transparent);
-    --lg-x-fill: color-mix(in srgb, var(--color-surface-card) 72%, transparent);
-    --lg-cta-gloss: color-mix(in srgb, var(--lg-white) 30%, transparent);
-    --lg-glow: color-mix(in srgb, var(--color-link) 32%, transparent);
-    --lg-lavender-a: 16%;
-    --lg-indigo-a: 62%;
-    --lg-mist-a: 10%;
-    --lg-orb-fill: 4%;
-    --lg-orb-rim: 18%;
-    --lg-orb-hi: 34%;
-    --lg-orb-tint: 18%;
-    --lg-spot: color-mix(in srgb, var(--lg-white) 11%, transparent);
-    --lg-rim: color-mix(in srgb, var(--lg-white) 42%, transparent);
-  }
-  html[data-theme="system"] .lg-aurora {
     background:
       linear-gradient(
         168deg,

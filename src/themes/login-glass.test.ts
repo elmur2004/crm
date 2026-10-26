@@ -9,13 +9,14 @@ import { loginGlass } from "@/lib/i18n/dict/login-glass";
 
    src/themes/login.css is new, and the repo's existing sweeps only partly
    reach it: theme-stamp.sweep.test.ts reads every src/themes/*.css for the
-   screen-only / positive-match rules, but the "dark block = system block"
-   twin check (dark-components.test.ts) reads design-system.css alone, and
+   screen-only / positive-match rules, but the dark block's own checks
+   (dark-components.test.ts) read design-system.css alone, and
    theme-tokens.test.ts reads the three token files. So this file holds
    login.css to the same promises, plus the ones only this page makes:
 
-   1. dark mode: every themed rule is html[data-theme=…]-anchored, positive,
-      inside @media screen; the "system" block is the "dark" block verbatim;
+   1. dark mode: every themed rule is html[data-theme="dark"]-anchored,
+      positive, inside @media screen — and no "system" twin remains (the
+      founder removed that option: "remove the system theme option");
    2. colour comes from tokens only — no literal anywhere in the file, and
       every brand palette variable it spends exists in a branding file;
    3. motion: every animation, transition and will-change sits inside
@@ -203,41 +204,26 @@ describe("login.css — dark mode follows the house contract", () => {
   const DARK = themed.filter((r) => r.selectors.some((s) => s.includes('[data-theme="dark"]')));
   const SYSTEM = themed.filter((r) => r.selectors.some((s) => s.includes('[data-theme="system"]')));
 
-  it("has dark rules at all (the checks below are not vacuous)", () => {
+  it("has dark rules at all (the checks below are not vacuous) — and no system twin", () => {
     expect(DARK.length).toBeGreaterThanOrEqual(2);
-    expect(SYSTEM.length).toBe(DARK.length);
+    expect(SYSTEM).toHaveLength(0);
   });
 
-  it('"dark" sits in @media screen; "system" in @media screen and (prefers-color-scheme: dark)', () => {
+  it('"dark" sits in @media screen', () => {
     for (const r of DARK) expect(r.at, r.selectors.join(", ")).toEqual(["@media screen"]);
-    for (const r of SYSTEM) {
-      expect(r.at, r.selectors.join(", ")).toEqual(["@media screen and (prefers-color-scheme: dark)"]);
-    }
   });
 
-  it("every themed selector is a POSITIVE match anchored on html[data-theme]", () => {
+  it('every themed selector is a POSITIVE match anchored on html[data-theme="dark"]', () => {
     for (const r of themed) {
       for (const s of r.selectors) {
-        expect(s).toMatch(/^html\[data-theme="(dark|system)"\]/);
+        expect(s).toMatch(/^html\[data-theme="dark"\]/);
         expect(s).not.toMatch(/:not\([^)]*data-theme/);
       }
     }
   });
 
-  it("the system block is the dark block, verbatim but for the theme word", () => {
-    const asSystem = DARK.map((r) => ({
-      selectors: r.selectors.map((s) => s.replaceAll('[data-theme="dark"]', '[data-theme="system"]')),
-      decls: r.decls,
-    }));
-    expect(SYSTEM.map((r) => ({ selectors: r.selectors, decls: r.decls }))).toEqual(asSystem);
-  });
-
-  it("nothing else answers to prefers-color-scheme", () => {
-    for (const r of STYLE_RULES) {
-      if (r.at.some((a) => a.includes("prefers-color-scheme"))) {
-        expect(r.selectors.every((s) => s.startsWith('html[data-theme="system"]'))).toBe(true);
-      }
-    }
+  it("nothing answers to prefers-color-scheme (the OS no longer chooses the theme)", () => {
+    for (const r of STYLE_RULES) expect(r.at.some((a) => a.includes("prefers-color-scheme")), r.selectors.join(", ")).toBe(false);
   });
 });
 
@@ -287,7 +273,7 @@ describe("login.css — colour comes from tokens only", () => {
   it("the B-Systems palette is only spent where B-Systems is re-stamped, ByteForce's where ByteForce is", () => {
     /* the elements that re-stamp data-brand in LoginGlass.tsx: the ground
        (B-Systems) and each mark's tile (its own brand) — never nested */
-    const BS_SCOPED = /^\.lg-(aurora|blob|orb|tile--bsystems)\b|^html\[data-theme="(dark|system)"\] \.lg-aurora$/;
+    const BS_SCOPED = /^\.lg-(aurora|blob|orb|tile--bsystems)\b|^html\[data-theme="dark"\] \.lg-aurora$/;
     const BF_SCOPED = /^\.lg-tile--byteforce$/;
     for (const r of STYLE_RULES) {
       for (const [, v] of r.decls) {

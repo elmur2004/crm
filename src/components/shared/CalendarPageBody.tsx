@@ -161,8 +161,11 @@ export async function CalendarPageBody({
   const next = shiftMonth(year, month, 1);
   const thisMonth = monthOf(now);
 
+  /* NOT a second `.page`: the shell's <main class="page"> already pads the
+     screen, and a nested one inset the calendar 26px further than every other
+     page (and narrowed it by 52px). A plain wrapper keeps it in line. */
   return (
-    <div className="page">
+    <div className="cal-page">
       <div className="page-head">
         <div>
           <div className="u-eyebrow">{t(m.eyebrow)}</div>

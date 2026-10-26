@@ -1,0 +1,604 @@
+/* =========================================================================
+   MODULES — the page bodies of Accounting and the Data Vault.
+
+   Founder: "the log in page is very nicely animated and designed the rest of
+   the system is still not" — and he chose "Glass frame, solid data": glass
+   and the soft glow on what FRAMES the work (the foundation already did the
+   headers, menus, dialogs, toasts, panels, the ground, page heads, buttons,
+   inputs and skeletons — glass.css / motion.css), while tables, ledgers and
+   forms stay on SOLID cards so numbers stay sharp and phones stay fast. And
+   every screen gets the sign-in's motion: entrances, hover and press
+   feedback, smooth panels. This file is that pass for the two modules.
+
+   Imported by src/app/(accounting)/layout.tsx and src/app/(vault)/layout.tsx
+   AFTER motion.css. Everything here is scoped to the module page bodies:
+   `.mod-page` (every page root), `.mod-swap` (the data that changes with the
+   period / filter), `.mod-group` (a collapsible ledger), `.mod-empty` (an
+   empty state with its drawing), `.mod-steps` (the import flow),
+   `.mod-filter` (a list's filter form), `.mod-hits` (the vault's search
+   results) — plus the kept-design accounting dashboard's own classes
+   (.acct-hero, .acct-kpi, ADR-054). The components that set these classes are
+   src/components/accounting/module-ui.tsx and module-art.tsx.
+
+   ---------------------------------------------------------------- RULES
+   (the foundation's, kept rule for rule — glass-motion.test.ts does not read
+   this file, so they are kept by hand)
+   · TOKENS ONLY: every colour is a semantic var() from the three scope files,
+     or a color-mix() over tokens. No literal colour, no font family.
+   · Glass only on frame: the filter forms and the period / company switches.
+     NO backdrop-filter anywhere in this file — never on a card, a row, a tile
+     or anything repeated. Data sits on --color-surface-card.
+   · EVERY animation and transition is inside
+     @media (prefers-reduced-motion: no-preference). Keyframes move transform
+     and opacity only; one-shot, ≤ 600 ms each; fill-mode BACKWARDS (a
+     filling transform keeps an element a containing block and traps the
+     position:fixed dialogs that the row actions render INSIDE the rows).
+     Staggers stay within 250 ms. Nothing loops.
+   · Numbers never animate at load (BUG-026): figures are the server's from
+     the first frame. They count only when they CHANGE, in LiveNumber (JS),
+     never here.
+   · Hover lifts only under (hover: hover), and only on links / buttons — a
+     tile, a KPI card and a table row are not links (D18), so they never lift.
+   · Logical properties; horizontal motion multiplies by --mo-dir (1 LTR / −1
+     RTL, motion.css). Nothing translates sideways near an edge at load.
+   · Dark: html[data-theme="dark"] rules inside @media screen (positive
+     matches; print stays light — the P&L is printed).
+   · ≥ 44 px targets on (pointer: coarse). No horizontal scroll at 320 px.
+   ========================================================================= */
+
+/* ------------------------------------------------------------- keyframes */
+@keyframes mod-grow-x { from { transform: scaleX(0); } }
+@keyframes mod-grow-y { from { transform: scaleY(0); } }
+@keyframes mod-pop {
+  from { opacity: 0; transform: scale(.55); }
+}
+/* the hero's corner geometry settles into its corner (it lives inside the
+   hero's overflow:hidden, so nothing reaches the page edge) */
+@keyframes mod-settle {
+  from { opacity: 0; transform: translate3d(calc(14px * var(--mo-dir)), -10px, 0); }
+}
+/* one pass of white light across the hero — the sign-in tile's sheen */
+@keyframes mod-sheen {
+  0% { opacity: 0; transform: translate3d(calc(-55% * var(--mo-dir)), 0, 0); }
+  30% { opacity: 1; }
+  70% { opacity: 1; }
+  100% { opacity: 0; transform: translate3d(calc(55% * var(--mo-dir)), 0, 0); }
+}
+
+/* =========================================================================
+   1. THE ENTRANCE — once per visit, sections in turn, grids dealt.
+
+   The foundation rises a page's top-level block as one piece. A module page
+   is ONE block (its .mod-page root), so instead the root stays still and its
+   sections rise one after another, 40 ms apart; inside the period's data
+   (.mod-swap) the sections follow on; a grid of tiles, KPI cards or entity
+   cards does not rise as one plate — its items are dealt 30 ms apart from
+   the grid's own slot. The custom properties only hold DELAYS; with motion
+   reduced nothing reads them.
+   ========================================================================= */
+.mod-page > :nth-child(2) { --mod-d: 40ms; }
+.mod-page > :nth-child(3) { --mod-d: 80ms; }
+.mod-page > :nth-child(4) { --mod-d: 120ms; }
+.mod-page > :nth-child(n + 5) { --mod-d: 160ms; }
+.mod-swap > :nth-child(1) { --mod-d: 80ms; }
+.mod-swap > :nth-child(2) { --mod-d: 110ms; }
+.mod-swap > :nth-child(3) { --mod-d: 140ms; }
+.mod-swap > :nth-child(n + 4) { --mod-d: 160ms; }
+:is(.tile-grid, .acct-kpi-grid, .ecard-grid) > :nth-child(2) { --mod-i: 1; }
+:is(.tile-grid, .acct-kpi-grid, .ecard-grid) > :nth-child(3) { --mod-i: 2; }
+:is(.tile-grid, .acct-kpi-grid, .ecard-grid) > :nth-child(n + 4) { --mod-i: 3; }
+
+@media (prefers-reduced-motion: no-preference) {
+  /* (motion.css rises `.route-host > *` — the module root — as one block;
+     here the root stays put and its sections carry the entrance) */
+  .route-host > .mod-page { animation: none; }
+  .mod-page > *,
+  .mod-swap > * {
+    animation: mo-rise var(--duration-long) var(--ease-standard) var(--mod-d, 0ms) backwards;
+  }
+  .mod-page > .mod-swap { animation: none; }
+  .mod-page :is(.tile-grid, .acct-kpi-grid, .ecard-grid) { animation: none; }
+  .mod-page :is(.tile-grid, .acct-kpi-grid, .ecard-grid) > * {
+    animation: mo-rise var(--duration-long) var(--ease-standard)
+      calc(var(--mod-d, 0ms) + var(--mod-i, 0) * 30ms) backwards;
+  }
+
+  /* ---------------------------------------------- 1b. THE PERIOD SWITCH
+     A new month, company, scope or filter re-mounts .mod-swap (ModSwap) with
+     .mod-swap-in: the new period's data CROSS-FADES in, at once and without
+     the entrance's travel or its dealing — flicking through months should
+     feel like turning pages, not like reloading. */
+  .mod-swap.mod-swap-in > * {
+    animation: mo-fade var(--duration-medium) var(--ease-standard) backwards;
+  }
+  .mod-swap.mod-swap-in > :is(.tile-grid, .acct-kpi-grid, .ecard-grid) { animation: none; }
+  .mod-swap.mod-swap-in :is(.tile-grid, .acct-kpi-grid, .ecard-grid) > * {
+    animation: mo-fade var(--duration-medium) var(--ease-standard) backwards;
+  }
+}
+
+/* =========================================================================
+   2. SOLID DATA, ON THE DASHBOARD'S CARD LANGUAGE (ADR-091 D1)
+   The data cards keep their solid surface; they take the house's panel
+   radius (the CRM Home's rounded cards), tabular figures so a column of money
+   lines up digit under digit, and — in dark, where a shadow is no edge — a
+   hairline of top light. Screen only: a printed P&L keeps its paper look.
+   ========================================================================= */
+.mod-page .table td,
+.mod-page :is(.tile-value, .acct-kpi-value, .acct-hero-value) {
+  font-variant-numeric: lining-nums tabular-nums;
+}
+@media screen {
+  .mod-page :is(.card, .tile, .acct-kpi, .acct-hero) { border-radius: var(--radius-panel); }
+  html[data-theme="dark"] .mod-page :is(.card:not(.mod-filter), .tile) {
+    box-shadow: inset 0 1px 0 var(--color-glass-highlight), var(--shadow-card);
+  }
+  /* the kept-design KPI card has no border at all (the SPA's) — in dark its
+     shadow vanishes into the well, so it takes a hairline ring instead */
+  html[data-theme="dark"] .mod-page .acct-kpi {
+    box-shadow: inset 0 1px 0 var(--color-glass-highlight), var(--shadow-card), 0 0 0 1px var(--color-border);
+  }
+}
+
+/* =========================================================================
+   3. THE TREASURY HERO (ADR-054's kept design — it carries the brand's
+   sanctioned hero gradient)
+   · The gradient moves onto a ::before so ByteForce's can be turned to face
+     the reader. Its band runs orange → violet left to right, and the hero's
+     white words sit at the inline START — so in English they stood on the
+     orange (white on ByteForce orange is 3.34:1; the brand never puts white
+     on orange). Under ByteForce the band is therefore drawn in the READING
+     direction: mirrored in English, as-is in Arabic — the words always start
+     on Royal Violet (white 8.6:1) and the orange sits at the line's end, under
+     only the corner geometry. The token itself is untouched.
+   · B-Systems' signature gradient is never turned: SPEC §4.3 fixes it at
+     135° (pink is the exit), and the portal's two heroes draw it the same way
+     in both scripts. (In Arabic its words, at the right, sit nearer the pink
+     exit — a reading-direction mirror is the one-line change if the founder
+     wants it; flagged, not taken.)
+   · Not screen-only: a printed ByteForce dashboard with background graphics
+     on keeps its words off the orange too.
+   · One pass of white light crosses the B-Systems hero as the page arrives
+     (the sign-in tile's sheen — white light over a hero gradient, the
+     .bs-mesh family). ByteForce's book wants flat colour blocks (glass.css
+     already turns the buttons' gloss off for it), so its band takes no sheen.
+     The corner geometry settles in under both. The figure does not move.
+   ========================================================================= */
+[data-brand] { --acct-hero-sx: 1; --acct-hero-sheen: mod-sheen; }
+[data-brand="byteforce"] { --acct-hero-sx: calc(-1 * var(--mo-dir, 1)); --acct-hero-sheen: none; }
+.acct-hero { isolation: isolate; background-image: none; }
+.acct-hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image: var(--gradient-hero);
+  transform: scaleX(var(--acct-hero-sx));
+}
+@media screen {
+  .acct-hero::after {
+    content: "";
+    position: absolute;
+    inset: -10% -20%;
+    z-index: -1;
+    pointer-events: none;
+    opacity: 0;
+    background: linear-gradient(
+      100deg,
+      transparent 40%,
+      color-mix(in srgb, var(--color-glass-highlight) 42%, transparent) 50%,
+      transparent 60%
+    );
+  }
+}
+@media screen and (prefers-reduced-motion: no-preference) {
+  .acct-hero::after {
+    animation: var(--acct-hero-sheen, mod-sheen) 600ms var(--ease-standard) calc(var(--mod-d, 0ms) + 260ms);
+  }
+  .acct-hero-shape { animation: mod-settle 560ms var(--ease-standard) calc(var(--mod-d, 0ms) + 120ms) backwards; }
+}
+
+/* =========================================================================
+   4. THE KPI CARDS (ADR-054's kept design: 3px accent edge, uppercase label,
+   coloured figure). The accent edge draws down once, after its card has
+   landed; a tone that changes with the month (net turning negative) eases
+   rather than snapping. The cards are not links: no hover, no lift.
+   ========================================================================= */
+@media (prefers-reduced-motion: no-preference) {
+  .acct-kpi-accent {
+    transform-origin: 50% 0;
+    animation: mod-grow-y 480ms var(--ease-standard)
+      calc(var(--mod-d, 0ms) + var(--mod-i, 0) * 30ms + 200ms) backwards;
+    transition: background-color var(--duration-medium) ease;
+  }
+  .acct-kpi-value { transition: color var(--duration-medium) ease; }
+}
+
+/* =========================================================================
+   5. CHARTS DRAW ONCE — the target meter, the P&L's six-month bars, the
+   targets' progress. Each grows from its baseline (inline-start; the
+   transform-origin flips under RTL in design-system.css) after its card has
+   arrived, bar by bar. (design-system.css runs a 700 ms grow outside the
+   motion fence; inside it, the module's own ≤ 600 ms draw replaces it.)
+   A period switch re-mounts the chart (ModSwap / a key), so a new period
+   draws again; a refresh after a write keeps the DOM and does not.
+   ========================================================================= */
+@media (prefers-reduced-motion: no-preference) {
+  .mod-page .meter-fill {
+    animation: mod-grow-x 560ms var(--ease-standard) calc(var(--mod-d, 0ms) + 160ms) backwards;
+  }
+  .mod-page :is(.chart-row, tbody tr):nth-child(2) .meter-fill { animation-delay: calc(var(--mod-d, 0ms) + 190ms); }
+  .mod-page :is(.chart-row, tbody tr):nth-child(3) .meter-fill { animation-delay: calc(var(--mod-d, 0ms) + 220ms); }
+  .mod-page :is(.chart-row, tbody tr):nth-child(4) .meter-fill { animation-delay: calc(var(--mod-d, 0ms) + 250ms); }
+  .mod-page :is(.chart-row, tbody tr):nth-child(5) .meter-fill { animation-delay: calc(var(--mod-d, 0ms) + 280ms); }
+  .mod-page :is(.chart-row, tbody tr):nth-child(n + 6) .meter-fill { animation-delay: calc(var(--mod-d, 0ms) + 310ms); }
+}
+.mod-page .chart-row { min-block-size: 32px; }
+
+/* =========================================================================
+   6. THE LEDGER ROWS
+   · Hover: the row lifts its ground (design-system) and marks its inline
+     start with the action hue — where the eye enters a line of figures.
+   · A row that was just ADDED glows once: after a write the page is armed
+     (data-fresh, module-ui.tsx armFresh) and every row the refresh inserts
+     starts on the primary tint and fades to the card (@starting-style — a
+     row that already existed never restarts, and a month switch is never
+     armed, so a new month does not light up as "new").
+   · A row that was EDITED flashes the same tint when its new figures land
+     (data-flash, flashWhenChanged).
+   · A row being DELETED dims while the request is in the air, then slides a
+     touch toward the inline start and fades; the refresh closes the gap
+     (data-leaving). Toward the START so it never widens the table's own
+     scroller.
+   Background, opacity and transform only — and never while a row's dialog
+   is open (the dialog lives inside the row; a transform would trap it).
+   ========================================================================= */
+.mod-page .table tbody tr[data-leaving="pending"] { opacity: .5; }
+.mod-page .table tbody tr[data-leaving="out"] { opacity: 0; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .mod-page .table tbody tr {
+    transition:
+      background-color var(--duration-short) ease,
+      opacity var(--duration-medium) var(--ease-standard),
+      transform var(--duration-medium) var(--ease-exit);
+  }
+  .mod-page .table tbody td:first-child { transition: box-shadow var(--duration-short) ease; }
+  .mod-page .table tbody tr[data-leaving="out"] {
+    transform: translate3d(calc(-14px * var(--mo-dir)), 0, 0);
+  }
+
+  /* ADDED */
+  .mod-page[data-fresh] .table tbody tr {
+    transition:
+      background-color 600ms var(--ease-exit),
+      opacity var(--duration-medium) var(--ease-standard),
+      transform var(--duration-medium) var(--ease-exit);
+  }
+  .mod-page[data-fresh] .ecard {
+    transition:
+      background-color 600ms var(--ease-exit),
+      border-color var(--duration-short) ease,
+      box-shadow var(--duration-medium) var(--ease-standard),
+      transform var(--duration-medium) var(--ease-spring);
+  }
+  @starting-style {
+    .mod-page[data-fresh] .table tbody tr,
+    .mod-page[data-fresh] .ecard { background-color: var(--color-primary-tint); }
+  }
+
+  /* EDITED: "on" paints the tint at once, "off" lets it fade */
+  .mod-page :is(.table tbody tr, .ecard)[data-flash="on"] {
+    background-color: var(--color-primary-tint);
+    transition: none;
+  }
+  .mod-page :is(.table tbody tr, .ecard)[data-flash="off"] {
+    transition:
+      background-color 600ms var(--ease-exit),
+      border-color var(--duration-short) ease,
+      box-shadow var(--duration-medium) var(--ease-standard),
+      transform var(--duration-medium) var(--ease-spring);
+  }
+}
+@media (hover: hover) {
+  .mod-page .table tbody tr:hover > td:first-child {
+    box-shadow: inset calc(3px * var(--mo-dir)) 0 0 0 var(--color-primary);
+  }
+  /* the row's own small buttons answer the pointer too (design-system gives
+     them no hover); a settled ✓ keeps its accounting green */
+  .mod-page .row-toggle:not(:disabled):not(.row-toggle--acct-settled):hover {
+    border-color: var(--color-border-control);
+    background: var(--color-surface);
+  }
+  .mod-page a.chat-mention:hover { text-decoration: underline; text-underline-offset: 3px; }
+}
+
+/* A row's actions stay on ONE line. The table is width:100% inside its own
+   scroller, so the browser used to squeeze the last column to its narrowest
+   (one button wide) and stack Complete / Edit / Archive three deep, the first
+   of them cut by the card's edge. On one line the row keeps its height and the
+   scroller — never the page — takes any extra width. */
+.mod-page .table td:last-child :is(.flex, .inline-flex) { flex-wrap: nowrap; }
+
+/* The row's secondary actions (Edit, the resting ✓, ⇄) read in the brand's
+   LINK ink: under ByteForce the primary is the orange, and orange words at
+   11.5 px are 3.3:1 on the card — the brand's links are Royal Violet. Under
+   B-Systems the two are the same indigo already (and the vault's rows, the
+   neutral scope's, use the ghost buttons, not this class). Delete keeps its
+   danger red; a settled ✓ keeps its accounting green. */
+.mod-page .row-toggle--restore { color: var(--color-link); }
+
+/* a status chip that flips with its row (Pending → Collected, On hold →
+   Paid) cross-fades its colours instead of snapping */
+@media (prefers-reduced-motion: no-preference) {
+  .mod-page :is(.acct-chip, .stage-chip, .badge) {
+    transition: background-color var(--duration-medium) ease, color var(--duration-medium) ease;
+  }
+}
+
+/* =========================================================================
+   7. GROUPED LEDGERS — expand / collapse (ModGroup). The card head's title
+   is the disclosure button (APG accordion: a button inside the heading, the
+   heading keeps its name); the chevron turns toward the reading direction
+   when the group is folded. The body fades and rises open; folding fades it
+   away before it leaves the layout (display allow-discrete). On a first visit
+   every group is open and nothing about it moves.
+   ========================================================================= */
+.mod-group-toggle {
+  display: inline-flex; align-items: center; gap: 8px;
+  margin: 0; padding: 4px 6px; margin-inline-start: -6px;
+  border: 0; border-radius: var(--radius-control);
+  background: transparent; color: inherit; font: inherit; letter-spacing: inherit;
+  text-align: start; cursor: pointer;
+}
+.mod-chev { width: 16px; height: 16px; flex: none; color: var(--color-muted); }
+.mod-group[data-open="false"] .mod-chev { transform: rotate(calc(-90deg * var(--mo-dir))); }
+.mod-group[data-open="false"] > .card-head { border-block-end-color: transparent; }
+@media (hover: hover) {
+  .mod-group-toggle:hover { background: var(--color-surface); }
+  .mod-group-toggle:hover .mod-chev { color: var(--color-ink); }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .mod-group-toggle { transition: background-color var(--duration-short) ease; }
+  .mod-chev { transition: transform var(--duration-medium) var(--ease-spring), color var(--duration-short) ease; }
+  .mod-group-toggle:active .mod-chev { transition-duration: 90ms; }
+  .mod-group[data-toggled] .mod-group-body {
+    transition:
+      opacity var(--duration-medium) var(--ease-standard),
+      transform var(--duration-medium) var(--ease-standard),
+      display var(--duration-medium) allow-discrete;
+  }
+  .mod-group[data-toggled] .mod-group-body[hidden] {
+    opacity: 0;
+    transform: translate3d(0, -6px, 0);
+  }
+  @starting-style {
+    .mod-group[data-toggled] .mod-group-body:not([hidden]) {
+      opacity: 0;
+      transform: translate3d(0, -6px, 0);
+    }
+  }
+}
+
+/* =========================================================================
+   8. EMPTY STATES — a small drawing above the words (module-art.tsx): paper,
+   lines and one accent, in tokens (the card, the control border, the
+   primary tint). It rises in after its card; the accent pops on a spring.
+   aria-hidden — the sentence beside it is the message.
+   ========================================================================= */
+.mod-page .mod-empty {
+  display: flex; flex-direction: column; align-items: center; gap: 10px;
+  padding: 24px 20px 22px; text-wrap: pretty;
+}
+.mod-art { display: block; inline-size: 112px; block-size: auto; overflow: visible; }
+/* a drawing of lines that READ (a ledger page, a checklist, a timeline, lines
+   under a magnifier) runs the way the page reads: mirrored in Arabic — on its
+   inner group, so the svg's own entrance transform is never fought */
+.ea-flow { transform-box: view-box; transform-origin: 50% 50%; }
+[dir="rtl"] .ea-flow { transform: scaleX(-1); }
+.ea-ground { fill: var(--color-surface-tint); }
+.ea-paper { fill: var(--color-surface-card); stroke: var(--color-border-control); stroke-width: 1.5; }
+.ea-soft { fill: var(--color-surface-tint); stroke: var(--color-border-control); stroke-width: 1.5; }
+.ea-line { fill: none; stroke: var(--color-border); stroke-width: 3; stroke-linecap: round; }
+.ea-ink { fill: none; stroke: var(--color-muted); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.ea-accent { fill: var(--color-primary-tint); stroke: var(--color-primary); stroke-width: 1.5; }
+.ea-mark { fill: none; stroke: var(--color-primary); stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+.ea-dot { fill: var(--color-primary); }
+@media (prefers-reduced-motion: no-preference) {
+  .mod-empty .mod-art {
+    animation: mo-rise-sm var(--duration-long) var(--ease-standard) calc(var(--mod-d, 0ms) + 80ms) backwards;
+  }
+  .mod-empty :is(.ea-accent, .ea-mark, .ea-dot) {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: mod-pop 460ms var(--ease-spring) calc(var(--mod-d, 0ms) + 240ms) backwards;
+  }
+}
+
+/* =========================================================================
+   9. FRAME CONTROLS ON THE GROUND — glass, not data
+   · The company / month switches (AcctControls) and the departments' scope
+     tabs sit on the ground in the page head: they take the To-Do's company
+     tabs' glass pill (glass.css .company-tabs), resting segments in the
+     quiet glass ink.
+   · A list's filter form (.mod-filter — the vault's Search / Company / Type
+     cards) is a frame panel like the CRM's filter sidebar (.card.filter-card):
+     thin glass, a white rim, the float shadow. Its fields stay the solid
+     .field-input they always were. No backdrop-filter: it sits over the
+     ground, not over data.
+   ========================================================================= */
+@media screen {
+  .mod-page .switcher {
+    background: var(--color-glass);
+    border-color: var(--color-glass-edge);
+    box-shadow:
+      inset 0 1px 0 var(--color-glass-highlight),
+      0 10px 24px -18px var(--color-glow);
+  }
+  .mod-page .switcher-seg:not([aria-current], [aria-pressed="true"]) { color: var(--color-glass-quiet); }
+  .mod-page .card.mod-filter {
+    background: var(--color-glass);
+    border-color: var(--color-glass-edge);
+    box-shadow:
+      inset 0 1px 0 var(--color-glass-highlight),
+      var(--shadow-float);
+  }
+}
+@media screen and (hover: hover) {
+  .mod-page .switcher-seg:not([aria-current], [aria-pressed="true"]):hover { color: var(--color-ink); }
+}
+/* the month's name in the month switch is keyed by the month (controls.tsx):
+   flicking to the next month fades its name in where the last one stood */
+@media (prefers-reduced-motion: no-preference) {
+  .mod-page .mod-month { animation: mo-fade var(--duration-medium) var(--ease-standard) backwards; }
+}
+@media screen and (prefers-reduced-transparency: reduce) {
+  .mod-page .switcher,
+  .mod-page .card.mod-filter { background: var(--color-surface-card); }
+}
+
+/* =========================================================================
+   10. THE IMPORT FLOW — three steps on one rail (importer.tsx / the vault's
+   data panel): choose the file → import → reconcile. Each step carries its
+   number on the inline-start rail; the step in hand is ringed in the action
+   hue, a finished one is filled and ticked, the rail between them fills as
+   the flow advances. The numbers are decoration (aria-hidden by being CSS
+   content in a list the form already explains with its labels and status).
+   ========================================================================= */
+.mod-steps { counter-reset: mod-step; }
+.mod-step {
+  --step-size: 26px;
+  counter-increment: mod-step;
+  position: relative;
+  padding-inline-start: calc(var(--step-size) + 14px);
+  min-block-size: var(--step-size);
+}
+.mod-step::before {
+  content: counter(mod-step);
+  position: absolute; inset-inline-start: 0; inset-block-start: 0;
+  inline-size: var(--step-size); block-size: var(--step-size); border-radius: 50%;
+  display: grid; place-items: center;
+  font: 700 12px/1 var(--font-body);
+  background: var(--color-surface-card); color: var(--color-muted);
+  border: 1.5px solid var(--color-border-control);
+}
+/* the rail down to the next step */
+.mod-step:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  inset-inline-start: calc(var(--step-size) / 2 - 1px);
+  inset-block-start: calc(var(--step-size) + 4px);
+  inset-block-end: -12px;
+  inline-size: 2px; border-radius: 2px;
+  background: var(--color-border);
+}
+.mod-step[data-state="current"]::before {
+  border-color: var(--color-primary); color: var(--color-heading);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-primary) 16%, transparent);
+}
+.mod-step[data-state="done"]::before { content: "✓"; border-color: var(--color-primary); color: var(--color-heading); }
+/* filled on screen only: the fill's ink is the frame's own pair (Ink on
+   ByteForce orange, white on indigo — glass.css --frame-on-primary, a screen
+   token); paper keeps the outlined tick */
+@media screen {
+  .mod-step[data-state="done"]::before {
+    background: var(--color-primary);
+    color: var(--frame-on-primary, var(--color-on-primary));
+  }
+}
+.mod-step[data-state="done"]:not(:last-child)::after { background: var(--color-primary); }
+.mod-step[data-state="todo"] { color: var(--color-muted); }
+.mod-step-title { margin: 3px 0 0; font: 600 13px/1.4 var(--font-body); color: inherit; }
+/* the file field: the browser's own button, in the house ghost button's dress */
+.mod-page input[type="file"].field-input { padding: 7px 8px; cursor: pointer; }
+.mod-page input[type="file"].field-input::file-selector-button {
+  margin-inline-end: 12px; padding: 7px 12px; cursor: pointer;
+  border: 1px solid var(--color-border-control); border-radius: calc(var(--radius-control) - 2px);
+  background: var(--color-surface); color: var(--color-ink); font: 600 12px var(--font-body);
+}
+@media (hover: hover) {
+  .mod-page input[type="file"].field-input:hover::file-selector-button { border-color: var(--color-primary); }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .mod-step::before {
+    transition:
+      background-color var(--duration-medium) ease,
+      border-color var(--duration-medium) ease,
+      color var(--duration-medium) ease,
+      box-shadow var(--duration-medium) var(--ease-standard);
+  }
+  .mod-step::after { transition: background-color var(--duration-long) var(--ease-standard); }
+  .mod-step[data-state="done"]::before { animation: mod-pop 420ms var(--ease-spring) backwards; }
+  /* the reconciliation arrives: its groups rise in turn */
+  .mod-result > * { animation: mo-rise-sm var(--duration-long) var(--ease-standard) backwards; }
+  .mod-result > :nth-child(2) { animation-delay: 60ms; }
+  .mod-result > :nth-child(3) { animation-delay: 120ms; }
+  .mod-result > :nth-child(n + 4) { animation-delay: 160ms; }
+  .mod-page input[type="file"].field-input::file-selector-button {
+    transition: border-color var(--duration-short) ease, background-color var(--duration-short) ease;
+  }
+}
+
+/* =========================================================================
+   11. THE VAULT
+   · Entity cards that are LINKS (the tasks page's assignee filter) keep the
+     foundation's lift and give way under a press. Cards that are not links
+     (the employees register: their buttons are inside) do not lift or light
+     their edge — a lift promises a click (D18).
+   · The overview's search results rise in, group by group, line by line.
+   ========================================================================= */
+.ecard.mod-static { cursor: default; }
+.ecard.mod-static:hover { border-color: var(--color-border); }
+@media (prefers-reduced-motion: no-preference) and (hover: hover) {
+  .ecard.mod-static:hover { transform: none; box-shadow: var(--shadow-card); }
+}
+@media (prefers-reduced-motion: no-preference) {
+  a.ecard:active { transform: scale(.98); transition-duration: 90ms; }
+  .mod-hits > * { animation: mo-rise-sm var(--duration-long) var(--ease-standard) backwards; }
+  .mod-hits > :nth-child(2) { animation-delay: 40ms; }
+  .mod-hits > :nth-child(3) { animation-delay: 80ms; }
+  .mod-hits > :nth-child(n + 4) { animation-delay: 120ms; }
+  .mod-hits li { animation: mo-fade var(--duration-medium) var(--ease-standard) 60ms backwards; }
+  /* the undo / redo pair, when it first appears beside the title: a fade
+     only — its halves' boxes are measured the moment it lands, and the flip
+     must keep them in exactly the same place (ADR-086) */
+  .acct-ur { animation: mo-fade var(--duration-medium) var(--ease-standard) backwards; }
+}
+.mod-hits ul { list-style: none; margin: 0; padding: 0; }
+.mod-hits li { padding-block: 3px; }
+
+/* =========================================================================
+   12. ARABIC — a joined script takes no tracking and no capitals (the house
+   rule, research R12: dashboard.css :lang(ar) .db-eyebrow). The module bodies'
+   mono eyebrows, labels and column heads spaced Arabic letters apart, which
+   breaks the joins; in Arabic they set solid, in the body face (JetBrains Mono
+   has no Arabic — the browser was substituting whatever it found).
+   ========================================================================= */
+:lang(ar) .mod-page :is(
+  .u-eyebrow, .acct-hero-eyebrow, .acct-kpi-label, .tile-label, .table th,
+  .ecard-stat-label, .fields-label, .acct-chip, .stage-chip, .badge, .switcher-seg,
+  .u-mono, .modal-eyebrow
+) {
+  letter-spacing: 0;
+  text-transform: none;
+  font-family: var(--font-body);
+}
+
+/* =========================================================================
+   13. TOUCH — the house 44 px, in both axes where a control is small
+   ========================================================================= */
+@media (pointer: coarse) {
+  .mod-page :is(.row-toggle, .btn--sm, .mod-group-toggle) { min-block-size: 44px; }
+  .mod-page .row-toggle { min-inline-size: 44px; }
+  .mod-page :is(.btn-primary, .btn-ghost, .btn-danger) { min-block-size: 44px; }
+  .mod-page .switcher-seg {
+    min-block-size: 44px; min-inline-size: 44px;
+    display: inline-grid; place-items: center;
+  }
+  .mod-page a.chat-mention { display: inline-flex; align-items: center; min-block-size: 44px; }
+  .mod-page :is(.check-row, .mod-check) { min-block-size: 44px; }
+  /* the filters' fields and a record's name in a ledger (the clients list) */
+  .mod-page .field-input:not(textarea) { min-block-size: 44px; }
+  .mod-page .table td a[href] { display: inline-flex; align-items: center; min-block-size: 44px; }
+}

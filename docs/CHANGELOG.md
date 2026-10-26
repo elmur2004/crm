@@ -2527,3 +2527,169 @@ The **landing pages** are still not live, as you asked. They stay local until yo
 **The sign-in page**
 - "Remember me" and "Forgot password?" are not there, because neither exists behind the scenes yet. Do you want either built? Or, for the second, simply the line "Forgot your password? Ask your admin."?
 - The heading is still "One door, every account." rather than "Welcome back". Keep it?
+
+## 26 October 2026 — Glass and motion on every screen, Light and Dark only, and one way to each page (on our computer for your preview, not live yet)
+
+You said the sign-in page looked great and the rest of the system didn't, asked for the System theme option to go, and asked for one way to get to each page. All three are done, **on our computer only**. As you chose, nothing is pushed until you've seen it locally.
+
+### The glass frame, as you chose ("Glass frame, solid data")
+
+- **Glass and a soft glow on everything that frames your work:** the headers, the phone menu, the bell, the import menu, the app screen, pop-ups, side panels and notifications.
+- **Your boards, tables and forms stay on solid cards**, so text and numbers stay sharp and phones stay fast.
+- **The header stays at the top** as you scroll. The area under the logos is always solid, so nothing shows through a logo.
+- **Pop-up windows** sit inside a thin glass frame around the solid form, over a frosted background.
+- **Buttons have the sign-in's look:** a light gloss, a glow, and a press. ByteForce buttons stay flat, as the ByteForce brand asks, with dark text on the orange. The pink B-Systems buttons now carry dark indigo text in light mode, because white on that pink is too hard to read.
+- **Fields glow when you click into them**, as on the sign-in page.
+- **A soft glow behind every screen.** It's very faint in light mode, so small grey text stays readable, and richer in dark.
+- **The app screen, Reports, the "no access" page and the portal page** now match the sign-in page.
+
+### The sign-in's motion, everywhere
+
+- **Each page eases in, and menus and pop-ups slide in.** The phone menu and the bell also slide out when they close. The language and theme switches slide between their choices.
+- **When you click to another page**, its outline appears after a moment while it loads, so nothing feels stuck. Changing a filter, the period or the company keeps the page on screen.
+- **Every page still arrives complete**, even without JavaScript.
+- **If your device is set to reduce motion, nothing moves.** Printing is unchanged.
+
+### Light and Dark only
+
+- **The switch now has two choices: Light and Dark.** The System option is gone, as you asked.
+- **Everyone starts in Light**, which is what the app looked like before dark mode.
+- **Anyone who had picked System sees Light** until they choose otherwise.
+- Light and Dark look exactly as they did before.
+
+### One way to each page
+
+- **The app screen is the only way between apps**, and each app's own menu is the only way to its pages.
+- **The two CRMs are two icons** on the app screen. There's no company switch any more, and no CRM / Accounting / Vault switch in the header.
+- **The dashboards and the daily report** are only in **Reports & Dashboards**.
+- **The accounting reports** are only inside **Accounting**.
+- **Shortcut and "Back to…" links are gone.** Links to a specific lead, deal, statement or partner stay, because they're the only way to reach that record.
+- **The menus now**, for example:
+  - **B-Systems CRM (admin):** CRM, Leads, Calendar, Won Leads, Statements, Users.
+  - **ByteForce CRM:** CRM, Leads, Calendar, Clients.
+  - **Partners & Agents:** Pipeline, Partners, Agents, Registrations.
+  - **Each CRM opens on its board.**
+- **The header says which app you're in**, in words (for example "B-Systems CRM" or "Reports & Dashboards").
+- **The To-Do** has ByteForce and B-Systems tabs if you work leads in both.
+- **The logos in the headers are no longer buttons.** To go back, press the grid icon ("All apps").
+- **Who can see what hasn't changed at all.** Only the ways to get there did.
+
+### Checked
+
+The full set of automated tests passed after each part:
+
+- **glass and themes:** 2,263 checks and 334 browser tests;
+- **navigation:** 2,321 checks and 339 browser tests.
+
+The final round runs once the last polish is finished, before anything goes live.
+
+### Still being finished
+
+The pages inside the CRMs, Accounting and the Vault are getting their own polish now. After that, you get a local preview with demo data.
+
+### Questions for you
+
+**The glass**
+- ByteForce buttons in the frame have dark text on orange and no gloss. OK?
+- Pink B-Systems buttons have dark indigo text in light mode. OK?
+- The glow in light mode is very faint. Stronger would make small grey text harder to read. Is faint right?
+- The header now stays at the top as you scroll. OK?
+- Pop-ups slide in, but only the phone menu and the bell slide out. OK?
+
+**The themes**
+- The page you see when a file is missing still follows your device's setting unless you picked Dark. Should it always be light?
+
+**One way to each page**
+- A statement on the To-Do now opens the statement itself. Marking it paid from the Statements list is one click further. OK?
+- The header says "ByteForce CRM" next to the B-Systems logo. OK?
+- The To-Do tabs read ByteForce, then B-Systems, but the icon opens B-Systems first. Swap them?
+- If someone opens a page of a company they don't work in, they're still sent to a dashboard, not to their board. A notification that isn't about a lead still opens the dashboard too. OK?
+- Page titles: "To-Do", and the dashboards and daily report end with "— Reports & Dashboards". OK?
+- The header logos used to take you to the app's home, which you asked for in August. Now they're just logos, and the grid icon is the way back. OK?
+
+## 26 October 2026 (second update) — The meeting form goes straight to the appointment, every screen moves like the sign-in, and all of today's changes go live
+
+You said to push everything once it was finished, except the landing pages. So everything in the first 26 October update (glass on every screen, Light and Dark only, one way to each page) now **goes live together with what's below**. The landing pages stay on our computer, as you said.
+
+### The meeting form: straight to the appointment
+
+- **The "Arranged?" step is gone**, as you asked. Moving a card to Meeting Setting, on the board or on the lead page, opens the meeting straight away: date, time and online/offline (all required), and who it's with.
+- **"Technical support" is gone** from the meeting form too.
+- **Every meeting you or your sales team set this way counts as arranged.**
+- **Agents and partners still get their own two questions**: "Did you agree with the client on a time?" (if not, the time they enter is a suggestion for you to confirm) and "Do you need a technical colleague with you?". That's a different step from the one you removed, so we left it. See the questions below.
+- **Old meetings keep what they say.** If an older meeting has a Technical support name saved, its history still shows it.
+
+### The boards
+
+- **The columns rise in when you open the board**, and each column is lightly tinted in its stage colour. A column lights up when you hold a card over it.
+- **Picking up a card** lifts it and tilts it slightly (the other way in Arabic). A dashed outline shows where it came from, and it settles flat when you drop it.
+- **The number on a column jumps a little only when it changes**, never when the page opens.
+- **You can now move cards with the keyboard.** The card's handle always said "press space to pick up", but nothing happened. Now Space picks the card up, the arrow keys move it from column to column (Arabic included), Space drops it and opens the same form as a mouse drop, and Escape cancels.
+
+### Lists, lead pages, the To-Do and the rest
+
+- **Lists and tables** highlight the row under your mouse or keyboard, and each lead row has a thin edge in its stage colour. Cards that open something (reps, partners) show a small arrow. Cards that don't, like Clients, no longer lift.
+- **A lead's page** has a bar in its stage colour, records edged the same way, and history dots coloured by where each move went. Stage forms unfold smoothly.
+- **The To-Do:**
+  - your tick shows immediately while it saves, and if saving fails it un-ticks and tells you;
+  - the task then moves down into Done;
+  - Today shows "x of y" with a progress bar;
+  - the checkbox is bigger on a phone.
+- **The Calendar** fades to a new month, and a day's list slides up. **The daily report** tiles rise in, and "+N more" opens smoothly.
+- **A won deal** shows a progress bar for its milestones.
+- **Empty pages** have a small drawing. **Chat messages** slide in, and the WhatsApp ✓ pops.
+
+### Accounting and the Data Vault
+
+- **Sections, cards and charts come in once** when you open a page.
+- **Numbers count to the new figures** when you switch the month, and fade across when you switch company. They never flash to zero when the page opens.
+- **Rows:**
+  - a new row glows once;
+  - an edited row flashes;
+  - a deleted row fades and slides out;
+  - if a save fails, the row stays where it was;
+  - rows brought back by Undo glow.
+- **Payroll/Other, Borrowed/Lent and the Archive fold open and shut.** Both imports show their three steps.
+- **The Vault's filters and search no longer reload the page.** They still work if JavaScript is off.
+- **No figure, formula or amount changed.**
+- **One colour change:** the ByteForce banner on the accounting dashboard now starts violet and ends orange in English. Before, its white words sat on orange, which is too hard to read. The target bar still runs orange to violet.
+
+### Fixed on the way
+
+These were already wrong before this update:
+
+- **Finished To-Do tasks were never actually crossed out.** They are now.
+- **The Calendar sat further in from the edge than every other page.** It's lined up now.
+- **A won deal's page slid sideways on a phone.** It doesn't any more.
+- **"Mark ready to close" and the "Ready to close" badge were hard to read.** "Mark ready to close" now has dark rose text with a pink edge, and the badge has dark indigo text on the pink.
+- **In Arabic, the chat bubble's tail and the milestone date arrow pointed the wrong way.** They now flip.
+
+If your device is set to reduce motion, none of the movement plays.
+
+### Checked
+
+- **The meeting form:** 759 automated checks passed.
+- **The CRM screens:** 2,361 checks passed and 339 browser tests passed. The one check and two browser tests that failed were explained and dealt with:
+  - the one check was the Accounting test being written at the same moment;
+  - one browser test read a colour while the Accounting pages were being edited, and passed when run again;
+  - the other measured the phone menu while it was still sliding open, and now waits for it.
+- **Accounting and the Vault:** 2,364 checks and 339 browser tests passed. 192 screenshots showed nothing sliding sideways, and on a 320px phone every button is big enough to tap.
+- **One last full check** runs on a clean copy before anything goes live.
+
+### Questions for you
+
+**The meeting form**
+- Agents and partners still answer "Did you agree with the client on a time?" and "Do you need a technical colleague with you?". Remove those too?
+
+**The new movement and colours**
+- The ByteForce accounting banner now starts violet in English, so the white words are readable. It used to start orange, as in the old system. OK?
+- On B-Systems, in Arabic, the banner's words sit near the pink end, which is a little hard to read. The brand says that gradient always runs one way. Should it turn around in Arabic? The portal's two banners would follow.
+- On ByteForce, the Edit button, the ✓ and ⇄ are now violet instead of orange, because orange text is hard to read. OK?
+- The ByteForce banner has no shine, because the ByteForce brand asks for flat colour. OK?
+- Moving cards with the keyboard: OK?
+- The To-Do tick shows immediately, before the save finishes. OK?
+- Finished tasks are now crossed out, the Calendar is lined up with the other pages, and "Mark ready to close" has a new look. OK?
+- The Vault's filters work without reloading the page. OK?
+
+**Still waiting from the first 26 October update**
+- Every question in that update is still open: the glass, the themes, and one way to each page, including whether the header logos should take you back to the app's home as you asked in August.

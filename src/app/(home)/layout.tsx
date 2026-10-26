@@ -15,6 +15,9 @@ import "@fontsource/raleway/800.css";
 import "../globals.css";
 import "@/themes/design-system.css";
 import "@/themes/neutral.css";
+/* the system-wide glass + motion layer (after design-system / neutral) */
+import "@/themes/glass.css";
+import "@/themes/motion.css";
 
 /* Root layout for the brand-neutral entry only (ADR-007). There is deliberately
    NO top-level src/app/layout.tsx: each route group owns its <html> element so the

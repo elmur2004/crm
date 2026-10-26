@@ -16,6 +16,13 @@ import "@fontsource/jetbrains-mono/500.css";
 import "@fontsource/jetbrains-mono/700.css";
 import "../globals.css";
 import "@/themes/design-system.css";
+/* the system-wide glass + motion layer (after design-system) */
+import "@/themes/glass.css";
+import "@/themes/motion.css";
+/* the module page bodies (Accounting + the Data Vault): their entrance, the
+   ledger rows' add / edit / delete feedback, the period cross-fade, the
+   grouped ledgers, the empty-state drawings — after the foundation layer */
+import "@/themes/modules.css";
 
 /* Accounting MODULE root layout (founder directive A / ADR-054): accounting is
    a peer of the two CRMs on the module switcher, not a B-Systems page. The

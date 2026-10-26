@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth/guards";
-import { landingFor } from "@/lib/auth/landing";
+import { LAUNCHER_PATH } from "@/lib/launcher/apps";
+import { AppGround } from "@/components/shared/AppGround";
 import { LanguageToggle } from "@/components/shared/LanguageToggle";
 import { ThemeToggle } from "@/components/shared/ThemeToggle";
 import { tFor } from "@/lib/i18n/core";
@@ -21,7 +22,15 @@ export async function generateMetadata() {
    matcher, outside both module route groups, so no guard runs on it and no
    redirect loop is reachable. It asks only that somebody be signed in — the
    MODULE decision was already made by the guard that sent them here, and this
-   page is a message, never a wall (it grants nothing and reads no flag). */
+   page is a message, never a wall (it grants nothing and reads no flag).
+
+   The system-wide glass pass: it sits on the sign-in's ground in one glass
+   card (glass.css .gl-*), so the one page a refused admin sees looks like the
+   door he came through.
+
+   One way to each page: its way out is the LAUNCHER — the one way between
+   apps — rather than a shortcut into one app (it used to be his role landing,
+   which since then is his CRM board, not "his dashboard"). */
 
 export const dynamic = "force-dynamic";
 
@@ -42,24 +51,22 @@ export default async function NoAccessPage({
         : t(msgs.titleGeneric);
 
   return (
-    <main className="login-shell">
-      <div className="login-pane">
-        {/* `mx-auto`, because this page uses the sign-in shell WITHOUT its brand
-            billboard: `.login-pane` is a column flex box whose child would
-            otherwise stretch from the inline start, leaving a 400px column
-            pinned to the left of a very wide screen. A utility class, not a new
-            rule — nothing is added to any stylesheet. */}
-        <div className="login-inner mx-auto">
-          <div className="mb-4 flex flex-wrap items-center gap-2">
-            <LanguageToggle />
-            <ThemeToggle />
-          </div>
-          <p className="login-eyebrow">{t(msgs.eyebrow)}</p>
-          <h1 className="login-title">{title}</h1>
-          <p className="login-sub">{t(msgs.sub)}</p>
-          <p className="login-sub">{t(msgs.ask)}</p>
-          <p className="login-foot">
-            <Link href={landingFor(me.roles)}>{t(msgs.back)}</Link>
+    <main className="gl-stage">
+      <AppGround variant="rich" />
+      <div className="gl-top">
+        <LanguageToggle />
+        <ThemeToggle compact />
+      </div>
+      <div className="gl-center">
+        <div className="glass-card gl-card">
+          <p className="gl-eyebrow">{t(msgs.eyebrow)}</p>
+          <h1 className="gl-title">{title}</h1>
+          <p className="gl-sub">{t(msgs.sub)}</p>
+          <p className="gl-sub">{t(msgs.ask)}</p>
+          <p className="gl-actions">
+            <Link href={LAUNCHER_PATH} prefetch={false} className="btn-primary gl-cta">
+              {t(msgs.backToApps)}
+            </Link>
           </p>
         </div>
       </div>

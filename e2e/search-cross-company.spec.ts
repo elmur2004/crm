@@ -78,9 +78,11 @@ test("a search with no match here lands on the other company, with the lead and 
   await expect(notice).toContainText("ByteForce");
   await expect(notice).toContainText(UNIQUE);
 
-  /* the chrome agrees with the URL — the switch is not left pointing at the
-     company he came from (ADR-067's "no confusion in it") */
-  await expect(page.locator(".company-switch-current")).toHaveText("ByteForce");
+  /* the chrome agrees with the URL — the header now NAMES the other CRM (the
+     company switch is gone: each CRM is its own launcher app, and the hop is
+     the one automatic way across, ADR-085) */
+  await expect(page.locator(".app-header .app-name")).toHaveText("ByteForce CRM");
+  await expect(page.getByRole("group", { name: "Switch company" })).toHaveCount(0);
 
   /* ---- the way back, in one click, keeping his search ---- */
   await notice.getByRole("link", { name: /Back to B-Systems/ }).click();
@@ -92,7 +94,7 @@ test("a search with no match here lands on the other company, with the lead and 
   /* AND IT DOES NOT BOUNCE. This board finds nothing for that search, so
      without the loop guard it would hop straight back to ByteForce and he could
      never return. He is still on B-Systems, and the notice is gone. */
-  await expect(page.locator(".company-switch-current")).toHaveText("B-Systems");
+  await expect(page.locator(".app-header .app-name")).toHaveText("B-Systems CRM");
   await expect(page.locator(".alert-switched")).toHaveCount(0);
 });
 

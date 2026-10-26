@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Form from "next/form";
 import { requireVaultPage } from "@/lib/auth/page-guards";
 import { getLocale } from "@/lib/i18n/server";
 import { tFor } from "@/lib/i18n/core";
@@ -8,9 +9,16 @@ import { vaultOverview } from "@/lib/services/vault/overview";
 import { searchVault } from "@/lib/services/vault/search";
 import { VaultHead } from "@/components/vault/VaultHead";
 import { VaultDataPanel } from "@/components/vault/data-panel";
+import { ModSwap } from "@/components/accounting/module-ui";
+import { ModEmpty } from "@/components/accounting/module-art";
 
 /* ADR-053 Phase 5 — the vault landing: live counts, vault-wide search, and
-   the module's recent activity (append-only, newest first). Admin only. */
+   the module's recent activity (append-only, newest first). Admin only.
+
+   The glass pass: the counts are dealt in as the page arrives; the search
+   answers WITHOUT a page reload (next/form — a plain GET form underneath, so
+   it still works with no JavaScript) and its results rise in group by group
+   (ModSwap keyed by the term); empty states carry their drawing. */
 
 import type { Msg } from "@/lib/i18n/core";
 import { vaultCompaniesOf } from "@/lib/services/vault/tenancy";
@@ -66,7 +74,7 @@ export default async function VaultOverviewPage({
     : null;
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-5 mod-page">
       <VaultHead locale={locale} title={vault.overviewTitle} sub={vault.overviewSub} />
 
       <div className="tile-grid">
@@ -104,7 +112,8 @@ export default async function VaultOverviewPage({
 
       <section className="card card-pad space-y-3">
         <h2 className="u-h3">{t(vault.searchTitle)}</h2>
-        <form method="get" className="flex flex-wrap gap-2 items-end">
+        {/* keyed by the term, so the box always shows the search in force */}
+        <Form key={q ?? ""} action="/vault" prefetch={false} scroll={false} className="flex flex-wrap gap-2 items-end">
           <label className="field grow">
             <span className="field-label">{t(vault.searchTitle)}</span>
             <input className="field-input"
@@ -117,33 +126,35 @@ export default async function VaultOverviewPage({
           <button type="submit" className="btn-primary">
             {t(vault.searchButton)}
           </button>
-        </form>
+        </Form>
         {results && groups ? (
-          results.total === 0 ? (
-            <p className="empty">
-              {results.term.length < 2 ? t(vault.searchMin) : t(vault.searchNoResults)}
-            </p>
-          ) : (
-            <div className="space-y-3">
-              {groups.map(([label, hits]) =>
-                hits.length === 0 ? null : (
-                  <div key={label}>
-                    <p className="u-label">{label}</p>
-                    <ul className="space-y-1">
-                      {hits.map((h) => (
-                        <li key={h.id}>
-                          <Link href={h.href} className="chat-mention">
-                            {h.title}
-                          </Link>
-                          {h.subtitle ? <span className="u-muted"> — {h.subtitle}</span> : null}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                ),
-              )}
-            </div>
-          )
+          <ModSwap swapKey={q ?? ""}>
+            {results.total === 0 ? (
+              <ModEmpty kind="search" className="">
+                {results.term.length < 2 ? t(vault.searchMin) : t(vault.searchNoResults)}
+              </ModEmpty>
+            ) : (
+              <div className="space-y-3 mod-hits">
+                {groups.map(([label, hits]) =>
+                  hits.length === 0 ? null : (
+                    <div key={label}>
+                      <p className="u-label">{label}</p>
+                      <ul className="space-y-1">
+                        {hits.map((h) => (
+                          <li key={h.id}>
+                            <Link href={h.href} className="chat-mention">
+                              {h.title}
+                            </Link>
+                            {h.subtitle ? <span className="u-muted"> — {h.subtitle}</span> : null}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ),
+                )}
+              </div>
+            )}
+          </ModSwap>
         ) : null}
       </section>
 
@@ -152,7 +163,7 @@ export default async function VaultOverviewPage({
           <h2 className="u-h3">{t(vault.recentActivity)}</h2>
         </div>
         {data.activity.length === 0 ? (
-          <p className="empty m-4">{t(vault.noActivity)}</p>
+          <ModEmpty kind="activity">{t(vault.noActivity)}</ModEmpty>
         ) : (
           <div className="table-scroll">
             <table className="table">

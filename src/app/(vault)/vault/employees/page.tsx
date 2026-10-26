@@ -13,9 +13,13 @@ import {
 import { VaultHead } from "@/components/vault/VaultHead";
 import { AddEmployeeButton, EmployeeActions } from "@/components/vault/forms";
 import { vaultCompaniesOf } from "@/lib/services/vault/tenancy";
+import { ModSwap } from "@/components/accounting/module-ui";
+import { ModEmpty } from "@/components/accounting/module-art";
 
 /* ADR-053 Phase 5 — employee CARDS: assignees, not accounts (founder §7.3).
-   Deactivate-never-delete; a deactivated card keeps its history. Admin only. */
+   Deactivate-never-delete; a deactivated card keeps its history. Admin only.
+   The cards are dealt in as the page arrives; they are NOT links (their
+   buttons are inside), so they do not lift under the pointer (`mod-static`). */
 
 export async function generateMetadata() {
   const locale = await getLocale();
@@ -52,7 +56,7 @@ export default async function VaultEmployeesPage({
         : c;
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-5 mod-page">
       <VaultHead
         locale={locale}
         title={vault.employeesTitle}
@@ -63,6 +67,7 @@ export default async function VaultEmployeesPage({
         <AddEmployeeButton />
         <Link
           href={showInactive ? "/vault/employees" : "/vault/employees?inactive=true"}
+          scroll={false}
           className="btn-ghost"
           aria-current={showInactive ? "true" : undefined}
         >
@@ -70,63 +75,67 @@ export default async function VaultEmployeesPage({
         </Link>
       </div>
 
-      {cards.length === 0 ? (
-        <section className="card card-pad">
-          <p className="empty">{t(vault.noEmployees)}</p>
-        </section>
-      ) : (
-        <div className="ecard-grid">
-          {cards.map((c) => (
-            <div key={c.id} className="ecard cursor-default">
-              <span className="ecard-top">
-                <span className="ecard-mark" aria-hidden="true">
-                  {markInitials(c.name)}
+      <ModSwap swapKey={showInactive ? "inactive" : "active"}>
+        {cards.length === 0 ? (
+          <section className="card card-pad">
+            <ModEmpty kind="people" className="">
+              {t(vault.noEmployees)}
+            </ModEmpty>
+          </section>
+        ) : (
+          <div className="ecard-grid">
+            {cards.map((c) => (
+              <div key={c.id} className="ecard mod-static">
+                <span className="ecard-top">
+                  <span className="ecard-mark" aria-hidden="true">
+                    {markInitials(c.name)}
+                  </span>
+                  {c.active ? null : (
+                    <span className="badge badge--archived">{t(vault.inactiveBadge)}</span>
+                  )}
                 </span>
-                {c.active ? null : (
-                  <span className="badge badge--archived">{t(vault.inactiveBadge)}</span>
-                )}
-              </span>
-              <span className="ecard-title">{c.name}</span>
-              <span className="ecard-sub">
-                {c.title ?? "—"} · {companyLabel(c.company)}
-              </span>
-              <span className="ecard-stats">
-                <span>
-                  <span className="ecard-stat-label block">{t(vault.openCount)}</span>
-                  <span className="ecard-stat-value block">{c.openCount}</span>
+                <span className="ecard-title">{c.name}</span>
+                <span className="ecard-sub">
+                  {c.title ?? "—"} · {companyLabel(c.company)}
                 </span>
-                <span>
-                  <span className="ecard-stat-label block">{t(vault.overdueCount)}</span>
-                  <span
-                    className={
-                      c.overdueCount > 0
-                        ? "ecard-stat-value block text-brand-danger"
-                        : "ecard-stat-value block"
-                    }
-                  >
-                    {c.overdueCount}
+                <span className="ecard-stats">
+                  <span>
+                    <span className="ecard-stat-label block">{t(vault.openCount)}</span>
+                    <span className="ecard-stat-value block">{c.openCount}</span>
+                  </span>
+                  <span>
+                    <span className="ecard-stat-label block">{t(vault.overdueCount)}</span>
+                    <span
+                      className={
+                        c.overdueCount > 0
+                          ? "ecard-stat-value block text-brand-danger"
+                          : "ecard-stat-value block"
+                      }
+                    >
+                      {c.overdueCount}
+                    </span>
+                  </span>
+                  <span>
+                    <span className="ecard-stat-label block">{t(vault.completedCount)}</span>
+                    <span className="ecard-stat-value block">{c.completedCount}</span>
                   </span>
                 </span>
-                <span>
-                  <span className="ecard-stat-label block">{t(vault.completedCount)}</span>
-                  <span className="ecard-stat-value block">{c.completedCount}</span>
+                <span className="ecard-footer">
+                  <EmployeeActions
+                    row={{
+                      id: c.id,
+                      name: c.name,
+                      title: c.title,
+                      company: c.company,
+                      active: c.active,
+                    }}
+                  />
                 </span>
-              </span>
-              <span className="ecard-footer">
-                <EmployeeActions
-                  row={{
-                    id: c.id,
-                    name: c.name,
-                    title: c.title,
-                    company: c.company,
-                    active: c.active,
-                  }}
-                />
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
+              </div>
+            ))}
+          </div>
+        )}
+      </ModSwap>
     </div>
   );
 }

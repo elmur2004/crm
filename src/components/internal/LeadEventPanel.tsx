@@ -28,9 +28,9 @@ const btnPrimary = "btn-primary";
 const btnGhost = "btn-ghost";
 
 /* ADR-082 — the founder: "remove the owner selection field". No `reps` prop:
-   the follow-up form no longer offers a choice, so it no longer takes the list
-   (MeetingFields below still does — its Technical support datalist is a
-   different field and he did not touch it). */
+   the follow-up form no longer offers a choice, so it no longer takes the list.
+   ADR-096 removed the meeting form's Technical support field too, so neither
+   form takes the roster now. */
 export function FollowUpFields() {
   const locale = useLocale();
   const t = tFor(locale);
@@ -94,76 +94,54 @@ export function followUpFromForm(fd: FormData) {
   };
 }
 
-export function MeetingFields({ arranged, setArranged, reps }: { arranged: boolean; setArranged: (v: boolean) => void; reps: Rep[] }) {
+/* ADR-096 — the founder, on the "Arranged?" checkbox that used to open this
+   form: "شيل الخطوة دي ملهاش اي معنى خش في المعاد علطول" (remove this step, it
+   means nothing — go straight to the appointment), and "شيل برضو ال technical
+   support". Moving a card to Meeting Setting now asks for the meeting itself:
+   date, time and mode are required, and every meeting set here is ARRANGED.
+   The server still accepts `arranged: false` — older records and the agents'
+   proposed-slot flow (V2 §3) carry it — but this form never sends it. */
+export function MeetingFields() {
   const t = tFor(useLocale());
   return (
     <>
-      <label className="flex items-center gap-2">
-        <input
-          type="checkbox"
-          name="arranged"
-          checked={arranged}
-          onChange={(e) => setArranged(e.target.checked)}
-        />
-        <span className="text-sm font-medium">{t(events.arranged)}</span>
+      <div className="grid grid-cols-2 gap-3">
+        <label className="block">
+          <span className={labelCls}>{t(events.date)}</span>
+          <input type="date" name="date" required className={inputCls} />
+        </label>
+        <label className="block">
+          <span className={labelCls}>{t(events.time)}</span>
+          <input type="time" name="time" required className={inputCls} />
+        </label>
+      </div>
+      <label className="block">
+        <span className={labelCls}>{t(events.mode)}</span>
+        <select name="mode" required className={inputCls}>
+          {MEETING_MODES.map((m) => (
+            <option key={m} value={m}>
+              {m === "online" ? t(common.online) : t(common.offline)}
+            </option>
+          ))}
+        </select>
       </label>
-      {arranged ? (
-        <>
-          <div className="grid grid-cols-2 gap-3">
-            <label className="block">
-              <span className={labelCls}>{t(events.date)}</span>
-              <input type="date" name="date" required className={inputCls} />
-            </label>
-            <label className="block">
-              <span className={labelCls}>{t(events.time)}</span>
-              <input type="time" name="time" required className={inputCls} />
-            </label>
-          </div>
-          <label className="block">
-            <span className={labelCls}>{t(events.mode)}</span>
-            <select name="mode" required className={inputCls}>
-              {MEETING_MODES.map((m) => (
-                <option key={m} value={m}>
-                  {m === "online" ? t(common.online) : t(common.offline)}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="block">
-            <span className={labelCls}>{t(events.withLabel)}</span>
-            <input type="text" name="withAttendees" className={inputCls} placeholder={t(events.attendees)} />
-          </label>
-          <label className="block">
-            <span className={labelCls}>{t(events.technicalSupport)}</span>
-            <input
-              type="text"
-              name="technicalSupport"
-              list="rep-names"
-              className={inputCls}
-              placeholder={t(events.nameOrRep)}
-            />
-            <datalist id="rep-names">
-              {reps.map((r) => (
-                <option key={r.id} value={r.name} />
-              ))}
-            </datalist>
-          </label>
-        </>
-      ) : null}
+      <label className="block">
+        <span className={labelCls}>{t(events.withLabel)}</span>
+        <input type="text" name="withAttendees" className={inputCls} placeholder={t(events.attendees)} />
+      </label>
     </>
   );
 }
 
-export function meetingFromForm(fd: FormData, arranged: boolean) {
+export function meetingFromForm(fd: FormData) {
   return {
     group: "meeting" as const,
     data: {
-      arranged,
-      date: arranged ? String(fd.get("date")) : undefined,
-      time: arranged ? String(fd.get("time")) : undefined,
-      mode: arranged ? (String(fd.get("mode")) as "online" | "offline") : undefined,
+      arranged: true,
+      date: String(fd.get("date")),
+      time: String(fd.get("time")),
+      mode: String(fd.get("mode")) as "online" | "offline",
       withAttendees: String(fd.get("withAttendees") || "") || undefined,
-      technicalSupport: String(fd.get("technicalSupport") || "") || undefined,
     },
   };
 }
@@ -271,7 +249,6 @@ export function LeadEventPanel({
   const [action, setAction] = useState<string>("");
   const [outcome, setOutcome] = useState<string>("");
   const [destination, setDestination] = useState<string>("");
-  const [arranged, setArranged] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -311,7 +288,7 @@ export function LeadEventPanel({
 
   function groupForTarget(target: string, fd: FormData) {
     if (target === "following_up") return followUpFromForm(fd);
-    if (target === "meeting_setting") return meetingFromForm(fd, arranged);
+    if (target === "meeting_setting") return meetingFromForm(fd);
     if (target === "sending_proposal") return proposalFromForm(fd);
     if (target === "lost") return { group: "lost" as const, data: { reason: String(fd.get("reason")) } };
     /* ADR-082 — Postpone posts NO group: the founder withdrew ADR-072's popup
@@ -324,7 +301,7 @@ export function LeadEventPanel({
   function fieldsForTarget(target: string) {
     if (target === "following_up") return <FollowUpFields />;
     if (target === "meeting_setting")
-      return <MeetingFields arranged={arranged} setArranged={setArranged} reps={reps} />;
+      return <MeetingFields />;
     if (target === "sending_proposal") return <ProposalFields />;
     if (target === "lost") return <LostFields />;
     /* ADR-082 — no fields, and a line that says so: a form carrying only a
@@ -399,7 +376,7 @@ export function LeadEventPanel({
                   },
                 });
               }}
-              className="space-y-3 mt-3"
+              className="crm-reveal space-y-3 mt-3"
             >
               <p className="field-hint">{t(events.delayedSetNew)}</p>
               <div className="grid grid-cols-2 gap-3">
@@ -413,7 +390,7 @@ export function LeadEventPanel({
           ) : null}
 
           {outcome === "attended" || outcome === "cancelled" ? (
-            <div className="mt-3 space-y-3">
+            <div className="crm-reveal mt-3 space-y-3">
               <label className="block">
                 <span className={labelCls}>
                   {outcome === "attended" ? t(events.whereNext) : t(events.cancelledFollowUpOrLost)}
@@ -441,7 +418,7 @@ export function LeadEventPanel({
                       group: groupForTarget(destination, new FormData(e.currentTarget)),
                     });
                   }}
-                  className="space-y-3"
+                  className="crm-reveal space-y-3"
                 >
                   {fieldsForTarget(destination)}
                   <button type="submit" disabled={busy} className={btnPrimary}>
@@ -463,8 +440,8 @@ export function LeadEventPanel({
               key={a}
               type="button"
               onClick={() => {
-                /* a reschedule always records an ARRANGED meeting */
-                if (a === "reschedule_meeting") setArranged(true);
+                /* every meeting this form records is ARRANGED (ADR-096), a
+                   reschedule included */
                 setAction(a);
               }}
               className={btnGhost}
@@ -502,7 +479,7 @@ export function LeadEventPanel({
                 group: groupForTarget(formTarget(action), new FormData(e.currentTarget)),
               });
             }}
-            className="card card-pad mt-3 space-y-3"
+            className="crm-reveal card card-pad mt-3 space-y-3"
           >
             <p className="u-h3">
               {isSameStageAction(action)

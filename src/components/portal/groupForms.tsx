@@ -99,10 +99,6 @@ export function MeetingFields({
             <span className={labelCls}>{t(stageForms.withLabel)}</span>
             <input type="text" name="withAttendees" className={inputCls} placeholder={t(stageForms.attendeesPlaceholder)} />
           </label>
-          <label className="block">
-            <span className={labelCls}>{t(stageForms.technicalSupport)}</span>
-            <input type="text" name="technicalSupport" className={inputCls} />
-          </label>
         </>
       ) : null}
     </>
@@ -161,7 +157,6 @@ export function meetingFromForm(fd: FormData, arranged: boolean) {
       time: arranged ? String(fd.get("time")) : undefined,
       mode: arranged ? (String(fd.get("mode")) as "online" | "offline") : undefined,
       withAttendees: String(fd.get("withAttendees") || "") || undefined,
-      technicalSupport: String(fd.get("technicalSupport") || "") || undefined,
     },
   };
 }

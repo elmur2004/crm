@@ -1,7 +1,17 @@
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { crmHomeFor, crmNavFor } from "./nav";
+import {
+  crmAppContextFor,
+  crmAppNameFor,
+  crmHomeFor,
+  crmNavFor,
+  DATA_ENTRY_PATH,
+  partnersNavFor,
+  PARTNERS_COMPANY,
+  type CrmNavItem,
+} from "./nav";
+import { launcher } from "@/lib/i18n/dict/launcher";
 import {
   BS_CRM_ROLES,
   BS_PIPELINE_ROLES,
@@ -33,7 +43,9 @@ import { ROLES, type Role } from "@/lib/pipeline-engine/constants";
          → whose guard admits `company`,
          → whose guard admits `role`.
 
-   i.e. THE NAV NEVER OFFERS A DOOR THE SERVER WOULD SHUT. The converse is
+   i.e. THE NAV NEVER OFFERS A DOOR THE SERVER WOULD SHUT — for every CRM menu
+   AND the Partners & Agents menu (its own launcher app since the one-way-in
+   pass, living in this same shell). The converse is
    deliberately NOT asserted: a guard wider than the nav is normal (Users
    admits the four pipeline roles and then bounces non-admins itself), and a
    section reachable by URL but absent from a nav is a product choice, not a
@@ -126,23 +138,43 @@ function rolesAdmitted(src: string, company: CrmCompany): Role[] {
 
 /* (company, role) pairs exactly as the shell computes them: ByteForce has one
    staff role and therefore one nav (bsRole is null there — see crmNavFor). */
-const CASES: Array<{ company: CrmCompany; role: Role | null; as: Role }> = [
-  { company: "byteforce", role: null, as: "byteforce_staff" },
-  ...BS_CRM_ROLES.map((role) => ({ company: "bsystems" as const, role, as: role })),
+type Case = { company: CrmCompany; role: Role | null; as: Role; menu: "crm" | "partners" };
+const CRM_CASES: Case[] = [
+  { company: "byteforce", role: null, as: "byteforce_staff", menu: "crm" },
+  ...BS_CRM_ROLES.map((role) => ({ company: "bsystems" as const, role, as: role, menu: "crm" as const })),
   /* ADR-074 — Mindoo is NOT a case here: it is its own app, and its nav is
      swept against its own guard. */
 ];
+/* the Partners & Agents menu, for every B-Systems role (only the admin gets
+   any items — the others are swept too, to prove they get none that bounce) */
+const PARTNER_CASES: Case[] = BS_CRM_ROLES.map((role) => ({
+  company: PARTNERS_COMPANY,
+  role,
+  as: role,
+  menu: "partners" as const,
+}));
+const CASES: Case[] = [...CRM_CASES, ...PARTNER_CASES];
+const itemsOf = (c: Case): CrmNavItem[] =>
+  c.menu === "crm" ? crmNavFor(c.company, c.role) : partnersNavFor(c.role);
+const label = (c: Case) => `${c.menu} · ${c.company} / ${c.as}`;
 
 describe("ADR-067 — the nav table never offers a door the guards would shut", () => {
   it("the sweep has real cases (a silent zero would prove nothing)", () => {
-    expect(CASES.length).toBe(6); // ADR-074 took Mindoo out of this shell
-    expect(CASES.every((c) => crmNavFor(c.company, c.role).length > 0)).toBe(true);
+    expect(CRM_CASES.length).toBe(6); // ADR-074 took Mindoo out of this shell
+    /* every CRM role but data entry has a menu; data entry has NONE — its one
+       page is its one launcher tile, and a one-item menu would be a second way
+       to the same page (one way to each page) */
+    for (const c of CRM_CASES) {
+      expect(crmNavFor(c.company, c.role).length > 0, label(c)).toBe(c.as !== "bsystems_data_entry");
+    }
+    /* the Partners & Agents menu is the admin's alone */
+    expect(PARTNER_CASES.filter((c) => itemsOf(c).length > 0).map((c) => c.as)).toEqual(["bsystems_admin"]);
   });
 
-  it.each(CASES.map((c) => [`${c.company} / ${c.as}`, c] as const))(
+  it.each(CASES.map((c) => [label(c), c] as const))(
     "%s — every nav href is a page that exists",
     (_label, c) => {
-      for (const item of crmNavFor(c.company, c.role)) {
+      for (const item of itemsOf(c)) {
         const file = pageFileFor(item.href);
         expect(
           existsSync(file),
@@ -155,10 +187,10 @@ describe("ADR-067 — the nav table never offers a door the guards would shut", 
     },
   );
 
-  it.each(CASES.map((c) => [`${c.company} / ${c.as}`, c] as const))(
+  it.each(CASES.map((c) => [label(c), c] as const))(
     "%s — every nav href's guard admits that COMPANY",
     (_label, c) => {
-      for (const item of crmNavFor(c.company, c.role)) {
+      for (const item of itemsOf(c)) {
         const src = readFileSync(pageFileFor(item.href), "utf8");
         expect(
           companiesAdmitted(src),
@@ -170,10 +202,10 @@ describe("ADR-067 — the nav table never offers a door the guards would shut", 
     },
   );
 
-  it.each(CASES.map((c) => [`${c.company} / ${c.as}`, c] as const))(
+  it.each(CASES.map((c) => [label(c), c] as const))(
     "%s — every nav href's guard admits that ROLE",
     (_label, c) => {
-      for (const item of crmNavFor(c.company, c.role)) {
+      for (const item of itemsOf(c)) {
         const src = readFileSync(pageFileFor(item.href), "utf8");
         expect(
           rolesAdmitted(src, c.company),
@@ -203,11 +235,11 @@ describe("ADR-067 — the nav table never offers a door the guards would shut", 
     }
   });
 
-  /* crmHomeFor is where the header mark and every role bounce land, so it has
-     to be a real destination for the SAME company and role — the property the
-     redirects in page.tsx / leads/page.tsx explicitly lean on ("the role's own
-     first destination, which by construction accepts this company and role"). */
-  it.each(CASES.map((c) => [`${c.company} / ${c.as}`, c] as const))(
+  /* crmHomeFor is where every role bounce lands, so it has to be a real
+     destination for the SAME company and role — the property the redirects in
+     page.tsx / leads/page.tsx explicitly lean on ("the role's own first
+     destination, which by construction accepts this company and role"). */
+  it.each(CRM_CASES.map((c) => [label(c), c] as const))(
     "%s — crmHomeFor lands on a page this account can actually open",
     (_label, c) => {
       const home = crmHomeFor(c.company, c.role);
@@ -226,5 +258,147 @@ describe("ADR-067 — the nav table never offers a door the guards would shut", 
     expect(crmNavFor("bsystems", null)).toEqual([]);
     expect(crmNavFor("bsystems", "byteforce_staff")).toEqual([]);
     expect(crmHomeFor("bsystems", null)).toBe("/b-systems");
+    expect(partnersNavFor(null)).toEqual([]);
+    expect(partnersNavFor("byteforce_staff")).toEqual([]);
   });
 });
+
+/* ---------------------------------------------------------------------------
+   ONE WAY TO EACH PAGE — the menus as rendered, per role.
+
+   Founder: "there is multiple ways to get to each page there should be one way
+   each for each page to get to". These are the readable half: the exact menus
+   the founder approved. The property half — no page with two menu-level ways
+   in, over every account there can be — is lib/launcher/one-way.test.ts.
+   --------------------------------------------------------------------------- */
+
+const hrefs = (items: CrmNavItem[]) => items.map((i) => i.href);
+
+describe("one way to each page — the menus, exactly as approved", () => {
+  it("ByteForce CRM: CRM (the board), Leads, Calendar, Clients", () => {
+    expect(hrefs(crmNavFor("byteforce", null))).toEqual([
+      "/b-systems/crm",
+      "/b-systems/leads",
+      "/b-systems/calendar",
+      "/b-systems/clients",
+    ]);
+  });
+
+  it("B-Systems CRM, per role", () => {
+    expect(hrefs(crmNavFor("bsystems", "bsystems_admin"))).toEqual([
+      "/b-systems/crm",
+      "/b-systems/leads",
+      "/b-systems/calendar",
+      "/b-systems/won-leads",
+      "/b-systems/statements",
+      "/b-systems/users",
+    ]);
+    expect(hrefs(crmNavFor("bsystems", "bsystems_sales"))).toEqual([
+      "/b-systems/crm",
+      "/b-systems/calendar",
+      "/b-systems/won-leads",
+    ]);
+    for (const role of ["bsystems_agent", "bsystems_partner"] as const) {
+      expect(hrefs(crmNavFor("bsystems", role))).toEqual([
+        "/b-systems/crm",
+        "/b-systems/calendar",
+        "/b-systems/won-leads",
+        "/b-systems/payments",
+        "/b-systems/profile",
+      ]);
+    }
+    /* data entry: no menu — its one page is reached from its one tile */
+    expect(crmNavFor("bsystems", "bsystems_data_entry")).toEqual([]);
+  });
+
+  it("Partners & Agents (B-Systems admin): Pipeline, Partners, Agents, Registrations", () => {
+    expect(hrefs(partnersNavFor("bsystems_admin"))).toEqual([
+      "/b-systems/partners-pipeline",
+      "/b-systems/partners",
+      "/b-systems/agents",
+      "/b-systems/registrations",
+    ]);
+    for (const role of ROLES.filter((r) => r !== "bsystems_admin")) {
+      expect(partnersNavFor(role), role).toEqual([]);
+    }
+  });
+
+  it("Home, the To-Do, the Daily report and the four Partners & Agents screens left every CRM menu", () => {
+    const left = [
+      "/b-systems",
+      "/b-systems/todo",
+      "/b-systems/daily-report",
+      "/b-systems/partners-pipeline",
+      "/b-systems/partners",
+      "/b-systems/agents",
+      "/b-systems/registrations",
+    ];
+    for (const c of CRM_CASES) {
+      for (const href of left) expect(hrefs(crmNavFor(c.company, c.role)), label(c)).not.toContain(href);
+    }
+  });
+
+  it("crmHomeFor is the role's FIRST menu item — the board — or data entry's one page; never the dashboard", () => {
+    expect(crmHomeFor("byteforce", null)).toBe("/b-systems/crm");
+    for (const role of ["bsystems_admin", "bsystems_sales", "bsystems_agent", "bsystems_partner"] as const) {
+      expect(crmHomeFor("bsystems", role)).toBe("/b-systems/crm");
+      expect(crmHomeFor("bsystems", role)).toBe(crmNavFor("bsystems", role)[0]!.href);
+    }
+    expect(crmHomeFor("bsystems", "bsystems_data_entry")).toBe(DATA_ENTRY_PATH);
+    expect(existsSync(pageFileFor(DATA_ENTRY_PATH))).toBe(true);
+  });
+});
+
+describe("which app of the shell a page belongs to — and the name the header gives it", () => {
+  it("CRM pages, records included, are the CRM", () => {
+    for (const p of [
+      "/b-systems/crm",
+      "/b-systems/leads",
+      "/b-systems/calendar",
+      "/b-systems/clients",
+      "/b-systems/won-leads",
+      "/b-systems/won-leads/abc",
+      "/b-systems/statements",
+      "/b-systems/statements/abc/document",
+      "/b-systems/users",
+      "/b-systems/payments",
+      "/b-systems/profile",
+      "/b-systems/entry",
+      "/b-systems/crm/lead/abc",
+      "/b-systems/crm/lead/abc/call",
+      "/b-systems/leads/lead/abc",
+      "/b-systems/leads/rep/unassigned",
+    ]) {
+      expect(crmAppContextFor(p), p).toBe("crm");
+    }
+  });
+
+  it("the four Partners & Agents screens, and their records, are Partners & Agents", () => {
+    for (const p of [
+      "/b-systems/partners-pipeline",
+      "/b-systems/partners-pipeline/abc",
+      "/b-systems/partners",
+      "/b-systems/partners/abc",
+      "/b-systems/agents",
+      "/b-systems/registrations",
+    ]) {
+      expect(crmAppContextFor(p), p).toBe("partners");
+    }
+  });
+
+  it("the To-Do is its own app; the dashboards and the Daily report are Reports & Dashboards", () => {
+    expect(crmAppContextFor("/b-systems/todo")).toBe("todo");
+    expect(crmAppContextFor("/b-systems")).toBe("reports");
+    expect(crmAppContextFor("/b-systems/")).toBe("reports");
+    expect(crmAppContextFor("/b-systems/daily-report")).toBe("reports");
+  });
+
+  it("the header says the launcher tile's own words — so the icon and the header cannot drift", () => {
+    expect(crmAppNameFor("crm", "byteforce")).toBe(launcher.crmByteforce);
+    expect(crmAppNameFor("crm", "bsystems")).toBe(launcher.crmBsystems);
+    expect(crmAppNameFor("partners", "bsystems")).toBe(launcher.partners);
+    expect(crmAppNameFor("todo", "byteforce")).toBe(launcher.todo);
+    expect(crmAppNameFor("reports", "bsystems")).toBe(launcher.reports);
+  });
+});
+

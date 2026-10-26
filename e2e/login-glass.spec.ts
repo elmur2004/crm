@@ -156,8 +156,10 @@ test.describe("behaviour is unchanged", () => {
     await page.goto("/login");
     const body = page.locator("body");
     await expect(body).not.toContainText(/google|facebook|discord|apple|remember me|forgot/i);
-    /* exactly the form's own controls + the two toggles + the eye + the link */
-    await expect(page.getByRole("button")).toHaveCount(2 + 3 + 1 + 1);
+    /* exactly the form's own controls + the two toggles + the eye + the link.
+       The theme toggle has TWO segments now (Light · Dark): the founder
+       removed the "system" option, amending ADR-087. */
+    await expect(page.getByRole("button")).toHaveCount(2 + 2 + 1 + 1);
   });
 
   test("while signing in the button says the same thing, is busy, and cannot be pressed twice", async ({ page }) => {
@@ -232,7 +234,7 @@ test.describe("keyboard", () => {
       await page.goto("/login");
       await page.waitForTimeout(1500); // the entrance has settled
       const stops: string[] = [];
-      for (let i = 0; i < 9; i++) {
+      for (let i = 0; i < 8; i++) {
         await page.keyboard.press("Tab");
         const info = await page.evaluate(() => {
           const el = document.activeElement as HTMLElement;
@@ -253,7 +255,6 @@ test.describe("keyboard", () => {
       expect(stops).toEqual([
         "button:EN",
         "button:عربي",
-        "button:System",
         "button:Light",
         "button:Dark",
         "input:identifier",
@@ -306,7 +307,9 @@ for (const vp of VIEWPORTS) {
           page.locator(".lg-submit"),
           page.locator(".lg-foot a"),
         ];
-        expect(targets.length).toBe(10);
+        /* 2 language + 2 theme segments (the founder removed the "system"
+           theme option) + the five form targets */
+        expect(targets.length).toBe(9);
         for (const t of targets) {
           const box = await t.boundingBox();
           expect(box, await t.evaluate((e) => e.outerHTML.slice(0, 80))).not.toBeNull();

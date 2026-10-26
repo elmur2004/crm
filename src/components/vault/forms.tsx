@@ -15,6 +15,7 @@ import {
   VAULT_SHEET_TYPE_LABELS,
   VAULT_SHEET_TYPES,
 } from "@/lib/services/vault/constants";
+import { armFresh, flashWhenChanged, rowOf } from "@/components/accounting/module-ui";
 
 /* ADR-053 Phase 5 — every vault modal + row action, composed from the design
    system's modal/field/button classes (the accounting forms.tsx pattern).
@@ -38,6 +39,10 @@ async function send(
   return { ok: false, status: res.status, error: data?.error ?? null };
 }
 
+/* The glass pass (module-ui.tsx, modules.css): a row or card this write ADDED
+   glows once as the refresh brings it in; the row or card it EDITED — the one
+   the control or its dialog sits in (`origin`, or wherever focus is) —
+   flashes when its new values land. A refused write changes nothing. */
 function useAction() {
   const router = useRouter();
   const t = tFor(useLocale());
@@ -49,7 +54,10 @@ function useAction() {
     method: "POST" | "PATCH",
     body: FormData | unknown,
     after?: () => void,
+    /** the control (or the dialog's form) the write came from */
+    origin?: Element | null,
   ) => {
+    const row = rowOf(origin ?? (typeof document === "undefined" ? null : document.activeElement));
     setBusy(true);
     setError(null);
     const result = await send(url, method, body);
@@ -60,6 +68,8 @@ function useAction() {
       return false;
     }
     after?.();
+    armFresh();
+    if (row) flashWhenChanged(row);
     router.refresh();
     return true;
   };
@@ -77,7 +87,8 @@ function VaultModal({
 }: {
   title: string;
   onClose: () => void;
-  onSubmit: (fd: FormData) => void;
+  /** the form element rides along so the write knows which row it edits */
+  onSubmit: (fd: FormData, form: HTMLFormElement) => void;
   busy: boolean;
   error: string | null;
   submitLabel: string;
@@ -91,7 +102,7 @@ function VaultModal({
         onClick={(e) => e.stopPropagation()}
         onSubmit={(e) => {
           e.preventDefault();
-          onSubmit(new FormData(e.currentTarget));
+          onSubmit(new FormData(e.currentTarget), e.currentTarget);
         }}
       >
         <div className="modal-head">
@@ -182,7 +193,7 @@ function FormModal({
   const { busy, error, status, run } = useAction();
   const [acknowledge, setAcknowledge] = useState(false);
 
-  const submit = async (fd: FormData) => {
+  const submit = async (fd: FormData, form?: HTMLFormElement) => {
     const body = {
       company: str(fd, "company"),
       name: str(fd, "name"),
@@ -191,8 +202,8 @@ function FormModal({
       acknowledgeDuplicate: acknowledge,
     };
     const ok = row
-      ? await run(`/api/vault/forms/${row.id}`, "PATCH", body, onClose)
-      : await run("/api/vault/forms", "POST", body, onClose);
+      ? await run(`/api/vault/forms/${row.id}`, "PATCH", body, onClose, form)
+      : await run("/api/vault/forms", "POST", body, onClose, form);
     if (!ok) setAcknowledge(false);
   };
 
@@ -298,7 +309,7 @@ function LinkModal({
   const { busy, error, status, run } = useAction();
   const [acknowledge, setAcknowledge] = useState(false);
 
-  const submit = async (fd: FormData) => {
+  const submit = async (fd: FormData, form?: HTMLFormElement) => {
     const body = {
       company: str(fd, "company"),
       name: str(fd, "name"),
@@ -309,8 +320,8 @@ function LinkModal({
       acknowledgeDuplicate: acknowledge,
     };
     const ok = row
-      ? await run(`/api/vault/links/${row.id}`, "PATCH", body, onClose)
-      : await run("/api/vault/links", "POST", body, onClose);
+      ? await run(`/api/vault/links/${row.id}`, "PATCH", body, onClose, form)
+      : await run("/api/vault/links", "POST", body, onClose, form);
     if (!ok) setAcknowledge(false);
   };
 
@@ -451,7 +462,7 @@ function SheetModal({ row, onClose }: { row: VaultSheetRow | null; onClose: () =
   const { busy, error, run } = useAction();
   const [storage, setStorage] = useState(row?.storage ?? "link");
 
-  const submit = async (fd: FormData) => {
+  const submit = async (fd: FormData, form?: HTMLFormElement) => {
     if (row) {
       // metadata edit is JSON; the file itself rides the Replace file action
       const body = {
@@ -465,11 +476,11 @@ function SheetModal({ row, onClose }: { row: VaultSheetRow | null; onClose: () =
         recordCount: str(fd, "recordCount") || undefined,
         recordCountAsOf: str(fd, "recordCountAsOf") || undefined,
       };
-      await run(`/api/vault/sheets/${row.id}`, "PATCH", body, onClose);
+      await run(`/api/vault/sheets/${row.id}`, "PATCH", body, onClose, form);
       return;
     }
     fd.set("storage", storage);
-    await run("/api/vault/sheets", "POST", fd, onClose);
+    await run("/api/vault/sheets", "POST", fd, onClose, form);
   };
 
   return (
@@ -588,7 +599,7 @@ export function ReplaceFileButton({
           if (!file) return;
           const fd = new FormData();
           fd.set("file", file);
-          await run(postUrl, "POST", fd);
+          await run(postUrl, "POST", fd, undefined, e.currentTarget);
           e.target.value = "";
         }}
       />
@@ -619,7 +630,7 @@ function DocumentModal({ row, onClose }: { row: VaultDocumentRow | null; onClose
   const t = tFor(useLocale());
   const { busy, error, run } = useAction();
 
-  const submit = async (fd: FormData) => {
+  const submit = async (fd: FormData, form?: HTMLFormElement) => {
     if (row) {
       const body = {
         company: str(fd, "company"),
@@ -627,10 +638,10 @@ function DocumentModal({ row, onClose }: { row: VaultDocumentRow | null; onClose
         description: str(fd, "description") || undefined,
         type: str(fd, "type"),
       };
-      await run(`/api/vault/documents/${row.id}`, "PATCH", body, onClose);
+      await run(`/api/vault/documents/${row.id}`, "PATCH", body, onClose, form);
       return;
     }
-    await run("/api/vault/documents", "POST", fd, onClose);
+    await run("/api/vault/documents", "POST", fd, onClose, form);
   };
 
   return (
@@ -711,14 +722,14 @@ function EmployeeModal({ row, onClose }: { row: VaultEmployeeRow | null; onClose
   const t = tFor(useLocale());
   const { busy, error, run } = useAction();
 
-  const submit = async (fd: FormData) => {
+  const submit = async (fd: FormData, form?: HTMLFormElement) => {
     const body = {
       name: str(fd, "name"),
       title: str(fd, "title") || undefined,
       company: str(fd, "company") || null,
     };
-    if (row) await run(`/api/vault/employees/${row.id}`, "PATCH", body, onClose);
-    else await run("/api/vault/employees", "POST", body, onClose);
+    if (row) await run(`/api/vault/employees/${row.id}`, "PATCH", body, onClose, form);
+    else await run("/api/vault/employees", "POST", body, onClose, form);
   };
 
   return (
@@ -773,8 +784,8 @@ export function EmployeeActions({ row }: { row: VaultEmployeeRow }) {
         className="btn-ghost btn--sm"
         disabled={busy}
         title={t(vault.deactivateHint)}
-        onClick={() =>
-          run(`/api/vault/employees/${row.id}`, "PATCH", { active: !row.active })
+        onClick={(e) =>
+          run(`/api/vault/employees/${row.id}`, "PATCH", { active: !row.active }, undefined, e.currentTarget)
         }
       >
         {row.active ? t(vault.deactivate) : t(vault.reactivate)}
@@ -810,7 +821,7 @@ function TaskModal({
   const t = tFor(useLocale());
   const { busy, error, run } = useAction();
 
-  const submit = async (fd: FormData) => {
+  const submit = async (fd: FormData, form?: HTMLFormElement) => {
     const body = {
       employeeId: str(fd, "employeeId"),
       name: str(fd, "name"),
@@ -818,8 +829,8 @@ function TaskModal({
       company: str(fd, "company") || null,
       deadline: str(fd, "deadline"),
     };
-    if (row) await run(`/api/vault/tasks/${row.id}`, "PATCH", body, onClose);
-    else await run("/api/vault/tasks", "POST", body, onClose);
+    if (row) await run(`/api/vault/tasks/${row.id}`, "PATCH", body, onClose, form);
+    else await run("/api/vault/tasks", "POST", body, onClose, form);
   };
 
   return (
@@ -948,7 +959,7 @@ export function CompleteTaskButton({
         onClick={(e) => e.stopPropagation()}
         onSubmit={(e) => {
           e.preventDefault();
-          void run(`/api/vault/tasks/${taskId}/complete`, "POST", buildFormData(), close);
+          void run(`/api/vault/tasks/${taskId}/complete`, "POST", buildFormData(), close, formRef.current);
         }}
       >
         <div className="modal-head">
@@ -1024,7 +1035,7 @@ export function CompleteTaskButton({
               className="btn-ghost"
               disabled={busy}
               onClick={() =>
-                void run(`/api/vault/tasks/${taskId}/result`, "POST", buildFormData(), close)
+                void run(`/api/vault/tasks/${taskId}/result`, "POST", buildFormData(), close, formRef.current)
               }
             >
               {t(vault.saveResult)}
@@ -1050,7 +1061,7 @@ export function ReopenTaskButton({ taskId }: { taskId: string }) {
         className="btn-ghost btn--sm"
         disabled={busy}
         title={t(vault.reopenHint)}
-        onClick={() => run(`/api/vault/tasks/${taskId}/reopen`, "POST", {})}
+        onClick={(e) => run(`/api/vault/tasks/${taskId}/reopen`, "POST", {}, undefined, e.currentTarget)}
       >
         {t(vault.reopenTask)}
       </button>

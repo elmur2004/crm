@@ -56,6 +56,47 @@ test("a tile opens its app, and the header's All apps icon comes back", async ({
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
 });
 
+/* ONE WAY TO EACH PAGE — the launcher is the only way between apps, and the
+   grid icon in each app header is the only way back to it. */
+test("each app header has exactly ONE way back to the launcher, and no logo is a link", async ({ page }) => {
+  await signIn(page, "admin@byteforce.com", "password123");
+  /* the launcher's own lockup is a plain mark, not a link to the page you are on */
+  await expect(page.locator(".lx-bar a")).toHaveCount(0);
+  for (const path of [
+    "/b-systems/crm?company=bsystems",
+    "/b-systems/crm?company=byteforce",
+    "/b-systems/partners-pipeline?company=bsystems",
+    "/b-systems/todo?company=bsystems",
+    "/b-systems?company=bsystems",
+    "/b-systems/daily-report?company=bsystems",
+    "/accounting",
+    "/vault",
+  ]) {
+    await page.goto(path);
+    await expect(page.locator("header a[href='/apps']"), path).toHaveCount(1);
+    await expect(page.locator(".app-header .app-mark a, .app-header a.app-mark"), path).toHaveCount(0);
+    await expect(page.locator(".app-header .app-mark"), path).toBeVisible();
+  }
+});
+
+test("Reports & Dashboards lists the two CRM dashboards and the daily report — nothing from Accounting", async ({
+  page,
+}) => {
+  await signIn(page, "admin@byteforce.com", "password123");
+  await page.locator('[data-app="reports"]').click();
+  await page.waitForURL(/\/apps\/reports$/);
+  expect(await page.locator("[data-report]").evaluateAll((els) => els.map((e) => e.getAttribute("data-report")))).toEqual([
+    "bs-dashboard",
+    "bf-dashboard",
+    "daily-report",
+  ]);
+  await expect(page.locator('main a[href^="/accounting"]')).toHaveCount(0);
+  /* its one way back is the All apps link */
+  await expect(page.getByRole("link", { name: "All apps" })).toHaveCount(1);
+  await page.getByRole("link", { name: "All apps" }).click();
+  await page.waitForURL(LAUNCHER_URL);
+});
+
 test("a sales rep sees only the apps the server lets him open", async ({ page }) => {
   await signIn(page, "omar@b-systems.example", "bsystems123");
   expect(await tileIds(page)).toEqual(["crm-bsystems", "todo", "reports"]);

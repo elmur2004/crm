@@ -13,6 +13,8 @@ import { acctQuery, acctView } from "@/lib/accounting/params";
 import { moduleCompaniesFor } from "@/lib/module-companies";
 import { monthLabel } from "@/lib/accounting/format";
 import { AcctHead } from "@/components/accounting/AcctHead";
+import { ModSwap } from "@/components/accounting/module-ui";
+import { ModEmpty } from "@/components/accounting/module-art";
 
 /* ADR-052 — department profitability: tagged income vs tagged cost (derived
    payroll included), untagged spend as shared overhead. Month / all-time. */
@@ -40,7 +42,7 @@ export default async function AcctDepartmentsPage({
     d in ACCT_DEPT_LABELS ? t(ACCT_DEPT_LABELS[d as AcctDept]) : d;
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-5 mod-page">
       <AcctHead
         view={view}
         locale={locale}
@@ -67,60 +69,63 @@ export default async function AcctDepartmentsPage({
         </div>
       </div>
 
-      <section className="card card--flush0">
-        {rep.rows.length === 0 ? (
-          <p className="empty m-4">{t(acct.noDeptActivity)}</p>
-        ) : (
-          <div className="table-scroll">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>{t(acct.department)}</th>
-                  <th>{t(acct.income)}</th>
-                  <th>{t(acct.directCost)}</th>
-                  <th>{t(acct.profit)}</th>
-                  <th>{t(acct.margin)}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rep.rows.map((r) => (
-                  <tr key={r.id}>
-                    <td className="td-title">{deptLabel(r.id)}</td>
-                    <td className="text-brand-success">{formatEGP(r.income)}</td>
-                    <td className={r.cost ? "text-brand-danger" : ""}>{r.cost ? formatEGP(r.cost) : "—"}</td>
-                    <td className={`td-title ${r.profit >= 0 ? "" : "text-brand-danger"}`}>{formatEGP(r.profit)}</td>
-                    <td>{r.income > 0 ? `${r.marginPct.toFixed(0)}%` : "—"}</td>
+      {/* the scope / month / company's figures cross-fade in (ModSwap) */}
+      <ModSwap swapKey={`${view.company}|${view.month}|${scope}`} className="space-y-5">
+        <section className="card card--flush0">
+          {rep.rows.length === 0 ? (
+            <ModEmpty kind="chart">{t(acct.noDeptActivity)}</ModEmpty>
+          ) : (
+            <div className="table-scroll">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>{t(acct.department)}</th>
+                    <th>{t(acct.income)}</th>
+                    <th>{t(acct.directCost)}</th>
+                    <th>{t(acct.profit)}</th>
+                    <th>{t(acct.margin)}</th>
                   </tr>
-                ))}
-                <tr className="font-semibold">
-                  <td className="td-title">{t(acct.directTotal)}</td>
-                  <td className="text-brand-success">{formatEGP(rep.totalIncome)}</td>
-                  <td className="text-brand-danger">{formatEGP(rep.totalCost)}</td>
-                  <td className={rep.directProfit >= 0 ? "" : "text-brand-danger"}>{formatEGP(rep.directProfit)}</td>
-                  <td></td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
+                </thead>
+                <tbody>
+                  {rep.rows.map((r) => (
+                    <tr key={r.id}>
+                      <td className="td-title">{deptLabel(r.id)}</td>
+                      <td className="text-brand-success">{formatEGP(r.income)}</td>
+                      <td className={r.cost ? "text-brand-danger" : ""}>{r.cost ? formatEGP(r.cost) : "—"}</td>
+                      <td className={`td-title ${r.profit >= 0 ? "" : "text-brand-danger"}`}>{formatEGP(r.profit)}</td>
+                      <td>{r.income > 0 ? `${r.marginPct.toFixed(0)}%` : "—"}</td>
+                    </tr>
+                  ))}
+                  <tr className="font-semibold">
+                    <td className="td-title">{t(acct.directTotal)}</td>
+                    <td className="text-brand-success">{formatEGP(rep.totalIncome)}</td>
+                    <td className="text-brand-danger">{formatEGP(rep.totalCost)}</td>
+                    <td className={rep.directProfit >= 0 ? "" : "text-brand-danger"}>{formatEGP(rep.directProfit)}</td>
+                    <td></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
 
-      <section className="card card-pad">
-        <div className="flex items-baseline justify-between py-1.5 border-b border-brand-hairline">
-          <span className="u-muted">{t(acct.directDeptProfit)}</span>
-          <span className="font-medium">{formatEGP(rep.directProfit)}</span>
-        </div>
-        <div className="flex items-baseline justify-between py-1.5 border-b border-brand-hairline">
-          <span className="u-muted">{t(acct.sharedOverhead)}</span>
-          <span className="font-medium text-brand-danger">−{formatEGP(rep.overhead)}</span>
-        </div>
-        <div className="flex items-baseline justify-between pt-3">
-          <span className="u-h3">{t(acct.netAfterOverhead)}</span>
-          <span className={`u-h2 ${rep.netAfterOverhead >= 0 ? "" : "text-brand-danger"}`}>
-            {formatEGP(rep.netAfterOverhead)}
-          </span>
-        </div>
-      </section>
+        <section className="card card-pad">
+          <div className="flex items-baseline justify-between py-1.5 border-b border-brand-hairline">
+            <span className="u-muted">{t(acct.directDeptProfit)}</span>
+            <span className="font-medium">{formatEGP(rep.directProfit)}</span>
+          </div>
+          <div className="flex items-baseline justify-between py-1.5 border-b border-brand-hairline">
+            <span className="u-muted">{t(acct.sharedOverhead)}</span>
+            <span className="font-medium text-brand-danger">−{formatEGP(rep.overhead)}</span>
+          </div>
+          <div className="flex items-baseline justify-between pt-3">
+            <span className="u-h3">{t(acct.netAfterOverhead)}</span>
+            <span className={`u-h2 ${rep.netAfterOverhead >= 0 ? "" : "text-brand-danger"}`}>
+              {formatEGP(rep.netAfterOverhead)}
+            </span>
+          </div>
+        </section>
+      </ModSwap>
     </div>
   );
 }

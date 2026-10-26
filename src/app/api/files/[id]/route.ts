@@ -29,9 +29,13 @@ function esc(s: string): string {
 /* Dark mode: this page is a standalone document outside the app shells, so it
    never received the server-stamped data-theme — it followed the OS alone,
    and a person who chose DARK on a light OS got a white page in the middle of
-   a dark app. An explicit "dark" now pins it dark. "light" and "system" emit
-   exactly the document they always did (it already follows the OS through
-   its own prefers-color-scheme block). */
+   a dark app. An explicit "dark" pins it dark. Anything else — "light", and
+   since the founder removed the "system" option ("remove the system theme
+   option"), a stale "system" cookie too, which parseTheme reads as light —
+   emits exactly the document it always did: one that still follows the OS
+   through its own prefers-color-scheme block. That block belongs to this
+   standalone error page, not to the app's theme contract (no app stylesheet
+   answers to the OS any more). */
 function themeAttr(req: Request): string {
   const raw = /(?:^|;\s*)theme=([^;]*)/.exec(req.headers.get("cookie") ?? "")?.[1];
   return parseTheme(raw === undefined ? undefined : decodeURIComponent(raw)) === "dark"

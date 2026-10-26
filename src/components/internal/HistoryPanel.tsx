@@ -4,6 +4,7 @@ import { getLocale } from "@/lib/i18n/server";
 import { stageLabel } from "@/lib/i18n/dict/labels";
 import { history } from "@/lib/i18n/dict/internal";
 import { TRIGGER_PHRASES } from "./historyPhrases";
+import { stageKey } from "@/components/bsystems/stageColors";
 
 /* §5.6 — the card's History panel: actor, timestamp, from → to, trigger.
    Where SPEC prescribes exact History wording, the trigger maps to that phrase
@@ -26,12 +27,13 @@ export async function HistoryPanel({
   const locale = await getLocale();
   const t = tFor(locale);
   if (entries.length === 0) {
-    return <p className="empty">{t(history.noHistoryYet)}</p>;
+    return <p className="empty empty--history">{t(history.noHistoryYet)}</p>;
   }
   return (
     <ol>
       {entries.map((e) => (
-        <li key={e.id} className="tl-row">
+        /* the line's dot wears the stage it moved TO (crm.css) — visual only */
+        <li key={e.id} className="tl-row" data-stage-key={e.toStage ? stageKey(e.toStage) : undefined}>
           <span className="tl-rail" aria-hidden>
             <span className="tl-dot" />
           </span>

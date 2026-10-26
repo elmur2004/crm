@@ -1,18 +1,25 @@
 import { expect, test, type Page } from "@playwright/test";
-import { afterSignIn } from "./helpers/after-sign-in";
+import { afterSignIn, LAUNCHER_URL } from "./helpers/after-sign-in";
 
 /* ============================================================================
-   ADR-060 — MOBILE MODULE SWITCHING (the founder's 4.1).
+   THE MODULE SWITCHER IS GONE — the launcher is the one way between apps.
 
-   ≤820px the rigid header switcher leaves the header and a full-width module
-   bar renders directly UNDER it: equal 1fr cells that cannot overflow any
-   viewport, ≥44px tall, one tap, current module inverted. Desktop keeps the
-   header pill untouched. Single-entity users get no bar at all. The burger
-   sheet keeps its own copy (every control reachable from the sheet), now
-   tap-sized and re-grounded on the light card.
+   ADR-054/060 gave the shells a module switcher: a pill in the desktop header
+   and, ≤820px, a full-width "module bar" under it (CRM · ACCOUNTING · VAULT).
+   The founder has since asked for ONE way to each page ("there is multiple ways
+   to get to each page there should be one way each for each page to get to"),
+   and the launcher (/apps) is that one way between apps; the grid icon at the
+   start of every header is the one way back to it.
 
-   Real scrollbars on: headless Chromium hides them, and a hidden scrollbar
-   is exactly how the old +44px overflow at 601px went unmeasured.
+   This file used to prove the bar. It now proves the bar and the pill are
+   GONE — at every width, in all three shells, inside the burger sheet too — and
+   that what the bar was for still works: moving between the apps in two taps
+   through the launcher, with nothing ever pushing the page sideways. The
+   phone sheet keeps exactly what it must: the language, the theme and Log out,
+   tap-sized and legible on the light card.
+
+   Real scrollbars on: headless Chromium hides them, and a hidden scrollbar is
+   exactly how the old +44px overflow at 601px went unmeasured.
    ========================================================================== */
 
 test.use({ launchOptions: { ignoreDefaultArgs: ["--hide-scrollbars"] } });
@@ -28,168 +35,136 @@ async function login(page: Page, identifier: string, password: string, landing: 
 const overflow = (page: Page) =>
   page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
 
-const bar = (page: Page) => page.locator(".switcher--bar");
-
-test("the module bar switches all three modules in ONE tap at phone width", async ({ page }) => {
-  await login(page, "admin@byteforce.com", "password123", /\/b-systems$/);
-  await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto("/b-systems");
-
-  /* the bar sits under the header; the header itself carries no entity strip */
-  await expect(bar(page)).toBeVisible();
-  await expect(page.locator(".app-header .user .switcher-entity")).toBeHidden();
-  const header = (await page.locator(".app-header").boundingBox())!;
-  const barBox = (await bar(page).boundingBox())!;
-  expect(barBox.y).toBeGreaterThanOrEqual(header.y + header.height - 1);
-
-  /* ADR-067 — THREE segments now, not four: the two CRMs merged into one app,
-     so the bar asks "which module" and the company switch asks "which company".
-     Every cell is a thumb target, all inside the viewport — and each one is
-     WIDER than it was, which is the direction ADR-060's overflow work wanted. */
-  const segs = bar(page).locator(".switcher-seg");
-  await expect(segs).toHaveCount(3);
-  for (const box of await segs.evaluateAll((els) => els.map((el) => el.getBoundingClientRect()))) {
-    expect(box.height).toBeGreaterThanOrEqual(44);
-    expect(box.right).toBeLessThanOrEqual(391);
-    expect(box.left).toBeGreaterThanOrEqual(-1);
+/** Every trace the module switcher could leave: the phone bar, the header
+    pill, and its accessible name anywhere on the page. */
+async function expectNoModuleSwitch(page: Page, where: string) {
+  await expect(page.locator(".switcher--bar"), `${where}: module bar`).toHaveCount(0);
+  await expect(page.locator(".switcher-entity"), `${where}: header pill`).toHaveCount(0);
+  await expect(page.getByRole("group", { name: "Switch module" }), `${where}: module group`).toHaveCount(0);
+  for (const name of ["ACCOUNTING", "VAULT"]) {
+    await expect(page.getByRole("link", { name, exact: true }), `${where}: ${name} segment`).toHaveCount(0);
   }
-  expect(await overflow(page)).toBeLessThanOrEqual(1);
+}
 
-  /* the current module is unmistakable, and ONE tap moves between all three */
-  await expect(bar(page).getByRole("link", { name: "CRM", exact: true })).toHaveAttribute(
-    "aria-current",
-    "true",
-  );
+const SHELL_PAGES = ["/b-systems/crm?company=bsystems", "/accounting", "/vault"];
 
-  await bar(page).getByRole("link", { name: "ACCOUNTING" }).click();
-  await page.waitForURL(/\/accounting/);
-  await expect(bar(page).getByRole("link", { name: "ACCOUNTING" })).toHaveAttribute(
-    "aria-current",
-    "true",
-  );
-  expect(await overflow(page)).toBeLessThanOrEqual(1);
-
-  await bar(page).getByRole("link", { name: "VAULT" }).click();
-  await page.waitForURL(/\/vault/);
-  await expect(bar(page).getByRole("link", { name: "VAULT" })).toHaveAttribute(
-    "aria-current",
-    "true",
-  );
-  expect(await overflow(page)).toBeLessThanOrEqual(1);
-
-  await bar(page).getByRole("link", { name: "CRM", exact: true }).click();
-  await page.waitForURL(/\/b-systems$/);
-  await expect(bar(page).getByRole("link", { name: "CRM", exact: true })).toHaveAttribute(
-    "aria-current",
-    "true",
-  );
-  expect(await overflow(page)).toBeLessThanOrEqual(1);
-
-  /* ADR-067 — and the COMPANY switch is a DIFFERENT control, on the page
-     ground below the bar, carrying its own words. Two strips, two questions. */
-  const company = page.getByRole("group", { name: "Switch company" });
-  await expect(company).toBeVisible();
-  await expect(company.getByRole("link", { name: "ByteForce" })).toBeVisible();
-  const companyBox = (await company.boundingBox())!;
-  const barAfter = (await bar(page).boundingBox())!;
-  expect(companyBox.y).toBeGreaterThan(barAfter.y + barAfter.height - 1);
-  expect(await overflow(page)).toBeLessThanOrEqual(1);
-});
-
-test("the 601–645px overflow band is closed, and desktop is untouched", async ({ page }) => {
-  await login(page, "admin@byteforce.com", "password123", /\/b-systems$/);
-  /* 601px is the exact width the four-segment header strip overflowed by a
-     measured +44px (EN); 820 is the bar's own upper edge */
-  for (const width of [601, 820]) {
+test("no module bar and no header pill — on a phone, at the old overflow band, and on desktop", async ({ page }) => {
+  await login(page, "admin@byteforce.com", "password123", /\/b-systems\/crm$/);
+  for (const width of [390, 601, 820, 1280]) {
     await page.setViewportSize({ width, height: 844 });
-    await page.goto("/b-systems");
-    await expect(bar(page)).toBeVisible();
-    await expect(page.locator(".app-header .user .switcher-entity")).toBeHidden();
-    expect(await overflow(page), `overflow at ${width}px`).toBeLessThanOrEqual(1);
+    for (const path of SHELL_PAGES) {
+      await page.goto(path);
+      await expect(page.locator("h1").first()).toBeVisible();
+      await expectNoModuleSwitch(page, `${path} @${width}`);
+      expect(await overflow(page), `${path} overflows at ${width}px`).toBeLessThanOrEqual(1);
+    }
   }
-  /* desktop: header pill exactly as before, no bar */
-  await page.setViewportSize({ width: 1280, height: 844 });
-  await page.goto("/b-systems");
-  await expect(bar(page)).toBeHidden();
-  await expect(page.locator(".app-header .user .switcher-entity")).toBeVisible();
-  expect(await overflow(page)).toBeLessThanOrEqual(1);
 });
 
-test("Arabic: the bar mirrors, keeps its localized labels, and still fits", async ({ page }) => {
-  await login(page, "admin@byteforce.com", "password123", /\/b-systems$/);
-  await page.getByRole("button", { name: "عربي" }).click();
-  await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
+test("the burger sheet carries the language, the theme and Log out — and no module segments", async ({ page }) => {
+  await login(page, "admin@byteforce.com", "password123", /\/b-systems\/crm$/);
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto("/b-systems");
-
-  await expect(bar(page)).toBeVisible();
-  await expect(bar(page).getByRole("link", { name: "الحسابات" })).toBeVisible();
-  await expect(bar(page).getByRole("link", { name: "الخزنة" })).toBeVisible();
-  /* RTL order: the first DOM segment (CRM) renders at the inline START,
-     which is the RIGHT edge. Three segments since ADR-067, so the last index
-     moved with the count — the assertion is about ORDER, not about four. */
-  const xs = await bar(page)
-    .locator(".switcher-seg")
-    .evaluateAll((els) => els.map((el) => el.getBoundingClientRect().x));
-  expect(xs[0]!).toBeGreaterThan(xs[xs.length - 1]!);
-  expect(await overflow(page)).toBeLessThanOrEqual(1);
-
-  await bar(page).getByRole("link", { name: "الحسابات" }).click();
-  await page.waitForURL(/\/accounting/);
-  await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
-  await expect(bar(page).getByRole("link", { name: "الحسابات" })).toHaveAttribute(
-    "aria-current",
-    "true",
-  );
-});
-
-test("hard-narrow screens cut long labels VISIBLY — ellipsis, page still never scrolls", async ({ page }) => {
-  await login(page, "admin@byteforce.com", "password123", /\/b-systems$/);
-
-  /* 320px is the project's hard floor. ADR-067 took the bar from four cells to
-     three, so each cell went from ~67px to ~100px and ACCOUNTING — the longest
-     label left — now FITS here. That is the merge paying for itself, and the
-     assertion follows the fact rather than the other way round. */
-  await page.setViewportSize({ width: 320, height: 700 });
-  await page.goto("/b-systems");
-  await expect(bar(page)).toBeVisible();
-  expect(await overflow(page)).toBeLessThanOrEqual(1);
-  const label = bar(page).getByRole("link", { name: "ACCOUNTING" }).locator(".switcher-label");
-  expect(await label.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
-
-  /* the STRUCTURE that makes a cut visible must still be in place, because the
-     day a label grows or a fourth module arrives it is the only thing standing
-     between the founder and silently truncated text. It must live on the label
-     SPAN — a block-level grid item — since text-overflow never applies to the
-     grid seg itself; asserting it here pins that structure. */
-  expect(await label.evaluate((el) => getComputedStyle(el).textOverflow)).toBe("ellipsis");
-  expect(await label.evaluate((el) => getComputedStyle(el).overflow)).toBe("hidden");
-
-  /* and it really does clip rather than push: below the floor, where the label
-     genuinely outgrows its cell, the cut appears and the page still never
-     scrolls sideways */
-  await page.setViewportSize({ width: 240, height: 700 });
-  await page.goto("/b-systems");
-  expect(await label.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(true);
-  expect(await overflow(page)).toBeLessThanOrEqual(1);
-  for (const box of await bar(page)
-    .locator(".switcher-seg")
-    .evaluateAll((els) => els.map((el) => el.getBoundingClientRect()))) {
-    expect(box.right).toBeLessThanOrEqual(241);
-    expect(box.left).toBeGreaterThanOrEqual(-1);
+  for (const path of SHELL_PAGES) {
+    await page.goto(path);
+    await page.getByRole("button", { name: "Open menu" }).click();
+    const sheet = page.getByRole("menu");
+    await expect(sheet).toBeVisible();
+    await expectNoModuleSwitch(page, `${path} sheet`);
+    /* 2 languages + 2 themes (Light / Dark since the founder removed
+       "system"), on the same .switcher-seg idiom — and nothing else */
+    const segs = sheet.locator(".switcher-seg");
+    await expect(segs).toHaveCount(4);
+    /* thumb-sized in BOTH axes — height alone left the ~35px-wide EN segment
+       sub-thumb-size, so the width is pinned too */
+    for (const box of await segs.evaluateAll((els) => els.map((el) => el.getBoundingClientRect()))) {
+      expect(box.height).toBeGreaterThanOrEqual(44);
+      expect(box.width).toBeGreaterThanOrEqual(44);
+    }
+    /* legible: a NON-current segment's ink is the card's own token, never the
+       indigo header's translucent white (the sheet lives INSIDE the header) */
+    const seg = sheet.getByRole("button", { name: "عربي" });
+    expect(await seg.evaluate((el) => getComputedStyle(el).color)).not.toContain("255, 255, 255");
+    await expect(sheet.getByRole("button", { name: "Log out" })).toBeVisible();
+    await page.getByRole("button", { name: "Close menu" }).click();
+    await expect(page.getByRole("menu")).toHaveCount(0);
   }
 });
 
-test("a single-entity user gets NO bar and NO company switch — zero new furniture", async ({
+test("moving between apps is the launcher: two taps on a phone, all three shells, never a sideways scroll", async ({
   page,
 }) => {
+  await login(page, "admin@byteforce.com", "password123", /\/b-systems\/crm$/);
+  await page.setViewportSize({ width: 390, height: 844 });
+  for (const [tile, url] of [
+    ["accounting", /\/accounting/],
+    ["vault", /\/vault/],
+    ["crm-bsystems", /\/b-systems\/crm\?company=bsystems$/],
+    ["crm-byteforce", /\/b-systems\/crm\?company=byteforce$/],
+  ] as const) {
+    await page.getByRole("link", { name: "All apps" }).click();
+    await page.waitForURL(LAUNCHER_URL);
+    await page.locator(`[data-app="${tile}"]`).click();
+    await page.waitForURL(url);
+    /* the All apps icon is a real thumb target, first in the header */
+    const box = (await page.getByRole("link", { name: "All apps" }).boundingBox())!;
+    expect(box.width).toBeGreaterThanOrEqual(36);
+    expect(await overflow(page), tile).toBeLessThanOrEqual(1);
+  }
+});
+
+test("Arabic: no bar, the header still fits, and the way between apps mirrors with it", async ({ page }) => {
+  await login(page, "admin@byteforce.com", "password123", /\/b-systems\/crm$/);
+  await page.getByRole("button", { name: "عربي" }).click();
+  await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
+  for (const width of [320, 390, 601]) {
+    await page.setViewportSize({ width, height: 844 });
+    for (const path of SHELL_PAGES) {
+      await page.goto(path);
+      await expectNoModuleSwitch(page, `${path} AR @${width}`);
+      expect(await overflow(page), `${path} AR @${width}`).toBeLessThanOrEqual(1);
+    }
+  }
+  /* the grid icon sits at the inline START — the right edge in Arabic */
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/b-systems/crm?company=bsystems");
+  const home = (await page.getByRole("link", { name: "كل التطبيقات" }).boundingBox())!;
+  expect(home.x).toBeGreaterThan(390 / 2);
+});
+
+test("hard-narrow screens: the CRM header's app name gives way with an ellipsis — the page never scrolls", async ({
+  page,
+}) => {
+  await login(page, "admin@byteforce.com", "password123", /\/b-systems\/crm$/);
+  /* the longest names the shell can show are Reports & Dashboards' and
+     Partners & Agents'; 320px is the project's hard floor, and below it (240)
+     the dashboard — the page that has always been held to it — still fits */
+  for (const [width, paths] of [
+    [320, ["/b-systems?company=bsystems", "/b-systems/partners-pipeline?company=bsystems"]],
+    [240, ["/b-systems?company=bsystems"]],
+  ] as const) {
+    await page.setViewportSize({ width, height: 700 });
+    for (const path of paths) {
+      await page.goto(path);
+      expect(await overflow(page), `${path} @${width}`).toBeLessThanOrEqual(1);
+      const name = page.locator(".app-header .app-name");
+      await expect(name).toBeVisible();
+      /* the STRUCTURE that makes a cut visible rather than silent */
+      expect(await name.evaluate((el) => getComputedStyle(el).textOverflow)).toBe("ellipsis");
+      expect(await name.evaluate((el) => getComputedStyle(el).overflow)).toBe("hidden");
+      /* and nothing in the header runs past the screen */
+      for (const box of await page
+        .locator(".app-header > *")
+        .evaluateAll((els) => els.map((el) => el.getBoundingClientRect()).filter((r) => r.width > 0))) {
+        expect(box.right, `${path} @${width}`).toBeLessThanOrEqual(width + 1);
+        expect(box.left, `${path} @${width}`).toBeGreaterThanOrEqual(-1);
+      }
+    }
+  }
+});
+
+test("a single-company user gets no switch of any kind — zero new furniture", async ({ page }) => {
   await login(page, "sara@byteforce.example", "byteforce123", /\/b-systems\?company=byteforce$/);
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto("/b-systems?company=byteforce");
-  await expect(page.locator(".switcher--bar")).toHaveCount(0);
-  /* ADR-067 decision 7 — a ByteForce-locked teammate is shown NO switch at
-     all, on any screen and inside the burger sheet. A hidden-but-present
-     switch would be a failure, so this is asserted negatively. */
   for (const path of [
     "/b-systems?company=byteforce",
     "/b-systems/crm?company=byteforce",
@@ -198,44 +173,13 @@ test("a single-entity user gets NO bar and NO company switch — zero new furnit
     "/b-systems/clients?company=byteforce",
   ]) {
     await page.goto(path);
+    await expectNoModuleSwitch(page, path);
     await expect(page.getByRole("group", { name: "Switch company" })).toHaveCount(0);
+    await expect(page.getByRole("group", { name: "Company" })).toHaveCount(0);
   }
-  await page.goto("/b-systems?company=byteforce");
+  await page.goto("/b-systems/crm?company=byteforce");
   await page.getByRole("button", { name: "Open menu" }).click();
   await expect(page.getByRole("group", { name: "Switch company" })).toHaveCount(0);
+  await expectNoModuleSwitch(page, "sheet");
   expect(await overflow(page)).toBeLessThanOrEqual(1);
-});
-
-test("the sheet's switchers are tap-sized and legible on the light card", async ({ page }) => {
-  await login(page, "admin@byteforce.com", "password123", /\/b-systems$/);
-  await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto("/b-systems");
-  await page.getByRole("button", { name: "Open menu" }).click();
-
-  const sheetSegs = page.getByRole("menu").locator(".switcher-seg");
-  /* ADR-067: 3 modules + EN/عربي. The COMPANY segments are deliberately NOT
-     here (review, Run 080): the sheet carries the controls whose HEADER twin is
-     hidden below 820px, and the company switch has no header twin — it lives in
-     the page body and is on screen at every width (pinned at 390px with the
-     sheet shut, in the test above). Duplicating it into the sheet put two live,
-     identically-named "Switch company" groups on one phone screen.
-     Dark mode added the THEME toggle beside the language toggle (System /
-     Light / Dark), and the sheet carries it exactly as it carries the
-     language toggle — its header twin leaves at the same width — so the
-     count is 3 modules + 2 languages + 3 themes. It sits on the same
-     .switcher-seg idiom on purpose, so the size and legibility checks below
-     hold it to the same thumb rule. */
-  await expect(sheetSegs).toHaveCount(8);
-  /* thumb-sized in BOTH axes — height alone left the ~35px-wide EN segment
-     sub-thumb-size, so the width is pinned too */
-  for (const box of await sheetSegs.evaluateAll((els) => els.map((el) => el.getBoundingClientRect()))) {
-    expect(box.height).toBeGreaterThanOrEqual(44);
-    expect(box.width).toBeGreaterThanOrEqual(44);
-  }
-  /* legible: a NON-current segment's ink is the card's own token, never the
-     indigo header's translucent white (the bleed the sheet used to inherit —
-     the sheet lives INSIDE the header element) */
-  const seg = page.getByRole("menu").getByRole("link", { name: "ACCOUNTING" });
-  const color = await seg.evaluate((el) => getComputedStyle(el).color);
-  expect(color).not.toContain("255, 255, 255");
 });

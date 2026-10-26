@@ -41,9 +41,27 @@
 }
 /* agents/partners keep the deep-navy portal identity (spec R8) */
 [data-brand="bsystems"] .app-header[data-shell="external"] { background: var(--color-surface-dark); }
+/* the CRM shell's app name (CrmAppName): on one line beside the mark, and the
+   mark + name never give way on a desktop header — the nav strip does (it is
+   the slider). Below 820px the phone rule just below lets the name ellipsize
+   instead (it must stay AFTER this rule: same specificity, the later wins). */
+.app-header .app-mark--named { flex: none; }
+.app-header .app-name { white-space: nowrap; }
 @media (max-width: 820px) {
   .app-header { height: 54px; gap: 10px; padding-inline: 12px; }
   .app-header .wordmark, .app-header .user-meta { display: none; }
+  /* ONE WAY TO EACH PAGE — the merged CRM shell hosts five apps (the two CRMs,
+     Partners & Agents, the To-Do, the Reports pages) and its NAME is the only
+     place the screen says which one you are in, now the company switch is gone.
+     So on a phone the CRM shell's app name stays, at a phone size, and gives way
+     with an ellipsis rather than ever pushing the header past the screen (the
+     mark container may shrink; the burger and the user cluster may not). The
+     modules' wordmarks still hide: each module is one app, its menu says which. */
+  .app-header .app-mark--named { min-inline-size: 0; flex: 0 1 auto; }
+  .app-header .app-name {
+    display: block; min-inline-size: 0;
+    font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
   .app-header .nav-item { padding: 8px 9px; }
   .app-header .user { gap: 6px; padding-inline-start: 0; }
   .app-header .switcher-seg { padding: 6px 8px; letter-spacing: .06em; }
@@ -117,7 +135,7 @@
   position: fixed; inset-inline: 0; top: 54px; z-index: 56; max-height: calc(100vh - 54px); overflow-y: auto;
   background: var(--color-surface-card); color: var(--color-ink);
   border-bottom: 1px solid var(--color-border); box-shadow: var(--shadow-modal);
-  animation: ds-rise .18s ease-out backwards;
+  /* its frost and its unfolding: glass.css / motion.css */
 }
 .nav-sheet-link {
   display: block; padding: 13px 18px; font: 500 14px var(--font-body); color: var(--color-ink);
@@ -132,13 +150,9 @@
 }
 @media (max-width: 600px) {
   .app-header .user > form { display: none; } /* Log out lives in the sheet */
-  /* ≤600px this rule now governs only the LANGUAGE toggle (the entity
-     switcher left the header at 820px — see the module-bar block below). The
-     history matters: the entity strip is rigid (~307px EN) inside a
-     `flex: none` cluster, and it USED to push the whole PAGE sideways between
-     ~400 and ~555px (measured +48px at 480px); after ADR-054 made it four
-     segments the overflow band moved UP to ~601–645px (measured +44px at
-     601px EN) — which is why hiding it only ≤600 was no longer enough. */
+  /* ≤600px this rule governs the LANGUAGE and THEME toggles (the sheet carries
+     them below this width). The module switcher it once also hid is gone — the
+     launcher is the one way between apps. */
   .app-header .user > .switcher { display: none; }
 }
 .nav-item {
@@ -151,7 +165,9 @@
   background: color-mix(in srgb, var(--color-on-chrome) 14%, transparent); color: var(--color-on-chrome);
 }
 
-/* Entity switcher — dual-entity users only */
+/* The segmented control (.switcher / .switcher-seg): the language and theme
+   toggles, and the To-Do's company tabs. (The module and company SWITCHES that
+   first wore it are gone — one way to each page.) */
 .switcher {
   display: flex; gap: 2px; padding: 3px; border-radius: 9px; flex: none;
   background: var(--color-surface); border: 1px solid var(--color-border);
@@ -171,8 +187,8 @@
 /* The burger sheet is a light card in EVERY brand, but it lives INSIDE the
    header element — so the indigo-header overrides above used to bleed into it
    and paint its switcher segments near-white on the white sheet (the same
-   trap .nav-sheet-extras .nav-item already fixes for Log out). Re-ground both
-   sheet switchers (entity + language) on the card, at ≥44px touch size. */
+   trap .nav-sheet-extras .nav-item already fixes for Log out). Re-ground the
+   sheet's switchers (language + theme) on the card, at ≥44px touch size. */
 .app-header .nav-sheet-extras .switcher {
   background: var(--color-surface);
   border-color: var(--color-border);
@@ -219,75 +235,38 @@
   .login-inner .switcher-seg { min-block-size: 44px; min-inline-size: 44px; }
 }
 
-/* ADR-060 — the MODULE BAR: how switching works on a phone. The header pill
-   (.switcher-entity) is a rigid strip that overflowed every narrow band it was
-   ever allowed into (see the ≤600px comment above), so ≤820px it leaves the
-   header entirely and the shells render this full-width bar directly UNDER the
-   header instead: equal 1fr cells (they can NEVER overflow any viewport, at
-   any zoom, in either direction), ≥44px tall, one tap, with the current
-   module inverted on the primary. Single-entity users have no bar at all —
-   EntitySwitch returns null below two segments. Desktop is untouched. */
-.switcher--bar { display: none; }
-@media (max-width: 820px) {
-  .app-header .user > .switcher-entity { display: none; }
-  .switcher--bar {
-    display: grid;
-    grid-auto-flow: column;
-    grid-auto-columns: 1fr;
-    gap: 4px;
-    padding: 6px 12px;
-    border: none;
-    border-radius: 0;
-    border-block-end: 1px solid var(--color-border);
-    background: var(--color-surface-card);
-  }
-  .switcher--bar .switcher-seg {
-    min-block-size: 44px;
-    min-width: 0;
-    display: grid;
-    place-items: center;
-    padding-inline: 4px;
-    white-space: nowrap;
-    overflow: hidden;
-  }
-  /* below ~340px the longest labels (ACCOUNTING, BYTEFORCE, B-SYSTEMS —
-     measured clipping at 320px, clear at 390px) outgrow a 1fr cell; the cut
-     must be VISIBLE, never silent. text-overflow does not apply to a grid
-     container, so the ellipsis lives on the label span: overflow:hidden gives
-     the span a zero automatic minimum, letting it shrink to the cell. */
-  .switcher--bar .switcher-seg .switcher-label {
-    max-inline-size: 100%;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-}
-
-/* ADR-067 — THE COMPANY SWITCH. Deliberately NOT another bar.
-
-   The module bar above is full-bleed chrome under the header and answers
-   "which module". This answers "which company", so it must never be mistaken
-   for it: it sits INSIDE the page, on the light page ground, aligned with the
-   page content, and it is LABELLED — the label names the company you are on,
-   in words, so the current company never rides on colour alone (the founder:
-   "there is no confusion in it"). Zero new tokens: it reuses .switcher /
-   .switcher-seg exactly as they are, so the three-scope token law is untouched
-   and nothing here can break a brand that does not define a new variable. */
-.company-switch {
+/* ONE WAY TO EACH PAGE — the module bar (ADR-060) and the company switch
+   (ADR-067) are gone: the launcher is the one way between apps, and each CRM is
+   its own launcher app. What is left of the company switch is the TO-DO's
+   company tabs (CompanyTabs) — a filter on that one page, for an account that
+   works leads in both companies. Same anatomy as the switch it replaces: a
+   label that NAMES the current company in words (the founder: "no confusion in
+   it"), then the .switcher segments. Zero new tokens. */
+.company-tabs {
   display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px;
-  /* as little page height as a labelled control can honestly cost: it sits
-     above EVERY screen, and the board's columns are already measured against
-     the viewport (.col-cards caps at 62vh) */
-  margin-block-end: 12px;
 }
-.company-switch-label {
+.company-tabs-label {
+  margin: 0;
   font: 700 10.5px var(--font-mono); letter-spacing: .1em; text-transform: uppercase;
   color: var(--color-muted);
 }
-.company-switch-current { color: var(--color-ink); }
-.company-switch .switcher { background: var(--color-surface-card); }
-/* on a phone it stacks under the module bar with room to breathe — two strips,
-   two questions, never two guesses at the same one */
-@media (max-width: 820px) { .company-switch { margin-block-end: 10px; } }
+.company-tabs-current { color: var(--color-ink); }
+.company-tabs .switcher { background: var(--color-surface-card); }
+/* a thumb target on a touch screen and at phone width, both axes (the house
+   44px rule — the header's segments take the same). It is also the FLOOR the
+   phone grid below shrinks a cell to: never under 44px wide. */
+@media (max-width: 820px), (pointer: coarse) {
+  .company-tabs .switcher-seg {
+    min-block-size: 44px; min-inline-size: 44px;
+    display: inline-grid; place-items: center;
+  }
+}
+/* Arabic is a joined script: no tracking, no capitals, the body face (the
+   house rule for mono eyebrows — glass.css :lang(ar) .gl-eyebrow) */
+:lang(ar) .company-tabs-label {
+  letter-spacing: 0; text-transform: none;
+  font-family: var(--font-body); font-size: 12px;
+}
 
 .user { display: flex; align-items: center; gap: 9px; padding-inline-start: 6px; margin-inline-start: auto; flex: none; }
 .user-avatar {
@@ -570,7 +549,7 @@
 .col {
   flex: none; width: 250px; display: flex; flex-direction: column; border-radius: 12px; overflow: hidden;
   background: var(--stage-well, var(--color-surface-tint)); border: 1px solid transparent;
-  transition: background .12s ease, border-color .12s ease;
+  /* its transition: crm.css (inside the reduced-motion fence) */
 }
 .board[data-cols="6plus"] .col { width: 218px; }
 .col-bar { height: 3px; background: var(--stage-bar, var(--color-border)); flex: none; border-radius: 11px 11px 0 0; }
@@ -700,8 +679,8 @@
   background: var(--color-surface-card); border: 1px solid var(--color-board-card-border); border-radius: 10px; padding: 11px 12px;
   cursor: pointer; /* founder: the whole card opens the lead */
   color: var(--color-ink); font-family: var(--font-body);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05); /* fixed rest shadow, all brands (spec §1.4) */
-  transition: box-shadow .12s ease, transform .12s ease;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05); /* fixed rest shadow, all brands (spec §1.4) — crm.css restates it in tokens on screen */
+  /* its transition: crm.css (inside the reduced-motion fence) */
   position: relative; /* anchors the grip rail */
   /* Founder, on his phone: "when I try to scroll using the cards it drags the
      card... I cannot reach the leads under the column because I cannot
@@ -867,12 +846,14 @@ label:has(input[required]) .dropzone-title::after {
 .modal-overlay {
   position: fixed; inset: 0; z-index: 60;
   background: color-mix(in srgb, var(--color-surface-dark) 55%, transparent); backdrop-filter: blur(3px);
-  display: flex; align-items: center; justify-content: center; padding: 28px; animation: ds-fade-in .14s ease-out;
+  display: flex; align-items: center; justify-content: center; padding: 28px;
+  /* the frosted scrim and the fade: glass.css / motion.css */
 }
 .modal {
   width: min(680px, 100%); max-height: 90vh; display: flex; flex-direction: column; overflow: hidden;
   background: var(--color-surface-card); color: var(--color-ink); font-family: var(--font-body);
-  border-radius: calc(var(--radius-card) + 4px); box-shadow: var(--shadow-modal); animation: ds-pop-in .16s ease-out;
+  border-radius: calc(var(--radius-card) + 4px); box-shadow: var(--shadow-modal);
+  /* the glass bezel and the spring: glass.css / motion.css */
 }
 .modal-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 20px 24px 16px; border-bottom: 1px solid var(--color-border); flex: none; }
 .modal-eyebrow { font: 700 10px var(--font-mono); letter-spacing: .2em; color: var(--color-muted); text-transform: uppercase; }
@@ -914,7 +895,8 @@ label:has(input[required]) .dropzone-title::after {
   display: flex; align-items: center; gap: 11px; max-width: min(520px, 88vw);
   background: var(--color-toast-surface); color: var(--color-toast-ink);
   border-radius: 11px; padding: 13px 18px; font: 500 13px/1.45 var(--font-body);
-  box-shadow: var(--shadow-toast); animation: ds-toast-in .18s ease-out; pointer-events: auto;
+  box-shadow: var(--shadow-toast); pointer-events: auto;
+  /* frosted, and sliding in: glass.css / motion.css */
 }
 .toast-icon {
   width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center;
@@ -1157,47 +1139,20 @@ label:has(input[required]) .dropzone-title::after {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: none; }
 }
-/* fill-mode BACKWARDS, never both/forwards: a filling transform animation keeps
-   the element a containing block in Chromium, which traps position:fixed modals
-   rendered inside page content (they get clipped to the ancestor's box). With
-   backwards the animation releases the element the moment it finishes. */
-.page > * { animation: ds-rise .24s ease-out backwards; }
-.page > *:nth-child(2) { animation-delay: .04s; }
-.page > *:nth-child(3) { animation-delay: .08s; }
-.page > *:nth-child(n + 4) { animation-delay: .12s; }
-
-/* .bcard keeps its own tuned .12s transition (drag must track the cursor) */
-.tile, .ecard, .card, .action-pill, .hub-card,
-.btn-primary, .btn-ghost, .btn-danger, .btn-accent,
-.nav-item, .switcher-seg, .bell, .row-toggle, .field-input, .dropzone,
-.call-cta, .card-dial {
-  transition:
-    background-color .15s ease, border-color .15s ease, color .15s ease,
-    box-shadow .18s ease, transform .18s ease, opacity .15s ease;
-}
-/* A12 / D18 (dashboard spec) — a tile is not a link, so it no longer LIFTS on
-   hover anywhere (the vault, the daily report, the import result): a lift
-   promises a click that does nothing. Entity cards (.ecard) are links and keep
-   it. The accounting dashboard is untouched (D16): its KPIs are .acct-kpi,
-   which never lifted. The Home's own cards lift only when they are links
-   (a.db-card, dashboard.css). */
-.ecard:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-card), 0 10px 26px color-mix(in srgb, var(--color-surface-dark) 8%, transparent);
-}
-.bcard:hover { box-shadow: 0 4px 14px rgba(0, 0, 0, 0.09); }
-.btn-primary:active, .btn-ghost:active, .btn-accent:active, .btn-danger:active,
-.action-pill:active, .nav-item:active, .switcher-seg:active { transform: scale(.97); }
-.field-input:focus { border-color: var(--color-primary); }
-.table tbody tr { transition: background-color .12s ease; }
-.stage-cell, .fields-cell { transition: background-color .15s ease; }
+/* THE FRAME'S MOTION MOVED to src/themes/motion.css (the system-wide glass +
+   motion pass): the page entrance, the house transition list, the hover lift
+   of entity cards, the press feedback and the field focus — all of it now
+   inside @media (prefers-reduced-motion: no-preference), on the motion
+   tokens. Its fill-mode lesson travelled with it: BACKWARDS, never
+   both/forwards — a filling transform animation keeps the element a
+   containing block in Chromium, which traps position:fixed modals rendered
+   inside page content. What stays here is the page bodies' own motion. */
+/* THE CRM BODIES' MOTION MOVED to src/themes/crm.css (the CRM body pass):
+   the board card's hover, the row and cell transitions, the milestone rows
+   and the History timeline's rise — inside the reduced-motion fence, on the
+   motion tokens, and the hover under (hover: hover). */
+.stage-cell { transition: background-color .15s ease; }
 .stage-cell:hover { background: var(--color-surface); }
-.ms-row { transition: background-color .15s ease, border-color .15s ease; }
-.bell-menu, .bell-menu > * { animation: ds-pop-in .16s ease-out both; }
-.tl-row { animation: ds-rise .22s ease-out backwards; }
-.tl-row:nth-child(2) { animation-delay: .03s; }
-.tl-row:nth-child(3) { animation-delay: .06s; }
-.tl-row:nth-child(n + 4) { animation-delay: .09s; }
 
 /* dashboard-specific motion (founder: "animate the dashboard, enhance it") */
 @keyframes ds-grow-x {
@@ -1230,7 +1185,7 @@ label:has(input[required]) .dropzone-title::after {
 .tile-grid--vary .tile:nth-child(4n + 3) .tile-dot { background: var(--color-accent); }
 .tile-grid--vary .tile:nth-child(4n + 4) .tile-dot { background: var(--color-stage-meeting-accent); }
 
-.bell-count { animation: ds-pulse-ring 2.4s ease-out infinite; }
+/* .bell-count's pulse: motion.css (inside the reduced-motion fence) */
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
@@ -1259,7 +1214,6 @@ label:has(input[required]) .dropzone-title::after {
   border-radius: 22px; padding-block: 9px; padding-inline: 12px 15px; /* icon side tighter — mirrors under RTL */
   background: var(--color-toast-surface); color: var(--color-toast-ink); border: none;
   box-shadow: var(--shadow-toast); font: 600 12.5px var(--font-body);
-  animation: ds-rise .2s ease-out backwards;
 }
 /* lift by mixing the ink INTO the surface: a brightness filter is invisible on
    a near-black token, and the mix stays token-driven for both brands */
@@ -1372,7 +1326,7 @@ label:has(input[required]) .dropzone-title::after {
 .filter-toggle::after {
   content: ""; width: 7px; height: 7px; margin-inline-start: auto; flex: none;
   border-inline-end: 1.5px solid currentColor; border-block-end: 1.5px solid currentColor;
-  transform: translateY(-2px) rotate(45deg); transition: transform .15s ease;
+  transform: translateY(-2px) rotate(45deg);
 }
 .filter-toggle[aria-expanded="true"]::after { transform: translateY(2px) rotate(-135deg); }
 /* The caret is GLYPH geometry, not layout: with border-inline-end resolving to
@@ -1457,7 +1411,7 @@ label:has(input[required]) .dropzone-title::after {
   font: 600 16px var(--font-body); text-decoration: none; text-align: center;
 }
 .call-cta:hover { background: color-mix(in srgb, var(--color-ink) 10%, var(--color-primary)); }
-.call-cta:active { transform: scale(.98); }
+/* .call-cta's press: crm.css (inside the reduced-motion fence) */
 /* the WhatsApp sibling (founder: "message on WhatsApp" beside every Call) —
    outlined in link ink like the boards' dial chip, so the filled primary
    button stays the sheet's one true action. Neutral UNTIL MARKED: there is no
@@ -1656,7 +1610,7 @@ label:has(input[required]) .dropzone-title::after {
   border-block-start: 1px solid var(--color-hairline);
   background: var(--color-surface-card);
   text-align: start; cursor: pointer; font: inherit;
-  transition: background-color .12s ease;
+  /* its transition: crm.css (inside the reduced-motion fence) */
 }
 .cal-cell:nth-child(7n) { border-inline-end: 0; }
 .cal-cell:hover { background: color-mix(in srgb, var(--color-surface-card) 93%, var(--color-primary)); }
@@ -1777,36 +1731,34 @@ label:has(input[required]) .dropzone-title::after {
   .cal-row-time { min-width: 100%; }
 }
 
-/* ADR-073 — THE COMPANY SWITCH MUST NOT GROW WIDER THAN THE SCREEN.
+/* ADR-073 — THE COMPANY TABS MUST NOT GROW WIDER THAN THE SCREEN (the rule
+   was written for the company switch, which the To-Do's tabs replace).
 
-   `.switcher` is `flex: none`, which was fine while this control held two
-   segments: two mono, letter-spaced labels fit the 320px floor. A THIRD company
-   pushed it to 43px of horizontal page overflow at the narrow end — the exact
-   failure ADR-060 solved for the module bar, arriving at the other switcher a
-   merge later.
-
-   So it takes the module bar's answer: below the phone breakpoint the segments
-   become EQUAL 1fr CELLS of a full-width grid, which cannot overflow any
-   viewport at any zoom no matter how many companies exist. A fourth company
-   makes the cells narrower; it can never make the page scroll sideways.
+   `.switcher` is `flex: none`. ADR-073 measured a third company pushing the
+   old switch to 43px of horizontal page overflow at the narrow end, so below
+   the phone breakpoint the segments become EQUAL 1fr CELLS of a full-width
+   grid, which cannot overflow any viewport at any zoom however many companies
+   there are — more companies make the cells narrower, never the page wider.
 
    The label span carries the ellipsis, not the segment: `text-overflow` never
-   applies to a grid item, only to the block box whose text actually overflows —
-   the same structural point module-bar.spec.ts pins for the bar. */
+   applies to a grid item, only to the block box whose text actually
+   overflows. */
 @media (max-width: 820px) {
-  .company-switch .switcher {
+  .company-tabs { inline-size: 100%; }
+  .company-tabs .switcher {
     display: grid;
     grid-auto-flow: column;
     grid-auto-columns: 1fr;
     width: 100%;
   }
-  .company-switch .switcher-seg {
-    min-inline-size: 0; /* without this a grid item refuses to shrink below its content */
+  .company-tabs .switcher-seg {
+    /* the 44px floor above lets a grid item shrink below its content (an
+       automatic minimum would refuse to); a 1fr cell is ~140px at 320px */
     display: grid;
     place-items: center;
     padding-inline: 6px;
   }
-  .company-switch .switcher-label {
+  .company-tabs .switcher-label {
     display: block;
     max-inline-size: 100%;
     overflow: hidden;
@@ -1831,9 +1783,10 @@ label:has(input[required]) .dropzone-title::after {
    statement is light whatever the screen wears (the token blocks' contract,
    swept by src/lib/theme/theme-stamp.sweep.test.ts).
 
-   TWO BLOCKS, ONE TEXT: "dark" below, and "system" under a dark OS after it.
-   They must stay identical except for that one word — enforced by
-   src/lib/theme/dark-components.test.ts. Tokens only, no literal colour (the
+   ONE BLOCK: "dark" below. There used to be a "system" twin under a dark OS;
+   the founder removed that option ("remove the system theme option",
+   amending ADR-087), and src/lib/theme/dark-components.test.ts now fails if
+   a data-theme="system" rule returns. Tokens only, no literal colour (the
    same test).
 
    data-brand sits on <html> in the CRM and on an inner wrapper in the
@@ -1844,8 +1797,8 @@ label:has(input[required]) .dropzone-title::after {
   /* THE INDIGO HEADER'S ACTIVE PILL. Light inverts it: a white (card) pill with
      indigo (primary) text. In dark the card is #1F1F50 on a #1D267D header — a
      pill nobody can see — so it takes the dark theme's own action pair,
-     Lavender / Indigo Deep (9.72:1), the same pair the page's company switch
-     wears. The burger sheet's segments resolve to the same pair, as before. */
+     Lavender / Indigo Deep (9.72:1), the same pair the To-Do's company tabs
+     wear. The burger sheet's segments resolve to the same pair, as before. */
   html[data-theme="dark"][data-brand="bsystems"] .app-header .switcher-seg:is([aria-current], [aria-pressed="true"]),
   html[data-theme="dark"] [data-brand="bsystems"] .app-header .switcher-seg:is([aria-current], [aria-pressed="true"]) {
     background: var(--color-primary); color: var(--color-on-primary);
@@ -1906,51 +1859,17 @@ label:has(input[required]) .dropzone-title::after {
   }
 }
 
-/* "system" + a dark OS — the SAME rules as the block above, verbatim but for
-   the theme word (comments aside). src/lib/theme/dark-components.test.ts
-   compares the two. */
-@media screen and (prefers-color-scheme: dark) {
-  html[data-theme="system"][data-brand="bsystems"] .app-header .switcher-seg:is([aria-current], [aria-pressed="true"]),
-  html[data-theme="system"] [data-brand="bsystems"] .app-header .switcher-seg:is([aria-current], [aria-pressed="true"]) {
-    background: var(--color-primary); color: var(--color-on-primary);
-  }
-  html[data-theme="system"] .bcard { box-shadow: none; }
-  html[data-theme="system"] .bcard:hover { border-color: var(--color-border-control); }
-  html[data-theme="system"] .bcard.bcard--lift {
-    background: var(--color-surface-tint);
-    border-color: var(--stage-bar, var(--color-primary));
-    box-shadow: var(--shadow-lift);
-    opacity: 1;
-  }
-  html[data-theme="system"] .modal-overlay { background: color-mix(in srgb, var(--color-surface-dark) 78%, transparent); }
-  html[data-theme="system"] .modal { box-shadow: var(--shadow-modal), 0 0 0 1px var(--color-border); }
-  html[data-theme="system"] .nav-sheet-backdrop { background: color-mix(in srgb, var(--color-surface-dark) 70%, transparent); }
-  html[data-theme="system"] .acct-hero {
-    box-shadow: var(--shadow-card), 0 0 0 1px var(--color-border);
-    background-color: var(--color-surface-dark);
-  }
-  html[data-theme="system"] .ms-row--locked { opacity: .85; }
-  html[data-theme="system"] .brand-logo--plate {
-    box-sizing: content-box;
-    padding: 4px 7px;
-    border-radius: var(--radius-control);
-    background: var(--color-toast-surface);
-  }
-}
-
 /* Touch targets in the app headers, measured by e2e/device-sweep.spec.ts on
    real phone and tablet profiles (the founder's "complete round of testing …
    for a phone interface and a tablet interface"):
-   · ≤820px the wordmark hides and the B-Systems "S" mark alone left its home
-     link 23px wide — the link keeps a 44px thumb target around the mark;
+   · the brand mark is NOT a target any more — a plain mark (one way to each
+     page: the grid icon is the way back to the launcher), so it takes no
+     44px box;
    · on a touch screen the header's language and theme switches (601px and up,
      where they stay in the header rather than the sheet) were 26px tall — they
      take the house 44px (44 + the switcher's 6px padding + 2px border = 52px,
      inside the header's 54px). The sheet's own ≥44px rule above is more
      specific and still wins inside the sheet. */
-@media (max-width: 820px), (pointer: coarse) {
-  .app-header .app-home-link { min-inline-size: 44px; min-block-size: 44px; justify-content: center; }
-}
 @media (pointer: coarse) {
   .app-header .switcher-seg { min-block-size: 44px; min-inline-size: 44px; }
   /* the nav links and the header's Log out (31px), and the slider's chevrons

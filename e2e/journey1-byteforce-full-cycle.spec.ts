@@ -67,9 +67,12 @@ test("journey 1: ByteForce full cycle to Won", async ({ page }) => {
   await page.getByRole("button", { name: "Save & move" }).click();
   await expect(page.getByRole("heading", { level: 1 }).getByText("Following Up")).toBeVisible();
 
-  /* Next action: Meeting setting (T-2), arranged with datetime. */
+  /* Next action: Meeting setting (T-2). ADR-096 — no "Arranged?" step and no
+     Technical support field: the form asks for the meeting itself. */
   await page.getByLabel("Next action").selectOption("meeting_setting");
-  await page.getByText("Arranged?").click();
+  await expect(page.getByText("Arranged?")).toHaveCount(0);
+  await expect(page.getByLabel("Technical support")).toHaveCount(0);
+  await expect(page.getByLabel("Date", { exact: true })).toHaveAttribute("required", "");
   await page.getByLabel("Date", { exact: true }).fill("2026-09-03");
   await page.getByLabel("Time", { exact: true }).fill("14:00");
   await page.getByLabel("Mode").selectOption("online");

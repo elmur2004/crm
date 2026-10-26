@@ -10,6 +10,8 @@ import { acctView } from "@/lib/accounting/params";
 import { moduleCompaniesFor } from "@/lib/module-companies";
 import { AcctChip, AcctHead, AcctTile } from "@/components/accounting/AcctHead";
 import { AddIncomeButton, IncomeActions } from "@/components/accounting/forms";
+import { ModSwap } from "@/components/accounting/module-ui";
+import { ModEmpty } from "@/components/accounting/module-art";
 
 /* ADR-052 — income (cash basis): a row shows under its issue month, and — once
    collected — under the month the cash landed (exactly the SPA's filter). */
@@ -43,7 +45,7 @@ export default async function AcctIncomePage({
     x in ACCT_INCOME_TYPE_LABELS ? t(ACCT_INCOME_TYPE_LABELS[x as AcctIncomeType]) : x;
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-5 mod-page">
       <AcctHead
         view={view}
         locale={locale}
@@ -54,69 +56,72 @@ export default async function AcctIncomePage({
       <div className="page-actions">
         <AddIncomeButton company={view.company} month={view.month} />
       </div>
-      <div className="tile-grid">
-        <AcctTile label={t(acct.collectedThisMonth)} value={formatEGP(collected)} tone="success" />
-        <AcctTile label={t(acct.pendingReceivable)} value={formatEGP(pending)} />
-      </div>
-      <section className="card card--flush0">
-        {rows.length === 0 ? (
-          <p className="empty m-4">{t(acct.noIncome)}</p>
-        ) : (
-          <div className="table-scroll">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>{t(acct.type)}</th>
-                  <th>{t(acct.client)}</th>
-                  <th>{t(acct.department)}</th>
-                  <th>{t(acct.note)}</th>
-                  <th>{t(acct.amount)}</th>
-                  <th>{t(acct.collectedOn)}</th>
-                  <th>{t(acct.status)}</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((i) => (
-                  <tr key={i.id}>
-                    <td>{typeLabel(i.type)}</td>
-                    <td className="td-title">{i.client || "—"}</td>
-                    <td>
-                      <span className="chip-outline">{deptLabel(i.serviceLine)}</span>
-                    </td>
-                    <td className="td-mono">{i.note || "—"}</td>
-                    <td className="td-title">{formatEGP(i.amount)}</td>
-                    <td className="td-mono u-ltr">{i.collectedDate ?? "—"}</td>
-                    <td>
-                      {i.collected ? (
-                        <AcctChip kind="good">{t(acct.collected)}</AcctChip>
-                      ) : (
-                        <AcctChip kind="wait">{t(acct.pendingStatus)}</AcctChip>
-                      )}
-                    </td>
-                    <td>
-                      <IncomeActions
-                        row={{
-                          id: i.id,
-                          month: i.month,
-                          type: i.type,
-                          client: i.client,
-                          serviceLine: i.serviceLine,
-                          amount: i.amount,
-                          note: i.note,
-                          collected: i.collected,
-                          collectedDate: i.collectedDate,
-                        }}
-                        company={view.company}
-                      />
-                    </td>
+      {/* the month's data: a new month / company cross-fades in (ModSwap) */}
+      <ModSwap swapKey={`${view.company}|${view.month}`} className="space-y-5">
+        <div className="tile-grid">
+          <AcctTile label={t(acct.collectedThisMonth)} amount={collected} tone="success" />
+          <AcctTile label={t(acct.pendingReceivable)} amount={pending} />
+        </div>
+        <section className="card card--flush0">
+          {rows.length === 0 ? (
+            <ModEmpty kind="coins">{t(acct.noIncome)}</ModEmpty>
+          ) : (
+            <div className="table-scroll">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>{t(acct.type)}</th>
+                    <th>{t(acct.client)}</th>
+                    <th>{t(acct.department)}</th>
+                    <th>{t(acct.note)}</th>
+                    <th>{t(acct.amount)}</th>
+                    <th>{t(acct.collectedOn)}</th>
+                    <th>{t(acct.status)}</th>
+                    <th></th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
+                </thead>
+                <tbody>
+                  {rows.map((i) => (
+                    <tr key={i.id}>
+                      <td>{typeLabel(i.type)}</td>
+                      <td className="td-title">{i.client || "—"}</td>
+                      <td>
+                        <span className="chip-outline">{deptLabel(i.serviceLine)}</span>
+                      </td>
+                      <td className="td-mono">{i.note || "—"}</td>
+                      <td className="td-title">{formatEGP(i.amount)}</td>
+                      <td className="td-mono u-ltr">{i.collectedDate ?? "—"}</td>
+                      <td>
+                        {i.collected ? (
+                          <AcctChip kind="good">{t(acct.collected)}</AcctChip>
+                        ) : (
+                          <AcctChip kind="wait">{t(acct.pendingStatus)}</AcctChip>
+                        )}
+                      </td>
+                      <td>
+                        <IncomeActions
+                          row={{
+                            id: i.id,
+                            month: i.month,
+                            type: i.type,
+                            client: i.client,
+                            serviceLine: i.serviceLine,
+                            amount: i.amount,
+                            note: i.note,
+                            collected: i.collected,
+                            collectedDate: i.collectedDate,
+                          }}
+                          company={view.company}
+                        />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      </ModSwap>
     </div>
   );
 }

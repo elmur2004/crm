@@ -7,19 +7,21 @@ import path from "node:path";
    Founder: "create an entire dark mode for the entire system".
 
    The dark theme is ADDED blocks only (the light theme must render exactly as
-   before), keyed off <html data-theme="light" | "dark" | "system"> — see
+   before), keyed off <html data-theme="light" | "dark"> — see
    src/lib/theme/core.ts. Each of the three scopes carries:
 
      @media screen { html[data-theme="dark"][data-brand="X"],
                      html[data-theme="dark"] [data-brand="X"] { …dark… } }
-     @media screen and (prefers-color-scheme: dark) {
-                     html[data-theme="system"][data-brand="X"],
-                     html[data-theme="system"] [data-brand="X"] { …same… } }
+
+   Founder (amending ADR-087): "remove the system theme option". The third
+   value — "system", resolved by a prefers-color-scheme twin of every dark
+   block — is gone, and this file now fails the build if a data-theme="system"
+   selector, or any prefers-color-scheme query, comes back to an app sheet.
 
    What this file guards, and why each one is a real failure mode:
    · a LIGHT token with no DARK counterpart silently renders light-on-dark;
    · a DARK-only token resolves to nothing under the light theme;
-   · the dark and the system blocks are hand-duplicated — they WILL drift;
+   · a retired "system" twin left behind is dead CSS that WILL drift;
    · a dark rule outside `@media screen` turns a printed statement dark;
    · without `color-scheme: dark` the native controls stay glaring white;
    · contrast is ARITHMETIC here, not a comment — an edit that breaks a pair
@@ -43,7 +45,6 @@ const SCOPES: Scope[] = [
 ];
 
 const DARK_MEDIA = "screen";
-const SYSTEM_MEDIA = "screen and (prefers-color-scheme: dark)";
 
 /* ---------------------------------------------------------------- parsing */
 
@@ -177,20 +178,19 @@ function resolver(scope: Scope) {
 /* ======================================================================== */
 
 describe("dark mode: the blocks exist, in the contracted shape", () => {
-  it.each(SCOPES)("$name: one light block, one dark block, one system block", (scope) => {
+  it.each(SCOPES)("$name: one light block, one dark block — and no system block", (scope) => {
     const { light, dark, system } = blocks(scope);
     expect(light, "light block").toHaveLength(1);
     expect(dark, `dark block (${darkSelectors(scope.brand, "dark").join(", ")})`).toHaveLength(1);
-    expect(system, "system block").toHaveLength(1);
+    expect(system, "the retired system block (founder: remove the system theme option)").toHaveLength(0);
   });
 
   /* The ADR-054 law: data-brand is ALSO re-stamped on inner wrappers, so a
      block that matched only `html[...][data-brand]` would leave every
      re-branded accounting / vault module light inside a dark page. */
-  it.each(SCOPES)("$name: each block matches BOTH the <html> and the inner-wrapper shape", (scope) => {
-    const { dark, system } = blocks(scope);
+  it.each(SCOPES)("$name: the dark block matches BOTH the <html> and the inner-wrapper shape", (scope) => {
+    const { dark } = blocks(scope);
     expect(dark[0]!.selectors).toEqual(darkSelectors(scope.brand, "dark"));
-    expect(system[0]!.selectors).toEqual(darkSelectors(scope.brand, "system"));
   });
 });
 
@@ -228,24 +228,32 @@ describe("dark mode: complete — no light-only and no dark-only token", () => {
   });
 });
 
-describe("dark mode: the dark and the system blocks are identical", () => {
-  /* Generalised over EVERY rule that names a theme — not just the token
-     blocks — so neutral.css's hub/login twins are held to it too. */
-  it.each(SCOPES)("$name: every data-theme=dark rule has a byte-identical system twin", (scope) => {
-    const { rules } = blocks(scope);
-    const key = (r: Rule, theme: string) =>
-      r.selectors.map((x) => x.replaceAll(`data-theme="${theme}"`, "data-theme=*")).join(", ");
-    const dark = new Map(
-      rules.filter((r) => r.selectors.some((x) => x.includes('data-theme="dark"'))).map((r) => [key(r, "dark"), r.decls]),
-    );
-    const system = new Map(
-      rules.filter((r) => r.selectors.some((x) => x.includes('data-theme="system"'))).map((r) => [key(r, "system"), r.decls]),
-    );
-    expect(dark.size).toBeGreaterThan(0);
-    expect([...system.keys()].sort()).toEqual([...dark.keys()].sort());
-    for (const [k, decls] of dark) {
-      expect(system.get(k), `system twin of ${k}`).toEqual(decls);
-    }
+/* THE "SYSTEM" THEME IS GONE (founder: "remove the system theme option",
+   amending ADR-087). Two themes; nothing answers to the OS. Held over EVERY
+   stylesheet the app documents load — the token files, every src/themes sheet
+   but the landing's (which never stamps a theme) and globals.css — so a
+   system twin pasted back anywhere fails here, not in production. */
+const APP_SHEETS = [
+  "branding/byteforce/tokens.css",
+  "branding/b-systems/tokens.css",
+  "src/themes/neutral.css",
+  "src/themes/design-system.css",
+  "src/themes/dashboard.css",
+  "src/themes/launcher.css",
+  "src/themes/login.css",
+  "src/themes/glass.css",
+  "src/themes/motion.css",
+  "src/app/globals.css",
+];
+
+describe('dark mode: there is no "system" theme any more', () => {
+  it.each(APP_SHEETS)("%s: no data-theme=\"system\" selector", (file) => {
+    const selectors = parse(read(file)).flatMap((r) => r.selectors);
+    expect(selectors.filter((s) => /data-theme\s*=\s*["']?system/.test(s))).toEqual([]);
+  });
+
+  it.each(APP_SHEETS)("%s: no prefers-color-scheme query (the OS no longer chooses the theme)", (file) => {
+    expect(stripComments(read(file))).not.toMatch(/prefers-color-scheme/);
   });
 });
 
@@ -260,15 +268,12 @@ describe("dark mode: print is ALWAYS light", () => {
     for (const r of themed) {
       const sel = r.selectors.join(", ");
       if (sel.includes('data-theme="dark"')) expect(r.media, sel).toEqual([DARK_MEDIA]);
-      else if (sel.includes('data-theme="system"')) expect(r.media, sel).toEqual([SYSTEM_MEDIA]);
-      else throw new Error(`unexpected theme selector ${sel} — light is the default and needs no rule`);
+      else throw new Error(`unexpected theme selector ${sel} — light is the default and needs no rule, and "system" is retired`);
     }
   });
 
-  it.each(SCOPES)("$name: no prefers-color-scheme query without the screen guard", (scope) => {
-    const media = stripComments(read(scope.file)).match(/@media[^{]*prefers-color-scheme[^{]*\{/g) ?? [];
-    expect(media.length).toBeGreaterThan(0);
-    for (const m of media) expect(m.replace(/\s+/g, " ")).toMatch(/^@media screen and \(prefers-color-scheme: dark\) \{$/);
+  it.each(SCOPES)("$name: no prefers-color-scheme query at all (the retired system theme)", (scope) => {
+    expect(stripComments(read(scope.file)).match(/@media[^{]*prefers-color-scheme[^{]*\{/g) ?? []).toEqual([]);
   });
 
   /* and every theme selector is anchored on <html> — the only element the
@@ -277,7 +282,7 @@ describe("dark mode: print is ALWAYS light", () => {
   it.each(SCOPES)("$name: every theme selector is anchored on html[data-theme]", (scope) => {
     for (const r of blocks(scope).rules) {
       for (const sel of r.selectors) {
-        if (sel.includes("data-theme")) expect(sel, sel).toMatch(/^html\[data-theme="(dark|system)"\]/);
+        if (sel.includes("data-theme")) expect(sel, sel).toMatch(/^html\[data-theme="dark"\]/);
       }
     }
   });
@@ -294,11 +299,9 @@ describe("dark mode: print is ALWAYS light", () => {
 });
 
 describe("dark mode: native controls go dark too", () => {
-  it.each(SCOPES)("$name: color-scheme: dark in the dark AND the system block", (scope) => {
-    const { dark, system } = blocks(scope);
-    for (const b of [dark[0]!, system[0]!]) {
-      expect(toMap(b.decls).get("color-scheme"), b.selectors.join(", ")).toBe("dark");
-    }
+  it.each(SCOPES)("$name: color-scheme: dark in the dark block", (scope) => {
+    const { dark } = blocks(scope);
+    expect(toMap(dark[0]!.decls).get("color-scheme"), dark[0]!.selectors.join(", ")).toBe("dark");
   });
 });
 
@@ -568,10 +571,9 @@ describe("the dashboard tokens (dashboard spec §5.1)", () => {
   });
 
   it.each(SCOPES)("$name: --radius-panel is theme-invariant (light block only)", (scope) => {
-    const { light, dark, system } = blocks(scope);
+    const { light, dark } = blocks(scope);
     expect(toMap(light[0]!.decls).get("--radius-panel")).toMatch(/^\d+px$/);
     expect(toMap(dark[0]!.decls).has("--radius-panel")).toBe(false);
-    expect(toMap(system[0]!.decls).has("--radius-panel")).toBe(false);
   });
 
   it("b-systems: the chart cap is never Signal Pink and never pure white or black", () => {

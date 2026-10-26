@@ -10,6 +10,8 @@ import { acctQuery, acctView } from "@/lib/accounting/params";
 import { moduleCompaniesFor } from "@/lib/module-companies";
 import { AcctHead } from "@/components/accounting/AcctHead";
 import { MediaButtons } from "@/components/accounting/forms";
+import { ModSwap } from "@/components/accounting/module-ui";
+import { ModEmpty } from "@/components/accounting/module-art";
 
 /* ADR-052 — media pass-through. HIDDEN ENTIRELY for company=bsystems (founder
    decision 5): the tab is not rendered and this URL bounces to the dashboard. */
@@ -45,7 +47,7 @@ export default async function AcctMediaPage({
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-5 mod-page">
       <AcctHead
         view={view}
         locale={locale}
@@ -56,42 +58,44 @@ export default async function AcctMediaPage({
       <div className="page-actions">
         <MediaButtons company={view.company} month={view.month} />
       </div>
-      <section className="card card--flush0">
-        <div className="card-head">
-          <h2 className="u-h3">{t(acct.perClientLedger)}</h2>
-        </div>
-        {byClient.size === 0 ? (
-          <p className="empty m-4">{t(acct.noMedia)}</p>
-        ) : (
-          <div className="table-scroll">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>{t(acct.client)}</th>
-                  <th>{t(acct.received)}</th>
-                  <th>{t(acct.agencyFeeIncome)}</th>
-                  <th>{t(acct.sentToBuyer)}</th>
-                  <th>{t(acct.stillHeld)}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {[...byClient.entries()].map(([client, g]) => {
-                  const held = g.received - g.fee - g.sent;
-                  return (
-                    <tr key={client}>
-                      <td className="td-title">{client}</td>
-                      <td>{formatEGP(g.received)}</td>
-                      <td className="text-brand-success">{formatEGP(g.fee)}</td>
-                      <td>{formatEGP(g.sent)}</td>
-                      <td className={`td-title ${held < 0 ? "text-brand-danger" : ""}`}>{formatEGP(held)}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+      <ModSwap swapKey={`${view.company}|${view.month}`}>
+        <section className="card card--flush0">
+          <div className="card-head">
+            <h2 className="u-h3">{t(acct.perClientLedger)}</h2>
           </div>
-        )}
-      </section>
+          {byClient.size === 0 ? (
+            <ModEmpty kind="ledger">{t(acct.noMedia)}</ModEmpty>
+          ) : (
+            <div className="table-scroll">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>{t(acct.client)}</th>
+                    <th>{t(acct.received)}</th>
+                    <th>{t(acct.agencyFeeIncome)}</th>
+                    <th>{t(acct.sentToBuyer)}</th>
+                    <th>{t(acct.stillHeld)}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[...byClient.entries()].map(([client, g]) => {
+                    const held = g.received - g.fee - g.sent;
+                    return (
+                      <tr key={client}>
+                        <td className="td-title">{client}</td>
+                        <td>{formatEGP(g.received)}</td>
+                        <td className="text-brand-success">{formatEGP(g.fee)}</td>
+                        <td>{formatEGP(g.sent)}</td>
+                        <td className={`td-title ${held < 0 ? "text-brand-danger" : ""}`}>{formatEGP(held)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      </ModSwap>
     </div>
   );
 }

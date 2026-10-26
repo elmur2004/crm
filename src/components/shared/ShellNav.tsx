@@ -6,10 +6,11 @@ import { usePathname } from "next/navigation";
 import { useLocale } from "@/components/shared/LocaleProvider";
 import { tFor } from "@/lib/i18n/core";
 import { shell } from "@/lib/i18n/dict/auth";
+import { usePresence } from "@/components/shared/usePresence";
 
 /* Design-system nav (spec §2.1) — desktop: inline items; small screens (≤820px):
    a menu button opening a full-width sheet with tap-friendly rows. `extras`
-   (entity switcher, log out) render inside the sheet too, so every control
+   (language, theme, log out) render inside the sheet too, so every control
    stays reachable however tight the screen gets.
 
    Founder (screenshot: "Registrations" cut to "Regi"): the desktop strip used
@@ -19,7 +20,12 @@ import { shell } from "@/lib/i18n/dict/auth";
    every header ground — white, indigo, the module brands). All the math is
    LOGICAL start/end — |scrollLeft| is the distance from the inline start in
    both directions — so Arabic works unchanged. The active item is brought
-   into view on navigation: the page you are ON is never the hidden one. */
+   into view on navigation: the page you are ON is never the hidden one.
+
+   An app with NO menu (the To-Do, the Reports pages, the data-entry page —
+   one way to each page) passes no items: no strip and no empty navigation
+   landmark render, and the burger still opens the sheet on a phone, because
+   the sheet is where the language, the theme and Log out live there. */
 
 export function ShellNav({
   items,
@@ -33,6 +39,9 @@ export function ShellNav({
   const t = tFor(useLocale());
   const stripRef = useRef<HTMLElement | null>(null);
   const [fade, setFade] = useState({ start: false, end: false });
+  /* the sheet keeps itself for its exit (motion.css [data-closing]); while it
+     leaves it is inert and hidden from the accessibility tree */
+  const sheet = usePresence(open);
 
   /* longest matching href wins so /b-systems doesn't stay active on /b-systems/crm.
      Module navs carry ?company=&month= on every item (the view survives
@@ -115,46 +124,48 @@ export function ShellNav({
 
   return (
     <>
-      <div
-        className="nav-strip nav-desktop"
-        data-fade={
-          fade.start && fade.end ? "both" : fade.start ? "start" : fade.end ? "end" : undefined
-        }
-      >
-        {fade.start ? (
-          <button
-            type="button"
-            className="nav-scroll nav-scroll--start"
-            aria-label={t(shell.navScrollBack)}
-            onClick={() => slide(-1)}
-          >
-            {/* the glyph points toward the LOGICAL start */}
-            <span className="inline-block -scale-x-100 rtl:scale-x-100">{chevron}</span>
-          </button>
-        ) : null}
-        <nav className="app-nav" ref={stripRef} onScroll={measure}>
-          {items.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className="nav-item"
-              aria-current={item.href === active ? "page" : undefined}
+      {items.length > 0 ? (
+        <div
+          className="nav-strip nav-desktop"
+          data-fade={
+            fade.start && fade.end ? "both" : fade.start ? "start" : fade.end ? "end" : undefined
+          }
+        >
+          {fade.start ? (
+            <button
+              type="button"
+              className="nav-scroll nav-scroll--start"
+              aria-label={t(shell.navScrollBack)}
+              onClick={() => slide(-1)}
             >
-              {item.label}
-            </Link>
-          ))}
-        </nav>
-        {fade.end ? (
-          <button
-            type="button"
-            className="nav-scroll nav-scroll--end"
-            aria-label={t(shell.navScrollForward)}
-            onClick={() => slide(1)}
-          >
-            <span className="inline-block rtl:-scale-x-100">{chevron}</span>
-          </button>
-        ) : null}
-      </div>
+              {/* the glyph points toward the LOGICAL start */}
+              <span className="inline-block -scale-x-100 rtl:scale-x-100">{chevron}</span>
+            </button>
+          ) : null}
+          <nav className="app-nav" ref={stripRef} onScroll={measure}>
+            {items.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className="nav-item"
+                aria-current={item.href === active ? "page" : undefined}
+              >
+                {item.label}
+              </Link>
+            ))}
+          </nav>
+          {fade.end ? (
+            <button
+              type="button"
+              className="nav-scroll nav-scroll--end"
+              aria-label={t(shell.navScrollForward)}
+              onClick={() => slide(1)}
+            >
+              <span className="inline-block rtl:-scale-x-100">{chevron}</span>
+            </button>
+          ) : null}
+        </div>
+      ) : null}
 
       <button
         type="button"
@@ -179,10 +190,21 @@ export function ShellNav({
         </svg>
       </button>
 
-      {open ? (
+      {sheet.mounted ? (
         <>
-          <div className="nav-sheet-backdrop" onClick={() => setOpen(false)} aria-hidden />
-          <div className="nav-sheet" role="menu">
+          <div
+            className="nav-sheet-backdrop"
+            onClick={() => setOpen(false)}
+            aria-hidden
+            data-closing={sheet.closing ? "" : undefined}
+          />
+          <div
+            className="nav-sheet"
+            role="menu"
+            data-closing={sheet.closing ? "" : undefined}
+            inert={sheet.closing}
+            aria-hidden={sheet.closing || undefined}
+          >
             {items.map((item) => (
               <Link
                 key={item.href}

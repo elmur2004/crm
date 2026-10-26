@@ -225,6 +225,40 @@
   --color-chart-2: var(--bf-orange);
   --color-chart-3: #8C7FCB;
 
+  /* GLASS + MOTION — the system-wide pass after ADR-092 ("Glass frame, solid
+     data"; the full rationale is in b-systems/tokens.css, the identical set
+     lives there and in themes/neutral.css). The CRM shell wears B-Systems for
+     both companies (ADR-067), so this scope dresses only the modules that keep
+     the ByteForce brand (ADR-054: Accounting and the Vault under ByteForce).
+     The ByteForce book asks for flat colour blocks and no decorative noise:
+     the frost is the card's own white, the glow is Royal Violet alone (the
+     structure hue — orange is never spent on it), and the corner wash is OFF.
+     Every figure is recomputed by src/themes/glass-motion.test.ts:
+     · glass-chrome (the white header at 80%): ink 10.82:1, quiet 6.70:1 even
+       over an Ink island; glass-strong: quiet 7.63:1 over Ink.
+     · ground-halo (violet, behind the header band only): quiet 7.24:1. */
+  --color-glass: color-mix(in srgb, var(--color-surface-card) 72%, transparent);
+  --color-glass-strong: color-mix(in srgb, var(--color-surface-card) 86%, transparent);
+  --color-glass-chrome: color-mix(in srgb, var(--color-chrome) 80%, transparent);
+  --color-glass-edge: color-mix(in srgb, var(--color-on-dark) 70%, transparent);
+  --color-glass-highlight: color-mix(in srgb, var(--color-on-dark) 88%, transparent);
+  --color-glass-quiet: color-mix(in srgb, var(--color-ink-soft) 55%, var(--color-muted));
+  --color-glow: color-mix(in srgb, var(--color-link) 24%, transparent);
+  --color-ground-halo: color-mix(in srgb, var(--bf-violet) 14%, transparent);
+  --color-ground-wash: transparent;
+  --shadow-float: 0 1px 2px rgba(35, 31, 32, 0.06), 0 22px 48px -22px rgba(83, 68, 155, 0.3);
+  /* THEME- AND BRAND-INVARIANT (light block only, identical in all three
+     scopes — glass-motion.test.ts) */
+  --glass-blur: blur(18px) saturate(160%);
+  --glass-blur-strong: blur(28px) saturate(170%);
+  --ease-standard: cubic-bezier(.2, .8, .2, 1);
+  --ease-spring: cubic-bezier(.34, 1.4, .64, 1);
+  --ease-exit: cubic-bezier(.4, 0, 1, 1);
+  --duration-short: 140ms;
+  --duration-medium: 240ms;
+  --duration-long: 420ms;
+  --stagger-step: 40ms;
+
 }
 
 /* Rules encoded as comments (enforced by /brand-audit):
@@ -243,16 +277,19 @@
    block with values equal to what components already paint today.)
 
    SELECTOR CONTRACT — src/lib/theme/core.ts; the app root layouts stamp it:
-       <html data-theme="light" | "dark" | "system">
+       <html data-theme="light" | "dark">
    The landing pages never set data-theme, so nothing here can match them.
    data-brand sits on <html> AND is re-stamped on inner wrappers (ADR-054:
    the accounting / vault modules re-brand per company), so every dark block
    matches BOTH shapes:
        html[data-theme="dark"][data-brand="byteforce"]
        html[data-theme="dark"] [data-brand="byteforce"]
-   "system" follows the OS: the same declarations under prefers-color-scheme:
-   dark. The two blocks must stay IDENTICAL — src/lib/theme-tokens.test.ts
-   fails the build the moment they drift.
+   There is no third theme. Founder (amending ADR-087): "remove the system
+   theme option" — the follow-the-OS "system" value and its
+   prefers-color-scheme twin of this block are gone; a cookie still holding
+   "system" reads as light (src/lib/theme/core.ts), and
+   src/lib/theme-tokens.test.ts fails the build if a data-theme="system"
+   selector ever comes back.
 
    PRINT IS ALWAYS LIGHT. Every dark rule sits inside `@media screen`, so a
    printed statement can never come out dark, whatever the toggle says.
@@ -485,6 +522,21 @@
     --color-chart-1: #8676D2;
     --color-chart-2: var(--bf-orange);
     --color-chart-3: #6C5CC0;
+    /* GLASS — smoked Ink. Recomputed by glass-motion.test.ts against the
+       lightest thing that can pass beneath (an orange button): header quiet
+       text 8.00:1, sheet quiet 9.53:1. The glow is the lifted violet. */
+    --color-glass: color-mix(in srgb, var(--color-surface-card) 64%, transparent);
+    --color-glass-strong: color-mix(in srgb, var(--color-surface-card) 90%, transparent);
+    --color-glass-chrome: color-mix(in srgb, var(--color-chrome) 78%, transparent);
+    --color-glass-edge: color-mix(in srgb, var(--color-on-dark) 13%, transparent);
+    --color-glass-highlight: color-mix(in srgb, var(--color-on-dark) 16%, transparent);
+    --color-glass-quiet: color-mix(in srgb, var(--color-ink-soft) 55%, var(--color-muted));
+    --color-glow: color-mix(in srgb, var(--color-link) 24%, transparent);
+    /* Royal Violet glowing out of the Ink behind the header band — one hue.
+       The corner wash stays OFF, as in light (flat colour blocks) */
+    --color-ground-halo: color-mix(in srgb, var(--bf-violet) 30%, transparent);
+    --color-ground-wash: transparent;
+    --shadow-float: 0 1px 2px rgba(0, 0, 0, 0.4), 0 24px 56px -22px rgba(0, 0, 0, 0.7);
     /* Per-stage board colours. Same rule for every column (derived, not
        picked): the ACCENT keeps the light accent's hue + saturation, its HSL
        lightness raised only as far as needed to read >= 4.8:1 on the canvas,
@@ -498,78 +550,6 @@
        unchanged (Bold Orange). Postpone rides the shared amber (ADR-072).
        Fallen-behind is the shared functional red, IDENTICAL in both brands
        (ADR-082), its well a shade off --color-danger-tint as in light. */
-    --color-stage-intake: #191718; --color-stage-intake-accent: #B4AEB0; --color-stage-intake-chip: #433E40; --color-stage-intake-chip-ink: #C8C3C5;
-    --color-stage-following: #19161C; --color-stage-following-accent: #9489CB; --color-stage-following-chip: #3C3646; --color-stage-following-chip-ink: #BEB7DF;
-    --color-stage-meeting: #19161C; --color-stage-meeting-accent: #948BC4; --color-stage-meeting-chip: #3C3744; --color-stage-meeting-chip-ink: #BDB7DA;
-    --color-stage-proposal: #1E1513; --color-stage-proposal-accent: #F5865B; --color-stage-proposal-chip: #51362D; --color-stage-proposal-chip-ink: #F8AF92;
-    --color-stage-negotiation: #201512; --color-stage-negotiation-accent: #F37140; --color-stage-negotiation-chip: #513127; --color-stage-negotiation-chip-ink: #F8A88A;
-    --color-stage-didnt-answer: #191718; --color-stage-didnt-answer-accent: #96928F; --color-stage-didnt-answer-chip: #3C3838; --color-stage-didnt-answer-chip-ink: #BDBBB9;
-    --color-stage-contacted: #19171C; --color-stage-contacted-accent: #968CC3; --color-stage-contacted-chip: #3C3744; --color-stage-contacted-chip-ink: #BEB8DA;
-    --color-stage-qualified: #1F150F; --color-stage-qualified-accent: #E0761F; --color-stage-qualified-chip: #4D3220; --color-stage-qualified-chip-ink: #ECAD79;
-    --color-stage-waiting: #1C1616; --color-stage-waiting-accent: #B9867F; --color-stage-waiting-chip: #443635; --color-stage-waiting-chip-ink: #D4B5B0;
-    --color-stage-won: #221410; --color-stage-won-accent: #F15C24; --color-stage-won-chip: #502C21; --color-stage-won-chip-ink: #F7A281;
-    --color-stage-postponed: #1D170F; --color-stage-postponed-accent: #DFA820; --color-stage-postponed-chip: #4C3D20; --color-stage-postponed-chip-ink: #E7BF5A;
-    --color-stage-fallen-behind: #2A1718; --color-stage-fallen-behind-accent: #F07D71; --color-stage-fallen-behind-chip: #4A2426; --color-stage-fallen-behind-chip-ink: #F9C0B8;
-    --color-stage-lost: #191718; --color-stage-lost-accent: #989093; --color-stage-lost-chip: #3D3839; --color-stage-lost-chip-ink: #BFBABC;
-  }
-}
-
-/* "system" + a dark OS — the SAME declarations as the block above, verbatim
-   (comments aside). theme-tokens.test.ts compares the two. */
-@media screen and (prefers-color-scheme: dark) {
-  html[data-theme="system"][data-brand="byteforce"],
-  html[data-theme="system"] [data-brand="byteforce"] {
-    color-scheme: dark;
-    --color-primary: var(--bf-orange);
-    --color-on-primary: var(--bf-ink);
-    --color-secondary: #A59CD3;
-    --color-on-secondary: var(--bf-ink);
-    --color-accent: var(--bf-orange);
-    --color-on-accent: var(--bf-ink);
-    --color-heading: #A59CD3;
-    --color-link: #A59CD3;
-    --color-ink: var(--bf-offwhite);
-    --color-ink-soft: var(--bf-offwhite);
-    --color-muted: #AEABA6;
-    --color-faint: #989591;
-    --color-surface: #181516;
-    --color-surface-card: var(--bf-ink);
-    --color-surface-tint: #2A2431;
-    --color-surface-dark: #0F0D0E;
-    --color-border: #444140;
-    --color-hairline: #343030;
-    --color-danger: #F07D71;
-    --color-on-danger: #1A191C;
-    --color-danger-tint: #3A1C1D;
-    --color-danger-border: #6A302D;
-    --color-danger-border-strong: #C25A4F;
-    --color-danger-ink: #F9C0B8;
-    --color-success: #A59CD3;
-    --color-on-success: var(--bf-ink);
-    --color-warning: #DFA820;
-    --color-primary-tint: #2E1C17;
-    --color-primary-tint-ink: #F5906A;
-    --color-secondary-tint: #262036;
-    --color-secondary-tint-ink: #B3ACDA;
-    --color-toast-surface: #ECEAE5;
-    --color-toast-ink: #1A191C;
-    --color-board-card-border: rgba(255, 255, 255, 0.08);
-    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.32), 0 6px 18px rgba(0, 0, 0, 0.24);
-    --shadow-lift: 0 14px 30px rgba(0, 0, 0, 0.45);
-    --shadow-modal: 0 30px 70px rgba(0, 0, 0, 0.6);
-    --shadow-toast: 0 18px 44px rgba(0, 0, 0, 0.55);
-    --color-acct-positive: #5CC188;
-    --color-acct-positive-tint: #173323;
-    --color-contact-made: #5CC188;
-    --color-contact-made-tint: #173323;
-    --color-on-dark: #FFFFFF;
-    --color-chrome: var(--color-surface-card);
-    --color-on-chrome: var(--color-ink);
-    --color-focus-ring: var(--bf-orange);
-    --color-border-control: #777371;
-    --color-chart-1: #8676D2;
-    --color-chart-2: var(--bf-orange);
-    --color-chart-3: #6C5CC0;
     --color-stage-intake: #191718; --color-stage-intake-accent: #B4AEB0; --color-stage-intake-chip: #433E40; --color-stage-intake-chip-ink: #C8C3C5;
     --color-stage-following: #19161C; --color-stage-following-accent: #9489CB; --color-stage-following-chip: #3C3646; --color-stage-following-chip-ink: #BEB7DF;
     --color-stage-meeting: #19161C; --color-stage-meeting-accent: #948BC4; --color-stage-meeting-chip: #3C3744; --color-stage-meeting-chip-ink: #BDB7DA;

@@ -59,6 +59,13 @@
   --color-brand-on-chrome: var(--color-on-chrome);
   --color-brand-focus-ring: var(--color-focus-ring);
   --color-brand-border-control: var(--color-border-control);
+  /* the glass + motion pass (all three scopes, every theme): the frame's
+     frost and its quiet ink, for a component that styles with utilities —
+     glass is for the FRAME only (src/themes/glass.css says where) */
+  --color-brand-glass: var(--color-glass);
+  --color-brand-glass-strong: var(--color-glass-strong);
+  --color-brand-glass-edge: var(--color-glass-edge);
+  --color-brand-glass-quiet: var(--color-glass-quiet);
   --color-stage-intake: var(--color-stage-intake);
   --color-stage-intake-accent: var(--color-stage-intake-accent);
   --color-stage-intake-chip: var(--color-stage-intake-chip);
@@ -120,6 +127,7 @@
   --shadow-brand-card: var(--shadow-card);
   --shadow-brand-lift: var(--shadow-lift);
   --shadow-brand-modal: var(--shadow-modal);
+  --shadow-brand-float: var(--shadow-float);
 }
 
 /* Signature gradient — hero components only (§4.3). */

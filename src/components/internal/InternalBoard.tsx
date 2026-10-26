@@ -6,11 +6,8 @@ import Link from "next/link";
 import {
   DndContext,
   DragOverlay,
-  PointerSensor,
   useDraggable,
   useDroppable,
-  useSensor,
-  useSensors,
   type DragEndEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
@@ -35,6 +32,7 @@ import { TodayChip, useTodayFilter } from "@/components/shared/TodayChip";
 import { useCairoToday } from "@/components/shared/useCairoToday";
 import { NoAnswerBadge } from "@/components/shared/NoAnswerBadge";
 import { WhatsappChip } from "@/components/shared/WhatsappChip";
+import { CountPill, useBoardDropAnimation, useBoardSensors } from "@/components/shared/BoardMotion";
 import { stageKey } from "@/components/bsystems/stageColors";
 import {
   FollowUpFields,
@@ -364,7 +362,8 @@ function Column({
         <span className="col-title">{stageLabel(locale, stage)}</span>
         <span className="flex items-center gap-1.5">
           {hasChip ? <TodayChip count={todayCount} pressed={todayOnly} onToggle={toggle} /> : null}
-          <span className="count-pill">{visible.length}</span>
+          {/* pops once when the count CHANGES, never on load (BUG-026) */}
+          <CountPill count={visible.length} />
         </span>
       </div>
       {closed ? <p className="col-locked-note">{t(msg.dateOnlyColumn)}</p> : null}
@@ -407,16 +406,18 @@ export function InternalBoard({
   const locale = useLocale();
   const t = tFor(locale);
   const router = useRouter();
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
+  /* pointer AND keyboard (column to column) — see BoardMotion */
+  const sensors = useBoardSensors();
   const [pendingDrop, setPendingDrop] = useState<{ leadId: string; to: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
-  const [arranged, setArranged] = useState(false);
   /* set on every drag end, cleared a beat later: the click the browser fires
      on drop must not navigate (whole-card onClick checks this ref) */
   const suppressClickRef = useRef(false);
+  /* the overlay settles as it lands — and simply goes, under reduced motion */
+  const dropAnimation = useBoardDropAnimation();
 
   /* ADR-082 — TODAY'S CAIRO DAY, from the one hook that owns it (useCairoToday,
      shared with the B-Systems board and the Today chip). Not read at render:
@@ -528,14 +529,13 @@ export function InternalBoard({
       void commitDrop({ event: { type: "drag", to } }, leadId, to, "toast");
       return;
     }
-    setArranged(false);
     setPendingDrop({ leadId, to }); // the stage's form opens; cancel reverts
   }
 
   function fieldsForTarget(target: string, lead: InternalBoardLead) {
     if (target === "following_up") return <FollowUpFields />;
     if (target === "meeting_setting")
-      return <MeetingFields arranged={arranged} setArranged={setArranged} reps={reps} />;
+      return <MeetingFields />;
     if (target === "sending_proposal") return <ProposalFields />;
     if (target === "lost") return <LostFields />;
     if (target === "won") return <WonFields prefillValue={lead.latestProposalValue} />;
@@ -544,7 +544,7 @@ export function InternalBoard({
 
   function payloadForTarget(target: string, fd: FormData) {
     if (target === "following_up") return followUpFromForm(fd);
-    if (target === "meeting_setting") return meetingFromForm(fd, arranged);
+    if (target === "meeting_setting") return meetingFromForm(fd);
     if (target === "sending_proposal") return proposalFromForm(fd);
     if (target === "lost")
       return { group: "lost" as const, data: { reason: String(fd.get("reason")) } };
@@ -599,12 +599,13 @@ export function InternalBoard({
             card's links/buttons in the accessibility tree (the live region
             already narrates the drag), and it lingers briefly through the
             drop animation. */}
-        <DragOverlay>
+        <DragOverlay dropAnimation={dropAnimation}>
           {draggingId
             ? (() => {
                 const l = leads.find((x) => x.id === draggingId);
                 return l ? (
-                  <div className="bcard bcard--lift" aria-hidden>
+                  /* the card's own stage rides along, so the lift glows in its hue */
+                  <div className="bcard bcard--lift" data-stage-key={stageKey(l.stage)} aria-hidden>
                     <LeadCardBody lead={l} basePath={basePath} query={query} apiBase={apiBase} />
                   </div>
                 ) : null;

@@ -1,4 +1,3 @@
-import Link from "next/link";
 import "@/themes/dashboard.css";
 import { formatEGP } from "@/lib/money";
 import { formatCairoLongDate, formatCairoMonthShort } from "@/lib/datetime";
@@ -44,6 +43,13 @@ import { cssVars, makeCtx, type DashCtx } from "./ctx";
    breakpoints follow the space the page actually has — desktop (KPIs 3/3/3/3,
    then 7/5, 4/3/5, 5/7, 7/5), tablet (2×2 KPIs, then pairs), phone (one column,
    tasks right after the KPIs — they are what he acts on).
+
+   ONE WAY TO EACH PAGE (founder: "Remove them"): the dashboard is a page of
+   Reports & Dashboards, and it no longer carries shortcuts to pages that are
+   in a menu — no "Open the board", no "Add lead", no KPI card that is a link
+   to Leads, the board or Won Leads, no roster link to Agents or Partners.
+   The links to RECORDS stay (a task's lead, a win, an activity row, a lead
+   ready to close): the dashboard is where those records are listed.
    ========================================================================== */
 
 const BRAND_EYEBROW: Record<CrmCompany, string> = {
@@ -128,7 +134,6 @@ function NewLeadsCard({ data, ctx }: { data: DashboardData; ctx: DashCtx }) {
   return (
     <KpiCard
       ctx={ctx}
-      href={`/b-systems/leads${ctx.query}`}
       metric="new_leads"
       dataValue={k.value}
       label={ctx.t(m.newLeads)}
@@ -184,7 +189,6 @@ function PipelineCard({ data, ctx }: { data: DashboardData; ctx: DashCtx }) {
   return (
     <KpiCard
       ctx={ctx}
-      href={`/b-systems/crm${ctx.query}`}
       metric="pipeline_value"
       dataValue={k.value}
       extraData={{ "data-open": k.openCount, "data-parked": k.parkedValue }}
@@ -255,22 +259,10 @@ function LeadsPerStageCard({ data, ctx }: { data: DashboardData; ctx: DashCtx })
       className="db-w-stages"
       title={t(m.leadsPerStage)}
       eyebrow={t(m.eyebrowNow)}
-      action={
-        <Link href={`/b-systems/crm${ctx.query}`} prefetch={false} className="db-link">
-          {t(m.openBoard)}
-        </Link>
-      }
       summary={
-        s.totalLeads === 0 || !top ? (
-          <>
-            {t(m.noLeadsYet)}{" "}
-            <Link href={`/b-systems/leads${ctx.query}`} prefetch={false} className="db-link">
-              {t(m.addLead)}
-            </Link>
-          </>
-        ) : (
-          f(m.stageSummary, { stage: label(top.stage), n: top.count })
-        )
+        s.totalLeads === 0 || !top
+          ? t(m.noLeadsYet)
+          : f(m.stageSummary, { stage: label(top.stage), n: top.count })
       }
     >
       <StageBars items={items} ctx={ctx} idPrefix="db-stages" metricPrefix="stage" />
@@ -300,7 +292,7 @@ function LeadsPerStageCard({ data, ctx }: { data: DashboardData; ctx: DashCtx })
             {t(m.externalPipeline)}
           </h3>
           <div className="db-external-roster">
-            <Link href="/b-systems/agents" prefetch={false} className="db-roster" data-metric="agents" data-value={external.agentCount}>
+            <div className="db-roster" data-metric="agents" data-value={external.agentCount}>
               <span className="db-roster-label">{t(m.agents)}</span>
               <span className="db-roster-value">
                 <bdi>
@@ -310,15 +302,15 @@ function LeadsPerStageCard({ data, ctx }: { data: DashboardData; ctx: DashCtx })
               {external.pendingAgentCount > 0 ? (
                 <span className="db-roster-sub">{f(m.pendingAgents, { n: external.pendingAgentCount })}</span>
               ) : null}
-            </Link>
-            <Link href="/b-systems/partners" prefetch={false} className="db-roster" data-metric="partners" data-value={external.partnerCount}>
+            </div>
+            <div className="db-roster" data-metric="partners" data-value={external.partnerCount}>
               <span className="db-roster-label">{t(m.partners)}</span>
               <span className="db-roster-value">
                 <bdi>
                   <LiveNumber value={external.partnerCount} />
                 </bdi>
               </span>
-            </Link>
+            </div>
           </div>
           <p className="db-summary">{f(m.externalSummary, { n: extTotal })}</p>
           <div className="db-external-bars">

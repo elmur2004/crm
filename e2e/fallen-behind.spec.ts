@@ -243,6 +243,13 @@ test.describe("ADR-082 — Fallen behind", () => {
     /* the eyebrow names the stage it is LEAVING, and that stage is Following Up
        — the proof that the derived column never became a stage */
     await expect(page.locator(".modal-eyebrow")).toContainText("Following Up");
+    /* ADR-096 — the drop asks for the meeting itself: no "Arranged?" step and
+       no Technical support field (the founder's screenshot was this window) */
+    const dialog = page.locator(".modal");
+    await expect(dialog.getByText("Arranged?")).toHaveCount(0);
+    await expect(dialog.getByLabel("Technical support")).toHaveCount(0);
+    await expect(dialog.getByLabel("Date", { exact: true })).toBeVisible();
+    await expect(dialog.getByLabel("Time", { exact: true })).toBeVisible();
     await page.getByRole("button", { name: "Cancel" }).click();
 
     /* and a formless destination still commits straight off the drop */

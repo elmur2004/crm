@@ -8,15 +8,13 @@ import { describe, expect, it } from "vitest";
    The token files carry the colours; src/themes/design-system.css carries the
    few dark rules a token cannot express on its own (the indigo header's
    active pill, board-card elevation, scrims, the ByteForce logo plate…).
-   Like the token blocks they exist twice — once for an explicit
-   data-theme="dark", once for data-theme="system" under a dark OS — and two
-   hand-maintained copies drift the first time someone edits one of them. A
-   drifted pair is a bug only the people on the OTHER setting ever see.
-
-   So this file holds the pair to three promises:
-   1. the "system" block is the "dark" block, rule for rule and declaration
-      for declaration, with only the theme word changed;
-   2. every rule in them is reached through a POSITIVE data-theme match on
+   They used to exist twice — once for an explicit data-theme="dark", once
+   for data-theme="system" under a dark OS. The founder removed the system
+   option ("remove the system theme option", amending ADR-087), so there is
+   ONE block, and this file holds it to three promises:
+   1. no data-theme="system" rule remains (the twin is retired, and a pasted
+      one back would be dead CSS that drifts);
+   2. every rule in it is reached through a POSITIVE data-theme match on
       <html> (never a :not(), so the landing pages — which carry no
       data-theme — can never go dark), inside @media screen;
    3. they spend TOKENS only: no literal colour, ever (SPEC §4.1 — the
@@ -84,38 +82,28 @@ const all = rules(CSS);
 const DARK = all.filter((r) => r.selectors.some((s) => s.includes('[data-theme="dark"]')));
 const SYSTEM = all.filter((r) => r.selectors.some((s) => s.includes('[data-theme="system"]')));
 
-describe("design-system.css — the dark component blocks", () => {
-  it("finds both blocks (the check is not silently empty)", () => {
+describe("design-system.css — the dark component block", () => {
+  it("finds the block (the check is not silently empty), and no system twin", () => {
     expect(DARK.length).toBeGreaterThanOrEqual(8);
-    expect(SYSTEM.length).toBe(DARK.length);
+    expect(SYSTEM).toHaveLength(0);
+    expect(CSS.replace(/\/\*[\s\S]*?\*\//g, "")).not.toMatch(/prefers-color-scheme/);
   });
 
-  it('"dark" lives in @media screen; "system" in @media screen and (prefers-color-scheme: dark)', () => {
+  it('"dark" lives in @media screen', () => {
     for (const r of DARK) expect(r.media, r.selectors.join(", ")).toBe("@media screen");
-    for (const r of SYSTEM) {
-      expect(r.media, r.selectors.join(", ")).toBe("@media screen and (prefers-color-scheme: dark)");
-    }
-  });
-
-  it("the system block is the dark block, verbatim but for the theme word", () => {
-    const asSystem = DARK.map((r) => ({
-      selectors: r.selectors.map((s) => s.replaceAll('[data-theme="dark"]', '[data-theme="system"]')),
-      decls: r.decls,
-    }));
-    expect(SYSTEM.map((r) => ({ selectors: r.selectors, decls: r.decls }))).toEqual(asSystem);
   });
 
   it("every selector is a POSITIVE match on <html>'s data-theme", () => {
-    for (const r of [...DARK, ...SYSTEM]) {
+    for (const r of DARK) {
       for (const s of r.selectors) {
-        expect(s, "must start at html[data-theme=…]").toMatch(/^html\[data-theme="(dark|system)"\]/);
+        expect(s, "must start at html[data-theme=…]").toMatch(/^html\[data-theme="dark"\]/);
         expect(s, "a negative match would reach the landing pages").not.toMatch(/:not\([^)]*data-theme/);
       }
     }
   });
 
   it("spends tokens only — no literal colour in any declaration", () => {
-    for (const r of [...DARK, ...SYSTEM]) {
+    for (const r of DARK) {
       for (const d of r.decls) {
         expect(d, r.selectors[0]).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);
         expect(d, r.selectors[0]).not.toMatch(/\b(rgba?|hsla?|hwb|lab|lch|oklab|oklch)\s*\(/);
@@ -125,7 +113,7 @@ describe("design-system.css — the dark component blocks", () => {
   });
 
   it("every var() it spends is a semantic token or a stage var the board defines", () => {
-    for (const r of [...DARK, ...SYSTEM]) {
+    for (const r of DARK) {
       for (const d of r.decls) {
         for (const m of d.matchAll(/var\(\s*(--[\w-]+)/g)) {
           expect(m[1], d).toMatch(/^--(color|shadow|radius)-[\w-]+$|^--stage-(bar|well|chip|chip-ink)$/);

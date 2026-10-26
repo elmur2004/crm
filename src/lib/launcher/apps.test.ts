@@ -7,6 +7,7 @@ import {
   launcherTilesFor,
   reportsFor,
   reportsHrefFor,
+  workingCompaniesFor,
   workingCompanyFor,
   type LauncherBearer,
 } from "./apps";
@@ -70,6 +71,17 @@ describe("which tiles each person sees", () => {
     ]);
   });
 
+  it("Reports & Dashboards: the two CRM dashboards and the daily report — nothing from Accounting", () => {
+    /* founder answer 3, "Inside Accounting only": the accounting dashboard, the
+       P&L and the departments are Accounting's own pages, in its menu */
+    expect(reportsFor(FOUNDER).map((r) => r.id)).toEqual(["bs-dashboard", "bf-dashboard", "daily-report"]);
+    expect(reportsFor(FOUNDER).map((r) => r.href)).toEqual([
+      "/b-systems?company=bsystems",
+      "/b-systems?company=byteforce",
+      "/b-systems/daily-report?company=bsystems",
+    ]);
+  });
+
   it("an admin blocked from Accounting (ADR-066) is not offered Accounting — and keeps the Vault", () => {
     expect(ids(ADMIN_NO_ACCOUNTING)).toEqual([
       "crm-bsystems",
@@ -78,7 +90,7 @@ describe("which tiles each person sees", () => {
       "reports",
       "partners",
     ]);
-    /* and the accounting reports leave the Reports screen with the tile */
+    /* the Reports screen is the same either way: no report on it is Accounting's */
     expect(reportsFor(ADMIN_NO_ACCOUNTING).map((r) => r.id)).toEqual(["bs-dashboard", "daily-report"]);
   });
 
@@ -122,6 +134,8 @@ describe("which tiles each person sees", () => {
   it("data entry that is ALSO ByteForce staff works ByteForce's To-Do, not B-Systems'", () => {
     const u = person(["bsystems_data_entry", "byteforce_staff"]);
     expect(workingCompanyFor(u.roles)).toBe("byteforce");
+    /* ONE working company, so the To-Do shows no company tabs */
+    expect(workingCompaniesFor(u.roles)).toEqual(["byteforce"]);
     expect(hrefOf(u, "todo")).toBe("/b-systems/todo?company=byteforce");
     expect(hrefOf(u, "crm-bsystems")).toBe("/b-systems/entry?company=bsystems");
   });
@@ -139,6 +153,15 @@ describe("which tiles each person sees", () => {
 
   it("an account with no roles at all has no tiles (the page then sends it to its landing)", () => {
     expect(launcherTilesFor(person([]))).toEqual([]);
+  });
+
+  it("the To-Do's company tabs: every company an account WORKS leads in — two only for the founder's shape", () => {
+    expect(workingCompaniesFor(FOUNDER.roles)).toEqual(["bsystems", "byteforce"]);
+    /* the tile opens the first one, as it always has */
+    expect(hrefOf(FOUNDER, "todo")).toBe(`/b-systems/todo?company=${workingCompaniesFor(FOUNDER.roles)[0]}`);
+    for (const u of [BS_SALES, AGENT, PARTNER]) expect(workingCompaniesFor(u.roles)).toEqual(["bsystems"]);
+    expect(workingCompaniesFor(BYTEFORCE_ONLY.roles)).toEqual(["byteforce"]);
+    expect(workingCompaniesFor(DATA_ENTRY.roles)).toEqual([]);
   });
 });
 
@@ -186,6 +209,21 @@ describe("the launcher only ever narrows (all 64 role sets x 4 flag pairs)", () 
       expect(new Set(list).size).toBe(list.length);
       expect(list.includes("reports")).toBe(reportsFor(u).length > 0);
       expect(reportsHrefFor(u) === null).toBe(reportsFor(u).length === 0);
+    }
+  });
+
+  it("no Reports entry is ever an Accounting page, for anybody (\"Inside Accounting only\")", () => {
+    for (const u of everyBearer()) {
+      for (const r of reportsFor(u)) expect(r.href, r.id).not.toMatch(/^\/accounting/);
+    }
+  });
+
+  it("the To-Do tile and the To-Do tabs agree: the tile is the first working company, the tabs all of them", () => {
+    for (const u of everyBearer()) {
+      const working = workingCompaniesFor(u.roles);
+      expect(workingCompanyFor(u.roles)).toBe(working[0] ?? null);
+      const held = companiesFor(u.roles);
+      for (const c of working) expect(held).toContain(c);
     }
   });
 });
@@ -245,8 +283,6 @@ describe("every tile's href resolves to a real route", () => {
     /* the whole destination set, so a new one shows up in review */
     expect([...new Set([...seen].map(pathOf))].sort()).toEqual([
       "/accounting",
-      "/accounting/departments",
-      "/accounting/report",
       "/apps/reports",
       "/b-systems",
       "/b-systems/crm",

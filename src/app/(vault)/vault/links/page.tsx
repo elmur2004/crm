@@ -22,6 +22,10 @@ import { VaultHead } from "@/components/vault/VaultHead";
 import { AddLinkButton, EditLinkButton } from "@/components/vault/forms";
 import { ArchiveButton } from "@/components/shared/ArchiveButton";
 import { vaultCompaniesOf } from "@/lib/services/vault/tenancy";
+import Form from "next/form";
+import { ModSwap } from "@/components/accounting/module-ui";
+import { ModEmpty } from "@/components/accounting/module-art";
+import Link from "next/link";
 
 /* ADR-070 — the vault LINKS section (founder: "a central place to keep any
    important or repeated resources and links we use constantly, instead of
@@ -126,16 +130,27 @@ export default async function VaultLinksPage({
       : x;
 
   const filtered = Boolean(params.q || params.company || params.category || params.type);
+  const swapKey = JSON.stringify(params);
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-5 mod-page">
       <VaultHead locale={locale} title={vault.linksTitle} sub={vault.linksSub} />
 
       <div className="page-actions">
         <AddLinkButton categories={categories} />
       </div>
 
-      <form method="get" className="card card-pad flex flex-wrap gap-3 items-end">
+      {/* the filters answer WITHOUT a page reload (next/form — a plain GET
+          form underneath, so it still works with no JavaScript); keyed by the
+          query so its fields always show the filter in force; the list below
+          cross-fades to the new result (ModSwap) */}
+      <Form
+        key={swapKey}
+        action="/vault/links"
+        prefetch={false}
+        scroll={false}
+        className="card card-pad mod-filter flex flex-wrap gap-3 items-end"
+      >
         <label className="field">
           <span className="field-label">{t(vault.searchShort)}</span>
           <input className="field-input" name="q" defaultValue={params.q ?? ""} maxLength={200} />
@@ -181,102 +196,107 @@ export default async function VaultLinksPage({
           {t(vault.apply)}
         </button>
         {filtered ? (
-          <a className="btn-ghost" href="/vault/links">
+          /* a same-page control: the list without its filters */
+          <Link className="btn-ghost" href="/vault/links" scroll={false}>
             {t(vault.clear)}
-          </a>
+          </Link>
         ) : null}
-      </form>
+      </Form>
 
-      <section className="card card--flush0">
-        {rows.length === 0 ? (
-          <p className="empty m-4">{t(filtered ? vault.noLinksFiltered : vault.noLinks)}</p>
-        ) : (
-          <div className="table-scroll">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>{t(vault.name)}</th>
-                  <th>{t(vault.company)}</th>
-                  <th>{t(vault.category)}</th>
-                  <th>{t(vault.type)}</th>
-                  <th>{t(vault.url)}</th>
-                  <th>{t(vault.notes)}</th>
-                  <th>{t(vault.added)}</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((l) => {
-                  const href = openableHref(l.url);
-                  return (
-                    <tr key={l.id}>
-                      <td className="td-title">
-                        {l.name}
-                        {/* where it points, before he presses it */}
-                        <span className="td-mono u-ltr block" dir="ltr">
-                          {hostOf(l.url)}
-                        </span>
-                      </td>
-                      <td>
-                        <span className="chip-outline">{companyLabel(l.company)}</span>
-                      </td>
-                      {/* his own words, printed exactly as he typed them */}
-                      <td>{l.category}</td>
-                      <td>
-                        <span className="chip-outline">{typeLabel(l.type)}</span>
-                      </td>
-                      <td>
-                        {href ? (
-                          <a
-                            href={href}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="chat-mention"
-                            title={l.url}
-                            /* the accessible name OPENS WITH THE VISIBLE WORDS, so
-                               "click Open link" reaches it by voice (WCAG 2.5.3,
-                               Label in Name) and still says WHICH link it opens */
-                            aria-label={t(formatMsg(vault.openLinkNamed, { name: l.name }))}
-                          >
-                            {t(vault.openLink)}
-                          </a>
-                        ) : (
-                          <span className="empty" title={l.url}>
-                            {t(vault.linkNotOpenable)}
+      <ModSwap swapKey={swapKey}>
+        <section className="card card--flush0">
+          {rows.length === 0 ? (
+            <ModEmpty kind={filtered ? "search" : "link"}>
+              {t(filtered ? vault.noLinksFiltered : vault.noLinks)}
+            </ModEmpty>
+          ) : (
+            <div className="table-scroll">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>{t(vault.name)}</th>
+                    <th>{t(vault.company)}</th>
+                    <th>{t(vault.category)}</th>
+                    <th>{t(vault.type)}</th>
+                    <th>{t(vault.url)}</th>
+                    <th>{t(vault.notes)}</th>
+                    <th>{t(vault.added)}</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((l) => {
+                    const href = openableHref(l.url);
+                    return (
+                      <tr key={l.id}>
+                        <td className="td-title">
+                          {l.name}
+                          {/* where it points, before he presses it */}
+                          <span className="td-mono u-ltr block" dir="ltr">
+                            {hostOf(l.url)}
                           </span>
-                        )}
-                      </td>
-                      <td>{l.notes ?? "—"}</td>
-                      <td className="td-mono u-ltr">{formatCairoDate(l.createdAt, locale)}</td>
-                      <td>
-                        <span className="inline-flex items-center gap-2 flex-wrap">
-                          <EditLinkButton
-                            row={{
-                              id: l.id,
-                              company: l.company,
-                              name: l.name,
-                              url: l.url,
-                              category: l.category,
-                              type: l.type,
-                              notes: l.notes,
-                            }}
-                            categories={categories}
-                          />
-                          <ArchiveButton
-                            postUrl={`/api/vault/links/${l.id}/archive`}
-                            archived={false}
-                            confirmText={t(vault.confirmArchive)}
-                          />
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
+                        </td>
+                        <td>
+                          <span className="chip-outline">{companyLabel(l.company)}</span>
+                        </td>
+                        {/* his own words, printed exactly as he typed them */}
+                        <td>{l.category}</td>
+                        <td>
+                          <span className="chip-outline">{typeLabel(l.type)}</span>
+                        </td>
+                        <td>
+                          {href ? (
+                            <a
+                              href={href}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="chat-mention"
+                              title={l.url}
+                              /* the accessible name OPENS WITH THE VISIBLE WORDS, so
+                                 "click Open link" reaches it by voice (WCAG 2.5.3,
+                                 Label in Name) and still says WHICH link it opens */
+                              aria-label={t(formatMsg(vault.openLinkNamed, { name: l.name }))}
+                            >
+                              {t(vault.openLink)}
+                            </a>
+                          ) : (
+                            <span className="empty" title={l.url}>
+                              {t(vault.linkNotOpenable)}
+                            </span>
+                          )}
+                        </td>
+                        <td>{l.notes ?? "—"}</td>
+                        <td className="td-mono u-ltr">{formatCairoDate(l.createdAt, locale)}</td>
+                        <td>
+                          <span className="inline-flex items-center gap-2 flex-wrap">
+                            <EditLinkButton
+                              row={{
+                                id: l.id,
+                                company: l.company,
+                                name: l.name,
+                                url: l.url,
+                                category: l.category,
+                                type: l.type,
+                                notes: l.notes,
+                              }}
+                              categories={categories}
+                            />
+                            <ArchiveButton
+                              postUrl={`/api/vault/links/${l.id}/archive`}
+                              archived={false}
+                              confirmText={t(vault.confirmArchive)}
+                            />
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      </ModSwap>
     </div>
   );
 }

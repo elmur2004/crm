@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { funnelLayout } from "@/lib/dashboard/geometry";
 import { stageLabel } from "@/lib/i18n/dict/labels";
 import { configForBrand } from "@/lib/pipeline-engine/configs/for-brand";
@@ -17,7 +16,10 @@ import { cssVars, type DashCtx } from "./ctx";
    The bars are CENTRED, so the shape reads the same in both directions. One
    hue for every step (--color-primary); the final Won step wears the Won cue
    (--color-stage-won-accent), the one place pink belongs. Width carries the
-   magnitude; each step prints "count · % of added". */
+   magnitude; each step prints "count · % of added".
+
+   An empty period says so in the summary and nothing more: its old "Add lead"
+   link repeated the Leads menu item (one way to each page). */
 
 export function Funnel({ steps, ctx }: { steps: FunnelStep[]; ctx: DashCtx }) {
   const { t, f } = ctx;
@@ -46,13 +48,7 @@ export function Funnel({ steps, ctx }: { steps: FunnelStep[]; ctx: DashCtx }) {
         />
       }
     >
-      {added === 0 ? (
-        <p className="db-empty">
-          <Link href={`/b-systems/leads${ctx.query}`} prefetch={false} className="db-link">
-            {t(m.addLead)}
-          </Link>
-        </p>
-      ) : (
+      {added === 0 ? null : (
         <ol className="db-funnel">
           {steps.map((s, i) => {
             const l = layout[i]!;

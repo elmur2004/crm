@@ -1,0 +1,325 @@
+/* =========================================================================
+   MOTION — the sign-in's motion, for every screen.
+
+   Founder: "the log in page is very nicely animated and designed the rest of
+   the system is still not" — and every screen gets the sign-in's motion:
+   entrances, hover and press feedback, smooth panels. The reference is the
+   motion block of src/themes/login.css (ADR-092): lg-rise, lg-card-in,
+   lg-pop, lg-tile-sheen, lg-shimmer, the CTA's lift, press and arrow nudge.
+
+   Imported by the four app root layouts, after glass.css. This is the
+   FOUNDATION layer: keyframes and utilities the area pages consume, plus the
+   motion of the frame (headers, menus, dialogs, toasts, buttons, fields, the
+   page entrance). See the usage guide for what a page may add.
+
+   ---------------------------------------------------------------- RULES
+   · EVERY animation and transition is inside
+     @media (prefers-reduced-motion: no-preference). Outside it every element
+     is already at its final, complete state: entrance keyframes use fill-mode
+     BACKWARDS, so their "from" state exists only while the motion runs.
+     (design-system.css keeps its reduced-motion safety net as well.)
+   · BACKWARDS, never forwards/both, on anything that moves page content: a
+     filling transform animation keeps the element a containing block in
+     Chromium and traps a position:fixed dialog rendered inside it.
+   · Only transform and opacity move. No blur is animated, no layout property
+     is animated (the switch indicator's width is the one exception — one
+     small absolutely-positioned pill).
+   · Nothing runs longer than ~600 ms; a stagger never totals more than
+     250 ms (step 40 ms, at most five steps — --stagger-step).
+   · Nothing a person (or a test) clicks moves forever. The only loops are
+     decorative, aria-hidden, pointer-events:none layers: the skeleton
+     shimmer while a route loads, and the ground's slow drift on desktop.
+   · Numbers never animate at load (BUG-026): blocks fade and rise, their
+     text is the server's from the first frame.
+   · RTL: --mo-dir is 1 in LTR and -1 in RTL; every horizontal motion
+     multiplies by it. The page entrance is vertical, so it needs none.
+   · Hover lifts only where hover exists — (hover: hover) — and only on
+     things that ARE links or buttons (a lift promises a click: A12/D18).
+   ========================================================================= */
+
+:root { --mo-dir: 1; }
+[dir="rtl"] { --mo-dir: -1; }
+
+/* ------------------------------------------------------------- keyframes */
+
+@keyframes mo-rise {
+  from { opacity: 0; transform: translate3d(0, 12px, 0); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes mo-rise-sm {
+  from { opacity: 0; transform: translate3d(0, 6px, 0); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes mo-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+/* a dialog arriving as one pane of glass (the sign-in's lg-card-in). NO
+   SCALE on any pop-up: a size read while it arrives (a 44px item, a dialog's
+   field) must already be the real size — only its place and its opacity move */
+@keyframes mo-pop {
+  from { opacity: 0; transform: translate3d(0, 22px, 0); }
+  to { opacity: 1; transform: none; }
+}
+/* a menu dropping from its button */
+@keyframes mo-drop {
+  from { opacity: 0; transform: translate3d(0, -10px, 0); }
+  to { opacity: 1; transform: none; }
+}
+/* the same drop on the INDIVIDUAL transform properties, for a menu that
+   positions itself with an inline `transform` (LeadsImportMenu nudges itself
+   back inside a narrow viewport) — `translate` / `scale` compose with it
+   instead of overriding it for the length of the animation */
+@keyframes mo-drop-x {
+  from { opacity: 0; translate: 0 -10px; }
+  to { opacity: 1; translate: none; }
+}
+/* the phone sheet unfolding under the header */
+@keyframes mo-sheet {
+  from { opacity: 0; transform: translate3d(0, -14px, 0); }
+  to { opacity: 1; transform: none; }
+}
+/* a toast sliding up */
+@keyframes mo-toast {
+  from { opacity: 0; transform: translate3d(0, 24px, 0); }
+  to { opacity: 1; transform: none; }
+}
+/* exits (usePresence keeps the element for --duration-short) */
+@keyframes mo-out {
+  to { opacity: 0; transform: translate3d(0, -8px, 0); }
+}
+@keyframes mo-fade-out {
+  to { opacity: 0; }
+}
+/* the skeleton's light, crossing in the reading direction */
+@keyframes mo-shimmer {
+  from { transform: translate3d(calc(-100% * var(--mo-dir)), 0, 0); }
+  to { transform: translate3d(calc(100% * var(--mo-dir)), 0, 0); }
+}
+/* a light sweeping a glass bezel once (the sign-in's lg-tile-sheen) */
+@keyframes mo-sheen {
+  from { opacity: 1; transform: translate3d(calc(-70% * var(--mo-dir)), 0, 0); }
+  to { opacity: 1; transform: translate3d(calc(70% * var(--mo-dir)), 0, 0); }
+}
+/* the ground's slow breathing — desktop only, transform only */
+@keyframes mo-drift-a {
+  from { transform: translate3d(0, 0, 0) scale(1); }
+  to { transform: translate3d(calc(4vmax * var(--mo-dir)), 3vmax, 0) scale(1.06); }
+}
+@keyframes mo-drift-b {
+  from { transform: translate3d(0, 0, 0) scale(1.04); }
+  to { transform: translate3d(calc(-3vmax * var(--mo-dir)), -4vmax, 0) scale(.96); }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  /* ============================================== utilities (for every page)
+     .u-enter      one element rises in when it mounts
+     .u-stagger    its children rise in turn (40 ms apart, five steps max)
+     .u-lift       an interactive card lifts under a pointer
+     .u-press      a pressed control gives way
+     .u-disclose   a disclosure body unfolds when it is shown */
+  .u-enter { animation: mo-rise var(--duration-long) var(--ease-standard) backwards; }
+  .u-stagger > * { animation: mo-rise var(--duration-long) var(--ease-standard) backwards; }
+  .u-stagger > :nth-child(2) { animation-delay: var(--stagger-step); }
+  .u-stagger > :nth-child(3) { animation-delay: calc(var(--stagger-step) * 2); }
+  .u-stagger > :nth-child(4) { animation-delay: calc(var(--stagger-step) * 3); }
+  .u-stagger > :nth-child(5) { animation-delay: calc(var(--stagger-step) * 4); }
+  .u-stagger > :nth-child(n + 6) { animation-delay: calc(var(--stagger-step) * 5); }
+  .u-lift,
+  .u-press {
+    transition:
+      transform var(--duration-medium) var(--ease-spring),
+      box-shadow var(--duration-medium) var(--ease-standard),
+      border-color var(--duration-short) ease,
+      background-color var(--duration-short) ease;
+  }
+  .u-press:active { transform: scale(.98); transition-duration: 90ms; }
+  .u-disclose {
+    transition:
+      opacity var(--duration-medium) var(--ease-standard),
+      transform var(--duration-medium) var(--ease-standard),
+      display var(--duration-medium) allow-discrete;
+  }
+  @starting-style {
+    .u-disclose { opacity: 0; transform: translate3d(0, -6px, 0); }
+  }
+
+  /* ============================================== the page entrance
+     Every screen's main column: its blocks rise in, 40 ms apart; inside the
+     page head the eyebrow, the title and the sub-line follow one another —
+     the sign-in's kicker / heading / sub cascade, at half its travel. */
+  /* (the page itself sits inside RoutePending's .route-host, a
+     display:contents wrapper with no box of its own — so the entrance names
+     the host's children; whatever the shell puts before it, the company
+     switch, goes first) */
+  .page > :not(.route-host),
+  .route-host > * { animation: mo-rise var(--duration-long) var(--ease-standard) backwards; }
+  .route-host > * { animation-delay: var(--stagger-step); }
+  .route-host > :nth-child(2) { animation-delay: calc(var(--stagger-step) * 2); }
+  .route-host > :nth-child(n + 3) { animation-delay: calc(var(--stagger-step) * 3); }
+  .page-head .u-eyebrow { animation: mo-rise-sm var(--duration-long) var(--ease-standard) calc(var(--stagger-step) * 1) backwards; }
+  .page-head .u-h1 { animation: mo-rise-sm var(--duration-long) var(--ease-standard) calc(var(--stagger-step) * 2) backwards; }
+  .page-head .u-sub { animation: mo-rise-sm var(--duration-long) var(--ease-standard) calc(var(--stagger-step) * 3) backwards; }
+  .page-head .page-actions { animation: mo-fade var(--duration-long) var(--ease-standard) calc(var(--stagger-step) * 3) backwards; }
+  .empty { animation: mo-fade var(--duration-long) var(--ease-standard) backwards; }
+  /* a route's skeleton fades in (RoutePending has already waited 120 ms,
+     so a fast navigation never shows it at all) */
+  .sk-page { animation: mo-fade var(--duration-medium) var(--ease-standard) backwards; }
+  .sk::after { animation: mo-shimmer 1.5s var(--ease-standard) infinite; }
+
+  /* ============================================== feedback (the frame)
+     The house transition list (design-system.css used to carry it outside
+     this fence), on the tokens. */
+  .tile, .ecard, .card, .action-pill, .hub-card,
+  .btn-primary, .btn-ghost, .btn-danger, .btn-accent,
+  .nav-item, .nav-sheet-link, .switcher-seg, .bell, .row-toggle, .field-input, .dropzone,
+  .call-cta, .card-dial, .filter-toggle, .undo-btn, .nav-burger, .nav-scroll {
+    transition:
+      background-color var(--duration-short) ease,
+      border-color var(--duration-short) ease,
+      color var(--duration-short) ease,
+      box-shadow var(--duration-medium) var(--ease-standard),
+      transform var(--duration-medium) var(--ease-spring),
+      opacity var(--duration-short) ease;
+  }
+  /* press: the control gives way (the sign-in CTA's .985, a touch deeper on
+     small controls) */
+  .btn-primary:active, .btn-ghost:active, .btn-accent:active, .btn-danger:active,
+  .action-pill:active, .nav-item:active, .switcher-seg:active, .bell:active,
+  .row-toggle:active, .filter-toggle:active, .nav-burger:active, .undo-btn:active {
+    transform: scale(.97);
+    transition-duration: 90ms;
+  }
+  .btn-primary:disabled:active, .btn-ghost:disabled:active { transform: none; }
+  /* the switch indicator slides; the segments' ink crossfades with it */
+  .switcher[data-indicator] > .switch-ind {
+    transition:
+      transform var(--duration-long) var(--ease-spring),
+      inline-size var(--duration-medium) var(--ease-standard),
+      background-color var(--duration-short) ease;
+  }
+  /* the bell's unread count still breathes (it carried this outside the fence) */
+  .bell-count { animation: ds-pulse-ring 2.4s ease-out infinite; }
+
+  /* ============================================== pop-ups
+     Dialogs spring in as one pane; their scrim fades. Menus drop from their
+     button with a spring. The phone sheet unfolds. Toasts slide up. Each
+     closes with --duration-short where its component keeps it mounted for
+     the exit (usePresence: the sheet, the bell). */
+  .modal-overlay { animation: mo-fade var(--duration-medium) var(--ease-standard) backwards; }
+  .modal { animation: mo-pop var(--duration-long) var(--ease-spring) backwards; }
+  .bell-menu {
+    transform-origin: top right;
+    animation: mo-drop var(--duration-medium) var(--ease-spring) backwards;
+  }
+  [dir="rtl"] .bell-menu { transform-origin: top left; }
+  /* a role=menu fades in IN PLACE: its items are thumb targets that are
+     measured the moment it opens (leads-import.spec: 44px, on screen), and a
+     box read mid-translate comes back a hair short. mo-drop-x stays for a
+     menu that is not measured. */
+  .glass-menu { animation: mo-fade var(--duration-medium) var(--ease-standard) backwards; }
+  .nav-sheet { animation: mo-sheet var(--duration-medium) var(--ease-standard) backwards; }
+  .nav-sheet-backdrop { animation: mo-fade var(--duration-medium) var(--ease-standard) backwards; }
+  .nav-sheet-link { animation: mo-rise-sm var(--duration-medium) var(--ease-standard) backwards; }
+  .nav-sheet-link:nth-child(2) { animation-delay: 20ms; }
+  .nav-sheet-link:nth-child(3) { animation-delay: 40ms; }
+  .nav-sheet-link:nth-child(4) { animation-delay: 60ms; }
+  .nav-sheet-link:nth-child(5) { animation-delay: 80ms; }
+  .nav-sheet-link:nth-child(n + 6) { animation-delay: 100ms; }
+  :is(.nav-sheet, .bell-menu, .nav-sheet-backdrop)[data-closing] {
+    pointer-events: none;
+    animation: mo-out var(--duration-short) var(--ease-exit) forwards;
+  }
+  .nav-sheet-backdrop[data-closing] { animation-name: mo-fade-out; }
+  .toast { animation: mo-toast var(--duration-long) var(--ease-spring) backwards; }
+  .undo-btn { animation: mo-rise var(--duration-long) var(--ease-spring) backwards; }
+  /* the filter panel unfolds when opened (display:none → block, so a
+     @starting-style transition; no JavaScript involved) */
+  .filter-body[data-open="true"] {
+    transition:
+      opacity var(--duration-medium) var(--ease-standard),
+      transform var(--duration-medium) var(--ease-standard);
+  }
+  @starting-style {
+    .filter-body[data-open="true"] { opacity: 0; transform: translate3d(0, -6px, 0); }
+  }
+  .filter-toggle::after { transition: transform var(--duration-medium) var(--ease-spring); }
+}
+
+/* Small screens: a dialog is a sheet pinned to the bottom (design-system.css
+   ≤640px), so it rises from below instead of popping in place. */
+@media (prefers-reduced-motion: no-preference) and (max-width: 640px) {
+  .modal { animation-name: mo-toast; }
+}
+
+/* Hover — only where a pointer can hover. */
+@media (prefers-reduced-motion: no-preference) and (hover: hover) {
+  .u-lift:hover {
+    transform: translate3d(0, -2px, 0);
+    box-shadow: var(--shadow-card), var(--shadow-float);
+  }
+  /* entity cards are links (A12/D18): they keep their lift, on the glow */
+  .ecard:hover {
+    transform: translate3d(0, -2px, 0);
+    box-shadow: var(--shadow-card), var(--shadow-float);
+  }
+  .btn-primary:not(:disabled):hover,
+  .btn-accent:not(:disabled):hover {
+    transform: translate3d(0, -1px, 0);
+    box-shadow:
+      inset 0 1px 0 color-mix(in srgb, var(--color-on-dark) 30%, transparent),
+      inset 0 -2px 6px -2px color-mix(in srgb, var(--color-surface-dark) 22%, transparent),
+      0 12px 26px -12px var(--color-glow);
+  }
+  .btn-ghost:not(:disabled):hover {
+    box-shadow:
+      inset 0 1px 0 var(--color-glass-highlight),
+      0 8px 20px -14px var(--color-glow);
+  }
+  .bell:hover { transform: translate3d(0, -1px, 0); }
+}
+
+/* The sign-in-like pages (glass.css .gl-* / .portal-*): the sign-in's own
+   entrance — the pane arrives as one piece of glass, its mark pops in on a
+   spring, then the words and the actions rise in turn (≤ 200 ms of stagger). */
+@keyframes mo-tile-pop {
+  0% { opacity: 0; transform: scale(.7); }
+  60% { opacity: 1; transform: scale(1.05); }
+  100% { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .gl-top { animation: mo-fade .6s var(--ease-standard) 80ms backwards; }
+  .gl-card,
+  .portal-card,
+  .portal-form-card { animation: mo-pop .56s var(--ease-standard) backwards; }
+  .gl-card > *,
+  .portal-card > * { animation: mo-rise-sm var(--duration-long) var(--ease-standard) backwards; }
+  .gl-card > :nth-child(1), .portal-card > :nth-child(2) { animation-delay: 120ms; }
+  .gl-card > :nth-child(2), .portal-card > :nth-child(3) { animation-delay: 160ms; }
+  .gl-card > :nth-child(3), .portal-card > :nth-child(4) { animation-delay: 200ms; }
+  .gl-card > :nth-child(n + 4), .portal-card > :nth-child(n + 5) { animation-delay: 240ms; }
+  .portal-tile { animation: mo-tile-pop .55s var(--ease-spring) 60ms backwards; }
+  .portal-mesh { animation: mo-fade 1s var(--ease-standard) backwards; }
+  .portal-cta,
+  .portal-ghost,
+  .gl-cta {
+    transition:
+      transform var(--duration-medium) var(--ease-spring),
+      box-shadow var(--duration-medium) var(--ease-standard),
+      background-color var(--duration-short) ease;
+  }
+  .portal-cta:active,
+  .portal-ghost:active { transform: scale(.97); transition-duration: 90ms; }
+}
+/* The ground breathes — desktop only (off on phones and tablets, where it
+   is static), transform only, decorative and inert. */
+@media (prefers-reduced-motion: no-preference) and (min-width: 1024px) {
+  .app-ground::before { animation: mo-drift-a 38s ease-in-out -6s infinite alternate; }
+  .app-ground::after { animation: mo-drift-b 44s ease-in-out -14s infinite alternate; }
+  .ag-blob--halo { animation: mo-drift-a 30s ease-in-out -4s infinite alternate; }
+  .ag-blob--glow { animation: mo-drift-b 36s ease-in-out -12s infinite alternate; }
+  .ag-blob--wash { animation: mo-drift-a 26s ease-in-out -8s infinite alternate-reverse; }
+  .ag-orb--1 { animation: mo-drift-b 18s ease-in-out -3s infinite alternate; }
+  .ag-orb--2 { animation: mo-drift-a 22s ease-in-out -9s infinite alternate; }
+  .ag-orb--3 { animation: mo-drift-b 14s ease-in-out -2s infinite alternate; }
+}

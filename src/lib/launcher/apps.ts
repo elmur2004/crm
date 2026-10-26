@@ -67,20 +67,18 @@ export interface LauncherTile {
   palette: IconPalette;
 }
 
-export type ReportId =
-  | "bs-dashboard"
-  | "bf-dashboard"
-  | "daily-report"
-  | "acct-dashboard"
-  | "acct-pnl"
-  | "acct-departments";
+/* Founder answer 3, "Inside Accounting only": the accounting dashboard, the
+   monthly P&L and the department profitability are pages of the Accounting
+   app and live in ITS menu (lib/accounting/nav.ts) — not here. This list is
+   the two CRM dashboards and the daily report, and nothing else. */
+export type ReportId = "bs-dashboard" | "bf-dashboard" | "daily-report";
 
 export interface ReportEntry {
   id: ReportId;
   href: string;
   label: Msg;
   description: Msg;
-  group: "crm" | "accounting";
+  group: "crm";
   /** whose data it shows — drawn as a small mark beside the entry */
   palette: IconPalette;
 }
@@ -98,11 +96,15 @@ const holdsAny = (roles: Role[], set: readonly Role[]) => roles.some((r) => set.
     would bounce: an account whose only B-Systems role is data entry but who is
     also ByteForce staff would default to B-Systems and be sent away. */
 export function workingCompanyFor(roles: Role[]): CrmCompany | null {
+  return workingCompaniesFor(roles)[0] ?? null;
+}
+
+/** EVERY company in which this account works leads, in the same order. The
+    To-Do's in-page company tabs (one To-Do tile, one page, a filter on it)
+    render exactly these — two of them means the tabs appear. */
+export function workingCompaniesFor(roles: Role[]): CrmCompany[] {
   const held = companiesFor(roles);
-  for (const company of CRM_COMPANIES) {
-    if (held.includes(company) && holdsAny(roles, crmRolesFor(company))) return company;
-  }
-  return null;
+  return CRM_COMPANIES.filter((company) => held.includes(company) && holdsAny(roles, crmRolesFor(company)));
 }
 
 /** Every report and dashboard this account can open, in reading order. */
@@ -148,34 +150,6 @@ export function reportsFor(user: LauncherBearer): ReportEntry[] {
       group: "crm",
       palette: "neutral",
     });
-  }
-  if (canUseModule(user, "accounting")) {
-    out.push(
-      {
-        id: "acct-dashboard",
-        href: "/accounting",
-        label: r.acctDashboard,
-        description: r.acctDashboardDesc,
-        group: "accounting",
-        palette: "neutral",
-      },
-      {
-        id: "acct-pnl",
-        href: "/accounting/report",
-        label: r.acctPnl,
-        description: r.acctPnlDesc,
-        group: "accounting",
-        palette: "neutral",
-      },
-      {
-        id: "acct-departments",
-        href: "/accounting/departments",
-        label: r.acctDepartments,
-        description: r.acctDepartmentsDesc,
-        group: "accounting",
-        palette: "neutral",
-      },
-    );
   }
   return out;
 }
@@ -254,11 +228,11 @@ export function launcherTilesFor(user: LauncherBearer): LauncherTile[] {
     tiles.push({ id: "reports", href: reports, label: m.reports, palette: "neutral" });
   }
 
-  /* 7 — Partners & Agents: ONE tile for the pipeline that already carries both
-     kinds of card (ADR-059). The Partners and Agents directories are one click
-     away in that shell's own header nav, which the founder kept for moving
-     inside an app. The board is B-Systems-only and admin-only
-     (requireBsAdminCompanyPage). */
+  /* 7 — Partners & Agents: ONE app for the pipeline that already carries both
+     kinds of card (ADR-059). It opens on the board; the Partners and Agents
+     directories and Registrations are in ITS own menu (lib/crm/nav.ts,
+     partnersNavFor) — they left the B-Systems CRM menu so each has one way
+     in. The board is B-Systems-only and admin-only (requireBsAdminCompanyPage). */
   if (roles.includes("bsystems_admin")) {
     tiles.push({
       id: "partners",

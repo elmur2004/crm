@@ -1,7 +1,7 @@
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { requireCompanySection } from "@/lib/auth/page-guards";
-import { BS_PIPELINE_ROLES } from "@/lib/crm/company";
+import { BS_PIPELINE_ROLES, crmQuery } from "@/lib/crm/company";
+import { crmHomeFor } from "@/lib/crm/nav";
 import { bsRoleOf } from "@/lib/api/bsystems";
 import { statementDocument } from "@/lib/services/statements";
 import { ApiError } from "@/lib/api-error";
@@ -22,7 +22,11 @@ export async function generateMetadata() {
 /* Founder ⑧ — the printable commission statement: branded (token-driven, so it
    prints in the working brand), the closer, the client and their details, the
    full money breakdown, dates and the payment status. Admin + the statement's
-   own closer can open and print it. */
+   own closer can open and print it.
+
+   No "Back" link (one way to each page): Statements (admin) and Payments
+   (agent/partner) are in the CRM menu, and this document is reached from a
+   row there. */
 
 export default async function StatementDocumentPage({
   params,
@@ -51,11 +55,12 @@ export default async function StatementDocumentPage({
     throw e;
   }
   const { statement: s, lead, closerUser } = doc;
-  const isAdmin = bsRoleOf(user) === "bsystems_admin";
-  if (!isAdmin && s.closerUserId !== user.id) redirect("/b-systems");
+  const role = bsRoleOf(user);
+  const isAdmin = role === "bsystems_admin";
+  /* not his statement: back to his board (crmHomeFor), never the dashboard */
+  if (!isAdmin && s.closerUserId !== user.id) redirect(`${crmHomeFor("bsystems", role)}${crmQuery("bsystems")}`);
 
   const total = s.amount + s.adjustments;
-  const backHref = isAdmin ? "/b-systems/statements" : "/b-systems/payments";
   const locale = await getLocale();
   const t = tFor(locale);
 
@@ -67,9 +72,6 @@ export default async function StatementDocumentPage({
       <div className="page-head no-print">
         <div>
           <p className="u-eyebrow">{`${t(d.eyebrowDocument)} ${s.code}`}</p>
-          <Link href={backHref} className="text-sm text-brand-muted underline underline-offset-2">
-            {t(d.back)}
-          </Link>
         </div>
         <div className="page-actions">
           <PrintButton label={t(d.printStatement)} />

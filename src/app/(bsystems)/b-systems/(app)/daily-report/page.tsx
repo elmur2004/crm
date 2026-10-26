@@ -9,7 +9,8 @@ import {
 } from "@/lib/services/daily-report";
 import { DailyReportBody } from "@/components/shared/DailyReportBody";
 
-export const metadata = { title: "Daily report — B-Systems CRM" };
+/* a page of Reports & Dashboards now (one way to each page) */
+export const metadata = { title: "Daily report — Reports & Dashboards" };
 
 /* ADR-081 — THE DAILY REPORT. One page for both of the merged shell's companies
    (the To-Do's and the Calendar's shape since ADR-067: the company rides the URL

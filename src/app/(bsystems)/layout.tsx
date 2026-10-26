@@ -16,6 +16,12 @@ import "@fontsource/jetbrains-mono/500.css";
 import "@fontsource/jetbrains-mono/700.css";
 import "../globals.css";
 import "@/themes/design-system.css";
+/* the system-wide glass + motion layer (after design-system) */
+import "@/themes/glass.css";
+import "@/themes/motion.css";
+/* the CRM page bodies' own craft — boards, lists, details, the To-Do (after
+   the foundation, so equal specificity resolves to the body layer) */
+import "@/themes/crm.css";
 
 /* Apps B & C shared root layout — stamps data-brand="bsystems" on <html>,
    activating the B-Systems token scope. Fonts self-host via fontsource @font-face

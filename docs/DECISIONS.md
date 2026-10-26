@@ -9266,3 +9266,562 @@ The first pass **failed**, on five counts: two-colour gradients, ByteForce colou
   - Data entry has no board (ADR-051), so ADR-088's needs-confirmation item 6 is unchanged.
 - **Nothing else about the import changed**: the same menu, the same four routes, the same wall. No new route, no permission change.
 - Test: `e2e/leads-import.spec.ts` → **"the CRM board carries the same button beside Add lead — and only for whom the server would accept"**. The admin sees only B-Systems' button on the B-Systems board and only ByteForce's on the ByteForce board; the menu opens from the board as from the Leads page; internal sales sees the B-Systems board with no button. The spec now holds 8 tests.
+
+## ADR-093 — 2026-10-26 — THE GLASS FRAME: glass and glow on what frames the work, solid cards under the data, the sign-in's motion on every screen, and a skeleton that never costs a page its JavaScript-off paint
+
+- Context: the founder, verbatim — *"the log in page is very nicely animated and designed the rest of the system is still not"*. Asked how far the glass should go, he chose **"Glass frame, solid data"**: glass and glow on what frames the work (headers, menus, the launcher, pop-ups, panels, notifications); boards, tables and forms on solid cards; the login's motion everywhere. Asked whether to push or preview, he chose **"Preview locally first"**.
+
+  **This is LOCAL work and is not pushed.** It sits uncommitted in the D:/CRM working tree, with ADR-094 and ADR-095, for the founder's local preview before any push. The reference is ADR-092's sign-in. This ADR does not touch `src/themes/login.css`; ADR-094 removes its system twin.
+
+- Decision: a glass and motion layer for the app **frame only**. It consists of new tokens in all three scopes, two new sheets, and six small shared components. Every board, table and form stays on its solid card, so text and numbers stay sharp and phones stay fast. Print is unchanged.
+
+### 1. THE TOKENS: ONE CONTRACT, NINETEEN LARGER
+
+- **Ten colour tokens, each with a light and a dark value, in all three scope files** (`branding/byteforce/tokens.css`, `branding/b-systems/tokens.css`, `src/themes/neutral.css`): `--color-glass`, `--color-glass-strong`, `--color-glass-chrome`, `--color-glass-edge`, `--color-glass-highlight`, `--color-glass-quiet`, `--color-glow`, `--color-ground-halo`, `--color-ground-wash`, `--shadow-float`.
+- **Nine invariant tokens:** `--glass-blur`, `--glass-blur-strong`, `--ease-standard`, `--ease-spring`, `--ease-exit`, `--duration-short`, `--duration-medium`, `--duration-long`, `--stagger-step`.
+- A grep at writing time counts **29 declarations in each scope file** (10 × 2 themes + 9), so ADR-019's identical-contract rule still holds.
+- `src/app/globals.css` maps the glass tokens for Tailwind (`--color-brand-glass`, `-glass-strong`, `-glass-edge`, `-glass-quiet`, `--shadow-brand-float`).
+- **Three glass weights, each with one job:**
+  - `--color-glass` is a thin frost, used over the ground only: in-flow panels, and the bezel ring around a solid plate.
+  - `--color-glass-strong` is a dense frost, used where text sits over arbitrary content: the phone menu and the import menu.
+  - `--color-glass-chrome` is for the sticky headers. B-Systems keeps Systems Indigo there, at **88%** in light and 86% in dark.
+- Quiet text on glass uses `--color-glass-quiet`, never `--color-muted`.
+
+### 2. TWO NEW SHEETS
+
+- **`src/themes/glass.css` and `src/themes/motion.css`** are imported after `design-system.css` in all four app root layouts: `(home)`, `(bsystems)`, `(accounting)` and `(vault)`. The landing layout is not touched.
+- **glass.css has no literal colour.** It uses tokens or `color-mix()` over tokens. It spends four brand palette variables, each only where its brand is the nearest scope: `--bf-ink`, `--bs-indigodeep`, `--bs-paper` and `--bf-offwhite`.
+  - Everything visual sits inside `@media screen`, so glass never prints, and the ground is removed from print.
+  - `backdrop-filter` is used only on frame elements: the header (on a `::before`, so the header never becomes the containing block of the fixed phone menu inside it), the phone menu, the bell, the import menu, a dialog's scrim and a toast. It is never on a card, row, column or tile, and no blur is animated.
+- **The frame's motion moved out of `design-system.css` into `motion.css`.** All of it sits inside `prefers-reduced-motion: no-preference`.
+  - Entrance keyframes fill **backwards**, so with motion off every element is already in its final state.
+  - Only transform and opacity animate. The one exception is the width of the switch indicator pill.
+  - Nothing runs longer than about 600 ms, and a stagger never totals more than 250 ms (a 40 ms step, at most five steps).
+  - **No pop-up scales**, so a size read during the entrance is already the real size (§6).
+
+### 3. NEW COMPONENTS (`src/components/shared/`)
+
+- **`AppGround`**: the fixed, `aria-hidden` ambient glow behind every app screen. A richer variant serves the launcher, `/no-access` and the portal sign-up.
+- **`SwitchIndicator`**: a sliding pill, used on the language and theme toggles only.
+- **`usePresence`**: a close animation, used for the phone menu and the bell.
+- **`RoutePending`, `RouteSkeleton` and `LoadingLabel`**: the skeleton shown on a click (§5).
+
+### 4. THE FRAME, PIECE BY PIECE
+
+- **Headers.** Sticky glass headers.
+  - The B-Systems header stays Indigo, at 88%.
+  - The first **248px** under the logos is painted solid in the header's own colour, so content never shows through a logo (brand audit; ADR-092 §3).
+  - The call sheet's sticky identity block now sits below the sticky header.
+- **The phone menu** is on dense glass, with a close animation.
+- **The bell** is a glass frame around a solid list, with a close animation. **The import menu** is on glass.
+- **Dialogs** get a frosted backdrop and a **6px glass frame** around the solid form. **None of the 12 dialog components changed.**
+- **Notifications and panels.** Toasts and the undo pill are frosted. The filter panel is glass.
+- **Buttons** get gloss, glow and a press effect. Three brand exceptions:
+  - ByteForce buttons have **no gloss**: the brand book asks for flat colour blocks.
+  - ByteForce frame controls carry **Ink on orange**.
+  - B-Systems pink buttons carry **Indigo Deep text in light** (5.84:1), because white on pink is **3.12:1**.
+- **Inputs** get the sign-in's focus glow.
+- **Every page heading** gets an entrance.
+- **The ambient glow** sits behind every app screen. It is very faint in light, so muted text still clears 4.5:1, and richer in dark. ByteForce's dark corner glow is off.
+- **Pages brought up to the sign-in's level.** The launcher and the Reports page; `/no-access` and `/portal`, now glass cards with the B-Systems mark on a flat Paper plate.
+
+### 5. WHY NOT `loading.tsx` — RECORDED AS A DECISION
+
+A `loading.tsx` is a Suspense boundary, so Next streams every page through it, the first document load included. The skeleton is sent first. The real content arrives hidden and is revealed by an inline script.
+
+- **With JavaScript off**, the page stays a skeleton forever. `e2e/fallen-behind.spec.ts` checks the no-JS paint, and it **failed**.
+- **With JavaScript on**, React shows the content a moment after load. **Two more specs broke.**
+
+Both break promises this product keeps: every page is complete without JavaScript, and the first byte is already the page. So **no route has a `loading.tsx`**. Instead:
+
+- **`RoutePending` wraps the content in all three shells:** the CRM, Accounting and the Vault (`<RoutePending>{children}</RoutePending>`).
+- **What it catches:** a plain click to a different page inside the app. After **120 ms** it shows that page's `RouteSkeleton` until the new address loads, and it gives up after 8 s.
+- **What it leaves alone:** filter, period and company changes keep the page on screen.
+- **The server still sends complete pages.**
+- **A vitest guard** in `src/themes/glass-motion.test.ts` fails if a `loading.tsx` appears in any shell.
+
+### 6. TESTS
+
+- **New `src/themes/glass-motion.test.ts`.** It computes every contrast figure from the tokens, and checks the motion and frost rules. It also checks that there is no `data-theme="system"` rule and no `prefers-color-scheme` rule (ADR-094), and that `loading.tsx` stays absent (§5).
+- **New `e2e/glass-frame.spec.ts`, 7 tests (counted at writing):**
+  - the toggle offers exactly Light and Dark, and a stored `system` cookie renders light (ADR-094);
+  - the sticky header, with the phone menu still covering the screen;
+  - the glow is behind the content, `aria-hidden`, and never prints;
+  - motion on: the entrance plays, then everything clickable is still; the sliding pill;
+  - under reduced motion, nothing moves;
+  - a click shows the skeleton, and the document itself is always the whole page.
+- **The first full e2e run had 12 failures, all fixed** (none in shipped code, so no BUG id):
+  - 8 × the login touch-target count, which went from 10 to 9 with the System segment gone (ADR-094);
+  - 1 × the import menu's 44px items measuring 43.6px mid-entrance, which is why pop-ups no longer scale;
+  - 3 caused by `loading.tsx`, now removed (§5).
+- **Results reported by the foundation agent:**
+  - `tsc` exit 0;
+  - vitest `Test Files 98 passed (98)` / `Tests 2263 passed | 1 skipped (2264)`;
+  - full Playwright `334 passed (34.9m)`, 9 skipped, `.last-run.json` passed.
+
+  These are figures from one point in the build; TESTING Run 106 has the detail.
+
+### 7. BRAND AUDIT
+
+- **The first pass FAILED, and both causes were fixed:** logos over glass (now the 248px solid zone, §4) and ByteForce's dark corner glow (now off). Every remaining finding is Low.
+- **Its third Medium is this ADR:** the departures in §4 needed writing down.
+- **Open for the founder or the skill owner:** the `byteforce-brand` skill (`.claude/skills/byteforce-brand/SKILL.md`, line 33) still says *"Primary buttons and focus states = orange on white text"*. The frame now puts Ink on orange (ADR-087 §5: white on orange is 3.34:1). The docs-keeper does not edit skills.
+
+- Alternatives considered:
+  - **Glass reaching the data too (boards, tables, forms).** Not taken: the founder chose "Glass frame, solid data".
+  - **`loading.tsx` route skeletons.** Rejected, §5.
+  - **Scale on pop-up entrances.** Rejected: a 44px item measured 43.6px mid-entrance (§6).
+  - **White text on B-Systems Signal Pink in light.** Rejected: 3.12:1.
+  - **Gloss on ByteForce buttons.** Not taken: the ByteForce book asks for flat colour blocks.
+  - **Frost right up to the logos.** Rejected: nothing passes behind or over the artwork (ADR-092 §3), so the logo zone is solid.
+  - **A richer glow in light.** Not taken: muted text must still clear 4.5:1 on the ground. Flagged below.
+
+- Resolves: one founder request; **no SPEC §11 A-#** (A-13's ByteForce mark is still pending). Carries ADR-092's glass and motion language from the sign-in to the app frame. Keeps SPEC §4 and ADR-019 (zero literals in components, one token contract), ADR-087's dark contract (now light and dark only, ADR-094), ADR-092 §3 (no effect behind a logo) and BUG-026 (numbers never animate at load). **No migration, no schema change, no permission change.** No animation library appears in `package.json` (grep at writing time); the layer is the project's own CSS and components.
+- Status: Accepted. **LOCAL, not pushed: awaiting the founder's preview.** **Needs founder confirmation (five):**
+  1. **ByteForce frame controls carry Ink on orange with no gloss.** Page bodies still use the white-text token.
+  2. **B-Systems pink buttons carry Indigo Deep text in light** (5.84:1; white is 3.12:1).
+  3. **The light-mode glow is very faint**, so muted text stays readable. Dark is richer.
+  4. **The header is now sticky.** The call sheet's sticky block sits below it.
+  5. **Dialogs, menus and toasts animate in; only the phone menu and the bell animate out.**
+
+  Also open, for the founder or the skill owner: the `byteforce-brand` skill's "orange on white text" line (§7).
+
+## ADR-094 — 2026-10-26 — LIGHT AND DARK ONLY: the System theme is removed, light is the default again, and a stored "system" reads as light (amends ADR-087)
+
+- Context: the founder, verbatim — *"remove the system theme option"*. It came during the same pass as ADR-093. **This is LOCAL work and is not pushed.** The founder previews it before a push.
+
+- Decision: the theme preference has two values. Everything else in ADR-087's contract stands: the cookie, its one writer, the server stamp on `<html>`, and print that stays light.
+
+### 1. THE PREFERENCE
+
+- **`Theme` is `"light" | "dark"`** (`src/lib/theme/core.ts`): `THEMES = ["light", "dark"]`, and `DEFAULT_THEME = "light"`, which is what everyone saw before dark mode existed.
+- **`parseTheme` reads a stored `system` cookie as light, and anything else too.** It never throws, and a cookie set before this change needs no migration.
+- **The browser bar has no system case.** `themeColorFor` emits nothing in light and the dark chrome in dark, so ADR-087 §4's third row (a media-qualified meta) is gone.
+- **The toggle shows Light · Dark.** The `shell.themeSystem` key (`dict/auth.ts`, "System" / «حسب الجهاز») is kept and unused, under the never-delete-a-key rule.
+
+### 2. THE CSS
+
+- **Every `data-theme="system"` block is removed**, together with its `prefers-color-scheme: dark` wrapper, from:
+  - the three token files;
+  - `design-system.css`;
+  - `login.css`, which retires ADR-092 §4's "verbatim system twin";
+  - `glass.css`.
+
+  This also removes the system blocks that ADR-091 §6 had added for `--radius-panel` and `--color-chart-1..3`.
+- Light and dark render as before.
+- **No landing file was touched.**
+
+### 3. THE TESTS THAT HOLD IT
+
+- **Vitest:** `theme-tokens`, `theme-stamp`, `dark-components`, `core`, `login-glass` and `glass-motion` now require light and dark only. Each **fails** if a system selector or a `prefers-color-scheme` rule comes back.
+- **e2e:**
+  - the login tab order loses its System stop, and the login button count drops by one (ADR-093 §6's 8 failures were this count);
+  - the phone menu's segment count goes from 8 to 7 (ADR-087 §7 had raised it to 8);
+  - new assertions check that the toggle offers exactly Light and Dark and that a `system` cookie renders light (`e2e/glass-frame.spec.ts`).
+
+### 4. LEFT ON PURPOSE
+
+The standalone "file missing" page in `src/app/api/files/[id]/route.ts` still follows the OS for anyone who has not chosen Dark. It is a document outside the app shells with its own `prefers-color-scheme` block. Its comment was updated; its behaviour is untouched.
+
+- Alternatives considered:
+  - **Keeping System as an option with light as the default.** Not taken: the founder asked for the option to be removed.
+  - **Rewriting stored `system` cookies.** Not needed: `parseTheme` already reads them as light, and the next press of the toggle overwrites the cookie.
+  - **Removing the `themeSystem` dictionary key.** Not taken: the house rule never deletes a key.
+
+- Resolves: one founder request; **no SPEC §11 A-#**.
+  - **Amends ADR-087**, which is not rewritten: §1 goes from three values to two, and the default from "system" to light; §2 loses the system twin of every dark block; §4 loses its system row; the toggle goes from three segments to two.
+  - **Resolves ADR-087's needs-confirmation item 1** (the default was "system"). ADR-087's item 2, where the toggle lives, stays open.
+  - **No migration, no schema change, no permission change, no new dependency.**
+- Status: Accepted. **LOCAL, not pushed: awaiting the founder's preview.** **Needs founder confirmation (one):** the standalone "file missing" page still follows the device for anyone not on Dark (§4). Should it be pinned light like the rest?
+
+## ADR-095 — 2026-10-26 — ONE WAY TO EACH PAGE: the launcher is the only way between apps, each app's menu the only way to its pages, no switches, no logo links, and no shortcut that repeats a menu (amends ADR-067, ADR-054/ADR-060 and ADR-090; supersedes the navigation lines of SPEC §5.8, §6 and §7.1)
+
+- Context: the founder, verbatim — *"there is multiple ways to get to each page there should be one way each for each page to get to"*. He answered four questions:
+  1. On the two CRMs: **"Two CRM icons, no switch"**.
+  2. On the dashboards: **"Only in Reports & Dashboards"**.
+  3. On the accounting reports: **"Inside Accounting only"**.
+  4. On shortcut links: **"Remove them"**. Links to a specific record stay.
+
+  **This is LOCAL work and is not pushed.** The founder previews it before a push.
+
+- Decision: **the launcher (`/apps`) is the only way between apps, and each app's own menu is the only way to its pages.** A link to a specific record stays, because it is the only way to reach that record.
+
+  A tile is the door to its app and opens that app's **first menu item**. A tile counts as a door of its own only when its app has no menu item for the page it opens: the To-Do, the data-entry page, and the Reports screen (`src/lib/launcher/menus.ts`).
+
+### 1. THE MENUS, PER ROLE
+
+| App / role | Menu |
+| --- | --- |
+| Launcher tiles | **unchanged** (ADR-090 §4): ByteForce CRM, B-Systems CRM (data entry → its entry page), Accounting, Data Vault, To-Do, Reports & Dashboards, Partners & Agents (admin) |
+| Reports & Dashboards list | B-Systems dashboard (admin), ByteForce dashboard, Daily report. **Nothing from Accounting.** |
+| ByteForce CRM | CRM, Leads, Calendar, Clients |
+| B-Systems CRM, admin | CRM, Leads, Calendar, Won Leads, Statements, Users |
+| B-Systems CRM, sales | CRM, Calendar, Won Leads |
+| B-Systems CRM, agent / partner | CRM, Calendar, Won Leads, Payments, Profile |
+| B-Systems CRM, data entry | **no menu** (ADR-051: one page, reached from its one tile) |
+| Partners & Agents (admin) | Pipeline, Partners, Agents, Registrations |
+| To-Do, the two dashboards, the Daily report | **no menu** |
+| Accounting, Data Vault | **unchanged** (the accounting reports stay in Accounting's own menu) |
+
+- **The header names the app in words:** "B-Systems CRM", "ByteForce CRM", "Partners & Agents", "To-Do" or "Reports & Dashboards". It truncates with "…" on phones. `crmAppNameFor` (`src/lib/crm/nav.ts`) reads the launcher tile's own label, so the header and the tile cannot drift apart.
+- **The To-Do has ByteForce · B-Systems tabs** (`CompanyTabs`) for an account that works leads in both companies. The tabs filter the one page; they are not a second way in.
+- **ADR-085's search hop is untouched.** Its notice and its way back pass e2e.
+
+### 2. REMOVED
+
+- **The switches.**
+  - `EntitySwitch`: all three copies (CRM, Accounting, Vault), and the component is deleted. This was ADR-054's module switcher and ADR-060's phone module bar.
+  - `CompanySwitch` and `src/lib/crm/switch-target.ts`, with its test, are deleted. This was ADR-067 §5.
+- **The logo links.** The CRM, Accounting and Vault header marks and the launcher lockup are now plain marks, not links.
+- **CRM menu items:** Home, To-Do, Daily report, Partners & Agents, Partners, Agents, Registrations and Data entry. Also the three accounting entries on the Reports list.
+- **Dashboard shortcuts:**
+  - the New leads and Pipeline cards' links;
+  - Open the board; Add lead;
+  - the Agents and Partners count tiles;
+  - the HeroKpi link;
+  - the Funnel's Add lead;
+  - NeedsYou's Review registrations;
+  - RecentWins' All won deals and All clients;
+  - TasksCard's Open the To-Do.
+- **Back links:**
+  - Back to board (×2), Back to Won Leads, Back to all reps, Back to pipeline, Back to all partners;
+  - the statement document's Back;
+  - View in Agents.
+- **Import and dashboard extras:** the import result's "Show the unassigned leads", and its prop at 4 call sites; the accounting dashboard's extra Import button.
+- **Unused dictionary keys are kept.**
+
+### 3. KEPT ON PURPOSE
+
+**"View in Partners directory"** (the agent's report calls it "View in directory"; the visible string is `dict/partners.ts` `viewInDirectory`). It links to a specific partner record.
+
+### 4. WHERE A PERSON LANDS
+
+- **`crmHomeFor`** is the role's first menu item, which is the board. For data entry it is `/b-systems/entry`. It is never the dashboard any more.
+- **`landingFor`** sends the admin to `/b-systems/crm` and ByteForce staff to `/b-systems/crm?company=byteforce` (`src/lib/auth/landing.ts`).
+- **Payments, Profile, Entry and the statement document** bounce a refused user to their board.
+- **The `/no-access` button** goes to `/apps` and reads "Back to all apps".
+- **To-Do money rows** link to their own record (the statement document, or the won deal) with `?company=bsystems`.
+- **`page-guards.ts` and push's `appHomeFor` are unchanged** (as reported).
+
+### 5. PERMISSIONS: UNCHANGED
+
+`spec-guardian` confirmed that every guard admits the same accounts as before. Its FAIL was only that SPEC.md contradicted the new navigation. The coordinator answered it by adding **"Amended by ADR-095 (one way to each page)"** notes to SPEC.md, verified at writing time:
+
+| SPEC section | Superseded navigation line | Note added at |
+| --- | --- | --- |
+| §5.8 | line 193 | line 194 |
+| §6 | line 201 before the notes, 202 now | line 204 |
+| §7.1 | line 313 before the notes, 316 now | line 318 |
+
+The original lines are kept.
+
+### 6. THE GUARD: `src/lib/launcher/one-way.test.ts`
+
+- **No page has more than one menu-level way in.** That covers the tiles, the Reports entries and every app menu, for 9 modelled accounts and for every role/flag combination (64 role sets × 4 flag pairs).
+- **Every tile opens its app's first menu item**, or its app has no menu.
+- **No menu lists a page twice**, and **no section page is orphaned.**
+- **Page code is scanned for content links to menu pages.**
+- **It fails if the removed switches or the logo links come back.**
+- **Proved by mutation:** re-adding To-Do to the admin menu, and a To-Do link on the dashboard, both failed it.
+
+### 7. TESTS CHANGED
+
+- **Vitest:**
+  - `nav.test` sweeps the Partners & Agents menu and pins the menus and the header names;
+  - `apps.test` checks that there are no accounting reports and covers the To-Do tabs;
+  - `launcher.integration` renders every menu item through the real guards, and its agent fixture gains a profile row.
+- **e2e, rewritten to assert that the controls are GONE:** `company-switch.spec` and `module-bar.spec`.
+- **e2e, adjusted:**
+  - `nav-slider`: it clips at 900px, and the zoom check now runs on Accounting's 12 items;
+  - `qa-sweep`, `module-access`, `data-entry`, `daily-report`, `calendar`, `dashboard`, `launcher`, `device-sweep`, `glass-frame`, `search-cross-company`, `company-inventory`, `impersonation`;
+  - `helpers/after-sign-in.ts`: each landing names its launcher tile and checks that it is shown.
+- **Results reported by the navigation agent:**
+  - `tsc` exit 0;
+  - vitest `Test Files 98 passed (98)` / `Tests 2321 passed | 1 skipped (2322)`;
+  - full Playwright `339 passed (34.5m)`, 9 skipped, `.last-run.json` passed.
+- **Brand audit:** one Medium, the app name wrapping on desktop, fixed; most Lows fixed.
+- **A CSS ordering bug found in testing, and fixed:** a 5–26px sideways scroll at 320px and 601px. It was never shipped, so it has no BUG id.
+
+### 8. WHAT THIS DOES TO EARLIER DECISIONS (noted by the docs-keeper from the logs, not from the agents' reports)
+
+- **ADR-091 D11, second half.** "The company switch keeps `range`" was `switch-target.ts`, which is now deleted. There is no switch left to carry the period. The two dashboards are separate Reports entries. D11's first half (This month by default) stands.
+- **ADR-081 §7.** Its answer to the shared daily report was "the switch REORDERS the day". There is no switch left to press. The Reports entry opens the report with the account's working company (`src/lib/launcher/apps.ts`).
+- **ADR-090.**
+  - §3 explained the grid glyph by saying "the CRM's own menu already has a 'Home'". That menu no longer has one, so the reason has gone, though the glyph stays. ADR-090's item 5 stays open.
+  - §4 and §5 listed the three accounting reports on the Reports screen. They are now in Accounting's menu only.
+- **PROGRESS Entry 019 (2026-08-12, a founder fix with no ADR):** "header logos link to the CURRENT app's landing" (*"when I click on the logo it takes me to home"*). It is **reversed here**: the marks are no longer links, and the "All apps" grid icon is the one way back. Flagged below.
+- **ADR-067 §5 and §6.**
+  - The company switch, its labelled current-company sentence, and its fallback to "the target company's Home" are gone.
+  - So is the one `CRM` segment §6 put on the module bar.
+  - The rest of ADR-067 stands: the company in the URL, the per-company and per-role menus, the `/byteforce` redirects and the wall.
+
+- Alternatives considered:
+  - **Keeping the company switch for accounts that hold both companies.** Not taken: "Two CRM icons, no switch".
+  - **Dashboards in the CRM menus as well as in Reports.** Not taken: "Only in Reports & Dashboards".
+  - **The accounting reports on the Reports list as well.** Not taken: "Inside Accounting only".
+  - **Keeping the shortcut and back links.** Not taken: "Remove them".
+  - **Removing record links too.** Rejected: a record link is the only way to that record, and the founder kept them.
+  - **Logos that link to the app's first menu item.** Not taken: that would be a second way to the board.
+
+- Resolves: one founder request; **no SPEC §11 A-#**.
+  - **Amends ADR-067** §5 (the company switch) and §6 (the module bar's CRM segment); **ADR-054** (modules at the switcher, `EntitySwitch`); **ADR-060** (the phone module bar); and **ADR-090** (the launcher lockup was a link; the Reports list's accounting entries, §4/§5). None of them is rewritten.
+  - **Supersedes the navigation lines of SPEC §5.8 (line 193), §6 (line 201) and §7.1 (line 313)**. The amendment notes are now in SPEC.md (§5).
+  - **Keeps** ADR-051 (data entry's one page), ADR-066 (the module flags), ADR-085 (the search hop) and every page guard.
+  - **No migration, no schema change, no permission change.**
+- Status: Accepted. **LOCAL, not pushed: awaiting the founder's preview.** **Needs founder confirmation (six):**
+  1. **Statement To-Do rows open the statement document.** That costs the admin a click when he marks payments on the list.
+  2. **"ByteForce CRM" in words beside the B-Systems mark** (ADR-067's skin; a brand-auditor advisory).
+  3. **The To-Do tab order is ByteForce · B-Systems**, while the tile opens B-Systems first.
+  4. **Some landings still point at a dashboard.** A wrong-company bounce lands on that company's dashboard, and a push notification without a lead opens `/b-systems`.
+  5. **Page titles:** "To-Do"; the dashboard and the daily report end with "— Reports & Dashboards".
+  6. **The header logos are no longer links**, reversing Entry 019's founder fix (§8). The "All apps" icon is the one way back.
+
+## ADR-096 — 2026-10-26 — THE MEETING FORM ASKS FOR THE MEETING: no "Arranged?" step and no Technical support field on the internal forms, and every meeting set there is arranged (amends SPEC §6.2's Meeting setting field group and the Today-chip note of ADR-061/ADR-064)
+
+- Context: the founder sent a screenshot of the board's drop window, which read *"NEW→MEETING SETTING … Complete this stage's details to confirm the move — cancel reverts it. ☐ Arranged?"*. He wrote, verbatim, in Egyptian Arabic:
+  - *"شيل الخطوة دي ملهاش اي معنى خش في المعاد علطول"*: remove this step, it means nothing, go straight to the appointment.
+  - *"و شيل برضو ال technical support"*: and also remove the technical support.
+
+  **Before this change:**
+  - SPEC §6.2's Meeting setting group opened with an **"Arranged?" checkbox**, and the date, time, mode and With fields appeared only once it was ticked.
+  - The box started unticked, which is the state in his screenshot. ADR-064's review had already recorded that the drop form *"defaults to 'not arranged'"*.
+  - A free-text **Technical support** field, with a rep datalist, sat in the same group.
+
+  **This ships in one push with ADR-093, 094, 095 and 097**, on the founder's instruction recorded in PROGRESS "2026-10-26 (later)".
+
+- Decision: moving a card to Meeting Setting asks for the meeting itself. On every internal form, the meeting is **arranged**.
+
+### 1. THE FORMS
+
+| Form | Used by | Now |
+| --- | --- | --- |
+| ByteForce `MeetingFields()`, `src/components/internal/LeadEventPanel.tsx` | the ByteForce lead page (`LeadEventPanel`) and the ByteForce board's drop window (`InternalBoard.tsx`) | **No props** (it took `arranged`, `setArranged` and `reps`). Date, Time and Mode are always shown and required, and With is always shown. **No Technical support input and no rep datalist.** `meetingFromForm(fd)` always sends `arranged: true` and never sends `technicalSupport`. The lead page's reschedule handler no longer toggles `arranged`. |
+| B-Systems `MeetingFieldsV2` / `meetingPayload`, `src/components/bsystems/roleForms.tsx`, **internal roles** (admin, sales: `light === false`) | the B-Systems board's drop window and the B-Systems lead page | **No "Arranged?" checkbox.** `meetingPayload` sends `arranged: light ? agreed : true`. Technical support input and datalist are gone. ADR-071's "Also blocks" account picker stays. |
+| The same form, **agents and partners** (`light === true`) | the agent/partner lead flow | **Unchanged.** It keeps its own question, V2 §3's *"Did you agree with the client on a time?"*. A "no" answer relabels the fields "date/time that suits" and records a **proposed** slot for the admin to confirm, which is a different record from this step. It also keeps *"Do you need a technical colleague with you?"*. It never had the Technical support input. |
+| `MeetingFields`, `src/components/portal/groupForms.tsx` | **nothing.** It is dead code: the 12 files that import from `groupForms.tsx` take only its class constants (grep at writing time). | Lost its Technical support input. Its own "Arranged?" checkbox is still in the dead code (line 74), where no screen can reach it. |
+| Partners & Agents pipeline, `src/components/partners/ProspectEventPanel.tsx` | the prospect board | **No change.** It already always sent `arranged: true` (line 234). |
+
+### 2. UNCHANGED ON PURPOSE: THE SERVER AND THE DATA
+
+- **`meetingSchema`** (`src/lib/services/groups.ts`) still accepts `arranged: false` and `technicalSupport` (≤ 200 characters). Its refine still requires date, time and mode on an arranged meeting. Two things still need `false`:
+  - older records;
+  - the agents' proposal flow.
+- **The column stays.** Prisma's `Meeting.technicalSupport` (`prisma/schema.prisma` line 218) is still there. `persistGroup` in `leads.ts` still stores the field if a caller sends one, and the backup log still carries it.
+- **Older meetings still show what they hold.** `GroupHistory` prints "Technical support: …" on any meeting that stored one.
+- **Dictionary keys are kept**, under the never-delete-a-key rule. "Arranged?" stays in `dict/internal.ts`, `dict/auth.ts` and `dict/crm.ts`, and so do the `technicalSupport` labels.
+- **No migration, no schema change, no permission change, no engine change.** T-2 still opens the Meeting group; only the group's fields changed.
+
+### 3. WHAT THIS DOES TO EARLIER DECISIONS
+
+- **SPEC §6.2, the Meeting setting table** (SPEC.md lines 234–243). Its "Arranged?" row and its "Technical support" row no longer describe the internal forms.
+  - The coordinator added an **"Amended by ADR-096"** note after the table, at line 245 (verified at writing time). The table itself is kept.
+- **SPEC §6.3, the Today chip** (ADR-061, extended by ADR-064; line 280). The coordinator corrected the sentence. It now says the drop form *used to* default to "not arranged" and that *"since ADR-096 it always asks for the date and time"* (verified at writing time).
+- **ADR-064's finding on the Today chip** ("A default drop into Meeting Setting vanished behind its own new Today chip", DECISIONS.md line 3540). On the internal boards its premise is now history. **Its fix stays:**
+  - the `landedHere` release is still in all three boards and `TodayChip` (grep at writing time);
+  - it still covers any drop whose date is not today.
+- **ADR-064's "Meeting not arranged is a real, common state of that column"** (line 3387). The internal boards no longer create that state. Older cards and an agent's proposal still can, so the sort that puts a card with no meeting time last stays.
+- **Kept:** V2 §3's agent flow, ADR-071's "Also blocks", ADR-064's diary order, and A-3's Delayed and Cancelled outcomes.
+
+### 4. TESTS
+
+- **New `src/components/internal/meeting-form.test.ts`, 3 tests.** Each test form also posts a stale `technicalSupport` field, so a forwarding bug would show.
+  1. The ByteForce payload is exactly `{ arranged: true, date, time, mode, withAttendees }`, has no `technicalSupport`, and passes `meetingSchema`.
+  2. B-Systems internal roles are always arranged, even when the old toggle state is `false`. They send no `technicalSupport` and pass `meetingSchema`.
+  3. The agent flow keeps its answer: not agreed → `arranged: false`; agreed → `true`.
+- **`e2e/journey1-byteforce-full-cycle.spec.ts`** no longer clicks "Arranged?". It asserts there is no "Arranged?" and no Technical support field, and that Date is `required`.
+- **`e2e/fallen-behind.spec.ts`**, on the B-Systems board's drop window into Meeting Setting (the founder's screenshot window), asserts:
+  - Date and Time are visible;
+  - there is no "Arranged?";
+  - there is no Technical support field.
+- **Targeted vitest after the change:** `Test Files  28 passed (28)` / `Tests  759 passed (759)`. `tsc` exit 0.
+  - No isolated e2e figure was reported for the two changed specs.
+  - The full runs and the clean-checkout gate in TESTING Run 107 speak for them.
+
+### 5. NOTED, NOT CHANGED
+
+- **The boards' drop window is not marked `role="dialog"`.** This accessibility gap was already there. A grep at writing time finds `role="dialog"` only in `CalendarBoard` and `LeadsImportMenu`; the e2e reaches the window by its `.modal` class.
+- **Unused `reps` props (docs-keeper's grep at writing time, not reported by the agent).** `LeadEventPanel`, `InternalBoard` and `MeetingFieldsV2` still declare a `reps` list that none of them reads now. It does no harm, and removing it is a tidy-up.
+- **The dead `groupForms.tsx` meeting form** still carries "Arranged?" (§1).
+
+- Alternatives considered:
+  - **Tick "Arranged?" by default.** Not taken: the founder asked for the step to go, not for a different default.
+  - **Remove the agents' "Did you agree on a time?" question too.** Not taken: a "no" there records a proposed slot the admin confirms, which is a different flow (V2 §3). Flagged below.
+  - **Drop `arranged` and `technicalSupport` from the schema and the database.** Rejected:
+    - older records hold them;
+    - the agent flow still sends `arranged: false`;
+    - a migration would add no behaviour.
+  - **Keep Technical support as an optional field.** Not taken: he asked for it to go.
+
+- Resolves: one founder request. **No SPEC §11 A-#.** A-3, the Delayed and Cancelled outcomes, is untouched.
+  - **Amends SPEC §6.2's Meeting setting field group** (note at SPEC.md line 245).
+  - **Amends the Today-chip note** of ADR-061/ADR-064 (SPEC §6.3 line 280; ADR-064's finding at DECISIONS.md line 3540). Neither ADR is rewritten.
+  - **No migration, no schema change, no permission change.**
+- Status: Accepted. **Ships in the same push as ADR-093–095 and ADR-097** (TESTING Run 107). **Needs founder confirmation (one):** should the agents' and partners' own *"Did you agree with the client on a time?"* and *"Do you need a technical colleague with you?"* go too? They are kept because they belong to a different flow.
+
+## ADR-097 — 2026-10-26 — THE BODIES MOVE LIKE THE SIGN-IN: the CRM, Accounting and Vault page bodies get ADR-093's motion on solid cards, the boards get a working keyboard drag, the To-Do ticks at once, and the Vault filters stop reloading the page
+
+- Context: this is the area pass that ADR-093 left running ("the CRM and Accounting/Vault body polish", PROGRESS 2026-10-26). The founder's words are ADR-093's, verbatim: *"the log in page is very nicely animated and designed the rest of the system is still not"*. So is his choice, **"Glass frame, solid data"**. ADR-093 did the frame; this ADR does what sits inside it.
+  - **Two agents did the work:** one on the CRM, and one on Accounting and the Vault.
+  - **It ships in one push with ADR-093–096**, on the founder's instruction recorded in PROGRESS "2026-10-26 (later)".
+
+- Decision: one body layer per area, held to ADR-093's rules:
+  - screen only;
+  - tokens only, with no literal colour;
+  - **no frost on any card, row, column or tile**;
+  - every motion inside `prefers-reduced-motion: no-preference`;
+  - keyframes move transform and opacity only;
+  - nothing runs past about 600 ms, nothing loops, and a figure never animates at load (BUG-026).
+
+  **No figure, formula, EGP formatting, permission, schema or business rule changed.** Three behaviours are new, and §1–§2 say so where they appear: the keyboard drag, the optimistic To-Do tick, and the Vault filters without a reload.
+
+### 1. THE CRM: `src/themes/crm.css`
+
+- **Files.**
+  - New `src/themes/crm.css`, imported by `src/app/(bsystems)/layout.tsx` after `glass.css` and `motion.css`. `crm.test.ts` pins that order, and checks that no other shell loads the sheet.
+  - New `src/themes/crm.test.ts`; `src/components/shared/BoardMotion.tsx` and `BoardMotion.test.ts`; `src/components/shared/Meter.tsx`.
+  - Edits across `src/components/bsystems/**`, `src/components/internal/**`, `src/components/partners/**`, `TodoBody`, `TodoCheckbox`, `CalendarBoard`, `CalendarPageBody`, `LeadChat` and `DailyReportBody`.
+  - **The CRM body motion moved out of `design-system.css` into `crm.css`, inside the reduced-motion guard.** `design-system.css` line 1150 now points to the new home.
+- **The three boards** (B-Systems, ByteForce, Partners & Agents):
+  - the columns rise in once per visit, and the cards fade up;
+  - a card that moved fades in on its own;
+  - column wells are lit in their stage colour and glow while a card is held over them;
+  - cards get a hover edge and a glow;
+  - a picked-up card springs up, tilts toward the reading direction (mirrored in Arabic), leaves a dashed outline where it was, and settles flat on the drop;
+  - **a column count pops only when it changes.** `CountPill` arms 1.2 s after mount. The Cairo-day Fallen-behind split lands a beat after first paint, and that is still the load, so it must not pop (BUG-026).
+  - **Reduced motion: nothing moves.**
+- **New behaviour: keyboard drag.** The card handle already announced "press space to pick up", but nothing happened when you did.
+  - Space lifts the card.
+  - The arrow keys jump column to column. The jump follows what is on screen, so Arabic works.
+  - Space drops the card and opens the same stage form a pointer drop opens. Escape cancels.
+  - Under the hood, `useSensors(PointerSensor, KeyboardSensor)` and a column-jump coordinate getter, unit-tested in `BoardMotion.test.ts`.
+  - **A keyboard drop lands in the same `onDragEnd` as a pointer drop**, so no rule or request is new.
+- **Lists and tables.**
+  - Rows respond to hover and focus, and lead rows are edged in their stage colour.
+  - Link cards (reps, partners) tint and nudge an arrow.
+  - Non-link cards (Clients) **no longer lift**, in line with ADR-091 D18.
+- **Lead details.**
+  - a stage-colour bar;
+  - records edged in their stage colour;
+  - History dots coloured by the stage each move went to;
+  - stage forms unfold.
+- **New behaviour: the To-Do ticks at once.**
+  - The tick shows at once with a pop, and the title strikes through while saving. On failure the tick reverts and the error shows.
+  - The row then rises into Done.
+  - Today's header carries an **x/y progress bar**.
+  - The checkbox is a **44px** target on touch.
+- **The rest of the CRM.**
+  - **Calendar:** the month fades in and the day's list rises.
+  - **Daily report:** tiles rise, and "+N more" opens smoothly.
+  - **Won deal:** a milestone x/y progress bar (`Meter`).
+  - **Empty states:** small drawn icons, as CSS masks in `currentColor`.
+  - **Lead chat:** messages rise in, and the WhatsApp ✓ pops.
+- **Defects found on the way, all shipped before this pass and fixed here** (BUGS.md):
+
+| BUG | What was wrong | Fix |
+| --- | --- | --- |
+| BUG-028 | Done To-Do tasks were never visibly struck through: the `underline` utility overrode the strike, against ADR-062 | `crm.css` states the strike in the body layer |
+| BUG-029 | the Calendar was inset 26px further than every other page, by a nested `.page` | a plain wrapper (`CalendarPageBody.tsx`) |
+| BUG-030 | the won-deal page scrolled sideways by 32px at 390px | `grid-cols-1` (`minmax(0, 1fr)`) on phones (`BsWonDealBody.tsx`) |
+| BUG-031 | "Mark ready to close" was pink text with too little contrast, and the Ready-to-close badge was white on pink (3.12:1) | dark rose text with a pink border; the badge carries Indigo Deep (5.84:1, ADR-093's pair) |
+| BUG-032 | the chat bubble's tail and the milestone date arrow did not mirror in Arabic | both now flip |
+
+### 2. ACCOUNTING AND THE VAULT: `src/themes/modules.css`
+
+- **Files.**
+  - New `src/themes/modules.css`, imported by both module root layouts (`src/app/(accounting)/layout.tsx`, `src/app/(vault)/layout.tsx`).
+  - New `src/components/accounting/module-ui.tsx`, which the Vault uses too: `ModSwap`, the period cross-fade; `ModGroup`, the folding ledger groups; and the row effects.
+  - New `src/components/accounting/module-art.tsx` (the empty-state drawings) and `src/components/accounting/modules-css.test.ts`.
+  - Edits to `AcctHead`, the forms, the importer, the exporter, the controls, the Vault forms and data panel, and every Accounting and Vault page.
+  - `AcctUndoRedoButtons` changed by one line. **Its focus logic and BUG-023's fix are untouched.**
+- **Entrances.**
+  - Sections rise once per visit, and the KPI cards, tiles and employee cards are dealt in.
+  - Charts, the target meter and the KPI accent edges draw once.
+- **Numbers count only on change**, through the Home's `LiveNumber`. A month switch counts to the new figures. A company switch cross-fades. These are Accounting's own company and month controls, which choose the books on the page; they are not the switches between apps that ADR-095 removed.
+- **Rows.**
+  - A new row glows once, and an edited row flashes.
+  - A deleted row dims and slides out. A failed write leaves the row where it was.
+  - Rows restored by Undo glow.
+- **Layout.**
+  - The Payroll/Other, Borrowed/Lent and Archive sections fold.
+  - Both imports show a **three-step rail**.
+  - Filter cards and the company and month controls are glass **with no blur**.
+  - Row actions sit on one line.
+  - Arabic labels have no letter-spacing.
+  - Every target is at least 44px on touch.
+- **New behaviour: the Vault's filters and search update without a page reload** (`next/form`).
+  - Six pages use it (grep at writing time): the Vault home, Tasks, Sheets, Forms, Links and Documents.
+  - **They still work without JavaScript**, because a plain GET form sits underneath.
+- **No figure, formula or EGP formatting changed.**
+
+### 3. BRAND AUDIT: WHAT CHANGED, AND WHAT IS LEFT FOR THE FOUNDER
+
+- **The ByteForce accounting hero now runs violet→orange in English, so its white words sit on Royal Violet** (white 8.6:1, per the `modules.css` comment).
+  - **Why:** ADR-054 kept the SPA's orange→violet banner (DECISIONS.md lines 1825–1827). With the words at the start of the line, that put white text on orange at **3.34:1**, which breaks the ByteForce book's hard rule. **This reverses the look ADR-054 kept.**
+  - **How:**
+    - The gradient moves onto a `::before`, drawn `scaleX(-1 × --mo-dir)` under ByteForce: mirrored in English, as-is in Arabic.
+    - The `--gradient-hero` token is untouched.
+    - It also holds in print.
+  - **The target meter still runs orange→violet.**
+- **The B-Systems hero is unchanged and flagged.** In Arabic its words sit near the pink exit at about **3.4–4.3:1**.
+  - This was already the case before this pass.
+  - The 135° is kept, because SPEC §4.3 (line 133) says *"always 135°, never radial, never reversed (pink is the exit)"*.
+  - Mirroring it is a one-line change, and the two portal heroes would need the same decision.
+- **Under ByteForce, the Edit button, the resting ✓ and ⇄ now use the link violet** instead of orange text (3.3:1).
+- **No sheen on ByteForce.** The ByteForce book asks for flat colour blocks, so only the B-Systems hero gets the one pass of white light.
+- **Leftovers, not changed:**
+  - Vault Archive rows, which use the shared `ArchiveButton`, disappear without the slide-out.
+  - The pink dashboard eyebrow under B-Systems and the orange-on-tint "Pending" chips under ByteForce are earlier decisions, left alone.
+
+### 4. TESTS
+
+- **`src/themes/crm.test.ts` holds `crm.css` to ADR-093's law**, the way `glass-motion.test.ts` holds the frame:
+  - no `backdrop-filter`;
+  - no literal colour, and only allow-listed `var()`s;
+  - empty-state icons as masks only;
+  - every rule screen-only;
+  - every motion fenced; keyframes on transform and opacity only; no `forwards`/`both` fill; nothing infinite or over 600 ms; staggers within 250 ms;
+  - a hover lift only under `(hover: hover)`;
+  - no figure animated, and the count pill animated only behind `data-bump` (BUG-026);
+  - vertical entrances only;
+  - logical properties, with sideways inset shadows mirrored by `--mo-dir`;
+  - dark rules positive and screen-only, with no system twin;
+  - the wiring.
+- **`BoardMotion.test.ts`** covers the keyboard coordinate getter's column jumps.
+- **`src/components/accounting/modules-css.test.ts`** holds `modules.css` the same way.
+- **One spec fix:** `e2e/qa-sweep.spec.ts:185` now waits for the phone menu to finish opening (TESTING Run 107).
+- **The figures are in TESTING Run 107.** Both agents report `tsc` 0 and full Playwright green. The clean-checkout gate is the authority for the push.
+
+### 5. WHAT THIS DOES TO EARLIER DECISIONS
+
+- **ADR-054:** the ByteForce hero's direction (§3). The token and its two consumers stand; the hero is now drawn in the reading direction.
+- **ADR-062:** done rows were always meant to be struck through. Now they visibly are (BUG-028).
+- **ADR-091 D18** (tiles stop lifting on hover): extended to non-link cards in the CRM lists.
+- **ADR-093:** extended to the page bodies. The frame is still the only frost.
+- **ADR-093, 094 and 095 still read "LOCAL, not pushed: awaiting the founder's preview".** Those lines are overtaken by the founder's instruction to push (PROGRESS "2026-10-26 (later)"). They are not rewritten, and their decisions and open items stand.
+
+- Alternatives considered:
+  - **Glass on the data too.** Not taken: "Glass frame, solid data".
+  - **Count the numbers up on load.** Rejected: BUG-026.
+  - **Remove the handle's "press space to pick up" announcement instead of honouring it.** Not taken: making the announcement true gives keyboard users the board.
+  - **Keep the ByteForce hero orange→violet, as ADR-054 did.** Rejected by the brand audit: white on orange is 3.34:1. Flagged.
+  - **Mirror the B-Systems hero in Arabic.** Not taken: SPEC §4.3 says never reversed. Flagged.
+  - **A sheen on the ByteForce hero.** Not taken: the ByteForce book asks for flat colour blocks.
+  - **Fetch the Vault filters on the client.** Not taken: `next/form` keeps a plain GET form underneath, so the filters still work without JavaScript.
+  - **A motion library.** Not taken: the layer is the project's own CSS plus dnd-kit's own `KeyboardSensor`. A grep of `package.json` at writing time finds no animation library and no new dependency.
+
+- Resolves: the body half of the founder's request in ADR-093. **No SPEC §11 A-#.**
+  - **Fixes BUG-028–032.**
+  - **Keeps** SPEC §4 and ADR-019 (zero literals, one token contract), ADR-093's frame, BUG-026, and BUG-023's focus fix.
+  - **Amends ADR-054's** hero direction under ByteForce (§3). ADR-054 is not rewritten.
+  - **No migration, no schema change, no permission change.**
+- Status: Accepted. **Ships in the same push as ADR-093–096** (TESTING Run 107). **Needs founder confirmation (ten):**
+  1. **The ByteForce accounting hero runs violet→orange in English**, which reverses ADR-054's SPA look. The target meter still runs orange→violet.
+  2. **The B-Systems hero's words in Arabic** sit near the pink exit at about 3.4–4.3:1. Should it be mirrored? If so, the two portal heroes would need the same decision, and SPEC §4.3 would need amending.
+  3. **Under ByteForce, the Edit button, the resting ✓ and ⇄ are link violet**, not orange.
+  4. **No sheen on ByteForce.**
+  5. **The keyboard drag on the boards** (new behaviour).
+  6. **The To-Do's optimistic tick:** it shows at once and reverts on failure.
+  7. **Done tasks are now visibly struck through** (BUG-028).
+  8. **The Calendar is re-aligned** with every other page (BUG-029).
+  9. **"Mark ready to close" is restyled:** dark rose text with a pink border (BUG-031).
+  10. **The Vault filters update without a reload.**

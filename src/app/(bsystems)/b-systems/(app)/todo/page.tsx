@@ -4,18 +4,28 @@ import { crmRolesFor } from "@/lib/crm/company";
 import { bsRoleOrNull } from "@/lib/api/bsystems";
 import { todoFor, type TodoItem, type TodoScope } from "@/lib/services/todo";
 import { TodoBody } from "@/components/shared/TodoBody";
+import { CompanyTabs } from "@/components/shared/CompanyTabs";
+import { workingCompaniesFor } from "@/lib/launcher/apps";
 import { TodoRowActions, type TodoAssign } from "@/components/bsystems/TodoRowActions";
 import { listAssignableOwners } from "@/lib/services/users";
 import { tFor, type Msg } from "@/lib/i18n/core";
 import { getLocale } from "@/lib/i18n/server";
 import { roles as roleMsgs } from "@/lib/i18n/dict/crm";
 
-export const metadata = { title: "To-Do — B-Systems CRM" };
+/* its own app now (one way to each page): named as its launcher tile is */
+export const metadata = { title: "To-Do" };
 
 /* Founder (ADR-041, ADR-061) — everything dated today, one plain list (the
    Overdue section and the partnership rows are gone by his instruction).
    Scope mirrors requireLeadAccess: admin all, sales internal bucket,
-   agents/partners their own leads; statement/milestone rows are admin-only. */
+   agents/partners their own leads; statement/milestone rows are admin-only.
+
+   ONE WAY TO EACH PAGE — the To-Do is its own launcher app with this one page,
+   so it has no menu. For an account that works leads in BOTH companies the
+   page carries company TABS (CompanyTabs): a filter on this page, the one
+   thing the retired company switch did here. */
+
+const TODO_PATH = "/b-systems/todo";
 
 export default async function BsTodoPage({
   searchParams,
@@ -33,10 +43,16 @@ export default async function BsTodoPage({
      already proves `byteforce_staff`, so this is a no-op there and the real
      wall for B-Systems' five. */
   narrowRoles({ user, company, companies }, ...crmRolesFor(company));
+  /* the tabs: every company in which this account WORKS leads — the same
+     predicate the To-Do tile uses to pick the first one (lib/launcher/apps.ts),
+     so a tab can never lead to a To-Do the guard above would bounce */
+  const working = workingCompaniesFor(user.roles);
+  const tabs =
+    working.length > 1 ? <CompanyTabs path={TODO_PATH} current={company} companies={working} /> : null;
 
   if (company === "byteforce") {
     const lists = await todoFor({ brand: "byteforce", scope: { kind: "all" } });
-    return <TodoBody lists={lists} apiBase="/api/byteforce" />;
+    return <TodoBody lists={lists} apiBase="/api/byteforce" tabs={tabs} />;
   }
 
   /* ADR-074 — the To-Do is a shared body; the SURFACE decides whose rows. */
@@ -78,5 +94,5 @@ export default async function BsTodoPage({
     };
     rowActions = (item) => <TodoRowActions item={item} assign={assign} />;
   }
-  return <TodoBody lists={lists} apiBase="/api/b-systems" rowActions={rowActions} />;
+  return <TodoBody lists={lists} apiBase="/api/b-systems" rowActions={rowActions} tabs={tabs} />;
 }

@@ -28,7 +28,10 @@ test("data entry: adds a lead and a card, owns neither, and is walled out of eve
   await login(page, ENTRY.id, ENTRY.password, /\/b-systems\/entry$/);
   await expect(page.getByRole("heading", { level: 1, name: "Data entry" })).toBeVisible();
 
-  /* the nav offers exactly one destination — the honest picture of the role */
+  /* no menu at all — its one page is its one launcher tile, the honest
+     picture of the role (a one-item menu would be a second way to it) */
+  await expect(page.locator(".app-header .app-nav")).toHaveCount(0);
+  await expect(page.locator(".app-header .app-name")).toHaveText("B-Systems CRM");
   await expect(page.getByRole("link", { name: "CRM", exact: true })).toHaveCount(0);
   await expect(page.getByRole("link", { name: "Users", exact: true })).toHaveCount(0);
   await expect(page.getByRole("link", { name: "Won Leads", exact: true })).toHaveCount(0);

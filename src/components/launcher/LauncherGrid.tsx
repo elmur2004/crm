@@ -14,7 +14,12 @@ import { AppIcon, type Glyph } from "./AppIcon";
 
    No JavaScript: a server component rendering plain anchors, so the grid is
    on screen and usable before (or without) hydration. The entrance is CSS
-   only, and only under prefers-reduced-motion: no-preference (launcher.css). */
+   only, and only under prefers-reduced-motion: no-preference (launcher.css).
+
+   Each icon stands in a GLASS BEZEL — the sign-in's mark tiles: a frosted
+   ring round the icon's own solid plate, with a light that sweeps the glass
+   (behind the plate) once as the tile arrives and again under a pointer. The
+   sheen is decorative and aria-hidden; the link's name is still its label. */
 
 const GLYPH: Record<AppId, Glyph> = {
   "crm-byteforce": "crm",
@@ -39,7 +44,10 @@ export function LauncherGrid({ items, labelledBy }: { items: GridItem[]; labelle
       {items.map((item, i) => (
         <li key={item.id} style={{ "--lx-i": i } as CSSProperties}>
           <Link href={item.href} prefetch={false} className="lx-tile" data-app={item.id}>
-            <AppIcon glyph={GLYPH[item.id]} palette={item.palette} />
+            <span className="lx-bezel">
+              <span className="lx-sheen" aria-hidden="true" />
+              <AppIcon glyph={GLYPH[item.id]} palette={item.palette} />
+            </span>
             <span className="lx-name">{item.label}</span>
           </Link>
         </li>

@@ -140,7 +140,7 @@ export async function BsWonLeadsBody({
       {deals.length === 0 ? (
         <p className="empty">{t(wonLeads.empty)}</p>
       ) : (
-        <div className="grid md:grid-cols-2 gap-3 items-start">
+        <div className="crm-stagger grid md:grid-cols-2 gap-3 items-start">
           {deals.map((w) => (
             <div key={w.id} className="card card-pad text-sm space-y-3">
               <div className="flex items-center justify-between gap-2">

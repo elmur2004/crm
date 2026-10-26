@@ -20,6 +20,9 @@ import {
 } from "@/components/vault/forms";
 import { ArchiveButton } from "@/components/shared/ArchiveButton";
 import { vaultCompaniesOf } from "@/lib/services/vault/tenancy";
+import Form from "next/form";
+import { ModSwap } from "@/components/accounting/module-ui";
+import { ModEmpty } from "@/components/accounting/module-art";
 
 /* ADR-053 Phase 5 — vault documents: the file itself, typed and filed;
    replacement appends a version. Admin only. */
@@ -41,6 +44,7 @@ export default async function VaultDocumentsPage({
   const t = tFor(locale);
   const params = vaultDocumentListParams.parse(await searchParams);
   const rows = await listVaultDocuments(params, visible);
+  const swapKey = JSON.stringify(params);
   const companyLabel = (c: string) =>
     (VAULT_COMPANIES as readonly string[]).includes(c)
       ? t(VAULT_COMPANY_LABELS[c as VaultCompany])
@@ -51,7 +55,7 @@ export default async function VaultDocumentsPage({
       : x;
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-5 mod-page">
       <VaultHead
         locale={locale}
         title={vault.documentsTitle}
@@ -62,7 +66,17 @@ export default async function VaultDocumentsPage({
         <AddDocumentButton />
       </div>
 
-      <form method="get" className="card card-pad flex flex-wrap gap-3 items-end">
+      {/* the filters answer WITHOUT a page reload (next/form — a plain GET
+          form underneath, so it still works with no JavaScript); keyed by the
+          query so its fields always show the filter in force; the list below
+          cross-fades to the new result (ModSwap) */}
+      <Form
+        key={swapKey}
+        action="/vault/documents"
+        prefetch={false}
+        scroll={false}
+        className="card card-pad mod-filter flex flex-wrap gap-3 items-end"
+      >
         <label className="field">
           <span className="field-label">{t(vault.searchShort)}</span>
           <input className="field-input" name="q" defaultValue={params.q ?? ""} maxLength={200} />
@@ -95,91 +109,93 @@ export default async function VaultDocumentsPage({
         <button type="submit" className="btn-ghost">
           {t(vault.apply)}
         </button>
-      </form>
+      </Form>
 
-      <section className="card card--flush0">
-        {rows.length === 0 ? (
-          <p className="empty m-4">{t(vault.noDocuments)}</p>
-        ) : (
-          <div className="table-scroll">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>{t(vault.name)}</th>
-                  <th>{t(vault.company)}</th>
-                  <th>{t(vault.type)}</th>
-                  <th>{t(vault.file)}</th>
-                  <th>{t(vault.description)}</th>
-                  <th>{t(vault.added)}</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((d) => {
-                  const current = d.files[0] ?? null;
-                  return (
-                    <tr key={d.id}>
-                      <td className="td-title">{d.name}</td>
-                      <td>
-                        <span className="chip-outline">{companyLabel(d.company)}</span>
-                      </td>
-                      <td>
-                        <span className="chip-outline">{typeLabel(d.type)}</span>
-                      </td>
-                      <td>
-                        {current ? (
+      <ModSwap swapKey={swapKey}>
+        <section className="card card--flush0">
+          {rows.length === 0 ? (
+            <ModEmpty kind="folder">{t(vault.noDocuments)}</ModEmpty>
+          ) : (
+            <div className="table-scroll">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>{t(vault.name)}</th>
+                    <th>{t(vault.company)}</th>
+                    <th>{t(vault.type)}</th>
+                    <th>{t(vault.file)}</th>
+                    <th>{t(vault.description)}</th>
+                    <th>{t(vault.added)}</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((d) => {
+                    const current = d.files[0] ?? null;
+                    return (
+                      <tr key={d.id}>
+                        <td className="td-title">{d.name}</td>
+                        <td>
+                          <span className="chip-outline">{companyLabel(d.company)}</span>
+                        </td>
+                        <td>
+                          <span className="chip-outline">{typeLabel(d.type)}</span>
+                        </td>
+                        <td>
+                          {current ? (
+                            <span className="inline-flex items-center gap-2 flex-wrap">
+                              <a
+                                href={`/api/files/${current.id}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="chat-mention u-ltr"
+                              >
+                                {current.filename}
+                              </a>
+                              {d.files.length > 1 ? (
+                                <span className="count-pill" title={t(vault.fileVersions)}>
+                                  {d.files.length}
+                                </span>
+                              ) : null}
+                            </span>
+                          ) : (
+                            "—"
+                          )}
+                        </td>
+                        <td>{d.description ?? "—"}</td>
+                        <td className="td-mono u-ltr">{formatCairoDate(d.createdAt, locale)}</td>
+                        <td>
                           <span className="inline-flex items-center gap-2 flex-wrap">
-                            <a
-                              href={`/api/files/${current.id}`}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="chat-mention u-ltr"
-                            >
-                              {current.filename}
-                            </a>
-                            {d.files.length > 1 ? (
-                              <span className="count-pill" title={t(vault.fileVersions)}>
-                                {d.files.length}
-                              </span>
-                            ) : null}
+                            <EditDocumentButton
+                              row={{
+                                id: d.id,
+                                company: d.company,
+                                name: d.name,
+                                description: d.description,
+                                type: d.type,
+                              }}
+                            />
+                            <ReplaceFileButton
+                              postUrl={`/api/vault/documents/${d.id}/file`}
+                              hint={t(vault.documentFileTypes)}
+                              accept=".pdf,.docx,.xlsx"
+                              label={t(vault.replaceFile)}
+                            />
+                            <ArchiveButton
+                              postUrl={`/api/vault/documents/${d.id}/archive`}
+                              archived={false} confirmText={t(vault.confirmArchive)}
+                            />
                           </span>
-                        ) : (
-                          "—"
-                        )}
-                      </td>
-                      <td>{d.description ?? "—"}</td>
-                      <td className="td-mono u-ltr">{formatCairoDate(d.createdAt, locale)}</td>
-                      <td>
-                        <span className="inline-flex items-center gap-2 flex-wrap">
-                          <EditDocumentButton
-                            row={{
-                              id: d.id,
-                              company: d.company,
-                              name: d.name,
-                              description: d.description,
-                              type: d.type,
-                            }}
-                          />
-                          <ReplaceFileButton
-                            postUrl={`/api/vault/documents/${d.id}/file`}
-                            hint={t(vault.documentFileTypes)}
-                            accept=".pdf,.docx,.xlsx"
-                            label={t(vault.replaceFile)}
-                          />
-                          <ArchiveButton
-                            postUrl={`/api/vault/documents/${d.id}/archive`}
-                            archived={false} confirmText={t(vault.confirmArchive)}
-                          />
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      </ModSwap>
     </div>
   );
 }

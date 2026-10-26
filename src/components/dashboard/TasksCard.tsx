@@ -19,7 +19,10 @@ import type { DashCtx } from "./ctx";
    Each row is the To-Do's own checkbox (the same server-side completion wall
    applies); ticking it refreshes the page, the row leaves, and "N of M done"
    counts to its new value. The checkbox sits inside a 44px label so a thumb
-   can hit it. */
+   can hit it.
+
+   No "Open the To-Do" link: the To-Do is its own launcher app, and that tile
+   is the one way to it. Each task's lead is a record link and stays. */
 
 const KIND: Record<TodoKind, Msg> = {
   follow_up: todoPage.kindFollowUp,
@@ -45,11 +48,6 @@ export function TasksCard({ data, ctx }: { data: DashboardData; ctx: DashCtx }) 
       title={t(m.tasksTitle)}
       eyebrow={`${t(m.today)} · ${formatCairoDateRange(todayDate, todayDate, ctx.locale, { year: false })}`}
       data={{ "data-metric": "tasks", "data-value": todayCount, "data-done": doneCount }}
-      action={
-        <Link href={`/b-systems/todo${ctx.query}`} prefetch={false} className="db-link">
-          {t(m.openTodo)}
-        </Link>
-      }
     >
       <div className="db-tasks-head">
         <ProgressRing fraction={total > 0 ? doneCount / total : 0} />

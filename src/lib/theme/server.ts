@@ -3,7 +3,8 @@ import type { Viewport } from "next";
 import { THEME_CHROME_DARK } from "@/themes/theme-chrome";
 import { THEME_COOKIE, parseTheme, themeColorFor, type Theme } from "./core";
 
-/** Server-side theme (cookie; default "system" — follow the OS). Mirrors
+/** Server-side theme (cookie; default "light" — the founder removed the
+    "system" option, and a stored "system" reads as light). Mirrors
     getLocale. Import ONLY from server components/actions. */
 export async function getTheme(): Promise<Theme> {
   return parseTheme((await cookies()).get(THEME_COOKIE)?.value);

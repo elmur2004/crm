@@ -41,6 +41,48 @@ async function overflowAt(page: Page, width: number) {
   return page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
 }
 
+/* ONE WAY TO EACH PAGE — founder: "Only in Reports & Dashboards". The two
+   dashboards left the CRM menus: the Reports & Dashboards tile is the way in,
+   no CRM menu stands around them, and they carry no shortcut to a page that
+   is already in a menu (founder: "Remove them") — only links to RECORDS. */
+test("each dashboard opens from Reports & Dashboards — no CRM menu, no shortcut to a menu page", async ({ page }) => {
+  await login(page, "admin@byteforce.com", "password123", /\/b-systems\/crm$/);
+  for (const [report, company] of [
+    ["bs-dashboard", "bsystems"],
+    ["bf-dashboard", "byteforce"],
+  ] as const) {
+    await page.goto("/apps");
+    await page.locator('[data-app="reports"]').click();
+    await page.waitForURL(/\/apps\/reports$/);
+    /* the list: the two dashboards and the daily report — nothing of Accounting */
+    await expect(page.locator("[data-report]")).toHaveCount(3);
+    await expect(page.locator('[data-report^="acct-"]')).toHaveCount(0);
+    await page.locator(`[data-report="${report}"]`).click();
+    await page.waitForURL(new RegExp(`/b-systems\\?company=${company}$`));
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText(/^Welcome back, /);
+    await expect(page.locator(".app-header .app-name")).toHaveText("Reports & Dashboards");
+    await expect(page.locator(".app-header .app-nav"), company).toHaveCount(0);
+    /* the shortcuts that repeated a menu are gone */
+    for (const name of ["Open the board", "Add lead", "Open the To-Do", "All won deals", "All clients", "Review registrations"]) {
+      await expect(page.locator(".db").getByRole("link", { name, exact: true }), `${company}: ${name}`).toHaveCount(0);
+    }
+    /* no KPI card and no roster tile is a link any more */
+    await expect(page.locator(".db a.db-kpi"), company).toHaveCount(0);
+    await expect(page.locator(".db a.db-roster"), company).toHaveCount(0);
+    /* and no link anywhere on the dashboard leads to a menu page — records only */
+    const hrefs = await page
+      .locator(".db a[href]:not([download])")
+      .evaluateAll((els) => els.map((el) => new URL((el as HTMLAnchorElement).href).pathname));
+    for (const href of hrefs) {
+      /* a lead, a won deal, a statement's document — or the page itself (the
+         range picker). The backup DOWNLOAD is a file, not a page. */
+      expect(href, `${company}: ${href}`).toMatch(
+        /^\/b-systems(\/(crm|leads)\/lead\/[^/]+|\/won-leads\/[^/]+|\/statements\/[^/]+\/document)?$/,
+      );
+    }
+  }
+});
+
 test("the Home renders both companies' dashboards, each with only its own furniture", async ({ page }) => {
   await login(page, "admin@byteforce.com", "password123", /\/b-systems$/);
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(/^Welcome back, /);
@@ -112,10 +154,15 @@ test("range switching: the URL, the eyebrows and the counts all follow the perio
 test("a chart tooltip is reachable by keyboard, and 'View as table' opens the exact values", async ({ page }) => {
   await login(page, "admin@byteforce.com", "password123", /\/b-systems$/);
   const card = page.locator("#db-stages");
-  /* start from the card's own link, then TAB to the first bar */
-  await card.getByRole("link", { name: "Open the board" }).focus();
-  await page.keyboard.press("Tab");
+  /* TAB onto the first bar from the head's period button (the card's "Open the
+     board" link, which this used to start from, is gone — one way to each
+     page): the bars are real keyboard stops in the page's own tab order */
   const firstBar = card.locator(".db-stagebar-hit").first();
+  await page.locator(".db-range-btn").focus();
+  for (let i = 0; i < 12; i++) {
+    if (await firstBar.evaluate((el) => el === document.activeElement)) break;
+    await page.keyboard.press("Tab");
+  }
   await expect(firstBar).toBeFocused();
   const tipId = await firstBar.getAttribute("aria-describedby");
   await expect(page.locator(`[id="${tipId}"]`)).toBeVisible();

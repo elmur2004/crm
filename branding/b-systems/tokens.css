@@ -239,6 +239,62 @@
   --color-chart-2: #D8468B;
   --color-chart-3: #3D4BB8;
 
+  /* GLASS + MOTION — the system-wide pass after ADR-092's glass sign-in.
+     Founder: "the log in page is very nicely animated and designed the rest of
+     the system is still not" — and, asked how far the glass should go, "Glass
+     frame, solid data": glass on what FRAMES the work (headers, menus, the
+     launcher, dialogs' bezels, side panels, toasts), boards / tables / forms
+     on SOLID cards. Consumed by src/themes/glass.css and motion.css; the
+     identical set lives in byteforce/tokens.css and themes/neutral.css, in the
+     light and dark blocks (ADR-019 / ADR-087 — brand-tokens.test.ts and
+     theme-tokens.test.ts hold all three scopes), and src/themes/glass-motion.test.ts
+     recomputes every contrast figure below from these mixes.
+     · glass        thin frost for panels over the GROUND (in-flow panels, the
+                    bezel ring round a solid plate). Never text over arbitrary
+                    content on it.
+     · glass-strong dense frost for text over ARBITRARY content (the phone nav
+                    sheet): ink 12.35:1, quiet 7.35:1 even over Indigo Deep.
+     · glass-chrome the sticky header — still Systems Indigo (88%): its white
+                    text 9.19:1, its quiet text (80% white) 6.55:1, over the
+                    whitest card that can scroll beneath it.
+     · glass-edge / -highlight: the rim and the top light — WHITE light
+                    (--color-on-dark), as the sign-in's glass.
+     · glass-quiet  quiet text ON glass, never plain --color-muted (muted would
+                    be 3.67:1 on dense glass over a dark island): ink-soft 55%
+                    into muted, as the sign-in's --lg-quiet.
+     · glow         the soft brand glow under floating glass and round focus:
+                    the brand's action hue (link = Systems Indigo here).
+     · ground-halo  the strong lavender behind the header band (and the rich
+                    launcher ground) — quiet 7.34:1 / heading 13.51:1 at its
+                    peak, so only quiet/heading/ink text may sit on it.
+     · ground-wash  the faint corner glow behind every app screen, kept so
+                    light that plain --color-muted still reads 4.58:1 at its
+                    peak (no text needs a card between it and the wash).
+     · shadow-float the floating-glass shadow, indigo-tinted like the sign-in.
+     Pink is not spent; no two-hue gradient — every glow is ONE hue fading to
+     nothing. */
+  --color-glass: color-mix(in srgb, var(--color-surface-card) 72%, transparent);
+  --color-glass-strong: color-mix(in srgb, var(--color-surface-card) 86%, transparent);
+  --color-glass-chrome: color-mix(in srgb, var(--color-chrome) 88%, transparent);
+  --color-glass-edge: color-mix(in srgb, var(--color-on-dark) 70%, transparent);
+  --color-glass-highlight: color-mix(in srgb, var(--color-on-dark) 88%, transparent);
+  --color-glass-quiet: color-mix(in srgb, var(--color-ink-soft) 55%, var(--color-muted));
+  --color-glow: color-mix(in srgb, var(--color-link) 24%, transparent);
+  --color-ground-halo: color-mix(in srgb, var(--bs-lavender) 46%, transparent);
+  --color-ground-wash: color-mix(in srgb, var(--bs-lavender) 7%, transparent);
+  --shadow-float: 0 1px 2px rgba(11, 15, 61, 0.06), 0 22px 48px -22px rgba(29, 38, 125, 0.34);
+  /* THEME- AND BRAND-INVARIANT (light block only, identical in all three
+     scopes — glass-motion.test.ts): the frost and the house motion. */
+  --glass-blur: blur(18px) saturate(160%);
+  --glass-blur-strong: blur(28px) saturate(170%);
+  --ease-standard: cubic-bezier(.2, .8, .2, 1);
+  --ease-spring: cubic-bezier(.34, 1.4, .64, 1);
+  --ease-exit: cubic-bezier(.4, 0, 1, 1);
+  --duration-short: 140ms;
+  --duration-medium: 240ms;
+  --duration-long: 420ms;
+  --stagger-step: 40ms;
+
 }
 
 /* System mesh — texture over hero gradients ONLY (never behind body text,
@@ -267,16 +323,19 @@
    block with values equal to what components already paint today.)
 
    SELECTOR CONTRACT — src/lib/theme/core.ts; the app root layouts stamp it:
-       <html data-theme="light" | "dark" | "system">
+       <html data-theme="light" | "dark">
    The landing pages never set data-theme, so nothing here can match them.
    data-brand sits on <html> AND is re-stamped on inner wrappers (ADR-054:
    the accounting / vault modules re-brand per company), so every dark block
    matches BOTH shapes:
        html[data-theme="dark"][data-brand="bsystems"]
        html[data-theme="dark"] [data-brand="bsystems"]
-   "system" follows the OS: the same declarations under prefers-color-scheme:
-   dark. The two blocks must stay IDENTICAL — src/lib/theme-tokens.test.ts
-   fails the build the moment they drift.
+   There is no third theme. Founder (amending ADR-087): "remove the system
+   theme option" — the follow-the-OS "system" value and its
+   prefers-color-scheme twin of this block are gone; a cookie still holding
+   "system" reads as light (src/lib/theme/core.ts), and
+   src/lib/theme-tokens.test.ts fails the build if a data-theme="system"
+   selector ever comes back.
 
    PRINT IS ALWAYS LIGHT. Every dark rule sits inside `@media screen`, so a
    printed statement can never come out dark, whatever the toggle says.
@@ -518,6 +577,23 @@
     --color-chart-1: #8466CC;
     --color-chart-2: #D85C93;
     --color-chart-3: #5E70D6;
+    /* GLASS — smoked, on the Indigo Deep ground (the sign-in's dark). The
+       chrome stays Systems Indigo (86%); every figure is recomputed by
+       glass-motion.test.ts, against the LIGHTEST thing that can pass beneath
+       (a Lavender button): header quiet text 6.67:1, sheet quiet 8.02:1. */
+    --color-glass: color-mix(in srgb, var(--color-surface-card) 64%, transparent);
+    --color-glass-strong: color-mix(in srgb, var(--color-surface-card) 90%, transparent);
+    --color-glass-chrome: color-mix(in srgb, var(--color-chrome) 86%, transparent);
+    --color-glass-edge: color-mix(in srgb, var(--color-on-dark) 13%, transparent);
+    --color-glass-highlight: color-mix(in srgb, var(--color-on-dark) 16%, transparent);
+    --color-glass-quiet: color-mix(in srgb, var(--color-ink-soft) 55%, var(--color-muted));
+    /* the action hue is Lavender in dark, so the glow is too */
+    --color-glow: color-mix(in srgb, var(--color-link) 24%, transparent);
+    /* a faint Lavender light behind the header band; Indigo pooling in the
+       corners of the Indigo Deep canvas, as the sign-in's dark ground */
+    --color-ground-halo: color-mix(in srgb, var(--bs-lavender) 16%, transparent);
+    --color-ground-wash: color-mix(in srgb, var(--bs-indigo) 55%, transparent);
+    --shadow-float: 0 1px 2px rgba(0, 0, 0, 0.4), 0 24px 56px -22px rgba(0, 0, 0, 0.7);
     /* Per-stage board colours. Same rule for every column (derived, not
        picked): the ACCENT keeps the light accent's hue + saturation, its HSL
        lightness raised only as far as needed to read >= 4.8:1 on the canvas,
@@ -533,78 +609,6 @@
        mixed into indigo greys out to mauve.
        Fallen-behind is the shared functional red, IDENTICAL in both brands
        (ADR-082), its well a shade off --color-danger-tint as in light. */
-    --color-stage-intake: #121432; --color-stage-intake-accent: #8E96E5; --color-stage-intake-chip: #373971; --color-stage-intake-chip-ink: #BCC0EF;
-    --color-stage-following: #141430; --color-stage-following-accent: #A890D4; --color-stage-following-chip: #3D386D; --color-stage-following-chip-ink: #CCBEE6;
-    --color-stage-meeting: #161230; --color-stage-meeting-accent: #C683CF; --color-stage-meeting-chip: #44356C; --color-stage-meeting-chip-ink: #DEB6E3;
-    --color-stage-proposal: #17122E; --color-stage-proposal-accent: #D380BB; --color-stage-proposal-chip: #473468; --color-stage-proposal-chip-ink: #E5B5D7;
-    --color-stage-negotiation: #19122D; --color-stage-negotiation-accent: #E379AB; --color-stage-negotiation-chip: #4A3364; --color-stage-negotiation-chip-ink: #EEB0CD;
-    --color-stage-didnt-answer: #131431; --color-stage-didnt-answer-accent: #9C93DB; --color-stage-didnt-answer-chip: #3B396F; --color-stage-didnt-answer-chip-ink: #C6C1EA;
-    --color-stage-contacted: #141330; --color-stage-contacted-accent: #AA8FCF; --color-stage-contacted-chip: #3E386C; --color-stage-contacted-chip-ink: #CDBDE3;
-    --color-stage-qualified: #1A122D; --color-stage-qualified-accent: #E874AA; --color-stage-qualified-chip: #4B3264; --color-stage-qualified-chip-ink: #F2AFCE;
-    --color-stage-waiting: #17122E; --color-stage-waiting-accent: #D281B9; --color-stage-waiting-chip: #463567; --color-stage-waiting-chip-ink: #E5B6D6;
-    --color-stage-won: #200F2C; --color-stage-won-accent: #FF4F87; --color-stage-won-chip: #502A5C; --color-stage-won-chip-ink: #FFA1BF;
-    --color-stage-postponed: #1A160B; --color-stage-postponed-accent: #DFA820; --color-stage-postponed-chip: #4B4024; --color-stage-postponed-chip-ink: #E9C263;
-    --color-stage-fallen-behind: #2A1718; --color-stage-fallen-behind-accent: #F07D71; --color-stage-fallen-behind-chip: #4A2426; --color-stage-fallen-behind-chip-ink: #F9C0B8;
-    --color-stage-lost: #12142D; --color-stage-lost-accent: #9699B3; --color-stage-lost-chip: #393A66; --color-stage-lost-chip-ink: #C1C3D2;
-  }
-}
-
-/* "system" + a dark OS — the SAME declarations as the block above, verbatim
-   (comments aside). theme-tokens.test.ts compares the two. */
-@media screen and (prefers-color-scheme: dark) {
-  html[data-theme="system"][data-brand="bsystems"],
-  html[data-theme="system"] [data-brand="bsystems"] {
-    color-scheme: dark;
-    --color-primary: var(--bs-lavender);
-    --color-on-primary: var(--bs-indigodeep);
-    --color-secondary: var(--bs-lavender);
-    --color-on-secondary: var(--bs-indigodeep);
-    --color-accent: var(--bs-pink);
-    --color-on-accent: var(--bs-indigodeep);
-    --color-heading: var(--bs-lavendermist);
-    --color-link: var(--bs-lavender);
-    --color-ink: #E8E6F5;
-    --color-ink-soft: #E8E6F5;
-    --color-muted: #ACB0CD;
-    --color-faint: #ACB0CD;
-    --color-surface: var(--bs-indigodeep);
-    --color-surface-card: #1F1F50;
-    --color-surface-tint: #2B285C;
-    --color-surface-dark: #060821;
-    --color-border: #3C366C;
-    --color-hairline: #2D2A5E;
-    --color-danger: #F07D71;
-    --color-on-danger: #1A191C;
-    --color-danger-tint: #3A1C1D;
-    --color-danger-border: #6A302D;
-    --color-danger-border-strong: #C25A4F;
-    --color-danger-ink: #F9C0B8;
-    --color-success: var(--bs-lavender);
-    --color-on-success: var(--bs-indigodeep);
-    --color-warning: #DFA820;
-    --color-primary-tint: #373267;
-    --color-primary-tint-ink: var(--bs-lavendermist);
-    --color-secondary-tint: var(--bs-indigo);
-    --color-secondary-tint-ink: var(--bs-lavendermist);
-    --color-toast-surface: #ECEAE5;
-    --color-toast-ink: #1A191C;
-    --color-board-card-border: rgba(255, 255, 255, 0.08);
-    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.32), 0 6px 18px rgba(0, 0, 0, 0.24);
-    --shadow-lift: 0 14px 30px rgba(0, 0, 0, 0.45);
-    --shadow-modal: 0 30px 70px rgba(0, 0, 0, 0.6);
-    --shadow-toast: 0 18px 44px rgba(0, 0, 0, 0.55);
-    --color-acct-positive: #5CC188;
-    --color-acct-positive-tint: #173323;
-    --color-contact-made: #5CC188;
-    --color-contact-made-tint: #173323;
-    --color-on-dark: #FFFFFF;
-    --color-chrome: var(--bs-indigo);
-    --color-on-chrome: var(--bs-paper);
-    --color-focus-ring: var(--bs-lavender);
-    --color-border-control: #7D69A9;
-    --color-chart-1: #8466CC;
-    --color-chart-2: #D85C93;
-    --color-chart-3: #5E70D6;
     --color-stage-intake: #121432; --color-stage-intake-accent: #8E96E5; --color-stage-intake-chip: #373971; --color-stage-intake-chip-ink: #BCC0EF;
     --color-stage-following: #141430; --color-stage-following-accent: #A890D4; --color-stage-following-chip: #3D386D; --color-stage-following-chip-ink: #CCBEE6;
     --color-stage-meeting: #161230; --color-stage-meeting-accent: #C683CF; --color-stage-meeting-chip: #44356C; --color-stage-meeting-chip-ink: #DEB6E3;

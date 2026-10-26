@@ -7,7 +7,14 @@ import { portalLanding as msgs } from "@/lib/i18n/dict/auth";
 /* Portal landing (§8.1) — the signature gradient + mesh hero with the two entry
    actions (Sign up / Log in). Restyle spec §2.17 (gradient hero + mesh, pink
    CTA). Steps strip / commission band / footer need copy that does not exist
-   yet — deferred, strings are frozen in this pass. */
+   yet — deferred, strings are frozen in this pass.
+
+   The system-wide glass pass brings it to the sign-in's level (glass.css
+   .portal-*): the words stand in ONE pane of smoked glass on the hero, and
+   the B-Systems mark — a gradient mark, which may never sit on a gradient —
+   now stands on a flat Paper plate inside a glass bezel, the sign-in's tile.
+   The pink CTA reads Indigo Deep on Signal Pink (5.84:1), as the dark theme
+   already does; white on pink is 3.12:1. Same words, same links. */
 
 export async function generateMetadata() {
   const t = tFor(await getLocale());
@@ -18,31 +25,28 @@ export default async function PortalLanding() {
   const locale = await getLocale();
   const t = tFor(locale);
   return (
-    <main className="min-h-screen bg-brand-hero flex items-center justify-center p-6">
-      <div className="max-w-xl text-center">
-        {/* mesh texture behind the display block only — never behind body text (§4.3) */}
-        <div className="bs-mesh pb-8">
-          <div className="flex justify-center mb-8 pt-8">
-            <BrandLogo brand="bsystems" variant="mark" height={64} />
-          </div>
-          <p className="text-brand-eyebrow text-brand-secondary mb-4">
-            {t(msgs.eyebrow)}
-          </p>
-          <h1 className="font-brand-display text-4xl font-extrabold tracking-tight text-brand-on-dark">
-            {t(msgs.welcomeBefore)}
-            <span className="text-brand-accent">B-Systems</span>
-            {t(msgs.welcomeAfter)}
-          </h1>
-        </div>
-        <p className="mt-4 text-brand-on-dark opacity-80">{t(msgs.tagline)}</p>
-        <div className="mt-10 flex justify-center gap-4">
-          <Link href="/portal/signup" className="btn-accent inline-block">
+    <main className="portal-hero bg-brand-hero">
+      {/* mesh texture over the hero gradient only — never behind body text (§4.3):
+          the words sit on the smoked glass pane, which covers it */}
+      <div className="portal-mesh bs-mesh" aria-hidden="true" />
+      <div className="portal-card">
+        <span className="glass-tile portal-tile" data-brand="bsystems">
+          <span className="glass-tile-plate">
+            <BrandLogo brand="bsystems" variant="mark" height={52} />
+          </span>
+        </span>
+        <p className="portal-eyebrow">{t(msgs.eyebrow)}</p>
+        <h1 className="portal-title">
+          {t(msgs.welcomeBefore)}
+          <span className="text-brand-accent">B-Systems</span>
+          {t(msgs.welcomeAfter)}
+        </h1>
+        <p className="portal-tagline">{t(msgs.tagline)}</p>
+        <div className="portal-actions">
+          <Link href="/portal/signup" className="btn-accent portal-cta">
             {t(msgs.signUp)}
           </Link>
-          <Link
-            href="/login"
-            className="inline-block border border-brand-secondary text-brand-on-dark rounded-brand-control px-6 py-3 font-medium"
-          >
+          <Link href="/login" className="portal-ghost">
             {t(msgs.logIn)}
           </Link>
         </div>

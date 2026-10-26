@@ -1,0 +1,971 @@
+/* =========================================================================
+   GLASS — the frame, and the ground behind every app screen.
+
+   Founder: "the log in page is very nicely animated and designed the rest of
+   the system is still not". Asked how far the sign-in's glass should go, he
+   chose "Glass frame, solid data": glass and the soft indigo/lavender glow on
+   everything that FRAMES the work — the headers, the phone menu, the bell, the
+   launcher, the dialogs' bezels, the side panels, the toasts — while boards,
+   tables and forms stay on SOLID cards so text and numbers stay sharp and
+   phones stay fast. The reference is ADR-092's sign-in (src/themes/login.css,
+   which this file never touches: the sign-in keeps its own lg-* glass).
+
+   Imported by the four app root layouts, after design-system.css (and after
+   neutral.css where a layout loads it), then motion.css. Ownership: this file
+   is the FOUNDATION layer — page bodies do not restyle it; they consume the
+   tokens and the .glass-* classes below (see the usage guide).
+
+   ---------------------------------------------------------------- RULES
+   · NOT ONE LITERAL COLOUR. Every value is a semantic token from the three
+     scope files (branding/byteforce, branding/b-systems, themes/neutral), or a
+     color-mix() over tokens. Four brand palette variables are spent, each
+     only where its own brand is the nearest scope, stated where it is:
+     --bf-ink (Ink on orange), --bs-indigodeep (Indigo Deep on Signal Pink),
+     and --bs-paper / --bf-offwhite (a logo plate on a tile that re-stamps its
+     brand).
+   · Three glass weights, each with ONE job (tokens.css documents the maths;
+     src/themes/glass-motion.test.ts recomputes every contrast figure):
+       --color-glass         thin frost over the GROUND only — in-flow panels,
+                             the bezel ring round a solid plate. No text over
+                             arbitrary content sits on it.
+       --color-glass-strong  dense frost for text over ARBITRARY content (the
+                             phone nav sheet, the import menu).
+       --color-glass-chrome  the sticky headers.
+     Quiet text on glass is --color-glass-quiet, never --color-muted.
+   · "Glass frame, solid data" is literal for pop-ups: a dialog and the bell
+     menu are a SOLID plate inside a frosted bezel — the sign-in's tiles (a
+     glass bezel round an opaque plate). Text and form fields are always on the
+     plate.
+   · backdrop-filter ONLY on frame elements, a handful per screen: the header
+     (on a ::before, so the header itself never becomes the containing block of
+     the fixed phone sheet inside it), the phone sheet, the bell menu, the
+     import menu, a dialog's scrim, a toast. Never on a card, a row, a column
+     or a tile. No blur is ever animated.
+   · SCREEN ONLY. Everything visual sits inside @media screen, so a printed
+     statement or document prints the solid design-system layer exactly as
+     before — glass never prints, and the ground is removed from print.
+   · Dark: the ADR-087 contract — html[data-theme="dark"] rules inside
+     @media screen, positive matches only. Two themes, light and dark: the
+     founder removed the "system" option, so nothing here answers to the OS.
+   · RTL: logical properties; the one physical value (the header halo's
+     horizontal centre, a gradient position) is mirrored under [dir="rtl"].
+   ========================================================================= */
+
+@media screen {
+  /* ======================================================== the ground
+     A fixed, aria-hidden layer behind every app screen (AppGround). Mostly
+     static: Process Lavender pooling in two corners (Royal Violet under
+     ByteForce, whose book wants flat colour — its wash is off; Indigo Deep
+     and Systems Indigo in dark), plus a stronger halo that lives ONLY behind
+     the header band, so it shows through the header's glass and never under
+     page text. Every glow is ONE hue fading to nothing — soft by construction,
+     no blur filter, no two-hue gradient. The wash is light enough that plain
+     --color-muted still clears 4.5:1 on its peak (glass-motion.test.ts), so no
+     page text needs a card between it and the ground.
+
+     Painted ABOVE the canvas and BELOW all content: z-index -1 inside the root
+     stacking context (the CRM, where <body>'s background IS the canvas), or
+     inside .app-shell, which isolates (the modules, whose ModuleBrandScope
+     wrapper paints its own brand surface). */
+  .app-shell { isolation: isolate; }
+  .app-ground {
+    --ag-halo-x: 64%;
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    overflow: hidden;
+    pointer-events: none;
+    contain: strict;
+    background: radial-gradient(
+      ellipse 82% var(--app-header-h) at var(--ag-halo-x) 0,
+      var(--color-ground-halo),
+      transparent
+    );
+  }
+  [dir="rtl"] .app-ground { --ag-halo-x: 36%; }
+  .app-ground::before,
+  .app-ground::after {
+    content: "";
+    position: absolute;
+    width: var(--ag-s);
+    aspect-ratio: 1;
+    border-radius: 50%;
+    background: radial-gradient(closest-side, var(--color-ground-wash), transparent);
+  }
+  .app-ground::before {
+    --ag-s: max(460px, 56vmax);
+    inset-block-start: calc(var(--ag-s) * -0.38);
+    inset-inline-start: calc(var(--ag-s) * -0.3);
+  }
+  .app-ground::after {
+    --ag-s: max(520px, 64vmax);
+    inset-block-end: calc(var(--ag-s) * -0.42);
+    inset-inline-end: calc(var(--ag-s) * -0.34);
+  }
+
+  /* The RICH ground — the launcher, /no-access and the portal's sign-up: the
+     sign-in's own composition, in the scope's tokens. A strong halo top-start,
+     the brand glow bottom-end, the wash top-end, and three glass bubbles. The
+     words on these pages are heading / ink / link / --color-glass-quiet,
+     never plain muted (glass-motion.test.ts measures all four on each glow). */
+  .app-ground--rich { background: none; }
+  .app-ground--rich::before,
+  .app-ground--rich::after { content: none; }
+  .ag-blob {
+    position: absolute;
+    width: var(--ag-s);
+    aspect-ratio: 1;
+    border-radius: 50%;
+    background: radial-gradient(closest-side, var(--ag-c), transparent);
+  }
+  .ag-blob--halo {
+    --ag-s: max(560px, 78vmax);
+    --ag-c: var(--color-ground-halo);
+    inset-block-start: calc(var(--ag-s) * -0.42);
+    inset-inline-start: calc(var(--ag-s) * -0.36);
+  }
+  .ag-blob--glow {
+    --ag-s: max(520px, 70vmax);
+    --ag-c: var(--color-glow);
+    inset-block-end: calc(var(--ag-s) * -0.46);
+    inset-inline-end: calc(var(--ag-s) * -0.34);
+  }
+  .ag-blob--wash {
+    --ag-s: max(380px, 50vmax);
+    --ag-c: var(--color-ground-wash);
+    inset-block-start: calc(var(--ag-s) * -0.12);
+    inset-inline-end: calc(var(--ag-s) * -0.42);
+  }
+  /* glass bubbles: white light only (--color-glass-highlight / -edge), a rim
+     and a specular spot — the sign-in's corner orbs */
+  .ag-orb {
+    position: absolute;
+    width: var(--ag-s);
+    aspect-ratio: 1;
+    border-radius: 50%;
+    background:
+      radial-gradient(circle at 32% 26%, var(--color-glass-highlight) 0 5%, transparent 24%),
+      radial-gradient(circle at 50% 50%, transparent 58%, var(--color-glass-edge) 100%),
+      color-mix(in srgb, var(--color-glass-highlight) 14%, transparent);
+    box-shadow:
+      inset 0 0 0 1px var(--color-glass-edge),
+      0 40px 70px -40px var(--color-glow);
+  }
+  .ag-orb--1 { --ag-s: clamp(140px, 24vmin, 280px); inset-block-start: 9vmin; inset-inline-end: -7vmin; }
+  .ag-orb--2 { --ag-s: clamp(160px, 28vmin, 320px); inset-block-end: -9vmin; inset-inline-start: -8vmin; }
+  .ag-orb--3 { --ag-s: clamp(48px, 8vmin, 96px); inset-block-start: 38%; inset-inline-start: 6%; }
+
+  /* ======================================================== the header
+     Sticky glass over the content. The frost is a ::before — never the header
+     itself: a backdrop-filter on .app-header would make it the containing
+     block of the fixed phone sheet it contains (ShellNav), and the sheet's
+     backdrop would collapse to the header's own height. z-index 50: above
+     the undo pill (45) and the board's lifted card (30), below a dialog (60)
+     and a toast (70). */
+  :root { --app-header-h: 62px; }
+  html { scroll-padding-block-start: calc(var(--app-header-h) + 12px); }
+
+  .app-header {
+    position: sticky;
+    inset-block-start: 0;
+    z-index: 50;
+    isolation: isolate;
+    box-shadow: 0 16px 36px -30px var(--color-glow);
+  }
+  .app-header,
+  [data-brand="bsystems"] .app-header,
+  [data-brand="bsystems"] .app-header[data-shell="external"] { background: transparent; }
+  /* THE LOGOS NEVER STAND ON GLASS (ADR-092 §3: nothing passes behind or
+     over the artwork; a gradient mark never sits on a gradient). The header's
+     inline-start zone — the All-apps icon and the brand mark — is the header's
+     OWN colour, fully opaque, and the frost begins after it: one hue, solid
+     into translucent, so whatever scrolls beneath (a hero banner, a card)
+     never shows behind a logo. No layout changes; only the paint. */
+  .app-header {
+    --hdr-solid: 248px;
+    --hdr-dir: to right;
+    --hdr-ground: var(--color-chrome);
+    --hdr-glass: var(--color-glass-chrome);
+  }
+  [dir="rtl"] .app-header { --hdr-dir: to left; }
+  .app-header::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background: linear-gradient(
+      var(--hdr-dir),
+      var(--hdr-ground) 0 var(--hdr-solid),
+      var(--hdr-glass) calc(var(--hdr-solid) + 120px)
+    );
+    box-shadow: inset 0 1px 0 color-mix(in srgb, var(--color-glass-highlight) 40%, transparent);
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
+  }
+  /* agents / partners keep the deep-navy portal identity (spec R8), smoked */
+  [data-brand="bsystems"] .app-header[data-shell="external"] {
+    --hdr-ground: var(--color-surface-dark);
+    --hdr-glass: color-mix(in srgb, var(--color-surface-dark) 90%, transparent);
+  }
+
+  /* Header words. On glass, quiet text is --color-glass-quiet (muted would
+     fall to 3.5:1 over a dark island scrolling beneath). The B-Systems header
+     is still Systems Indigo; its quiet words rise from 70/72% white to 80%,
+     because the glass lets the whitest card beneath lift the ground a little
+     (6.55:1 there; segment text on the pill's 12% wash 4.93:1). Scoped to the
+     strip and the user cluster — never the phone sheet, which is a LIGHT
+     glass card living inside the header element. */
+  .app-header :is(.app-nav, .user) .nav-item:not([aria-current]),
+  .app-header .user-role,
+  .app-header .user .switcher-seg:not([aria-current]):not([aria-pressed="true"]) {
+    color: var(--color-glass-quiet);
+  }
+  [data-brand="bsystems"] .app-header {
+    --hdr-quiet: color-mix(in srgb, var(--color-on-chrome) 80%, transparent);
+  }
+  [data-brand="bsystems"] .app-header :is(.app-nav, .user) .nav-item:not([aria-current]),
+  [data-brand="bsystems"] .app-header .user-role,
+  [data-brand="bsystems"] .app-header .user .switcher-seg:not([aria-current]):not([aria-pressed="true"]) {
+    color: var(--hdr-quiet);
+  }
+  /* the current section's tab on a light glass header: its tint's own AA ink
+     (ByteForce's orange-on-tint measured 3.1:1; --color-primary-tint-ink is
+     the pair built for it, >=5:1 in every scope and theme). The indigo header
+     keeps its white-on-wash pill. */
+  .app-header .app-nav .nav-item[aria-current] { color: var(--color-primary-tint-ink); }
+  [data-brand="bsystems"] .app-header .app-nav .nav-item[aria-current] { color: var(--color-on-chrome); }
+  /* the call sheet's sticky identity block now sticks BELOW the sticky header */
+  .call-top { inset-block-start: calc(var(--app-header-h) + 8px); }
+  /* the account area: the avatar wears a glass ring */
+  .app-header .user-avatar {
+    box-shadow:
+      0 0 0 2px var(--color-glass-edge),
+      0 6px 16px -8px var(--color-glow);
+  }
+
+  /* ======================================================== the phone sheet
+     Dense glass over whatever the page shows (glass-strong): ink 12:1+, and
+     its quiet words 6:1+ even over a dark island, in every scope. */
+  .nav-sheet {
+    background: var(--color-glass-strong);
+    -webkit-backdrop-filter: var(--glass-blur-strong);
+    backdrop-filter: var(--glass-blur-strong);
+    border-block-end: 1px solid var(--color-glass-edge);
+    box-shadow:
+      inset 0 1px 0 var(--color-glass-highlight),
+      var(--shadow-float),
+      var(--shadow-modal);
+  }
+  .nav-sheet-backdrop { background: color-mix(in srgb, var(--color-surface-dark) 28%, transparent); }
+  .nav-sheet-link { border-block-end-color: color-mix(in srgb, var(--color-hairline) 70%, transparent); }
+  /* the current section: the tint's own AA ink (ByteForce's orange on its
+     tint measured 2.85:1 — the header tab's fix, here too) */
+  .nav-sheet-link[aria-current] { color: var(--color-primary-tint-ink); }
+  /* the sheet's own words — re-grounded on the light glass (the indigo
+     header's rules must not bleed into it; the sheet sits inside the header) */
+  .app-header .nav-sheet .nav-sheet-extras .nav-item { color: var(--color-ink); }
+  .app-header .nav-sheet .nav-sheet-extras .switcher-seg:not([aria-current]):not([aria-pressed="true"]) {
+    color: var(--color-glass-quiet);
+  }
+
+  /* ======================================================== the bell
+     A frosted bezel round a SOLID plate (NotificationsBell renders
+     .bell-plate): the rows, their unread wells and the AA figures the
+     notifications spec measures all stay on the opaque card. */
+  .bell-menu {
+    padding: 5px;
+    max-height: none;
+    overflow: visible;
+    background: var(--color-glass);
+    border: 1px solid var(--color-glass-edge);
+    border-radius: calc(var(--radius-card) + 6px);
+    box-shadow:
+      inset 0 1px 0 var(--color-glass-highlight),
+      var(--shadow-float),
+      var(--shadow-modal);
+    -webkit-backdrop-filter: var(--glass-blur-strong);
+    backdrop-filter: var(--glass-blur-strong);
+  }
+  .bell-plate {
+    max-height: 24rem;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    border-radius: var(--radius-card);
+    background: var(--color-surface-card);
+    box-shadow: 0 0 0 1px var(--color-border);
+  }
+
+  /* ======================================================== menus (role=menu)
+     The import menu (LeadsImportMenu) and any future one: dense glass, quiet
+     hint text. */
+  .glass-menu {
+    background: var(--color-glass-strong);
+    border: 1px solid var(--color-glass-edge);
+    border-radius: calc(var(--radius-card) + 2px);
+    box-shadow:
+      inset 0 1px 0 var(--color-glass-highlight),
+      var(--shadow-float),
+      var(--shadow-modal);
+    -webkit-backdrop-filter: var(--glass-blur-strong);
+    backdrop-filter: var(--glass-blur-strong);
+  }
+  .glass-menu .u-muted { color: var(--color-glass-quiet); }
+
+  /* ======================================================== dialogs
+     Every dialog in the product is .modal-overlay > .modal. The scrim frosts
+     the page (one backdrop-filter per open dialog); the dialog is the SOLID
+     plate it always was, inside a 6px glass bezel drawn as a box-shadow ring —
+     so not one of the twelve dialog components changed, and every form field
+     and figure stays on the opaque card. */
+  .modal-overlay {
+    background: color-mix(in srgb, var(--color-surface-dark) 46%, transparent);
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
+  }
+  .modal {
+    box-shadow:
+      0 0 0 6px var(--color-glass),
+      0 0 0 7px var(--color-glass-edge),
+      var(--shadow-float),
+      var(--shadow-modal);
+  }
+
+  /* ======================================================== toasts
+     The inverse surface, frosted. toast-ink on it holds 11:1+ over the
+     lightest or darkest page (glass-motion.test.ts). The undo pill is the
+     same chrome. */
+  .toast,
+  .undo-btn {
+    background: color-mix(in srgb, var(--color-toast-surface) 88%, transparent);
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
+    box-shadow:
+      inset 0 1px 0 color-mix(in srgb, var(--color-toast-ink) 16%, transparent),
+      0 0 0 1px color-mix(in srgb, var(--color-toast-ink) 10%, transparent),
+      var(--shadow-toast);
+  }
+  .toast { border-radius: 14px; }
+
+  /* ======================================================== switches
+     Every .switcher (language, theme, the To-Do's company tabs) keeps its
+     shape; the company tabs sit on the ground as a glass pill. (The module
+     bar and the company switch are gone — one way to each page.) The
+     ACTIVE INDICATOR (SwitchIndicator, a client island) is one pill behind the
+     segments that slides between them — progressive: without JavaScript (or
+     inside the sign-in's toolbar, which keeps its own pills) the active
+     segment paints its own background exactly as before, and the indicator is
+     display:none. --seg-on mirrors whatever that segment would have painted
+     in each context, so the two can never disagree. */
+  .switcher { position: relative; isolation: isolate; }
+  .switch-ind { display: none; }
+  .switcher[data-indicator] > .switch-ind {
+    --ind-dir: 1;
+    display: block;
+    position: absolute;
+    z-index: -1;
+    inset-block-start: var(--ind-y, 3px);
+    inset-inline-start: 0;
+    inline-size: var(--ind-w, 0px);
+    block-size: var(--ind-h, 0px);
+    transform: translate3d(calc(var(--ind-x, 0px) * var(--ind-dir)), 0, 0);
+    border-radius: 7px;
+    background: var(--color-primary);
+    box-shadow: inset 0 1px 0 color-mix(in srgb, var(--color-on-dark) 22%, transparent);
+    pointer-events: none;
+  }
+  [dir="rtl"] .switcher[data-indicator] > .switch-ind { --ind-dir: -1; }
+  [data-brand="bsystems"] .app-header .switcher[data-indicator] > .switch-ind { background: var(--color-surface-card); }
+  .app-header .nav-sheet-extras .switcher[data-indicator] > .switch-ind { background: var(--color-primary); }
+  /* (0,6,1): it must out-rank the darkest active-segment rule in
+     design-system.css (0,5,1) — only the PAINT moves to the indicator; the
+     segment's text colour still comes from those rules */
+  html .switcher[data-indicator][role] > .switcher-seg[class]:is([aria-current], [aria-pressed="true"]) {
+    background: transparent;
+  }
+  /* ByteForce's orange is never a ground for white text: what reads on it is
+     Ink (4.89:1; white is 3.34:1). The light token still says white for the
+     page bodies that have not moved yet — the frame does not wait for them.
+     A custom property, not a [data-brand="byteforce"] descendant rule: the
+     modules re-stamp data-brand on a wrapper (ADR-054), so a B-Systems module
+     view still has a ByteForce <html> above it, and only an INHERITED value
+     answers "which brand is nearest". (--bf-ink is the brand file's own Ink,
+     spent under its own scope.) */
+  [data-brand] {
+    --frame-on-primary: var(--color-on-primary);
+    --frame-on-accent: var(--color-on-accent);
+    /* the sign-in CTA's white gloss (white light, never a second hue) */
+    --frame-gloss: color-mix(in srgb, var(--color-on-dark) 20%, transparent);
+    --frame-gloss-hover: color-mix(in srgb, var(--color-on-dark) 24%, transparent);
+    /* the primary button's hover: a touch of ink, which deepens the ground
+       under LIGHT text (white on indigo, white on the neutral near-black,
+       Indigo Deep's lavender in dark keeps 8:1+) */
+    --frame-primary-hover: color-mix(in srgb, var(--color-ink) 8%, var(--color-primary));
+  }
+  /* B-Systems: what reads on Signal Pink is Indigo Deep (5.84:1 — white is
+     3.12:1), in light as the dark theme already has it */
+  [data-brand="bsystems"] { --frame-on-accent: var(--bs-indigodeep); }
+  [data-brand="byteforce"] {
+    --frame-on-primary: var(--bf-ink);
+    --frame-on-accent: var(--bf-ink);
+    /* the ByteForce book asks for flat colour blocks: no gloss */
+    --frame-gloss: transparent;
+    --frame-gloss-hover: transparent;
+    /* …but under INK text a deeper orange loses contrast (4.33:1 measured),
+       so ByteForce's hover LIFTS the orange with white light instead */
+    --frame-primary-hover: color-mix(in srgb, var(--color-on-dark) 12%, var(--color-primary));
+  }
+  .switcher-seg:is([aria-current], [aria-pressed="true"]),
+  .app-header .nav-sheet-extras .switcher-seg:is([aria-current], [aria-pressed="true"]) {
+    color: var(--frame-on-primary);
+  }
+
+  .company-tabs .switcher {
+    background: var(--color-glass);
+    /* a glass surface's rim is white light, not the solid control border */
+    border-color: var(--color-glass-edge);
+    box-shadow:
+      inset 0 1px 0 var(--color-glass-highlight),
+      0 10px 24px -18px var(--color-glow);
+  }
+  .company-tabs .switcher-seg:not([aria-current]) { color: var(--color-glass-quiet); }
+  .company-tabs-label { color: var(--color-glass-quiet); }
+
+  /* ======================================================== side panels
+     The filter panel (FilterPanel) frames the list: a glass panel over the
+     ground. Its fields are the solid .field-input they always were. */
+  .filter-toggle {
+    background: var(--color-glass);
+    box-shadow:
+      inset 0 1px 0 var(--color-glass-highlight),
+      0 10px 24px -18px var(--color-glow);
+  }
+  .card.filter-card {
+    background: var(--color-glass);
+    border-color: var(--color-glass-edge);
+    box-shadow:
+      inset 0 1px 0 var(--color-glass-highlight),
+      var(--shadow-float);
+  }
+  .filter-card .filter-section-label { color: var(--color-glass-quiet); }
+
+  /* ======================================================== buttons
+     The sign-in CTA's language: one flat colour under a white gloss (the top
+     half catches the light), a soft glow beneath. The gloss is white light
+     (--color-on-dark), never a second hue. design-system.css's hover writes
+     the `background` shorthand, which would drop the gloss — re-stated here. */
+  .btn-primary,
+  .btn-accent {
+    background-image: linear-gradient(180deg, var(--frame-gloss), transparent 58%);
+    box-shadow:
+      inset 0 1px 0 color-mix(in srgb, var(--color-on-dark) 26%, transparent),
+      inset 0 -2px 6px -2px color-mix(in srgb, var(--color-surface-dark) 22%, transparent),
+      0 8px 20px -14px var(--color-glow);
+  }
+  .btn-primary:hover {
+    background-color: var(--frame-primary-hover);
+    background-image: linear-gradient(180deg, var(--frame-gloss-hover), transparent 58%);
+  }
+  .btn-primary:disabled { box-shadow: none; }
+  /* Ink on orange (see the switches above); Indigo Deep / Ink on the accent */
+  .btn-primary { color: var(--frame-on-primary); }
+  .btn-accent { color: var(--frame-on-accent); }
+  .btn-ghost {
+    box-shadow:
+      inset 0 1px 0 var(--color-glass-highlight),
+      0 1px 2px color-mix(in srgb, var(--color-surface-dark) 6%, transparent);
+  }
+
+  /* ======================================================== inputs
+     The sign-in's focus glow: the action hue's boundary, a soft halo ring
+     and the brand glow beneath. The halo is decoration — the boundary itself
+     is the >=3:1 indicator. */
+  .field-input:focus {
+    border-color: var(--color-primary);
+    box-shadow:
+      0 0 0 3px color-mix(in srgb, var(--color-primary) 18%, transparent),
+      0 10px 24px -16px var(--color-glow);
+  }
+
+  /* ======================================================== frame cards
+     .glass-card: the sign-in's card — thin frost, a white rim catching the
+     light at the top edge, the float shadow. For frame surfaces over the
+     ground (the launcher's report entries, /no-access, the portal). From a
+     tablet up it frosts what lies behind (one backdrop-filter per screen). */
+  .glass-card {
+    position: relative;
+    isolation: isolate;
+    background: var(--color-glass);
+    border: 1px solid var(--color-glass-edge);
+    border-radius: calc(var(--radius-panel) + 8px);
+    box-shadow:
+      inset 0 1px 0 var(--color-glass-highlight),
+      var(--shadow-float);
+  }
+  .glass-card::before {
+    content: "";
+    position: absolute;
+    inset: -1px;
+    z-index: -1;
+    border-radius: inherit;
+    padding: 1px;
+    background: linear-gradient(
+      165deg,
+      var(--color-glass-highlight) 0%,
+      transparent 38%,
+      transparent 70%,
+      var(--color-glass-edge) 100%
+    );
+    -webkit-mask: linear-gradient(var(--color-on-dark) 0 0) content-box, linear-gradient(var(--color-on-dark) 0 0);
+    -webkit-mask-composite: xor;
+    mask: linear-gradient(var(--color-on-dark) 0 0) content-box exclude, linear-gradient(var(--color-on-dark) 0 0);
+    pointer-events: none;
+  }
+  .glass-card .glass-quiet,
+  .glass-quiet { color: var(--color-glass-quiet); }
+
+  /* the sign-in's plate: a logo stands unaltered on a FLAT, opaque plate of
+     its own brand's canvas inside a glass bezel — never on a gradient, never
+     on glass (ADR-092 §3). The tile re-stamps its brand. */
+  .glass-tile {
+    --gt-t: 76px;
+    --gt-bezel: 6px;
+    position: relative;
+    display: inline-block;
+    width: var(--gt-t);
+    height: var(--gt-t);
+    flex: none;
+    border-radius: calc(var(--gt-t) * 0.3);
+    background: var(--color-glass);
+    border: 1px solid var(--color-glass-edge);
+    box-shadow:
+      inset 0 1px 0 var(--color-glass-highlight),
+      var(--shadow-float);
+  }
+  .glass-tile-plate {
+    position: absolute;
+    inset: var(--gt-bezel);
+    display: grid;
+    place-items: center;
+    border-radius: calc(var(--gt-t) * 0.3 - var(--gt-bezel));
+    background: var(--gt-plate, var(--color-surface-card));
+  }
+  .glass-tile[data-brand="bsystems"] { --gt-plate: var(--bs-paper); }
+  .glass-tile[data-brand="byteforce"] { --gt-plate: var(--bf-offwhite); }
+  .glass-tile-plate img { display: block; max-width: none; }
+
+  /* ======================================================== skeletons
+     Route loading states (RoutePending): shapes in the ink, a shimmer of white
+     light (motion.css moves it; under reduced motion it is still). Built of
+     sk-* classes ONLY — never a real component class (.board, .table,
+     .page-head…), so no test or script can mistake a skeleton for the page. */
+  .sk-page,
+  .sk-body { display: flex; flex-direction: column; gap: 24px; min-width: 0; }
+  .sk-stack { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+  .sk-narrow { width: 100%; max-width: 720px; margin-inline: auto; }
+  .sk-bar { height: 44px; border-radius: var(--radius-control); }
+  .sk-bar--cta { height: 54px; }
+  .sk-hero { height: 150px; border-radius: var(--radius-card); }
+  .sk-back { max-width: 160px; }
+  .sk-card--flush { padding: 0; gap: 0; }
+  .sk {
+    position: relative;
+    overflow: hidden;
+    display: block;
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--color-ink) 7%, var(--color-surface-card));
+  }
+  .sk::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    transform: translate3d(-100%, 0, 0);
+    background: linear-gradient(
+      90deg,
+      transparent,
+      color-mix(in srgb, var(--color-on-dark) 34%, transparent),
+      transparent
+    );
+  }
+  .sk-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 18px; }
+  .sk-head-text { display: grid; gap: 12px; min-width: 0; }
+  .sk-eyebrow { width: 120px; height: 10px; border-radius: 4px; }
+  .sk-title { width: min(320px, 70vw); height: 30px; }
+  .sk-actions { display: flex; gap: 9px; }
+  .sk-pill { width: 108px; height: 40px; border-radius: var(--radius-control); }
+  .sk-card {
+    background: var(--color-surface-card);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-card);
+    box-shadow: var(--shadow-card);
+    padding: 16px 18px;
+    display: grid;
+    gap: 12px;
+    min-width: 0;
+  }
+  .sk-line { height: 12px; }
+  .sk-line--short { width: 42%; }
+  .sk-line--mid { width: 68%; }
+  .sk-figure { width: 46%; height: 26px; }
+  .sk-grid { display: grid; gap: 13px; grid-template-columns: repeat(auto-fit, minmax(206px, 1fr)); }
+  .sk-grid--panels { grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap: 16px; }
+  .sk-panel { min-height: 220px; }
+  .sk-cols {
+    display: flex;
+    gap: 12px;
+    overflow: hidden;
+    margin-inline: calc(var(--page-pad, 26px) * -1);
+    padding-inline: var(--page-pad, 26px);
+  }
+  .sk-col {
+    flex: none;
+    width: 250px;
+    display: grid;
+    align-content: start;
+    gap: 9px;
+    padding: 12px 9px;
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--color-ink) 5%, var(--color-surface));
+  }
+  .sk-col .sk-card { padding: 11px 12px; gap: 10px; }
+  .sk-col-title { width: 46%; height: 10px; margin: 2px 4px 4px; }
+  .sk-rows { display: grid; }
+  .sk-row { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr); gap: 16px; padding: 14px 18px; border-block-start: 1px solid var(--color-hairline); }
+  .sk-row:first-child { border-block-start: 0; }
+  .sk-split { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr); align-items: start; }
+  @media (min-width: 900px) {
+    .sk-split--side { grid-template-columns: 232px minmax(0, 1fr); }
+    .sk-split--detail { grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); }
+  }
+  @media (max-width: 640px) {
+    .sk-title { height: 24px; }
+    .sk-col { width: 218px; }
+    .sk-row { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); }
+    .sk-row > :nth-child(3) { display: none; }
+  }
+
+  /* ======================================================== phones
+     Lighter on a phone: the ground is static (motion.css drifts it only
+     from 1024px), the header's frost is lighter, and the corner washes
+     are smaller. */
+  @media (max-width: 820px) {
+    :root { --app-header-h: 54px; }
+    .app-header::before {
+      -webkit-backdrop-filter: blur(12px) saturate(150%);
+      backdrop-filter: blur(12px) saturate(150%);
+    }
+    .app-ground::before { --ag-s: max(340px, 48vmax); }
+    .app-ground::after { --ag-s: max(380px, 54vmax); }
+  }
+  @media (min-width: 600px) {
+    .glass-card {
+      -webkit-backdrop-filter: var(--glass-blur-strong);
+      backdrop-filter: var(--glass-blur-strong);
+    }
+  }
+
+  /* ======================================================== fallbacks */
+  /* no backdrop-filter: the glass thickens so text never sits on a busy page */
+  @supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+    .app-header::before { background: color-mix(in srgb, var(--color-chrome) 96%, transparent); }
+    .nav-sheet,
+    .glass-menu { background: var(--color-surface-card); }
+    .toast,
+    .undo-btn { background: var(--color-toast-surface); }
+    /* no frost to soften the mesh behind the tagline: the pane thickens */
+    .portal-card { background: color-mix(in srgb, var(--color-surface-dark) 86%, transparent); }
+  }
+}
+
+/* the route host (RoutePending): no box of its own, so the page lays out
+   exactly as before; while a navigation is pending the old page steps aside
+   for the new one's skeleton (kept mounted — Next's router owns it). In every
+   medium: it is layout, not glass. */
+.route-host { display: contents; }
+.route-host[data-pending] { display: none; }
+
+/* =========================================================================
+   SIGN-IN-LIKE PAGES — /no-access (.gl-*) and the portal's public pages
+   (.portal-*). The founder: the sign-in pages "should feel like the glass
+   login". Layout first (every medium), the glass after (screen only).
+   ========================================================================= */
+
+/* ---- /no-access: one glass card on the sign-in's ground ---- */
+.gl-stage {
+  position: relative;
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  padding-block: max(12px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-bottom));
+  /* the notch insets are physical, the padding logical: both sides take the
+     larger (the sign-in's own rule) */
+  padding-inline: max(16px, env(safe-area-inset-left), env(safe-area-inset-right));
+  color: var(--color-ink);
+  font-family: var(--font-body);
+  overflow-x: clip;
+}
+.gl-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.gl-top .switcher { border-radius: 999px; padding: 3px; }
+/* every segment a >=44px thumb target, at every width (the sign-in's pills) */
+.gl-top .switcher-seg {
+  min-block-size: 44px;
+  min-inline-size: 44px;
+  padding-inline: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+}
+.gl-top .theme-toggle[data-compact] .switcher-seg { padding-inline: 0; }
+.gl-top .switcher[data-indicator] > .switch-ind { border-radius: 999px; }
+.gl-center { display: grid; place-items: center; padding-block: 24px; min-width: 0; }
+.gl-card { width: 100%; max-width: 468px; padding: clamp(26px, 6vw, 40px); text-align: center; }
+.gl-eyebrow {
+  margin: 0;
+  /* tracking trails the last letter: pad the start by as much (centred) */
+  padding-inline-start: .24em;
+  font: 700 11px/1.3 var(--font-mono);
+  letter-spacing: .24em;
+  text-transform: uppercase;
+  color: var(--color-glass-quiet);
+}
+.gl-title {
+  margin: 14px 0 0;
+  font: 700 clamp(24px, 6vw, 30px)/1.15 var(--font-display);
+  letter-spacing: -.025em;
+  color: var(--color-heading);
+  text-wrap: balance;
+}
+.gl-sub {
+  margin: 12px auto 0;
+  max-width: 38ch;
+  font: 400 14px/1.6 var(--font-body);
+  color: var(--color-ink-soft);
+  text-wrap: pretty;
+}
+.gl-actions { margin: 24px 0 0; display: flex; justify-content: center; }
+.gl-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-block-size: 46px;
+  padding-inline: 24px;
+  border-radius: 999px;
+  text-decoration: none;
+}
+/* Arabic is a joined script: no tracking, no capitals */
+:lang(ar) .gl-eyebrow {
+  letter-spacing: 0;
+  padding-inline-start: 0;
+  text-transform: none;
+  font-family: var(--font-body);
+  font-size: 13px;
+}
+:lang(ar) .gl-title { letter-spacing: 0; line-height: 1.3; }
+
+/* ---- /portal: the hero, and its words on one pane of smoked glass ---- */
+.portal-hero {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 24px 16px;
+}
+.portal-mesh { position: absolute; inset: 0; z-index: -1; pointer-events: none; }
+.portal-card {
+  width: 100%;
+  max-width: 560px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: clamp(28px, 6vw, 44px);
+  border-radius: 28px;
+  color: var(--color-on-dark);
+}
+.portal-tile { --gt-t: 92px; --gt-bezel: 7px; }
+/* the words: white (and a pale lavender tint for the meta line) on the smoked
+   pane — 5.39:1 even where the gradient is pinkest (glass-motion.test.ts) */
+.portal-eyebrow {
+  margin: 22px 0 0;
+  padding-inline-start: .22em;
+  font: 700 11px/1.3 var(--font-mono);
+  letter-spacing: .22em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--color-secondary) 35%, var(--color-on-dark));
+}
+.portal-title {
+  margin: 14px 0 0;
+  font: 800 clamp(30px, 7vw, 40px)/1.12 var(--font-display);
+  letter-spacing: -.03em;
+  color: var(--color-on-dark);
+  text-wrap: balance;
+}
+.portal-tagline {
+  margin: 14px auto 0;
+  max-width: 40ch;
+  font: 400 15px/1.6 var(--font-body);
+  color: color-mix(in srgb, var(--color-on-dark) 86%, transparent);
+}
+.portal-actions { margin-top: 30px; display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; }
+.portal-cta,
+.portal-ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-block-size: 48px;
+  padding-inline: 26px;
+  border-radius: 999px;
+  font: 600 14px var(--font-body);
+  text-decoration: none;
+}
+/* Signal Pink is the one true CTA here; what reads on it is Indigo Deep
+   (5.84:1 — white is 3.12:1): .btn-accent's --frame-on-accent, glass.css */
+.portal-ghost {
+  color: var(--color-on-dark);
+  border: 1px solid color-mix(in srgb, var(--color-secondary) 80%, transparent);
+  background: color-mix(in srgb, var(--color-on-dark) 8%, transparent);
+}
+:lang(ar) .portal-eyebrow { letter-spacing: 0; padding-inline-start: 0; text-transform: none; font-family: var(--font-body); font-size: 13px; }
+:lang(ar) .portal-title { letter-spacing: 0; line-height: 1.3; }
+
+/* ---- /portal/signup: the identity pane, and the FORM on a solid card ---- */
+.portal-split { position: relative; min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; }
+.portal-split-hero {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  padding: 40px 24px;
+}
+.portal-split-pane { flex: 1; display: flex; flex-direction: column; justify-content: center; padding: 32px 16px 44px; min-width: 0; }
+.portal-form-card {
+  width: 100%;
+  max-width: 32rem;
+  margin-inline: auto;
+  padding: 26px clamp(18px, 4vw, 30px) 30px;
+  background: var(--color-surface-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-panel);
+}
+@media (min-width: 768px) {
+  .portal-split { flex-direction: row; align-items: stretch; }
+  .portal-split-hero { flex: .85; min-width: 18rem; padding: 56px; }
+  .portal-split-pane { padding: 44px 56px; }
+}
+
+@media screen {
+  .gl-top .switcher {
+    background: var(--color-glass);
+    border-color: var(--color-glass-edge);
+    box-shadow:
+      inset 0 1px 0 var(--color-glass-highlight),
+      0 10px 26px -16px var(--color-glow);
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
+  }
+  .gl-top .switcher-seg:not([aria-current]):not([aria-pressed="true"]) { color: var(--color-glass-quiet); }
+  /* smoked glass on the signature gradient: the hero's own Indigo Deep at
+     40%, a white rim and top light */
+  .portal-card {
+    background: color-mix(in srgb, var(--color-surface-dark) 40%, transparent);
+    border: 1px solid color-mix(in srgb, var(--color-on-dark) 22%, transparent);
+    box-shadow:
+      inset 0 1px 0 color-mix(in srgb, var(--color-on-dark) 30%, transparent),
+      0 40px 80px -40px color-mix(in srgb, var(--color-surface-dark) 70%, transparent);
+    -webkit-backdrop-filter: var(--glass-blur-strong);
+    backdrop-filter: var(--glass-blur-strong);
+  }
+  .portal-ghost {
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
+  }
+  .portal-ghost:hover { background: color-mix(in srgb, var(--color-on-dark) 14%, transparent); }
+  /* the form's glass bezel — the dialogs' (a 6px frosted ring round the
+     solid card) */
+  .portal-form-card {
+    box-shadow:
+      0 0 0 6px var(--color-glass),
+      0 0 0 7px var(--color-glass-edge),
+      var(--shadow-float);
+  }
+}
+
+/* the OS asked for less transparency: solid frame, no frost */
+@media screen and (prefers-reduced-transparency: reduce) {
+  .app-header::before { background: var(--hdr-ground); }
+  .nav-sheet,
+  .glass-menu,
+  .bell-menu,
+  .card.filter-card,
+  .glass-card,
+  .glass-tile,
+  .company-tabs .switcher,
+  .gl-top .switcher,
+  .filter-toggle { background: var(--color-surface-card); }
+  .portal-card { background: var(--color-surface-dark); }
+  .toast,
+  .undo-btn { background: var(--color-toast-surface); }
+  .app-header::before,
+  .nav-sheet,
+  .glass-menu,
+  .bell-menu,
+  .modal-overlay,
+  .toast,
+  .undo-btn,
+  .glass-card,
+  .gl-top .switcher,
+  .portal-card,
+  .portal-ghost {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
+/* Windows High Contrast and friends: system colours take over; the
+   decorative ground goes */
+@media screen and (forced-colors: active) {
+  .app-ground,
+  .switch-ind { display: none; }
+  .app-header::before,
+  .nav-sheet,
+  .glass-menu,
+  .bell-menu,
+  .glass-card {
+    background: Canvas;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
+/* glass never prints, and nor does the ground */
+@media print {
+  .app-ground { display: none !important; }
+}
+
+/* =========================================================================
+   DARK — the tokens turn the glass; these are the two places a design-system
+   dark rule would otherwise out-rank the frame.
+   ========================================================================= */
+@media screen {
+  /* design-system.css gives the dark dialog a hairline ring; the bezel keeps
+     it (the 7px edge) and adds the frost */
+  html[data-theme="dark"] .modal {
+    box-shadow:
+      0 0 0 6px var(--color-glass),
+      0 0 0 7px var(--color-glass-edge),
+      var(--shadow-float),
+      var(--shadow-modal);
+  }
+  /* the indigo header's active pill is Lavender in dark (design-system.css);
+     so is the indicator that slides under it */
+  html[data-theme="dark"][data-brand="bsystems"] .app-header .switcher[data-indicator] > .switch-ind,
+  html[data-theme="dark"] [data-brand="bsystems"] .app-header .switcher[data-indicator] > .switch-ind {
+    background: var(--color-primary);
+  }
+}

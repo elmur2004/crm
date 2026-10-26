@@ -23,7 +23,8 @@ import { THEME_COOKIE, THEME_COOKIE_MAX_AGE, parseTheme, type Theme } from "./co
    silently dropped and the toggle would appear to do nothing.
 
    The argument arrives from the client, so it is parsed, never trusted:
-   anything that is not a theme stores the default. */
+   anything that is not a theme — "light" or "dark"; the retired "system"
+   included — stores the default (light). */
 export async function setTheme(next: Theme): Promise<void> {
   (await cookies()).set(THEME_COOKIE, parseTheme(next), {
     path: "/",

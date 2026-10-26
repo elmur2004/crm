@@ -6,11 +6,8 @@ import Link from "next/link";
 import {
   DndContext,
   DragOverlay,
-  PointerSensor,
   useDraggable,
   useDroppable,
-  useSensor,
-  useSensors,
   type DragEndEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
@@ -29,6 +26,7 @@ import { callSheet } from "@/lib/i18n/dict/call";
 import { CardGrip, useMouseOnlyListeners, type CardDrag } from "@/components/shared/CardGrip";
 import { TodayChip, useTodayFilter } from "@/components/shared/TodayChip";
 import { WhatsappChip } from "@/components/shared/WhatsappChip";
+import { CountPill, useBoardDropAnimation, useBoardSensors } from "@/components/shared/BoardMotion";
 import {
   ProspectGroupFields,
   prospectGroupPayload,
@@ -249,7 +247,8 @@ function Column({
           {isMeetingCol ? (
             <TodayChip count={todayCount} pressed={todayOnly} onToggle={toggle} />
           ) : null}
-          <span className="count-pill">{visible.length}</span>
+          {/* pops once when the count CHANGES, never on load (BUG-026) */}
+          <CountPill count={visible.length} />
         </span>
       </div>
       <div className="col-cards">
@@ -280,7 +279,8 @@ export function PartnersBoard({ cards }: { cards: ProspectCard[] }) {
   const router = useRouter();
   const locale = useLocale();
   const t = tFor(locale);
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
+  /* pointer AND keyboard (column to column) — see BoardMotion */
+  const sensors = useBoardSensors();
   const [pending, setPending] = useState<{ id: string; to: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -291,6 +291,8 @@ export function PartnersBoard({ cards }: { cards: ProspectCard[] }) {
   /* set on every drag end, cleared a beat later: the click the browser fires
      on drop must not navigate (whole-card onClick checks this ref) */
   const suppressClickRef = useRef(false);
+  /* the overlay settles as it lands — and simply goes, under reduced motion */
+  const dropAnimation = useBoardDropAnimation();
 
   /* Review — which column last accepted a drop, and how many drops it has
      taken this mount. A column whose Today chip is pressed lets go when a card
@@ -394,12 +396,13 @@ export function PartnersBoard({ cards }: { cards: ProspectCard[] }) {
             card's links/buttons in the accessibility tree (the live region
             already narrates the drag), and it lingers briefly through the
             drop animation. */}
-        <DragOverlay>
+        <DragOverlay dropAnimation={dropAnimation}>
           {draggingId
             ? (() => {
                 const c = cards.find((x) => x.id === draggingId);
                 return c ? (
-                  <div className="bcard bcard--lift" aria-hidden>
+                  /* the card's own stage rides along, so the lift glows in its hue */
+                  <div className="bcard bcard--lift" data-stage-key={stageKey(c.stage)} aria-hidden>
                     <CardBody card={c} />
                   </div>
                 ) : null;

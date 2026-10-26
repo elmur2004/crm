@@ -6,6 +6,7 @@ import { getLocale } from "@/lib/i18n/server";
 import { todoPage as m } from "@/lib/i18n/dict/todo";
 import { stageLabel } from "@/lib/i18n/dict/labels";
 import { TodoCheckbox } from "@/components/shared/TodoCheckbox";
+import { Meter } from "@/components/shared/Meter";
 import type { TodoDoneItem, TodoItem, TodoKind, TodoLists } from "@/lib/services/todo";
 
 /* Founder (ADR-041): "just a way of representing what I have to do today, no
@@ -41,12 +42,16 @@ export async function TodoBody({
   lists,
   apiBase,
   rowActions,
+  tabs,
 }: {
   lists: TodoLists;
   /* the page's own API namespace ("/api/b-systems" | "/api/byteforce") — the
      checkbox posts there, so the brand keeps coming from the ROUTE */
   apiBase: string;
   rowActions?: (item: TodoItem) => ReactNode;
+  /* the company tabs (CompanyTabs) for an account that works leads in both
+     companies — a filter on this page; absent for everybody else */
+  tabs?: ReactNode;
 }) {
   const locale = await getLocale();
   const t = tFor(locale);
@@ -81,12 +86,14 @@ export async function TodoBody({
     }
   };
 
+  /* crm.css: the rows rise in turn (five steps at most); a row answers the
+     pointer; a tick in flight strikes its title through (.todo-row) */
   const rows = (items: TodoItem[]) => (
-    <ul className="space-y-2">
+    <ul className="todo-list crm-stagger space-y-1">
       {items.map((item) => (
         <li
           key={`${item.kind}-${item.recordId}`}
-          className="flex items-center gap-3 text-sm flex-wrap"
+          className="todo-row flex items-center gap-3 text-sm flex-wrap"
         >
           <TodoCheckbox
             apiBase={apiBase}
@@ -100,7 +107,7 @@ export async function TodoBody({
             {formatCairo(item.at, locale, item.withTime)}
           </span>
           <span className="chip-outline shrink-0">{t(KIND_LABEL[item.kind])}</span>
-          <Link href={item.href} className="font-medium underline underline-offset-2">
+          <Link href={item.href} className="todo-title font-medium underline underline-offset-2">
             {item.title}
           </Link>
           {rowActions ? rowActions(item) : null}
@@ -110,11 +117,11 @@ export async function TodoBody({
   );
 
   const doneRows = (items: TodoDoneItem[]) => (
-    <ul className="space-y-2">
+    <ul className="todo-list crm-stagger space-y-1">
       {items.map((item) => (
         <li
           key={`${item.kind}-${item.recordId}`}
-          className="flex items-center gap-3 text-sm flex-wrap"
+          className="todo-row todo-row--done flex items-center gap-3 text-sm flex-wrap"
         >
           <TodoCheckbox
             apiBase={apiBase}
@@ -136,7 +143,7 @@ export async function TodoBody({
           <span className="chip-outline shrink-0">{t(KIND_LABEL[item.kind])}</span>
           <Link
             href={item.href}
-            className="font-medium underline underline-offset-2 text-brand-muted line-through"
+            className="todo-title font-medium underline underline-offset-2 text-brand-muted line-through"
           >
             {item.title}
           </Link>
@@ -155,11 +162,22 @@ export async function TodoBody({
             {t(m.title)} — {formatCairoDate(new Date(), locale)}
           </h1>
         </div>
+        {tabs ? <div className="page-actions">{tabs}</div> : null}
       </div>
 
       <section className="card card--flush0">
         <div className="card-head">
           <h2 className="u-h3">{t(m.today)}</h2>
+          {/* the day's progress, drawn — what is done against all of today's
+              tasks (the Done heading below states the count in words) */}
+          {lists.done.length + lists.today.length > 0 ? (
+            <span className="crm-meter-row todo-progress">
+              <Meter value={lists.done.length} total={lists.done.length + lists.today.length} />
+              <span className="crm-meter-label">
+                {lists.done.length}/{lists.done.length + lists.today.length}
+              </span>
+            </span>
+          ) : null}
         </div>
         <div className="card-pad">
           {lists.today.length === 0 ? (
@@ -173,7 +191,8 @@ export async function TodoBody({
       {/* ADR-062 — only when nonempty (the ADR-041 Overdue precedent): the
           founder's completed tasks, today only, never silently vanished */}
       {lists.done.length > 0 ? (
-        <section className="card card--flush0">
+        /* crm-reveal: it rises in when the first tick of the day creates it */
+        <section className="crm-reveal card card--flush0">
           <div className="card-head">
             <h2 className="u-h3">
               {t(m.done)} — {lists.done.length}

@@ -21,11 +21,17 @@ import {
 } from "@/components/vault/forms";
 import { ArchiveButton } from "@/components/shared/ArchiveButton";
 import { vaultCompaniesOf } from "@/lib/services/vault/tenancy";
+import Form from "next/form";
+import { ModSwap } from "@/components/accounting/module-ui";
+import { ModEmpty } from "@/components/accounting/module-art";
 
 /* ADR-053 Phase 5 — the tasks screen: assignee cards (open/overdue/completed,
    overdue highlighted) over the task table (open first, deadline ascending).
    Completing goes through the result panel — the gate's UX; the server is the
-   enforcement layer. Admin only. */
+   enforcement layer. Admin only.
+   The assignee cards ARE links (a same-page filter): they lift and give way
+   under a press; picking one, or applying the filters, cross-fades the table
+   to the new list without a page reload (ModSwap / next/form). */
 
 export async function generateMetadata() {
   const locale = await getLocale();
@@ -58,6 +64,7 @@ export default async function VaultTasksPage({
     listVaultEmployeeCards(visible),
   ]);
   const employeeFilter = raw.employee ?? "";
+  const swapKey = JSON.stringify({ ...params, employee: employeeFilter });
   const companyLabel = (c: string | null) =>
     c === null
       ? t(vault.companyBoth)
@@ -67,7 +74,7 @@ export default async function VaultTasksPage({
   const assignees = cards.map((c) => ({ id: c.id, name: c.name }));
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-5 mod-page">
       <VaultHead locale={locale} title={vault.tasksTitle} sub={vault.tasksSub} />
 
       <div className="page-actions">
@@ -76,7 +83,9 @@ export default async function VaultTasksPage({
 
       {cards.length === 0 ? (
         <section className="card card-pad">
-          <p className="empty">{t(vault.noEmployees)}</p>
+          <ModEmpty kind="people" className="">
+            {t(vault.noEmployees)}
+          </ModEmpty>
         </section>
       ) : (
         <div className="ecard-grid">
@@ -84,6 +93,7 @@ export default async function VaultTasksPage({
             <Link
               key={c.id}
               href={employeeFilter === c.id ? "/vault/tasks" : `/vault/tasks?employee=${c.id}`}
+              scroll={false}
               className={employeeFilter === c.id ? "ecard ecard--accent" : "ecard"}
               aria-current={employeeFilter === c.id ? "true" : undefined}
             >
@@ -123,7 +133,16 @@ export default async function VaultTasksPage({
         </div>
       )}
 
-      <form method="get" className="card card-pad flex flex-wrap gap-3 items-end">
+      {/* the filters answer WITHOUT a page reload (next/form — a plain GET
+          form underneath, so it still works with no JavaScript); keyed by the
+          query so its fields always show the filter in force */}
+      <Form
+        key={swapKey}
+        action="/vault/tasks"
+        prefetch={false}
+        scroll={false}
+        className="card card-pad mod-filter flex flex-wrap gap-3 items-end"
+      >
         {employeeFilter ? <input type="hidden" name="employee" value={employeeFilter} /> : null}
         <label className="field">
           <span className="field-label">{t(vault.searchShort)}</span>
@@ -158,122 +177,124 @@ export default async function VaultTasksPage({
         <button type="submit" className="btn-ghost">
           {t(vault.apply)}
         </button>
-      </form>
+      </Form>
 
-      <section className="card card--flush0">
-        {rows.length === 0 ? (
-          <p className="empty m-4">{t(vault.noTasks)}</p>
-        ) : (
-          <div className="table-scroll">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>{t(vault.name)}</th>
-                  <th>{t(vault.assignee)}</th>
-                  <th>{t(vault.company)}</th>
-                  <th>{t(vault.deadline)}</th>
-                  <th>{t(vault.status)}</th>
-                  <th>{t(vault.late)}</th>
-                  <th>{t(vault.completedOn)}</th>
-                  <th>{t(vault.result)}</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((task) => (
-                  <tr key={task.id}>
-                    <td className="td-title">
-                      {task.name}
-                      {task.description ? (
-                        <span className="u-muted block text-sm">{task.description}</span>
-                      ) : null}
-                    </td>
-                    <td>{task.employee.name}</td>
-                    <td>
-                      <span className="chip-outline">{companyLabel(task.company)}</span>
-                    </td>
-                    <td className="td-mono">
-                      <span className="u-ltr">{task.deadline}</span>{" "}
-                      {task.isOverdue ? (
-                        <span className="badge badge--danger">{t(vault.overdueBadge)}</span>
-                      ) : null}
-                    </td>
-                    <td>
-                      {task.status === "completed" ? (
-                        <span className="stage-chip" data-stage-key="intake">
-                          {t(vault.statusCompleted)}
-                        </span>
-                      ) : (
-                        <span className="stage-chip" data-stage-key="following">
-                          {t(vault.statusOpen)}
-                        </span>
-                      )}
-                    </td>
-                    <td>
-                      {task.status !== "completed" || task.wasLate === null
-                        ? "—"
-                        : task.wasLate
-                          ? t(formatMsg(vault.lateByDays, { days: String(task.daysLate ?? 0) }))
-                          : t(vault.onTime)}
-                    </td>
-                    <td className="td-mono u-ltr">
-                      {task.completedAt ? formatCairo(task.completedAt, locale) : "—"}
-                    </td>
-                    <td>
-                      {task.resultText || task.attachments.length > 0 || task.links.length > 0 ? (
-                        <span className="u-muted text-sm">
-                          {[
-                            task.resultText ? t(vault.noteShort) : null,
-                            task.attachments.length > 0
-                              ? `${task.attachments.length} ${t(vault.filesCount)}`
-                              : null,
-                            task.links.length > 0
-                              ? `${task.links.length} ${t(vault.linksCount)}`
-                              : null,
-                          ]
-                            .filter(Boolean)
-                            .join(" · ")}
-                        </span>
-                      ) : (
-                        "—"
-                      )}
-                    </td>
-                    <td>
-                      <span className="inline-flex items-center gap-2 flex-wrap">
-                        {task.status === "open" ? (
-                          <CompleteTaskButton
-                            taskId={task.id}
-                            taskName={task.name}
-                            resultText={task.resultText}
-                          />
-                        ) : (
-                          <ReopenTaskButton taskId={task.id} />
-                        )}
-                        <EditTaskButton
-                          row={{
-                            id: task.id,
-                            employeeId: task.employeeId,
-                            name: task.name,
-                            description: task.description,
-                            company: task.company,
-                            deadline: task.deadline,
-                            status: task.status,
-                          }}
-                          assignees={assignees}
-                        />
-                        <ArchiveButton
-                          postUrl={`/api/vault/tasks/${task.id}/archive`}
-                          archived={false} confirmText={t(vault.confirmArchive)}
-                        />
-                      </span>
-                    </td>
+      <ModSwap swapKey={swapKey}>
+        <section className="card card--flush0">
+          {rows.length === 0 ? (
+            <ModEmpty kind="tasks">{t(vault.noTasks)}</ModEmpty>
+          ) : (
+            <div className="table-scroll">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>{t(vault.name)}</th>
+                    <th>{t(vault.assignee)}</th>
+                    <th>{t(vault.company)}</th>
+                    <th>{t(vault.deadline)}</th>
+                    <th>{t(vault.status)}</th>
+                    <th>{t(vault.late)}</th>
+                    <th>{t(vault.completedOn)}</th>
+                    <th>{t(vault.result)}</th>
+                    <th></th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
+                </thead>
+                <tbody>
+                  {rows.map((task) => (
+                    <tr key={task.id}>
+                      <td className="td-title">
+                        {task.name}
+                        {task.description ? (
+                          <span className="u-muted block text-sm">{task.description}</span>
+                        ) : null}
+                      </td>
+                      <td>{task.employee.name}</td>
+                      <td>
+                        <span className="chip-outline">{companyLabel(task.company)}</span>
+                      </td>
+                      <td className="td-mono">
+                        <span className="u-ltr">{task.deadline}</span>{" "}
+                        {task.isOverdue ? (
+                          <span className="badge badge--danger">{t(vault.overdueBadge)}</span>
+                        ) : null}
+                      </td>
+                      <td>
+                        {task.status === "completed" ? (
+                          <span className="stage-chip" data-stage-key="intake">
+                            {t(vault.statusCompleted)}
+                          </span>
+                        ) : (
+                          <span className="stage-chip" data-stage-key="following">
+                            {t(vault.statusOpen)}
+                          </span>
+                        )}
+                      </td>
+                      <td>
+                        {task.status !== "completed" || task.wasLate === null
+                          ? "—"
+                          : task.wasLate
+                            ? t(formatMsg(vault.lateByDays, { days: String(task.daysLate ?? 0) }))
+                            : t(vault.onTime)}
+                      </td>
+                      <td className="td-mono u-ltr">
+                        {task.completedAt ? formatCairo(task.completedAt, locale) : "—"}
+                      </td>
+                      <td>
+                        {task.resultText || task.attachments.length > 0 || task.links.length > 0 ? (
+                          <span className="u-muted text-sm">
+                            {[
+                              task.resultText ? t(vault.noteShort) : null,
+                              task.attachments.length > 0
+                                ? `${task.attachments.length} ${t(vault.filesCount)}`
+                                : null,
+                              task.links.length > 0
+                                ? `${task.links.length} ${t(vault.linksCount)}`
+                                : null,
+                            ]
+                              .filter(Boolean)
+                              .join(" · ")}
+                          </span>
+                        ) : (
+                          "—"
+                        )}
+                      </td>
+                      <td>
+                        <span className="inline-flex items-center gap-2 flex-wrap">
+                          {task.status === "open" ? (
+                            <CompleteTaskButton
+                              taskId={task.id}
+                              taskName={task.name}
+                              resultText={task.resultText}
+                            />
+                          ) : (
+                            <ReopenTaskButton taskId={task.id} />
+                          )}
+                          <EditTaskButton
+                            row={{
+                              id: task.id,
+                              employeeId: task.employeeId,
+                              name: task.name,
+                              description: task.description,
+                              company: task.company,
+                              deadline: task.deadline,
+                              status: task.status,
+                            }}
+                            assignees={assignees}
+                          />
+                          <ArchiveButton
+                            postUrl={`/api/vault/tasks/${task.id}/archive`}
+                            archived={false} confirmText={t(vault.confirmArchive)}
+                          />
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      </ModSwap>
     </div>
   );
 }

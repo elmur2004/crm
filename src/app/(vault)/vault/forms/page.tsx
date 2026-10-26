@@ -14,6 +14,9 @@ import { VaultHead } from "@/components/vault/VaultHead";
 import { AddFormButton, EditFormButton } from "@/components/vault/forms";
 import { ArchiveButton } from "@/components/shared/ArchiveButton";
 import { vaultCompaniesOf } from "@/lib/services/vault/tenancy";
+import Form from "next/form";
+import { ModSwap } from "@/components/accounting/module-ui";
+import { ModEmpty } from "@/components/accounting/module-art";
 
 /* ADR-053 Phase 5 — vault forms: named links, duplicate URLs flagged (409
    handshake in the modal), archive-not-delete. Admin only. */
@@ -35,20 +38,31 @@ export default async function VaultFormsPage({
   const t = tFor(locale);
   const params = vaultFormListParams.parse(await searchParams);
   const rows = await listVaultForms(params, visible);
+  const swapKey = JSON.stringify(params);
   const companyLabel = (c: string) =>
     (VAULT_COMPANIES as readonly string[]).includes(c)
       ? t(VAULT_COMPANY_LABELS[c as VaultCompany])
       : c;
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-5 mod-page">
       <VaultHead locale={locale} title={vault.formsTitle} sub={vault.formsSub} />
 
       <div className="page-actions">
         <AddFormButton />
       </div>
 
-      <form method="get" className="card card-pad flex flex-wrap gap-3 items-end">
+      {/* the filters answer WITHOUT a page reload (next/form — a plain GET
+          form underneath, so it still works with no JavaScript); keyed by the
+          query so its fields always show the filter in force; the list below
+          cross-fades to the new result (ModSwap) */}
+      <Form
+        key={swapKey}
+        action="/vault/forms"
+        prefetch={false}
+        scroll={false}
+        className="card card-pad mod-filter flex flex-wrap gap-3 items-end"
+      >
         <label className="field">
           <span className="field-label">{t(vault.searchShort)}</span>
           <input className="field-input" name="q" defaultValue={params.q ?? ""} maxLength={200} />
@@ -70,62 +84,64 @@ export default async function VaultFormsPage({
         <button type="submit" className="btn-ghost">
           {t(vault.apply)}
         </button>
-      </form>
+      </Form>
 
-      <section className="card card--flush0">
-        {rows.length === 0 ? (
-          <p className="empty m-4">{t(vault.noForms)}</p>
-        ) : (
-          <div className="table-scroll">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>{t(vault.name)}</th>
-                  <th>{t(vault.company)}</th>
-                  <th>{t(vault.url)}</th>
-                  <th>{t(vault.notes)}</th>
-                  <th>{t(vault.added)}</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((f) => (
-                  <tr key={f.id}>
-                    <td className="td-title">{f.name}</td>
-                    <td>
-                      <span className="chip-outline">{companyLabel(f.company)}</span>
-                    </td>
-                    <td>
-                      <a href={f.url} target="_blank" rel="noreferrer" className="chat-mention">
-                        {t(vault.open)}
-                      </a>
-                    </td>
-                    <td>{f.notes ?? "—"}</td>
-                    <td className="td-mono u-ltr">{formatCairoDate(f.createdAt, locale)}</td>
-                    <td>
-                      <span className="inline-flex items-center gap-2 flex-wrap">
-                        <EditFormButton
-                          row={{
-                            id: f.id,
-                            company: f.company,
-                            name: f.name,
-                            url: f.url,
-                            notes: f.notes,
-                          }}
-                        />
-                        <ArchiveButton
-                          postUrl={`/api/vault/forms/${f.id}/archive`}
-                          archived={false} confirmText={t(vault.confirmArchive)}
-                        />
-                      </span>
-                    </td>
+      <ModSwap swapKey={swapKey}>
+        <section className="card card--flush0">
+          {rows.length === 0 ? (
+            <ModEmpty kind="link">{t(vault.noForms)}</ModEmpty>
+          ) : (
+            <div className="table-scroll">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>{t(vault.name)}</th>
+                    <th>{t(vault.company)}</th>
+                    <th>{t(vault.url)}</th>
+                    <th>{t(vault.notes)}</th>
+                    <th>{t(vault.added)}</th>
+                    <th></th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
+                </thead>
+                <tbody>
+                  {rows.map((f) => (
+                    <tr key={f.id}>
+                      <td className="td-title">{f.name}</td>
+                      <td>
+                        <span className="chip-outline">{companyLabel(f.company)}</span>
+                      </td>
+                      <td>
+                        <a href={f.url} target="_blank" rel="noreferrer" className="chat-mention">
+                          {t(vault.open)}
+                        </a>
+                      </td>
+                      <td>{f.notes ?? "—"}</td>
+                      <td className="td-mono u-ltr">{formatCairoDate(f.createdAt, locale)}</td>
+                      <td>
+                        <span className="inline-flex items-center gap-2 flex-wrap">
+                          <EditFormButton
+                            row={{
+                              id: f.id,
+                              company: f.company,
+                              name: f.name,
+                              url: f.url,
+                              notes: f.notes,
+                            }}
+                          />
+                          <ArchiveButton
+                            postUrl={`/api/vault/forms/${f.id}/archive`}
+                            archived={false} confirmText={t(vault.confirmArchive)}
+                          />
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      </ModSwap>
     </div>
   );
 }

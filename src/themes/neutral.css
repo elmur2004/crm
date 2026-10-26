@@ -119,6 +119,41 @@
   --color-chart-1: #5A3A96;
   --color-chart-2: #D8468B;
   --color-chart-3: #3D4BB8;
+
+  /* GLASS + MOTION — the system-wide pass after ADR-092 ("Glass frame, solid
+     data"; the full rationale is in branding/b-systems/tokens.css, the
+     identical set lives there and in branding/byteforce/tokens.css). This
+     scope dresses the launcher, /no-access and the Vault's all-companies view.
+     Its ground is the sign-in's: B-Systems colours only (ADR-092 §9) — the two
+     #D4ADFC literals below are Process Lavender, and the float shadow's
+     rgba(29, 38, 125, …) is Systems Indigo (#1D267D), stated here because the
+     neutral scope has no palette variable to name them by. Recomputed by
+     src/themes/glass-motion.test.ts:
+     · glass-chrome (white at 80%): quiet 5.38:1 even over a near-black island;
+       glass-strong: quiet 6.15:1 there.
+     · ground-halo: quiet 6.07:1 / heading 12.94:1 at its peak; ground-wash:
+       plain muted still 4.70:1. */
+  --color-glass: color-mix(in srgb, var(--color-surface-card) 72%, transparent);
+  --color-glass-strong: color-mix(in srgb, var(--color-surface-card) 86%, transparent);
+  --color-glass-chrome: color-mix(in srgb, var(--color-chrome) 80%, transparent);
+  --color-glass-edge: color-mix(in srgb, var(--color-on-dark) 70%, transparent);
+  --color-glass-highlight: color-mix(in srgb, var(--color-on-dark) 88%, transparent);
+  --color-glass-quiet: color-mix(in srgb, var(--color-ink-soft) 55%, var(--color-muted));
+  --color-glow: color-mix(in srgb, var(--color-link) 24%, transparent);
+  --color-ground-halo: color-mix(in srgb, #D4ADFC 40%, transparent);
+  --color-ground-wash: color-mix(in srgb, #D4ADFC 7%, transparent);
+  --shadow-float: 0 1px 2px rgba(0, 0, 0, 0.06), 0 22px 48px -22px rgba(29, 38, 125, 0.3);
+  /* THEME- AND BRAND-INVARIANT (light block only, identical in all three
+     scopes — glass-motion.test.ts) */
+  --glass-blur: blur(18px) saturate(160%);
+  --glass-blur-strong: blur(28px) saturate(170%);
+  --ease-standard: cubic-bezier(.2, .8, .2, 1);
+  --ease-spring: cubic-bezier(.34, 1.4, .64, 1);
+  --ease-exit: cubic-bezier(.4, 0, 1, 1);
+  --duration-short: 140ms;
+  --duration-medium: 240ms;
+  --duration-long: 420ms;
+  --stagger-step: 40ms;
 }
 
 /* ---- hub (`/`) — spec §2.15 ---- */
@@ -260,16 +295,19 @@
    block with values equal to what components already paint today.)
 
    SELECTOR CONTRACT — src/lib/theme/core.ts; the app root layouts stamp it:
-       <html data-theme="light" | "dark" | "system">
+       <html data-theme="light" | "dark">
    The landing pages never set data-theme, so nothing here can match them.
    data-brand sits on <html> AND is re-stamped on inner wrappers (ADR-054:
    the accounting / vault modules re-brand per company), so every dark block
    matches BOTH shapes:
        html[data-theme="dark"][data-brand="neutral"]
        html[data-theme="dark"] [data-brand="neutral"]
-   "system" follows the OS: the same declarations under prefers-color-scheme:
-   dark. The two blocks must stay IDENTICAL — src/lib/theme-tokens.test.ts
-   fails the build the moment they drift.
+   There is no third theme. Founder (amending ADR-087): "remove the system
+   theme option" — the follow-the-OS "system" value and its
+   prefers-color-scheme twin of this block are gone; a cookie still holding
+   "system" reads as light (src/lib/theme/core.ts), and
+   src/lib/theme-tokens.test.ts fails the build if a data-theme="system"
+   selector ever comes back.
 
    PRINT IS ALWAYS LIGHT. Every dark rule sits inside `@media screen`, so a
    printed statement can never come out dark, whatever the toggle says.
@@ -453,6 +491,21 @@
     --color-chart-1: #8466CC;
     --color-chart-2: #D85C93;
     --color-chart-3: #5E70D6;
+    /* GLASS — smoked near-black, and the sign-in's dark ground: Systems Indigo
+       (#1D267D) glowing behind the header band, Indigo Deep (#0B0F3D) pooling
+       in the corners (ADR-092 §4 — B-Systems colours only). Recomputed by
+       glass-motion.test.ts against the lightest thing that can pass beneath
+       (the near-white button): header quiet 4.64:1, sheet quiet 6.77:1. */
+    --color-glass: color-mix(in srgb, var(--color-surface-card) 64%, transparent);
+    --color-glass-strong: color-mix(in srgb, var(--color-surface-card) 90%, transparent);
+    --color-glass-chrome: color-mix(in srgb, var(--color-chrome) 78%, transparent);
+    --color-glass-edge: color-mix(in srgb, var(--color-on-dark) 13%, transparent);
+    --color-glass-highlight: color-mix(in srgb, var(--color-on-dark) 16%, transparent);
+    --color-glass-quiet: color-mix(in srgb, var(--color-ink-soft) 55%, var(--color-muted));
+    --color-glow: color-mix(in srgb, var(--color-link) 24%, transparent);
+    --color-ground-halo: color-mix(in srgb, #1D267D 45%, transparent);
+    --color-ground-wash: color-mix(in srgb, #0B0F3D 80%, transparent);
+    --shadow-float: 0 1px 2px rgba(0, 0, 0, 0.4), 0 24px 56px -22px rgba(0, 0, 0, 0.7);
     /* stage vars: contract parity only (the neutral shell never renders
        boards) — the same aliases as light, which resolve to the dark values */
     --color-stage-intake: var(--color-surface-tint); --color-stage-intake-accent: var(--color-border); --color-stage-intake-chip: var(--color-surface-tint); --color-stage-intake-chip-ink: var(--color-muted);
@@ -492,90 +545,4 @@
   html[data-theme="dark"] .login-bb-line-a { color: #F4F1EA; }
   /* the lifted violet (6.44:1 on Ink) */
   html[data-theme="dark"] .login-bb-eyebrow-a { color: #A59CD3; }
-}
-
-/* "system" + a dark OS — the SAME declarations as the block above, verbatim
-   (comments aside). theme-tokens.test.ts compares the two. */
-@media screen and (prefers-color-scheme: dark) {
-  html[data-theme="system"][data-brand="neutral"],
-  html[data-theme="system"] [data-brand="neutral"] {
-    color-scheme: dark;
-    --color-primary: #ECEAE5;
-    --color-on-primary: #1A191C;
-    --color-secondary: #A59CD3;
-    --color-on-secondary: #1A191C;
-    --color-accent: #ECEAE5;
-    --color-on-accent: #1A191C;
-    --color-heading: #ECEAE5;
-    --color-link: #9CA3E8;
-    --color-ink: #ECEAE5;
-    --color-ink-soft: #CCCAC6;
-    --color-muted: #ACAAA6;
-    --color-faint: #92908D;
-    --color-surface: #151413;
-    --color-surface-card: #1E1D1B;
-    --color-surface-tint: #282624;
-    --color-surface-dark: #0C0B0A;
-    --color-border: #3F3E3B;
-    --color-hairline: #2E2D2B;
-    --color-danger: #F07D71;
-    --color-on-danger: #1A191C;
-    --color-danger-tint: #3A1C1D;
-    --color-danger-border: #6A302D;
-    --color-danger-border-strong: #C25A4F;
-    --color-danger-ink: #F9C0B8;
-    --color-success: #ECEAE5;
-    --color-warning: #DFA820;
-    --color-on-success: #1A191C;
-    --color-primary-tint: #2E2C29;
-    --color-primary-tint-ink: #ECEAE5;
-    --color-secondary-tint: #282624;
-    --color-secondary-tint-ink: #CCCAC6;
-    --color-toast-surface: #ECEAE5;
-    --color-toast-ink: #1A191C;
-    --color-board-card-border: rgba(255, 255, 255, 0.08);
-    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.32), 0 6px 18px rgba(0, 0, 0, 0.24);
-    --shadow-lift: 0 14px 30px rgba(0, 0, 0, 0.45);
-    --shadow-modal: 0 30px 70px rgba(0, 0, 0, 0.6);
-    --shadow-toast: 0 18px 44px rgba(0, 0, 0, 0.55);
-    --color-acct-positive: #5CC188;
-    --color-acct-positive-tint: #173323;
-    --color-contact-made: #5CC188;
-    --color-contact-made-tint: #173323;
-    --color-on-dark: #FFFFFF;
-    --color-chrome: var(--color-surface-card);
-    --color-on-chrome: var(--color-ink);
-    --color-focus-ring: #ECEAE5;
-    --color-border-control: #757370;
-    --color-chart-1: #8466CC;
-    --color-chart-2: #D85C93;
-    --color-chart-3: #5E70D6;
-    --color-stage-intake: var(--color-surface-tint); --color-stage-intake-accent: var(--color-border); --color-stage-intake-chip: var(--color-surface-tint); --color-stage-intake-chip-ink: var(--color-muted);
-    --color-stage-following: var(--color-surface-tint); --color-stage-following-accent: var(--color-border); --color-stage-following-chip: var(--color-surface-tint); --color-stage-following-chip-ink: var(--color-muted);
-    --color-stage-meeting: var(--color-surface-tint); --color-stage-meeting-accent: var(--color-border); --color-stage-meeting-chip: var(--color-surface-tint); --color-stage-meeting-chip-ink: var(--color-muted);
-    --color-stage-proposal: var(--color-surface-tint); --color-stage-proposal-accent: var(--color-border); --color-stage-proposal-chip: var(--color-surface-tint); --color-stage-proposal-chip-ink: var(--color-muted);
-    --color-stage-negotiation: var(--color-surface-tint); --color-stage-negotiation-accent: var(--color-border); --color-stage-negotiation-chip: var(--color-surface-tint); --color-stage-negotiation-chip-ink: var(--color-muted);
-    --color-stage-didnt-answer: var(--color-surface-tint); --color-stage-didnt-answer-accent: var(--color-border); --color-stage-didnt-answer-chip: var(--color-surface-tint); --color-stage-didnt-answer-chip-ink: var(--color-muted);
-    --color-stage-contacted: var(--color-surface-tint); --color-stage-contacted-accent: var(--color-border); --color-stage-contacted-chip: var(--color-surface-tint); --color-stage-contacted-chip-ink: var(--color-muted);
-    --color-stage-qualified: var(--color-surface-tint); --color-stage-qualified-accent: var(--color-border); --color-stage-qualified-chip: var(--color-surface-tint); --color-stage-qualified-chip-ink: var(--color-muted);
-    --color-stage-waiting: var(--color-surface-tint); --color-stage-waiting-accent: var(--color-border); --color-stage-waiting-chip: var(--color-surface-tint); --color-stage-waiting-chip-ink: var(--color-muted);
-    --color-stage-won: var(--color-surface-tint); --color-stage-won-accent: var(--color-border); --color-stage-won-chip: var(--color-surface-tint); --color-stage-won-chip-ink: var(--color-muted);
-    --color-stage-postponed: var(--color-surface-tint); --color-stage-postponed-accent: var(--color-border); --color-stage-postponed-chip: var(--color-surface-tint); --color-stage-postponed-chip-ink: var(--color-muted);
-    --color-stage-fallen-behind: var(--color-surface-tint); --color-stage-fallen-behind-accent: var(--color-border); --color-stage-fallen-behind-chip: var(--color-surface-tint); --color-stage-fallen-behind-chip-ink: var(--color-muted);
-    --color-stage-lost: var(--color-surface-tint); --color-stage-lost-accent: var(--color-border); --color-stage-lost-chip: var(--color-surface-tint); --color-stage-lost-chip-ink: var(--color-muted);
-  }
-  html[data-theme="system"] .hub-sub,
-  html[data-theme="system"] .hub-card-desc,
-  html[data-theme="system"] .login-sub { color: #BDB9B3; }
-  html[data-theme="system"] .hub-card { background: #191817; }
-  html[data-theme="system"] .hub-card:hover { background: var(--color-surface-card); }
-  html[data-theme="system"] .hub-card-title { color: var(--color-ink); }
-  html[data-theme="system"] .hub-card-title--b { color: #E8D4FE; }
-  html[data-theme="system"] .hub-arrow--b { color: #D4ADFC; }
-  html[data-theme="system"] .login-form input { background: var(--color-surface-card); border-color: var(--color-border-control); }
-  html[data-theme="system"] .login-form button[type="submit"]:hover { background: #D6D3CD; }
-  html[data-theme="system"] .login-bb--a { background: #231F20; }
-  html[data-theme="system"] .login-bb-word-a,
-  html[data-theme="system"] .login-bb-line-a { color: #F4F1EA; }
-  html[data-theme="system"] .login-bb-eyebrow-a { color: #A59CD3; }
 }

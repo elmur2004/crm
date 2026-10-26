@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { requireCompanySection } from "@/lib/auth/page-guards";
-import { BS_CRM_ROLES } from "@/lib/crm/company";
+import { BS_CRM_ROLES, crmQuery } from "@/lib/crm/company";
+import { crmHomeFor } from "@/lib/crm/nav";
 import { bsRoleOf } from "@/lib/api/bsystems";
 import { listMyEntries } from "@/lib/services/data-entry";
 import { formatCairoDate } from "@/lib/datetime";
@@ -36,8 +37,10 @@ export default async function DataEntryPage({
     (await searchParams).company,
     BS_CRM_ROLES,
   );
-  /* the page belongs to data entry; the admin has the real sections */
-  if (bsRoleOf(user) !== "bsystems_data_entry") redirect("/b-systems");
+  /* the page belongs to data entry; the admin has the real sections — and a
+     bounce lands on the role's first menu item, the board (crmHomeFor) */
+  const role = bsRoleOf(user);
+  if (role !== "bsystems_data_entry") redirect(`${crmHomeFor("bsystems", role)}${crmQuery("bsystems")}`);
 
   const locale = await getLocale();
   const t = tFor(locale);

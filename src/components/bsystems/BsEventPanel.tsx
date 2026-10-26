@@ -149,7 +149,10 @@ export function BsEventPanel({
             setBusy(false);
             router.refresh();
           }}
-          className="border border-brand-accent text-brand-accent rounded-brand-control px-3 py-1.5 text-sm font-medium"
+          /* brand audit: the label was Signal Pink on the white card (3.12:1);
+             the border keeps the pink cue, the words take the Won chip's own
+             AA ink (crm.css .crm-ready) */
+          className="crm-ready border border-brand-accent rounded-brand-control px-3 py-1.5 text-sm font-medium"
         >
           {t(common.markReadyToClose)}
         </button>
@@ -223,7 +226,7 @@ export function BsEventPanel({
                   },
                 });
               }}
-              className="space-y-3 mt-3"
+              className="crm-reveal space-y-3 mt-3"
             >
               <div className="grid grid-cols-2 gap-3">
                 <input type="date" name="date" required className={inputCls} />
@@ -236,7 +239,7 @@ export function BsEventPanel({
           ) : null}
 
           {outcome === "attended" || outcome === "cancelled" ? (
-            <div className="mt-3 space-y-3">
+            <div className="crm-reveal mt-3 space-y-3">
               <select
                 aria-label={t(msg.destination)}
                 value={destination}
@@ -263,7 +266,7 @@ export function BsEventPanel({
                       }),
                     });
                   }}
-                  className="space-y-3"
+                  className="crm-reveal space-y-3"
                 >
                   <GroupFieldsV2
                     people={people}
@@ -335,7 +338,7 @@ export function BsEventPanel({
                 },
               );
             }}
-            className="mt-3 space-y-3 card card-pad"
+            className="crm-reveal mt-3 space-y-3 card card-pad"
           >
             <p className="u-h3">
               {isSameStageAction(action)

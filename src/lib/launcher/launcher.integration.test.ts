@@ -20,6 +20,11 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
    And the launcher's OWN wall: /apps is outside the proxy matcher, so an
    anonymous request must be turned away by the page itself.
+
+   ONE WAY TO EACH PAGE — the same promise for every APP MENU ITEM a person is
+   shown (lib/launcher/menus.ts: the two CRM menus, Partners & Agents,
+   Accounting, the Vault): each one is rendered, shell and page, and must not
+   redirect. A menu item that bounces is a broken promise exactly like a tile.
    ========================================================================== */
 
 const { authMock } = vi.hoisted(() => ({
@@ -45,6 +50,7 @@ vi.mock("next/headers", () => ({
 import { db } from "@/lib/db";
 import { resetDb } from "@/tests/db-reset";
 import { launcherTilesFor, reportsFor, REPORTS_PATH } from "./apps";
+import { appMenusFor } from "./menus";
 import LauncherPage from "@/app/(home)/apps/page";
 import ReportsPage from "@/app/(home)/apps/reports/page";
 
@@ -82,7 +88,71 @@ const DESTINATIONS: Record<string, { shell?: Loader; page: Loader }> = {
     shell: CRM_SHELL,
     page: () => import("@/app/(bsystems)/b-systems/(app)/partners-pipeline/page"),
   },
+  /* the app menus' pages (one way to each page — every menu item is rendered too) */
+  "/b-systems/leads": { shell: CRM_SHELL, page: () => import("@/app/(bsystems)/b-systems/(app)/leads/page") },
+  "/b-systems/calendar": {
+    shell: CRM_SHELL,
+    page: () => import("@/app/(bsystems)/b-systems/(app)/calendar/page"),
+  },
+  "/b-systems/clients": {
+    shell: CRM_SHELL,
+    page: () => import("@/app/(bsystems)/b-systems/(app)/clients/page"),
+  },
+  "/b-systems/won-leads": {
+    shell: CRM_SHELL,
+    page: () => import("@/app/(bsystems)/b-systems/(app)/won-leads/page"),
+  },
+  "/b-systems/statements": {
+    shell: CRM_SHELL,
+    page: () => import("@/app/(bsystems)/b-systems/(app)/statements/page"),
+  },
+  "/b-systems/users": { shell: CRM_SHELL, page: () => import("@/app/(bsystems)/b-systems/(app)/users/page") },
+  "/b-systems/payments": {
+    shell: CRM_SHELL,
+    page: () => import("@/app/(bsystems)/b-systems/(app)/payments/page"),
+  },
+  "/b-systems/profile": {
+    shell: CRM_SHELL,
+    page: () => import("@/app/(bsystems)/b-systems/(app)/profile/page"),
+  },
+  "/b-systems/partners": {
+    shell: CRM_SHELL,
+    page: () => import("@/app/(bsystems)/b-systems/(app)/partners/page"),
+  },
+  "/b-systems/agents": { shell: CRM_SHELL, page: () => import("@/app/(bsystems)/b-systems/(app)/agents/page") },
+  "/b-systems/registrations": {
+    shell: CRM_SHELL,
+    page: () => import("@/app/(bsystems)/b-systems/(app)/registrations/page"),
+  },
   "/accounting": { shell: ACCOUNTING_SHELL, page: () => import("@/app/(accounting)/accounting/page") },
+  "/accounting/income": {
+    shell: ACCOUNTING_SHELL,
+    page: () => import("@/app/(accounting)/accounting/income/page"),
+  },
+  "/accounting/expenses": {
+    shell: ACCOUNTING_SHELL,
+    page: () => import("@/app/(accounting)/accounting/expenses/page"),
+  },
+  "/accounting/clients": {
+    shell: ACCOUNTING_SHELL,
+    page: () => import("@/app/(accounting)/accounting/clients/page"),
+  },
+  "/accounting/roster": {
+    shell: ACCOUNTING_SHELL,
+    page: () => import("@/app/(accounting)/accounting/roster/page"),
+  },
+  "/accounting/media": {
+    shell: ACCOUNTING_SHELL,
+    page: () => import("@/app/(accounting)/accounting/media/page"),
+  },
+  "/accounting/loans": {
+    shell: ACCOUNTING_SHELL,
+    page: () => import("@/app/(accounting)/accounting/loans/page"),
+  },
+  "/accounting/treasury": {
+    shell: ACCOUNTING_SHELL,
+    page: () => import("@/app/(accounting)/accounting/treasury/page"),
+  },
   "/accounting/report": {
     shell: ACCOUNTING_SHELL,
     page: () => import("@/app/(accounting)/accounting/report/page"),
@@ -91,7 +161,22 @@ const DESTINATIONS: Record<string, { shell?: Loader; page: Loader }> = {
     shell: ACCOUNTING_SHELL,
     page: () => import("@/app/(accounting)/accounting/departments/page"),
   },
+  "/accounting/targets": {
+    shell: ACCOUNTING_SHELL,
+    page: () => import("@/app/(accounting)/accounting/targets/page"),
+  },
+  "/accounting/import": {
+    shell: ACCOUNTING_SHELL,
+    page: () => import("@/app/(accounting)/accounting/import/page"),
+  },
   "/vault": { shell: VAULT_SHELL, page: () => import("@/app/(vault)/vault/page") },
+  "/vault/forms": { shell: VAULT_SHELL, page: () => import("@/app/(vault)/vault/forms/page") },
+  "/vault/links": { shell: VAULT_SHELL, page: () => import("@/app/(vault)/vault/links/page") },
+  "/vault/sheets": { shell: VAULT_SHELL, page: () => import("@/app/(vault)/vault/sheets/page") },
+  "/vault/documents": { shell: VAULT_SHELL, page: () => import("@/app/(vault)/vault/documents/page") },
+  "/vault/tasks": { shell: VAULT_SHELL, page: () => import("@/app/(vault)/vault/tasks/page") },
+  "/vault/employees": { shell: VAULT_SHELL, page: () => import("@/app/(vault)/vault/employees/page") },
+  "/vault/archive": { shell: VAULT_SHELL, page: () => import("@/app/(vault)/vault/archive/page") },
   [REPORTS_PATH]: { page: () => import("@/app/(home)/apps/reports/page") },
 };
 
@@ -174,6 +259,11 @@ beforeAll(async () => {
   });
   personas.bsSales = await makeUser("Omar Farouk", ["bsystems_sales"]);
   personas.agent = await makeUser("Karim Adel", ["bsystems_agent"]);
+  /* every real agent account carries its profile (sign-up and PP-4a both
+     write one); his menu's Profile page reads it */
+  await db.portalRep.create({
+    data: { userId: personas.agent.id, firstName: "Karim", lastName: "Adel", address: "Cairo", speciality: "Sales" },
+  });
   personas.partner = await makeUser("Partner Co", ["bsystems_partner"]);
   personas.byteforceOnly = await makeUser("Sara Hassan", ["byteforce_staff"]);
   personas.dataEntry = await makeUser("Hala Nabil", ["bsystems_data_entry"]);
@@ -257,6 +347,22 @@ describe("every tile a person is shown opens for that person — no redirect any
     signInAs(p);
     expect(await redirectOf(() => ReportsPage())).toBe(entries.length > 0 ? null : "/apps");
   });
+
+  it.each(NAMES)("%s: every item of every app menu he is shown opens — no redirect anywhere", async (name) => {
+    const p = personas[name]!;
+    const menus = appMenusFor(bearer(p));
+    let items = 0;
+    for (const [app, hrefs] of Object.entries(menus)) {
+      if (app === "reports") continue; // the Reports list: the case above
+      for (const href of hrefs!) {
+        items++;
+        signInAs(p);
+        expect(await visit(href), `${name} → ${app} menu → ${href}`).toBeNull();
+      }
+    }
+    /* data entry's one app has no menu; everybody else has items to prove */
+    if (name !== "dataEntry") expect(items, name).toBeGreaterThan(0);
+  });
 });
 
 describe("the doors the launcher does NOT show are doors the walls really shut", () => {
@@ -282,5 +388,38 @@ describe("the doors the launcher does NOT show are doors the walls really shut",
   it("a ByteForce-only teammate sent to B-Systems is bounced to his own company", async () => {
     signInAs(personas.byteforceOnly!);
     expect(await visit("/b-systems/crm?company=bsystems")).toBe("/b-systems?company=byteforce");
+  });
+
+  it("a non-admin sent to a Partners & Agents screen is bounced — the menu is the admin's alone", async () => {
+    for (const href of [
+      "/b-systems/partners?company=bsystems",
+      "/b-systems/agents?company=bsystems",
+      "/b-systems/registrations?company=bsystems",
+    ]) {
+      signInAs(personas.bsSales!);
+      expect(await visit(href), href).not.toBeNull();
+    }
+  });
+});
+
+describe("one way to each page — where a page bounce lands", () => {
+  /* landingFor is only a fallback now (sign-in lands on the launcher): a
+     signed-in account refused a section is sent to its BOARD, never to the
+     dashboard, which is a page of Reports & Dashboards */
+  it("the admin refused a section lands on his board, and the board renders for him", async () => {
+    signInAs(personas.founder!);
+    /* Payments is the agent's and the partner's alone */
+    expect(await visit("/b-systems/payments?company=bsystems")).toBe("/b-systems/crm?company=bsystems");
+    signInAs(personas.founder!);
+    expect(await visit("/b-systems/crm?company=bsystems")).toBeNull();
+    /* and an admin-only page bounces a non-admin to his board too */
+    signInAs(personas.bsSales!);
+    expect(await visit("/b-systems/users?company=bsystems")).toBe("/b-systems/crm");
+  });
+
+  it("an account with no app at all is sent to the sign-in page's error, unchanged", async () => {
+    const nobody = await makeUser("Still Nobody", []);
+    signInAs(nobody);
+    expect(await redirectOf(() => LauncherPage())).toBe("/login?error=1");
   });
 });

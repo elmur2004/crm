@@ -193,6 +193,8 @@ export const shell = {
     ar: "تتصفح باسم {name} — أنت ترى تمامًا ما يراه هذا الحساب",
   },
   backToAdmin: { en: "Back to admin", ar: "العودة إلى حساب المدير" },
+  /* the route loading skeletons' one spoken line (the shapes are aria-hidden) */
+  loadingPage: { en: "Loading the page…", ar: "جارٍ تحميل الصفحة…" },
   openMenu: { en: "Open menu", ar: "فتح القائمة" },
   closeMenu: { en: "Close menu", ar: "إغلاق القائمة" },
   /* founder (screenshot: "Registrations" clipped to "Regi"): the desktop nav
@@ -203,6 +205,10 @@ export const shell = {
      the MODULE switcher's group label, which was never what that strip does;
      the modules got their own `switchModule` and this moved to the COMPANY
      switch. The English is byte-identical, only better aimed. */
+  /* UNREFERENCED since the one-way navigation pass (founder: "two CRM icons,
+     no switch"; the launcher is the one way between apps) — switchCompany,
+     switchModule and the three module segments below render nowhere now.
+     Kept under the never-delete-a-key rule. */
   switchCompany: { en: "Switch company", ar: "تبديل الشركة" },
   switchModule: { en: "Switch module", ar: "تبديل الوحدة" },
   /* module switcher segments (ADR-054) — the modules are words, so they
@@ -224,6 +230,9 @@ export const shell = {
      segment reading "النظام" would read as "the system" rather than "follow my
      device". "حسب الجهاز" says what the option does. */
   themeGroup: { en: "Theme", ar: "المظهر" },
+  /* RETIRED — founder: "remove the system theme option". Kept under the
+     never-delete-a-key rule; nothing renders it (ThemeToggle offers Light and
+     Dark only). */
   themeSystem: { en: "System", ar: "حسب الجهاز" },
   themeLight: { en: "Light", ar: "فاتح" },
   themeDark: { en: "Dark", ar: "داكن" },
@@ -252,5 +261,9 @@ export const noAccess = {
     en: "Need it back? An admin can switch it on again from Users.",
     ar: "تحتاجها مرة أخرى؟ يمكن لأي مدير إعادة تفعيلها من صفحة المستخدمين.",
   },
+  /* UNREFERENCED since the one-way navigation pass — the way out is the
+     launcher now (backToApps). Kept under the never-delete-a-key rule. */
   back: { en: "Back to your dashboard", ar: "العودة إلى لوحتك" },
+  /* the refusal's one way out: the launcher, the one way between apps */
+  backToApps: { en: "Back to all apps", ar: "العودة إلى كل التطبيقات" },
 } satisfies Record<string, Msg>;

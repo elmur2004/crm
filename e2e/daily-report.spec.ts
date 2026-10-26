@@ -171,12 +171,29 @@ test.describe("ADR-081 — the daily report", () => {
     await bfRow.getByRole("link", { name: BF_LEAD }).click();
     await page.waitForURL(/\/b-systems\/leads\/lead\/[^/?]+\?company=byteforce$/);
     expect(page.url()).toContain(bf);
+  });
 
-    /* and the switch KEEPS the path rather than bouncing to Home (ADR-081 added
-       it to SHARED_PATHS — the Calendar's omission was the bug that found this) */
-    await openReport(page, "bsystems");
-    await page.locator(".switcher").getByRole("link", { name: "ByteForce" }).click();
-    await page.waitForURL(/\/b-systems\/daily-report\?company=byteforce$/);
+  test("it is a page of Reports & Dashboards: reached from that list, with no CRM menu and no switch around it", async ({
+    page,
+  }) => {
+    /* one way to each page — the founder: "Only in Reports & Dashboards". The
+       company switch that used to sit above it is gone; the report spans both
+       companies anyway ("the company reorders, it does not filter"). */
+    await loginAsFounder(page);
+    await page.goto("/apps");
+    await page.locator('[data-app="reports"]').click();
+    await page.waitForURL(/\/apps\/reports$/);
+    await page.locator('[data-report="daily-report"]').click();
+    await page.waitForURL(/\/b-systems\/daily-report\?company=bsystems$/);
+    await expect(page.getByRole("heading", { level: 1 })).toContainText("Daily report");
+    await expect(page.locator(".app-header .app-name")).toHaveText("Reports & Dashboards");
+    await expect(page.locator(".app-header .app-nav")).toHaveCount(0);
+    await expect(page.getByRole("group", { name: "Switch company" })).toHaveCount(0);
+    /* and it is in no CRM menu, for either company */
+    for (const company of ["bsystems", "byteforce"]) {
+      await page.goto(`/b-systems/crm?company=${company}`);
+      await expect(page.locator(".app-nav").getByRole("link", { name: "Daily report" })).toHaveCount(0);
+    }
   });
 
   test("it is HIS report — a colleague's work is absent, in both directions", async ({
@@ -289,7 +306,8 @@ test.describe("ADR-081 — the daily report", () => {
     page,
   }) => {
     await login(page, "entry@b-systems.example", "entry123", /\/b-systems\/entry/);
-    await expect(page.locator(".app-nav").getByRole("link")).toHaveCount(1);
+    /* no menu at all — its one page is its one tile */
+    await expect(page.locator(".app-nav").getByRole("link")).toHaveCount(0);
     await page.goto("/b-systems/daily-report?company=bsystems");
     await expect(page).toHaveURL(/\/b-systems\/entry/);
     await expect(page.getByRole("heading", { name: "Daily report", level: 1 })).toHaveCount(0);
@@ -299,7 +317,12 @@ test.describe("ADR-081 — the daily report", () => {
     page,
   }) => {
     await login(page, "sara@byteforce.example", "byteforce123", /\/b-systems\?company=byteforce$/);
-    await page.locator(".app-nav").getByRole("link", { name: "Daily report" }).click();
+    /* his one way to it: Reports & Dashboards, which lists his dashboard and
+       his day */
+    await page.goto("/apps");
+    await page.locator('[data-app="reports"]').click();
+    await page.waitForURL(/\/apps\/reports$/);
+    await page.locator('[data-report="daily-report"]').click();
     await page.waitForURL(/\/b-systems\/daily-report\?company=byteforce/);
     await expect(page.getByRole("heading", { level: 1 })).toContainText("Daily report");
     /* asking for B-Systems is answered by the server, not rendered */

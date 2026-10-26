@@ -17,6 +17,18 @@
    data-theme, so there is no dark/system pair to keep in step.
 
    Logical properties throughout: the page mirrors under dir="rtl" for free.
+
+   GLASS (the system-wide pass after ADR-092 — "Glass frame, solid data"):
+   the launcher IS frame, so it comes up to the sign-in's level. The page
+   stands on the sign-in's ground (AppGround "rich", glass.css); the top bar
+   is the sticky frosted header; each icon stands in a glass bezel round its
+   own solid plate, with a sheen that sweeps the glass once as it arrives;
+   the Reports entries are glass cards. The quiet lines that sit straight on
+   the ground (the date, "Your apps", the sub-lines, the user's name) are
+   --color-glass-quiet, not --color-muted: the ground's halo is too strong for
+   plain muted (glass-motion.test.ts measures quiet, heading, ink and link on
+   every glow). The two brand lockups in the bar sit on a SOLID plate — never
+   on glass (ADR-092 §3).
    ========================================================================= */
 
 /* ---------- page ---------- */
@@ -26,7 +38,8 @@
   min-height: 100dvh;
   display: flex;
   flex-direction: column;
-  background: var(--color-surface);
+  /* no ground of its own: the canvas is <body>'s, and the ground (a fixed
+     z-index:-1 layer) glows between the two */
   color: var(--color-ink);
   font-family: var(--font-body);
 }
@@ -54,7 +67,42 @@
 }
 .lx-brand-sep { width: 1px; height: 24px; background: var(--color-border); flex: none; }
 .lx-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-.lx-user { font: 500 12.5px var(--font-body); color: var(--color-muted); padding-inline: 4px; }
+.lx-user { font: 500 12.5px var(--font-body); color: var(--color-glass-quiet); padding-inline: 4px; }
+@media screen {
+  /* the sticky frosted bar — the app headers' glass (glass.css), on a
+     ::before so nothing inside it is ever trapped by a backdrop-filter */
+  .lx-bar {
+    position: sticky;
+    inset-block-start: 0;
+    z-index: 50;
+    isolation: isolate;
+    background: transparent;
+    border-block-end-color: color-mix(in srgb, var(--color-border) 64%, transparent);
+    box-shadow: 0 16px 36px -30px var(--color-glow);
+  }
+  .lx-bar::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background: var(--color-glass-chrome);
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
+  }
+  /* the lockups' own flat, OPAQUE plate: the logos never stand on glass. It
+     is the surface the two marks stood on before the bar was frosted (the
+     bar's own card colour, in both themes), so nothing about the artwork's
+     ground changed — only that nothing can pass behind it now; and the
+     ByteForce lockup still takes its own light plate in dark (BrandLogo). */
+  .lx-brand {
+    padding-inline: 10px;
+    background: var(--color-surface-card);
+    box-shadow:
+      0 0 0 1px var(--color-border),
+      0 6px 16px -10px var(--color-glow);
+  }
+}
 .lx-logout {
   min-height: 36px;
   padding: 0 14px;
@@ -81,7 +129,7 @@
   font: 700 10.5px/1.3 var(--font-mono);
   letter-spacing: .2em;
   text-transform: uppercase;
-  color: var(--color-muted);
+  color: var(--color-glass-quiet);
 }
 .lx-greeting {
   margin: 12px 0 0;
@@ -96,7 +144,7 @@
   font: 700 10.5px/1.3 var(--font-mono);
   letter-spacing: .2em;
   text-transform: uppercase;
-  color: var(--color-muted);
+  color: var(--color-glass-quiet);
 }
 
 /* Arabic is a joined script: tracking pulls its letters apart, and it has no
@@ -151,8 +199,43 @@
   color: var(--color-ink);
   text-decoration: none;
 }
-.lx-tile:hover { background: color-mix(in srgb, var(--color-ink) 5%, transparent); }
 .lx-tile:focus-visible { outline-offset: 3px; }
+
+/* the glass bezel round each icon's solid plate (the sign-in's mark tiles).
+   No backdrop-filter: tiles are repeated items, and the ground behind them is
+   smooth — translucency alone reads as frost here. The plate (.lx-icon) is
+   stacked above the sheen, so the light only ever crosses the glass. */
+.lx-bezel {
+  --lx-b: 6px;
+  --lx-radius-o: calc(var(--radius-card) * 1.6);
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  padding: var(--lx-b);
+  border-radius: calc(var(--lx-radius-o) + var(--lx-b));
+  background: var(--color-glass);
+  border: 1px solid var(--color-glass-edge);
+  box-shadow:
+    inset 0 1px 0 var(--color-glass-highlight),
+    var(--shadow-float);
+}
+.lx-bezel .lx-icon { position: relative; z-index: 1; }
+.lx-sheen {
+  position: absolute;
+  inset: -10% -70%;
+  z-index: 0;
+  background: linear-gradient(
+    calc(100deg * var(--mo-dir, 1)),
+    transparent 38%,
+    var(--color-glass-highlight) 50%,
+    transparent 62%
+  );
+  opacity: 0;
+  transform: translate3d(calc(-70% * var(--mo-dir, 1)), 0, 0);
+  pointer-events: none;
+}
 .lx-name {
   max-width: 100%;
   font: 500 12.5px/1.3 var(--font-body);
@@ -188,6 +271,7 @@
 }
 @media (min-width: 560px) {
   .lx-icon { --lx-size: 72px; --lx-radius: calc(var(--radius-card) * 1.8); }
+  .lx-bezel { --lx-b: 7px; --lx-radius-o: calc(var(--radius-card) * 1.8); }
 }
 /* the Reports list's small marks */
 .lx-icon.lx-icon--small { --lx-size: 40px; --lx-radius: var(--radius-card); }
@@ -231,7 +315,7 @@
    cards that carry the shape are Ink and only the small cue is white, which
    still clears the 3:1 a graphic should hold (Off-white would be 2.96:1, Royal
    Violet 2.36:1). White comes from --color-on-dark, #FFFFFF in the ByteForce
-   scope in all three themes, so no literal is needed. B-Systems: Systems Indigo
+   scope in both themes, so no literal is needed. B-Systems: Systems Indigo
    plate, Process Lavender cards, ONE Signal Pink win — 60 · 28 · 12, pink the
    cue and never the surface. */
 
@@ -281,24 +365,76 @@
 .lx-icon--neutral.lx-tone--partners { --lx-c: var(--color-faint); }
 
 /* ---------- entrance ----------
-   A quick staggered fade-and-rise, transform + opacity only, and only for
-   people who have not asked for less motion. Without this block (or without
-   JavaScript — there is none here) every tile is simply on screen. */
+   The sign-in's sequence, at the launcher's scale: the date, then the
+   greeting, then "Your apps"; the tiles spring up in turn (35 ms apart, the
+   stagger capped at six steps — 210 ms in all), and as each arrives a light
+   crosses its glass. Transform + opacity only, BACKWARDS fill only, and only
+   for people who have not asked for less motion. Without this block (or
+   without JavaScript — there is none here) every tile is simply on screen. */
 
 @keyframes lx-rise {
   from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: none; }
 }
+@keyframes lx-tile-in {
+  from { opacity: 0; transform: translate3d(0, 16px, 0) scale(.92); }
+  to { opacity: 1; transform: none; }
+}
 @media (prefers-reduced-motion: no-preference) {
+  .lx-date { animation: lx-rise var(--duration-long) var(--ease-standard) 40ms backwards; }
+  .lx-greeting { animation: lx-rise var(--duration-long) var(--ease-standard) 90ms backwards; }
+  .lx-apps-heading { animation: lx-rise var(--duration-long) var(--ease-standard) 140ms backwards; }
   .lx-grid > li {
-    animation: lx-rise .42s cubic-bezier(.2, .75, .25, 1) both;
-    animation-delay: calc(var(--lx-i, 0) * 45ms + 40ms);
+    animation: lx-tile-in .5s var(--ease-spring) backwards;
+    animation-delay: calc(min(var(--lx-i, 0), 6) * 35ms + 160ms);
   }
-  .lx-list > li {
-    animation: lx-rise .36s cubic-bezier(.2, .75, .25, 1) both;
+  .lx-sheen {
+    animation: mo-sheen 1s var(--ease-standard) backwards;
+    animation-delay: calc(min(var(--lx-i, 0), 6) * 35ms + 520ms);
   }
-  .lx-tile .lx-icon { transition: transform .18s ease, box-shadow .18s ease; }
-  .lx-tile:hover .lx-icon { transform: translateY(-2px); }
+  .lx-list > li { animation: lx-rise .36s var(--ease-standard) backwards; }
+  .lx-list > li:nth-child(2) { animation-delay: 40ms; }
+  .lx-list > li:nth-child(3) { animation-delay: 80ms; }
+  .lx-list > li:nth-child(n + 4) { animation-delay: 120ms; }
+  .lx-page-head { animation: lx-rise var(--duration-long) var(--ease-standard) backwards; }
+  .lx-bezel {
+    transition:
+      transform var(--duration-medium) var(--ease-spring),
+      box-shadow var(--duration-medium) var(--ease-standard);
+  }
+  .lx-entry {
+    transition:
+      transform var(--duration-medium) var(--ease-spring),
+      box-shadow var(--duration-medium) var(--ease-standard),
+      border-color var(--duration-short) ease;
+  }
+  .lx-tile:active .lx-bezel,
+  .lx-entry:active { transform: scale(.96); transition-duration: 90ms; }
+  .lx-logout { transition: background-color var(--duration-short) ease, transform var(--duration-medium) var(--ease-spring); }
+  .lx-logout:active { transform: scale(.97); }
+}
+/* hover — only where a pointer hovers: the bezel lifts on the glow and a
+   light sweeps it (the sign-in CTA's sheen) */
+@media (prefers-reduced-motion: no-preference) and (hover: hover) {
+  .lx-tile:hover .lx-bezel {
+    transform: translate3d(0, -3px, 0);
+    box-shadow:
+      inset 0 1px 0 var(--color-glass-highlight),
+      var(--shadow-float),
+      0 18px 34px -16px var(--color-glow);
+  }
+  .lx-tile:hover .lx-sheen {
+    opacity: 1;
+    transform: translate3d(calc(70% * var(--mo-dir, 1)), 0, 0);
+    transition: transform .9s var(--ease-standard);
+  }
+  .lx-entry:hover {
+    transform: translate3d(0, -2px, 0);
+    box-shadow:
+      inset 0 1px 0 var(--color-glass-highlight),
+      var(--shadow-float),
+      0 18px 34px -18px var(--color-glow);
+  }
 }
 
 /* ---------- Reports & Dashboards (/apps/reports) ---------- */
@@ -335,7 +471,7 @@
   color: var(--color-heading);
 }
 :lang(ar) .lx-page-title { letter-spacing: 0; }
-.lx-page-sub { margin: 6px 0 0; font: 400 13.5px/1.55 var(--font-body); color: var(--color-muted); }
+.lx-page-sub { margin: 6px 0 0; font: 400 13.5px/1.55 var(--font-body); color: var(--color-glass-quiet); }
 
 .lx-group { margin-top: 30px; }
 .lx-group-title {
@@ -343,7 +479,7 @@
   font: 700 10.5px/1.3 var(--font-mono);
   letter-spacing: .2em;
   text-transform: uppercase;
-  color: var(--color-muted);
+  color: var(--color-glass-quiet);
 }
 .lx-list {
   list-style: none;
@@ -362,17 +498,21 @@
   align-items: flex-start;
   gap: 14px;
   padding: 16px;
-  border-radius: var(--radius-card);
-  background: var(--color-surface-card);
-  border: 1px solid var(--color-border);
-  box-shadow: var(--shadow-card);
+  /* a glass card on the ground (frame, not data): thin frost, the white rim,
+     the float shadow; its icon keeps its own solid plate */
+  border-radius: calc(var(--radius-card) + 4px);
+  background: var(--color-glass);
+  border: 1px solid var(--color-glass-edge);
+  box-shadow:
+    inset 0 1px 0 var(--color-glass-highlight),
+    var(--shadow-float);
   color: var(--color-ink);
   text-decoration: none;
 }
 .lx-entry:hover { border-color: var(--color-border-control); }
 .lx-entry-text { display: grid; gap: 4px; min-width: 0; }
 .lx-entry-title { font: 600 14px/1.3 var(--font-body); color: var(--color-heading); }
-.lx-entry-desc { font: 400 12.5px/1.5 var(--font-body); color: var(--color-muted); text-wrap: pretty; }
+.lx-entry-desc { font: 400 12.5px/1.5 var(--font-body); color: var(--color-glass-quiet); text-wrap: pretty; }
 
 @media (max-width: 559px) {
   .lx-user { display: none; }

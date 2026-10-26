@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import "@/themes/launcher.css";
 import { AppIcon, type Glyph } from "@/components/launcher/AppIcon";
 import { LauncherChrome } from "@/components/launcher/LauncherChrome";
+import { AppGround } from "@/components/shared/AppGround";
 import { tFor } from "@/lib/i18n/core";
 import { getLocale } from "@/lib/i18n/server";
 import { launcher, launcherReports as r } from "@/lib/i18n/dict/launcher";
@@ -17,15 +18,15 @@ export async function generateMetadata() {
 /* ============================================================================
    REPORTS & DASHBOARDS — the launcher's one second-level screen.
 
-   Founder: "reports + dashboards" as ONE icon. The product has six of them,
-   spread over THREE apps' chromes — the two company dashboards and the daily
-   report live in the merged CRM, the dashboard, the monthly P&L and the
-   department profitability live in Accounting — and no single header nav
-   holds them all. So the tile cannot lead "straight to the main dashboard"
-   without hiding the other five, and for a sales rep the B-Systems dashboard
-   is not even a screen he can open (the page bounces every non-admin to his
-   board). A small index is the honest destination: it lists exactly the ones
-   THIS account can open (lib/launcher/apps.ts, reportsFor), grouped by app.
+   Founder: "reports + dashboards" as ONE icon. It holds the two company
+   dashboards and the daily report — and this list is the ONLY way to them
+   (founder: "Only in Reports & Dashboards"; they left the CRM menus). The
+   accounting dashboard, P&L and department profitability are NOT here:
+   "Inside Accounting only" — they are pages of the Accounting app, in its
+   menu. A small index is the honest destination: it lists exactly the ones
+   THIS account can open (lib/launcher/apps.ts, reportsFor), and for a sales
+   rep the B-Systems dashboard is not even a screen he can open (the page
+   bounces every non-admin to his board).
 
    When an account can open only ONE of them (a rep's daily report), the tile
    skips this screen and opens it directly — a list of one is a click that asks
@@ -40,9 +41,6 @@ const GLYPH: Record<ReportId, { glyph: Glyph; tone?: Glyph }> = {
   "bs-dashboard": { glyph: "reports" },
   "bf-dashboard": { glyph: "reports" },
   "daily-report": { glyph: "todo", tone: "reports" },
-  "acct-dashboard": { glyph: "accounting" },
-  "acct-pnl": { glyph: "reports", tone: "accounting" },
-  "acct-departments": { glyph: "pie", tone: "accounting" },
 };
 
 export default async function ReportsPage() {
@@ -52,15 +50,14 @@ export default async function ReportsPage() {
 
   const locale = await getLocale();
   const t = tFor(locale);
-  const groups = [
-    { id: "crm" as const, title: t(r.groupCrm) },
-    { id: "accounting" as const, title: t(r.groupAccounting) },
-  ]
+  const groups = [{ id: "crm" as const, title: t(r.groupCrm) }]
     .map((g) => ({ ...g, items: entries.filter((e) => e.group === g.id) }))
     .filter((g) => g.items.length > 0);
 
   return (
     <div className="lx-shell">
+      {/* the sign-in's ground, behind the glass entries (glass.css) */}
+      <AppGround variant="rich" />
       <LauncherChrome locale={locale} userName={user.name} />
       <main className="lx-main lx-main--wide">
         <p className="lx-back-row">

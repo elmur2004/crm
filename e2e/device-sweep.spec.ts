@@ -29,19 +29,27 @@ const PHONE_UA =
 const TABLET_UA =
   "Mozilla/5.0 (Linux; Android 14; Pixel Tablet) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36";
 
-/* The founder's screens, in the order he moves through them. */
+/* The founder's screens, in the order he moves through them — one app at a
+   time from the launcher (one way to each page): each CRM opens on its board
+   and its menu leads on; the dashboards and the daily report open from
+   Reports & Dashboards; the To-Do is one page with company tabs; Partners &
+   Agents has its own menu. */
 const FOUNDER_PATHS = [
   "/apps",
+  "/b-systems/crm?company=bsystems",
+  "/b-systems/leads?company=bsystems",
+  "/b-systems/calendar?company=bsystems",
+  "/b-systems/crm?company=byteforce",
+  "/b-systems/leads?company=byteforce",
+  "/b-systems/partners-pipeline?company=bsystems",
+  "/b-systems/partners?company=bsystems",
+  "/b-systems/agents?company=bsystems",
+  "/b-systems/todo?company=bsystems",
+  "/b-systems/todo?company=byteforce",
   "/apps/reports",
   "/b-systems?company=bsystems",
   "/b-systems?company=byteforce",
-  "/b-systems/crm?company=bsystems",
-  "/b-systems/crm?company=byteforce",
-  "/b-systems/leads?company=bsystems",
-  "/b-systems/leads?company=byteforce",
-  "/b-systems/todo?company=bsystems",
   "/b-systems/daily-report?company=byteforce",
-  "/b-systems/partners-pipeline?company=bsystems",
   "/accounting",
   "/vault",
 ];
@@ -134,6 +142,12 @@ for (const d of DEVICES) {
             .map(({ el, r }) => `${el.getAttribute("aria-label") ?? el.textContent?.trim()} ${Math.round(r.width)}×${Math.round(r.height)}`),
         );
         expect(small, `${path}: header targets under 32px on ${d.name}`).toEqual([]);
+        /* one way to each page: the header's one way back to the launcher, and
+           no module or company switch anywhere on the screen */
+        if (!path.startsWith("/apps")) {
+          expect(await page.locator("header a[href='/apps']").count(), `${path}: All apps`).toBe(1);
+        }
+        expect(await page.locator(".switcher--bar, .switcher-entity, .company-switch").count(), path).toBe(0);
         await testInfo.attach(`${path.replace(/[/?=&]+/g, "_")}-${theme}-${locale}`, {
           body: await page.screenshot(),
           contentType: "image/png",

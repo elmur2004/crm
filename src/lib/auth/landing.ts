@@ -3,13 +3,19 @@ import type { Role } from "@/lib/pipeline-engine/constants";
 /* Where a signed-in user belongs (ADR-028: one sign-in, many apps). Lifted out
    of actions.ts so the PAGE guards can use it too — a signed-in user who wanders
    into a section they lack should land on their OWN home, not on a sign-in form
-   they do not need (which is how it read for the data-entry role, ADR-051). */
+   they do not need (which is how it read for the data-entry role, ADR-051).
+
+   Since ADR-090 signing in lands on the launcher (/apps), so this is only the
+   FALLBACK: the launcher with no app to show, and the page bounces. One way to
+   each page (founder): the dashboards are pages of Reports & Dashboards now and
+   each CRM opens straight onto its board, so every role's fallback is its
+   board — never the dashboard — or the data-entry role's one page. */
 
 export const LANDING_PRIORITY: Array<[Role, string]> = [
-  ["bsystems_admin", "/b-systems"],
+  ["bsystems_admin", "/b-systems/crm"],
   /* ADR-067 — the merged shell. ByteForce work lives at the B-Systems address
      now, with the company spelled out; /byteforce redirects here (proxy.ts). */
-  ["byteforce_staff", "/b-systems?company=byteforce"],
+  ["byteforce_staff", "/b-systems/crm?company=byteforce"],
   ["bsystems_sales", "/b-systems/crm"],
   ["bsystems_agent", "/b-systems/crm"],
   ["bsystems_partner", "/b-systems/crm"],

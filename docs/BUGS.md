@@ -782,3 +782,98 @@ the moment a failure is found; close them with a reference to the fixing commit/
   sign-out that does not revoke. Closing that would need server-side session
   state (a revocation list or a token version on the User row), which is a
   decision of its own.
+
+## BUG-028 — 2026-10-26 — done To-Do tasks were never visibly struck through
+
+- Severity: minor (visual). ADR-062 promises that done rows are "struck through
+  + muted". The Done section, its label and the muting still set them apart,
+  so nothing was lost or mis-recorded.
+- Where: the To-Do's done-row title link. It carried both of Tailwind's
+  `underline` and `line-through` utilities. They set the same property,
+  `text-decoration-line`, so the later of the two in the utilities layer won.
+  That was `underline`, so the strike never rendered.
+- Repro: tick a task on the To-Do. It moves under Done with "Done · <name>",
+  and its title is underlined, not struck through.
+- Why it had lived: `e2e/todo-done.spec.ts` asserts the link
+  `toHaveClass(/line-through/)`. That checks the class, not the computed style,
+  so the test passed while the strike never showed.
+- Found by: the CRM body agent, on the ADR-097 pass.
+- Fixed: `src/themes/crm.css`, in the To-Do section, now declares the strike in
+  the body layer: `.todo-row--done .todo-title { text-decoration-line: line-through; }`.
+  A manual completion being restored lifts the strike while its row moves.
+- Regression: **none that reads the computed style.** The e2e still asserts
+  the class (grep at writing time). This is recorded as a gap in Run 107.
+- Status: fixed (ref: ADR-097, Run 107)
+
+## BUG-029 — 2026-10-26 — the Calendar was inset 26px further than every other page
+
+- Severity: minor (layout)
+- Where: `src/components/shared/CalendarPageBody.tsx`. It wrapped its body in
+  a second `.page` inside the shell's `<main class="page">`, which already pads
+  the screen. That inset the calendar 26px further than every other page and
+  narrowed it by 52px.
+- Repro: open the Calendar and compare its heading's inline-start edge with
+  the board's or the Leads page's.
+- Found by: the CRM body agent, on the ADR-097 pass.
+- Fixed: a plain `cal-page` wrapper replaces the nested `.page` (the comment at
+  line 164).
+- Regression: none reported.
+- Status: fixed (ref: ADR-097, Run 107)
+
+## BUG-030 — 2026-10-26 — the won-deal page scrolled sideways by 32px at 390px
+
+- Severity: minor. It broke SPEC §15's "responsive and usable at … 390 px"
+  (line 713) on one screen.
+- Where: `src/components/bsystems/pages/BsWonDealBody.tsx`. On a phone the
+  page's grid had an implicit `auto` track, which grew to its widest child, so
+  the upload row pushed the page 32px sideways at 390px.
+- Repro: at 390px wide, open a B-Systems won deal (Won Leads → a deal). The
+  page scrolls sideways.
+- Why it had lived: Run 105's device sweep walks 13 screens, and the won deal
+  is not one of them. The 320px sweep in Run 107 covers the 22 Accounting and
+  Vault URLs, not the CRM.
+- Found by: the CRM body agent, on the ADR-097 pass.
+- Fixed: `grid-cols-1` (= `minmax(0, 1fr)`) under `md:grid-cols-2`, so the one
+  phone column can shrink to the screen (lines 55–58).
+- Regression: none reported.
+- Status: fixed (ref: ADR-097, Run 107)
+
+## BUG-031 — 2026-10-26 — the Ready-to-close badge and "Mark ready to close" were below text contrast
+
+- Severity: minor (accessibility: text contrast under WCAG AA)
+- Where:
+  - **The Ready-to-close badge** (`.badge--accent`) was white on Signal Pink,
+    **3.12:1**.
+  - **"Mark ready to close"** (`.crm-ready`, on the lead's Next-action card)
+    was pink text on the card. Its contrast was too low; the figure was not
+    reported.
+- Repro: on the B-Systems board, look at a card marked ready to close and at
+  its badge. On a B-Systems lead page, look at the "Mark ready to close"
+  action.
+- Found by: the CRM body agent and its brand audit, on the ADR-097 pass.
+- Fixed in `src/themes/crm.css` (lines 281–287):
+  - the badge carries `--frame-on-accent`, which is Indigo Deep on pink at
+    5.84:1, ADR-093's pair;
+  - the action carries `--color-stage-won-chip-ink`, a dark rose, on the card
+    with a pink edge. The CSS comment records it as AA on the card in both
+    themes.
+- Regression: none reported beyond the brand audit.
+- Status: fixed (ref: ADR-097, Run 107). The restyle is on the founder's list
+  in ADR-097 (item 9).
+
+## BUG-032 — 2026-10-26 — the chat bubble's tail and the milestone date arrow did not mirror in Arabic
+
+- Severity: minor (RTL, cosmetic)
+- Where:
+  - the lead chat's message bubbles, whose corners are now logical
+    (`border-end-start-radius` and `border-end-end-radius` in `crm.css`, around
+    line 277);
+  - the won deal's milestone date arrow. The docs-keeper did not trace it to a
+    line; this is as the agent reported it.
+- Repro: switch to Arabic. In a lead's chat, the bubble's tail points the
+  English way. On a won deal, the milestone date arrow points the English way.
+- Found by: the CRM body agent, on the ADR-097 pass.
+- Fixed: both now flip in Arabic.
+- Regression: none reported. `crm.test.ts` requires logical properties
+  throughout `crm.css`, which covers the bubble's corners but not the arrow.
+- Status: fixed (ref: ADR-097, Run 107)

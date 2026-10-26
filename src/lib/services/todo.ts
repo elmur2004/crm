@@ -410,7 +410,11 @@ export async function todoFor(opts: {
         at: s.expectedDate!,
         withTime: false,
         title: `${s.code} — ${s.clientName}`,
-        href: "/b-systems/statements",
+        /* the statement's OWN record (its document) — one way to each page:
+           the Statements list is a CRM menu item, so a row pointing there
+           would be a second way to it, while the record is reached only from
+           a row like this one */
+        href: `/b-systems/statements/${s.id}/document?company=bsystems`,
       });
     }
     for (const ms of milestones) {
@@ -420,7 +424,7 @@ export async function todoFor(opts: {
         at: ms.expectedEnd!,
         withTime: false,
         title: `${ms.wonDeal.lead.name}${ms.label ? ` — ${ms.label}` : ""}`,
-        href: `/b-systems/won-leads/${ms.wonDeal.id}`,
+        href: `/b-systems/won-leads/${ms.wonDeal.id}?company=bsystems`,
       });
     }
   }
@@ -523,7 +527,7 @@ export async function todoFor(opts: {
       at: s.expectedDate!,
       withTime: false,
       title: `${s.code} — ${s.clientName}`,
-      href: "/b-systems/statements",
+      href: `/b-systems/statements/${s.id}/document?company=bsystems`, // its record, as above
       done: { by: "auto", reason: "statement_paid" },
     });
   }
@@ -534,7 +538,7 @@ export async function todoFor(opts: {
       at: ms.expectedEnd!,
       withTime: false,
       title: `${ms.wonDeal.lead.name}${ms.label ? ` — ${ms.label}` : ""}`,
-      href: `/b-systems/won-leads/${ms.wonDeal.id}`,
+      href: `/b-systems/won-leads/${ms.wonDeal.id}?company=bsystems`,
       done: { by: "auto", reason: "milestone_completed" },
     });
   }

@@ -9,6 +9,8 @@ import { clientAccounts, clientTotals } from "@/lib/accounting/engine";
 import { acctQuery, acctView } from "@/lib/accounting/params";
 import { moduleCompaniesFor } from "@/lib/module-companies";
 import { AcctChip, AcctHead, AcctTile } from "@/components/accounting/AcctHead";
+import { ModSwap } from "@/components/accounting/module-ui";
+import { ModEmpty } from "@/components/accounting/module-art";
 
 /* ADR-052 — the derived client A/R ledger (free-text names this phase; linking
    to CRM Client records is Phase 7). ?client=Name opens one statement. */
@@ -40,7 +42,7 @@ export default async function AcctClientsPage({
 
   if (selected) {
     return (
-      <div className="space-y-5">
+      <div className="space-y-5 mod-page">
         <AcctHead
           view={view}
           locale={locale}
@@ -53,60 +55,62 @@ export default async function AcctClientsPage({
             ‹ {t(acct.backToClients)}
           </Link>
         </div>
-        <div className="tile-grid">
-          <AcctTile label={t(acct.invoiced)} value={formatEGP(selected.invoiced)} />
-          <AcctTile label={t(acct.collected)} value={formatEGP(selected.collected)} tone="success" />
-          <AcctTile
-            label={t(acct.balance)}
-            value={formatEGP(Math.abs(selected.balance))}
-            sub={
-              selected.balance > 0
-                ? t(acct.owesYou)
-                : selected.balance < 0
-                  ? t(acct.inCredit)
-                  : t(acct.settled)
-            }
-          />
-          {selected.held !== 0 ? (
-            <AcctTile label={t(acct.adBudgetHeld)} value={formatEGP(selected.held)} />
-          ) : null}
-        </div>
-        <section className="card card--flush0">
-          <div className="card-head">
-            <h2 className="u-h3">{t(acct.accountStatement)}</h2>
+        <ModSwap swapKey={`${view.company}|${selected.client}`} className="space-y-5">
+          <div className="tile-grid">
+            <AcctTile label={t(acct.invoiced)} amount={selected.invoiced} />
+            <AcctTile label={t(acct.collected)} amount={selected.collected} tone="success" />
+            <AcctTile
+              label={t(acct.balance)}
+              amount={Math.abs(selected.balance)}
+              sub={
+                selected.balance > 0
+                  ? t(acct.owesYou)
+                  : selected.balance < 0
+                    ? t(acct.inCredit)
+                    : t(acct.settled)
+              }
+            />
+            {selected.held !== 0 ? (
+              <AcctTile label={t(acct.adBudgetHeld)} amount={selected.held} />
+            ) : null}
           </div>
-          <div className="table-scroll">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>{t(acct.date)}</th>
-                  <th>{t(acct.type)}</th>
-                  <th>{t(acct.note)}</th>
-                  <th>{t(acct.debit)}</th>
-                  <th>{t(acct.credit)}</th>
-                  <th>{t(acct.runningBalance)}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {selected.lines.map((l, idx) => (
-                  <tr key={idx}>
-                    <td className="td-mono u-ltr">{l.date}</td>
-                    <td>{lineLabel[l.kind] ?? l.desc}</td>
-                    <td className="td-mono">{l.note || "—"}</td>
-                    <td>{l.debit ? formatEGP(l.debit) : l.held && l.held < 0 ? `${formatEGP(-l.held)} ⤳` : "—"}</td>
-                    <td className={l.credit ? "text-brand-success" : ""}>
-                      {l.credit ? formatEGP(l.credit) : l.held && l.held > 0 ? `${formatEGP(l.held)} ⤳` : "—"}
-                    </td>
-                    <td className="td-title">{formatEGP(Math.abs(l.running ?? 0))}</td>
+          <section className="card card--flush0">
+            <div className="card-head">
+              <h2 className="u-h3">{t(acct.accountStatement)}</h2>
+            </div>
+            <div className="table-scroll">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>{t(acct.date)}</th>
+                    <th>{t(acct.type)}</th>
+                    <th>{t(acct.note)}</th>
+                    <th>{t(acct.debit)}</th>
+                    <th>{t(acct.credit)}</th>
+                    <th>{t(acct.runningBalance)}</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <p className="panel-hint">
-            ⤳ {t(acct.adBudgetHeld)} ({t(acct.tabMedia)})
-          </p>
-        </section>
+                </thead>
+                <tbody>
+                  {selected.lines.map((l, idx) => (
+                    <tr key={idx}>
+                      <td className="td-mono u-ltr">{l.date}</td>
+                      <td>{lineLabel[l.kind] ?? l.desc}</td>
+                      <td className="td-mono">{l.note || "—"}</td>
+                      <td>{l.debit ? formatEGP(l.debit) : l.held && l.held < 0 ? `${formatEGP(-l.held)} ⤳` : "—"}</td>
+                      <td className={l.credit ? "text-brand-success" : ""}>
+                        {l.credit ? formatEGP(l.credit) : l.held && l.held > 0 ? `${formatEGP(l.held)} ⤳` : "—"}
+                      </td>
+                      <td className="td-title">{formatEGP(Math.abs(l.running ?? 0))}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="panel-hint">
+              ⤳ {t(acct.adBudgetHeld)} ({t(acct.tabMedia)})
+            </p>
+          </section>
+        </ModSwap>
       </div>
     );
   }
@@ -115,7 +119,7 @@ export default async function AcctClientsPage({
   const totals = clientTotals(books);
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-5 mod-page">
       <AcctHead
         view={view}
         locale={locale}
@@ -124,58 +128,60 @@ export default async function AcctClientsPage({
         sub={acct.clientsSub}
         showMonth={false}
       />
-      <div className="tile-grid">
-        <AcctTile label={t(acct.totalOwedByClients)} value={formatEGP(totals.owed)} sub={t(acct.acrossAllClients)} />
-        <AcctTile label={t(acct.totalClientCredit)} value={formatEGP(totals.credit)} sub={t(acct.acrossAllClients)} />
-        <AcctTile label={t(acct.netClientBalance)} value={formatEGP(Math.abs(totals.net))} />
-      </div>
-      <section className="card card--flush0">
-        {list.length === 0 ? (
-          <p className="empty m-4">{t(acct.noClients)}</p>
-        ) : (
-          <div className="table-scroll">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>{t(acct.client)}</th>
-                  <th>{t(acct.invoiced)}</th>
-                  <th>{t(acct.collected)}</th>
-                  <th>{t(acct.balance)}</th>
-                  <th>{t(acct.status)}</th>
-                  <th>{t(acct.adBudgetHeld)}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {list.map((a) => (
-                  <tr key={a.client}>
-                    <td className="td-title">
-                      <Link
-                        className="text-brand-link underline underline-offset-2"
-                        href={`/accounting/clients${acctQuery(view)}&client=${encodeURIComponent(a.client)}`}
-                      >
-                        {a.client}
-                      </Link>
-                    </td>
-                    <td>{formatEGP(a.invoiced)}</td>
-                    <td className="text-brand-success">{formatEGP(a.collected)}</td>
-                    <td className="td-title">{formatEGP(Math.abs(a.balance))}</td>
-                    <td>
-                      {a.balance > 0 ? (
-                        <AcctChip kind="wait">{t(acct.owesYou)}</AcctChip>
-                      ) : a.balance < 0 ? (
-                        <AcctChip kind="off">{t(acct.inCredit)}</AcctChip>
-                      ) : (
-                        <AcctChip kind="good">{t(acct.settled)}</AcctChip>
-                      )}
-                    </td>
-                    <td>{a.held ? formatEGP(a.held) : "—"}</td>
+      <ModSwap swapKey={view.company} className="space-y-5">
+        <div className="tile-grid">
+          <AcctTile label={t(acct.totalOwedByClients)} amount={totals.owed} sub={t(acct.acrossAllClients)} />
+          <AcctTile label={t(acct.totalClientCredit)} amount={totals.credit} sub={t(acct.acrossAllClients)} />
+          <AcctTile label={t(acct.netClientBalance)} amount={Math.abs(totals.net)} />
+        </div>
+        <section className="card card--flush0">
+          {list.length === 0 ? (
+            <ModEmpty kind="people">{t(acct.noClients)}</ModEmpty>
+          ) : (
+            <div className="table-scroll">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>{t(acct.client)}</th>
+                    <th>{t(acct.invoiced)}</th>
+                    <th>{t(acct.collected)}</th>
+                    <th>{t(acct.balance)}</th>
+                    <th>{t(acct.status)}</th>
+                    <th>{t(acct.adBudgetHeld)}</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
+                </thead>
+                <tbody>
+                  {list.map((a) => (
+                    <tr key={a.client}>
+                      <td className="td-title">
+                        <Link
+                          className="text-brand-link underline underline-offset-2"
+                          href={`/accounting/clients${acctQuery(view)}&client=${encodeURIComponent(a.client)}`}
+                        >
+                          {a.client}
+                        </Link>
+                      </td>
+                      <td>{formatEGP(a.invoiced)}</td>
+                      <td className="text-brand-success">{formatEGP(a.collected)}</td>
+                      <td className="td-title">{formatEGP(Math.abs(a.balance))}</td>
+                      <td>
+                        {a.balance > 0 ? (
+                          <AcctChip kind="wait">{t(acct.owesYou)}</AcctChip>
+                        ) : a.balance < 0 ? (
+                          <AcctChip kind="off">{t(acct.inCredit)}</AcctChip>
+                        ) : (
+                          <AcctChip kind="good">{t(acct.settled)}</AcctChip>
+                        )}
+                      </td>
+                      <td>{a.held ? formatEGP(a.held) : "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      </ModSwap>
     </div>
   );
 }

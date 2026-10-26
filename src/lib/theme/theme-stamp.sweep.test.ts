@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
    DARK MODE — THE DIRECTORY IS THE ASSERTION (the ADR-066 / 067 / 068 shape).
 
    The theme only works if the element the CSS keys on carries it in the FIRST
-   BYTE of the document: <html data-theme="light|dark|system">, stamped on the
+   BYTE of the document: <html data-theme="light|dark">, stamped on the
    server from the cookie. There is no top-level layout in this app (ADR-007) —
    every route group renders its own <html> — so "dark mode for the entire
    system" is exactly as true as the LEAST careful of those layouts. A new
@@ -283,15 +283,17 @@ describe("dark mode — the CSS contract the stamp relies on", () => {
     ).toEqual([]);
   });
 
-  it('a prefers-color-scheme: dark rule applies only under data-theme="system"', () => {
-    /* the OS preference is the SYSTEM theme's input and nobody else's: an
-       explicit "light" must stay light on a dark OS, and the landing (no
-       attribute at all) must never match */
+  it("no app stylesheet answers to the OS, and none names the retired \"system\" theme", () => {
+    /* founder (amending ADR-087): "remove the system theme option". The OS
+       preference used to be the SYSTEM theme's input; with two themes left,
+       an explicit choice is the only input — a prefers-color-scheme rule would
+       turn a light page dark on a dark OS, and a data-theme="system" rule is
+       dead CSS that can only drift. */
     const offenders: string[] = [];
     for (const { file, rules } of sheets) {
       for (const r of rules) {
-        if (!r.atRules.some((a) => PREFERS_DARK.test(a))) continue;
-        for (const s of r.selectors) if (!SYSTEM_MATCH.test(s)) offenders.push(`${rel(file)}  →  ${s}`);
+        if (r.atRules.some((a) => PREFERS_DARK.test(a))) offenders.push(`${rel(file)}  →  @media prefers-color-scheme: ${r.selectors.join(", ")}`);
+        for (const s of r.selectors) if (SYSTEM_MATCH.test(s)) offenders.push(`${rel(file)}  →  ${s}`);
       }
     }
     expect(offenders).toEqual([]);

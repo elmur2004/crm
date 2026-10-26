@@ -13,6 +13,8 @@ import { moduleCompaniesFor } from "@/lib/module-companies";
 import { monthLabel } from "@/lib/accounting/format";
 import { AcctChip, AcctHead, AcctTile } from "@/components/accounting/AcctHead";
 import { AddPersonButton, RosterActions } from "@/components/accounting/forms";
+import { ModSwap } from "@/components/accounting/module-ui";
+import { ModEmpty } from "@/components/accounting/module-art";
 
 /* ADR-052 — the payroll roster: the standing team whose active salaries the
    engine posts to Expenses every month. Edits are effective-dated. */
@@ -40,7 +42,7 @@ export default async function AcctRosterPage({
     d in ACCT_DEPT_LABELS ? t(ACCT_DEPT_LABELS[d as AcctDept]) : d;
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-5 mod-page">
       <AcctHead
         view={view}
         locale={locale}
@@ -52,75 +54,77 @@ export default async function AcctRosterPage({
       <div className="page-actions">
         <AddPersonButton company={view.company} month={view.month} />
       </div>
-      <div className="tile-grid">
-        <AcctTile
-          label={t(acct.committedSalary)}
-          value={formatEGP(committed)}
-          sub={`${activeNow.length} ${t(acct.activeStaff)}`}
-        />
-      </div>
-      <section className="card card--flush0">
-        {books.roster.length === 0 ? (
-          <p className="empty m-4">{t(acct.noTeam)}</p>
-        ) : (
-          <div className="table-scroll">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>{t(acct.name)}</th>
-                  <th>{t(acct.role)}</th>
-                  <th>{t(acct.department)}</th>
-                  <th>{t(acct.accountNo)}</th>
-                  <th>{t(acct.monthlySalary)}</th>
-                  <th>{t(acct.starts)}</th>
-                  <th>{t(acct.status)}</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {withNow.map(({ r, now: cur }) => (
-                  <tr key={r.id} data-inactive={cur.active ? undefined : true}>
-                    <td className="td-title">{r.name}</td>
-                    <td>{r.role || "—"}</td>
-                    <td>
-                      {r.serviceLine ? (
-                        <span className="chip-outline">{deptLabel(r.serviceLine)}</span>
-                      ) : (
-                        "—"
-                      )}
-                    </td>
-                    <td className="td-mono u-ltr">{r.account || "—"}</td>
-                    <td className="td-title">{cur.active ? formatEGP(cur.salary) : "—"}</td>
-                    <td>{r.since ? monthLabel(r.since, locale) : "—"}</td>
-                    <td>
-                      {cur.active ? (
-                        <AcctChip kind="good">{t(acct.active)}</AcctChip>
-                      ) : (
-                        <AcctChip kind="off">{t(acct.inactive)}</AcctChip>
-                      )}
-                    </td>
-                    <td>
-                      <RosterActions
-                        member={{
-                          id: r.id,
-                          name: r.name,
-                          role: r.role,
-                          serviceLine: r.serviceLine,
-                          account: r.account,
-                          salary: cur.salary,
-                          active: cur.active,
-                        }}
-                        company={view.company}
-                        month={view.month}
-                      />
-                    </td>
+      <ModSwap swapKey={view.company} className="space-y-5">
+        <div className="tile-grid">
+          <AcctTile
+            label={t(acct.committedSalary)}
+            amount={committed}
+            sub={`${activeNow.length} ${t(acct.activeStaff)}`}
+          />
+        </div>
+        <section className="card card--flush0">
+          {books.roster.length === 0 ? (
+            <ModEmpty kind="people">{t(acct.noTeam)}</ModEmpty>
+          ) : (
+            <div className="table-scroll">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>{t(acct.name)}</th>
+                    <th>{t(acct.role)}</th>
+                    <th>{t(acct.department)}</th>
+                    <th>{t(acct.accountNo)}</th>
+                    <th>{t(acct.monthlySalary)}</th>
+                    <th>{t(acct.starts)}</th>
+                    <th>{t(acct.status)}</th>
+                    <th></th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
+                </thead>
+                <tbody>
+                  {withNow.map(({ r, now: cur }) => (
+                    <tr key={r.id} data-inactive={cur.active ? undefined : true}>
+                      <td className="td-title">{r.name}</td>
+                      <td>{r.role || "—"}</td>
+                      <td>
+                        {r.serviceLine ? (
+                          <span className="chip-outline">{deptLabel(r.serviceLine)}</span>
+                        ) : (
+                          "—"
+                        )}
+                      </td>
+                      <td className="td-mono u-ltr">{r.account || "—"}</td>
+                      <td className="td-title">{cur.active ? formatEGP(cur.salary) : "—"}</td>
+                      <td>{r.since ? monthLabel(r.since, locale) : "—"}</td>
+                      <td>
+                        {cur.active ? (
+                          <AcctChip kind="good">{t(acct.active)}</AcctChip>
+                        ) : (
+                          <AcctChip kind="off">{t(acct.inactive)}</AcctChip>
+                        )}
+                      </td>
+                      <td>
+                        <RosterActions
+                          member={{
+                            id: r.id,
+                            name: r.name,
+                            role: r.role,
+                            serviceLine: r.serviceLine,
+                            account: r.account,
+                            salary: cur.salary,
+                            active: cur.active,
+                          }}
+                          company={view.company}
+                          month={view.month}
+                        />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      </ModSwap>
     </div>
   );
 }

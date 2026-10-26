@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import "@/themes/launcher.css";
 import { LauncherChrome } from "@/components/launcher/LauncherChrome";
 import { LauncherGrid } from "@/components/launcher/LauncherGrid";
+import { AppGround } from "@/components/shared/AppGround";
 import { landingFor } from "@/lib/auth/landing";
 import { formatCairoDate } from "@/lib/datetime";
 import { tFor } from "@/lib/i18n/core";
@@ -55,6 +56,8 @@ export default async function LauncherPage() {
 
   return (
     <div className="lx-shell">
+      {/* the sign-in's ground, behind the glass tiles (glass.css) */}
+      <AppGround variant="rich" />
       <LauncherChrome locale={locale} userName={user.name} />
       <main className="lx-main">
         <div className="lx-hello">

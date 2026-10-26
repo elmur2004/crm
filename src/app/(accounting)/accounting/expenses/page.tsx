@@ -20,10 +20,16 @@ import {
   ExpenseActions,
   type RosterOption,
 } from "@/components/accounting/forms";
+import { ModGroup, ModSwap } from "@/components/accounting/module-ui";
+import { ModEmpty } from "@/components/accounting/module-art";
+import { LiveNumber } from "@/components/dashboard/LiveNumber";
 
 /* ADR-052 — expenses with the approval gate. Salary rows are DERIVED from the
    roster at render time (never stored); a linked manual payroll row replaces
-   its person's auto row; approval is what makes a row touch cash. */
+   its person's auto row; approval is what makes a row touch cash.
+
+   The two ledgers (payroll, other) fold away from their heads (ModGroup), and
+   their totals count when a row changes them. */
 
 export async function generateMetadata() {
   const locale = await getLocale();
@@ -51,14 +57,17 @@ export default async function AcctExpensesPage({
     x in ACCT_EXPENSE_TYPE_LABELS ? t(ACCT_EXPENSE_TYPE_LABELS[x as AcctExpenseType]) : x;
   const sum = (list: AcctExpenseRow[]) => list.reduce((s, e) => s + expenseAmount(e), 0);
 
-  const section = (title: string, list: AcctExpenseRow[], emptyText: string) => (
-    <section className="card card--flush0">
-      <div className="card-head">
-        <h2 className="u-h3">{title}</h2>
-        <span className="u-muted">−{formatEGP(sum(list))}</span>
-      </div>
+  const section = (title: string, list: AcctExpenseRow[], emptyText: string, art: "people" | "ledger") => (
+    <ModGroup
+      title={title}
+      aside={
+        <span className="u-muted">
+          −<LiveNumber value={sum(list)} format="egp" />
+        </span>
+      }
+    >
       {list.length === 0 ? (
-        <p className="empty m-4">{emptyText}</p>
+        <ModEmpty kind={art}>{emptyText}</ModEmpty>
       ) : (
         <div className="table-scroll">
           <table className="table">
@@ -144,11 +153,11 @@ export default async function AcctExpensesPage({
           </table>
         </div>
       )}
-    </section>
+    </ModGroup>
   );
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-5 mod-page">
       <AcctHead
         view={view}
         locale={locale}
@@ -159,12 +168,14 @@ export default async function AcctExpensesPage({
       <div className="page-actions">
         <AddExpenseButton company={view.company} month={view.month} roster={roster} />
       </div>
-      <div className="tile-grid">
-        <AcctTile label={t(acct.paidThisMonth)} value={formatEGP(paidExpenseIn(books, view.month))} tone="danger" />
-        <AcctTile label={t(acct.onHoldToBePaid)} value={formatEGP(pendingExpenseIn(books, view.month))} />
-      </div>
-      {section(t(acct.payrollSection), payrollRows, t(acct.noPayroll))}
-      {section(t(acct.otherExpensesSection), otherRows, t(acct.noOtherExpenses))}
+      <ModSwap swapKey={`${view.company}|${view.month}`} className="space-y-5">
+        <div className="tile-grid">
+          <AcctTile label={t(acct.paidThisMonth)} amount={paidExpenseIn(books, view.month)} tone="danger" />
+          <AcctTile label={t(acct.onHoldToBePaid)} amount={pendingExpenseIn(books, view.month)} />
+        </div>
+        {section(t(acct.payrollSection), payrollRows, t(acct.noPayroll), "people")}
+        {section(t(acct.otherExpensesSection), otherRows, t(acct.noOtherExpenses), "ledger")}
+      </ModSwap>
     </div>
   );
 }

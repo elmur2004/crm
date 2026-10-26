@@ -77,7 +77,10 @@ export function ModuleBrandScope({
   return (
     <div
       data-brand={brand}
-      className="min-h-screen bg-brand-surface text-brand-ink font-brand-body antialiased"
+      /* app-shell: isolates, so the module's ambient ground (AppGround, a
+         z-index:-1 layer inside this wrapper) paints above this wrapper's own
+         brand surface and below everything else (glass.css) */
+      className="app-shell min-h-screen bg-brand-surface text-brand-ink font-brand-body antialiased"
     >
       {children}
     </div>

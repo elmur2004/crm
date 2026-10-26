@@ -33,8 +33,10 @@ async function login(page: Page, identifier: string, password: string, landing: 
   await afterSignIn(page, landing);
 }
 
+/* the founder starts on his B-Systems board — the Calendar is an item of the
+   CRM menu there (one way to each page; the dashboard has no menu) */
 const loginAsFounder = (page: Page) =>
-  login(page, "admin@byteforce.com", "password123", /\/b-systems$/);
+  login(page, "admin@byteforce.com", "password123", /\/b-systems\/crm$/);
 
 /** The agent — a role whose lead scope is its OWN leads and nothing else. */
 const loginAsAgent = (page: Page) => login(page, "01001234567", "partner123", /\/b-systems\//);
@@ -55,10 +57,16 @@ const openCalendar = async (page: Page) => {
 };
 
 test.describe("ADR-071 — the calendar", () => {
-  test("is in the nav and opens on the current month, with today marked", async ({ page }) => {
+  test("is in the CRM menu and opens on the current month, with today marked", async ({ page }) => {
     await loginAsFounder(page);
-    await page.getByRole("link", { name: "Calendar" }).first().click();
-    await page.waitForURL(/\/b-systems\/calendar/);
+    await page.locator(".app-nav").getByRole("link", { name: "Calendar" }).click();
+    await page.waitForURL(/\/b-systems\/calendar\?company=bsystems$/);
+    /* a CRM page: the CRM's header, the CRM's menu */
+    await expect(page.locator(".app-header .app-name")).toHaveText("B-Systems CRM");
+    await expect(page.locator(".app-nav").getByRole("link", { name: "Calendar" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
     await expect(page.getByRole("heading", { name: "Calendar", level: 1 })).toBeVisible();
 
     /* the grid is whole weeks — seven headers and a multiple of seven cells */

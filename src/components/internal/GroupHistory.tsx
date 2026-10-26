@@ -49,15 +49,19 @@ function Section({
   title,
   at,
   locale,
+  stage,
   children,
 }: {
   title: string;
   at: Date;
   locale: Locale;
+  /* the stage this record belongs to — its design-system stage key, so the
+     group wears that stage's hue at its start edge (crm.css). Visual only. */
+  stage: string;
   children: React.ReactNode;
 }) {
   return (
-    <div className="record-group">
+    <div className="record-group" data-stage-key={stage}>
       <div className="flex items-baseline justify-between gap-2">
         <p className="record-title">{title}</p>
         <p className="record-time">{formatCairo(at, locale)}</p>
@@ -117,6 +121,7 @@ export async function GroupHistory({
         <Section
           key={`f${f.id}`}
           locale={locale}
+          stage="following"
           title={
             contextMsg ? t(contextMsg) : t(records.followUpContexts.initial)
           }
@@ -158,6 +163,7 @@ export async function GroupHistory({
         <Section
           key={`m${m.id}`}
           locale={locale}
+          stage="meeting"
           title={t(records.meeting)}
           at={m.createdAt}
         >
@@ -195,6 +201,7 @@ export async function GroupHistory({
         <Section
           key={`p${p.id}`}
           locale={locale}
+          stage="proposal"
           title={t(records.proposal)}
           at={p.createdAt}
         >
@@ -220,6 +227,7 @@ export async function GroupHistory({
         <Section
           key={`l${l.id}`}
           locale={locale}
+          stage="lost"
           title={stageLabel(locale, "lost")}
           at={l.createdAt}
         >
@@ -235,6 +243,7 @@ export async function GroupHistory({
         <Section
           key={`p${p.id}`}
           locale={locale}
+          stage="postponed"
           title={t(postponeMsgs.historyTitle)}
           at={p.createdAt}
         >
@@ -251,6 +260,7 @@ export async function GroupHistory({
         <Section
           key="won"
           locale={locale}
+          stage="won"
           title={stageLabel(locale, "won")}
           at={won.createdAt}
         >
@@ -271,7 +281,7 @@ export async function GroupHistory({
   items.sort((a, b) => a.at.getTime() - b.at.getTime());
 
   if (items.length === 0) {
-    return <p className="empty">{t(records.noStageRecordsYet)}</p>;
+    return <p className="empty empty--history">{t(records.noStageRecordsYet)}</p>;
   }
   return <div className="space-y-2">{items.map((i) => i.node)}</div>;
 }

@@ -27,7 +27,14 @@ async function loginFounder(page: Page) {
 }
 
 const BF = "?company=byteforce";
-const switcher = (page: Page) => page.getByRole("group", { name: "Switch company" });
+
+/** The way from one CRM to the other: the launcher (one way between apps —
+    the company switch is gone, founder: "two CRM icons, no switch"). */
+async function openCrmTile(page: Page, tile: "crm-byteforce" | "crm-bsystems") {
+  await page.getByRole("link", { name: "All apps" }).click();
+  await page.waitForURL(/\/apps$/);
+  await page.locator(`[data-app="${tile}"]`).click();
+}
 
 /* ------------------------------------------- the eight ByteForce screens -- */
 
@@ -36,7 +43,8 @@ test("every ByteForce screen has a home in the merged shell, and shows ITS OWN c
 }) => {
   await loginFounder(page);
 
-  /* 1. Home — the ByteForce dashboard, not the B-Systems admin home. */
+  /* 1. Home — the ByteForce dashboard (a page of Reports & Dashboards now),
+     not the B-Systems admin home. */
   await page.goto(`/b-systems${BF}`);
   await expect(page.getByText("BYTEFORCE", { exact: false }).first()).toBeVisible();
 
@@ -104,8 +112,9 @@ test("the two boards stay two pipelines: Negotiation is B-Systems' alone", async
   await expect(page.locator(".board [data-column]")).toHaveCount(9); // ADR-082
   await expect(page.locator('[data-stage="postponed"]')).toHaveCount(1);
 
-  /* switch — and the COLUMNS change, not just the cards standing in them. */
-  await switcher(page).getByRole("link", { name: "ByteForce" }).click();
+  /* the other CRM, from its own tile — and the COLUMNS change, not just the
+     cards standing in them. */
+  await openCrmTile(page, "crm-byteforce");
   await page.waitForURL(/\/b-systems\/crm\?company=byteforce$/);
   await expect(page.locator(".board [data-stage]")).toHaveCount(7);
   await expect(page.locator('[data-stage="negotiation"]')).toHaveCount(0);
@@ -120,16 +129,17 @@ test("the two boards stay two pipelines: Negotiation is B-Systems' alone", async
   await expect(page.locator('[data-column="fallen_behind"][data-stage]')).toHaveCount(0);
 });
 
-test("a filter does not follow you across the switch, looking applied when it is not", async ({
+test("a filter does not follow you to the other CRM, looking applied when it is not", async ({
   page,
 }) => {
   await loginFounder(page);
 
   /* Owner buckets are a B-Systems idea and the ByteForce board reads nothing
      of them. Carrying one over would leave a board that LOOKS filtered and is
-     not, which reads as data loss rather than as a nav bug. */
+     not, which reads as data loss rather than as a nav bug. The CRM tile opens
+     its board clean. */
   await page.goto("/b-systems/crm?company=bsystems&owner=agent&q=Delta&type=cold_call");
-  await switcher(page).getByRole("link", { name: "ByteForce" }).click();
+  await openCrmTile(page, "crm-byteforce");
   await page.waitForURL(/company=byteforce/);
   await expect(page).toHaveURL(/\/b-systems\/crm\?company=byteforce$/);
   await expect(page).not.toHaveURL(/owner=/);

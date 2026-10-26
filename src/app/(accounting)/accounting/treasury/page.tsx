@@ -11,9 +11,13 @@ import { moduleCompaniesFor } from "@/lib/module-companies";
 import { monthLabel } from "@/lib/accounting/format";
 import { AcctChip, AcctHead, AcctTile } from "@/components/accounting/AcctHead";
 import { AddMoveButton, MoveActions, OpeningButton } from "@/components/accounting/forms";
+import { ModSwap } from "@/components/accounting/module-ui";
+import { ModEmpty } from "@/components/accounting/module-art";
+import { LiveNumber } from "@/components/dashboard/LiveNumber";
 
 /* ADR-052 — the cash box: opening + this month's net + deposits − withdrawals,
-   carried forward month over month. */
+   carried forward month over month. The closing balance counts when a
+   movement changes it; a new month cross-fades in (ModSwap). */
 
 export async function generateMetadata() {
   const locale = await getLocale();
@@ -51,7 +55,7 @@ export default async function AcctTreasuryPage({
   );
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-5 mod-page">
       <AcctHead
         view={view}
         locale={locale}
@@ -62,89 +66,93 @@ export default async function AcctTreasuryPage({
       <div className="page-actions">
         <AddMoveButton company={view.company} month={view.month} />
       </div>
-      <div className="tile-grid">
-        <AcctTile
-          label={t(acct.balanceNow)}
-          value={formatEGP(balanceNow)}
-          sub={t(acct.cashNowAnyMonth)}
-          tone={balanceNow >= 0 ? "success" : "danger"}
-        />
-      </div>
+      <ModSwap swapKey={`${view.company}|${view.month}`} className="space-y-5">
+        <div className="tile-grid">
+          <AcctTile
+            label={t(acct.balanceNow)}
+            amount={balanceNow}
+            sub={t(acct.cashNowAnyMonth)}
+            tone={balanceNow >= 0 ? "success" : "danger"}
+          />
+        </div>
 
-      <section className="card card-pad">
-        <div className="flex items-baseline justify-between py-1.5 border-b border-brand-hairline">
-          <span className="u-muted">
-            {t(acct.openingBalanceOf)} ({monthLabel(addMonths(view.month, -1), locale)})
-          </span>
-          <span className="font-medium">{formatEGP(opening)}</span>
-        </div>
-        {line(t(acct.monthNetLine), net)}
-        {line(t(acct.depositsLine), deposits)}
-        {line(t(acct.withdrawalsLine), -withdrawals)}
-        <div className="flex items-baseline justify-between pt-3">
-          <span className="u-h3">{t(acct.closingBalance)}</span>
-          <span className={`u-h2 ${closing >= 0 ? "" : "text-brand-danger"}`}>{formatEGP(closing)}</span>
-        </div>
-      </section>
-
-      <section className="card card-pad flex items-center justify-between gap-3 flex-wrap">
-        <div>
-          <p className="tile-label">{t(acct.systemOpening)}</p>
-          <p className="u-h2 mt-1">{formatEGP(books.openingBalance)}</p>
-        </div>
-        <OpeningButton company={view.company} current={books.openingBalance} />
-      </section>
-
-      <section className="card card--flush0">
-        <div className="card-head">
-          <h2 className="u-h3">{t(acct.movementsThisMonth)}</h2>
-        </div>
-        {here.length === 0 ? (
-          <p className="empty m-4">{t(acct.noMovements)}</p>
-        ) : (
-          <div className="table-scroll">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>{t(acct.type)}</th>
-                  <th>{t(acct.label)}</th>
-                  <th>{t(acct.date)}</th>
-                  <th>{t(acct.amount)}</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {here.map((m) => (
-                  <tr key={m.id}>
-                    <td>
-                      {m.kind === "deposit" ? (
-                        <AcctChip kind="good">{t(acct.deposit)}</AcctChip>
-                      ) : (
-                        <AcctChip kind="off">{t(acct.withdraw)}</AcctChip>
-                      )}
-                    </td>
-                    <td className="td-title">
-                      {m.label || "—"}
-                      {m.tag ? <span className="badge badge--entity ms-2">{m.tag}</span> : null}
-                    </td>
-                    <td className="td-mono u-ltr">{m.date}</td>
-                    <td className={`td-title ${m.kind === "deposit" ? "text-brand-success" : "text-brand-danger"}`}>
-                      {m.kind === "deposit" ? "+" : "−"}
-                      {formatEGP(m.amount)}
-                    </td>
-                    <td>
-                      <MoveActions
-                        row={{ id: m.id, month: m.month, kind: m.kind, label: m.label, amount: m.amount, date: m.date }}
-                        company={view.company}
-                      />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        <section className="card card-pad">
+          <div className="flex items-baseline justify-between py-1.5 border-b border-brand-hairline">
+            <span className="u-muted">
+              {t(acct.openingBalanceOf)} ({monthLabel(addMonths(view.month, -1), locale)})
+            </span>
+            <span className="font-medium">{formatEGP(opening)}</span>
           </div>
-        )}
-      </section>
+          {line(t(acct.monthNetLine), net)}
+          {line(t(acct.depositsLine), deposits)}
+          {line(t(acct.withdrawalsLine), -withdrawals)}
+          <div className="flex items-baseline justify-between pt-3">
+            <span className="u-h3">{t(acct.closingBalance)}</span>
+            <span className={`u-h2 ${closing >= 0 ? "" : "text-brand-danger"}`}>
+              <LiveNumber value={closing} format="egp" />
+            </span>
+          </div>
+        </section>
+
+        <section className="card card-pad flex items-center justify-between gap-3 flex-wrap">
+          <div>
+            <p className="tile-label">{t(acct.systemOpening)}</p>
+            <p className="u-h2 mt-1">{formatEGP(books.openingBalance)}</p>
+          </div>
+          <OpeningButton company={view.company} current={books.openingBalance} />
+        </section>
+
+        <section className="card card--flush0">
+          <div className="card-head">
+            <h2 className="u-h3">{t(acct.movementsThisMonth)}</h2>
+          </div>
+          {here.length === 0 ? (
+            <ModEmpty kind="coins">{t(acct.noMovements)}</ModEmpty>
+          ) : (
+            <div className="table-scroll">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>{t(acct.type)}</th>
+                    <th>{t(acct.label)}</th>
+                    <th>{t(acct.date)}</th>
+                    <th>{t(acct.amount)}</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {here.map((m) => (
+                    <tr key={m.id}>
+                      <td>
+                        {m.kind === "deposit" ? (
+                          <AcctChip kind="good">{t(acct.deposit)}</AcctChip>
+                        ) : (
+                          <AcctChip kind="off">{t(acct.withdraw)}</AcctChip>
+                        )}
+                      </td>
+                      <td className="td-title">
+                        {m.label || "—"}
+                        {m.tag ? <span className="badge badge--entity ms-2">{m.tag}</span> : null}
+                      </td>
+                      <td className="td-mono u-ltr">{m.date}</td>
+                      <td className={`td-title ${m.kind === "deposit" ? "text-brand-success" : "text-brand-danger"}`}>
+                        {m.kind === "deposit" ? "+" : "−"}
+                        {formatEGP(m.amount)}
+                      </td>
+                      <td>
+                        <MoveActions
+                          row={{ id: m.id, month: m.month, kind: m.kind, label: m.label, amount: m.amount, date: m.date }}
+                          company={view.company}
+                        />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      </ModSwap>
     </div>
   );
 }

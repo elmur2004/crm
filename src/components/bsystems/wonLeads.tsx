@@ -120,7 +120,9 @@ export function WonDocumentUpload({
               type="file"
               accept=".pdf,.doc,.docx"
               required
-              className="text-sm min-w-0 flex-1"
+              /* w-full: a percentage width lets the file control shrink with
+                 the row instead of holding it at its intrinsic width */
+              className="text-sm min-w-0 flex-1 w-full"
             />
           </span>
         </label>

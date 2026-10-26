@@ -1,27 +1,37 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import { afterSignIn } from "./helpers/after-sign-in";
 
 /* Founder (screenshot: "Registrations" clipped to "Regi"): the header nav must
    be "a slider, so when I am pressing on the arrow ... it slides". When the
    desktop strip overflows, chevron buttons appear over its ends, the clipped
-   edge fades, and a press pages the strip — revealing the hidden sections. */
+   edge fades, and a press pages the strip — revealing the hidden sections.
 
-test("the admin nav strip slides: the end chevron reveals the clipped sections", async ({
-  page,
-}) => {
-  /* > 820px (the sheet takes over below that), narrow enough that the
-     B-Systems admin's THIRTEEN sections cannot all fit (eleven when this was
-     written; ADR-071 added the Calendar and ADR-081 the Daily report, and each
-     one only makes the overflow this case depends on more certain). Not too
-     narrow either:
-     the header's fixed logo + user cluster eat ~860px, and the strip needs a
-     workable share left over for the walk below. */
-  await page.setViewportSize({ width: 1180, height: 800 });
+   ONE WAY TO EACH PAGE shortened the B-Systems admin's CRM menu from thirteen
+   items to six (Home, the To-Do, the Daily report and the four Partners &
+   Agents screens became their own launcher apps), so at a roomy desktop width
+   it no longer clips at all. The slider is still the product's answer whenever
+   a strip DOES clip, so it is held to its behaviour where clipping is real: the
+   CRM menu at a narrow desktop width (just above the 820px sheet breakpoint),
+   and Accounting's twelve sections — the longest menu left — across the zoom
+   band. */
+
+async function signIn(page: Page) {
   await page.goto("/login");
   await page.getByLabel("Email or phone").fill("admin@byteforce.com");
   await page.getByLabel("Password").fill("password123");
   await page.getByRole("button", { name: "Sign in" }).click();
-  await afterSignIn(page, /\/b-systems$/);
+  await afterSignIn(page, /\/b-systems\/crm$/);
+}
+
+test("the CRM menu strip slides at a narrow desktop width: the end chevron reveals the clipped sections", async ({
+  page,
+}) => {
+  /* > 820px (the sheet takes over below that), and narrow enough that the
+     admin's six sections cannot all fit beside the mark, its app name and the
+     user cluster */
+  await signIn(page);
+  await page.setViewportSize({ width: 900, height: 800 });
+  await page.goto("/b-systems/crm?company=bsystems");
 
   const strip = page.locator(".nav-strip");
   const users = strip.getByRole("link", { name: "Users", exact: true });
@@ -33,13 +43,11 @@ test("the admin nav strip slides: the end chevron reveals the clipped sections",
   await expect(forward).toBeVisible();
   await expect(back).toHaveCount(0);
 
-  /* one press slides the strip (a page is 70% of the visible strip) and the
-     way back appears */
+  /* one press slides the strip (a page is 70% of the visible strip, at least
+     160px) and the way back appears */
   await forward.click();
   await expect
-    .poll(async () =>
-      Math.abs(await strip.locator(".app-nav").evaluate((el) => el.scrollLeft)),
-    )
+    .poll(async () => Math.abs(await strip.locator(".app-nav").evaluate((el) => el.scrollLeft)))
     .toBeGreaterThan(100);
   await expect(back).toBeVisible();
 
@@ -60,6 +68,13 @@ test("the admin nav strip slides: the end chevron reveals the clipped sections",
     () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
   );
   expect(overflow).toBeLessThanOrEqual(1);
+
+  /* and at a roomy width the shortened menu fits whole: no chevrons at all */
+  await page.setViewportSize({ width: 1440, height: 800 });
+  await page.goto("/b-systems/crm?company=bsystems");
+  await page.waitForTimeout(350);
+  await expect(page.getByRole("button", { name: /Scroll navigation/ })).toHaveCount(0);
+  await expect(users).toBeInViewport();
 });
 
 /* A9 (zoom round) — the founder's ORIGINAL screenshot was "Registrations" cut
@@ -68,15 +83,12 @@ test("the admin nav strip slides: the end chevron reveals the clipped sections",
    at a fractional browser zoom a label clipped by up to 1px measured as "no
    overflow" and the chevron never appeared — the same silent truncation, back
    at 90% and 110%. The affordance is now measured off the items' fractional
-   rects. This walks the band and asserts the rule directly: if the strip really
-   clips a label, there is a way to reach it. */
+   rects. This walks the band — on Accounting's twelve sections, the longest
+   menu left — and asserts the rule directly: if the strip really clips a label,
+   there is a way to reach it. */
 test("A9: a chevron exists whenever the nav strip really clips a section", async ({ page }) => {
   test.setTimeout(180_000);
-  await page.goto("/login");
-  await page.getByLabel("Email or phone").fill("admin@byteforce.com");
-  await page.getByLabel("Password").fill("password123");
-  await page.getByRole("button", { name: "Sign in" }).click();
-  await afterSignIn(page, /\/b-systems$/);
+  await signIn(page);
 
   /* the strip's own overflow, measured sub-pixel — never via scrollWidth */
   const clips = () =>
@@ -92,24 +104,28 @@ test("A9: a chevron exists whenever the nav strip really clips a section", async
 
   /* (a) layout zoom: 85% → 125% of a 1180px window, all still above the 820px
      breakpoint where the desktop strip gives way to the burger */
+  let clipped = 0;
   for (const z of [0.85, 0.9, 0.95, 1, 1.05, 1.1, 1.15, 1.2, 1.25]) {
     await page.setViewportSize({ width: Math.round(1180 / z), height: Math.round(800 / z) });
-    await page.goto("/b-systems");
+    await page.goto("/accounting");
     await page.locator(".nav-strip .app-nav").waitFor();
     await page.waitForTimeout(350); // measure() after layout + the font swap
     const hidden = await clips();
     if (hidden > 0.5) {
+      clipped++;
       expect(
         await chevrons(),
         `the strip clips ${hidden.toFixed(2)}px at zoom ${z} with no chevron to reach it`,
       ).toBeGreaterThan(0);
     }
   }
+  /* the walk must have exercised the rule, not passed it vacuously */
+  expect(clipped).toBeGreaterThan(0);
 
   /* (b) FRACTIONAL pixels — what layout zoom alone cannot produce, and where
      the rounded measurement used to lose the chevron */
   await page.setViewportSize({ width: 1180, height: 800 });
-  await page.goto("/b-systems");
+  await page.goto("/accounting");
   await page.locator(".nav-strip .app-nav").waitFor();
   for (const z of [0.98, 1.02, 1.04, 1.06, 1.08, 1.12]) {
     await page.evaluate((v) => {

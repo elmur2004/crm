@@ -68,7 +68,12 @@ export function AcctControls({
             ‹
           </button>
           <span className="switcher-seg" aria-current="true">
-            {monthLabel(month, locale)}
+            {/* keyed by the month: a new month's name fades in where the old
+                one stood (modules.css), in step with the data below it — the
+                segment's pill itself stays put */}
+            <span key={month} className="mod-month">
+              {monthLabel(month, locale)}
+            </span>
           </span>
           <button
             type="button"

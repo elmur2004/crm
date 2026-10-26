@@ -6134,3 +6134,478 @@ ADR-092, the sign-in (three):
   entered the repo.
 - **The app launcher is no longer local.** The previous entry recorded it as
   awaiting approval; it ships in this push as ADR-090.
+
+## 2026-10-26 — ADR-093/094/095: the glass frame, light and dark only, and one way to each page (local, awaiting the founder's preview)
+
+**Founder, verbatim:**
+
+- *"the log in page is very nicely animated and designed the rest of the system
+  is still not"*. Asked how far the glass should go, he chose **"Glass frame,
+  solid data"**. Asked push or preview, he chose **"Preview locally first"**.
+- *"remove the system theme option"*.
+- *"there is multiple ways to get to each page there should be one way each for
+  each page to get to"*. His four answers: **"Two CRM icons, no switch"**;
+  dashboards **"Only in Reports & Dashboards"**; accounting reports **"Inside
+  Accounting only"**; shortcut links **"Remove them"** (links to a specific
+  record stay).
+
+**Everything in this entry is LOCAL and NOT PUSHED.** It is uncommitted in the
+D:/CRM working tree, and the founder previews it before any push.
+
+### Done
+
+- **The glass frame and motion (ADR-093).**
+  - **Tokens:** ten new colour tokens (light + dark) and nine invariant ones in
+    all three scope files, mapped for Tailwind in `globals.css`.
+  - **Two new sheets,** `src/themes/glass.css` and `src/themes/motion.css`,
+    imported after `design-system.css` in all four app root layouts. The
+    frame's motion moved out of `design-system.css` and runs only without
+    reduced motion.
+  - **New components:** `AppGround`, `SwitchIndicator`, `usePresence`, and
+    `RoutePending` + `RouteSkeleton` + `LoadingLabel`.
+  - **What gets glass:**
+    - sticky glass headers, with B-Systems' kept Indigo at 88% and the first
+      248px under the logos solid;
+    - the phone menu, the bell and the import menu on glass;
+    - dialogs with a frosted backdrop and a 6px glass frame around the solid
+      form (no dialog component changed);
+    - frosted toasts and the undo pill; a glass filter panel.
+  - **Buttons** get gloss, glow and press, except ByteForce, which gets no
+    gloss and Ink on orange. B-Systems pink buttons carry Indigo Deep text in
+    light.
+  - **Also new:** the sign-in's focus glow on inputs, a page-head entrance, and
+    the ambient glow behind every screen. The launcher, Reports, `/no-access`
+    and `/portal` are brought to sign-in level.
+  - **`loading.tsx` rejected and recorded as a decision** (ADR-093 §5). It
+    broke the JavaScript-off paint and two other specs. `RoutePending` shows the
+    skeleton after 120 ms on a click instead, and a vitest guard fails if a
+    `loading.tsx` appears.
+- **Light and dark only (ADR-094, amends ADR-087).**
+  - `Theme` is `"light" | "dark"`, default light. A stored `system` cookie reads
+    as light, and the browser bar has no system case.
+  - The toggle shows Light · Dark. `shell.themeSystem` is kept, unused.
+  - Every `data-theme="system"` block is gone from the token files,
+    `design-system.css`, `login.css` and `glass.css`. No landing file was
+    touched.
+  - Six vitest suites and the e2e now fail if System returns.
+  - Leftover on purpose: the standalone "file missing" page in
+    `src/app/api/files/[id]` still follows the OS for anyone not on Dark.
+- **One way to each page (ADR-095).**
+  - The launcher is the only way between apps, and each app's menu the only way
+    to its pages. The menus are trimmed per role (table in ADR-095 §1).
+  - The header names the app in words. The To-Do has ByteForce · B-Systems
+    tabs.
+  - **Deleted:** `EntitySwitch` (all three copies), `CompanySwitch` and
+    `switch-target.ts` (+ test).
+  - **Removed:** the logo links; the menu items that duplicated a launcher app;
+    the three accounting entries on Reports; every dashboard shortcut; the back
+    links.
+  - "View in Partners directory" stays, because it links to a record.
+  - `crmHomeFor` and `landingFor` now land on the board.
+  - Permissions are unchanged, confirmed by spec-guardian.
+  - New guard: `src/lib/launcher/one-way.test.ts`.
+  - The coordinator added **"Amended by ADR-095"** notes to SPEC.md §5.8, §6 and
+    §7.1 (lines 194, 204, 318, verified).
+- **Docs written in this entry's round:**
+  - ADR-093, ADR-094 and ADR-095 in `DECISIONS.md`;
+  - Run 106 in `TESTING.md`;
+  - the 26 October entry in `CHANGELOG.md`, marked not live.
+
+### Verified
+
+Full detail in Run 106. Every figure is from an agent's own final run:
+
+- **Foundation (ADR-093/094):** `tsc` 0; vitest **98 files / 2263 passed, 1
+  skipped**; full Playwright **334 passed (34.9m), 9 skipped**, after its first
+  full run's 12 failures were fixed.
+- **Navigation (ADR-095):** `tsc` 0; vitest **98 files / 2321 passed, 1
+  skipped**; full Playwright **339 passed (34.5m), 9 skipped**. A CSS ordering
+  bug (a 5–26px sideways scroll at 320/601px) was found and fixed.
+- **Brand audits:** both failed first and were fixed.
+
+**No run over the final tree and no clean-checkout gate**, because the body
+polish is still changing the tree and nothing is being pushed. Vitest figures
+are printed summaries (this repo's vitest exits 0 on failure).
+
+### In progress
+
+- **The CRM and Accounting/Vault body polish (two agents running); then a local
+  preview with demo data.**
+
+### Next steps
+
+1. Finish the two body-polish passes, then run tsc, the full vitest and the
+   full Playwright over the combined tree, and record them as a new Run.
+2. **Local preview with demo data** for the founder: glass and motion, Light ·
+   Dark, and the new menus, on a phone and a computer.
+3. **Push only on his approval**, assembled by explicit path as in Run 105,
+   because the landing work's edits to shared tracked files must stay out. Then
+   run a clean-checkout gate, and after the push verify by an address or
+   behaviour that did not exist before.
+4. **The `byteforce-brand` skill** (`.claude/skills/byteforce-brand/SKILL.md`
+   line 33) still says "orange on white text". The skill owner should update it
+   once the founder confirms Ink on orange (ADR-093 item 1). The docs-keeper
+   does not edit skills.
+5. **Written to IMPLEMENTATION.md** as "Three gotchas from the glass and motion
+   pass (2026-10-26, ADR-093)":
+   - a `loading.tsx` streams every page load, so use `RoutePending`;
+   - a scaling pop-up measures under its real size mid-entrance, so pop-ups
+     never scale;
+   - a `backdrop-filter` on the header makes it the containing block of the
+     fixed phone menu, so the frost lives on a `::before`.
+
+   **The `loading.tsx` guard was widened the same day.** It first checked only
+   eight hand-picked directories; it now walks every folder under `src/app`
+   (the landing excepted), proven by planting a `loading.tsx` in
+   `(vault)/vault/tasks` — a folder the old list missed — which failed it.
+6. **The previous entry's "Recorded and not done" list stands.** The zoom "A5"
+   reduced-motion investigation was not revisited.
+7. **When the landing work is documented, renumber its `next.config.ts`
+   comment.** It cites ADR-086 for a font cache header, and **ADR-086 through
+   ADR-095 are now all taken**, so it needs **ADR-096 or later**.
+
+### Blockers
+
+None. The push waits on the founder's preview by his choice; that is not a
+blocker.
+
+### Needs founder confirmation
+
+**New this session: twelve.**
+
+ADR-093, the glass frame (five):
+1. ByteForce frame controls carry **Ink on orange with no gloss**. Page bodies
+   still use the white-text token.
+2. B-Systems pink buttons carry **Indigo Deep text in light** (white on pink is
+   3.12:1).
+3. The **light-mode glow is very faint**, so muted text stays readable.
+4. **The header is now sticky.** The call sheet's sticky block sits below it.
+5. Dialogs, menus and toasts **animate in**; **only the phone menu and the bell
+   animate out**.
+
+ADR-094, light and dark only (one):
+1. The standalone **"file missing" page** still follows the device for anyone
+   not on Dark. Should it be pinned light?
+
+ADR-095, one way to each page (six):
+1. **Statement To-Do rows open the statement document**, which costs the admin
+   a click to mark payments on the list.
+2. **"ByteForce CRM" beside the B-Systems mark** (ADR-067's skin;
+   brand-auditor advisory).
+3. **To-Do tab order ByteForce · B-Systems**, while the tile opens B-Systems
+   first.
+4. **Some landings still point at a dashboard:** wrong-company bounces land on
+   that company's dashboard, and push notifications without a lead open
+   `/b-systems`.
+5. **Page titles:** "To-Do"; the dashboard and the daily report end with "—
+   Reports & Dashboards".
+6. **The header logos are no longer links.** This reverses the founder's own
+   fix in Entry 019 (*"when I click on the logo it takes me to home"*). The "All
+   apps" icon is the one way back.
+
+Also open, for the founder or the skill owner: the `byteforce-brand` skill's
+"orange on white text" (Next steps 4).
+
+**Resolved this session:** ADR-087 item 1, "system" as the default theme. The
+founder removed the option and the default is light (ADR-094).
+
+### Carried forward, still open
+
+- **ADR-090's five.** Item 5, the grid icon rather than a house, stays open. But
+  the reason ADR-090 §3 gave for it ("the CRM menu already has a 'Home'") no
+  longer holds: Home left the CRM menus (ADR-095 §8).
+- **ADR-091's fourteen.** D11's second half, "the company switch keeps the
+  range", has no switch left to act on, because `switch-target.ts` is deleted.
+  Its first half, This month by default, stands. D19, the ByteForce Home in the
+  B-Systems skin, is unchanged. Untouched and still his: D7, D7b, D9, D16.
+- **ADR-092's three:** Remember me; Forgot password; the heading.
+- **BUG-027's question:** the fix holds over HTTPS and localhost but not over
+  plain-http LAN. Does anyone use the app that way?
+- **ADR-089's four.** ADR-088's seven.
+- **ADR-087's one remaining:** where the toggle lives. It now offers Light ·
+  Dark only.
+- **ADR-086's three.** ADR-085's two. ADR-084's three. ADR-083's three.
+  ADR-082's six. ADR-081's six. ADR-080's three. ADR-071's four. ADR-063's one
+  accepted false negative.
+- **ADR-081 §7's "the switch reorders the day" has no switch any more**
+  (ADR-095 §8). This is a note, not a new question.
+- **The standing hosting issue** on `/api/health`'s `uploads` section
+  (`persistentDirConfigured: false`, 9 referenced attachments missing). It is
+  untouched by this work.
+- **The landing pages' own open items:** the `font-display: optional` trade,
+  the price-approval gate default, two Arabic price-clause edits, and the
+  licensing decision on the Lama Sans binaries.
+
+### Left in the working tree, and the landing bookkeeping
+
+- **ADR-093/094/095 are uncommitted in the working tree**, awaiting the
+  founder's preview. They include:
+  - the token files, `globals.css`, the four root layouts, the three shell
+    layouts, `glass.css`, `motion.css` and the new shared components;
+  - `src/lib/crm/nav.ts`, `src/lib/launcher/` (with `menus.ts` and
+    `one-way.test.ts`);
+  - the deletions (`EntitySwitch`, `CompanySwitch`, `switch-target.ts` and its
+    test);
+  - the e2e changes listed in Run 106.
+
+  The two body-polish agents are still adding to it.
+- **The landing pages remain LOCAL and uncommitted**, as before. They include
+  `src/app/(landing)/`, `src/components/landing/`, `src/app/api/landing/`, the
+  two `landing_*` migrations, `LANDING_BRIEF.md`, `e2e/landing.spec.ts`,
+  `public/favicon.ico`, `public/brand/byteforce/fonts/`, and the landing edits
+  to the shared tracked files `next.config.ts`, `prisma/schema.prisma`,
+  `src/lib/services/backup.ts` and `src/tests/db-reset.ts`. **No landing file
+  was touched by ADR-094's theme sweep.**
+- **The renumbering note moves again:** the landing work's local
+  `next.config.ts` comment cites ADR-086, and with ADR-093, 094 and 095 now
+  taken it **needs ADR-096 or later**. It is local and uncommitted, so no
+  contradiction has entered the repo.
+
+## 2026-10-26 (later) — ADR-096/097: the meeting form asks for the meeting; every screen moves like the sign-in — shipping with ADR-093–095
+
+**Founder, verbatim (as relayed by the coordinator):**
+
+- **On the push:** *"after you finish push everything"*, and *"after you
+  fnisih everything push everything but the landing pages as I said"*.
+- **On the meeting form**, with a screenshot of the board's drop window
+  (*"NEW→MEETING SETTING … Complete this stage's details to confirm the move —
+  cancel reverts it. ☐ Arranged?"*):
+  - *"شيل الخطوة دي ملهاش اي معنى خش في المعاد علطول"*: remove this step, it
+    means nothing, go straight to the appointment.
+  - *"و شيل برضو ال technical support"*: and also remove the technical
+    support.
+
+**What changed since the previous entry.** That entry (2026-10-26) says the
+glass and one-way work is LOCAL, awaiting a preview. That is no longer the
+plan. **ADR-093, 094, 095, 096 and 097 now ship together in one push**, and
+**the landing pages stay local.** The previous entry, ADR-093–095's "LOCAL, not
+pushed" status lines, Run 106's "LOCAL" verdict and the CHANGELOG's "not live
+yet" heading are not rewritten. This entry overtakes them.
+
+### Done
+
+- **The meeting form asks for the meeting (ADR-096).**
+  - **ByteForce:** `MeetingFields()` takes no props. Date, time and mode are
+    always shown and required, and With is always shown. The Technical support
+    input and its rep datalist are gone. `meetingFromForm` always sends
+    `arranged: true` and no `technicalSupport`. Both callers are updated: the
+    lead page, whose reschedule no longer toggles arranged, and the board's
+    drop window.
+  - **B-Systems internal roles (admin, sales):** no "Arranged?" checkbox;
+    `meetingPayload` sends `arranged: light ? agreed : true`. Technical support
+    is gone for everyone.
+  - **Agents and partners:** their own flow is kept, with V2 §3's *"Did you
+    agree with the client on a time?"* (where "no" is a proposed slot) and
+    *"Do you need a technical colleague with you?"*.
+  - **The dead `groupForms.tsx` form** lost its Technical support input.
+  - **Unchanged:** the server, the schema and the stored data.
+    `meetingSchema` still accepts `arranged: false` and `technicalSupport`;
+    `Meeting.technicalSupport` stays; GroupHistory still shows a value stored
+    on older meetings. The Partners & Agents pipeline already sent
+    `arranged: true`.
+  - **SPEC.md:** the coordinator added an "Amended by ADR-096" note after the
+    Meeting setting table (line 245) and corrected the Today-chip sentence
+    (line 280). Both were verified at writing time.
+- **Every screen moves like the sign-in (ADR-097).**
+  - **The CRM:** new `src/themes/crm.css`, `BoardMotion` and `Meter`.
+    - The boards' columns rise in, and wells light in their stage colour. A
+      held card springs, tilts with the reading direction and settles. Counts
+      pop only on change.
+    - **The keyboard drag now works:** Space lifts, the arrow keys move column
+      to column, Space drops into the same stage form, and Escape cancels.
+    - Rows and lead details are edged in their stage colour.
+    - **The To-Do ticks at once** (it reverts on failure). It has an x/y
+      progress bar and a 44px checkbox on touch.
+    - The Calendar, the daily report, the won deal's milestone bar, the empty
+      states and the chat all move.
+  - **Accounting and the Vault:** new `src/themes/modules.css`, `module-ui.tsx`
+    and `module-art.tsx`.
+    - Sections and cards are dealt in, and charts draw once. Numbers count only
+      on change (`LiveNumber`).
+    - Rows glow when added, flash when edited, slide out when deleted, and stay
+      put when a write fails.
+    - Groups fold, and the imports have a three-step rail.
+    - **The Vault's filters update without a reload** (`next/form`) and still
+      work without JavaScript.
+    - No figure, formula or EGP formatting changed.
+  - **Brand audit:** the ByteForce accounting hero now runs violet→orange in
+    English, so its white words sit on violet (reversing ADR-054's SPA look).
+    Under ByteForce, the Edit button, the resting ✓ and ⇄ are link violet.
+    There is no sheen on ByteForce.
+  - **Five shipped defects fixed on the way**, logged as **BUG-028 to
+    BUG-032**:
+    - done tasks were never struck through;
+    - the Calendar sat 26px further in;
+    - the won deal scrolled sideways by 32px at 390px;
+    - the Ready-to-close contrast;
+    - the chat tail and the milestone arrow did not mirror in Arabic.
+- **Docs written in this entry's round:**
+  - ADR-096 and ADR-097 in `DECISIONS.md`;
+  - BUG-028 to BUG-032 in `BUGS.md`;
+  - Run 107 in `TESTING.md`, with the gate line left for the coordinator;
+  - this entry;
+  - the 26 October second update in `CHANGELOG.md`.
+
+### Verified (by the agents; the gate is the authority)
+
+Full detail in Run 107. Vitest figures are printed summaries, because this
+repo's vitest exits 0 on failure.
+
+- **ADR-096, targeted:** vitest **28 files / 759 passed**; `tsc` 0.
+- **CRM bodies:** `tsc` 0.
+  - Vitest, final run: **2361 passed, 1 failed (2362) in 101 files**. The one
+    failure was the Accounting agent's `modules-css` test, still in progress.
+    The earlier run: **2356 / 2356 in 100 files**.
+  - Full Playwright: run 1 **339 passed (35.9m), 9 skipped**. Run 2 had **2
+    failed**:
+    - `accounting.spec.ts:114`, a colour 230 vs 231 under the parallel edits;
+      it passes in run 1 and on repeat;
+    - `qa-sweep.spec.ts:185`, a phone-menu segment at 43.99998px mid-slide; the
+      spec now waits for the menu to open, 5/5.
+- **Accounting/Vault bodies:** `tsc` 0; vitest **2364 passed, 1 skipped (2365)
+  in 102 files**; full Playwright **339 passed (35.4m), 9 skipped**, device
+  sweep included.
+  - 192 screenshots with 0 overflow and no console errors.
+  - At 320px, over 22 module URLs in both languages: 0 overflow and no target
+    under 44px.
+- **Not yet run:** the coordinator's clean-checkout gate (Run 107's last line).
+
+### In progress
+
+- **The coordinator's clean-checkout gate and the push** of ADR-093–097,
+  without the landing work.
+
+### Next steps
+
+1. **Run the clean-checkout gate and fill in Run 107's placeholder line.**
+   - Assemble the push by explicit path, as in Run 105.
+   - The landing work must stay out, including its edits to the shared tracked
+     files `next.config.ts`, `prisma/schema.prisma`,
+     `src/lib/services/backup.ts` and `src/tests/db-reset.ts`. ADR-093–097 have
+     no schema change.
+2. **After the push, verify by something that did not exist before.** This
+   push adds no new route, so a 404→401 probe is not available. A suggestion,
+   not yet done: anonymous `/login` HTML should offer a two-segment theme
+   toggle (Light · Dark) instead of three, and the served CSS should contain
+   the new sheets' class names.
+3. **The `byteforce-brand` skill** (line 33) still says "orange on white text".
+   The skill owner should update it once the founder confirms ADR-093 item 1.
+   The docs-keeper does not edit skills.
+4. **Tidy-ups recorded, none blocking:**
+   - the unused `reps` props on `LeadEventPanel`, `InternalBoard` and
+     `MeetingFieldsV2`;
+   - the dead meeting form in `groupForms.tsx`, which still carries
+     "Arranged?";
+   - the boards' drop window is not `role="dialog"`;
+   - a computed-style regression for BUG-028, and tests for BUG-029–032;
+   - Vault Archive rows leave without the slide-out.
+5. **The landing work's `next.config.ts` comment** cites ADR-086 for a font
+   cache header. With ADR-096 and 097 now taken, it **needs ADR-098 or later**
+   when the landing work is documented.
+6. **The "Recorded and not done" list** in the 2026-10-25 (later) entry stands.
+   The zoom "A5" reduced-motion investigation was not revisited.
+
+### Blockers
+
+None.
+
+### Needs founder confirmation
+
+**New this session: eleven.**
+
+ADR-096, the meeting form (one):
+1. **The agents' and partners' own questions**, *"Did you agree with the
+   client on a time?"* and *"Do you need a technical colleague with you?"*:
+   should they go too? They are kept because they are a different flow.
+
+ADR-097, the bodies (ten):
+1. **The ByteForce accounting hero runs violet→orange in English**, so its
+   white words sit on violet. This reverses the SPA look ADR-054 kept. The
+   target meter still runs orange→violet.
+2. **The B-Systems hero's words in Arabic** sit near the pink exit at about
+   3.4–4.3:1. This was already the case. The 135° is kept per SPEC §4.3;
+   mirroring is a one-line change, and the two portal heroes would need the
+   same decision.
+3. **Under ByteForce, the Edit button, the resting ✓ and ⇄ are link violet**,
+   not orange text (orange was 3.3:1).
+4. **No sheen on ByteForce.**
+5. **The keyboard drag** on the boards (new behaviour).
+6. **The To-Do's optimistic tick.**
+7. **Done tasks struck through** (BUG-028).
+8. **The Calendar re-aligned** (BUG-029).
+9. **"Mark ready to close" restyled** (BUG-031).
+10. **The Vault's filters without a reload.**
+
+**Carried from the previous entry, unresolved: twelve.**
+
+ADR-093, the glass frame (five):
+1. ByteForce frame controls carry **Ink on orange, with no gloss**.
+2. B-Systems pink buttons carry **Indigo Deep text in light**.
+3. The **light-mode glow is very faint**.
+4. **The header is sticky.**
+5. **Only the phone menu and the bell animate out.**
+
+ADR-094 (one):
+1. The standalone **"file missing" page** still follows the device. Should it
+   be pinned light?
+
+ADR-095 (six):
+1. Statement To-Do rows open the statement document.
+2. "ByteForce CRM" beside the B-Systems mark.
+3. The To-Do tab order.
+4. Some landings still point at a dashboard.
+5. Page titles.
+6. **The header logos are no longer links.** This conflicts with the founder's
+   own fix in **PROGRESS Entry 019** (*"when I click on the logo it takes me
+   to home"*), and the conflict **stays open**.
+
+Also open, for the founder or the skill owner: the `byteforce-brand` skill's
+"orange on white text" (Next steps 3).
+
+**Resolved this session:** none of the open questions. The push instruction
+settles *when* ADR-093–095 ship; it answers none of their questions.
+
+### Carried forward, still open
+
+Unchanged from the previous entry:
+
+- **ADR-090's five.** Item 5's stated reason is gone (ADR-095 §8).
+- **ADR-091's fourteen.** D11's second half has no switch left to act on.
+- **ADR-092's three.**
+- **BUG-027's plain-http LAN question.**
+- **ADR-089's four. ADR-088's seven.**
+- **ADR-087's one remaining:** where the toggle lives.
+- **ADR-086's three. ADR-085's two. ADR-084's three. ADR-083's three.
+  ADR-082's six. ADR-081's six. ADR-080's three. ADR-071's four.** ADR-063's
+  one accepted false negative.
+- **The standing hosting issue** on `/api/health`'s `uploads` section.
+- **The landing pages' own open items:** the `font-display: optional` trade,
+  the price-approval gate default, two Arabic price-clause edits, and the Lama
+  Sans licensing decision.
+
+### Left in the working tree, and the landing bookkeeping
+
+- **ADR-093–097 are uncommitted in the working tree and ship in this push.**
+  Beyond the paths listed in the previous entry, this includes:
+  - `src/themes/crm.css`, `src/themes/crm.test.ts`, `src/themes/modules.css`;
+  - `src/components/shared/BoardMotion.tsx` and its test,
+    `src/components/shared/Meter.tsx`;
+  - `src/components/accounting/module-ui.tsx`, `module-art.tsx` and
+    `modules-css.test.ts`;
+  - `src/components/internal/meeting-form.test.ts`;
+  - the edits across the CRM, Accounting and Vault components and pages;
+  - the e2e edits listed in Run 106 and Run 107.
+- **The landing pages remain LOCAL and uncommitted**, at the founder's
+  instruction (*"push everything but the landing pages as I said"*). They
+  include:
+  - `src/app/(landing)/`, `src/components/landing/` and `src/app/api/landing/`;
+  - the two `landing_*` migrations, `LANDING_BRIEF.md` and
+    `e2e/landing.spec.ts`;
+  - `public/favicon.ico` and `public/brand/byteforce/fonts/`;
+  - the landing edits to the shared tracked files `next.config.ts`,
+    `prisma/schema.prisma`, `src/lib/services/backup.ts` and
+    `src/tests/db-reset.ts`.
+- **The renumbering note moves again:** the landing work's local
+  `next.config.ts` comment cites ADR-086. With ADR-096 and 097 now taken, it
+  **needs ADR-098 or later**. It is local and uncommitted, so no contradiction
+  has entered the repo.

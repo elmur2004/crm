@@ -103,23 +103,30 @@ export function MeetingFieldsV2({
   people?: MeetingPerson[];
 }) {
   const t = tFor(useLocale());
+  /* ADR-096 — the founder: "شيل الخطوة دي ملهاش اي معنى خش في المعاد علطول"
+     (remove this step, go straight to the appointment). For the admin and
+     internal sales there is no "Arranged?" question any more: every meeting
+     they set is the agreed one. Only the agent/partner flow keeps its own
+     question (V2 §3: "Did you agree with the client on a time?"), because an
+     unagreed answer there is a PROPOSED slot the admin confirms — a different
+     record, not this step. */
+  const asks = light && !lockArranged;
+  const agreedSlot = agreed || !light;
   return (
     <>
-      {!lockArranged ? (
+      {asks ? (
         <label className="flex items-center gap-2">
           <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} />
-          <span className="field-label">
-            {light ? t(msg.agreedQuestion) : t(msg.arranged)}
-          </span>
+          <span className="field-label">{t(msg.agreedQuestion)}</span>
         </label>
       ) : null}
       <div className="grid grid-cols-2 gap-3">
         <label className="block">
-          <span className={labelCls}>{agreed ? t(msg.date) : t(msg.dateThatSuits)}</span>
+          <span className={labelCls}>{agreedSlot ? t(msg.date) : t(msg.dateThatSuits)}</span>
           <input type="date" name="date" required className={inputCls} />
         </label>
         <label className="block">
-          <span className={labelCls}>{agreed ? t(msg.time) : t(msg.timeThatSuits)}</span>
+          <span className={labelCls}>{agreedSlot ? t(msg.time) : t(msg.timeThatSuits)}</span>
           <input type="time" name="time" required className={inputCls} />
         </label>
       </div>
@@ -144,19 +151,10 @@ export function MeetingFieldsV2({
             <span className={labelCls}>{t(msg.withLabel)}</span>
             <input type="text" name="withAttendees" className={inputCls} placeholder={t(msg.attendees)} />
           </label>
-          <label className="block">
-            <span className={labelCls}>{t(msg.technicalSupport)}</span>
-            <input type="text" name="technicalSupport" list="bs-rep-names" className={inputCls} />
-            <datalist id="bs-rep-names">
-              {reps.map((r) => (
-                <option key={r.id} value={r.name} />
-              ))}
-            </datalist>
-          </label>
-          {/* ADR-071 — who ELSE this meeting occupies. It sits under Technical
-              support on purpose: that field is the free text naming a person,
-              and this is the same question asked of ACCOUNTS, which is the only
-              form of it the calendar can answer. */}
+          {/* ADR-071 — who ELSE this meeting occupies, as ACCOUNTS: the only
+              form of "who is in this meeting" the calendar can answer. (The
+              free-text Technical support field that sat above it was removed
+              by ADR-096 — founder: "شيل برضو ال technical support".) */}
           <MeetingAlsoBlocks people={people} />
         </>
       )}
@@ -168,12 +166,12 @@ export function meetingPayload(fd: FormData, light: boolean, agreed: boolean) {
   return {
     group: "meeting" as const,
     data: {
-      arranged: agreed,
+      /* ADR-096 — internal roles always set the AGREED meeting */
+      arranged: light ? agreed : true,
       date: String(fd.get("date")),
       time: String(fd.get("time")),
       mode: String(fd.get("mode")) as "online" | "offline",
       withAttendees: light ? undefined : String(fd.get("withAttendees") || "") || undefined,
-      technicalSupport: light ? undefined : String(fd.get("technicalSupport") || "") || undefined,
       needsTechnical: light ? fd.get("needsTechnical") === "on" : undefined,
       /* ADR-071 — "Also blocks". `getAll` returns [] when the picker was not
          rendered at all, and an empty list is sent as undefined so the wire
