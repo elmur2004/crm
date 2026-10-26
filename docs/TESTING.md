@@ -7991,3 +7991,21 @@ copy was made change no code.
   `accounting.spec.ts:114` (a colour read under the parallel Accounting edits)
   and `qa-sweep.spec.ts:185` (the phone menu measured mid-slide — the spec now
   waits for it to open).
+
+### Run 107 — the deploy, verified (2026-10-26)
+
+`7b4c345` pushed fast-forward over `916ec65`. This push adds no new route, so
+the probe was a change visible to an anonymous visitor:
+
+| Probe (anonymous) | Before push | After |
+|---|---|---|
+| `GET /login` theme toggle | `title="System"` (pressed), `"Light"`, `"Dark"` | `"Light"`, `"Dark"` only — System gone (ADR-094) |
+| the CSS chunks `/login` links | — | three of four carry `--color-glass`, `-chrome`, `-edge`, `-highlight`, `-quiet`, `-strong` and `--ease-spring` (ADR-093); none carries a `data-theme="system"` selector |
+
+**The deploy took longer than the 30-minute watch** that was armed for it (the
+earlier pushes landed in 7–9 minutes); the change was confirmed by a manual
+probe after the watch expired. `/api/health`: `"ok":true`,
+`"schemaCurrent":true` (this push has no migration); `GET /apps` still `307`
+to sign-in. **Not verifiable from outside:** the one-way navigation, the
+meeting form and the screen motion need a session — the founder sees them on
+his next sign-in.
