@@ -8,6 +8,7 @@ import {
 } from "@/lib/pipeline-engine/configs/for-brand";
 import { cairoDayWindowFor, utcToCairo } from "@/lib/datetime";
 import { isNewestRecord, newestRecordAt } from "@/lib/crm/live-record";
+import { scopeOwnerWhere, type LeadScope } from "@/lib/auth/lead-scope";
 
 /* Founder (ADR-041) — the To-Do page: "the actual date of today with the
    entire tasks of today... just a way of representing what I have to do today,
@@ -37,10 +38,11 @@ import { isNewestRecord, newestRecordAt } from "@/lib/crm/live-record";
    so a still-pending statement/milestone returns unchecked tomorrow — money
    never silently vanishes. */
 
-export type TodoScope =
-  | { kind: "all" } // bsystems admin · byteforce staff
-  | { kind: "internal" } // bsystems internal sales (internal bucket)
-  | { kind: "own"; userId: string }; // agent / partner — own leads only
+/* Founder (2026-11-08, "assigned leads only"): two shapes, both companies —
+   the company admin's whole company, or the viewer's OWN leads. The old
+   "internal" shape (B-Systems sales seeing the whole internal bucket) is gone.
+   Decided by `leadScopeFor` (lib/auth/lead-scope.ts), never inline. */
+export type TodoScope = LeadScope;
 
 /* ADR-061 dropped "prospect_follow_up" / "prospect_meeting": the partners
    funnel no longer projects onto the To-Do at all.
@@ -152,11 +154,10 @@ export function ownerNameOf(lead: {
   return lead.owner?.name ?? lead.salesRep?.name ?? lead.partner?.companyName ?? null;
 }
 
-/** THE WALL, as a Prisma predicate: the three branches of `requireLeadAccess`
-    (admin/ByteForce staff all, sales the internal bucket, agent and partner
-    their own) and nothing else.
+/** THE WALL, as a Prisma predicate: the two branches of `requireLeadAccess`
+    (the company admin all, everybody else their OWN leads) and nothing else.
 
-    EXPORTED for ADR-081's daily report, which needs the identical three branches
+    EXPORTED for ADR-081's daily report, which needs the identical branches
     WITHOUT the archive filter below — a lead he worked on and then archived is
     still something he did that day, and its detail page still renders (read-only
     with an Archived badge), so dropping it would undercount his day for no
@@ -165,8 +166,7 @@ export function ownerNameOf(lead: {
 export function leadScopeWhere(brand: Brand, scope: TodoScope) {
   return {
     brand,
-    ...(scope.kind === "internal" ? { ownerType: "internal" } : {}),
-    ...(scope.kind === "own" ? { ownerUserId: scope.userId } : {}),
+    ...scopeOwnerWhere(scope),
   };
 }
 

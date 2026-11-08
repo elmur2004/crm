@@ -50,8 +50,8 @@ import { regRoleBadges } from "@/lib/i18n/dict/admin";
 
    ONE WAY TO EACH PAGE (founder: "there is multiple ways to get to each page
    there should be one way each for each page to get to"). This shell hosts
-   five launcher apps — ByteForce CRM, B-Systems CRM, Partners & Agents, the
-   To-Do and the Reports pages — and the header carries the menu of the one on
+   six launcher apps — ByteForce CRM, B-Systems CRM, Partners & Agents, the
+   To-Do, the Reports pages and Users (2026-11-08) — and the header carries the menu of the one on
    screen (CrmShellNav), named in words beside the mark (CrmAppName). Gone, by
    his answers: the company switch ("two CRM icons, no switch"), the module
    switcher and its phone bar (the launcher is the one way between apps), and
@@ -148,6 +148,7 @@ export default async function BSystemsAppLayout({
               partners: t(launcher.partners),
               todo: t(launcher.todo),
               reports: t(launcher.reports),
+              users: t(launcher.users),
             }}
             fallback={fallback}
           />

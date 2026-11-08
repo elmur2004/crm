@@ -8,6 +8,7 @@ import { tFor } from "@/lib/i18n/core";
 import { useLocale } from "@/components/shared/LocaleProvider";
 import { leadTypeLabel } from "@/lib/i18n/dict/labels";
 import { common, formsDict } from "@/lib/i18n/dict/internal";
+import { bfOwner } from "@/lib/i18n/dict/owners";
 
 /* Client-side forms for the internal CRMs (Apps A & B) — POST to the brand's API
    namespace, refresh on success. Tokens-only styling. */
@@ -42,63 +43,36 @@ function useSubmit() {
   return { busy, error, submit };
 }
 
-export function AddRepForm({ apiBase }: { apiBase: string }) {
-  const { busy, error, submit } = useSubmit();
-  const t = tFor(useLocale());
-  const [open, setOpen] = useState(false);
-  if (!open) {
-    return (
-      <button onClick={() => setOpen(true)} className={btnPrimary}>
-        {t(formsDict.addSalesRep)}
-      </button>
-    );
-  }
-  return (
-    <form
-      onSubmit={(e) => {
-        e.preventDefault();
-        const fd = new FormData(e.currentTarget);
-        void submit(`${apiBase}/reps`, "POST", { name: String(fd.get("name")) }, () =>
-          setOpen(false),
-        );
-      }}
-      className="flex items-end gap-2"
-    >
-      <label className="block">
-        <span className={labelCls}>{t(formsDict.repName)}</span>
-        <input type="text" name="name" required className={inputCls} />
-      </label>
-      <button type="submit" disabled={busy} className={btnPrimary}>
-        {t(formsDict.add)}
-      </button>
-      {error ? <p className="alert-error">{error}</p> : null}
-    </form>
-  );
-}
+/* Founder (2026-11-08) — "Both companies now": ByteForce leads belong to staff
+   ACCOUNTS, which the Users app creates, so the old "Add sales rep" form is
+   gone. (The /reps endpoint and the SalesRep table stay — history still names
+   the cards — but nothing in the UI writes a rep any more.) */
 
 /* Founder: "there is no add leads button" — said on the ByteForce BOARD, which
-   had a `page-head` with no actions at all, so the only door was inside a rep's
-   page. It is on the board now, and the board has no rep in hand.
+   had a `page-head` with no actions at all. It is on the board now.
 
-   Hence `reps`: the rep pages keep passing a FIXED `salesRepId` (the rep whose
-   page it is — no picker, nothing to choose), while the board passes the roster
-   and gets the `assignToRep` select, defaulting to Unassigned. The two are
-   mutually exclusive by construction: a fixed rep wins and the picker is not
-   rendered, so a caller cannot offer a choice that the submit then overrides. */
+   Founder (2026-11-08, "assigned leads only"): the OWNER is an account, and a
+   lead a teammate adds is automatically HIS (the server decides that — this form
+   sends no owner for him). The ADMIN gets an Owner picker (`owners`, default
+   Unassigned = the admin's own queue); an owner page passes a FIXED
+   `ownerUserId` (the teammate whose list it is — no picker). The two are
+   mutually exclusive by construction: a fixed owner wins and the picker is not
+   rendered, so a caller cannot offer a choice the submit then overrides. The
+   legacy `salesRepId` is never written by the UI. */
 export function AddLeadForm({
   apiBase,
-  salesRepId,
-  reps,
+  ownerUserId,
+  owners,
 }: {
   apiBase: string;
-  salesRepId?: string;
-  reps?: Array<{ id: string; name: string }>;
+  ownerUserId?: string;
+  owners?: Array<{ id: string; name: string }>;
 }) {
   const { busy, error, submit } = useSubmit();
   const locale = useLocale();
   const t = tFor(locale);
   const [open, setOpen] = useState(false);
-  const pickRep = salesRepId === undefined && reps !== undefined;
+  const pickOwner = ownerUserId === undefined && owners !== undefined;
   if (!open) {
     return (
       <button onClick={() => setOpen(true)} className={btnPrimary}>
@@ -115,9 +89,9 @@ export function AddLeadForm({
           `${apiBase}/leads`,
           "POST",
           {
-            salesRepId: pickRep
-              ? String(fd.get("salesRepId") || "") || undefined
-              : salesRepId,
+            ownerUserId: pickOwner
+              ? String(fd.get("ownerUserId") || "") || undefined
+              : ownerUserId,
             name: String(fd.get("name")),
             number: String(fd.get("number")),
             email: String(fd.get("email") || "") || undefined,
@@ -154,14 +128,14 @@ export function AddLeadForm({
             ))}
           </select>
         </label>
-        {pickRep ? (
-          <label className="block">
-            <span className={labelCls}>{t(formsDict.assignToRep)}</span>
-            <select name="salesRepId" className={inputCls}>
+        {pickOwner ? (
+          <label className="block" data-owner-picker>
+            <span className={labelCls}>{t(bfOwner.ownerOptional)}</span>
+            <select name="ownerUserId" className={inputCls}>
               <option value="">{t(common.unassigned)}</option>
-              {reps!.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.name}
+              {owners!.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.name}
                 </option>
               ))}
             </select>

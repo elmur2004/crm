@@ -4,6 +4,7 @@ import type { Brand } from "@/lib/pipeline-engine/constants";
 import { ApiError } from "@/lib/api-error";
 import { MAX_PIASTERS } from "@/lib/money";
 import { writeLog, type Actor } from "./activity";
+import type { LeadScope } from "@/lib/auth/lead-scope";
 
 /* §6.4 — client cards. To-be-collected defaults to estimated − collected but stays
    editable (A-1). Money in piasters (ADR-018); due date is a date-only UTC instant. */
@@ -26,8 +27,17 @@ export const updateClientSchema = z.object({
   technicalOwner: z.string().max(200).nullable().optional(),
 });
 
-export function listClients(brand: Brand) {
-  return db.client.findMany({ where: { brand }, orderBy: { createdAt: "desc" } });
+/** Founder (2026-11-08, "assigned leads only"): the company admin sees every
+    client; everybody else only the clients of leads they OWN. Required, so no
+    caller can forget to say whose page this is. */
+export function listClients(brand: Brand, scope: LeadScope) {
+  return db.client.findMany({
+    where: {
+      brand,
+      ...(scope.kind === "own" ? { lead: { ownerUserId: scope.userId } } : {}),
+    },
+    orderBy: { createdAt: "desc" },
+  });
 }
 
 export async function updateClient(

@@ -16,13 +16,16 @@ import type { CrmCompany } from "@/lib/crm/company";
    across companies, and this is the single request in the product that returns
    an entire company's customer list in one file.
 
-   THE WALL, stated plainly. It is the LEADS PAGE's own, unchanged and not one
-   role looser — ByteForce needs `byteforce_staff`, B-Systems needs
-   `bsystems_admin`, and `canExportLeads` is the same predicate the two buttons
+   THE WALL, stated plainly. It is the COMPANY ADMIN's (founder 2026-11-08,
+   "assigned leads only" — both companies): B-Systems needs `bsystems_admin`,
+   ByteForce needs its admin (byteforce_staff AND bsystems_admin, lib/auth/
+   lead-scope.ts), and `canExportLeads` is the same predicate the two buttons
    are rendered from (lib/crm/leads-export.ts). So:
 
-     · `bsystems_sales` is refused: internal sales works the internal bucket and
+     · `bsystems_sales` is refused: internal sales works only its own leads and
        cannot open the admin Leads page, so it cannot have the admin's book.
+     · a ByteForce teammate who is not the admin is refused for the same reason:
+       he sees only his own leads, and one file would undo that.
      · `bsystems_agent` / `bsystems_partner` are refused: they see only their own
        leads anywhere in this product (requireLeadAccess), and a company-wide
        file would undo that in one click. This is the refusal the feature exists

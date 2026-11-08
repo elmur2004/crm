@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { ROLES, type Role } from "@/lib/pipeline-engine/constants";
 import type { CurrentUser } from "@/lib/auth/guards";
 import { crmEngineRole } from "@/lib/api/bsystems";
+import { isCompanyAdmin } from "@/lib/auth/lead-scope";
 import { CRM_COMPANIES, CRM_ROLES, companiesFor, crmRolesFor, resolveCompany } from "./company";
 import {
   LEADS_EXPORT_ROLES,
@@ -27,6 +28,12 @@ import {
    A table-versus-table test would pass happily the day somebody widens one of
    them. This one cannot: change `LEADS_EXPORT_ROLES`, or change the page's own
    guards, and the 64-subset sweep goes red naming the role.
+
+   Founder (2026-11-08, "assigned leads only" — both companies): exports are the
+   COMPANY ADMIN's alone. The ByteForce Leads page still opens for every
+   teammate — but for one who is not the admin it is HIS OWN list, so the wall
+   is now "reaches the page AS ITS ADMIN": the page's own steps, then the one
+   helper (lib/auth/lead-scope.ts) the page and every other surface ask.
    ========================================================================== */
 
 function asUser(roles: Role[]): CurrentUser {
@@ -49,15 +56,16 @@ function asUser(roles: Role[]): CurrentUser {
       1. `requireCompanyPage` → `requirePageRole("/login", ...CRM_ROLES)`
       2. `requireCompanyPage` → `resolveCompany(roles, requested)`; a company
          the account does not hold is REFUSED and redirected away
-      3. ByteForce branch → renders `LeadsBody` immediately (reaching it is
-         itself proof of `byteforce_staff`, because `companiesFor` narrows)
+      3. ByteForce branch → renders `LeadsBody` (reaching it is itself proof of
+         `byteforce_staff`, because `companiesFor` narrows); the body shows the
+         company-wide directory only to `isCompanyAdmin(…, "byteforce")`
       4. B-Systems branch → `narrowRoles(..., crmRolesFor("bsystems"))`, then
          `crmEngineRole(...) !== "bsystems_admin"` redirects to the board */
 function pageReaches(roles: Role[], company: (typeof CRM_COMPANIES)[number]): boolean {
   if (!roles.some((r) => CRM_ROLES.includes(r))) return false; // 1
   const resolved = resolveCompany(roles, company); // 2
   if (resolved.kind !== "ok" || resolved.company !== company) return false;
-  if (company === "byteforce") return true; // 3
+  if (company === "byteforce") return isCompanyAdmin({ roles }, "byteforce"); // 3
   if (!crmRolesFor("bsystems").some((r) => roles.includes(r))) return false; // 4
   return crmEngineRole("bsystems", asUser(roles)) === "bsystems_admin";
 }
@@ -105,11 +113,14 @@ describe("the export wall IS the Leads page's wall", () => {
     }
   });
 
-  it("the admin exports B-Systems; ByteForce staff exports ByteForce; neither gets the other", () => {
+  it("the admin exports B-Systems; ByteForce STAFF exports nothing — only the ByteForce admin does", () => {
     expect(canExportLeads(["bsystems_admin"], "bsystems")).toBe(true);
     expect(canExportLeads(["bsystems_admin"], "byteforce")).toBe(false);
-    expect(canExportLeads(["byteforce_staff"], "byteforce")).toBe(true);
+    /* founder 2026-11-08: a teammate who sees only his own leads must not
+       pull the whole book in one click */
+    expect(canExportLeads(["byteforce_staff"], "byteforce")).toBe(false);
     expect(canExportLeads(["byteforce_staff"], "bsystems")).toBe(false);
+    expect(canExportLeads(["byteforce_staff", "bsystems_admin"], "byteforce")).toBe(true);
   });
 
   it("an account holding BOTH exports both", () => {
@@ -127,8 +138,10 @@ describe("the export wall IS the Leads page's wall", () => {
        the board. One button, not two. */
     const sideways: Role[] = ["bsystems_sales", "byteforce_staff"];
     expect(companiesFor(sideways)).toEqual(["bsystems", "byteforce"]);
-    expect(leadsExportCompanies(sideways)).toEqual(["byteforce"]);
+    /* 2026-11-08: neither — he is the admin of neither company */
+    expect(leadsExportCompanies(sideways)).toEqual([]);
     expect(canExportLeads(sideways, "bsystems")).toBe(false);
+    expect(canExportLeads(sideways, "byteforce")).toBe(false);
   });
 
   it("no roles at all exports nothing", () => {

@@ -1,6 +1,7 @@
 import { auth } from "./index";
 import { db } from "@/lib/db";
 import { MODULE_ADMIN_ROLES, canUseModule, type ModuleKey } from "./roles";
+import { isCompanyAdmin as isCompanyAdminOf } from "./lead-scope";
 import type { Brand, Role } from "@/lib/pipeline-engine/constants";
 
 /* SPEC §3's hard rules live HERE, not in the UI. Every route handler calls a guard;
@@ -88,6 +89,18 @@ export async function requireBsAdmin(): Promise<CurrentUser> {
   return requireRole("bsystems_admin");
 }
 
+/** The COMPANY admin of one company (lead-scope.ts's rule) — the wall for
+    handing a lead to somebody. B-Systems: `bsystems_admin`, exactly
+    `requireBsAdmin`. ByteForce: the platform admin (byteforce_staff AND
+    bsystems_admin). */
+export async function requireCompanyAdmin(company: Brand): Promise<CurrentUser> {
+  const user = await requireUser();
+  if (!isCompanyAdminOf(user, company)) {
+    throw new ApiError(403, "Only the admin can hand leads to people");
+  }
+  return user;
+}
+
 /* ---- ADR-066: the two MODULE walls ----------------------------------------
 
    Founder: "I want to have the ability to block some admins from acsessing
@@ -151,8 +164,14 @@ export async function requireProspectCreator(): Promise<CurrentUser> {
 export { isDataEntry } from "./roles";
 export { canUseModule, MODULE_KEYS, type ModuleKey } from "./roles";
 
-/** V2 lead access: admin → any B-Systems lead; sales → internal-bucket leads;
-    agent/partner → ONLY their own (ownerUserId). ByteForce: staff only. */
+/* Assigned leads only (founder, 2026-11-08) — the company-admin predicate and
+   the lead scope live in ./lead-scope and are re-exported for route code. */
+export { isCompanyAdmin, leadScopeFor, type LeadScope } from "./lead-scope";
+
+/** Lead access (founder, 2026-11-08 — "assigned leads only", both companies):
+    the COMPANY ADMIN → any lead of that company, unassigned included; everyone
+    else who works leads (B-Systems sales/agent/partner, ByteForce staff who are
+    not the admin) → ONLY the leads they own (`ownerUserId`). */
 export async function requireLeadAccess(
   leadId: string,
   /* Review hardening: an already-authenticated caller. A route that must
@@ -175,7 +194,13 @@ export async function requireLeadAccess(
 
   if (lead.brand === "byteforce") {
     if (!user.roles.includes("byteforce_staff")) throw new ApiError(403, "No access");
-    return { user, isAdmin: false, role: "byteforce_staff" };
+    /* the ByteForce admin is the platform admin (lead-scope.ts); every other
+       ByteForce teammate works only the leads he owns */
+    const admin = isCompanyAdminOf(user, "byteforce");
+    if (!admin && lead.ownerUserId !== user.id) {
+      throw new ApiError(403, "You can only access your own leads");
+    }
+    return { user, isAdmin: admin, role: "byteforce_staff" };
   }
   /* ADR-080 — A BRAND THIS BUILD DOES NOT KNOW IS REFUSED, never treated as
      B-Systems'. `Lead.brand` is a plain String column (ADR-002), so shrinking the
@@ -188,12 +213,14 @@ export async function requireLeadAccess(
      404 rather than 403, the ADR-073 ruling: a refusal that confirms the id
      exists is a way to enumerate rows this build cannot show. */
   if (lead.brand !== "bsystems") throw new ApiError(404, "Lead not found");
-  if (user.roles.includes("bsystems_admin")) {
+  if (isCompanyAdminOf(user, "bsystems")) {
     return { user, isAdmin: true, role: "bsystems_admin" };
   }
+  /* founder (2026-11-08): internal sales no longer sees the whole internal
+     bucket — like an agent or a partner, only the leads they OWN */
   if (user.roles.includes("bsystems_sales")) {
-    if (lead.ownerType !== "internal") {
-      throw new ApiError(403, "Sales can only work internal leads");
+    if (lead.ownerUserId !== user.id) {
+      throw new ApiError(403, "You can only access your own leads");
     }
     return { user, isAdmin: false, role: "bsystems_sales" };
   }
@@ -208,6 +235,21 @@ export async function requireLeadAccess(
     };
   }
   throw new ApiError(403, "No access");
+}
+
+/** A brand namespace's per-lead wall, in its three steps (founder 2026-11-08 —
+    ByteForce's per-lead routes used to stop at the first):
+      1. the namespace's own staff roles (authenticated FIRST, before any read);
+      2. the lead must be THIS namespace's brand — the brand comes from the
+         ROUTE, and another company's id is a 404, indistinguishable from an id
+         that does not exist (ADR-073's ruling);
+      3. `requireLeadAccess` — the company admin any lead, everybody else only
+         the leads he owns. */
+export async function requireBrandLeadAccess(brand: Brand, leadId: string) {
+  const staff = await requireBrandStaff(brand);
+  const lead = await db.lead.findUnique({ where: { id: leadId }, select: { brand: true } });
+  if (!lead || lead.brand !== brand) throw new ApiError(404, "Lead not found");
+  return requireLeadAccess(leadId, staff);
 }
 
 /** Route-handler wrapper: Zod + ApiError → clean JSON responses. */

@@ -14,12 +14,22 @@ import { afterSignIn } from "./helpers/after-sign-in";
    its own file rather than a paragraph inside a board spec.
    ========================================================================== */
 
+/* the ByteForce ADMIN (the platform admin) — the owner directory is his
+   (founder 2026-11-08, "assigned leads only") */
+async function loginByteForceAdmin(page: Page) {
+  await page.goto("/login");
+  await page.getByLabel("Email or phone").fill("admin@byteforce.com");
+  await page.getByLabel("Password").fill("password123");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await afterSignIn(page, /\/b-systems\/crm\?company=byteforce$/);
+}
+
 async function loginByteForce(page: Page) {
   await page.goto("/login");
   await page.getByLabel("Email or phone").fill("sara@byteforce.example");
   await page.getByLabel("Password").fill("byteforce123");
   await page.getByRole("button", { name: "Sign in" }).click();
-  await afterSignIn(page, /\/b-systems\?company=byteforce$/);
+  await afterSignIn(page, /\/b-systems\/crm\?company=byteforce$/);
 }
 
 /** A real seeded ByteForce lead, read off the board itself, so the id-bearing
@@ -38,12 +48,12 @@ test("the five sections all land in the merged shell with ByteForce preselected"
 }) => {
   await loginByteForce(page);
 
+  /* the old Home lands on the merged ByteForce dashboard address — which is the
+     ByteForce ADMIN's since 2026-11-08 (company-wide figures), so a teammate
+     is carried on to his own board */
   await page.goto("/byteforce");
-  await expect(page).toHaveURL(/\/b-systems\?company=byteforce$/);
-  /* the Home — its h1 greets the reader since the dashboard upgrade; the
-     eyebrow still names the company and the screen */
-  await expect(page.getByRole("heading", { level: 1, name: /^Welcome back, / })).toBeVisible();
-  await expect(page.getByText("BYTEFORCE · HOME")).toBeVisible();
+  await expect(page).toHaveURL(/\/b-systems\/crm\?company=byteforce$/);
+  await expect(page.locator('[data-stage="new"]')).toBeVisible();
 
   await page.goto("/byteforce/todo");
   await expect(page).toHaveURL(/\/b-systems\/todo\?company=byteforce$/);
@@ -52,8 +62,10 @@ test("the five sections all land in the merged shell with ByteForce preselected"
 
   await page.goto("/byteforce/leads");
   await expect(page).toHaveURL(/\/b-systems\/leads\?company=byteforce$/);
-  /* the REP DIRECTORY survived the merge — cards, not the B-Systems table */
-  await expect(page.locator(".ecard").first()).toBeVisible();
+  /* a teammate's Leads page is his OWN list (2026-11-08) — not the B-Systems
+     table, and not the admin's owner directory */
+  await expect(page.getByRole("heading", { level: 1, name: "My leads" })).toBeVisible();
+  await expect(page.locator("[data-owner-card]")).toHaveCount(0);
 
   await page.goto("/byteforce/crm");
   await expect(page).toHaveURL(/\/b-systems\/crm\?company=byteforce$/);
@@ -66,12 +78,13 @@ test("the five sections all land in the merged shell with ByteForce preselected"
   await expect(page.getByRole("heading", { name: "Clients" })).toBeVisible();
 });
 
-test("the rep drill-down keeps its id, its unassigned bucket and its archive tab", async ({
+test("the owner drill-down keeps its id, its unassigned bucket and its archive tab", async ({
   page,
 }) => {
-  await loginByteForce(page);
+  /* the owner directory is the ByteForce admin's (2026-11-08) */
+  await loginByteForceAdmin(page);
 
-  /* pick a real rep off the directory rather than guessing an id */
+  /* pick a real owner off the directory rather than guessing an id */
   await page.goto("/b-systems/leads?company=byteforce");
   const href = await page.locator('a.ecard[href*="/leads/rep/"]').first().getAttribute("href");
   const repId = href!.split("/leads/rep/")[1]!.split("?")[0]!;
@@ -138,7 +151,8 @@ test("nothing under the retired prefix 404s, and sign-in stays consolidated", as
   ]) {
     const res = await page.goto(stale);
     expect(res?.status(), `${stale} must not 404`).toBe(200);
-    await expect(page, stale).toHaveURL(/\/b-systems\?company=byteforce$/);
+    /* the merged ByteForce Home, which carries a teammate on to his board */
+    await expect(page, stale).toHaveURL(/\/b-systems\/crm\?company=byteforce$/);
   }
 });
 
@@ -159,6 +173,6 @@ test("an anonymous visitor following an old bookmark reaches sign-in, not a loop
   await page.getByLabel("Email or phone").fill("sara@byteforce.example");
   await page.getByLabel("Password").fill("byteforce123");
   await page.getByRole("button", { name: "Sign in" }).click();
-  await afterSignIn(page, /\/b-systems\?company=byteforce$/);
+  await afterSignIn(page, /\/b-systems\/crm\?company=byteforce$/);
   await ctx.close();
 });

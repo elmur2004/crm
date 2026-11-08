@@ -35,10 +35,12 @@ test("admin impersonates an agent, sees their app, and snaps back to admin", asy
   await expect(page.getByText("Impersonating Karim Adel", { exact: false })).toBeVisible();
   await expect(page.getByText("Fresh Deal")).toBeVisible(); // the agent's own board
 
-  /* One click → back to the admin, bar gone, admin sections back (Users is
-     an item of his B-Systems CRM menu) */
+  /* One click → back to the admin, bar gone, admin apps back (Users is its
+     own launcher app since 2026-11-08 — and his CRM menu is the admin's) */
   await page.getByRole("button", { name: "Back to admin" }).click();
   await afterSignIn(page, /\/b-systems\/crm$/);
   await expect(page.getByText("Impersonating", { exact: false })).toHaveCount(0);
-  await expect(page.locator(".app-nav").getByRole("link", { name: "Users" })).toBeVisible();
+  await expect(page.locator(".app-nav").getByRole("link", { name: "Statements" })).toBeVisible();
+  await page.goto("/apps");
+  await expect(page.locator('[data-app="users"]')).toHaveCount(1);
 });

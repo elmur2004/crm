@@ -127,9 +127,12 @@ describe("To-Do aggregation (ADR-041)", () => {
     expect(lists2.today.map((i) => i.title)).toEqual(["Live Meeting"]);
   });
 
-  it("scopes: agent sees only own leads; internal sales the internal bucket; admin everything", async () => {
+  it("scopes: agent and internal sales see only their OWN leads; the admin everything (2026-11-08)", async () => {
     const agent = await db.user.create({
       data: { name: "Scoped Agent", phone: "+201099911122", passwordHash: "x" },
+    });
+    const seller = await db.user.create({
+      data: { name: "Scoped Seller", phone: "+201099911123", passwordHash: "x" },
     });
     const own = await makeLead({
       name: "Agent Own",
@@ -138,6 +141,11 @@ describe("To-Do aggregation (ADR-041)", () => {
       ownerUserId: agent.id,
     });
     const internal = await makeLead({ name: "Internal Lead", stage: "following_up" });
+    const sellers = await makeLead({
+      name: "Seller Own",
+      stage: "following_up",
+      ownerUserId: seller.id,
+    });
     const other = await makeLead({
       name: "Other Bucket",
       stage: "following_up",
@@ -147,6 +155,7 @@ describe("To-Do aggregation (ADR-041)", () => {
     await fu(own.id, cairoToUtc("2026-08-20", "09:00"));
     await fu(internal.id, cairoToUtc("2026-08-20", "10:00"));
     await fu(other.id, cairoToUtc("2026-08-20", "11:00"));
+    await fu(sellers.id, cairoToUtc("2026-08-20", "12:00"));
 
     const agentLists = await todoFor({
       brand: "bsystems",
@@ -155,19 +164,33 @@ describe("To-Do aggregation (ADR-041)", () => {
     });
     expect(agentLists.today.map((i) => i.title)).toEqual(["Agent Own"]);
 
-    const salesLists = await todoFor({ brand: "bsystems", scope: { kind: "internal" }, now: NOW });
-    expect(salesLists.today.map((i) => i.title)).toEqual(["Internal Lead"]);
+    /* the seller: his own lead only — the UNASSIGNED internal lead is the
+       admin's alone now */
+    const salesLists = await todoFor({
+      brand: "bsystems",
+      scope: { kind: "own", userId: seller.id },
+      now: NOW,
+    });
+    expect(salesLists.today.map((i) => i.title)).toEqual(["Seller Own"]);
 
     const adminLists = await todoFor({ brand: "bsystems", scope: { kind: "all" }, now: NOW });
     expect(adminLists.today.map((i) => i.title)).toEqual([
       "Agent Own",
       "Internal Lead",
       "Other Bucket",
+      "Seller Own",
     ]);
   });
 
   it("admin extras: live meetings, pending statements and open milestones due today — sales see none of the extras", async () => {
-    const ml = await makeLead({ name: "Meeting Lead", stage: "meeting_setting" });
+    const salesUser = await db.user.create({
+      data: { name: "Extras Seller", phone: "+201099911124", passwordHash: "x" },
+    });
+    const ml = await makeLead({
+      name: "Meeting Lead",
+      stage: "meeting_setting",
+      ownerUserId: salesUser.id,
+    });
     await db.meeting.create({
       data: { leadId: ml.id, arranged: true, datetime: cairoToUtc("2026-08-20", "15:00") },
     });
@@ -207,7 +230,11 @@ describe("To-Do aggregation (ADR-041)", () => {
     const admin = await todoFor({ brand: "bsystems", scope: { kind: "all" }, now: NOW });
     expect(admin.today.map((i) => i.kind).sort()).toEqual(["meeting", "milestone", "statement"]);
 
-    const sales = await todoFor({ brand: "bsystems", scope: { kind: "internal" }, now: NOW });
+    const sales = await todoFor({
+      brand: "bsystems",
+      scope: { kind: "own", userId: salesUser.id },
+      now: NOW,
+    });
     expect(sales.today.map((i) => i.kind)).toEqual(["meeting"]); // extras are admin-only
   });
 
@@ -741,7 +768,7 @@ describe("To-Do completion — the Done section (ADR-062)", () => {
     expect(corrected.today.map((i) => i.recordId)).toEqual([ms.id]);
   });
 
-  it("SCOPE: an agent's Done section carries only his own leads — sales only the internal bucket", async () => {
+  it("SCOPE: an agent's Done section carries only his own leads — a seller only his own", async () => {
     const agent = await db.user.create({
       data: { name: "Scoped Agent", phone: "+201099911144", passwordHash: "x" },
     });
@@ -752,8 +779,18 @@ describe("To-Do completion — the Done section (ADR-062)", () => {
       ownerUserId: agent.id,
     });
     await fu(own.id, cairoToUtc("2026-08-20", "09:00"));
-    const other = await makeLead({ name: "Internal Done", stage: "meeting_setting" });
+    const seller = await db.user.create({
+      data: { name: "Done Seller", phone: "+201099911145", passwordHash: "x" },
+    });
+    const other = await makeLead({
+      name: "Internal Done",
+      stage: "meeting_setting",
+      ownerUserId: seller.id,
+    });
     await fu(other.id, cairoToUtc("2026-08-20", "10:00"));
+    /* an unassigned one completes too — and is nobody's but the admin's */
+    const loose = await makeLead({ name: "Unassigned Done", stage: "meeting_setting" });
+    await fu(loose.id, cairoToUtc("2026-08-20", "11:00"));
 
     const agentLists = await todoFor({
       brand: "bsystems",
@@ -762,7 +799,11 @@ describe("To-Do completion — the Done section (ADR-062)", () => {
     });
     expect(agentLists.done.map((i) => i.title)).toEqual(["Agent Done"]);
 
-    const salesLists = await todoFor({ brand: "bsystems", scope: { kind: "internal" }, now: NOW });
+    const salesLists = await todoFor({
+      brand: "bsystems",
+      scope: { kind: "own", userId: seller.id },
+      now: NOW,
+    });
     expect(salesLists.done.map((i) => i.title)).toEqual(["Internal Done"]);
   });
 });

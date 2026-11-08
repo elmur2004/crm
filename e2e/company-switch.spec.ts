@@ -99,8 +99,9 @@ test("no screen of the shell carries a company switch, for either company", asyn
 test("each CRM has its OWN menu, and no rendered menu link 404s or shows the other company", async ({ page }) => {
   await login(page, "admin@byteforce.com", "password123", /\/b-systems\/crm$/);
 
-  /* B-Systems CRM (admin): exactly its six — Home, the To-Do, the Daily report
-     and the Partners & Agents screens are other apps now */
+  /* B-Systems CRM (admin): exactly its five — Home, the To-Do, the Daily
+     report, Users (2026-11-08) and the Partners & Agents screens are other
+     apps now */
   await page.goto("/b-systems/crm?company=bsystems");
   await expect(menu(page).getByRole("link")).toHaveText([
     "CRM",
@@ -108,7 +109,6 @@ test("each CRM has its OWN menu, and no rendered menu link 404s or shows the oth
     "Calendar",
     "Won Leads",
     "Statements",
-    "Users",
   ]);
 
   /* ByteForce CRM: exactly its four, and none of the B-Systems-only sections */
@@ -194,9 +194,10 @@ test("the To-Do: one page for both companies, with company TABS — a filter, no
 /* ------------------------------------------------------- LOCKED ACCOUNTS -- */
 
 test("a ByteForce-only teammate: his own CRM, locked to ByteForce, no switch, no To-Do tabs", async ({ page }) => {
-  await login(page, "sara@byteforce.example", "byteforce123", /\/b-systems\?company=byteforce$/);
+  await login(page, "sara@byteforce.example", "byteforce123", /\/b-systems\/crm\?company=byteforce$/);
 
-  /* his dashboard opens from Reports & Dashboards, in the one merged shell */
+  /* his board opens from the ByteForce CRM tile, in the one merged shell (the
+     company-wide dashboard is the admin's since 2026-11-08) */
   await expect(page.getByText("BYTEFORCE ·", { exact: false })).toBeVisible();
   await expect(switcher(page)).toHaveCount(0);
   /* the role line names him honestly rather than borrowing a B-Systems label */

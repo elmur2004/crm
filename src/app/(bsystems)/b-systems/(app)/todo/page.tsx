@@ -1,24 +1,28 @@
 import type { ReactNode } from "react";
 import { narrowRoles, requireCompanyPage } from "@/lib/auth/page-guards";
 import { crmRolesFor } from "@/lib/crm/company";
-import { bsRoleOrNull } from "@/lib/api/bsystems";
+import { isCompanyAdmin, leadScopeFor } from "@/lib/auth/lead-scope";
 import { todoFor, type TodoItem, type TodoScope } from "@/lib/services/todo";
 import { TodoBody } from "@/components/shared/TodoBody";
 import { CompanyTabs } from "@/components/shared/CompanyTabs";
 import { workingCompaniesFor } from "@/lib/launcher/apps";
 import { TodoRowActions, type TodoAssign } from "@/components/bsystems/TodoRowActions";
-import { listAssignableOwners } from "@/lib/services/users";
+import { listAssignableOwners, listByteforceOwners } from "@/lib/services/users";
 import { tFor, type Msg } from "@/lib/i18n/core";
 import { getLocale } from "@/lib/i18n/server";
 import { roles as roleMsgs } from "@/lib/i18n/dict/crm";
+import { regRoleBadges } from "@/lib/i18n/dict/admin";
+
+/* the ByteForce roster's one role, in the Registrations screen's own words */
+const bfStaffLabel: Msg = regRoleBadges.byteforce_staff!;
 
 /* its own app now (one way to each page): named as its launcher tile is */
 export const metadata = { title: "To-Do" };
 
 /* Founder (ADR-041, ADR-061) — everything dated today, one plain list (the
    Overdue section and the partnership rows are gone by his instruction).
-   Scope mirrors requireLeadAccess: admin all, sales internal bucket,
-   agents/partners their own leads; statement/milestone rows are admin-only.
+   Scope mirrors requireLeadAccess (founder 2026-11-08): the company admin all,
+   everybody else their own leads; statement/milestone rows are admin-only.
 
    ONE WAY TO EACH PAGE — the To-Do is its own launcher app with this one page,
    so it has no menu. For an account that works leads in BOTH companies the
@@ -34,10 +38,7 @@ export default async function BsTodoPage({
 }) {
   const { user, company, companies } = await requireCompanyPage((await searchParams).company);
 
-  /* ADR-067 — the shared To-Do. Under ByteForce it is the plain daily list all
-     ByteForce staff have always seen: every ByteForce lead, and NO admin row
-     actions — assigning an owner is a B-Systems admin subsystem (its roster
-     and its endpoint are B-Systems-locked), so it is not offered here. */
+  /* ADR-067 — the shared To-Do, one page for both companies. */
   /* ADR-073 — ONE narrowing, company-aware, before any branch. Each company's
      own role list lives in crmRolesFor; under ByteForce the company itself
      already proves `byteforce_staff`, so this is a no-op there and the real
@@ -50,49 +51,39 @@ export default async function BsTodoPage({
   const tabs =
     working.length > 1 ? <CompanyTabs path={TODO_PATH} current={company} companies={working} /> : null;
 
-  if (company === "byteforce") {
-    const lists = await todoFor({ brand: "byteforce", scope: { kind: "all" } });
-    return <TodoBody lists={lists} apiBase="/api/byteforce" tabs={tabs} />;
-  }
-
-  /* ADR-074 — the To-Do is a shared body; the SURFACE decides whose rows. */
-
-  /* ADR-051 + ADR-067 — under ByteForce the company itself proves
-     `byteforce_staff` (companiesFor only reports a company a role carries), so
-     the role narrowing below applies to the B-SYSTEMS branch: the same four
-     pipeline roles this page always accepted, with the data-entry account still
-     carved out of it and sent to its one destination. */
-  const role = bsRoleOrNull(user);
-  const scope: TodoScope =
-    role === "bsystems_admin"
-      ? { kind: "all" }
-      : role === "bsystems_sales"
-        ? { kind: "internal" }
-        : { kind: "own", userId: user.id };
-  const lists = await todoFor({ brand: "bsystems", scope });
+  /* Founder (2026-11-08, "assigned leads only" — both companies): the company
+     admin's To-Do is every lead's; everybody else's is the leads they OWN — a
+     follow-up handed to him lands HERE on its date. One rule, lead-scope.ts. */
+  const scope: TodoScope = leadScopeFor(user, company);
+  const lists = await todoFor({ brand: company, scope });
+  const apiBase = company === "byteforce" ? "/api/byteforce" : "/api/b-systems";
 
   /* Founder — "I can assign these to do as an admin or just take it myself":
-     ADMIN ONLY. The roster is the lead-detail page's (agents / partners /
-     internal sales — deliberately no admins; "Take it" is the only admin
-     path), with the same pre-translated role labels. */
+     the COMPANY ADMIN ONLY, in both companies now. B-Systems' roster is the
+     lead-detail page's (agents / partners / internal sales — deliberately no
+     admins; "Take it" is the only admin path), ByteForce's is its live staff
+     accounts (the admin left out for the same reason); the role labels are
+     pre-translated here. */
   let rowActions: ((item: TodoItem) => ReactNode) | undefined;
-  if (role === "bsystems_admin") {
+  if (isCompanyAdmin(user, company)) {
     const locale = await getLocale();
     const t = tFor(locale);
     const roleLabels: Record<string, Msg> = roleMsgs;
-    const assign: TodoAssign = {
-      owners: (await listAssignableOwners()).map((o) => ({
-        id: o.id,
-        name: o.name,
-        company: o.company,
-        roleLabel: t(
-          roleLabels[o.roles.find((r) => roleLabels[r]) ?? ""] ?? roleMsgs.bsystems_agent,
-        ),
-      })),
-      selfUserId: user.id,
-      locale,
-    };
+    const owners =
+      company === "byteforce"
+        ? (await listByteforceOwners())
+            .filter((o) => o.id !== user.id)
+            .map((o) => ({ id: o.id, name: o.name, company: null, roleLabel: t(bfStaffLabel) }))
+        : (await listAssignableOwners()).map((o) => ({
+            id: o.id,
+            name: o.name,
+            company: o.company,
+            roleLabel: t(
+              roleLabels[o.roles.find((r) => roleLabels[r]) ?? ""] ?? roleMsgs.bsystems_agent,
+            ),
+          }));
+    const assign: TodoAssign = { owners, selfUserId: user.id, locale, apiBase, company };
     rowActions = (item) => <TodoRowActions item={item} assign={assign} />;
   }
-  return <TodoBody lists={lists} apiBase="/api/b-systems" rowActions={rowActions} tabs={tabs} />;
+  return <TodoBody lists={lists} apiBase={apiBase} rowActions={rowActions} tabs={tabs} />;
 }

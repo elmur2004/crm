@@ -1,6 +1,7 @@
 import type { Msg } from "@/lib/i18n/core";
 import type { Role } from "@/lib/pipeline-engine/constants";
 import { canUseModule, type ModuleAccessBearer } from "@/lib/auth/roles";
+import { isCompanyAdmin } from "@/lib/auth/lead-scope";
 import {
   BS_PIPELINE_ROLES,
   CRM_COMPANIES,
@@ -46,6 +47,8 @@ import { launcher as m, launcherReports as r } from "@/lib/i18n/dict/launcher";
 export const LAUNCHER_PATH = "/apps";
 /** The one second-level screen: every report and dashboard, grouped. */
 export const REPORTS_PATH = "/apps/reports";
+/** The Users app's one page (founder 2026-11-08 — its own launcher app). */
+export const USERS_PATH = "/b-systems/users";
 
 export type AppId =
   | "crm-byteforce"
@@ -54,7 +57,8 @@ export type AppId =
   | "vault"
   | "todo"
   | "reports"
-  | "partners";
+  | "partners"
+  | "users";
 
 /** Which palette an icon is drawn in: each CRM in its own brand's colours, the
     cross-company apps in the neutral-led launcher palette. */
@@ -124,10 +128,11 @@ export function reportsFor(user: LauncherBearer): ReportEntry[] {
       palette: "bsystems",
     });
   }
-  /* /b-systems under ByteForce is the ByteForce dashboard, and the company
-     itself proves byteforce_staff (companiesFor only reports a company a role
-     carries) — so holding the company is the whole rule. */
-  if (companiesFor(roles).includes("byteforce")) {
+  /* /b-systems under ByteForce is the ByteForce dashboard — the ByteForce
+     ADMIN's alone since the founder's "assigned leads only" (2026-11-08): it
+     shows company-wide figures, and the page bounces every other teammate to
+     his board. The SAME predicate the page runs (lead-scope.ts). */
+  if (companiesFor(roles).includes("byteforce") && isCompanyAdmin({ roles }, "byteforce")) {
     out.push({
       id: "bf-dashboard",
       href: `/b-systems${crmQuery("byteforce")}`,
@@ -238,6 +243,21 @@ export function launcherTilesFor(user: LauncherBearer): LauncherTile[] {
       id: "partners",
       href: `/b-systems/partners-pipeline${crmQuery("bsystems")}`,
       label: m.partners,
+      palette: "neutral",
+    });
+  }
+
+  /* 8 — Users (founder, 2026-11-08): "the apps whenever I open the home page
+     should … have individual users tab, not put the users inside B-System CRM,
+     just separate it entirely into like an app or an icon in the home page."
+     Its own app with one page — the same admin-only page it always was
+     (/b-systems/users: requireCompanySection("bsystems") + the admin bounce),
+     so the same wall as the Partners & Agents tile above. Last, after it. */
+  if (roles.includes("bsystems_admin")) {
+    tiles.push({
+      id: "users",
+      href: `${USERS_PATH}${crmQuery("bsystems")}`,
+      label: m.users,
       palette: "neutral",
     });
   }

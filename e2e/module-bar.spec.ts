@@ -163,7 +163,7 @@ test("hard-narrow screens: the CRM header's app name gives way with an ellipsis 
 });
 
 test("a single-company user gets no switch of any kind — zero new furniture", async ({ page }) => {
-  await login(page, "sara@byteforce.example", "byteforce123", /\/b-systems\?company=byteforce$/);
+  await login(page, "sara@byteforce.example", "byteforce123", /\/b-systems\/crm\?company=byteforce$/);
   await page.setViewportSize({ width: 390, height: 844 });
   for (const path of [
     "/b-systems?company=byteforce",

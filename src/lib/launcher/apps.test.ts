@@ -50,7 +50,7 @@ const BYTEFORCE_ONLY = person(["byteforce_staff"]);
 const DATA_ENTRY = person(["bsystems_data_entry"]);
 
 describe("which tiles each person sees", () => {
-  it("the founder (both companies, both modules) sees all seven, in the founder's order", () => {
+  it("the founder (both companies, both modules) sees all eight, in the founder's order", () => {
     expect(ids(FOUNDER)).toEqual([
       "crm-byteforce",
       "crm-bsystems",
@@ -59,6 +59,8 @@ describe("which tiles each person sees", () => {
       "todo",
       "reports",
       "partners",
+      /* founder 2026-11-08 — Users is its own app, after Partners & Agents */
+      "users",
     ]);
     expect(launcherTilesFor(FOUNDER).map((t) => t.href)).toEqual([
       "/b-systems/crm?company=byteforce",
@@ -68,7 +70,16 @@ describe("which tiles each person sees", () => {
       "/b-systems/todo?company=bsystems",
       REPORTS_PATH,
       "/b-systems/partners-pipeline?company=bsystems",
+      "/b-systems/users?company=bsystems",
     ]);
+  });
+
+  it("Users is the B-Systems admin's alone — the same wall as its page", () => {
+    for (const u of [BS_SALES, AGENT, PARTNER, BYTEFORCE_ONLY, DATA_ENTRY]) {
+      expect(ids(u)).not.toContain("users");
+    }
+    expect(ids(person(["bsystems_admin"]))).toContain("users");
+    expect(launcherTilesFor(FOUNDER).find((t) => t.id === "users")?.palette).toBe("neutral");
   });
 
   it("Reports & Dashboards: the two CRM dashboards and the daily report — nothing from Accounting", () => {
@@ -89,6 +100,7 @@ describe("which tiles each person sees", () => {
       "todo",
       "reports",
       "partners",
+      "users",
     ]);
     /* the Reports screen is the same either way: no report on it is Accounting's */
     expect(reportsFor(ADMIN_NO_ACCOUNTING).map((r) => r.id)).toEqual(["bs-dashboard", "daily-report"]);
@@ -96,7 +108,7 @@ describe("which tiles each person sees", () => {
 
   it("an admin blocked from BOTH modules loses both tiles and nothing else", () => {
     const u = person(["bsystems_admin"], { canAccessAccounting: false, canAccessVault: false });
-    expect(ids(u)).toEqual(["crm-bsystems", "todo", "reports", "partners"]);
+    expect(ids(u)).toEqual(["crm-bsystems", "todo", "reports", "partners", "users"]);
   });
 
   it("a B-Systems sales rep: the board, the To-Do, and his daily report — straight to it", () => {
@@ -116,9 +128,10 @@ describe("which tiles each person sees", () => {
   it("a ByteForce-only teammate sees ByteForce only — every href carries company=byteforce", () => {
     expect(ids(BYTEFORCE_ONLY)).toEqual(["crm-byteforce", "todo", "reports"]);
     expect(hrefOf(BYTEFORCE_ONLY, "todo")).toBe("/b-systems/todo?company=byteforce");
-    /* two reports — his dashboard and his day — so the Reports screen */
-    expect(reportsFor(BYTEFORCE_ONLY).map((r) => r.id)).toEqual(["bf-dashboard", "daily-report"]);
-    expect(hrefOf(BYTEFORCE_ONLY, "reports")).toBe(REPORTS_PATH);
+    /* founder 2026-11-08 — the ByteForce dashboard is the ByteForce ADMIN's
+       (company-wide figures), so his one report is his day — straight to it */
+    expect(reportsFor(BYTEFORCE_ONLY).map((r) => r.id)).toEqual(["daily-report"]);
+    expect(hrefOf(BYTEFORCE_ONLY, "reports")).toBe("/b-systems/daily-report?company=byteforce");
     for (const tile of launcherTilesFor(BYTEFORCE_ONLY)) {
       if (tile.href.startsWith("/b-systems")) expect(tile.href).toContain("company=byteforce");
     }
@@ -290,6 +303,7 @@ describe("every tile's href resolves to a real route", () => {
       "/b-systems/entry",
       "/b-systems/partners-pipeline",
       "/b-systems/todo",
+      "/b-systems/users",
       "/vault",
     ]);
     for (const href of seen) {

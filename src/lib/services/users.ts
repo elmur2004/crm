@@ -79,6 +79,23 @@ export async function listAssignableOwners() {
   }));
 }
 
+/* Founder (2026-11-08) — "Both companies now": ByteForce leads are handed to
+   staff ACCOUNTS, not rep cards. The accounts a ByteForce lead may be given to:
+   live, approved holders of `byteforce_staff` — the admin included, because
+   "Take it" is how he keeps one (resolveAssignee accepts exactly this set). */
+export async function listByteforceOwners() {
+  const users = await db.user.findMany({
+    where: {
+      active: true,
+      registrationStatus: "approved",
+      roles: { some: { role: "byteforce_staff" } },
+    },
+    select: { id: true, name: true },
+    orderBy: { name: "asc" },
+  });
+  return users;
+}
+
 /** V2 §2.8 Registrations — every account with type + date. */
 export function listRegistrations() {
   return db.user.findMany({

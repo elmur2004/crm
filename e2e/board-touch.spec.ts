@@ -143,7 +143,7 @@ async function loginByteForce(page: Page) {
   await page.getByLabel("Email or phone").fill("sara@byteforce.example");
   await page.getByLabel("Password").fill("byteforce123");
   await page.getByRole("button", { name: "Sign in" }).click();
-  await afterSignIn(page, /\/b-systems\?company=byteforce$/);
+  await afterSignIn(page, /\/b-systems\/crm\?company=byteforce$/);
 }
 
 async function seedLeads(page: Page, prefix: string, count: number) {

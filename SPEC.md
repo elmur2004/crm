@@ -78,6 +78,14 @@ Hard rules enforced server-side, not just hidden in UI:
 
 (Whether `bsystems_staff` and `portal_admin` are the same accounts is open question A-8; default: one B-Systems account can carry both roles.)
 
+**Amended by ADR-098 (assigned leads only).** Inside each company, the **company admin** sees every lead, including unassigned ones (no owner account). **Everyone else who works leads sees and works only the leads he owns** (`Lead.ownerUserId`), on every surface, enforced server-side by one predicate family (`src/lib/auth/lead-scope.ts`). That covers B-Systems sales, agents and partners, and ByteForce staff who are not the admin.
+- The B-Systems admin is `bsystems_admin`.
+- ByteForce has no admin role of its own, so its admin is an account holding both `byteforce_staff` and `bsystems_admin` (A-8).
+- The ByteForce dashboard, and the leads export and import of both companies, are the company admin's alone.
+- Only the company admin hands a lead to someone, including with a follow-up (ADR-099, ADR-100).
+
+The table above is kept.
+
 ---
 
 ## 4. Branding & multi-brand theming
@@ -203,6 +211,14 @@ Navigation: **Home (Dashboard) | Leads | CRM | Clients** — plus To-Do (ADR-041
 
 **Amended by ADR-095 (one way to each page).** The ByteForce CRM is opened from its own launcher icon, which lands on the board; its menu is **CRM | Leads | Calendar | Clients**. The Home dashboard is reached only from the launcher's Reports & Dashboards icon, the To-Do only from its own launcher icon, and there is no company switch: each company is its own launcher icon. Every screen, rule, guard and field group below is unchanged — only how a person gets to it moved.
 
+**Amended by ADR-098/ADR-099 (assigned leads only; ByteForce leads owned by accounts).** A ByteForce lead's owner is a staff **account**, not a sales-rep card.
+- **The ByteForce admin sees every lead.** His Leads page shows one owner card per staff account, with its lead count, plus Unassigned. He assigns a lead from its detail page or the To-Do (`POST /api/byteforce/leads/[id]/assign`).
+- **Every other teammate sees only the leads he owns.** His Leads page is "My leads", a lead he adds is his, and Clients shows only the clients of his own leads.
+- **There is no "Add rep".** Accounts are made in the Users app.
+- **The lead detail and the cards show the Owner** where §6.1 and §6.3 say rep. Rep cards and `salesRepId` stay as history and decide nothing.
+
+The text below is kept.
+
 ### 6.1 Leads section
 - Grid of **sales rep cards**; reps can be added without limit (name required; show lead count per rep on the card). Selecting a rep opens their assigned-leads table.
 - **Leads table** (per rep), columns: `Name | Number | Type`, plus an "Add lead" action. Clicking a row opens the **lead detail**.
@@ -318,6 +334,10 @@ Each dashboard number must be backed by a tested query — see §13.
 Identical to App A in structure and behavior (§6.1–§6.5), themed B-Systems, operating on B-Systems data only. Navigation: **Home | Leads | CRM | Clients | Partners Pipeline | Partners**.
 
 **Amended by ADR-095 (one way to each page).** The B-Systems CRM is opened from its own launcher icon, which lands on the board. Its admin menu is **CRM | Leads | Calendar | Won Leads | Statements | Users** (sales: CRM | Calendar | Won Leads; agents and partners add Payments | Profile; data entry has its one page and no menu). The Partners Pipeline, Partners, Agents and Registrations form their own launcher app, **Partners & Agents** (admin only), with that menu. The Home dashboard and the daily report are reached only from Reports & Dashboards. Every rule and guard is unchanged — only how a person gets to a page moved.
+
+**Amended by ADR-098 (assigned leads only).** B-Systems sales no longer see the whole internal bucket. Like agents and partners, a sales user sees and works only the leads he owns, and a lead he adds is his. **Unassigned** means no owner account, in any bucket, and only the admin sees it. The admin's Unassigned filter covers every bucket.
+
+**Amended by ADR-102 (the Users app).** **Users** is no longer in the B-Systems CRM admin menu, which is now **CRM | Leads | Calendar | Won Leads | Statements**. Users is its own launcher app, admin only, placed after Partners & Agents. It opens `/b-systems/users` with its own "Users" header and no menu. The page and its guard are unchanged.
 
 ### 7.2 Partners Pipeline (partner acquisition board)
 **Seven columns, the SAME set for BOTH kinds of card** (partner and agent), in this order:
@@ -440,6 +460,7 @@ the **existence of the record**, never by the column the card sits in.
 - Adding a lead inside a partner's detail uses **the same fields as §6.1's lead detail** (Name, Number, Email, Type, Description, Next action), plus an auto-recorded **Date created**.
 - When a Next Action is selected, the lead is **automatically transferred into the B-Systems CRM** at the matching stage, exactly like a normal lead, but it is clearly marked as partner-sourced: badge "Partner: {Company}" on the CRM card and in the detail, permanent (§5.5). The partner's leads table always shows each lead's current stage (live link, not a copy).
 - Ownership of partner-sourced leads: optional "Assign to rep" on creation; default bucket "Unassigned (Partner leads)" visible in the Leads section (assumption A-6).
+- **Amended by ADR-098/ADR-099.** There is no "Assign to rep" on creation, because a rep card decides nobody's ownership. A lead added in a partner's detail lands in the partner bucket, owned by the partner's account when one exists. Otherwise it is unassigned (no owner account): only the admin sees it, and he hands it out. This amends A-6's default (needs founder confirmation).
 
 ---
 

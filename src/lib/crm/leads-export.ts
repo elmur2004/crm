@@ -2,6 +2,7 @@ import type { Msg } from "@/lib/i18n/core";
 import { leadsExport as m } from "@/lib/i18n/dict/crm";
 import type { Role } from "@/lib/pipeline-engine/constants";
 import { companiesFor, type CrmCompany } from "./company";
+import { isCompanyAdmin } from "@/lib/auth/lead-scope";
 
 /* ============================================================================
    THE LEADS EXPORT — the pure half.
@@ -55,14 +56,21 @@ export const LEADS_EXPORT_ROLES: Record<CrmCompany, readonly [Role, ...Role[]]> 
 
 /** May these roles export THIS company's whole lead list?
 
-    Both halves are required and the company one comes first: an account must
-    hold the company at all (`companiesFor`, the narrowing predicate) AND hold
-    the role the Leads page demands of that company. Either alone is a hole —
-    the company alone would let a `bsystems_sales` account export, and the role
-    alone is how a table like the one above drifts away from the guard. */
+    Founder (2026-11-08, "assigned leads only" — both companies): exports are
+    the COMPANY ADMIN's alone. A ByteForce teammate who is not the admin sees
+    only his own leads anywhere in the product now, and a company-wide file is
+    the one object that would undo that in a single click — exactly the
+    agent/partner argument above, extended to him.
+
+    Three halves, company first: an account must hold the company at all
+    (`companiesFor`, the narrowing predicate), hold the role the Leads page
+    demands of that company (the table above), AND be that company's admin
+    (lib/auth/lead-scope.ts — for ByteForce, byteforce_staff AND bsystems_admin;
+    for B-Systems, bsystems_admin, which the table already says). */
 export function canExportLeads(roles: Role[], company: CrmCompany): boolean {
   if (!companiesFor(roles).includes(company)) return false;
-  return LEADS_EXPORT_ROLES[company].some((r) => roles.includes(r));
+  if (!LEADS_EXPORT_ROLES[company].some((r) => roles.includes(r))) return false;
+  return isCompanyAdmin({ roles }, company);
 }
 
 /** The companies whose button this account is shown, in CRM_COMPANIES order.

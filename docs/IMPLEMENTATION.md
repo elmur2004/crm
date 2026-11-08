@@ -4524,3 +4524,82 @@ LOCAL work, not pushed; the founder previews it first.
      it, so entrances fill **backwards**.
 
 - Last updated: 2026-10-26 (ADR-093, TESTING Run 106)
+
+## Assigned leads only: six gotchas, and the gaps left in files this change could not touch (2026-11-08, ADR-098–101)
+
+1. **Raw SQL does not bump `updatedAt`, because Prisma's `@updatedAt` is
+   client-side.**
+   - ADR-057 met this first. In ADR-101's backfill it is the wanted outcome:
+     the boards order by `updatedAt`, so a bump would reshuffle every board on
+     deploy morning.
+   - **The other side of it.** An undo's fingerprint is the row's `updatedAt`
+     (ADR-045). So a SQL migration that changes a row which a pending undo
+     could write back leaves that undo's fingerprint still matching.
+   - ADR-101 is safe only because the one inverse that writes the owner columns
+     (`lead_assign`) belongs to leads that already have an owner, and the
+     migration never touches those.
+   - **A future data migration that must look like an edit** has to set
+     `"updatedAt" = CURRENT_TIMESTAMP` itself.
+2. **`ActivityLog.id` has no database default.**
+   - Its cuid is made by the Prisma client, so an `INSERT INTO "ActivityLog"`
+     from SQL must supply an id.
+   - ADR-101 derives the id from the lead: `'backfill_owner_' || md5(lead id)`.
+     A replay then hits `ON CONFLICT (id) DO NOTHING` instead of writing a
+     second row.
+   - A random id (`gen_random_uuid()`) would have worked once and duplicated on
+     every replay: the test's second run, or a hand re-run after a restore.
+3. **`requireBrandLeadAccess` runs staff → brand (404) → scope, and the order is
+   the point** (`src/lib/auth/guards.ts`).
+   - **Staff first**, so a caller outside the namespace is refused before any
+     read.
+   - **Brand second**, so another company's lead id is a 404, indistinguishable
+     from one that does not exist (ADR-073).
+   - **Scope last:** `requireLeadAccess`.
+   - **Why the order matters.** Swap the last two, and a ByteForce teammate who
+     probes a B-Systems id gets `requireLeadAccess`'s 403 "No access". A 403
+     confirms that the id exists.
+4. **A predicate that gains a `true` case widens every reader of it.**
+   - `requireLeadAccess`'s `isAdmin` was false for every ByteForce account by
+     construction, and ADR-078's proposal edit relied on that ("nobody on
+     ByteForce").
+   - Once the ByteForce admin existed, the edit would have opened to him
+     without anyone asking for it.
+   - spec-guardian caught it, and the ByteForce route now refuses explicitly
+     (ADR-099 §5).
+   - **When a flag starts meaning something new, grep its readers.**
+5. **A `<label>` that wraps a `<select>` puts the selected option into the
+   control's accessible name.**
+   - The hand-over select read "Hand this follow-up to Keep the current owner".
+     So `getByLabel("Owner")` in `follow-up-about.spec.ts`, which asserts that
+     there is no Owner field, matched it.
+   - **The fix:** a label that points at the select (`htmlFor`), with the hint
+     tied by `aria-describedby` (`AssignToField.tsx`).
+   - **Same family** as ADR-070 §5: "A field hint containing a common word
+     breaks `getByLabel`".
+6. **vitest exits 0 even when tests fail.** The global-setup teardown swallows
+   the status (Run 107's standing caveat). Read the printed `Test Files` /
+   `Tests` summary, never the exit code. The implementing agent hit this again
+   on this change.
+
+### The gaps that touch files that were off-limits for this change
+
+They are recorded here so nobody has to rediscover them. None of them leaks a
+lead to a non-admin through the CRM.
+
+- **Backup restore.** `src/lib/services/backup.ts` has no twin of ADR-101's
+  rule, so restoring a backup taken before this deploy brings back unowned
+  leads.
+  - Those leads are the admin's alone. They need handing out again, or the
+    migration's two gated statements can be re-run by hand.
+  - The precedent for a twin inside `importBackup` is ADR-064's
+    `backfillNoAnswerCount`.
+- **The backup download.** Any `bsystems_admin` can download a backup that
+  includes every ByteForce lead. Under ADR-098, though, a `bsystems_admin`
+  without `byteforce_staff` is not ByteForce's admin.
+- **Data entry after a hand-over.** A data-entry user still sees, on its own
+  page, the leads it typed after they are handed on (ADR-051 §5's read-only
+  list, "Picked up"). This is the one exception to "own leads only".
+- **Notifications carry no company.** An account in both companies sees a
+  ByteForce `assigned` notification in both bells.
+
+- Last updated: 2026-11-08 (ADR-098–101, TESTING Run 108)

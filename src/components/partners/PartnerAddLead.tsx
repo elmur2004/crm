@@ -9,20 +9,17 @@ import { leadTypeLabel } from "@/lib/i18n/dict/labels";
 import { pCommon, pLead } from "@/lib/i18n/dict/partners";
 import { signup } from "@/lib/i18n/dict/auth";
 
-/* §7.4 / PP-5 — add a lead inside a partner's detail: §6.1 lead fields + optional
-   assign-to-rep (A-6, default Unassigned). The server stamps the attribution. */
+/* §7.4 / PP-5 — add a lead inside a partner's detail: §6.1 lead fields. The
+   server stamps the attribution and the owner (the partner's account when one
+   exists). Founder 2026-11-08 ("assigned leads only"): the old "Assign to rep"
+   select is gone — a rep CARD is not an account, decides nobody's visibility,
+   and is no longer written by the UI; the lead is handed out with Assign owner. */
 
 const inputCls = "field-input";
 const labelCls = "field-label block mb-1.5";
 const btnPrimary = "btn-primary";
 
-export function PartnerAddLeadClient({
-  partnerId,
-  reps,
-}: {
-  partnerId: string;
-  reps: Array<{ id: string; name: string }>;
-}) {
+export function PartnerAddLeadClient({ partnerId }: { partnerId: string }) {
   const router = useRouter();
   const locale = useLocale();
   const t = tFor(locale);
@@ -48,7 +45,6 @@ export function PartnerAddLeadClient({
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            salesRepId: String(fd.get("salesRepId") || "") || undefined,
             name: String(fd.get("name")),
             number: String(fd.get("number")),
             email: String(fd.get("email") || "") || undefined,
@@ -88,17 +84,6 @@ export function PartnerAddLeadClient({
             {LEAD_TYPES.map((lt) => (
               <option key={lt} value={lt}>
                 {leadTypeLabel(locale, lt)}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="block">
-          <span className={labelCls}>{t(pLead.assignToRep)}</span>
-          <select name="salesRepId" className={inputCls}>
-            <option value="">{t(pLead.unassignedPartnerLeads)}</option>
-            {reps.map((r) => (
-              <option key={r.id} value={r.id}>
-                {r.name}
               </option>
             ))}
           </select>

@@ -296,7 +296,7 @@
 
 /* ---------- icon palettes ----------
    TWO KINDS OF TILE, and the difference is the point: the two CRMs are the
-   companies' own apps and wear their brand as a SOLID plate; the five shared
+   companies' own apps and wear their brand as a SOLID plate; the six shared
    apps sit on the page's own card, the founder's reference pattern (white
    tiles, a bold flat glyph on each).
 
@@ -330,9 +330,9 @@
   --lx-c: var(--bs-pink);
 }
 
-/* The five cross-company apps: NEUTRAL-LED, and token-driven end to end. The
+/* The six cross-company apps: NEUTRAL-LED, and token-driven end to end. The
    plate is the neutral card, the glyph is the neutral ink, and each app adds
-   ONE cue — so the five read as one family and still tell themselves apart,
+   ONE cue — so the six read as one family and still tell themselves apart,
    and in dark mode the whole icon turns with the page (card #1E1D1B, ink
    #ECEAE5) because every one of those is a token the neutral scope already
    flips. Three cues are neutral tokens too, and flip with them:
@@ -363,6 +363,14 @@
 .lx-icon--neutral.lx-tone--reports,
 .lx-icon--neutral.lx-tone--crm { --lx-c: var(--color-secondary); }
 .lx-icon--neutral.lx-tone--partners { --lx-c: var(--color-faint); }
+/* Users (2026-11-08): the "+" badge in the safe's own --color-link — a neutral
+   token (#1D267D light, 12.92:1 on #FFFFFF · #9CA3E8 dark, 7.07:1 on #1E1D1B),
+   so no company colour sits on a shared tile */
+.lx-icon--neutral.lx-tone--users { --lx-c: var(--color-link); }
+/* …and its two colleagues standing behind are the Partners tile's quiet
+   background figure, --color-faint at full strength (3.57:1 light, 5.29:1
+   dark), not the 22% well, which would sit under the 3:1 a graphic holds */
+.lx-icon--neutral.lx-tone--users .lx-well { fill: var(--color-faint); opacity: 1; }
 
 /* ---------- entrance ----------
    The sign-in's sequence, at the launcher's scale: the date, then the

@@ -291,7 +291,6 @@ describe("one way to each page — the menus, exactly as approved", () => {
       "/b-systems/calendar",
       "/b-systems/won-leads",
       "/b-systems/statements",
-      "/b-systems/users",
     ]);
     expect(hrefs(crmNavFor("bsystems", "bsystems_sales"))).toEqual([
       "/b-systems/crm",
@@ -323,10 +322,12 @@ describe("one way to each page — the menus, exactly as approved", () => {
     }
   });
 
-  it("Home, the To-Do, the Daily report and the four Partners & Agents screens left every CRM menu", () => {
+  it("Home, the To-Do, the Daily report, Users and the four Partners & Agents screens left every CRM menu", () => {
     const left = [
       "/b-systems",
       "/b-systems/todo",
+      /* founder 2026-11-08 — Users is its own launcher app */
+      "/b-systems/users",
       "/b-systems/daily-report",
       "/b-systems/partners-pipeline",
       "/b-systems/partners",
@@ -360,7 +361,6 @@ describe("which app of the shell a page belongs to — and the name the header g
       "/b-systems/won-leads/abc",
       "/b-systems/statements",
       "/b-systems/statements/abc/document",
-      "/b-systems/users",
       "/b-systems/payments",
       "/b-systems/profile",
       "/b-systems/entry",
@@ -388,6 +388,9 @@ describe("which app of the shell a page belongs to — and the name the header g
 
   it("the To-Do is its own app; the dashboards and the Daily report are Reports & Dashboards", () => {
     expect(crmAppContextFor("/b-systems/todo")).toBe("todo");
+    /* founder 2026-11-08 — Users is its own app, NOT a page of the B-Systems CRM */
+    expect(crmAppContextFor("/b-systems/users")).toBe("users");
+    expect(crmAppContextFor("/b-systems/users/")).toBe("users");
     expect(crmAppContextFor("/b-systems")).toBe("reports");
     expect(crmAppContextFor("/b-systems/")).toBe("reports");
     expect(crmAppContextFor("/b-systems/daily-report")).toBe("reports");
@@ -399,6 +402,7 @@ describe("which app of the shell a page belongs to — and the name the header g
     expect(crmAppNameFor("partners", "bsystems")).toBe(launcher.partners);
     expect(crmAppNameFor("todo", "byteforce")).toBe(launcher.todo);
     expect(crmAppNameFor("reports", "bsystems")).toBe(launcher.reports);
+    expect(crmAppNameFor("users", "bsystems")).toBe(launcher.users);
   });
 });
 

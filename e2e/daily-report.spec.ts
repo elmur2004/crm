@@ -316,13 +316,12 @@ test.describe("ADR-081 — the daily report", () => {
   test("a ByteForce-only account gets its own report and is refused the other company", async ({
     page,
   }) => {
-    await login(page, "sara@byteforce.example", "byteforce123", /\/b-systems\?company=byteforce$/);
-    /* his one way to it: Reports & Dashboards, which lists his dashboard and
-       his day */
+    await login(page, "sara@byteforce.example", "byteforce123", /\/b-systems\/crm\?company=byteforce$/);
+    /* his one way to it: Reports & Dashboards — and since the ByteForce
+       dashboard is the ADMIN's (founder 2026-11-08), his day is his ONLY
+       report, so the tile opens it directly (a list of one asks nothing) */
     await page.goto("/apps");
     await page.locator('[data-app="reports"]').click();
-    await page.waitForURL(/\/apps\/reports$/);
-    await page.locator('[data-report="daily-report"]').click();
     await page.waitForURL(/\/b-systems\/daily-report\?company=byteforce/);
     await expect(page.getByRole("heading", { level: 1 })).toContainText("Daily report");
     /* asking for B-Systems is answered by the server, not rendered */

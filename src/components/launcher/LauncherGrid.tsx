@@ -29,6 +29,7 @@ const GLYPH: Record<AppId, Glyph> = {
   todo: "todo",
   reports: "reports",
   partners: "partners",
+  users: "users",
 };
 
 export interface GridItem {

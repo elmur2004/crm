@@ -638,3 +638,11 @@
   .page .empty::after { display: none; }
   .page .empty { padding-block-start: 20px; }
 }
+
+/* Assigned leads only (founder 2026-11-08) — the follow-up hand-over select and
+   ByteForce's Owner picker are thumb targets on touch (≥ 44 px), wherever the
+   form they sit in renders: the board's drop window, the lead page, Add lead. */
+@media screen and (pointer: coarse) {
+  [data-assign-to] .field-input,
+  [data-owner-picker] .field-input { min-block-size: 44px; }
+}

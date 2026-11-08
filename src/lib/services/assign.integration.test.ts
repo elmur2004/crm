@@ -292,9 +292,10 @@ describe("Assigning a lead to an agent or a partner", () => {
     expect(fresh.ownerType).toBe("admin");
     expect(fresh.ownerUserId).toBe(founder.id);
     expect((await listBsLeads("bsystems", "internal")).map((l) => l.id)).toEqual([]);
-    /* and it does NOT show up on the internal sales team's To-Do
-       (today is the only list since ADR-061) */
-    const salesTodo = await todoFor({ brand: "bsystems", scope: { kind: "internal" } });
+    /* and it does NOT show up on an internal seller's To-Do (today is the only
+       list since ADR-061; since 2026-11-08 a seller's To-Do is his OWN leads) */
+    const seller = await makeUser("Some Seller", "bsystems_sales");
+    const salesTodo = await todoFor({ brand: "bsystems", scope: { kind: "own", userId: seller.id } });
     expect(salesTodo.today.map((i) => i.title)).not.toContain("Hybrid Corp");
   });
 

@@ -529,12 +529,32 @@ export function ownerTypeForRole(roles: readonly string[]): OwnerType | null {
   return null;
 }
 
-/** Admin-only (the route enforces requireBsAdmin) — B-Systems leads only. */
-export async function assignLeadOwner(leadId: string, targetUserId: string, actor: Actor) {
-  const lead = await getLead("bsystems", leadId);
-  assertNotArchived(lead); // ADR-043 hardening — unarchive before reassigning
+/* ============================================================================
+   Founder (2026-11-08) — "whenever I assign a lead for a new user … they can see
+   the lead then", for BOTH companies ("Both companies now"). ByteForce leads are
+   handed to staff ACCOUNTS now, exactly like B-Systems', so the two companies
+   share ONE assignment path: who may receive a lead, what the hand-over writes,
+   and who is told. The follow-up hand-over (applyLeadEvent's `assignTo`) runs
+   the very same two functions inside its own transaction.
+   ========================================================================== */
 
-  const target = await db.user.findUnique({
+/** A valid new owner for a lead of this company, and the bucket it lands in. */
+export interface Assignee {
+  id: string;
+  name: string;
+  /** the bucket the lead lands in — B-Systems derives it from the role;
+      ByteForce keeps the lead's own (it has no buckets to move between) */
+  ownerType: (lead: { ownerType: string }) => string;
+}
+
+/** Refuse a target that cannot own a lead of THIS company. Same refusals for
+    the Assign button, "Take it", and the follow-up hand-over. */
+export async function resolveAssignee(
+  brand: Brand,
+  targetUserId: string,
+  client: Prisma.TransactionClient | typeof db = db,
+): Promise<Assignee> {
+  const target = await client.user.findUnique({
     where: { id: targetUserId },
     include: { roles: true },
   });
@@ -543,51 +563,90 @@ export async function assignLeadOwner(leadId: string, targetUserId: string, acto
   if (target.registrationStatus !== "approved") {
     throw new ApiError(400, "That registration is still awaiting approval");
   }
+  const targetRoles = target.roles.map((r) => r.role);
+  if (brand === "byteforce") {
+    /* ByteForce has one staff role: every active, approved holder of it can own
+       a ByteForce lead — the admin included ("Take it"). */
+    if (!targetRoles.includes("byteforce_staff")) {
+      throw new ApiError(400, "Assign a ByteForce lead to a ByteForce staff account");
+    }
+    return { id: target.id, name: target.name, ownerType: (lead) => lead.ownerType };
+  }
   /* Founder (To-Do) — "I can assign these to do as an admin or just take it
      myself": an ADMIN is a legal target too. The lead lands in the admin
      bucket with that admin as owner — exactly the state an admin-CREATED lead
      already has (bucketFor). The rule lives here, not in ownerTypeForRole, so
      the assignable ROSTER keeps excluding admins everywhere else.
      Review: admin wins FIRST, mirroring the app's one role precedence
-     (bsRoleOf → bucketFor). An account that holds bsystems_admin AND a second
-     B-Systems role is still an admin everywhere else, so taking a lead must
-     not park it in the shared internal bucket — where it would surface on
-     every internal-sales board and To-Do. */
-  const targetRoles = target.roles.map((r) => r.role);
+     (bsRoleOf → bucketFor). */
   const ownerType = targetRoles.includes("bsystems_admin")
     ? ("admin" as const)
     : ownerTypeForRole(targetRoles);
   if (!ownerType) {
     throw new ApiError(400, "Assign a lead to an agent, a partner or an internal sales account");
   }
-  if (lead.ownerUserId === target.id && lead.ownerType === ownerType) return lead;
+  return { id: target.id, name: target.name, ownerType: () => ownerType };
+}
+
+/** Write the hand-over: the two ownership columns, the `assigned` history row,
+    and the new owner's bell. Runs inside the CALLER's transaction so the change
+    and the news are atomic with whatever else the caller writes. Returns the
+    updated row, or null when the lead already sits exactly there. */
+export async function writeOwnerChange(
+  tx: Prisma.TransactionClient,
+  lead: { id: string; name: string; companyName: string | null; ownerUserId: string | null; ownerType: string },
+  target: Assignee,
+  actor: Actor,
+  note: "assigned" | "follow_up",
+) {
+  const ownerType = target.ownerType(lead);
+  if (lead.ownerUserId === target.id && lead.ownerType === ownerType) return null;
+  const fresh = await tx.lead.update({
+    where: { id: lead.id },
+    data: { ownerUserId: target.id, ownerType },
+  });
+  await writeLog(tx, {
+    entityType: "lead",
+    entityId: lead.id,
+    actor,
+    action: "update",
+    trigger: "assigned",
+  });
+  /* founder: "visible in his system" — their own bell, deep-linked. Taking a
+     lead YOURSELF (the To-Do's "take it" self-assign) must not ping yourself —
+     the activity log and the undo entry still record the move. */
+  if (target.id !== actor.id) {
+    const company = lead.companyName ? ` (${lead.companyName})` : "";
+    await notifyUser(tx, {
+      userId: target.id,
+      type: "assigned",
+      title: `Assigned to you: ${lead.name}`,
+      body:
+        note === "follow_up"
+          ? `${actor.label} handed you the follow-up on "${lead.name}"${company} — you are now its owner.`
+          : `${actor.label} made you the owner of "${lead.name}"${company}.`,
+      leadId: lead.id,
+    });
+  }
+  return fresh;
+}
+
+/** Admin-only (the routes enforce the COMPANY admin: requireBsAdmin on
+    B-Systems, requireCompanyAdmin("byteforce") on ByteForce). */
+export async function assignLeadOwner(
+  leadId: string,
+  targetUserId: string,
+  actor: Actor,
+  brand: Brand = "bsystems",
+) {
+  const lead = await getLead(brand, leadId);
+  assertNotArchived(lead); // ADR-043 hardening — unarchive before reassigning
+  const target = await resolveAssignee(brand, targetUserId);
+  if (lead.ownerUserId === target.id && lead.ownerType === target.ownerType(lead)) return lead;
 
   const updated = await db.$transaction(async (tx) => {
-    const fresh = await tx.lead.update({
-      where: { id: lead.id },
-      data: { ownerUserId: target.id, ownerType },
-    });
-    await writeLog(tx, {
-      entityType: "lead",
-      entityId: lead.id,
-      actor,
-      action: "update",
-      trigger: "assigned",
-    });
-    /* founder: "visible in his system" — their own bell, deep-linked. Taking
-       a lead YOURSELF (the To-Do's "take it" self-assign) must not ping
-       yourself — the activity log and the undo entry still record the move. */
-    if (target.id !== actor.id) {
-      await notifyUser(tx, {
-        userId: target.id,
-        type: "assigned",
-        title: `Assigned to you: ${lead.name}`,
-        body: `${actor.label} made you the owner of "${lead.name}"${
-          lead.companyName ? ` (${lead.companyName})` : ""
-        }.`,
-        leadId: lead.id,
-      });
-    }
+    const fresh = await writeOwnerChange(tx, lead, target, actor, "assigned");
+    if (!fresh) return lead;
     const undoLabel = formatMsg(undoLabels.assigned, { name: lead.name, owner: target.name });
     await recordUndo({
       tx,
@@ -785,6 +844,12 @@ export const leadEventSchema = z.object({
     }),
   ]),
   group: groupPayloadSchema.optional(),
+  /* Founder (2026-11-08) — "when I log a follow-up, I should be able to assign
+     it to somebody so they have that follow-up in their follow-up column": the
+     account the lead is HANDED TO with this follow-up. Optional — absent means
+     "keep the current owner". COMPANY ADMIN ONLY: the routes refuse anyone else
+     with 403 before this ever reaches the service. */
+  assignTo: z.string().min(1).max(64).optional(),
 });
 
 export async function applyLeadEvent(opts: {
@@ -794,6 +859,12 @@ export async function applyLeadEvent(opts: {
   group?: GroupPayload;
   actor: Actor;
   role: Role;
+  /** the follow-up hand-over target (company admin only) */
+  assignTo?: string;
+  /** may this actor hand a follow-up to somebody — i.e. is he this company's
+      admin (`isAdmin` from requireLeadAccess)? The routes refuse first; this is
+      the service's own belt, so no future caller can skip the wall. */
+  canHandOver?: boolean;
 }): Promise<{ toStage: string }> {
   const lead = await getLead(opts.brand, opts.leadId);
   assertNotArchived(lead); // ADR-043 hardening — no stage events on archived leads
@@ -821,6 +892,23 @@ export async function applyLeadEvent(opts: {
     opts.group = groupPayloadSchema.parse(opts.group);
   }
 
+  /* Founder (2026-11-08) — the follow-up HAND-OVER. Only a move that records a
+     follow-up can carry one ("Hand this follow-up to"): the engine's demand is
+     the test, so the same-stage "another follow-up", the negotiation's response
+     date, a meeting outcome back to Following Up and a proposal's Sent all
+     qualify, and nothing else does. The target is validated BEFORE the
+     transaction with the assignment's own refusals (resolveAssignee). */
+  let handTo: Assignee | null = null;
+  if (opts.assignTo) {
+    if (!opts.canHandOver) {
+      throw new ApiError(403, "Only the admin can hand a follow-up to someone");
+    }
+    if (result.requiredGroup?.group !== "follow_up") {
+      throw new ApiError(400, "Only a follow-up can be handed to someone");
+    }
+    handTo = await resolveAssignee(opts.brand, opts.assignTo);
+  }
+
   /* V2 §3: an agent's meeting submission notifies the admins (after the tx). */
   const notifyMeeting =
     opts.brand === "bsystems" &&
@@ -835,7 +923,14 @@ export async function applyLeadEvent(opts: {
        inside the transaction (double-submit / racing tabs → 409). */
     const fresh = await tx.lead.findUniqueOrThrow({
       where: { id: lead.id },
-      select: { stage: true, noAnswer: true, noAnswerCount: true },
+      select: {
+        stage: true,
+        noAnswer: true,
+        noAnswerCount: true,
+        /* the owner BEFORE a hand-over, read under the same transaction */
+        ownerUserId: true,
+        ownerType: true,
+      },
     });
     if (fresh.stage !== lead.stage) {
       throw new ApiError(409, "This lead just moved — reload and try again");
@@ -934,6 +1029,25 @@ export async function applyLeadEvent(opts: {
       }
     }
 
+    /* Founder (2026-11-08) — the hand-over, IN THIS TRANSACTION: the follow-up
+       above and the new owner commit together or not at all. The assignment's
+       own write (the `assigned` history row, the new owner's bell) — the
+       previous owner, unless he is the admin, simply stops seeing the lead. */
+    let handedOver = false;
+    if (handTo) {
+      /* re-resolved INSIDE the transaction: the account checked above could
+         have been deactivated between the two reads */
+      const target = await resolveAssignee(opts.brand, handTo.id, tx);
+      handedOver =
+        (await writeOwnerChange(
+          tx,
+          { ...lead, ownerUserId: fresh.ownerUserId, ownerType: fresh.ownerType },
+          target,
+          opts.actor,
+          "follow_up",
+        )) !== null;
+    }
+
     /* Side effects (atomic with the move). */
     for (const effect of result.sideEffects) {
       if (effect === "create_client") {
@@ -1012,6 +1126,12 @@ export async function applyLeadEvent(opts: {
         noAnswerCount: fresh.noAnswerCount,
         created,
         updated,
+        /* Founder (2026-11-08) — undoing a follow-up that HANDED the lead to
+           somebody undoes the hand-over too: one action, one inverse. Absent
+           when nothing changed hands, so every other entry is unchanged. */
+        ...(handedOver
+          ? { owner: { ownerUserId: fresh.ownerUserId, ownerType: fresh.ownerType } }
+          : {}),
       };
       const undoLabel = sameStageAction
         ? formatMsg(SAME_STAGE_UNDO_LABELS[sameStageAction], { name: lead.name })

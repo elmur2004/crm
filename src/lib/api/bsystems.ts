@@ -72,12 +72,17 @@ export function bucketFor(role: Role): { ownerType: OwnerType; owned: boolean } 
       return { ownerType: "agent", owned: true };
     case "bsystems_partner":
       return { ownerType: "partner", owned: true };
+    case "bsystems_sales":
+      /* founder (2026-11-08) — "from now on a lead a sales/staff user adds is
+         automatically theirs": the internal bucket, OWNED by its creator (it
+         used to land unowned, which under "assigned leads only" would have
+         hidden it from the very person who typed it in). */
+      return { ownerType: "internal", owned: true };
     default:
-      /* internal sales AND data entry (ADR-051). The founder is explicit that a
-         data-entry user "will not be the owner of what they add. It will be
-         with no owner until the admin decides" — which is precisely A-6's
-         existing unassigned state (internal bucket, no rep, no owner), not a
-         new one worth inventing. */
+      /* data entry (ADR-051). The founder is explicit that a data-entry user
+         "will not be the owner of what they add. It will be with no owner until
+         the admin decides" — which is precisely A-6's existing unassigned state
+         (internal bucket, no owner), now visible to the admin alone. */
       return { ownerType: "internal", owned: false };
   }
 }

@@ -175,7 +175,7 @@ test.describe("ADR-072/082 — Postpone / Not answering", () => {
     /* InternalBoard.tsx was the one that never learned the target: ADR-072 added
        a destination and `fieldsForTarget` returned null for it. Both boards ask
        the engine now, so neither can go stale again. */
-    await login(page, "sara@byteforce.example", "byteforce123", /\/b-systems\?company=byteforce$/);
+    await login(page, "sara@byteforce.example", "byteforce123", /\/b-systems\/crm\?company=byteforce$/);
     const id = await leadInFollowUp(page, "Postpone Drag BF", "/api/byteforce");
     await page.goto("/b-systems/crm?company=byteforce");
     const card = page.locator('[data-deal-card="Postpone Drag BF"]');
@@ -236,7 +236,7 @@ test.describe("ADR-072/082 — Postpone / Not answering", () => {
 
        The ByteForce lead lives at its own address (`/b-systems/leads/lead/:id`),
        which is also why a wrong one would not have been noticed here. */
-    await login(page, "sara@byteforce.example", "byteforce123", /\/b-systems\?company=byteforce$/);
+    await login(page, "sara@byteforce.example", "byteforce123", /\/b-systems\/crm\?company=byteforce$/);
     const id = await leadInFollowUp(page, "Postpone BF Panel", "/api/byteforce");
     await page.goto(`/b-systems/leads/lead/${id}?company=byteforce`);
 

@@ -20,6 +20,10 @@ export default async function MergedClientsPage({
 }: {
   searchParams: Promise<{ company?: string }>;
 }) {
-  await requireCompanySection("byteforce", (await searchParams).company, ["byteforce_staff"]);
-  return <ClientsBody ctx={BYTEFORCE_CTX} />;
+  const { user } = await requireCompanySection("byteforce", (await searchParams).company, [
+    "byteforce_staff",
+  ]);
+  /* founder (2026-11-08) — the admin every client, a teammate the clients of
+     the leads he owns (the body scopes by the viewer) */
+  return <ClientsBody ctx={BYTEFORCE_CTX} viewer={user} />;
 }

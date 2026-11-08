@@ -1,13 +1,16 @@
 import { z } from "zod";
 import { db } from "@/lib/db";
+import type { Prisma } from "../../../generated/prisma/client";
 import { ApiError } from "@/lib/api-error";
+import { companyAdminUserWhere } from "@/lib/auth/lead-scope";
+import type { Brand } from "@/lib/pipeline-engine/constants";
 import { writeLog } from "./activity";
 import { notifyUser } from "./notifications";
 
 /* Founder: a mini chat inside every lead — the team asks questions, follows up
    and @mentions each other so whoever talks to the lead has the full picture.
-   Route-level access = requireLeadAccess (admin any / sales internal / agent+
-   partner own / ByteForce staff). Mentions resolve SERVER-SIDE against the set
+   Route-level access = requireLeadAccess (the company admin any lead, everybody
+   else their own — founder 2026-11-08). Mentions resolve SERVER-SIDE against the set
    of users who can actually open the lead — a mention can never leak a lead to
    someone outside it. */
 
@@ -25,42 +28,31 @@ export async function mentionableUsersFor(leadId: string): Promise<Mention[]> {
   });
   if (!lead) throw new ApiError(404, "Lead not found");
 
-  /* ADR-073 — a SINGLE-ROLE company answers this in one line: everybody who
-     holds its one staff role can open every one of its leads, so everybody is
-     mentionable. Only B-Systems has owner buckets to narrow by, which is why it
-     is the one branch with an OR in it. A TABLE rather than a ternary, so a
-     company that is not named here cannot fall through and be offered
-     B-Systems' admins and agents on its own lead's chat. */
-  const singleStaffRole: Partial<Record<string, string>> = {
-    byteforce: "byteforce_staff",
+  /* Founder (2026-11-08, "assigned leads only" — both companies): exactly the
+     people `requireLeadAccess` lets in — the COMPANY ADMIN, plus the lead's
+     OWNER while he still holds a role that works this company's leads. Nobody
+     else can open the lead, so nobody else can be @mentioned into its chat (a
+     mention must never leak a lead). A TABLE per company, so a company that is
+     not named here cannot fall through and be offered another company's
+     people. */
+  /* who the company admin is: lead-scope.ts's ONE table, never restated here */
+  const ownerRolesByBrand: Record<string, string[]> = {
+    byteforce: ["byteforce_staff"],
+    bsystems: ["bsystems_sales", "bsystems_agent", "bsystems_partner", "bsystems_admin"],
   };
-  const soleRole = singleStaffRole[lead.brand];
-  const where =
-    soleRole !== undefined
-      ? { roles: { some: { role: soleRole } } }
-      : {
-          OR: [
-            { roles: { some: { role: "bsystems_admin" } } },
-            ...(lead.ownerType === "internal"
-              ? [{ roles: { some: { role: "bsystems_sales" } } }]
-              : []),
-            /* the owner counts only while they hold a role that passes
-               requireLeadAccess — a role change must not keep leaking the
-               lead's chat into their mentions */
-            ...(lead.ownerUserId
-              ? [
-                  {
-                    id: lead.ownerUserId,
-                    roles: {
-                      some: {
-                        role: { in: ["bsystems_agent", "bsystems_partner", "bsystems_admin"] },
-                      },
-                    },
-                  },
-                ]
-              : []),
-          ],
-        };
+  const ownerRoles = ownerRolesByBrand[lead.brand];
+  if (!ownerRoles) return [];
+  const where: Prisma.UserWhereInput = {
+    OR: [
+      companyAdminUserWhere(lead.brand as Brand),
+      /* the owner counts only while they hold a role that passes
+         requireLeadAccess — a role change must not keep leaking the lead's
+         chat into their mentions */
+      ...(lead.ownerUserId
+        ? [{ id: lead.ownerUserId, roles: { some: { role: { in: ownerRoles } } } }]
+        : []),
+    ],
+  };
   const users = await db.user.findMany({
     where: { ...where, active: true, registrationStatus: "approved" },
     select: { id: true, name: true },

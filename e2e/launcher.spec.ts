@@ -31,7 +31,37 @@ test("the founder lands on the launcher and sees every app, in his order", async
     "todo",
     "reports",
     "partners",
+    /* founder 2026-11-08 — Users is its own app, after Partners & Agents */
+    "users",
   ]);
+});
+
+/* Founder (2026-11-08): "the apps whenever I open the home page should … have
+   individual users tab not put the users inside B-System CRM, just separate it
+   entirely into like an app or an icon in the home page." */
+test("Users is its own app: its tile opens it, the header names it, and no CRM menu surrounds it", async ({
+  page,
+}) => {
+  await signIn(page, "admin@byteforce.com", "password123");
+  await page.locator('[data-app="users"]').click();
+  await page.waitForURL(/\/b-systems\/users\?company=bsystems$/);
+  await expect(page.locator(".app-header .app-name")).toHaveText("Users");
+  await expect(page.locator(".app-header .app-name")).toHaveAttribute("data-app-context", "users");
+  /* no B-Systems CRM menu around it — and Users is in no CRM menu any more */
+  await expect(page.locator(".app-header .nav-strip").getByRole("link")).toHaveCount(0);
+  await page.goto("/b-systems/crm?company=bsystems");
+  await expect(page.locator(".app-header").getByRole("link", { name: "Users", exact: true })).toHaveCount(0);
+  /* the one way back is the All apps icon */
+  await page.goto("/b-systems/users?company=bsystems");
+  await page.getByRole("link", { name: "All apps" }).click();
+  await page.waitForURL(LAUNCHER_URL);
+});
+
+test("the Users tile is the B-Systems admin's alone — the page keeps its own wall", async ({ page }) => {
+  await signIn(page, "sara@byteforce.example", "byteforce123");
+  await expect(page.locator('[data-app="users"]')).toHaveCount(0);
+  await page.goto("/b-systems/users?company=bsystems");
+  await expect(page).not.toHaveURL(/\/b-systems\/users/);
 });
 
 test("a tile opens its app, and the header's All apps icon comes back", async ({ page }) => {
@@ -127,7 +157,7 @@ for (const [name, width, height] of [
         await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
       }
       expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
-      await expect(tiles(page)).toHaveCount(7);
+      await expect(tiles(page)).toHaveCount(8);
       for (const box of await tiles(page).evaluateAll((els) =>
         els.map((e) => e.getBoundingClientRect()).map((r) => ({ w: r.width, h: r.height })),
       )) {

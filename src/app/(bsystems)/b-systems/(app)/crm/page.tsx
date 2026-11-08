@@ -82,6 +82,7 @@ export default async function BsCrmPage({
     return (
       <CrmBoardBody
         ctx={BYTEFORCE_CTX}
+        viewer={user}
         params={params}
         switchedFrom={{ path: BS_CRM_PATH, company }}
         importCompany={importCompany}
@@ -121,6 +122,7 @@ export default async function BsCrmPage({
       params={params}
       role={role}
       userId={user.id}
+      viewerName={user.name}
       switchedFrom={{ path: BS_CRM_PATH, company }}
       importCompany={importCompany}
     />

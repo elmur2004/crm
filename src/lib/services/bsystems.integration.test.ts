@@ -427,7 +427,20 @@ describe("Won-lead commission visibility (V2 §4)", () => {
     expect(forCloser[0]!.milestones[0]!.commissionValue).toBe(30_000_00); // M1 unlocked
     expect(forCloser[0]!.milestones[1]!.commissionValue).toBeNull(); // M2 locked
 
-    const forSales = await salesWonLeads("bsystems");
+    /* internal sales sees only the wins it OWNS (founder 2026-11-08) — and
+       never a commission on them: hand this one to a seller to look */
+    const seller = await db.user.create({
+      data: {
+        name: "Commission-Blind Seller",
+        phone: "+201099911777",
+        passwordHash: "x",
+        roles: { create: { role: "bsystems_sales" } },
+      },
+    });
+    expect(await salesWonLeads("bsystems", seller.id)).toEqual([]);
+    await db.lead.update({ where: { id: lead.id }, data: { ownerUserId: seller.id, ownerType: "internal" } });
+    const forSales = await salesWonLeads("bsystems", seller.id);
+    expect(forSales).toHaveLength(1);
     expect(forSales.every((w) => w.totalCommissionPercent === null)).toBe(true);
   });
 });

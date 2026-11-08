@@ -70,7 +70,7 @@ describe("The cross-company probe runs the target board's own wall (ADR-085)", (
 
   /* THE WALL, case by case. Each of these would be a disclosure if the probe
      counted by brand alone. */
-  it("hides another owner's lead from a SALES rep — the internal bucket only", async () => {
+  it("hides another owner's lead from a SALES rep — his OWN cards only (founder 2026-11-08)", async () => {
     const agent = await user("omar", ["bsystems_agent"]);
     await createLead(
       "bsystems",
@@ -79,16 +79,31 @@ describe("The cross-company probe runs the target board's own wall (ADR-085)", (
       { ownerType: "agent", ownerUserId: agent.id },
     );
     const sales = await user("sara", ["bsystems_sales", "byteforce_staff"]);
-    /* the B-Systems board shows `bsystems_sales` the INTERNAL bucket, and this
-       lead is in the agent bucket */
+    /* the B-Systems board shows `bsystems_sales` only the leads he OWNS, and
+       this one is the agent's */
     expect(await countMatchesIn("bsystems", sales, { search: "Agent's Own" })).toBe(0);
 
+    /* an UNASSIGNED internal lead is the admin's alone now — no hop finds it */
     await createLead(
       "bsystems",
       { name: "Internal Lead", number: "0100000004", type: "cold_call" },
       actor,
     );
-    expect(await countMatchesIn("bsystems", sales, { search: "Internal" })).toBe(1);
+    expect(await countMatchesIn("bsystems", sales, { search: "Internal Lead" })).toBe(0);
+    await createLead(
+      "bsystems",
+      { name: "Internal Mine", number: "0100000007", type: "cold_call" },
+      actor,
+      { ownerType: "internal", ownerUserId: sales.id },
+    );
+    expect(await countMatchesIn("bsystems", sales, { search: "Internal Mine" })).toBe(1);
+    /* and the same on ByteForce: a teammate who is not the admin counts his own */
+    await createLead(
+      "byteforce",
+      { name: "BF Unowned Hop", number: "0100000008", type: "cold_call" },
+      actor,
+    );
+    expect(await countMatchesIn("byteforce", sales, { search: "BF Unowned Hop" })).toBe(0);
   });
 
   it("hides one agent's lead from ANOTHER agent", async () => {

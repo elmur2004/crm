@@ -91,7 +91,11 @@ export function listAgentsDetailed() {
           agentProspect: {
             select: { id: true, whatsappSentAt: true, whatsappSentByLabel: true },
           },
+          /* B-Systems leads only: an account that is also ByteForce staff
+             owns ByteForce leads too, and those are not this page's to show
+             (ADR-073's company wall; leak review, 2026-11-08) */
           ownedLeads: {
+            where: { brand: "bsystems" },
             orderBy: { createdAt: "desc" },
             select: { id: true, name: true, number: true, stage: true, createdAt: true },
           },
@@ -125,10 +129,12 @@ export function bsLeadsWhere(
     brand,
     archived: opts?.archived ?? false,
     /* ADR-051 — "unassigned" is not an owner BUCKET, it is the absence of an
-       owner inside the internal one (A-6): no rep, no account. It is where a
-       data-entry user's leads land and wait for the admin to decide. */
+       owner. Founder (2026-11-08, "assigned leads only"): an owner is an
+       ACCOUNT, so unassigned is `ownerUserId` null in ANY bucket — a legacy
+       SalesRep card no longer makes a lead anybody's. It is where a data-entry
+       user's leads and every import land, and only the admin sees it. */
     ...(ownerType === "unassigned"
-      ? { ownerType: "internal", salesRepId: null, ownerUserId: null }
+      ? { ownerUserId: null }
       : ownerType && ownerType !== "any"
         ? { ownerType }
         : {}),

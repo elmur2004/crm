@@ -10,9 +10,11 @@ import { notifyAdminsOfEntry } from "@/lib/services/data-entry";
 const bsCreateLeadSchema = createLeadSchemaFor("bsystems");
 
 /* V2 §2.2 — role-aware creation: admins → admin bucket, agents/partners → their
-   own bucket, sales → internal. ADR-051 adds data entry, which lands in the
-   SAME internal-and-unowned state A-6 already means by "unassigned" — and tells
-   the admins about it, because a lead nobody owns needs someone to notice. */
+   own bucket, sales → internal AND owned by the creator (founder 2026-11-08:
+   "from now on a lead a sales/staff user adds is automatically theirs").
+   ADR-051 adds data entry, which lands internal-and-UNOWNED — the state only
+   the admin sees — and tells the admins about it, because a lead nobody owns
+   needs someone to notice. */
 
 export const POST = handleRoute(async (req: Request) => {
   const user = await requireRole(

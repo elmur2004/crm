@@ -9825,3 +9825,472 @@ The original lines are kept.
   8. **The Calendar is re-aligned** with every other page (BUG-029).
   9. **"Mark ready to close" is restyled:** dark rose text with a pink border (BUG-031).
   10. **The Vault filters update without a reload.**
+
+## ADR-098 — 2026-11-08 — ASSIGNED LEADS ONLY: the company admin sees every lead, unassigned included, and everyone else who works leads sees only the leads he owns — both companies, every surface, one predicate family (amends SPEC §3 and the scope lines of ADR-036, ADR-038, ADR-041, ADR-043, ADR-047, ADR-051, ADR-067 §10, ADR-071, ADR-083, ADR-085, ADR-088, ADR-090, ADR-091 and ADR-095)
+
+- Context: the founder, verbatim: *"Currently, all the unassigned leads are seen by everyone. I want them just to be seen by the admin. And whenever I assign a lead for a new user, a new sales especially the internal sales, they can see the lead then. They don't see the entire leads which is unassigned or whatever, just assigning for them."* Two of his three answers belong here:
+  1. On ByteForce: **"Both companies now"**. ByteForce works the same way, he is ByteForce's admin, and every other ByteForce user sees only his own leads.
+  2. On the leads a sales user added that nobody owns: **"Give them to whoever added them"**. From now on, a lead a sales or staff user adds is his. The one-time hand-out of the leads that exist today is ADR-101.
+
+  **Before this change, two scopes were wider than "own".** The ADRs that wrote them down:
+
+  | Scope | Where it is written |
+  | --- | --- |
+  | B-Systems sales saw **every internal-bucket lead**, owned or not | ADR-036 (the mentionable set: "internal-sales on internal-bucket leads"); ADR-041 (the To-Do: "internal sales the internal bucket"); ADR-043 (archive: "sales internal"); ADR-051 ("sales own the internal bucket"); ADR-071 §1 (the calendar's full detail: "sales the internal bucket"); ADR-085 (the search hop: "the internal bucket only") |
+  | ByteForce staff saw **every ByteForce lead** | ADR-041 ("ByteForce staff all byteforce leads"); ADR-071 §1 ("ByteForce staff every ByteForce lead"); ADR-083 (the export: `byteforce → ["byteforce_staff"]`); ADR-088 §1 (the import: "ByteForce: `byteforce_staff`"); ADR-091 §1 (the dashboard: "ByteForce staff (`scope: all`)") |
+
+  So every unassigned lead was in front of every sales user on B-Systems, or every teammate on ByteForce. That includes data entry's (ADR-051), an import's (ADR-088) and a partner-sourced one (A-6). **ADR-067 does not itself say who sees which lead inside a company.** The line of it this overtakes is §10's premise (§7).
+
+- Decision: **inside each company, the company admin sees every lead, and everyone else who works leads sees only the leads he owns (`Lead.ownerUserId === user.id`).** This holds in both companies, on every surface, enforced on the server. A hidden control is never the wall.
+
+### 1. THE RULE
+
+| Account | Sees and works |
+| --- | --- |
+| B-Systems admin (`bsystems_admin`) | every B-Systems lead, unassigned included (unchanged) |
+| **ByteForce admin** (`byteforce_staff` **and** `bsystems_admin`) | every ByteForce lead, unassigned included |
+| B-Systems sales (`bsystems_sales`) | **only the leads he owns.** The internal-bucket scope is gone. |
+| ByteForce staff who are not the admin | **only the leads he owns** |
+| B-Systems agents and partners | only their own (unchanged) |
+| Data entry | its one page (unchanged, ADR-051; see §8) |
+
+- **Unassigned means no owner account** (`ownerUserId` null), in any bucket, whatever legacy `salesRepId` card the row still carries. Only the company admin sees it.
+- **ByteForce has one staff role and no admin role.** Its admin is the platform admin: an account holding both roles, which today is the founder. SPEC A-8 already lets one account hold both. **A dedicated `byteforce_admin` role could replace this later by changing one table row** (§2), with no caller changing.
+
+### 2. ONE PREDICATE FAMILY: `src/lib/auth/lead-scope.ts`
+
+This is a pure module, with no next-auth and no Prisma. The guards, the services, the pages and the tests all import the same answer, and no screen re-derives it inline.
+
+| Export | What it does |
+| --- | --- |
+| `COMPANY_ADMIN_ROLES` | the rule as data: the roles an account must hold ALL of. `bsystems: ["bsystems_admin"]`, `byteforce: ["byteforce_staff", "bsystems_admin"]`. It is a table for ADR-073's reason: no company inherits another's admin off the end of a ternary. |
+| `isCompanyAdmin(user, company)` | the account holds every role in that row |
+| `companyAdminUserWhere(company)` | the same rule as a filter over User rows. It serves the one query that asks the database who a company's admins are: the lead chat's mentionable set. An unknown company gets a filter no row can satisfy. |
+| `LeadScope` | two shapes only: `{ kind: "all" }` (the admin) or `{ kind: "own", userId }` (everyone else). The old third shape, sales' internal bucket, collapsed into "own". |
+| `leadScopeFor(user, company)` | the scope. It only narrows: whether the screen opens at all is the page or route guard's question, asked first. |
+| `scopeOwnerWhere(scope)` | the Prisma fragment: `{ ownerUserId }` for "own", `{}` for "all" |
+| `scopeReaches(scope, lead)` | the in-memory twin, for the calendar's per-row full/busy split |
+
+`src/lib/auth/lead-scope.test.ts` checks that the in-memory predicate and the database filter agree for every role subset, in both companies.
+
+**The guards** (`src/lib/auth/guards.ts`):
+
+- **`requireLeadAccess(leadId)`.**
+  - **A ByteForce lead** needs `byteforce_staff`. The ByteForce admin reaches any. Anyone else reaches only his own (403 "You can only access your own leads").
+  - **A B-Systems lead:** the admin reaches any. Sales, agents and partners reach only their own (403).
+  - **A brand this build does not know** is still a 404 (ADR-080).
+  - **Its `isAdmin` is now `isCompanyAdmin` for the lead's company, so it is true for the ByteForce admin.** ADR-099 §5 says what that would have opened.
+- **`requireCompanyAdmin(company)`**: 403 "Only the admin can hand leads to people". It is the wall for the assign routes (ADR-099) and for the `/reps` endpoints.
+- **`requireBrandLeadAccess(brand, leadId)`.** ByteForce's per-lead routes used to stop at the staff check (`requireBrandStaff`). Now there are three steps, in this order:
+  1. the namespace's staff roles, before any read;
+  2. the lead must belong to this namespace's brand, or it is a 404 (ADR-073's ruling);
+  3. `requireLeadAccess`.
+
+  It backs the internal-CRM handler factory (`src/lib/api/internal-crm.ts`: PATCH and stage events) and the ByteForce archive, no-answer and WhatsApp routes (grep at writing time).
+
+### 3. EVERY SURFACE
+
+Every surface reads the scope through the predicates above, never through a copy of them:
+
+- **The boards:** `bsLeadsWhere` / `listBsLeads`, `ownLeadsWhere` and `byteforceBoardWhere`.
+- **The Leads pages:** B-Systems' stays the admin's. ByteForce's shows the admin owner cards, and everyone else "My leads" (ADR-099).
+- **The lead detail and the call sheet:** anyone else's lead is refused.
+- **The To-Do:** `leadScopeWhere`.
+- **The calendar:** someone else's meeting is still a busy block, and the viewer's own is shown in full. These are ADR-071's two levels; only the "full" scope narrowed.
+- **The daily report:** a lead he worked and that was then handed away still counts on the day he worked it, but can no longer be opened (ADR-081's existing "no longer yours" row). Both companies.
+- **The search hop:** `countMatchesIn` runs the target board's own predicate (ADR-085).
+- **The dashboards, Won Leads and ByteForce Clients.** Won Leads uses `salesWonLeads`: the wins he owns.
+- **Notifications and chat mentions:** `mentionableUsersFor`, through `companyAdminUserWhere` plus the lead's owner.
+- **Exports and imports** (§4).
+
+**Writes go through the same guard:** PATCH, stage events, chat, attachments, meetings and proposals. A non-owner gets the 403 or 404 he would have got before this change for any lead outside his scope.
+
+### 4. THE DASHBOARD, EXPORTS, IMPORTS AND CLIENTS
+
+- **The ByteForce dashboard is the ByteForce admin's alone**, like the B-Systems one, because it shows company-wide figures.
+  - `reportsFor` (`src/lib/launcher/apps.ts`) lists it only for `isCompanyAdmin(…, "byteforce")`.
+  - The page sends every other teammate to his board.
+  - So a ByteForce-only teammate's Reports tile now opens his daily report directly, under ADR-090's list-of-one rule.
+  - The one-way guard (`one-way.test.ts`) stays green.
+- **Exports and imports belong to the company admin, in both companies.**
+  - `canExportLeads` (`src/lib/crm/leads-export.ts`) still requires the company and `LEADS_EXPORT_ROLES`, and now also `isCompanyAdmin`. On B-Systems that changes nothing. On ByteForce it narrows `byteforce_staff` to the admin.
+  - `canImportLeads` (`src/lib/crm/leads-import.ts`) builds on it.
+  - Imported leads still land unassigned, which now means they are the admin's.
+- **ByteForce Clients:** the admin sees all. Anyone else sees only the clients of leads he owns. When a non-admin edits a client, `requireLeadAccess` runs on that client's lead (`updateClient` in `internal-crm.ts`).
+
+### 5. UNASSIGNED IS ONE STATE, IN EVERY BUCKET
+
+- **B-Systems' Unassigned filter is now `{ ownerUserId: null }`, in any bucket** (`src/lib/services/bsystems-admin.ts`).
+  - ADR-051 §3 defined it as `{ ownerType: "internal", salesRepId: null, ownerUserId: null }`.
+  - Now a lead with a legacy rep card but no account is unassigned too. So is an admin- or agent-bucket lead with no owner, for example one whose owner account was deleted (user deletion parks it as `ownerType: "admin"`, `ownerUserId` null, per ADR-049 and ADR-055's review).
+- **ByteForce's Unassigned count** is `ownerUserId: null` and not archived (`countUnassigned`, `src/lib/services/sales-reps.ts`).
+
+### 6. CREATION DEFAULTS
+
+| Who adds the lead | Where it lands |
+| --- | --- |
+| B-Systems admin | the admin bucket, owned by him (unchanged, `bucketFor`) |
+| **B-Systems sales** | **the internal bucket, owned by him.** It used to land unowned, which under this rule would have hidden it from the person who typed it in. |
+| B-Systems agent or partner | his own bucket, owned by him (unchanged) |
+| B-Systems data entry | internal and unowned, with `salesRepId` stripped: the admin's (unchanged, ADR-051) |
+| The admin, inside a partner's detail (SPEC §7.4) | the partner bucket. It is owned by the partner's account when one exists, otherwise unowned. A posted `salesRepId` is no longer written. |
+| **A ByteForce teammate (not the admin)** | **owned by him.** His form offers no owner choice, and naming anyone else is refused: 403 "Only the admin can choose who owns a lead". |
+| **The ByteForce admin** | the Add-lead form's **Owner** picker, listing staff accounts. The default is Unassigned, which is his own queue. A chosen owner is checked by `resolveAssignee` (ADR-099). **If he picks a teammate, the lead also gets an `assigned` history row, and the teammate an `assigned` notification.** |
+| An Excel import, in either company | unassigned (unchanged, ADR-088) |
+
+### 7. WHAT THIS DOES TO EARLIER DECISIONS (none is rewritten)
+
+- **ADR-036, ADR-041, ADR-043, ADR-071 §1 and ADR-085** each described their scope by mirroring `requireLeadAccess`'s old shape (the table in the Context). They now mirror the new shape, and the mirroring was always the rule.
+- **ADR-047, Consequences:** "internal-bucket views … filter by ownerType". They now filter by `ownerUserId`, so the person whose name ADR-047 put on the lead is now the one who sees it.
+- **ADR-051:** "sales own the internal bucket" (Context and Alternatives), and §3's Unassigned definition (§5 above). Its role, its two permissions, its own page and its unowned landing all stand.
+- **ADR-067 §10's premise:** "a ByteForce lead has never carried an `ownerUserId`, because `createLead` leaves it null and only `assignLeadOwner` sets it, which is B-Systems-locked". Both halves are now false (§6 above, and ADR-099). §10's fix, the company in every WHERE, is what keeps `closerWonLeads` right now that they are.
+- **ADR-083 and ADR-088 §1:** the export and import walls for ByteForce narrow from `byteforce_staff` to the ByteForce admin.
+  - ADR-083's test stays an equivalence. An account exports a company exactly when it can open that company's company-wide Leads directory, and on ByteForce that directory is now the admin's alone (`pageReaches` in `leads-export.test.ts`).
+  - The ByteForce Leads page still opens for every teammate, as his own list.
+- **The ByteForce dashboard is now the ByteForce admin's (§4).** That amends three lines: ADR-090 §5 ("ByteForce-only staff: … the Reports screen: his dashboard and his day"), ADR-091 §1 ("ByteForce staff (`scope: all`)") and ADR-095 §1 (the Reports list's ByteForce dashboard).
+- **ADR-038:** its B-Systems rep cards, auto-provisioned from sales account names and matched by exact name, now decide nobody's visibility. ADR-099 §4 says what happens to the cards, and ADR-101 uses the exact-name match once.
+
+### 8. KNOWN GAPS
+
+These are the implementing agent's. The files involved were out of bounds for this change.
+
+- **A backup taken before this deploy restores unowned leads.** `src/lib/services/backup.ts` has no twin of ADR-101's rule. Nothing leaks, because an unowned lead is the admin's alone, but those leads would have to be handed out again.
+- **Any `bsystems_admin` can download a backup that holds every ByteForce lead.** Under this rule, a `bsystems_admin` without `byteforce_staff` is not ByteForce's admin.
+- **Data entry still sees, on its own page, the leads it typed after they are handed on** (ADR-051 §5's read-only list, marked "Picked up"). This is the one exception to "own leads only".
+- **Notifications carry no company**, so an account in both companies sees a ByteForce assignment in both bells.
+
+- Alternatives considered:
+  - **Keep sales on the internal bucket and hide only the unowned rows.** Not taken: *"They don't see the entire leads which is unassigned or whatever, just assigning for them"*.
+  - **Apply the rule to B-Systems only.** Not taken: **"Both companies now"**.
+  - **Add a `byteforce_admin` role now.** Not taken: nothing in the request asked for a role, and the founder already holds both. The table makes it a one-row change later.
+  - **An owner filter written on each surface.** Rejected: a copied predicate is how a surface drifts (ADR-085's lesson). One module answers.
+  - **Keep the ByteForce dashboard open to every teammate.** Not taken: it shows company-wide figures, which is exactly what a teammate who sees only his own leads is no longer shown anywhere else. Flagged.
+
+- Resolves: one founder request.
+  - **No SPEC §11 A-# is resolved.** The ByteForce admin rule rests on **A-8** (one account may hold both roles). ADR-099 amends A-6's default.
+  - **Amends SPEC §3.** An "Amended by ADR-098 (assigned leads only)" note was added to SPEC.md §3; the table itself is kept.
+  - **Amends** ADR-036, ADR-038, ADR-041, ADR-043, ADR-047, ADR-051, ADR-067 §10's premise, ADR-071 §1, ADR-083, ADR-085, ADR-088 §1, ADR-090 §5, ADR-091 §1 and ADR-095 §1, as §7 describes. None of them is rewritten.
+  - **No schema change.** The data half is ADR-101's SQL-only migration.
+- Status: Accepted. **Needs founder confirmation (four):**
+  1. **ByteForce's admin is any account holding `byteforce_staff` and `bsystems_admin`**, not only the founder. A second account given both roles would see every ByteForce lead.
+  2. **When the ByteForce admin adds a lead straight into a teammate's list, the teammate is notified**, and the lead gets an `assigned` history row. This was the implementing agent's default.
+  3. **The ByteForce dashboard is admin-only.**
+  4. **B-Systems' Unassigned filter covers every bucket** (§5), not only the internal one.
+
+## ADR-099 — 2026-11-08 — BYTEFORCE LEADS ARE OWNED BY STAFF ACCOUNTS: an admin-only assign route, one assignment path for both companies, owner cards instead of rep cards, and the rep card kept only as history (amends ADR-038, ADR-047, ADR-055 and ADR-079; keeps ADR-078; amends SPEC §6.1, §6.3, §7.4 and A-6)
+
+- Context: the founder's answer **"Both companies now"**. ByteForce leads are assigned to staff ACCOUNTS instead of rep cards, he is ByteForce's admin, and every other ByteForce user sees only his own leads. The sentence it answers is *"whenever I assign a lead for a new user, a new sales especially the internal sales, they can see the lead then"*.
+
+  **Before this change, a ByteForce lead had no owner account at all:**
+  - `salesRepId` pointed at a SalesRep card, which is a nameplate, not a login. ADR-055: "ByteForce leads have no account ownership at all".
+  - Its Leads page was a grid of rep cards with an "Add rep" form (SPEC §6.1).
+  - The only moment to choose a rep was creation. ADR-079: "there is no UI anywhere that reassigns a ByteForce lead's rep after creation".
+  - `assignLeadOwner` was B-Systems-only, behind `requireBsAdmin` (ADR-047).
+  - The ByteForce To-Do had no assign controls (ADR-055, "B-SYSTEMS ONLY", flagged for the founder at the time).
+
+- Decision: **a ByteForce lead's owner is a ByteForce staff account (`Lead.ownerUserId`).** The ByteForce admin hands leads out through the same assignment path B-Systems uses.
+
+### 1. THE ROUTE: `POST /api/byteforce/leads/[id]/assign`
+
+`src/app/api/byteforce/leads/[id]/assign/route.ts` is the twin of `/api/b-systems/leads/[id]/assign`.
+
+- **The ByteForce admin only:** `requireCompanyAdmin("byteforce")`, so anyone else gets a 403. Handing a lead to someone is a management act, so the wall is the admin guard, not `requireLeadAccess`. A teammate can never push his lead onto a colleague, nor pull one to himself (ADR-047's reason).
+- **The body is `{ userId }`** (Zod). **The response is `{ ok, ownerUserId, ownerType }`.**
+- **The brand is the route.** `assignLeadOwner(…, "byteforce")`:
+  - 404s a B-Systems id sent through this door;
+  - refuses an archived lead ("Unarchive this lead first", ADR-043);
+  - refuses an invalid target (§2).
+
+### 2. ONE ASSIGNMENT PATH, BOTH COMPANIES (`src/lib/services/leads.ts`)
+
+| Function | What it does |
+| --- | --- |
+| `resolveAssignee(brand, userId, client?)` | Refuses a target that cannot own a lead of this company: 404 if there is no such user; 400 if he is deactivated or still awaiting approval. **ByteForce:** the target must hold `byteforce_staff`, and the admin is included ("Take it"). The lead keeps its own `ownerType`, because ByteForce has no buckets to move between. **B-Systems:** unchanged. An admin comes first and gets `admin`; otherwise `ownerTypeForRole` gives agent, partner or internal; otherwise 400. It takes a transaction client, so ADR-100 can re-check the target inside its own transaction. |
+| `writeOwnerChange(tx, lead, target, actor, note)` | Runs inside the caller's transaction. If the lead already sits with the target, it does nothing. Otherwise it writes `ownerUserId` and `ownerType`, an ActivityLog row (`update` / `assigned`), and a notification to the new owner (`assigned`, deep-linked by `leadId`). **There is no notification when the admin assigns himself** (ADR-055's rule). The message reads "… made you the owner of …", or, for ADR-100's hand-over, "… handed you the follow-up on … — you are now its owner." |
+| `assignLeadOwner(leadId, userId, actor, brand = "bsystems")` | Backs the Assign button and "Take it". It runs `getLead(brand)`, `assertNotArchived` and `resolveAssignee`, then one transaction with `writeOwnerChange` and the `lead_assign` undo entry. The undo's inverse is exactly the two ownership columns (ADR-047). |
+
+**The screens offer exactly the sets `resolveAssignee` accepts:**
+- **ByteForce:** `listByteforceOwners()` (`src/lib/services/users.ts`): active, approved `byteforce_staff` accounts, the admin included.
+- **B-Systems:** `listAssignableOwners()`, unchanged.
+
+### 3. THE SCREENS
+
+- **The ByteForce Leads page** (`src/components/internal/pages.tsx`):
+  - **The admin** sees one **owner card per staff account**, with its lead count, plus the **Unassigned** card.
+  - **A teammate** sees **"My leads"**, his own list, with the note "The leads assigned to you. The admin hands out the rest."
+  - **With no staff accounts yet**, the page says to create them in the Users app.
+- **The owner pages keep their address**, `/b-systems/leads/rep/[repId]?company=byteforce`, so every link still opens.
+  - `repId` is now an owner account's id, or the literal `unassigned`.
+  - A teammate who opens anyone else's id, or `unassigned`, is sent back to his Leads page, which is his own list. The page body 404s the same case.
+  - The route is still the only door to the ByteForce archive and the Unassigned bucket (ADR-043).
+- **"Add rep" is gone**, because accounts are made in the Users app (ADR-102). `POST /api/byteforce/reps` and `POST /api/b-systems/reps` now use `requireCompanyAdmin`; before, every staff member could call them.
+- **The lead detail shows Owner** where it showed the assigned rep, with **Assign** for the admin.
+- **To-Do rows carry Assign and Take it for the admin**, as B-Systems' do (ADR-055).
+- **Add lead:** the admin gets the Owner picker (ADR-098 §6). On the owner pages, the old fixed rep becomes a fixed `ownerUserId`. The picker and the fixed owner are mutually exclusive by construction, as in ADR-079 §2.
+- **The Unassigned card now reads plain "Unassigned"** (`common.unassigned`), not "Unassigned (Partner leads)". This is the docs-keeper's reading of `pages.tsx` at writing time. Flagged below, because ADR-088 left that rename to the founder.
+
+### 4. THE REP CARD BECOMES HISTORY
+
+- **`SalesRep` cards and `Lead.salesRepId` no longer decide who sees or owns a lead**, in either company.
+  - The column, the table and the cards' history display stay.
+  - No screen writes `salesRepId` any more (grep of `src/components` at writing time).
+- **The partner add-lead "Assign to rep" select is removed**, and `/api/b-systems/partners/[id]/leads` drops a posted `salesRepId`.
+- **The export already had an Owner column** (ADR-083, `owner`). **"Sales rep" is kept beside it, as history.** No test or import template depends on it, so it can go if he prefers.
+- **Noted, not changed** (the docs-keeper's grep at writing time, not in the agent's report):
+  - **The API schemas still accept a `salesRepId`.** `createLeadSchema` (A-6's optional field) does, on the ByteForce create route and the B-Systems admin/sales create route, and so does `updateLeadSchema` on PATCH. An API caller could still set one, and it would decide nothing.
+  - **ADR-038's read-side provisioning still mints B-Systems `SalesRep` rows.** `listBsOwnerReps()` runs when the admin or a sales user opens the B-Systems board or a lead page (`BsCrmBoardBody.tsx`, `BsLeadDetailBody.tsx`). Its roster goes to stage forms that no longer read it (ADR-096 §5). So "rep cards are no longer written" holds for `Lead.salesRepId`, not for the SalesRep table.
+
+### 5. PROPOSAL EDIT ON BYTEFORCE STAYS REFUSED (ADR-078)
+
+- ADR-078 opened proposal edit to `access.isAdmin`, and noted that this meant **"nobody on ByteForce, which has no admin role at all"**.
+- `requireLeadAccess` now reports `isAdmin` for the ByteForce admin (ADR-098 §2). Inheriting the flag would have opened the edit to him without anyone asking for it. spec-guardian caught this.
+- `src/app/api/byteforce/proposals/[id]/route.ts` still runs `requireLeadAccess` first, and then refuses everyone: 403 "Only the admin can edit a proposal".
+- The B-Systems twin is unchanged. Widening the ByteForce edit is his call (flagged).
+
+### 6. WHAT THIS DOES TO EARLIER DECISIONS (none is rewritten)
+
+- **ADR-047:** assignment was B-Systems-only, behind `requireBsAdmin`. It now runs in both companies, behind each company's admin. Its "admins are deliberately not offered" still holds for B-Systems' roster. ByteForce's roster includes the admin, which makes "Take it" a roster choice there.
+- **ADR-055:** "B-SYSTEMS ONLY. The ByteForce To-Do gets no controls", flagged for the founder at the time. **"Both companies now" answers it.** ByteForce To-Do rows carry Assign and Take it for the ByteForce admin, and assigning yourself still sends no notification.
+- **ADR-079:** the board's rep picker becomes the admin's Owner picker.
+  - Its reason 1 (no UI reassigns a ByteForce lead) is overtaken by §1.
+  - Its reason 2 (the "Unassigned (Partner leads)" heading) is overtaken by the card's new label (§3).
+- **ADR-038:** its cards decide nothing, and its provisioning still runs (§4).
+- **ADR-078:** kept. The refusal is now stated in the route rather than inherited (§5).
+- **SPEC §6.1** (a grid of sales rep cards, reps added without limit) and **§6.3** (cards display the assigned rep): an "Amended by ADR-098/ADR-099" note was added at the §6 intro.
+- **SPEC §7.4** and **A-6** ("Optional assign-to-rep at creation; else 'Unassigned (Partner leads)' bucket"): a note was added under §7.4.
+
+- Alternatives considered:
+  - **Keep the rep cards and link each one to an account** (ADR-038's deferred `userId` column). Not taken: it needs a schema change, and the founder asked for accounts.
+  - **Let a teammate assign his own leads.** Rejected, as in ADR-047: assigning is a management act.
+  - **Open ByteForce proposal edit to the new admin.** Not taken: nothing asked for it, and ADR-078 left it to him.
+  - **Drop the export's "Sales rep" column.** Not taken: it is history, and dropping it is his call.
+  - **Move the owner pages to a new path.** Not taken: the old address keeps every link, nav test and e2e working.
+
+- Resolves: the founder's answer "Both companies now".
+  - **Amends A-6's default** ("Optional assign-to-rep at creation; else 'Unassigned (Partner leads)' bucket"). There is no assign-to-rep any more, ownership is an account, and Unassigned means no owner account. Flagged.
+  - **Answers ADR-055's open flag.** Overtakes ADR-088's item 1 (the card's name). Keeps ADR-078's item 1 open, restated below.
+  - **No schema change.**
+- Status: Accepted. **Needs founder confirmation (four):**
+  1. **ByteForce proposal edit stays refused for everyone**, the ByteForce admin included (ADR-078's "nobody on ByteForce").
+  2. **The export keeps "Sales rep" as history** beside Owner. No test or template depends on it.
+  3. **No screen writes rep cards any more, and partner-sourced leads have no "Assign to rep".** This amends SPEC A-6.
+  4. **The ByteForce Unassigned card now reads "Unassigned"** instead of "Unassigned (Partner leads)". This overtakes ADR-088's item 1, which left the rename to him. It is the docs-keeper's finding from the code, not on the agent's list.
+
+## ADR-100 — 2026-11-08 — "HAND THIS FOLLOW-UP TO": the company admin hands the lead over as he records a follow-up, in one transaction, and the undo gives it back (amends ADR-082 §4; extends ADR-045 and ADR-047)
+
+- Context: the founder, verbatim: *"And also when I log a follow-up, I should be able to assign it to somebody so the have that follow-up in their follow-up column. Even if they are not assigned the lead from the first or from the beginning, I can like redirect the lead for them for follow-up. Through the system."* Asked what assigning a follow-up should mean, he chose **"The lead moves to them"**:
+  - the person becomes the lead's owner;
+  - it appears in their Following Up column and their To-Do;
+  - they are notified;
+  - there is one owner at a time.
+
+- Decision: **the company admin's follow-up forms get an optional "Hand this follow-up to" select.** Submitting with a name records the follow-up and makes that person the lead's owner, in one transaction.
+
+### 1. THE CONTROL
+
+- **`src/components/shared/AssignToField.tsx`**, with its strings in `src/lib/i18n/dict/owners.ts`:
+  - the label **"Hand this follow-up to"** / «سلّم هذه المتابعة إلى»;
+  - the default **"Keep the current owner"** / «إبقاء المالك الحالي»;
+  - the hint *"The lead moves to them: it becomes theirs, sits in their Following Up column and To-Do, and they are notified."*
+
+  The label points at the select (`htmlFor`), and the hint is tied to it by `aria-describedby`. TESTING Run 108 says why.
+- **It is rendered only for the company admin**, in both boards' drop windows and on both lead pages.
+- **The options come from `followUpAssignees`** (`src/lib/services/assignees.ts`):
+  - **B-Systems:** the admin himself ("{name} (me)"), then `listAssignableOwners`: the active, approved agents, partners and internal sales, each labelled with role and company.
+  - **ByteForce:** `listByteforceOwners`: every active, approved staff account, the admin among them.
+
+  These are exactly the sets `resolveAssignee` accepts (ADR-099 §2), so the select never offers a name the server would refuse.
+
+### 2. WHICH MOVES CAN CARRY IT
+
+Any move whose engine demand is the follow-up group (`result.requiredGroup.group === "follow_up"`):
+
+- a move into Following Up;
+- **Log another follow-up**, the same-stage action (ADR-046);
+- the negotiation's **response date** (ADR-068);
+- a **meeting outcome back to Following Up**;
+- a proposal marked **Sent**, which returns the card to Following Up automatically.
+
+Any other move that carries an assignee gets a 400, "Only a follow-up can be handed to someone". No transition row changed (SPEC §10).
+
+### 3. THE WALL, ON THE SERVER
+
+- **`leadEventSchema` gains an optional `assignTo`.**
+- **Both event routes refuse it from anyone but the company admin**, with a 403 "Only the admin can hand a follow-up to someone". These are the B-Systems `/api/b-systems/leads/[id]/event` and the internal-CRM factory's `applyLeadEvent`, and both use `isAdmin` from `requireLeadAccess`.
+- **The service checks again** (`applyLeadEvent`'s `canHandOver`), so no future caller can skip the wall.
+- **The assignee is checked twice:** by `resolveAssignee` before the transaction, and again inside it, in case the account was deactivated between the two reads.
+
+### 4. ONE TRANSACTION
+
+- **The follow-up, the stage move and the new owner commit together, or not at all.** `writeOwnerChange(…, "follow_up")` writes three things:
+  - the two ownership columns;
+  - an `assigned` history row;
+  - the new owner's notification: *"{admin} handed you the follow-up on "{lead}" ({company}) — you are now its owner."*
+- **The owner before the hand-over is read inside the same transaction**, beside the existing stage check (a 409 if the lead has just moved).
+- **The previous owner loses the lead**, unless he is the admin, who sees everything anyway. There is one owner at a time.
+- **"Keep the current owner" writes no hand-over at all**, and a hand-over to the current owner does nothing. Both are pinned by `assigned-only.integration.test.ts`.
+- **No schema change, and nothing new is stored on FollowUp.** The `assigned` ActivityLog row records the hand-over.
+
+### 5. UNDO GIVES THE LEAD BACK
+
+- **The follow-up's `lead_event` undo snapshot gains an optional `owner`** (`ownerUserId`, `ownerType`), and only when the lead changed hands. Every other entry is byte-identical to before.
+- **`src/lib/services/undo.ts` restores it with the rest:** one action, one inverse.
+- **The notification already sent stays** in the assignee's bell.
+- Pinned by the integration test "B-Systems: the admin hands a follow-up to Omar — same transaction, he sees it; undo gives it back".
+
+### 6. WHAT THIS DOES TO EARLIER DECISIONS (none is rewritten)
+
+- **ADR-082 §4**: "The Owner select is removed from the follow-up form" and "ONLY THE INPUT GOES".
+  - **The new select is not that field coming back.** ADR-082's Owner set `FollowUp.ownerSalesRepId` / `ownerPortalRepId`, a label on the follow-up record. The new one moves the LEAD's owner, is the company admin's only, and writes nothing to FollowUp.
+  - **`FollowUp.ownerSalesRepId` / `ownerPortalRepId` stay stored but unused, as ADR-082 left them.** `followUpSchema` still accepts both, and the forms send neither. ADR-082's item 6 (the inherited columns) is unchanged.
+- **ADR-047:** "Letting the lead's own owner reassign it — rejected" still holds. Only the company admin hands a lead over.
+- **ADR-045:** the `lead_event` inverse grows one optional field, under the same allowlist and the same author rule.
+- **ADR-055:** when the admin hands a follow-up to himself, no notification is sent.
+
+- Alternatives considered:
+  - **Assign the follow-up only, and leave the lead with its owner.** Not taken: he chose **"The lead moves to them"**, and an assignee who cannot open the lead could not work the follow-up.
+  - **Store the assignee on FollowUp.** Not taken: it needs a schema change, and the history row already records the hand-over.
+  - **Make the hand-over non-undoable and retire the pending undo.** Not taken: undoing the follow-up while leaving the lead with someone else would be half an inverse. Flagged.
+  - **Offer it only on the move into Following Up.** Not taken: every move that records a follow-up is the same act to him. Flagged.
+  - **Let sales hand on their own follow-ups.** Rejected: handing on is a management act (ADR-047).
+
+- Resolves: one founder request and his answer "The lead moves to them". **No SPEC §11 A-#.** Amends ADR-082 §4 as described above. No schema change and no engine change.
+- Status: Accepted. **Needs founder confirmation (two):**
+  1. **Undoing a follow-up that handed a lead over also gives the lead back** (pinned by a test). The notification already sent stays.
+  2. **The hand-over is offered on every move that records a follow-up:** into Following Up, Log another follow-up, the negotiation response date, a meeting outcome back to Following Up, and a proposal marked Sent. **The server also accepts any active B-Systems admin as the target**, though the select offers only the admin himself.
+
+## ADR-101 — 2026-11-08 — THE OWNERSHIP BACKFILL: a one-time, SQL-only data migration that hands each plainly-owned lead to its person and leaves the rest unassigned (follows ADR-080's precedent)
+
+- Context: under ADR-098, a non-admin sees only the leads he owns.
+  - Until now, a B-Systems sales user saw the whole internal bucket, and a ByteForce teammate saw every ByteForce lead, so neither ever needed to own one.
+  - **So on the morning this deploys, every one of them would open an empty board.**
+  - Asked about the leads a sales user added that nobody owns, the founder said **"Give them to whoever added them"**. Asked about ByteForce, he said **"Both companies now"**.
+
+- Decision: **`prisma/migrations/20261108120000_assigned_leads_only/migration.sql`.**
+  - It changes data only: no table, column or index.
+  - It runs two statements inside `BEGIN; … COMMIT;`, one per company.
+  - **It only ever touches rows with `"ownerUserId" IS NULL`.** A lead that already has an owner is never re-decided.
+
+### 1. WHY A MIGRATION (ADR-080 §4's precedent)
+
+The production launcher runs `prisma migrate deploy` at boot, and never a seed or a script (`scripts/start.mjs`). So a migration is the only thing that runs by itself on the live database, exactly once and in order, before the new code serves a request. The file's header comment says so.
+
+### 2. THE RULE
+
+**B-Systems** (`brand = 'bsystems'`, `ownerType = 'internal'`, no owner):
+1. **If the lead's rep card name (`SalesRep.name`) exactly equals the name of exactly one active, approved account holding `bsystems_sales`**, that account owns it. The match is exact because B-Systems cards were minted from those very account names (ADR-038).
+2. **Otherwise, if the creator (`createdByUserId`) is an active, approved `bsystems_sales` account and not a `bsystems_admin`**, the creator owns it ("give them to whoever added them").
+3. **Otherwise nothing changes:** the lead stays unassigned, and the admin's.
+
+**ByteForce** (`brand = 'byteforce'`, no owner, any `ownerType`). Here "staff" means active, approved `byteforce_staff` accounts that are **not** `bsystems_admin`, so the founder never becomes an owner by this rule.
+1. **If the card's name matches exactly one staff account**, that account owns it. The match ignores case and surrounding whitespace (`lower(regexp_replace(name, '^\s+|\s+$', '', 'g'))`), because ByteForce cards were typed by hand.
+2. **Otherwise, if the creator is a staff account**, the creator owns it.
+3. **Otherwise the lead stays unassigned**, and the ByteForce admin hands it out.
+
+**For both companies:**
+- **An ambiguous card never guesses.** When two accounts share the name, `HAVING COUNT(*) = 1` fails, and the lead falls to the creator rule, then to unassigned.
+- **Archived leads follow the same rule.** This is about ownership, not about whether the archive is visible.
+- **`ownerType` and `salesRepId` are untouched.** B-Systems' `ownerType` stays `internal`, and the card stays on the row as history.
+
+### 3. HISTORY
+
+**Every lead it hands over gets one ActivityLog row:**
+- `entityType` `'lead'`, `action` `'update'`, `trigger` `'backfill_owner'`;
+- `actorLabel` `'System'`, `actorId` null;
+- `createdAt` = the moment the migration runs.
+
+**The History panel shows it with its own pill:** "Owner set when leads became assigned-only" / «عُيّن المالك عند قصر العملاء على المُسندين» (`dict/owners.ts`).
+
+**The row id is derived:** `'backfill_owner_' || md5(lead id)`.
+- `ActivityLog.id`'s cuid default lives in the Prisma client, not in the database, so a SQL insert must supply its own id.
+- With `ON CONFLICT (id) DO NOTHING`, a second run cannot write a second row.
+
+### 4. `updatedAt` IS DELIBERATELY NOT BUMPED
+
+- **Prisma's `@updatedAt` is client-side, so raw SQL leaves it alone** (ADR-057 met this first). Here that is the wanted outcome: the boards order by `updatedAt`, and bumping it would reshuffle every board on deploy morning for a change no person made.
+- **The unchanged fingerprint puts no pending undo at risk.** The only inverse that writes the owner columns (`lead_assign`) belongs to leads that already have an owner, and this migration never touches those.
+
+### 5. IDEMPOTENT
+
+Every plan and every `UPDATE` is gated on `"ownerUserId" IS NULL`, and the log insert cannot duplicate. A second run changes nothing.
+
+### 6. THE PROOF: `src/lib/services/assigned-leads-backfill.integration.test.ts`
+
+- **It executes the migration file's own text**, read from disk and never copied, through a plain `pg` client. Its BEGIN/COMMIT, its comments and both its statements run exactly as `migrate deploy` runs them.
+- **Its fixtures cover every branch, in both companies:**
+  - a matched card, an ambiguous card name and an unmatched card;
+  - a sales creator, an admin creator, a pending creator and an inactive one;
+  - an already-owned lead, an admin-bucket lead with no owner, and a ByteForce card that names the admin;
+  - archived leads.
+- **It asserts four things:**
+  - exactly which rows changed, with every other row identical;
+  - the history row each change writes;
+  - an untouched `updatedAt`;
+  - that a second run changes nothing.
+- **A second case:** a lead created after a first run is decided by a second run, and only that lead is.
+
+### 7. KNOWN GAPS (stated, not discovered)
+
+- **Restoring a backup taken before this deploy brings back the old unowned leads.**
+  - `src/lib/services/backup.ts` has no twin of this rule, because it was out of bounds for this change.
+  - Earlier data migrations do have twins inside `importBackup`: ADR-057/059's stage normalisation, ADR-063's `dueTimeSet`, and ADR-064's `backfillNoAnswerCount` ("the RESTORE path needs the migration's twin").
+  - Nothing leaks, because an unowned lead is the admin's alone, but those leads would need handing out again.
+  - The file's statements are gated and idempotent, so they could in principle be re-run by hand after such a restore.
+- **The B-Systems card match does not exclude sales accounts that are also admins.**
+  - It follows the brief literally. The creator branch does exclude admins.
+  - It is harmless: such a lead lands in that admin's own list, and he sees every lead anyway.
+  - It does mean that lead no longer shows under B-Systems' Unassigned filter.
+
+- Alternatives considered:
+  - **A one-off script.** Rejected, for ADR-080 §4's reason: "somebody will remember" is not a deploy step.
+  - **Give every unowned lead to its creator, whoever he is.** Not taken: an admin or data-entry creator would then "own" leads that were meant to be handed out (ADR-051: data entry owns nothing).
+  - **A fuzzy name match.** Not taken: a wrong guess hands a customer to the wrong person. When two names are equal, it never guesses.
+  - **Bump `updatedAt`.** Rejected (§4).
+  - **Leave everything unassigned for the admin.** Not taken: he said "Give them to whoever added them", and the boards would be empty on deploy morning.
+
+- Resolves: the founder's answer "Give them to whoever added them". **No SPEC §11 A-#.**
+  - It follows ADR-080 §4: it is a migration because only a migration runs by itself on the live database.
+  - It follows the house shape for data migrations (ADR-057, ADR-064): idempotent, guarded, and proved by execution.
+  - **No schema change.** `prisma/schema.prisma` is untouched by this work.
+- Status: Accepted. **Needs founder confirmation (one):**
+  1. **The B-Systems card match does not exclude sales accounts that are also admins** (§7). It is harmless, and it follows the brief literally.
+
+## ADR-102 — 2026-11-08 — THE USERS APP: its own launcher tile after Partners & Agents, the same admin-only page with its own header, and no Users item in the B-Systems CRM menu (amends ADR-095 §1 and ADR-090 §4/§5)
+
+- Context: the founder, verbatim: *"Also the apps whenever I open the home page should use or have individual users tab not put the users inside B-System CRM, just separate it entirely into like an app or an icon in the home page."* ADR-095 §1 had put **Users** last in the B-Systems CRM admin menu (CRM, Leads, Calendar, Won Leads, Statements, Users).
+
+- Decision: **Users becomes its own launcher app**, built the way Partners & Agents is.
+
+### 1. THE TILE
+
+- **Tile 8, "Users"**, in `launcherTilesFor` (`src/lib/launcher/apps.ts`): `id: "users"`, opening `USERS_PATH` (`/b-systems/users`) with `?company=bsystems`, `palette: "neutral"`.
+- **It is shown when the account holds `bsystems_admin`.** That is the same wall as the Partners & Agents tile and as the page's own guard, so the launcher never offers a door that bounces. It sits **last, after Partners & Agents**.
+- **Its icon is a people-plus-badge glyph** in the launcher's neutral family (`AppIcon.tsx`, `launcher.css` tokens). brand-auditor's findings were fixed: the faint background figures in the icon, and the tab title and eyebrow.
+
+### 2. ITS OWN MENU CONTEXT
+
+- **`src/lib/crm/nav.ts`:** `CrmAppContext` gains `"users"`, and `crmAppContextFor("/b-systems/users")` returns it.
+- **The header names the app "Users"**, from the tile's own label, so the two cannot drift apart (the mechanism ADR-095 §1 set up). There is **no menu**, because the app is one page.
+- **Users is removed from `BSYSTEMS_NAV.bsystems_admin`.** That menu is now **CRM, Leads, Calendar, Won Leads, Statements**, and its code comment points to the new home.
+- **The page itself is unchanged:** `/b-systems/users`, behind `requireCompanySection("bsystems")` plus the admin bounce.
+
+### 3. WHAT THIS DOES TO EARLIER DECISIONS (none is rewritten)
+
+- **ADR-095 §1:** the "B-Systems CRM, admin" row loses Users, and the launcher row gains a tile.
+  - The one-way guard (`one-way.test.ts`) still holds: Users has exactly one way in, its tile.
+  - The nav, launcher and one-way tests and the e2e were updated.
+- **ADR-090 §4 and §5** (the tile table and the tile counts), read off `apps.ts` at writing time:
+  - the founder now has **8** tiles;
+  - a B-Systems admin blocked from Accounting has **6**;
+  - a B-Systems admin blocked from both modules has **5**.
+
+  Separately, under ADR-098, a ByteForce-only teammate's Reports tile now opens his daily report directly.
+- **SPEC §7.1:** its ADR-095 note lists Users in the admin menu. An "Amended by ADR-102 (the Users app)" note now follows it.
+
+- Alternatives considered:
+  - **Keep Users in the CRM menu as well.** Rejected: that is two ways to one page, which ADR-095 forbids, and he asked to "separate it entirely".
+  - **A Users item inside Partners & Agents.** Not taken: he asked for "an app or an icon in the home page".
+  - **A new address.** Not taken: the page, its guard and every test keep `/b-systems/users`.
+
+- Resolves: one founder request. **No SPEC §11 A-#.** Amends ADR-095 §1 and ADR-090 §4/§5. **No migration, no schema change, no permission change.**
+- Status: Accepted. **Needs founder confirmation:** none.

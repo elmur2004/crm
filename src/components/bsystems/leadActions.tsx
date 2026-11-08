@@ -8,6 +8,7 @@ import { tFor } from "@/lib/i18n/core";
 import { useLocale } from "@/components/shared/LocaleProvider";
 import { leadTypeLabel } from "@/lib/i18n/dict/labels";
 import { assignLead, common, leadDetail, leadForm } from "@/lib/i18n/dict/crm";
+import { bfOwner } from "@/lib/i18n/dict/owners";
 import { todoPage } from "@/lib/i18n/dict/todo";
 
 /* V2 §2.2 — admin lead actions: edit any field, copy the lead's data, delete. */
@@ -140,6 +141,7 @@ export function AssignLeadButton({
   owners,
   currentOwnerUserId,
   small,
+  variant = "bsystems",
 }: {
   leadId: string;
   apiBase: string;
@@ -147,8 +149,15 @@ export function AssignLeadButton({
   currentOwnerUserId: string | null;
   /** To-Do rows wear the compact button (design-system btn--sm) */
   small?: boolean;
+  /** whose roster's words to use — ByteForce hands leads to staff accounts
+      (founder 2026-11-08), not to agents and partners */
+  variant?: "bsystems" | "byteforce";
 }) {
   const t = tFor(useLocale());
+  const words =
+    variant === "byteforce"
+      ? { choose: bfOwner.choose, noOwners: bfOwner.noOwners, note: bfOwner.note }
+      : { choose: assignLead.choose, noOwners: assignLead.noOwners, note: assignLead.note };
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -218,7 +227,7 @@ export function AssignLeadButton({
                 onChange={(ev) => setUserId(ev.target.value)}
                 className={inputCls}
               >
-                <option value="">{t(assignLead.choose)}</option>
+                <option value="">{t(words.choose)}</option>
                 {owners.map((o) => (
                   <option key={o.id} value={o.id}>
                     {`${o.name} — ${o.roleLabel}${o.company ? ` · ${o.company}` : ""}`}
@@ -226,10 +235,10 @@ export function AssignLeadButton({
                 ))}
               </select>
             </label>
-            {owners.length === 0 ? <p className="u-muted">{t(assignLead.noOwners)}</p> : null}
+            {owners.length === 0 ? <p className="u-muted">{t(words.noOwners)}</p> : null}
           </div>
           <div className="modal-foot">
-            <span className="modal-foot-note">{t(assignLead.note)}</span>
+            <span className="modal-foot-note">{t(words.note)}</span>
             <span className="flex gap-2">
               <button type="button" className={btnGhost} onClick={() => setOpen(false)}>
                 {t(common.cancel)}
@@ -249,7 +258,16 @@ export function AssignLeadButton({
    myself": the one-click self-assign. Same admin-only endpoint as the Assign
    modal; the server derives the admin bucket from the target's role. Rendered
    only when the row is NOT already the admin's own. */
-export function TakeLeadButton({ leadId, selfUserId }: { leadId: string; selfUserId: string }) {
+export function TakeLeadButton({
+  leadId,
+  selfUserId,
+  apiBase = "/api/b-systems",
+}: {
+  leadId: string;
+  selfUserId: string;
+  /** the company's namespace — both assign routes are company-admin walls */
+  apiBase?: string;
+}) {
   const t = tFor(useLocale());
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -263,11 +281,9 @@ export function TakeLeadButton({ leadId, selfUserId }: { leadId: string; selfUse
         onClick={async () => {
           setBusy(true);
           setError(null);
-          const res = /* ADR-074 — the literal is deliberate. "Take it" lives on the admin
-             To-Do row, which is a B-SYSTEMS-only screen (its roster and its
-             endpoint are both B-Systems-locked), so there is no other
-             namespace this could honestly point at. */
-          await fetch(`/api/b-systems/leads/${leadId}/assign`, {
+          const res = /* the To-Do row's / lead page's own company namespace
+             (founder 2026-11-08 — ByteForce's admin takes leads too) */
+          await fetch(`${apiBase}/leads/${leadId}/assign`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ userId: selfUserId }),

@@ -2,9 +2,15 @@ import { expect, test } from "@playwright/test";
 import { afterSignIn } from "./helpers/after-sign-in";
 
 /* SPEC §13 journey 1 — ByteForce full cycle:
-   add rep → add lead → Following Up → Meeting (attended → proposal) → Sent ✓ →
+   owner card → add lead → Following Up → Meeting (attended → proposal) → Sent ✓ →
    auto Following Up (after proposal) → Won → Client card exists → dashboard numbers
-   correct. Runs first against the freshly seeded e2e DB (absolute assertions). */
+   correct. Runs first against the freshly seeded e2e DB (absolute assertions).
+
+   Founder (2026-11-08, "assigned leads only" — "Both companies now"): ByteForce
+   leads belong to staff ACCOUNTS, the Leads page is the ADMIN's directory of
+   owner cards (no "Add sales rep" — accounts are made in the Users app), and
+   the ByteForce dashboard is the admin's. So the journey is the ByteForce
+   admin's — the founder — adding a lead straight into Sara's list. */
 
 test.describe.configure({ mode: "serial" });
 
@@ -19,10 +25,10 @@ const metric = (page: import("@playwright/test").Page, key: string) =>
     .then((v) => Number(v));
 
 test("journey 1: ByteForce full cycle to Won", async ({ page }) => {
-  /* Log in as ByteForce staff. */
+  /* Log in as the ByteForce admin (the platform admin). */
   await page.goto("/login");
-  await page.getByLabel("Email or phone").fill("sara@byteforce.example");
-  await page.getByLabel("Password").fill("byteforce123");
+  await page.getByLabel("Email or phone").fill("admin@byteforce.com");
+  await page.getByLabel("Password").fill("password123");
   await page.getByRole("button", { name: "Sign in" }).click();
   await afterSignIn(page, /\/b-systems\?company=byteforce$/);
 
@@ -32,16 +38,16 @@ test("journey 1: ByteForce full cycle to Won", async ({ page }) => {
   const wonValueBefore = await metric(page, "won_value");
   const collectBefore = await metric(page, "to_be_collected");
 
-  /* Add a sales rep (§6.1 — reps unlimited). */
+  /* The Leads page: one card per staff ACCOUNT (Sara's among them) — no rep
+     cards to add any more. */
   await page.goto("/b-systems/leads?company=byteforce");
-  await page.getByRole("button", { name: "Add sales rep" }).click();
-  await page.getByLabel("Rep name").fill("Journey Rep");
-  await page.getByRole("button", { name: "Add", exact: true }).click();
-  const repCard = page.getByRole("link", { name: /Journey Rep/ });
+  await expect(page.getByRole("button", { name: "Add sales rep" })).toHaveCount(0);
+  const repCard = page.getByRole("link", { name: /Sara Hassan/ });
   await expect(repCard).toBeVisible();
 
-  /* Open the rep's leads table and add a lead. */
+  /* Open Sara's list and add a lead straight into it. */
   await repCard.click();
+  await expect(page.getByRole("heading", { level: 1, name: "Sara Hassan" })).toBeVisible();
   await page.getByRole("button", { name: "Add lead" }).click();
   await page.getByLabel("Name").fill("Journey Lead Co");
   await page.getByLabel("Number").fill("01099998888");
@@ -59,8 +65,10 @@ test("journey 1: ByteForce full cycle to Won", async ({ page }) => {
   await page.goBack();
   await expect(leadLink).toBeVisible();
 
-  /* Lead detail — Next action: Following up (T-1). */
+  /* Lead detail — it is Sara's: the Owner is the account. Next action:
+     Following up (T-1). */
   await leadLink.click();
+  await expect(page.locator('[data-field="owner"]')).toContainText("Sara Hassan");
   await page.getByLabel("Next action").selectOption("following_up");
   await page.getByLabel("Follow-up date").fill("2026-09-01");
   await page.getByLabel("Method").selectOption("call");

@@ -132,16 +132,18 @@ describe("Won Leads / commission never crosses the company line", () => {
   });
 
   it("the admin and internal-sales won lists are company-scoped too", async () => {
-    const bsLead = await lead("bsystems", "BS Won");
-    const bfLead = await lead("byteforce", "BF Won");
+    /* one seller OWNS a won lead in each company (founder 2026-11-08: a
+       seller's Won Leads are the ones he owns), so this is the sales view's
+       own cross-company case, not an ownership accident */
+    const seller = await makeUser("Both-Company Seller", "bsystems_sales");
+    const bsLead = await lead("bsystems", "BS Won", { ownerType: "internal", ownerUserId: seller.id });
+    const bfLead = await lead("byteforce", "BF Won", { ownerType: "internal", ownerUserId: seller.id });
     await wonDealOn(bsLead.id);
     await wonDealOn(bfLead.id);
 
     expect((await adminWonLeads("bsystems")).map((w) => w.lead.name)).toEqual(["BS Won"]);
     expect((await adminWonLeads("byteforce")).map((w) => w.lead.name)).toEqual(["BF Won"]);
-    /* both leads default to the internal owner bucket, so this is the sales
-       view's own cross-company case, not a bucket accident */
-    expect((await salesWonLeads("bsystems")).map((w) => w.lead.name)).toEqual(["BS Won"]);
-    expect((await salesWonLeads("byteforce")).map((w) => w.lead.name)).toEqual(["BF Won"]);
+    expect((await salesWonLeads("bsystems", seller.id)).map((w) => w.lead.name)).toEqual(["BS Won"]);
+    expect((await salesWonLeads("byteforce", seller.id)).map((w) => w.lead.name)).toEqual(["BF Won"]);
   });
 });

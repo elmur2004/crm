@@ -113,7 +113,7 @@ test("B-Systems board: the Today chip shows only today's follow-ups; off restore
 test("ByteForce board: full parity — the chip filters and restores there too (ADR-042)", async ({
   page,
 }) => {
-  await login(page, "sara@byteforce.example", "byteforce123", /\/b-systems\?company=byteforce$/);
+  await login(page, "sara@byteforce.example", "byteforce123", /\/b-systems\/crm\?company=byteforce$/);
   const ids = [
     await leadDueOn(page, "/api/byteforce", "BF Today Chip", "0107770003", cairoDate()),
     await leadDueOn(page, "/api/byteforce", "BF Later Chip", "0107770004", cairoDate(4)),

@@ -14,6 +14,11 @@ import { tFor } from "@/lib/i18n/core";
 import { useLocale } from "@/components/shared/LocaleProvider";
 import { optionalLabel, sameStageActionLabel, stageLabel } from "@/lib/i18n/dict/labels";
 import { common, events } from "@/lib/i18n/dict/internal";
+import {
+  AssignToField,
+  assignToFromForm,
+  type AssigneeOption,
+} from "@/components/shared/AssignToField";
 
 /* §6.1/§6.2 — selecting a Next Action opens exactly that stage's field group right
    here; submitting fires ONE mutation (event + group payload). Cancel = nothing
@@ -234,6 +239,7 @@ export function LeadEventPanel({
   latestProposalValue,
   hasUnsentProposal,
   pendingMeeting,
+  assignees,
 }: {
   apiBase: string;
   leadId: string;
@@ -242,6 +248,10 @@ export function LeadEventPanel({
   latestProposalValue: number | null;
   hasUnsentProposal: boolean;
   pendingMeeting: boolean; // latest meeting exists with no outcome
+  /** Founder (2026-11-08) — "Hand this follow-up to": the ByteForce ADMIN's
+      options, pre-translated. Absent for everybody else (no select renders,
+      and the server refuses an assignee from them regardless). */
+  assignees?: AssigneeOption[];
 }) {
   const router = useRouter();
   const locale = useLocale();
@@ -261,6 +271,8 @@ export function LeadEventPanel({
   const sameStageActions = nextActions.filter(isSameStageAction);
   const stageActions = nextActions.filter((a) => !isSameStageAction(a));
   const formTarget = (a: string) => (isSameStageAction(a) ? SAME_STAGE_FORM_TARGET[a] : a);
+  /* the one form target that records a follow-up, and so can carry a hand-over */
+  const followUpTarget = internalCrmConfig.followUpStage;
   const attendedDestinations = internalCrmConfig.attendedDestinations("byteforce_staff");
   /* ADR-059: the engine owns the cancelled-meeting destinations now — the UI
      asks instead of composing the pair itself. Same answer as before here. */
@@ -337,15 +349,18 @@ export function LeadEventPanel({
           <form
             onSubmit={(e) => {
               e.preventDefault();
+              const fd = new FormData(e.currentTarget);
               void submit({
                 event: { type: "proposal_sent" },
-                group: followUpFromForm(new FormData(e.currentTarget)),
+                group: followUpFromForm(fd),
+                assignTo: assignToFromForm(fd),
               });
             }}
             className="space-y-3"
           >
             <p className="u-h3">{t(events.followingUpAfterProposal)}</p>
             <FollowUpFields />
+            <AssignToField options={assignees} />
             <button type="submit" disabled={busy} className={btnPrimary}>
               {t(events.sentMoveToFollowingUp)}
             </button>
@@ -413,14 +428,17 @@ export function LeadEventPanel({
                 <form
                   onSubmit={(e) => {
                     e.preventDefault();
+                    const fd = new FormData(e.currentTarget);
                     void submit({
                       event: { type: "meeting_outcome", outcome, destination },
-                      group: groupForTarget(destination, new FormData(e.currentTarget)),
+                      group: groupForTarget(destination, fd),
+                      assignTo: destination === followUpTarget ? assignToFromForm(fd) : undefined,
                     });
                   }}
                   className="crm-reveal space-y-3"
                 >
                   {fieldsForTarget(destination)}
+                  {destination === followUpTarget ? <AssignToField options={assignees} /> : null}
                   <button type="submit" disabled={busy} className={btnPrimary}>
                     {t(events.confirmMoveTo)} {stageLabel(locale, destination)}
                   </button>
@@ -474,9 +492,11 @@ export function LeadEventPanel({
           <form
             onSubmit={(e) => {
               e.preventDefault();
+              const fd = new FormData(e.currentTarget);
               void submit({
                 event: { type: "next_action", action },
-                group: groupForTarget(formTarget(action), new FormData(e.currentTarget)),
+                group: groupForTarget(formTarget(action), fd),
+                assignTo: formTarget(action) === followUpTarget ? assignToFromForm(fd) : undefined,
               });
             }}
             className="crm-reveal card card-pad mt-3 space-y-3"
@@ -487,6 +507,7 @@ export function LeadEventPanel({
                 : stageLabel(locale, action)}
             </p>
             {fieldsForTarget(formTarget(action))}
+            {formTarget(action) === followUpTarget ? <AssignToField options={assignees} /> : null}
             <div className="flex gap-2">
               <button type="submit" disabled={busy} className={btnPrimary}>
                 {isSameStageAction(action) ? t(events.saveRecord) : t(events.saveAndMove)}

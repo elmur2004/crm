@@ -133,10 +133,13 @@ export async function closerWonLeads(
   }));
 }
 
-/** Internal-sales view: won leads they are the assigned rep for, commission hidden. */
-export async function salesWonLeads(brand: Brand) {
+/** Internal-sales view: the won leads they OWN, commission hidden.
+    Founder (2026-11-08, "assigned leads only") — this used to be the whole
+    internal bucket, i.e. every colleague's wins; it is the seller's own now,
+    the same wall as the board and the lead detail. */
+export async function salesWonLeads(brand: Brand, userId: string) {
   const wonDeals = await db.wonDeal.findMany({
-    where: { lead: { brand, ownerType: "internal" } },
+    where: { lead: { brand, ownerUserId: userId } },
     include: WON_INCLUDE,
     orderBy: { createdAt: "desc" },
   });

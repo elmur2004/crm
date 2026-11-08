@@ -114,6 +114,11 @@ export interface StageEventSnapshot {
   updated: UpdatedRef[];
   /** prospects only (PP-1): the dialed-numbers list before the move */
   nonAnsweringNumbers?: string;
+  /** Founder (2026-11-08) — a follow-up that HANDED the lead to somebody: the
+      owner before the hand-over. Undoing the follow-up gives the lead back too.
+      Absent on every entry that changed no hands (and on every entry written
+      before this), which restore nothing. */
+  owner?: { ownerUserId: string | null; ownerType: string };
 }
 
 interface LeadFieldsSnapshot {
@@ -376,6 +381,13 @@ async function undoLead(
           stage: snap.stage,
           noAnswer: snap.noAnswer,
           noAnswerCount: noAnswerCountOf(snap.noAnswerCount, snap.noAnswer),
+          /* the hand-over the follow-up carried goes back with it */
+          ...(snap.owner
+            ? {
+                ownerUserId: snap.owner.ownerUserId ? String(snap.owner.ownerUserId) : null,
+                ownerType: String(snap.owner.ownerType),
+              }
+            : {}),
         },
       });
       return;

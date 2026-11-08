@@ -152,7 +152,7 @@ test("an agent cannot mutate another agent's lead (403, nothing changes)", async
   await ctxB.close();
 });
 
-test("internal sales: internal bucket only, no admin APIs; brands stay partitioned", async ({
+test("internal sales: own leads only, no admin APIs; brands stay partitioned", async ({
   browser,
 }) => {
   /* Find an agent-owned lead id (Karim's own board). */
@@ -198,7 +198,7 @@ test("internal sales: internal bucket only, no admin APIs; brands stay partition
      B-Systems API is exactly as closed to them as it was before. */
   const staff = await browser.newContext();
   const staffPage = await staff.newPage();
-  await login(staffPage, "sara@byteforce.example", "byteforce123", /\/b-systems\?company=byteforce$/);
+  await login(staffPage, "sara@byteforce.example", "byteforce123", /\/b-systems\/crm\?company=byteforce$/);
   await staffPage.goto("/b-systems?company=bsystems");
   await expect(staffPage).toHaveURL(/company=byteforce/);
   for (const section of [
@@ -236,6 +236,77 @@ test("internal sales: internal bucket only, no admin APIs; brands stay partition
   }
 
   await agent.close();
+  await sales.close();
+  await staff.close();
+});
+
+/* Founder (2026-11-08), verbatim: "all the unassigned leads are seen by
+   everyone. I want them just to be seen by the admin … They don't see the
+   entire leads which is unassigned or whatever, just assigning for them" — and
+   "Both companies now". The wall, end to end, on the seeded leads: an
+   UNASSIGNED lead (Grand Hotels, in both companies) is the admin's alone. */
+test("assigned leads only: unassigned leads are the admin's — sales and ByteForce staff are refused them", async ({
+  browser,
+}) => {
+  /* the admin reads the two unassigned ids off his own boards */
+  const admin = await browser.newContext();
+  const adminPage = await admin.newPage();
+  await login(adminPage, "admin@byteforce.com", "password123", /\/b-systems$/);
+  const idOf = async (company: "bsystems" | "byteforce", name: string) => {
+    await adminPage.goto(`/b-systems/crm?company=${company}`);
+    const link = adminPage.locator(`[data-deal-card="${name}"] a.bcard-name`).first();
+    await expect(link).toBeVisible();
+    return idFromHref((await link.getAttribute("href"))!);
+  };
+  const bsUnassigned = await idOf("bsystems", "Delta Grand Hotels");
+  const bfUnassigned = await idOf("byteforce", "Cairo Grand Hotels");
+
+  /* B-Systems internal sales: his own cards, not the unassigned one */
+  const sales = await browser.newContext();
+  const salesPage = await sales.newPage();
+  await login(salesPage, "omar@b-systems.example", "bsystems123", /\/b-systems\/crm$/);
+  await expect(salesPage.locator('[data-deal-card="Delta Textiles"]')).toBeVisible();
+  await expect(salesPage.locator('[data-deal-card="Delta Grand Hotels"]')).toHaveCount(0);
+  expect(
+    (await salesPage.request.patch(`/api/b-systems/leads/${bsUnassigned}`, { data: { name: "Poached" } })).status(),
+  ).toBe(403);
+  const detail = await salesPage.goto(`/b-systems/crm/lead/${bsUnassigned}?company=bsystems`);
+  expect(detail?.status()).toBe(404);
+  /* the hand-over select is the admin's alone — sent by hand it is refused
+     (back on HIS board: the page above is the 404) */
+  await salesPage.goto("/b-systems/crm?company=bsystems");
+  const ownHref = await salesPage
+    .locator('[data-deal-card="Delta Textiles"] a.bcard-name')
+    .first()
+    .getAttribute("href");
+  const handOver = await salesPage.request.post(`/api/b-systems/leads/${idFromHref(ownHref!)}/event`, {
+    data: {
+      event: { type: "next_action", action: "follow_up_again" },
+      group: { group: "follow_up", data: { date: "2030-01-01", method: "call" } },
+      assignTo: "anybody",
+    },
+  });
+  expect(handOver.status()).toBe(403);
+
+  /* ByteForce staff who is not the admin: the same wall, and no assign route */
+  const staff = await browser.newContext();
+  const staffPage = await staff.newPage();
+  await login(staffPage, "sara@byteforce.example", "byteforce123", /\/b-systems\/crm\?company=byteforce$/);
+  await expect(staffPage.locator('[data-deal-card="Cairo Grand Hotels"]')).toHaveCount(0);
+  expect(
+    (await staffPage.request.patch(`/api/byteforce/leads/${bfUnassigned}`, { data: { name: "Poached" } })).status(),
+  ).toBe(403);
+  expect(
+    (await staffPage.request.post(`/api/byteforce/leads/${bfUnassigned}/assign`, { data: { userId: "me" } })).status(),
+  ).toBe(403);
+  const bfDetail = await staffPage.goto(`/b-systems/leads/lead/${bfUnassigned}?company=byteforce`);
+  expect(bfDetail?.status()).toBe(404);
+  /* and the company-wide surfaces are the admin's: no export, no dashboard */
+  expect((await staffPage.request.get("/api/byteforce/leads/export")).status()).toBe(403);
+  await staffPage.goto("/b-systems?company=byteforce");
+  await expect(staffPage).toHaveURL(/\/b-systems\/crm\?company=byteforce$/);
+
+  await admin.close();
   await sales.close();
   await staff.close();
 });

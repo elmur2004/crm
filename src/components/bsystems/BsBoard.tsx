@@ -41,6 +41,11 @@ import {
   useGroupFormState,
   type BsFormRole,
 } from "./roleForms";
+import {
+  AssignToField,
+  assignToFromForm,
+  type AssigneeOption,
+} from "@/components/shared/AssignToField";
 
 /* V2 §2.3/§3 — THE B-Systems board, prototype treatment (spec §2.7): tinted
    wells with accent bars, mono column titles, count pills, lift-on-drag cards.
@@ -432,6 +437,7 @@ export function BsBoard({
   leadPathBase,
   leadQuery,
   people = [],
+  assignees,
 }: {
   leads: BsBoardLead[];
   role: BsFormRole;
@@ -464,6 +470,10 @@ export function BsBoard({
       blocks" picker. Optional: a caller that omits it simply does not offer
       the field, which is what every screen did before the calendar existed. */
   people?: Array<{ id: string; name: string }>;
+  /** Founder (2026-11-08) — "Hand this follow-up to", on the drop window into
+      Following Up: the COMPANY ADMIN's options, pre-translated. Absent for
+      everybody else (and the server refuses an assignee from them). */
+  assignees?: AssigneeOption[];
 }) {
   const config = configForBrand(company);
   const locale = useLocale();
@@ -697,6 +707,8 @@ export function BsBoard({
                       agreed: formState.agreed,
                       milestoneCount: formState.milestoneCount,
                     }),
+                    assignTo:
+                      pendingDrop.to === config.followUpStage ? assignToFromForm(fd) : undefined,
                   },
                   pendingDrop.leadId,
                   pendingDrop.to,
@@ -720,6 +732,9 @@ export function BsBoard({
                   setMilestoneCount={formState.setMilestoneCount}
                   people={people}
                 />
+                {pendingDrop.to === config.followUpStage ? (
+                  <AssignToField options={assignees} />
+                ) : null}
               </div>
               <div className="modal-foot">
                 <span className="modal-foot-note">

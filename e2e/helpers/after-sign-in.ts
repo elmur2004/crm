@@ -32,6 +32,10 @@ const LANDING_PATHS: Record<string, Landing> = {
   "\\/b-systems$": { path: "/b-systems", via: "reports" },
   /* the ByteForce dashboard — likewise */
   "\\/b-systems\\?company=byteforce$": { path: "/b-systems?company=byteforce", via: "reports" },
+  /* the ByteForce board — the ByteForce CRM tile. Founder (2026-11-08): the
+     ByteForce dashboard is the ByteForce ADMIN's now, so a ByteForce teammate
+     who is not the admin starts on his board */
+  "\\/b-systems\\/crm\\?company=byteforce$": { path: "/b-systems/crm?company=byteforce", via: "crm-byteforce" },
   /* the B-Systems board — the B-Systems CRM tile */
   "\\/b-systems\\/crm$": { path: "/b-systems/crm", via: "crm-bsystems" },
   "\\/b-systems\\/crm": { path: "/b-systems/crm", via: "crm-bsystems" },

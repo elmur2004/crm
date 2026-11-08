@@ -154,22 +154,27 @@ async function dashboardWorld() {
     },
   });
   const r3 = await db.salesRep.create({ data: { brand: "bsystems", name: "Nour" } });
+  /* Founder 2026-11-08 ("assigned leads only"): an internal seller sees only
+     the leads he OWNS — so the internal leads below belong to Nour's ACCOUNT
+     (named like his old card), and his scope is `own`. The figures are the
+     ones the old internal-bucket scope produced, by construction. */
+  const s1 = await user("Nour", ["bsystems_sales"]);
   const r1 = await db.salesRep.create({ data: { brand: "byteforce", name: "Laila" } });
   const r2 = await db.salesRep.create({ data: { brand: "byteforce", name: "Ahmed" } });
 
   /* ---- B-Systems */
   const bs = "bsystems" as const;
   const agent = (u: { id: string }) => ({ ownerType: "agent", ownerUserId: u.id });
-  const b1 = await lead({ brand: bs, name: "BS1 Boundary Co", created: at("2026-10-01", "00:30"), type: "cold_call", path: ["new", "following_up"], salesRepId: r3.id });
-  const b2 = await lead({ brand: bs, name: "BS2 Proposal Co", created: at("2026-10-05"), type: "campaign_lead", path: ["new", "sending_proposal"], salesRepId: r3.id });
+  const b1 = await lead({ brand: bs, name: "BS1 Boundary Co", created: at("2026-10-01", "00:30"), type: "cold_call", path: ["new", "following_up"], salesRepId: r3.id, ownerUserId: s1.id });
+  const b2 = await lead({ brand: bs, name: "BS2 Proposal Co", created: at("2026-10-05"), type: "campaign_lead", path: ["new", "sending_proposal"], salesRepId: r3.id, ownerUserId: s1.id });
   const b3 = await lead({ brand: bs, name: "BS3 Negotiation Co", created: at("2026-10-10"), type: "personal_connection", path: ["new", "meeting_setting", "sending_proposal", "negotiation"], ...agent(g1), readyToClose: true });
   const b4 = await lead({ brand: bs, name: "BS4 Winner Co", created: at("2026-10-12"), type: "cold_call", path: ["new", "following_up", "meeting_setting", "won"], ...agent(g1) });
   const b5 = await lead({ brand: bs, name: "BS5 Lost Co", created: at("2026-10-15"), type: "event_data", path: ["new", "meeting_setting", "lost"], ...agent(g2) });
   const b6 = await lead({ brand: bs, name: "BS6 Parked Co", created: at("2026-10-20"), type: "organic", path: ["new", "sending_proposal", "postponed"], ownerType: "partner", ownerUserId: p1User.id, partnerId: p1.id, source: "partner" });
-  const b7 = await lead({ brand: bs, name: "BS7 September Win", created: at("2026-09-08"), type: "cold_call", path: ["new", "sending_proposal", "won"], salesRepId: r3.id });
+  const b7 = await lead({ brand: bs, name: "BS7 September Win", created: at("2026-09-08"), type: "cold_call", path: ["new", "sending_proposal", "won"], salesRepId: r3.id, ownerUserId: s1.id });
   const b8 = await lead({ brand: bs, name: "BS8 Admin Bucket", created: at("2026-09-10"), type: "campaign_lead", path: ["new", "lost"], ownerType: "admin" });
-  const b9 = await lead({ brand: bs, name: "BS9 September Loss", created: at("2026-09-12"), type: "personal_connection", path: ["new", "following_up", "lost"], salesRepId: r3.id });
-  const b10 = await lead({ brand: bs, name: "BS10 Archived Co", created: at("2026-10-22"), type: "cold_call", path: ["new"], salesRepId: r3.id, archived: true });
+  const b9 = await lead({ brand: bs, name: "BS9 September Loss", created: at("2026-09-12"), type: "personal_connection", path: ["new", "following_up", "lost"], salesRepId: r3.id, ownerUserId: s1.id });
+  const b10 = await lead({ brand: bs, name: "BS10 Archived Co", created: at("2026-10-22"), type: "cold_call", path: ["new"], salesRepId: r3.id, ownerUserId: s1.id, archived: true });
 
   await proposal(b2.id, EGP(100_000), at("2026-10-05", "15:00"));
   await proposal(b3.id, EGP(50_000), at("2026-10-10", "15:00"));
@@ -203,12 +208,12 @@ async function dashboardWorld() {
   await db.wonInfo.create({ data: { leadId: f5.id, estimatedValue: EGP(25_000), technicalOwner: "T", collectedAmount: EGP(25_000), createdAt: at("2026-09-25", "23:30") } });
   await db.client.create({ data: { brand: bf, leadId: f5.id, name: f5.name, number: f5.number, estimatedValue: EGP(25_000), collected: EGP(25_000), toBeCollected: 0 } });
 
-  return { admin, g1, g2, g3, p1User, p1, r1, r2, r3, b1, b2, b3, b4, b5, b6, b7, b8, b9, b10, f1, f2, f3, f4, f5, f6 };
+  return { admin, s1, g1, g2, g3, p1User, p1, r1, r2, r3, b1, b2, b3, b4, b5, b6, b7, b8, b9, b10, f1, f2, f3, f4, f5, f6 };
 }
 
 const SCOPES = (w: World): Record<string, { brand: Brand; scope: TodoScope }> => ({
   bsAdmin: { brand: "bsystems", scope: { kind: "all" } },
-  bsSales: { brand: "bsystems", scope: { kind: "internal" } },
+  bsSales: { brand: "bsystems", scope: { kind: "own", userId: w.s1.id } },
   g1: { brand: "bsystems", scope: { kind: "own", userId: w.g1.id } },
   g2: { brand: "bsystems", scope: { kind: "own", userId: w.g2.id } },
   p1: { brand: "bsystems", scope: { kind: "own", userId: w.p1User.id } },
@@ -420,9 +425,8 @@ describe("W12 Team (credited to the current owner)", () => {
     ]);
   });
 
-  it("sales sees the internal bucket only; agents and partners get no card", () => {
-    expect(all.bsSales!.team!.map((r) => r.name)).toEqual(["Nour"]);
-    for (const k of ["g1", "g2", "p1"]) expect(all[k]!.team, k).toBeNull();
+  it("an own scope — sales (since 2026-11-08), agents, partners — gets no team card: a team of one", () => {
+    for (const k of ["bsSales", "g1", "g2", "p1"]) expect(all[k]!.team, k).toBeNull();
   });
 
   it("ByteForce: R1 Laila, R2 Ahmed", () => {

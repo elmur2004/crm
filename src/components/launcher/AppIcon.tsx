@@ -20,7 +20,7 @@ import type { IconPalette } from "@/lib/launcher/apps";
 
    TWO KINDS OF PLATE. The two CRM icons are brand artwork — a solid brand
    plate under a light glyph — and, like the logos, do not re-skin with the
-   theme: their contrast lives inside the icon. The five shared apps sit on the
+   theme: their contrast lives inside the icon. The six shared apps sit on the
    neutral card with an ink glyph, all tokens, so they turn with the page in
    dark mode. Every plate's EDGE follows the theme (launcher.css carries the
    measured table). The glyph is aria-hidden — the tile's accessible name is
@@ -32,7 +32,15 @@ import type { IconPalette } from "@/lib/launcher/apps";
    people are objects with no reading direction and stay as drawn.
    ========================================================================== */
 
-export type Glyph = "crm" | "accounting" | "vault" | "todo" | "reports" | "partners" | "pie";
+export type Glyph =
+  | "crm"
+  | "accounting"
+  | "vault"
+  | "todo"
+  | "reports"
+  | "partners"
+  | "users"
+  | "pie";
 
 const FLIPS: ReadonlySet<Glyph> = new Set<Glyph>(["crm", "todo", "accounting"]);
 
@@ -126,6 +134,25 @@ function Shapes({ glyph }: { glyph: Glyph }) {
         <>
           <path className="lx-a" d="M22 10A16 16 0 1 0 38 26H22z" />
           <path className="lx-c" d="M25.5 6.5A16 16 0 0 1 41.5 22.5H25.5z" />
+        </>
+      );
+    case "users":
+      /* the team: one person in front, two colleagues behind (the quiet
+         --color-faint figure, launcher.css), and the cue — a small "+" badge,
+         because this is where accounts are made (founder 2026-11-08: Users is
+         its own app). People and a "+" have no reading direction, so the glyph
+         stays as drawn under RTL. */
+      return (
+        <>
+          <circle className="lx-well" cx="11" cy="15" r="5.5" />
+          <path className="lx-well" d="M1.5 36a9.5 9.5 0 0 1 19 0v1.5H1.5z" />
+          <circle className="lx-well" cx="37" cy="15" r="5.5" />
+          <path className="lx-well" d="M27.5 36a9.5 9.5 0 0 1 19 0v1.5h-19z" />
+          <circle className="lx-a lx-sep" cx="24" cy="16" r="7.5" />
+          <path className="lx-a lx-sep" d="M10.5 41a13.5 13.5 0 0 1 27 0v1a2 2 0 0 1-2 2h-23a2 2 0 0 1-2-2z" />
+          <circle className="lx-cut" cx="37.5" cy="36.5" r="8.6" />
+          <circle className="lx-c" cx="37.5" cy="36.5" r="6.6" />
+          <path className="lx-cut-line" d="M37.5 33.2v6.6M34.2 36.5h6.6" />
         </>
       );
     case "partners":

@@ -22,8 +22,8 @@ import { launcher } from "@/lib/i18n/dict/launcher";
      4. "Remove them" — a content link that repeats a menu is gone; a link to a
         RECORD stays, because it is the only way to reach that record.
 
-   So To-Do, the Daily report, the dashboards and the four Partners & Agents
-   screens are NOT in a CRM menu: each is its own launcher app (To-Do, Reports &
+   So To-Do, the Daily report, the dashboards, Users (founder 2026-11-08) and
+   the four Partners & Agents screens are NOT in a CRM menu: each is its own launcher app (To-Do, Reports &
    Dashboards, Partners & Agents). `lib/launcher/menus.ts` composes every app's
    menu with the launcher tiles, and its guard test fails the day a page gains a
    second menu-level way in.
@@ -61,7 +61,8 @@ const BSYSTEMS_NAV: Record<string, CrmNavItem[]> = {
     { href: "/b-systems/calendar", label: calendarPage.navItem },
     { href: "/b-systems/won-leads", label: bsNav.wonLeads },
     { href: "/b-systems/statements", label: bsNav.statements },
-    { href: "/b-systems/users", label: bsNav.users },
+    /* Users left this menu (founder 2026-11-08): it is its own launcher app,
+       with its own header — see crmAppContextFor's "users" */
   ],
   bsystems_sales: [
     { href: "/b-systems/crm", label: bsNav.crm },
@@ -146,13 +147,16 @@ export function partnersNavFor(bsRole: Role | null): CrmNavItem[] {
                 the Partners & Agents menu
       todo      the To-Do: its own app with one page, so NO menu
       reports   the two dashboards and the Daily report: pages of Reports &
-                Dashboards, so NO menu (the launcher's Reports list is theirs) */
-export type CrmAppContext = "crm" | "partners" | "todo" | "reports";
+                Dashboards, so NO menu (the launcher's Reports list is theirs)
+      users     /b-systems/users: the Users app (founder 2026-11-08), one page,
+                so NO menu — and NOT the B-Systems CRM around it */
+export type CrmAppContext = "crm" | "partners" | "todo" | "reports" | "users";
 
 export function crmAppContextFor(pathname: string): CrmAppContext {
   const p = pathname.replace(/\/+$/, "") || "/";
   if (p === "/b-systems" || p === "/b-systems/daily-report") return "reports";
   if (p === "/b-systems/todo") return "todo";
+  if (p === "/b-systems/users") return "users";
   if (/^\/b-systems\/(partners-pipeline|partners)(\/|$)/.test(p)) return "partners";
   if (p === "/b-systems/agents" || p === "/b-systems/registrations") return "partners";
   return "crm";
@@ -168,6 +172,8 @@ export function crmAppNameFor(context: CrmAppContext, company: CrmCompany): Msg 
       return launcher.todo;
     case "reports":
       return launcher.reports;
+    case "users":
+      return launcher.users;
     case "crm":
       return company === "byteforce" ? launcher.crmByteforce : launcher.crmBsystems;
   }

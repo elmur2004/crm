@@ -5,6 +5,7 @@ import { LOCALES } from "@/lib/i18n/core";
 import { ROLES, type Role } from "@/lib/pipeline-engine/constants";
 import type { CurrentUser } from "@/lib/auth/guards";
 import { crmEngineRole } from "@/lib/api/bsystems";
+import { isCompanyAdmin } from "@/lib/auth/lead-scope";
 import { startOfCairoDay } from "@/lib/datetime";
 import { CRM_COMPANIES, CRM_ROLES, crmRolesFor, resolveCompany } from "./company";
 import {
@@ -55,14 +56,17 @@ function asUser(roles: Role[]): CurrentUser {
   };
 }
 
-/** Can these roles OPEN this company's Leads page? Transcribed step for step
-    from src/app/(bsystems)/b-systems/(app)/leads/page.tsx (the export test's
-    own transcription, repeated so this file fails on its own). */
+/** Can these roles OPEN this company's Leads page AS ITS ADMIN? Transcribed
+    step for step from src/app/(bsystems)/b-systems/(app)/leads/page.tsx (the
+    export test's own transcription, repeated so this file fails on its own).
+    Founder 2026-11-08: a ByteForce teammate who is not the admin opens only his
+    OWN list there, so imports — which land unassigned, in the admin's queue —
+    are the company admin's alone (lib/auth/lead-scope.ts). */
 function pageReaches(roles: Role[], company: (typeof CRM_COMPANIES)[number]): boolean {
   if (!roles.some((r) => CRM_ROLES.includes(r))) return false;
   const resolved = resolveCompany(roles, company);
   if (resolved.kind !== "ok" || resolved.company !== company) return false;
-  if (company === "byteforce") return true;
+  if (company === "byteforce") return isCompanyAdmin({ roles }, "byteforce");
   if (!crmRolesFor("bsystems").some((r) => roles.includes(r))) return false;
   return crmEngineRole("bsystems", asUser(roles)) === "bsystems_admin";
 }
@@ -91,11 +95,13 @@ describe("the import wall = can open that company's Leads page AND may create le
     }
   });
 
-  it("admits exactly byteforce_staff for ByteForce and bsystems_admin for B-Systems", () => {
+  it("no single role imports into ByteForce; bsystems_admin alone imports into B-Systems", () => {
     for (const role of ROLES) {
-      expect(canImportLeads([role], "byteforce"), role).toBe(role === "byteforce_staff");
+      /* ByteForce's admin is byteforce_staff AND bsystems_admin — no ONE role */
+      expect(canImportLeads([role], "byteforce"), role).toBe(false);
       expect(canImportLeads([role], "bsystems"), role).toBe(role === "bsystems_admin");
     }
+    expect(canImportLeads(["byteforce_staff", "bsystems_admin"], "byteforce")).toBe(true);
   });
 
   it("the roles that can CREATE a B-Systems lead but not open its Leads page get no import", () => {
@@ -108,7 +114,7 @@ describe("the import wall = can open that company's Leads page AND may create le
   });
 
   it("holding both companies is not importing into both", () => {
-    expect(canImportLeads(["bsystems_sales", "byteforce_staff"], "byteforce")).toBe(true);
+    expect(canImportLeads(["bsystems_sales", "byteforce_staff"], "byteforce")).toBe(false);
     expect(canImportLeads(["bsystems_sales", "byteforce_staff"], "bsystems")).toBe(false);
     expect(canImportLeads(["bsystems_admin", "byteforce_staff"], "bsystems")).toBe(true);
     expect(canImportLeads(["bsystems_admin", "byteforce_staff"], "byteforce")).toBe(true);

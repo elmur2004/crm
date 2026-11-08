@@ -55,14 +55,66 @@ export async function listBsOwnerReps() {
   return listReps("bsystems");
 }
 
-/** A-6: partner-sourced leads may be unassigned — surfaced as their own bucket. */
+/* ============================================================================
+   Founder (2026-11-08, "assigned leads only" — "Both companies now"). ByteForce
+   leads belong to staff ACCOUNTS now, not to rep cards: the Leads page's cards
+   are OWNERS (accounts with their lead counts) plus the Unassigned card, and a
+   SalesRep card decides nobody's visibility any more (the column and its history
+   stay; nothing in the UI writes it).
+   ========================================================================== */
+
+/** Unassigned = NO OWNER ACCOUNT, whatever legacy rep card the row carries —
+    the leads only the admin sees, waiting for him to hand them out. */
 export function countUnassigned(brand: Brand) {
-  return db.lead.count({ where: { brand, salesRepId: null, archived: false } });
+  return db.lead.count({ where: { brand, ownerUserId: null, archived: false } });
 }
 
 /* Hardening (review): the Unassigned card is the ONLY door to the unassigned
    view — it must still render when every unassigned lead is archived, or the
    archive becomes unreachable for that bucket. */
 export function countUnassignedArchived(brand: Brand) {
-  return db.lead.count({ where: { brand, salesRepId: null, archived: true } });
+  return db.lead.count({ where: { brand, ownerUserId: null, archived: true } });
+}
+
+export interface OwnerCard {
+  id: string;
+  name: string;
+  leadCount: number;
+}
+
+/** The admin's owner cards: every live ByteForce staff account (count 0
+    included, so a new teammate is visible the day he is created), PLUS anybody
+    else who still owns a live ByteForce lead (a deactivated teammate, a removed
+    role) — a lead must never become unreachable because its owner left. */
+export async function listOwnerCards(brand: Brand): Promise<OwnerCard[]> {
+  const [staff, groups] = await Promise.all([
+    db.user.findMany({
+      where: {
+        active: true,
+        registrationStatus: "approved",
+        roles: { some: { role: brand === "byteforce" ? "byteforce_staff" : "bsystems_sales" } },
+      },
+      select: { id: true, name: true },
+    }),
+    db.lead.groupBy({
+      by: ["ownerUserId"],
+      where: { brand, archived: false, ownerUserId: { not: null } },
+      _count: { _all: true },
+    }),
+  ]);
+  const counts = new Map<string, number>();
+  for (const g of groups) if (g.ownerUserId) counts.set(g.ownerUserId, g._count._all);
+  const names = new Map(staff.map((u) => [u.id, u.name]));
+  const missing = [...counts.keys()].filter((id) => !names.has(id));
+  if (missing.length > 0) {
+    for (const u of await db.user.findMany({
+      where: { id: { in: missing } },
+      select: { id: true, name: true },
+    })) {
+      names.set(u.id, u.name);
+    }
+  }
+  return [...names.entries()]
+    .map(([id, name]) => ({ id, name, leadCount: counts.get(id) ?? 0 }))
+    .sort((a, b) => a.name.localeCompare(b.name));
 }

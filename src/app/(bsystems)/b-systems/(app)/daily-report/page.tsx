@@ -1,12 +1,8 @@
 import { narrowRoles, requireCompanyPage } from "@/lib/auth/page-guards";
 import { crmRolesFor } from "@/lib/crm/company";
-import { bsRoleOrNull } from "@/lib/api/bsystems";
-import type { Brand, Role } from "@/lib/pipeline-engine/constants";
-import {
-  dailyReportFor,
-  type ReportCompany,
-  type ReportScope,
-} from "@/lib/services/daily-report";
+import { leadScopeFor } from "@/lib/auth/lead-scope";
+import type { Brand } from "@/lib/pipeline-engine/constants";
+import { dailyReportFor, type ReportCompany } from "@/lib/services/daily-report";
 import { DailyReportBody } from "@/components/shared/DailyReportBody";
 
 /* a page of Reports & Dashboards now (one way to each page) */
@@ -38,14 +34,6 @@ export const metadata = { title: "Daily report — Reports & Dashboards" };
    instead of ignoring it — and the page copy says the content covers both, or
    the switch would read as broken (ADR-067 §8's failure mode). */
 
-/** The three branches of `requireLeadAccess`, exactly as the To-Do and the
-    Calendar compute them: admin all, internal sales the internal bucket, agent
-    and partner their own leads. */
-function bsystemsScope(role: Role | null, userId: string): ReportScope {
-  if (role === "bsystems_admin") return { kind: "all" };
-  if (role === "bsystems_sales") return { kind: "internal" };
-  return { kind: "own", userId };
-}
 
 export default async function DailyReportPage({
   searchParams,
@@ -69,11 +57,11 @@ export default async function DailyReportPage({
      off the nav item he was just handed. */
   const primary: Brand = company === "byteforce" ? "byteforce" : "bsystems";
 
-  const bsRole = bsRoleOrNull(user);
-  const scoped: ReportCompany[] = companies.map((held) =>
-    held === "byteforce"
-      ? { brand: "byteforce", scope: { kind: "all" } }
-      : { brand: "bsystems", scope: bsystemsScope(bsRole, user.id) },
+  /* the two branches of `requireLeadAccess`, exactly as the To-Do and the
+     Calendar compute them (lead-scope.ts): the company admin all, everybody
+     else his own leads — per company held, both companies alike */
+  const scoped: ReportCompany[] = companies.map(
+    (held): ReportCompany => ({ brand: held, scope: leadScopeFor(user, held) }),
   );
 
   const now = new Date();

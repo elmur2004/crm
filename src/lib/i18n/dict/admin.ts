@@ -153,8 +153,10 @@ export const payments = {
 } satisfies Record<string, Msg>;
 
 export const usersAdmin = {
-  meta: { en: "Users — B-Systems CRM", ar: "المستخدمون — B-Systems CRM" },
-  eyebrow: { en: "B-SYSTEMS · USERS", ar: "B-SYSTEMS · المستخدمون" },
+  /* founder 2026-11-08 — Users is its OWN launcher app now, not a page of the
+     B-Systems CRM, so neither the tab title nor the eyebrow names that CRM */
+  meta: { en: "Users", ar: "المستخدمون" },
+  eyebrow: { en: "USERS · ACCOUNTS", ar: "المستخدمون · الحسابات" },
   title: { en: "Users", ar: "المستخدمون" },
   thPassword: { en: "Password", ar: "كلمة المرور" },
   thAccess: { en: "Access", ar: "الصلاحيات" },

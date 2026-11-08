@@ -126,7 +126,7 @@ export async function BsWonLeadsBody({
 
   const deals =
     role === "bsystems_sales"
-      ? await salesWonLeads(ctx.brand)
+      ? await salesWonLeads(ctx.brand, userId)
       : await closerWonLeads(ctx.brand, userId, { showCommission: true });
 
   return (

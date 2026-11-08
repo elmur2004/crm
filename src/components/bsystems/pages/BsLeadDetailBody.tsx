@@ -32,14 +32,15 @@ import {
   type AssignableOwner,
 } from "@/components/bsystems/leadActions";
 import { listAssignableOwners } from "@/lib/services/users";
+import { followUpAssignees } from "@/lib/services/assignees";
 import { roles as roleMsgs } from "@/lib/i18n/dict/crm";
 import { LeadChat } from "@/components/shared/LeadChat";
 import { listLeadComments, mentionableUsersFor } from "@/lib/services/comments";
 import type { BsFormRole } from "@/components/bsystems/roleForms";
 
 /* V2 — the ONE lead detail page for every role. Access is re-checked server-side
-   (admin any / sales internal / agent+partner own only); admin additionally gets
-   edit / copy / delete.
+   (founder 2026-11-08: the admin any lead, everybody else only the leads they
+   own — a non-owner gets the 404); admin additionally gets edit / copy / delete.
 
    ADR-074 — it takes a SURFACE rather than hardcoding B-Systems, and that
    stays: the BRAND every read is scoped by (a lead of the other company must 404
@@ -115,6 +116,11 @@ export async function BsLeadDetailBody({
         ),
       }))
     : [];
+  /* Founder (2026-11-08) — the follow-up forms' "Hand this follow-up to": the
+     COMPANY ADMIN's only (the event route refuses an assignee from anyone else). */
+  const assignees = access.isAdmin
+    ? await followUpAssignees(ctx.brand, { id: access.user.id, name: access.user.name }, locale)
+    : undefined;
   const latestMeeting = lead.meetings.at(-1);
   /* ADR-077's lesson, applied here too: `getLeadDetail` orders every group
      `createdAt asc` because the detail reads as a HISTORY, so the NEWEST
@@ -292,6 +298,7 @@ export async function BsLeadDetailBody({
                     latestMeeting && latestMeeting.outcome === null && latestMeeting.arranged,
                   )}
                   readyToClose={lead.readyToClose}
+                  assignees={assignees}
                 />
               )}
             </div>

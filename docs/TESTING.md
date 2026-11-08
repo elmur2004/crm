@@ -8009,3 +8009,159 @@ probe after the watch expired. `/api/health`: `"ok":true`,
 to sign-in. **Not verifiable from outside:** the one-way navigation, the
 meeting form and the screen motion need a session — the founder sees them on
 his next sign-in.
+
+## Run 108 — 2026-11-08 — ADR-098–102: assigned leads only, ByteForce leads owned by accounts, the follow-up hand-over, the ownership backfill, and the Users app, one push
+
+- Suites/commands: the implementing agent ran these in a copy of the working
+  tree served on port 3160:
+  - `npx tsc --noEmit`;
+  - the full `npx vitest run` (the final run is quoted below);
+  - the full `npx playwright test`, three times (the third was green);
+  - `spec-guardian` on the change, and `brand-auditor` on the visual changes
+    with 64 screenshots (light/dark × EN/AR × 390/1440).
+
+  **The coordinator's clean-worktree gate**, at the end of this run, is the
+  authority for the push.
+- Cases:
+  - **`tsc`:** exit 0.
+  - **vitest:** `Test Files  105 passed (105)` / `Tests  2387 passed (2387)`
+    (Duration 287.26s).
+  - **Playwright, full suite, final run:** `9 skipped` / `345 passed (39.0m)` /
+    `EXIT 0`. `.last-run.json` reads `{"status":"passed","failedTests":[]}`.
+- Failures: two earlier full Playwright runs failed. **None of the failures was
+  in shipped code, so there is no BUG id.** Each was a stale expectation, a bug
+  in a new test, or a defect in the new, unshipped control.
+  - **Run 1:** `3 failed`, `342 passed (38.8m)`, `9 skipped`, `EXIT 1`.
+    - **`e2e/follow-up-about.spec.ts:59`**, "B-Systems: the full follow-up form
+      says ABOUT, hints a topic, and has no Owner".
+      - *The failure:* `getByLabel('Owner')` expected 0 and received 1.
+      - *The cause:* the new hand-over select sat inside its `<label>`. That
+        folded the selected option into the control's accessible name, "Hand
+        this follow-up to Keep the current owner", so the spec's "no Owner
+        field" check matched it.
+      - *The fix, in the app:* in `AssignToField.tsx` the label now points at
+        the select (`htmlFor`) instead of wrapping it, and the hint is tied by
+        `aria-describedby`. The spec is unchanged.
+    - **`e2e/leads-export.spec.ts:48`**, "the founder sees BOTH buttons on the
+      Leads page — on either company's screen". It looked for the rep-card link
+      "Laila Mostafa" on the ByteForce Leads page, which now shows owner cards.
+      A stale expectation; the spec was updated.
+    - **`e2e/security-rbac.spec.ts:248`**, "assigned leads only: unassigned
+      leads are the admin's — sales and ByteForce staff are refused them" (a new
+      case). It timed out at 60 s waiting for a `[data-deal-card…]` locator. A
+      bug in the new test; its locator was fixed.
+  - **Run 2:** `1 failed`, `344 passed (38.4m)`, `9 skipped`, `EXIT 1`.
+    `security-rbac.spec.ts:248` failed again with the same timeout. The step
+    that reads the sales user's own card ran on the 404 page the step before
+    had opened. The test now goes back to his board first.
+  - **Intermediate vitest runs** printed failures while the tests that pinned
+    the old behaviour were being updated.
+    - One printed `Test Files  15 failed | 87 passed (102)` /
+      `Tests  45 failed | 2320 passed (2365)`.
+    - The last red one printed `1 failed | 104 passed (105)` /
+      `1 failed | 2385 passed (2386)`: `src/themes/crm.test.ts` › "every rule
+      sits inside an @media screen". A new rule sat outside it, and it was
+      fixed before the final run.
+- SPEC coverage touched:
+  - **§3:** the rule, and the admin-only ByteForce dashboard, exports and
+    imports. **A-8:** ByteForce's admin is an account holding both roles.
+  - **§5.8:** the To-Do's scope.
+  - **§6.1, §6.3, §6.4, §6.5:** owner cards, the Owner on the cards and the
+    detail, Clients scoped to own leads, the admin-only dashboard.
+  - **§7.1, §7.4 and A-6:** sales own-only, and partner-sourced leads with no
+    "Assign to rep".
+  - **Journeys:** journey 1 now runs as the founder (the ByteForce admin), and
+    journey 2 uses the founder plus Sara. Sara now lands on her own board.
+  - **No transition row in the engine changed.** The hand-over rides on the
+    follow-up group.
+- Verdict: **green on the agent's final run, with every earlier failure
+  explained.** The push's verdict is the clean-worktree gate below.
+
+**Tree:** `main`, HEAD `e553241`, plus the uncommitted ADR-098–102 work, which
+ships in this push. `prisma/schema.prisma` is not part of it: the backfill is a
+migration folder of its own, and the schema is unchanged by this work.
+
+### New tests
+
+Cases are counted with a grep at writing time.
+
+| File | Cases | What it would catch |
+| --- | --- | --- |
+| `src/lib/auth/lead-scope.test.ts` | 3 | the company-admin rule wrong in either company; the in-memory predicate and the database filter disagreeing for any role subset; a scope other than "all" for the admin or "own" for everyone else |
+| `src/lib/services/assigned-only.integration.test.ts` | 14 | an unassigned lead reaching a non-admin anywhere: the B-Systems board, To-Do, search hop, mentions or lead detail; the ByteForce board, owner cards, Clients, To-Do or lead wall. Also: an out-of-scope meeting shown in full; a handed-away lead not redacted in the daily report (both companies); sales seeing the whole internal bucket's wins; a non-admin export or import; the wrong creation defaults. On the ByteForce assign route: staff admitted, an invalid target accepted, or the log, bell or undo skipped. On the hand-over: not in one transaction; carried by a non-follow-up move; not given back by undo; anything written on "Keep the current owner". Finally: select options the server would refuse |
+| `src/lib/services/assigned-leads-backfill.integration.test.ts` | 2 | the migration file, run as shipped, changing a row it should not, or getting a branch wrong. The branches: a matched, ambiguous or unmatched card; a sales, admin, pending or inactive creator; an already-owned lead; an admin-bucket lead; a ByteForce card naming the admin; archived leads. Also: no history row or a duplicate one, a bumped `updatedAt`, or anything changing on a second run |
+| `e2e/follow-up-handover.spec.ts` | 2 | the admin's hand-over to Omar not putting the lead in Omar's Following Up column and on his To-Do; on ByteForce, a hand-over to Sara of an unassigned lead not moving it to her |
+| `e2e/security-rbac.spec.ts` (new case at line 248) | 1 | sales or ByteForce staff reaching an unassigned lead, sending a hand-over by hand, or calling the ByteForce assign route |
+
+**Updated:**
+- **17 vitest files**, including assign, calendar, comments, company-scope,
+  daily-report, dashboard, the export and import walls, same-stage, todo,
+  todo-done-routes, whatsapp, search-hop, nav, apps, one-way and bsystems.
+- **About 27 e2e specs** plus `e2e/helpers/after-sign-in.ts`.
+- **The seed** (`prisma/seed.ts`) gives every persona sensible leads:
+  - Sara owns Cairo Fresh Foods, Textiles, Logistics and Medical Group;
+  - Omar owns the Delta equivalents;
+  - Grand Hotels and Motors stay unassigned in both companies.
+
+### The standing caveat, recorded again
+
+`npx vitest run` in this repo **exits 0 even when tests fail**. The implementing
+agent saw it again on this change. Every vitest figure above is a printed
+summary line, never an exit code.
+
+### NOT RUN, honestly
+
+- **No run of the backfill over production-shaped data.** How many live leads it
+  will hand out, and to whom, is unknown until it runs. The integration test
+  proves the rule, not the count. After the deploy, a handed-out lead's History
+  should show "Owner set when leads became assigned-only".
+- **No twin of the backfill on the backup-restore path, and no test of
+  restoring a pre-deploy backup** (ADR-101 §7).
+- **The 64 screenshots were reviewed by brand-auditor**, not compared with a
+  baseline.
+
+### Clean-gate (pushed set)
+
+The push's 115 code paths (105 changed, 10 new — among them the SQL-only
+migration folder `20261108120000_assigned_leads_only`; no deletions) were laid
+onto a fresh `git worktree` at `e553241`. That means tracked files only, with no
+landing work, and none of the four locally-dirty files (`next.config.ts`,
+`prisma/schema.prisma`, `backup.ts`, `db-reset.ts`): the schema the gate ran
+against is the committed one. It used a REAL `npm ci` (no junctions) and no
+`.env` (a dummy `DATABASE_URL`, a throwaway `AUTH_SECRET`).
+
+| Check | Result (verbatim) |
+|---|---|
+| `npm ci` | `npm ci exit: 0` |
+| `npx tsc --noEmit` | `tsc exit: 0` |
+| `npx vitest run` | `Test Files  91 passed (91)` / `Tests  1925 passed \| 3 skipped (1928)` — 91 is every test file in the copy, counted |
+| `npx next build` | `build exit: 0` (`✓ Compiled successfully in 15.0s`) |
+| `npx playwright test` (FULL suite, its own build and seeded DB; includes `follow-up-handover`, `launcher`, `security-rbac`, `device-sweep`) | `333 passed (37.4m)`, `9 skipped`; `.last-run.json` `{"status": "passed", "failedTests": []}` |
+
+- **91 files / 1925 tests, not the agent's 105 / 2387:** the 14 landing test
+  files exist only in the working tree. **333 browser tests, not 345:**
+  `e2e/landing.spec.ts`'s 12.
+- **Skips as before (Run 107):** vitest's 3 and Playwright's 9.
+
+**The leak review, then BUG-033.** An independent read-only sweep of every lead
+read and write, done while the gate ran, found no leak in ADR-098's code. It
+found three ways around the rule that predate it:
+1. A B-Systems admin can impersonate any account.
+2. A B-Systems admin can grant himself `byteforce_staff`.
+3. The Agents page lists an agent's leads with no company filter.
+
+The first two are existing admin powers, put to the founder in PROGRESS. The
+third is BUG-033, fixed by a one-line company filter plus a regression test.
+
+**Targeted re-gate of the BUG-033 fix** (the same worktree, with the fix, its
+test and the docs copied in):
+
+| Check | Result (verbatim) |
+|---|---|
+| `npx tsc --noEmit` | `tsc exit: 0` |
+| `npx vitest run` partners + assigned-only + company-scope + brand-tokens | `Test Files  4 passed (4)` / `Tests  69 passed (69)` |
+| `npx playwright test` partners-agents, company-inventory, security-rbac, data-entry, device-sweep, qa-sweep (the specs that open `/b-systems/agents`; own build + seeded DB) | `31 passed (11.6m)`; `.last-run.json` `{"status": "passed", "failedTests": []}` |
+| Mutation: the filter removed, the new test alone | `AssertionError: expected [ 'Agent ByteForce Lead', …(1) ] to deeply equal [ 'Agent B-Systems Lead' ]` / `Tests  1 failed \| 29 skipped (30)`. The file was then restored, byte-identical to the pushed one (`cmp`) |
+
+The fix is a single `where` on a relation read. The full suite above ran
+without it, and the targeted re-gate covers every spec that renders the page.

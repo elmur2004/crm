@@ -129,7 +129,7 @@ test("a search nobody matches leaves him where he is, and says nothing", async (
    did before this feature — no redirect, no notice, no hint that another
    company has the row. */
 test("a teammate locked to one company is never moved", async ({ page }) => {
-  await login(page, "sara@byteforce.example", "byteforce123", /\/b-systems\?company=byteforce$/);
+  await login(page, "sara@byteforce.example", "byteforce123", /\/b-systems\/crm\?company=byteforce$/);
   await page.goto("/b-systems/crm?company=byteforce");
   await searchFor(page, "Zzz Nothing In ByteForce Either");
 

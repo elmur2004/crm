@@ -19,6 +19,11 @@ import {
   useGroupFormState,
   type BsFormRole,
 } from "./roleForms";
+import {
+  AssignToField,
+  assignToFromForm,
+  type AssigneeOption,
+} from "@/components/shared/AssignToField";
 
 /* V2 — the lead-detail action panel for the unified B-Systems pipeline. */
 
@@ -33,6 +38,7 @@ export function BsEventPanel({
   hasUnsentProposal,
   pendingMeeting,
   readyToClose,
+  assignees,
 }: {
   leadId: string;
   stage: string;
@@ -52,6 +58,10 @@ export function BsEventPanel({
   hasUnsentProposal: boolean;
   pendingMeeting: boolean;
   readyToClose: boolean;
+  /** Founder (2026-11-08) — "Hand this follow-up to": the COMPANY ADMIN's
+      options, pre-translated. Absent for everybody else, so no select renders
+      (and the server refuses an assignee from them regardless). */
+  assignees?: AssigneeOption[];
 }) {
   const locale = useLocale();
   const t = tFor(locale);
@@ -96,6 +106,9 @@ export function BsEventPanel({
   const cancelledDestinations = config.cancelledDestinations(engineRole);
   /* a same-stage action reuses its stage's own field group (V2 §3 role-aware) */
   const formTarget = (a: string) => (isSameStageAction(a) ? SAME_STAGE_FORM_TARGET[a] : a);
+  /* the form target that records a FOLLOW-UP — the only one that can carry a
+     hand-over (the server asks the engine the same question) */
+  const followUpTarget = config.followUpStage;
 
   async function submit(body: unknown, onOk?: () => void) {
     setBusy(true);
@@ -178,15 +191,18 @@ export function BsEventPanel({
             <form
               onSubmit={(e) => {
                 e.preventDefault();
+                const fd = new FormData(e.currentTarget);
                 void submit({
                   event: { type: "proposal_sent" },
-                  group: followUpPayload(new FormData(e.currentTarget), false),
+                  group: followUpPayload(fd, false),
+                  assignTo: assignToFromForm(fd),
                 });
               }}
               className="space-y-3"
             >
               <p className="u-label">{t(msg.followUpAfterProposal)}</p>
               <FollowUpFieldsV2 light={false} />
+              <AssignToField options={assignees} />
               <button type="submit" disabled={busy} className={btnPrimary}>
                 {t(msg.sentMoveToFollowUp)}
               </button>
@@ -257,13 +273,15 @@ export function BsEventPanel({
                 <form
                   onSubmit={(e) => {
                     e.preventDefault();
+                    const fd = new FormData(e.currentTarget);
                     void submit({
                       event: { type: "meeting_outcome", outcome, destination },
-                      group: buildGroupPayload(destination, new FormData(e.currentTarget), {
+                      group: buildGroupPayload(destination, fd, {
                         light,
                         agreed: formState.agreed,
                         milestoneCount: formState.milestoneCount,
                       }),
+                      assignTo: destination === followUpTarget ? assignToFromForm(fd) : undefined,
                     });
                   }}
                   className="crm-reveal space-y-3"
@@ -278,6 +296,7 @@ export function BsEventPanel({
                     milestoneCount={formState.milestoneCount}
                     setMilestoneCount={formState.setMilestoneCount}
                   />
+                  {destination === followUpTarget ? <AssignToField options={assignees} /> : null}
                   <button type="submit" disabled={busy} className={btnPrimary}>
                     {t(msg.confirmMoveTo).replace("{stage}", stageLabel(locale, destination))}
                   </button>
@@ -322,16 +341,18 @@ export function BsEventPanel({
           <form
             onSubmit={(e) => {
               e.preventDefault();
+              const fd = new FormData(e.currentTarget);
               void submit(
                 {
                   event: { type: "next_action", action },
-                  group: buildGroupPayload(formTarget(action), new FormData(e.currentTarget), {
+                  group: buildGroupPayload(formTarget(action), fd, {
                     light,
                     /* a reschedule always records an ARRANGED meeting — it is a
                        new date agreed with the client, not a proposed slot */
                     agreed: action === "reschedule_meeting" ? true : formState.agreed,
                     milestoneCount: formState.milestoneCount,
                   }),
+                  assignTo: formTarget(action) === followUpTarget ? assignToFromForm(fd) : undefined,
                 },
                 () => {
                   if (action === "meeting_setting" && light) setMeetingSent(true);
@@ -358,6 +379,7 @@ export function BsEventPanel({
               milestoneCount={formState.milestoneCount}
               setMilestoneCount={formState.setMilestoneCount}
             />
+            {formTarget(action) === followUpTarget ? <AssignToField options={assignees} /> : null}
             <div className="flex gap-2">
               <button type="submit" disabled={busy} className={btnPrimary}>
                 {isSameStageAction(action) ? t(msg.saveRecord) : t(msg.saveAndMove)}

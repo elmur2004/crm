@@ -211,7 +211,13 @@ test("the ByteForce board's chip goes green too, and Sara sees it", async ({ pag
   await stubWhatsApp(page);
   await login(page, ADMIN.id, ADMIN.password, /\/b-systems$/);
 
-  const created = await page.request.post("/api/byteforce/leads", {
+  /* founder 2026-11-08 ("assigned leads only"): Sara sees only the leads she
+     OWNS, so the lead is hers — she adds it, and it is hers by construction —
+     and the admin (who sees every lead) is the one who messages them */
+  const saraCtx = await page.context().browser()!.newContext();
+  const saraPage = await saraCtx.newPage();
+  await login(saraPage, SARA.id, SARA.password, /\/b-systems\/crm\?company=byteforce$/);
+  const created = await saraPage.request.post("/api/byteforce/leads", {
     data: { name: "Green Signal BF", number: "01099911133", type: "cold_call" },
   });
   expect(created.status()).toBe(201);
@@ -229,10 +235,7 @@ test("the ByteForce board's chip goes green too, and Sara sees it", async ({ pag
      declared identically in both, which is what makes the switch safe */
   await expectPaint(card.getByRole("link", { name: /^WhatsApp sent/ }), { bg: GREEN_TINT });
 
-  /* Sara is ByteForce staff and never touched this lead — she still sees it */
-  const saraCtx = await page.context().browser()!.newContext();
-  const saraPage = await saraCtx.newPage();
-  await login(saraPage, SARA.id, SARA.password, /\/b-systems\?company=byteforce$/);
+  /* Sara never pressed it — the mark is the RECORD's, so she sees it too */
   await saraPage.goto("/b-systems/crm?company=byteforce");
   const saraChip = saraPage
     .locator('[data-deal-card="Green Signal BF"]')

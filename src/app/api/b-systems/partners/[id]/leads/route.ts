@@ -4,8 +4,10 @@ import { db } from "@/lib/db";
 import { createLead, createLeadSchema } from "@/lib/services/leads";
 
 /* §7.4 / PP-5 — a lead added inside a partner's detail is created in the B-Systems
-   CRM with permanent attribution (source=partner, "Partner: {Company}" badge).
-   Optional assign-to-rep; else the Unassigned bucket (A-6). */
+   CRM with permanent attribution (source=partner, "Partner: {Company}" badge),
+   in the partner bucket. Founder 2026-11-08 ("assigned leads only"): a legacy
+   rep card decides nobody's visibility, so a `salesRepId` sent here is not
+   written — the owner is the partner's account, or nobody (the admin's). */
 
 export const POST = handleRoute(
   async (req: Request, ctx: { params: Promise<{ id: string }> }) => {
@@ -13,7 +15,8 @@ export const POST = handleRoute(
     const { id } = await ctx.params;
     const partner = await db.partner.findUnique({ where: { id } });
     if (!partner) throw new ApiError(404, "Partner not found");
-    const input = createLeadSchema.parse(await req.json());
+    const { salesRepId: _legacy, ...input } = createLeadSchema.parse(await req.json());
+    void _legacy;
     const lead = await createLead(
       "bsystems",
       input,

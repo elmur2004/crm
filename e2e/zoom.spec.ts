@@ -233,7 +233,7 @@ test("A6: a long column shows at least two whole cards at every zoom, and still 
   await sp.getByLabel("Email or phone").fill("sara@byteforce.example");
   await sp.getByLabel("Password").fill("byteforce123");
   await sp.getByRole("button", { name: "Sign in" }).click();
-  await afterSignIn(sp, /\/b-systems\?company=byteforce$/);
+  await afterSignIn(sp, /\/b-systems\/crm\?company=byteforce$/);
   const ids: string[] = [];
   for (let i = 1; i <= 7; i++) {
     /* The names WRAP to the `.bcard-name` 2-line clamp on purpose. The floor is

@@ -54,7 +54,7 @@ test("ByteForce board: drag opens the stage form; didn't-answer toggles; whole c
   await page.getByLabel("Email or phone").fill("sara@byteforce.example");
   await page.getByLabel("Password").fill("byteforce123");
   await page.getByRole("button", { name: "Sign in" }).click();
-  await afterSignIn(page, /\/b-systems\?company=byteforce$/);
+  await afterSignIn(page, /\/b-systems\/crm\?company=byteforce$/);
 
   const created = await page.request.post("/api/byteforce/leads", {
     data: { name: "Parity Deal", number: "01055512345", type: "cold_call" },
@@ -109,7 +109,7 @@ test("a long column scrolls inside itself and a scrolled-to card still drags out
   await page.getByLabel("Email or phone").fill("sara@byteforce.example");
   await page.getByLabel("Password").fill("byteforce123");
   await page.getByRole("button", { name: "Sign in" }).click();
-  await afterSignIn(page, /\/b-systems\?company=byteforce$/);
+  await afterSignIn(page, /\/b-systems\/crm\?company=byteforce$/);
 
   const ids: string[] = [];
   for (let i = 1; i <= 7; i++) {
@@ -174,18 +174,20 @@ test("a long column scrolls inside itself and a scrolled-to card still drags out
 
 /* Founder, looking at this board: "there is no add leads button." The head had
    no `page-actions` at all, so a ByteForce lead could only be added from inside
-   a rep's page. This proves the board's own form: it creates a lead, the lead
-   lands on the board, and the optional rep picker is honoured in both of its
-   positions — a named rep, and the Unassigned default ByteForce already has a
-   bucket for. */
+   a rep's page. This proves the board's own form: it creates a lead and the
+   lead lands on the board.
+
+   Founder (2026-11-08, "assigned leads only" — "Both companies now"): the
+   owner is a staff ACCOUNT. The ADMIN's form carries an Owner picker (default
+   Unassigned — his own queue); a teammate's carries none, and his lead is his. */
 test("ByteForce board: the head's Add lead form creates a lead that lands on the board", async ({
   page,
 }) => {
   await page.goto("/login");
-  await page.getByLabel("Email or phone").fill("sara@byteforce.example");
-  await page.getByLabel("Password").fill("byteforce123");
+  await page.getByLabel("Email or phone").fill("admin@byteforce.com");
+  await page.getByLabel("Password").fill("password123");
   await page.getByRole("button", { name: "Sign in" }).click();
-  await afterSignIn(page, /\/b-systems\?company=byteforce$/);
+  await afterSignIn(page, /\/b-systems\/crm\?company=byteforce$/);
 
   await page.goto("/b-systems/crm?company=byteforce");
 
@@ -198,15 +200,16 @@ test("ByteForce board: the head's Add lead form creates a lead that lands on the
 
   const created: string[] = [];
 
-  async function addFromBoard(name: string, number: string, rep: string) {
+  async function addFromBoard(name: string, number: string, owner: string) {
     await page.locator(".page-head .page-actions").getByRole("button", { name: "Add lead" }).click();
     const form = page.locator("form.card-pad");
     await expect(form.getByText("New lead", { exact: true })).toBeVisible();
     await form.getByLabel("Name").fill(name);
     await form.getByLabel("Number").fill(number);
     await form.getByLabel("Type").selectOption("cold_call");
-    /* the picker exists ONLY here — a rep page passes its rep as a prop */
-    await form.getByLabel("Assign to rep (optional)").selectOption({ label: rep });
+    /* the admin's Owner picker — staff ACCOUNTS, never rep cards */
+    await expect(form.getByLabel("Assign to rep (optional)")).toHaveCount(0);
+    await form.getByLabel("Owner (optional)").selectOption({ label: owner });
     await form.getByRole("button", { name: "Save lead" }).click();
     const card = page.locator(`[data-stage="new"] [data-deal-card="${name}"]`);
     await expect(card).toBeVisible();
@@ -214,12 +217,11 @@ test("ByteForce board: the head's Add lead form creates a lead that lands on the
     return card;
   }
 
-  /* assigned to a named rep — the card's own subtitle says so */
-  const assigned = await addFromBoard("Board Door Deal", "01099900011", "Ahmed Samir");
-  await expect(assigned).toContainText("Ahmed Samir");
+  /* handed to Sara at creation — the card's own subtitle names her */
+  const assigned = await addFromBoard("Board Door Deal", "01099900011", "Sara Hassan");
+  await expect(assigned).toContainText("Sara Hassan");
 
-  /* and the default: Unassigned, which this board renders and the Leads page
-     buckets — so a lead added without choosing a rep is never invisible */
+  /* and the default: Unassigned — the admin's queue, still on HIS board */
   const unassigned = await addFromBoard("Board Door Unowned", "01099900022", "Unassigned");
   await expect(unassigned).toContainText("Unassigned");
 
@@ -241,4 +243,46 @@ test("ByteForce board: the head's Add lead form creates a lead that lands on the
     });
     expect(res.ok()).toBe(true);
   }
+});
+
+/* Founder (2026-11-08): a ByteForce teammate who is not the admin sees ONLY his
+   own cards — the admin's unassigned queue and other teammates' leads are not
+   on his board — and his own Add lead form names no owner (it is his). */
+test("ByteForce board: a teammate's board is his own cards, and his new lead is his", async ({
+  page,
+}) => {
+  await page.goto("/login");
+  await page.getByLabel("Email or phone").fill("sara@byteforce.example");
+  await page.getByLabel("Password").fill("byteforce123");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await afterSignIn(page, /\/b-systems\/crm\?company=byteforce$/);
+
+  await page.goto("/b-systems/crm?company=byteforce");
+  /* her seeded leads are there; the unassigned seed leads are not */
+  await expect(page.locator('[data-deal-card="Cairo Textiles"]')).toBeVisible();
+  await expect(page.locator('[data-deal-card="Cairo Grand Hotels"]')).toHaveCount(0);
+  await expect(page.locator('[data-deal-card="Cairo Motors"]')).toHaveCount(0);
+
+  await page.locator(".page-head .page-actions").getByRole("button", { name: "Add lead" }).click();
+  const form = page.locator("form.card-pad");
+  await expect(form.getByLabel("Owner (optional)")).toHaveCount(0);
+  await form.getByLabel("Name").fill("Sara Own Deal");
+  await form.getByLabel("Number").fill("01099900033");
+  await form.getByLabel("Type").selectOption("cold_call");
+  await form.getByRole("button", { name: "Save lead" }).click();
+  const card = page.locator('[data-stage="new"] [data-deal-card="Sara Own Deal"]');
+  await expect(card).toBeVisible();
+  await expect(card).toContainText("Sara Hassan");
+
+  /* the unassigned lead's own page is not hers: a 404 like any lead outside
+     her scope */
+  const res = await page.request.patch("/api/byteforce/leads/does-not-matter", {
+    data: { name: "x" },
+  });
+  expect([403, 404]).toContain(res.status());
+
+  /* tidy: archive her probe lead */
+  const href = await card.locator("a.bcard-name").getAttribute("href");
+  const id = href!.match(/\/leads\/lead\/([^?]+)/)![1];
+  expect((await page.request.post(`/api/byteforce/leads/${id}/archive`, { data: { value: true } })).ok()).toBe(true);
 });

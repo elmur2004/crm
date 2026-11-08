@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { leadHref } from "@/lib/crm/surface";
 import type { Brand, Role } from "@/lib/pipeline-engine/constants";
 import { BS_CRM_ROLES, BS_PIPELINE_ROLES } from "@/lib/crm/company";
+import { scopeReaches, type LeadScope } from "@/lib/auth/lead-scope";
 
 /* ============================================================================
    ADR-071 — THE CALENDAR.
@@ -42,12 +43,11 @@ import { BS_CRM_ROLES, BS_PIPELINE_ROLES } from "@/lib/crm/company";
    function CANNOT return.
    ========================================================================== */
 
-/** How far the viewer's own scope reaches — the To-Do's three kinds, because
-    it is deliberately the SAME wall and not a second one that could drift. */
-export type CalendarScope =
-  | { kind: "all" } // bsystems admin · byteforce staff
-  | { kind: "internal" } // bsystems internal sales (internal bucket)
-  | { kind: "own"; userId: string }; // agent / partner — own leads only
+/** How far the viewer's own scope reaches — the To-Do's two kinds (founder,
+    2026-11-08: the company admin all, everybody else their OWN leads), because
+    it is deliberately the SAME wall and not a second one that could drift.
+    Everything outside it is still drawn — as a "busy" block. */
+export type CalendarScope = LeadScope;
 
 /** The viewer, as this module needs them. */
 export interface CalendarViewer {
@@ -135,15 +135,10 @@ export const MEETING_BLOCK_MINUTES = 60;
 const endOfMeeting = (at: Date) => new Date(at.getTime() + MEETING_BLOCK_MINUTES * 60_000);
 
 /** Does this viewer's scope reach this lead in FULL? Deliberately the same
-    three branches as requireLeadAccess — sales sees the internal bucket, an
-    agent or partner sees only what they own, admin/ByteForce staff see all. */
-function reaches(
-  scope: CalendarScope,
-  lead: { ownerType: string; ownerUserId: string | null },
-): boolean {
-  if (scope.kind === "all") return true;
-  if (scope.kind === "internal") return lead.ownerType === "internal";
-  return lead.ownerUserId === scope.userId;
+    two branches as requireLeadAccess — the company admin sees all, everybody
+    else only what they own (lead-scope.ts's `scopeReaches`, not a copy). */
+function reaches(scope: CalendarScope, lead: { ownerUserId: string | null }): boolean {
+  return scopeReaches(scope, lead);
 }
 
 function busyMeeting(id: string, at: Date, people: CalendarPerson[]): CalendarEntry {

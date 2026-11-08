@@ -600,18 +600,22 @@ describe("THE SCOPE WALL — never a lead he could not already open", () => {
     expect(JSON.stringify(report)).not.toContain("Reassigned Co");
   });
 
-  it("a sales rep's lead that left the INTERNAL bucket is redacted the same way", async () => {
+  it("a sales rep's lead handed to an agent is redacted the same way", async () => {
     const admin = await makeUser("Bucket Admin", ["bsystems_admin"]);
     const sales = await makeUser("Internal Sales", ["bsystems_sales"]);
     const agent = await makeUser("Receiving Agent", ["bsystems_agent"]);
+    /* founder 2026-11-08: a seller's own lead is HIS (the create route owns it) */
     const lead = await at(cairoToUtc(YESTERDAY, "09:00"), () =>
-      makeLead("bsystems", sales, "Internal Then Agent Co"),
+      makeLead("bsystems", sales, "Internal Then Agent Co", {
+        ownerType: "internal",
+        ownerUserId: sales.id!,
+      }),
     );
     await assignLeadOwner(lead.id, agent.userId, admin); // ownerType becomes "agent"
 
     const report = await dailyReportFor({
       actorId: sales.id!,
-      companies: [{ brand: "bsystems", scope: { kind: "internal" } }],
+      companies: [{ brand: "bsystems", scope: { kind: "own", userId: sales.id! } }],
       now: NOW,
     });
     const row = dayOf(report, YESTERDAY).leads[0]!;

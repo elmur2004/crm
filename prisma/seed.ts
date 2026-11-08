@@ -102,7 +102,7 @@ export async function seed() {
     return;
   }
 
-  await upsertUser({
+  const sara = await upsertUser({
     name: "Sara Hassan",
     email: "sara@byteforce.example",
     password: "byteforce123",
@@ -110,7 +110,7 @@ export async function seed() {
   });
 
   // A-8 default: one B-Systems account may carry both roles
-  await upsertUser({
+  const omar = await upsertUser({
     name: "Omar Farouk",
     email: "omar@b-systems.example",
     password: "bsystems123",
@@ -182,21 +182,33 @@ export async function seed() {
         },
       });
 
-    /* Leads across all stages for BOTH internal brands. */
+    /* Leads across all stages for BOTH internal brands.
+
+       Founder (2026-11-08, "assigned leads only" — both companies): a teammate
+       who is not the company admin sees ONLY the leads he OWNS. So each
+       company's seller owns a working set — Sara (ByteForce staff) and Omar
+       (B-Systems internal sales) each own the New, Following Up, Meeting
+       Setting and Won leads of their company — and the Sending Proposals and
+       Lost leads stay UNASSIGNED, the admin's queue to hand out. The legacy rep
+       CARDS stay on the rows as history; they decide nobody's visibility. */
     for (const brand of ["byteforce", "bsystems"] as const) {
       const rep1 = repIds[`${brand}:${brand === "byteforce" ? "Laila Mostafa" : "Nour El-Din"}`]!;
       const rep2 = repIds[`${brand}:${brand === "byteforce" ? "Ahmed Samir" : "Mona Khalil"}`]!;
+      const seller = brand === "byteforce" ? sara.id : omar.id;
       const mk = (data: {
         name: string;
         number: string;
         type: string;
         stage: string;
         repId: string;
+        /** the owner ACCOUNT — absent = unassigned (the admin's) */
+        ownerUserId?: string;
       }) =>
         db.lead.create({
           data: {
             brand,
             salesRepId: data.repId,
+            ownerUserId: data.ownerUserId ?? null,
             name: data.name,
             number: data.number,
             type: data.type,
@@ -205,9 +217,9 @@ export async function seed() {
         });
 
       const prefix = brand === "byteforce" ? "Cairo" : "Delta";
-      await mk({ name: `${prefix} Fresh Foods`, number: "0221000001", type: "cold_call", stage: "new", repId: rep1 });
+      await mk({ name: `${prefix} Fresh Foods`, number: "0221000001", type: "cold_call", stage: "new", repId: rep1, ownerUserId: seller });
 
-      const fu = await mk({ name: `${prefix} Textiles`, number: "0221000002", type: "event_data", stage: "following_up", repId: rep1 });
+      const fu = await mk({ name: `${prefix} Textiles`, number: "0221000002", type: "event_data", stage: "following_up", repId: rep1, ownerUserId: seller });
       await db.followUp.create({
         /* ADR-063 — 10:00 on the Cairo clock, and stated as CHOSEN. A seeded
            instant that is not the 09:00 default must say so, or the demo data
@@ -217,7 +229,7 @@ export async function seed() {
       });
       await log("lead", fu.id, "stage_change", "T-1", "new", "following_up");
 
-      const meet = await mk({ name: `${prefix} Logistics`, number: "0221000003", type: "personal_connection", stage: "meeting_setting", repId: rep2 });
+      const meet = await mk({ name: `${prefix} Logistics`, number: "0221000003", type: "personal_connection", stage: "meeting_setting", repId: rep2, ownerUserId: seller });
       await db.meeting.create({
         data: { leadId: meet.id, arranged: true, datetime: new Date("2026-08-25T12:00:00Z"), mode: "online", withAttendees: "CEO + CTO" },
       });
@@ -229,7 +241,7 @@ export async function seed() {
       });
       await log("lead", prop.id, "stage_change", "T-3", "new", "sending_proposal");
 
-      const won = await mk({ name: `${prefix} Medical Group`, number: "0221000005", type: "personal_connection", stage: "won", repId: rep1 });
+      const won = await mk({ name: `${prefix} Medical Group`, number: "0221000005", type: "personal_connection", stage: "won", repId: rep1, ownerUserId: seller });
       await db.proposal.create({
         data: { leadId: won.id, service: "Brand launch package", estimatedValue: 500_000_00, sent: true, sentAt: new Date("2026-08-01T10:00:00Z") },
       });

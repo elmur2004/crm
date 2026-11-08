@@ -201,8 +201,10 @@ describe("a MIXED file imports exactly the valid rows", () => {
     expect(queue.map((l) => l.name).sort()).toEqual(["One", "Two"]);
   });
 
-  it("ByteForce: the leads land with no sales rep — the Unassigned card", async () => {
-    const staff = await makeUser("Sara", ["byteforce_staff"]);
+  it("ByteForce: the leads land with no owner — the admin's Unassigned card", async () => {
+    /* founder 2026-11-08 — imports are the COMPANY ADMIN's (the ByteForce admin
+       is the platform admin: byteforce_staff AND bsystems_admin) */
+    const staff = await makeUser("Sara", ["byteforce_staff", "bsystems_admin"]);
     expect(await countUnassigned("byteforce")).toBe(0);
     const { status, body } = await upload(
       "byteforce",
@@ -213,6 +215,7 @@ describe("a MIXED file imports exactly the valid rows", () => {
     expect(body.imported).toBe(1);
     const lead = await db.lead.findFirstOrThrow({ where: { brand: "byteforce" } });
     expect(lead.salesRepId).toBeNull();
+    expect(lead.ownerUserId).toBeNull();
     expect(lead.companyName).toBeNull();
     expect(lead.createdByUserId).toBe(staff.id);
     expect(await countUnassigned("byteforce")).toBe(1);

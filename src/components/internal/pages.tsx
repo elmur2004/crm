@@ -4,11 +4,11 @@ import { db } from "@/lib/db";
 import type { Brand } from "@/lib/pipeline-engine/constants";
 import type { CrmSurface } from "@/lib/crm/surface";
 import { oneValue, type CrmCompany } from "@/lib/crm/company";
-import { INTERNAL_STAGES, LEAD_TYPES } from "@/lib/pipeline-engine/constants";
+import { LEAD_TYPES } from "@/lib/pipeline-engine/constants";
 import { internalCrmConfig } from "@/lib/pipeline-engine/configs/internal-crm";
 import { orderMeetingColumn } from "@/lib/board-order";
 import { isNewestRecord } from "@/lib/crm/live-record";
-import { tFor } from "@/lib/i18n/core";
+import { formatMsg, tFor } from "@/lib/i18n/core";
 import { getLocale } from "@/lib/i18n/server";
 import { leadTypeLabel, stageLabel } from "@/lib/i18n/dict/labels";
 import {
@@ -20,12 +20,17 @@ import {
   nav,
 } from "@/lib/i18n/dict/internal";
 import {
-  listRepsWithCounts,
-  listReps,
   countUnassigned,
   countUnassignedArchived,
+  listOwnerCards,
 } from "@/lib/services/sales-reps";
 import { listClients } from "@/lib/services/clients";
+import { listByteforceOwners } from "@/lib/services/users";
+import { followUpAssignees } from "@/lib/services/assignees";
+import { byteforceBoardWhere } from "@/lib/crm/search-hop";
+import { isCompanyAdmin, leadScopeFor } from "@/lib/auth/lead-scope";
+import { bfLeadsPage, bfOwner, handOver } from "@/lib/i18n/dict/owners";
+import type { Role } from "@/lib/pipeline-engine/constants";
 import { getLeadDetail, latestProposalValue } from "@/lib/services/leads";
 import { formatEGP } from "@/lib/money";
 import { formatCairo, formatCairoDate } from "@/lib/datetime";
@@ -37,7 +42,8 @@ import { stageKey } from "@/components/bsystems/stageColors";
 import { LeadsExportButtons } from "@/components/shared/LeadsExportButtons";
 import { LeadsImportMenu } from "@/components/shared/LeadsImportMenu";
 import { NoAnswerBadge } from "@/components/shared/NoAnswerBadge";
-import { AddLeadForm, AddRepForm, ClientEditForm } from "./forms";
+import { AddLeadForm, ClientEditForm } from "./forms";
+import { AssignLeadButton, type AssignableOwner } from "@/components/bsystems/leadActions";
 import { LeadChat } from "@/components/shared/LeadChat";
 import { listLeadComments, mentionableUsersFor } from "@/lib/services/comments";
 import { requireLeadAccess } from "@/lib/auth/guards";
@@ -48,8 +54,8 @@ import {
   ownerFilters,
 } from "@/lib/i18n/dict/crm";
 import { callSheet } from "@/lib/i18n/dict/call";
+import { regRoleBadges } from "@/lib/i18n/dict/admin";
 import { FilterPanel } from "@/components/shared/FilterPanel";
-import { leadSearchWhere, leadTypeWhere } from "@/lib/services/lead-search";
 import { SearchSwitchedNotice } from "@/components/shared/SearchSwitchedNotice";
 import { ArchiveButton } from "@/components/shared/ArchiveButton";
 import { LeadEventPanel } from "./LeadEventPanel";
@@ -70,6 +76,19 @@ import { ApiError } from "@/lib/api-error";
    apart, and the alias keeps every existing `InternalAppCtx` annotation in the
    file reading exactly as it did. */
 export type InternalAppCtx = CrmSurface;
+
+/** Who is looking — the PAGE resolved it from the session (a body cannot see
+    one). Founder (2026-11-08, "assigned leads only" — "Both companies now"): the
+    ByteForce admin sees every lead, everybody else only the leads he owns, and
+    every body below reads its rows through `leadScopeFor(viewer, …)`. */
+export interface InternalViewer {
+  id: string;
+  name: string;
+  roles: Role[];
+}
+
+/* the ByteForce roster's one role, in the Registrations screen's own words */
+const bfStaffRole = regRoleBadges.byteforce_staff!;
 
 /* Mono eyebrow context line per brand (design spec §2.2 — additive, not a reword). */
 const BRAND_EYEBROW: Record<Brand, string> = {
@@ -92,14 +111,20 @@ function markInitials(name: string): string {
    (the dashboard upgrade). The §6.5 figures it shows are still
    services/metrics.ts `internalDashboard`, unchanged for the whole company. */
 
-/* ---------------- Leads: rep cards grid (§6.1) ---------------- */
+/* ---------------- Leads: owner cards (§6.1, founder 2026-11-08) ----------------
+   Rep cards became OWNER cards: ByteForce leads belong to staff ACCOUNTS (the
+   Users app creates them — there is no "Add rep" any more), so the admin's grid
+   is one card per teammate with his lead count, plus the Unassigned card (the
+   leads only the admin sees). Everybody else's Leads page is his own list. */
 
 export async function LeadsBody({
   ctx,
+  viewer,
   exportCompanies = [],
   importCompany = null,
 }: {
   ctx: InternalAppCtx;
+  viewer: InternalViewer;
   /* ADR-083 — the companies whose export button this account is shown. Decided
      by the PAGE from the live roles (`leadsExportCompanies`), never here: a
      body cannot see a session, and the one thing this prop must never become is
@@ -109,10 +134,14 @@ export async function LeadsBody({
      PAGE (`canImportLeads`), never here. Defaults to none. */
   importCompany?: CrmCompany | null;
 }) {
+  /* a teammate who is not the admin: his own leads, and nothing else */
+  if (!isCompanyAdmin(viewer, ctx.brand)) {
+    return <OwnerLeadsBody ctx={ctx} viewer={viewer} ownerId={viewer.id} />;
+  }
   const locale = await getLocale();
   const t = tFor(locale);
-  const [reps, unassigned, unassignedArchived] = await Promise.all([
-    listRepsWithCounts(ctx.brand),
+  const [owners, unassigned, unassignedArchived] = await Promise.all([
+    listOwnerCards(ctx.brand),
     countUnassigned(ctx.brand),
     countUnassignedArchived(ctx.brand),
   ]);
@@ -128,82 +157,99 @@ export async function LeadsBody({
           {importCompany ? (
             <LeadsImportMenu company={importCompany} />
           ) : null}
-          <AddRepForm apiBase={ctx.apiBase} />
         </div>
       </div>
       <div className="ecard-grid">
-        {reps.map((rep) => (
-          <Link key={rep.id} href={`${ctx.basePath}/leads/rep/${rep.id}${ctx.query}`} className="ecard">
+        {owners.map((owner) => (
+          <Link
+            key={owner.id}
+            href={`${ctx.basePath}/leads/rep/${owner.id}${ctx.query}`}
+            className="ecard"
+            data-owner-card={owner.id}
+          >
             <div className="ecard-top">
               <span className="ecard-mark" aria-hidden>
-                {markInitials(rep.name)}
+                {markInitials(owner.name)}
               </span>
             </div>
-            <p className="ecard-title">{rep.name}</p>
+            <p className="ecard-title">{owner.name}</p>
             <p className="ecard-sub">
-              {rep.leadCount} {rep.leadCount === 1 ? t(leadsPage.leadOne) : t(leadsPage.leadMany)}
+              {owner.leadCount} {owner.leadCount === 1 ? t(leadsPage.leadOne) : t(leadsPage.leadMany)}
             </p>
           </Link>
         ))}
         {unassigned > 0 || unassignedArchived > 0 ? (
-          <Link href={`${ctx.basePath}/leads/rep/unassigned${ctx.query}`} className="ecard ecard--accent">
+          <Link
+            href={`${ctx.basePath}/leads/rep/unassigned${ctx.query}`}
+            className="ecard ecard--accent"
+            data-owner-card="unassigned"
+          >
             <div className="ecard-top">
               <span className="ecard-mark" aria-hidden>
-                U
+                {t(bfLeadsPage.unassignedMark)}
               </span>
             </div>
-            <p className="ecard-title">{t(leadsPage.unassignedPartnerLeads)}</p>
+            <p className="ecard-title">{t(common.unassigned)}</p>
             <p className="ecard-sub">{unassigned} {unassigned === 1 ? t(leadsPage.leadOne) : t(leadsPage.leadMany)}</p>
           </Link>
         ) : null}
-        {reps.length === 0 && unassigned === 0 && unassignedArchived === 0 ? (
-          <p className="empty col-span-full">
-            {t(leadsPage.noRepsYet)}
-          </p>
+        {owners.length === 0 && unassigned === 0 && unassignedArchived === 0 ? (
+          <p className="empty col-span-full">{t(bfLeadsPage.noOwnersYet)}</p>
         ) : null}
       </div>
     </div>
   );
 }
 
-/* ---------------- Leads table per rep (§6.1) ---------------- */
+/* ---------------- Leads table per OWNER (§6.1, founder 2026-11-08) ----------------
+   Was the per-rep table; the address (/leads/rep/[id]) is kept so every link and
+   bookmark shape still opens, and the id is now an OWNER ACCOUNT's (or the
+   literal "unassigned"). The admin opens any of them; a teammate only his own —
+   the page guard redirects him, and this body 404s as the belt. */
 
-export async function RepLeadsBody({
+export async function OwnerLeadsBody({
   ctx,
-  repId,
+  viewer,
+  ownerId,
   archived = false,
 }: {
   ctx: InternalAppCtx;
-  repId: string;
+  viewer: InternalViewer;
+  ownerId: string;
   archived?: boolean;
 }) {
   const locale = await getLocale();
   const t = tFor(locale);
-  const isUnassigned = repId === "unassigned";
-  const rep = isUnassigned
+  const admin = isCompanyAdmin(viewer, ctx.brand);
+  const isUnassigned = ownerId === "unassigned";
+  /* the wall, again: only the admin reads somebody else's list (or Unassigned) */
+  if (!admin && ownerId !== viewer.id) notFound();
+  const owner = isUnassigned
     ? null
-    : await db.salesRep.findFirst({ where: { id: repId, brand: ctx.brand } });
-  if (!isUnassigned && !rep) notFound();
+    : await db.user.findUnique({ where: { id: ownerId }, select: { id: true, name: true } });
+  if (!isUnassigned && !owner) notFound();
 
   /* ADR-043: the default view hides archived leads; ?view=archived IS the
      archive (unarchive lives on the lead detail). */
   const leads = await db.lead.findMany({
-    where: { brand: ctx.brand, salesRepId: isUnassigned ? null : repId, archived },
+    where: { brand: ctx.brand, ownerUserId: isUnassigned ? null : ownerId, archived },
     orderBy: { createdAt: "desc" },
     include: { partner: { select: { companyName: true } } },
   });
 
-  const basePath = `${ctx.basePath}/leads/rep/${repId}`;
+  const mine = !admin && ownerId === viewer.id;
+  const basePath = `${ctx.basePath}/leads/rep/${ownerId}`;
   return (
     <div className="space-y-6">
       <div className="page-head">
         <div>
           {/* no "Back to all reps": Leads is in the ByteForce CRM menu, the one
-              way back to the rep directory (one way to each page) */}
+              way back to the owner directory (one way to each page) */}
           <p className="u-eyebrow">{BRAND_EYEBROW[ctx.brand]} · {t(leadsPage.eyebrowLeads)}</p>
           <h1 className="u-h1">
-            {rep ? rep.name : t(leadsPage.unassignedPartnerLeads)}
+            {mine ? t(bfLeadsPage.myLeads) : owner ? owner.name : t(common.unassigned)}
           </h1>
+          {mine ? <p className="u-sub">{t(bfLeadsPage.myLeadsNote)}</p> : null}
         </div>
         <div className="page-actions">
           <nav className="flex gap-1 flex-wrap" aria-label={t(archiveMsgs.archived)}>
@@ -218,7 +264,10 @@ export async function RepLeadsBody({
               {t(archiveMsgs.archived)}
             </Link>
           </nav>
-          {!isUnassigned ? <AddLeadForm apiBase={ctx.apiBase} salesRepId={repId} /> : null}
+          {/* the admin adds a lead straight into this teammate's list; a
+              teammate's own lead is his by construction (the server owns it) */}
+          {admin && owner ? <AddLeadForm apiBase={ctx.apiBase} ownerUserId={owner.id} /> : null}
+          {mine ? <AddLeadForm apiBase={ctx.apiBase} /> : null}
         </div>
       </div>
       {leads.length === 0 ? (
@@ -281,12 +330,28 @@ export async function LeadDetailBody({ ctx, leadId }: { ctx: InternalAppCtx; lea
     if (e instanceof ApiError) notFound();
     throw e;
   }
+  /* DETAIL FIRST, ACCESS SECOND, either one a 404 — a teammate who is not the
+     admin and does not own this lead is refused like any lead outside his
+     scope (founder 2026-11-08, "assigned leads only"). */
   const { lead, history } = detail;
-  const [reps, comments, mentionables] = await Promise.all([
-    listReps(ctx.brand),
+  const admin = access.isAdmin;
+  const [comments, mentionables, staff, assignees] = await Promise.all([
     listLeadComments(leadId),
     mentionableUsersFor(leadId),
+    /* the Assign control's roster — the ByteForce admin's only: every live
+       staff account, the admin among them (that is his "take it") */
+    admin ? listByteforceOwners() : Promise.resolve([]),
+    /* the follow-up forms' "Hand this follow-up to" — the admin's only */
+    admin
+      ? followUpAssignees(ctx.brand, { id: access.user.id, name: access.user.name }, locale)
+      : Promise.resolve(undefined),
   ]);
+  const owners: AssignableOwner[] = staff.map((u) => ({
+    id: u.id,
+    name: u.id === access.user.id ? t(formatMsg(handOver.me, { name: u.name })) : u.name,
+    company: null,
+    roleLabel: t(bfStaffRole),
+  }));
   const latestMeeting = lead.meetings.at(-1);
 
   return (
@@ -319,6 +384,17 @@ export async function LeadDetailBody({ ctx, leadId }: { ctx: InternalAppCtx; lea
             >
               {t(callSheet.whatsapp)}
             </WhatsappChip>
+          ) : null}
+          {/* founder (2026-11-08) — "Both companies now": the ByteForce admin
+              hands a lead to a teammate's ACCOUNT, as B-Systems' admin does */}
+          {admin && !lead.archived && owners.length > 0 ? (
+            <AssignLeadButton
+              leadId={lead.id}
+              owners={owners}
+              currentOwnerUserId={lead.ownerUserId}
+              apiBase={ctx.apiBase}
+              variant="byteforce"
+            />
           ) : null}
           <ArchiveButton
             postUrl={`${ctx.apiBase}/leads/${lead.id}/archive`}
@@ -357,9 +433,11 @@ export async function LeadDetailBody({ ctx, leadId }: { ctx: InternalAppCtx; lea
             <p className="fields-label">{t(leadDetail.typeColon)}</p>
             <p className="fields-value">{leadTypeLabel(locale, lead.type)}</p>
           </div>
-          <div className="fields-cell">
-            <p className="fields-label">{t(leadDetail.assignedRepColon)}</p>
-            <p className="fields-value">{lead.salesRep?.name ?? t(common.unassigned)}</p>
+          {/* founder (2026-11-08) — the OWNER is an account now; the legacy
+              rep card decides nothing and is not shown as if it did */}
+          <div className="fields-cell" data-field="owner">
+            <p className="fields-label">{t(bfOwner.ownerColon)}</p>
+            <p className="fields-value">{lead.owner?.name ?? t(common.unassigned)}</p>
           </div>
           <div className="fields-cell">
             <p className="fields-label">{t(leadDetail.dateCreatedColon)}</p>
@@ -391,7 +469,8 @@ export async function LeadDetailBody({ ctx, leadId }: { ctx: InternalAppCtx; lea
                   apiBase={ctx.apiBase}
                   leadId={lead.id}
                   stage={lead.stage}
-                  reps={reps.map((r) => ({ id: r.id, name: r.name }))}
+                  reps={[]}
+                  assignees={assignees}
                   latestProposalValue={latestProposalValue(lead.proposals)}
                   hasUnsentProposal={lead.proposals.some((p) => !p.sent)}
                   pendingMeeting={Boolean(latestMeeting && latestMeeting.outcome === null && latestMeeting.arranged)}
@@ -441,21 +520,24 @@ export async function LeadDetailBody({ ctx, leadId }: { ctx: InternalAppCtx; lea
 /* ---------------- CRM board (§6.3) ---------------- */
 
 /* §6.3 defined five columns (minus intake) — the founder overrode it: "I added
-   a lead and it's still very empty." The board now shows EVERY lead, so intake
+   a lead and it's still very empty." The board shows every stage, so intake
    ("new") gets its own leading column like the B-Systems board (ADR-040). The
-   stage set still comes from the engine, never hardcoded (§5.1). */
-const BOARD_STAGES = [...INTERNAL_STAGES];
+   stage set still comes from the engine, never hardcoded (§5.1) — it lives in
+   `byteforceBoardWhere` (INTERNAL_STAGES), the board's one predicate. */
 
 /* Founder (filters round 3): the same search/type narrowing the B-Systems board
-   got — Search + Type only here (ByteForce has no owner buckets; reps have their
-   own pages). Server-side, through the shared lead-search helpers. */
+   got — Search + Type only here (ByteForce has no owner buckets; owners have
+   their own pages). Server-side, through the shared lead-search helpers. */
 export async function CrmBoardBody({
   ctx,
+  viewer,
   params,
   switchedFrom,
   importCompany = null,
 }: {
   ctx: InternalAppCtx;
+  /** whose cards: the ByteForce admin's whole company, or the viewer's own */
+  viewer: InternalViewer;
   /* `string | string[]` because that is what Next really hands a server page
      for a repeated parameter — `oneValue` is what turns it back into a value or
      into nothing (ADR-085) */
@@ -476,16 +558,15 @@ export async function CrmBoardBody({
     ? params!.type!
     : "any";
   const activeCount = [search !== "", type !== "any"].filter(Boolean).length;
+  /* Founder (2026-11-08, "assigned leads only") — the board's rows are the
+     search hop's own predicate (`byteforceBoardWhere`, ADR-085), scoped to the
+     viewer: the admin every card, everybody else only the cards he owns. One
+     predicate, so the board and the hop cannot disagree. */
+  const admin = isCompanyAdmin(viewer, ctx.brand);
   const leads = await db.lead.findMany({
-    where: {
-      brand: ctx.brand,
-      archived: false,
-      stage: { in: BOARD_STAGES },
-      ...leadSearchWhere(search),
-      ...leadTypeWhere(type),
-    },
+    where: byteforceBoardWhere({ search, type }, leadScopeFor(viewer, ctx.brand)),
     include: {
-      salesRep: { select: { name: true } },
+      owner: { select: { name: true } },
       partner: { select: { companyName: true } },
       followUps: { orderBy: { createdAt: "desc" }, take: 1 },
       meetings: { orderBy: { createdAt: "desc" }, take: 1 },
@@ -534,11 +615,18 @@ export async function CrmBoardBody({
   /* Founder (ADR-042): full parity with the B-Systems board — the client
      board handles drag + the drop-opens-stage-form modal + the didn't-answer
      marker. Labels are precomputed here so the client stays string-free. */
-  const reps = (await listReps(ctx.brand)).map((r) => ({ id: r.id, name: r.name }));
+  /* founder (2026-11-08) — owners are ACCOUNTS: the Add-lead Owner picker and
+     the drop window's "Hand this follow-up to" are the ADMIN's only */
+  const [staff, assignees] = await Promise.all([
+    admin ? listByteforceOwners() : Promise.resolve([]),
+    admin
+      ? followUpAssignees(ctx.brand, { id: viewer.id, name: viewer.name }, locale)
+      : Promise.resolve(undefined),
+  ]);
   const cards: InternalBoardLead[] = leads.map((lead) => ({
     id: lead.id,
     name: lead.name,
-    subtitle: `${leadTypeLabel(locale, lead.type)} · ${lead.salesRep ? lead.salesRep.name : t(common.unassigned)}`,
+    subtitle: `${leadTypeLabel(locale, lead.type)} · ${lead.owner ? lead.owner.name : t(common.unassigned)}`,
     partnerBadge: lead.partner ? `${t(common.partnerPrefix)} ${lead.partner.companyName}` : null,
     stage: lead.stage,
     keyDatum: keyDatum(lead),
@@ -600,7 +688,10 @@ export async function CrmBoardBody({
           {importCompany ? (
             <LeadsImportMenu company={importCompany} />
           ) : null}
-          <AddLeadForm apiBase={ctx.apiBase} reps={reps} />
+          <AddLeadForm
+            apiBase={ctx.apiBase}
+            owners={admin ? staff.map((u) => ({ id: u.id, name: u.name })) : undefined}
+          />
         </div>
       </div>
       <FilterPanel activeCount={activeCount} variant="inline" defaultOpen={activeCount > 0}>
@@ -655,7 +746,8 @@ export async function CrmBoardBody({
       ) : (
         <InternalBoard
           leads={orderedCards}
-          reps={reps}
+          reps={[]}
+          assignees={assignees}
           basePath={ctx.basePath}
           query={ctx.query}
           apiBase={ctx.apiBase}
@@ -667,10 +759,12 @@ export async function CrmBoardBody({
 
 /* ---------------- Clients (§6.4) ---------------- */
 
-export async function ClientsBody({ ctx }: { ctx: InternalAppCtx }) {
+export async function ClientsBody({ ctx, viewer }: { ctx: InternalAppCtx; viewer: InternalViewer }) {
   const locale = await getLocale();
   const t = tFor(locale);
-  const clients = await listClients(ctx.brand);
+  /* founder (2026-11-08) — the admin every client; everybody else only the
+     clients of leads he owns */
+  const clients = await listClients(ctx.brand, leadScopeFor(viewer, ctx.brand));
   return (
     <div className="space-y-6">
       <div className="page-head">

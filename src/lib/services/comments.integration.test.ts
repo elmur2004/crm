@@ -45,24 +45,45 @@ describe("Lead chat (founder V5)", () => {
     const set1 = (await mentionableUsersFor(agentLead.id)).map((m) => m.name).sort();
     expect(set1).toEqual(["Elmur", "Omar Agent"]);
 
-    /* Internal B-Systems lead → admins + internal sales. */
+    /* Founder 2026-11-08 ("assigned leads only"): an UNASSIGNED internal lead
+       is the admin's alone — no seller can open it, so none is mentionable … */
     const internalLead = await createLead(
       "bsystems",
       { name: "Internal Corp", number: "0100000002", type: "cold_call" },
       actor,
     );
     const set2 = (await mentionableUsersFor(internalLead.id)).map((m) => m.name).sort();
-    expect(set2).toEqual(["Elmur", "Sara Sales"]);
+    expect(set2).toEqual(["Elmur"]);
+    /* … and an internal lead a seller OWNS adds exactly that seller */
+    const salesLead = await createLead(
+      "bsystems",
+      { name: "Sales Corp", number: "0100000004", type: "cold_call" },
+      actor,
+      { ownerType: "internal", ownerUserId: sales.id },
+    );
+    expect((await mentionableUsersFor(salesLead.id)).map((m) => m.name).sort()).toEqual([
+      "Elmur",
+      "Sara Sales",
+    ]);
 
-    /* ByteForce lead → ByteForce staff only. */
+    /* ByteForce: the ByteForce ADMIN (byteforce_staff AND bsystems_admin) plus
+       the owner — a plain B-Systems admin is no ByteForce admin */
+    const bfAdmin = await makeUser("BF Founder", "byteforce_staff", "f@x.com");
+    await db.userRole.create({ data: { userId: bfAdmin.id, role: "bsystems_admin" } });
     const bfLead = await createLead(
       "byteforce",
       { name: "BF Corp", number: "0100000003", type: "cold_call" },
       actor,
     );
     const set3 = (await mentionableUsersFor(bfLead.id)).map((m) => m.name);
-    expect(set3).toEqual(["Bassem BF"]);
+    expect(set3).toEqual(["BF Founder"]);
     expect(set3).not.toContain(otherAgent.name);
+    expect(set3).not.toContain("Bassem BF");
+    await db.lead.update({ where: { id: bfLead.id }, data: { ownerUserId: bfStaff.id } });
+    expect((await mentionableUsersFor(bfLead.id)).map((m) => m.name).sort()).toEqual([
+      "BF Founder",
+      "Bassem BF",
+    ]);
   });
 
   it("resolveMentions: longest name first, case-insensitive, unknown names ignored", () => {
@@ -99,10 +120,12 @@ describe("Lead chat (founder V5)", () => {
     );
     expect((await mentionableUsersFor(lead.id)).map((m) => m.name)).toContain("Omar Agent");
 
-    /* The admin converts Omar to internal sales — his old agent-bucket lead
-       must stop offering him as a mention (requireLeadAccess denies him). */
+    /* The admin turns Omar into a data-entry account — his old lead must stop
+       offering him as a mention (requireLeadAccess denies data entry). (Since
+       2026-11-08 an internal-sales OWNER still passes the guard, so converting
+       him to sales would — correctly — keep him.) */
     await db.userRole.deleteMany({ where: { userId: agent.id } });
-    await db.userRole.create({ data: { userId: agent.id, role: "bsystems_sales" } });
+    await db.userRole.create({ data: { userId: agent.id, role: "bsystems_data_entry" } });
     expect((await mentionableUsersFor(lead.id)).map((m) => m.name)).not.toContain("Omar Agent");
   });
 
@@ -142,12 +165,16 @@ describe("Lead chat (founder V5)", () => {
   });
 
   it("byteforce mention notifications carry no lead deep-link (the bell is B-Systems chrome)", async () => {
+    /* the ByteForce admin writes on Farah's lead — the only two people who can
+       open it since "assigned leads only" (2026-11-08) */
     const a = await makeUser("Bassem BF", "byteforce_staff", "b@x.com");
+    await db.userRole.create({ data: { userId: a.id, role: "bsystems_admin" } });
     const b = await makeUser("Farah BF", "byteforce_staff", "f@x.com");
     const lead = await createLead(
       "byteforce",
       { name: "BF Corp", number: "0100000003", type: "cold_call" },
       actor,
+      { ownerUserId: b.id },
     );
     await addLeadComment({
       leadId: lead.id,

@@ -91,7 +91,7 @@ test("B-Systems: the full follow-up form says ABOUT, hints a topic, and has no O
 test("ByteForce: full parity — the same label, the same hint, no Owner (ADR-042)", async ({
   page,
 }) => {
-  await login(page, "sara@byteforce.example", "byteforce123", /\/b-systems\?company=byteforce$/);
+  await login(page, "sara@byteforce.example", "byteforce123", /\/b-systems\/crm\?company=byteforce$/);
   const created = await page.request.post("/api/byteforce/leads", {
     data: { name: "BF About Lead", number: "0107790002", type: "cold_call" },
   });

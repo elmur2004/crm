@@ -118,7 +118,7 @@ beforeEach(async () => {
 /* -------------------------------------------------------------------------- */
 
 describe("every role, every company", () => {
-  it("only byteforce_staff gets ByteForce, and only bsystems_admin gets B-Systems", async () => {
+  it("no single role gets ByteForce (its admin is byteforce_staff AND bsystems_admin), only bsystems_admin gets B-Systems", async () => {
     for (const role of ROLES) {
       const user = await makeUser(`A ${role}`, [role]);
       for (const company of ["bsystems", "byteforce"] as Company[]) {
@@ -157,11 +157,18 @@ describe("every role, every company", () => {
   });
 
   it("holding both COMPANIES is not holding both exports", async () => {
-    /* `bsystems_sales` + `byteforce_staff` can switch companies and can open
-       ByteForce's Leads page — and cannot open B-Systems'. One file, not two. */
+    /* `bsystems_sales` + `byteforce_staff` can switch companies — and is the
+       ADMIN of neither (founder 2026-11-08: exports are the company admin's
+       alone, both companies). Not one file. */
     const sideways = await makeUser("Sideways", ["bsystems_sales", "byteforce_staff"]);
-    expect(await statusOf("byteforce", sideways)).toBe(200);
+    expect(await statusOf("byteforce", sideways)).toBe(403);
     expect(await statusOf("bsystems", sideways)).toBe(403);
+  });
+
+  it("a ByteForce teammate who is not the admin is refused ByteForce's whole book", async () => {
+    /* founder 2026-11-08: he sees only his own leads now — one file would undo it */
+    const staff = await makeUser("Sara", ["byteforce_staff"]);
+    expect(await statusOf("byteforce", staff)).toBe(403);
   });
 });
 
@@ -273,7 +280,8 @@ describe("what a permitted caller actually receives", () => {
 
   it("the download is LOGGED against the company, with who pulled it", async () => {
     await lead("byteforce", "Anybody");
-    const staff = await makeUser("Sara", ["byteforce_staff"]);
+    /* the ByteForce ADMIN — the platform admin (lib/auth/lead-scope.ts) */
+    const staff = await makeUser("Sara", ["byteforce_staff", "bsystems_admin"]);
     expect(await statusOf("byteforce", staff)).toBe(200);
 
     const rows = await db.activityLog.findMany({ where: { entityType: "lead_export" } });

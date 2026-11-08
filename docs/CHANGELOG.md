@@ -2693,3 +2693,126 @@ If your device is set to reduce motion, none of the movement plays.
 
 **Still waiting from the first 26 October update**
 - Every question in that update is still open: the glass, the themes, and one way to each page, including whether the header logos should take you back to the app's home as you asked in August.
+
+## 8 November 2026 — Everyone sees only their own leads, ByteForce leads belong to people, "Hand this follow-up to", and Users gets its own icon (goes live with the next push)
+
+You said unassigned leads were in front of everyone and should be in front of you only. You wanted people to see the leads you give them, and nothing else. You wanted to hand a follow-up to someone so it lands in their Following Up column. And you wanted Users out of the B-Systems CRM, as its own icon on the apps screen. You answered three questions:
+
+- On ByteForce: **"Both companies now"**.
+- On the leads nobody owns today: **"Give them to whoever added them"**.
+- On handing over a follow-up: **"The lead moves to them"**.
+
+All of it is done. It goes live with the next push, after one last full check on a clean copy.
+
+### Who sees what now
+
+- **You see every lead in both companies**, including the ones nobody owns yet.
+- **Everyone else sees only the leads that are theirs.** That means your B-Systems salespeople, and everyone on ByteForce except you.
+  - It holds everywhere: the board, a lead's page, the To-Do, the Calendar, the daily report, search, Won Leads and Clients.
+  - On the Calendar, other people's meetings show only as "busy".
+  - If someone opens a lead that isn't theirs, the system refuses.
+- **Agents, partners and data entry are unchanged.**
+- **A lead nobody owns is yours alone**, until you give it to someone.
+- **A lead a salesperson or a ByteForce teammate adds is automatically theirs.** Leads from data entry and from Excel imports still arrive with no owner, waiting for you.
+- **Only you can export or import leads now**, in both companies.
+- **The ByteForce dashboard is yours only**, like the B-Systems one, because it shows the whole company's figures. A ByteForce teammate's Reports icon opens his own daily report.
+
+### ByteForce leads now belong to people, not to name cards
+
+- **The ByteForce Leads page shows one card per teammate**, with how many leads each has, plus Unassigned. A teammate sees just his own list, "My leads".
+- **You give a lead to someone from its page or from the To-Do**, exactly as on B-Systems: Assign, or Take it to keep it yourself. They get a notification.
+- **Add lead has an Owner choice for you.**
+  - Leave it on Unassigned to keep the lead yourself.
+  - If you pick a teammate, he's notified.
+  - Teammates don't get the choice: what they add is theirs.
+- **"Add rep" is gone.** People are added in Users. The old rep names stay in each lead's history, and in the export's "Sales rep" column next to "Owner".
+- **A lead's page and its card on the board say who owns it**, where they used to show the rep.
+- **The Unassigned card just says "Unassigned"** now, not "Unassigned (Partner leads)".
+- **Editing a ByteForce proposal is still off for everyone**, you included, as before.
+
+### "Hand this follow-up to"
+
+- **Whenever you record a follow-up, the form has a new choice: "Hand this follow-up to".** It starts on "Keep the current owner". You get it when you:
+  - move a card to Following Up;
+  - log another follow-up;
+  - set the negotiation's response date;
+  - record a meeting outcome that goes back to Following Up;
+  - mark a proposal sent.
+- **Pick someone and the lead moves to them.** It becomes theirs, sits in their Following Up column and on their To-Do on that date, and they get a notification. Whoever had it before stops seeing it, unless that was you.
+- **On B-Systems** you can pick a salesperson, an agent, a partner or yourself. **On ByteForce** you can pick any teammate.
+- **Only you get this choice.** If anyone else tries, the system refuses.
+- **Undo on that follow-up gives the lead back** to whoever had it. The notification they got stays in their bell.
+
+### The morning it goes live: who gets the leads that exist today
+
+Until now nobody needed to own a lead to see it, so many leads have no owner. When this goes live, the system hands those out once, by itself:
+
+- **On B-Systems:**
+  - an internal lead whose rep name exactly matches one active salesperson goes to that salesperson;
+  - otherwise it goes to the salesperson who added it, as long as he isn't an admin.
+- **On ByteForce:**
+  - a lead whose rep name matches one active teammate goes to that teammate (capital letters, and spaces at either end, don't matter);
+  - otherwise it goes to the teammate who added it;
+  - you never count as a teammate here.
+- **If two people share the name**, nobody gets the lead automatically.
+- **Everything else stays Unassigned**, yours to hand out.
+- **Archived leads follow the same rule.** Leads that already have an owner are not touched.
+- **Each lead it hands out says so in its History:** "Owner set when leads became assigned-only".
+- **Your boards keep their order**, because this doesn't count as anyone editing the lead.
+- **One caution:** if you ever restore a backup taken before today, its leads come back with no owner, and you'd have to hand them out again.
+
+### Users gets its own icon
+
+- **Users is its own icon on the apps screen**, after Partners & Agents.
+- It opens the same Users page, and the header says "Users".
+- **It's no longer in the B-Systems CRM menu.** Only admins see it, as before.
+
+### Checked
+
+- **2,387 automated checks and 345 browser tests passed.**
+- **The browser tests took three rounds.** The first found three problems and the second found one, all fixed before the last round:
+  - one test still expected the old ByteForce Leads page;
+  - a new test was looking in the wrong place, twice;
+  - the new "Hand this follow-up to" box was labelled in a way that screen readers would misread.
+- **A test runs the morning-after hand-out on sample leads of every kind.** It checks exactly who gets what, and that running it twice changes nothing.
+- **64 screenshots** were checked against the brand rules: light and dark, English and Arabic, phone and computer.
+- **The last full check ran on a clean copy** of exactly what goes live: 1,925 automated checks and 333 browser tests passed. The numbers are lower only because the landing pages and their tests stay on our computer.
+- **A separate review went through every place a lead is read or changed**, looking for any way someone could still see a lead that isn't theirs. It found none in the new work. It found one older slip, now fixed: the Agents page could list an agent's ByteForce leads next to his B-Systems ones, if he also worked for ByteForce.
+
+### Gaps we know about
+
+These couldn't be fixed in this round:
+
+- **Restoring an old backup** brings back leads with no owner (above).
+- **A B-Systems admin who downloads a backup** gets the ByteForce leads in it too.
+- **A data-entry user** still sees, on their own page, the names of the leads they typed, even after you hand them on.
+- **Someone who works in both companies** sees a ByteForce assignment in both bells.
+
+### Questions for you
+
+**Who sees what**
+- Anyone who holds both the ByteForce role and the B-Systems admin role counts as ByteForce's admin, not only you. OK?
+- When you add a ByteForce lead straight into a teammate's list, he gets a notification. OK?
+- The ByteForce dashboard is now yours only. OK?
+- B-Systems' "Unassigned" filter now shows every lead with no owner, in any group, not only the internal ones. OK?
+
+**ByteForce leads**
+- Editing a ByteForce proposal stays off, even for you. Turn it on for you?
+- The export keeps the old "Sales rep" column next to "Owner". Remove it?
+- Rep name cards aren't used any more, and a partner's lead no longer has "Assign to rep". It goes to the partner's account, or to Unassigned. OK?
+- The ByteForce card now says just "Unassigned". OK?
+
+**Hand this follow-up to**
+- Undo on a handed-over follow-up gives the lead back. OK?
+- The choice appears on all five ways of recording a follow-up listed above. OK? The system would also accept another B-Systems admin as the person, though the list only shows you.
+
+**The morning it goes live**
+- On B-Systems, if a rep name matches a salesperson who is also an admin, that account gets the lead. It's harmless, because admins see every lead anyway. OK?
+
+**Two things a B-Systems admin can already do**
+- Any B-Systems admin can open the system as any other account, including yours, and would see what that account sees. Should that be blocked for accounts with more access than theirs?
+- Any B-Systems admin can give themselves the ByteForce role in Users, which would make them ByteForce's admin too. Should only you be able to give ByteForce roles?
+- Neither can happen while you are the only B-Systems admin.
+
+**Still waiting from 26 October**
+- Every question in both 26 October updates is still open.

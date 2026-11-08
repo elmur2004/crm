@@ -137,9 +137,28 @@ describe("a CRM meeting outside the viewer's scope", () => {
     expect(asAdmin!.detail).toBe("full");
     expect(asAdmin!.title).toBe("Agent Client");
 
-    /* sales sees the INTERNAL bucket only — an agent-owned lead is not it */
-    const [asSales] = await read("bsystems", sales.id, { kind: "internal" });
+    /* sales sees its OWN leads only (founder 2026-11-08) — an agent-owned
+       lead is not his */
+    const [asSales] = await read("bsystems", sales.id, { kind: "own", userId: sales.id });
     expectTellsNothing(asSales!);
+  });
+
+  it("an UNASSIGNED internal lead's meeting is the admin's in full and a seller's busy block", async () => {
+    const admin = await makeUser("The Admin", "bsystems_admin");
+    const sales = await makeUser("Internal Sales", "bsystems_sales");
+    const lead = await makeLead("bsystems", "Nobody's Client");
+    const meeting = await makeMeeting(lead.id);
+    await db.meetingAttendee.create({ data: { meetingId: meeting.id, userId: sales.id } });
+    const [asAdmin] = await read("bsystems", admin.id, { kind: "all" });
+    expect(asAdmin!.detail).toBe("full");
+    /* he is marked on it, so it occupies his time — as a busy block only */
+    const [asSales] = await read("bsystems", sales.id, { kind: "own", userId: sales.id });
+    expectTellsNothing(asSales!);
+    /* and once the lead is his, the very same meeting is his in full */
+    await db.lead.update({ where: { id: lead.id }, data: { ownerUserId: sales.id } });
+    const [owned] = await read("bsystems", sales.id, { kind: "own", userId: sales.id });
+    expect(owned!.detail).toBe("full");
+    expect(owned!.title).toBe("Nobody's Client");
   });
 });
 

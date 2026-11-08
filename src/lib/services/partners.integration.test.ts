@@ -934,6 +934,30 @@ describe("PP-4a (§7.2b): the login is a SEPARATE, explicit admin action", () =>
     expect(await listAgentsDetailed()).toHaveLength(1); // still just the agent
   });
 
+  it("the Agents page lists only an agent's B-Systems leads, never ByteForce ones he also owns", async () => {
+    const p = await makeAgent();
+    await agentToQualified(p.id);
+    await createAgentAccount(p.id, AGENT_GATE, actor);
+    const [agent] = await listAgentsDetailed();
+    const agentUserId = agent!.user.id;
+    /* the same account also works ByteForce (two companies, one person) */
+    await db.userRole.create({ data: { userId: agentUserId, role: "byteforce_staff" } });
+    await createLead(
+      "bsystems",
+      { name: "Agent B-Systems Lead", number: "0101111111", type: "personal_connection" },
+      actor,
+      { ownerType: "agent", ownerUserId: agentUserId },
+    );
+    await createLead(
+      "byteforce",
+      { name: "Agent ByteForce Lead", number: "0102222222", type: "personal_connection" },
+      actor,
+      { ownerUserId: agentUserId },
+    );
+    const [listed] = await listAgentsDetailed();
+    expect(listed!.user.ownedLeads.map((l) => l.name)).toEqual(["Agent B-Systems Lead"]);
+  });
+
   it("minting is never undoable — it retires the admin's pending entries", async () => {
     const who = { id: "admin-mint", label: "Admin" };
     const p = await makeAgent();

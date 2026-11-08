@@ -123,11 +123,12 @@ describe("POST /todo/done — authentication runs before the record lookup", () 
 });
 
 describe("POST /todo/done — the scope wall, per role", () => {
-  it("bsystems_sales completes an INTERNAL-bucket task and is refused an agent-owned one", async () => {
+  it("bsystems_sales completes a task on a lead he OWNS and is refused an agent-owned one", async () => {
     const sales = await makeUser("Sales Rep", "bsystems_sales");
     const agent = await makeUser("Agent Karim", "bsystems_agent");
 
-    const internal = await makeLead({ name: "Internal Lead" });
+    /* founder 2026-11-08 — "assigned leads only": his own lead, not the bucket */
+    const internal = await makeLead({ name: "Internal Lead", ownerUserId: sales.id });
     const fInternal = await followUpDueToday(internal.id);
     const agentLead = await makeLead({
       name: "Agent Lead",
@@ -153,6 +154,13 @@ describe("POST /todo/done — the scope wall, per role", () => {
     });
     expect(walled.status).toBe(403);
     expect(await db.todoDone.findUnique({ where: { followUpId: fAgent.id } })).toBeNull();
+
+    /* and an UNASSIGNED internal lead is the admin's alone now */
+    const loose = await makeLead({ name: "Unassigned Lead" });
+    const fLoose = await followUpDueToday(loose.id);
+    expect(
+      (await post("b-systems", sales, { kind: "follow_up", recordId: fLoose.id, done: true })).status,
+    ).toBe(403);
   });
 
   it("an agent and a partner each reach ONLY their own record — and the wall holds for the UNCHECK too", async () => {
@@ -245,8 +253,14 @@ describe("POST /todo/done — the scope wall, per role", () => {
     const staff = await makeUser("BF Staff", "byteforce_staff");
     const admin = await makeUser("BS Admin", "bsystems_admin");
 
-    const bfLead = await makeLead({ name: "BF Lead", brand: "byteforce" });
+    /* his OWN ByteForce lead — a teammate who is not the admin works no other */
+    const bfLead = await makeLead({ name: "BF Lead", brand: "byteforce", ownerUserId: staff.id });
     const fBf = await followUpDueToday(bfLead.id);
+    const bfOther = await makeLead({ name: "BF Unassigned", brand: "byteforce" });
+    const fOther = await followUpDueToday(bfOther.id);
+    expect(
+      (await post("byteforce", staff, { kind: "follow_up", recordId: fOther.id, done: true })).status,
+    ).toBe(403);
     const bsLead = await makeLead({ name: "BS Lead" });
     const fBs = await followUpDueToday(bsLead.id);
 

@@ -5,6 +5,7 @@ import { todoPage } from "./todo";
 import { pPipeline } from "./partners";
 import { dailyReport } from "./daily-report";
 import { nav } from "./crm";
+import { usersAdmin } from "./admin";
 
 /* ============================================================================
    THE APP LAUNCHER's own words — the icon grid a person lands on after
@@ -43,7 +44,7 @@ export const launcher = {
 
   logOut: nav.logOut,
 
-  /* ---- the seven tiles ---- */
+  /* ---- the eight tiles ---- */
   crmByteforce: { en: "ByteForce CRM", ar: "إدارة عملاء ByteForce" },
   crmBsystems: { en: "B-Systems CRM", ar: "إدارة عملاء B-Systems" },
   accounting: acct.navItem,
@@ -51,6 +52,8 @@ export const launcher = {
   todo: todoPage.navItem,
   reports: { en: "Reports & Dashboards", ar: "التقارير ولوحات المتابعة" },
   partners: pPipeline.title,
+  /* founder (2026-11-08) — Users is its own app now; named as its page is */
+  users: usersAdmin.title,
 } satisfies Record<string, Msg>;
 
 /* ---- the Reports & Dashboards screen (/apps/reports) ---- */

@@ -12,7 +12,6 @@ import {
 } from "@/lib/services/partners";
 import { telHref, waHref } from "@/lib/phone-dial";
 import { waSentLabel, whatsappMarkOf } from "@/components/shared/whatsappMark";
-import { listBsOwnerReps } from "@/lib/services/sales-reps";
 import { partnersConfigFor } from "@/lib/pipeline-engine/configs/partners";
 import { orderMeetingColumn } from "@/lib/board-order";
 import { formatCairo, formatCairoDate } from "@/lib/datetime";
@@ -627,7 +626,6 @@ export async function PartnerDetailBody({ partnerId }: { partnerId: string }) {
   }
   const locale = await getLocale();
   const t = tFor(locale);
-  const reps = await listBsOwnerReps();
 
   return (
     <div className="space-y-6">
@@ -718,7 +716,7 @@ export async function PartnerDetailBody({ partnerId }: { partnerId: string }) {
       <div className="space-y-3">
         <div className="flex items-center justify-between gap-4 flex-wrap">
           <h2 className="u-h2">{t(pDirectory.leadsTitle)}</h2>
-          <PartnerAddLead partnerId={partner.id} reps={reps.map((r) => ({ id: r.id, name: r.name }))} />
+          <PartnerAddLead partnerId={partner.id} />
         </div>
         {partner.leads.length === 0 ? (
           <p className="empty">{t(pDirectory.noLeads)}</p>
@@ -762,13 +760,7 @@ export async function PartnerDetailBody({ partnerId }: { partnerId: string }) {
   );
 }
 
-/* §7.4: same fields as §6.1's lead detail + optional assign-to-rep (A-6). */
-function PartnerAddLead({
-  partnerId,
-  reps,
-}: {
-  partnerId: string;
-  reps: Array<{ id: string; name: string }>;
-}) {
-  return <PartnerAddLeadClient partnerId={partnerId} reps={reps} />;
+/* §7.4: same fields as §6.1's lead detail (the rep picker left 2026-11-08). */
+function PartnerAddLead({ partnerId }: { partnerId: string }) {
+  return <PartnerAddLeadClient partnerId={partnerId} />;
 }

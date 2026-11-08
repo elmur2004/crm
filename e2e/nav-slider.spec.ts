@@ -27,14 +27,15 @@ test("the CRM menu strip slides at a narrow desktop width: the end chevron revea
   page,
 }) => {
   /* > 820px (the sheet takes over below that), and narrow enough that the
-     admin's six sections cannot all fit beside the mark, its app name and the
-     user cluster */
+     admin's five sections cannot all fit beside the mark, its app name and the
+     user cluster (Users left this menu for its own app, 2026-11-08 — the
+     Statements section is the clipped tail now) */
   await signIn(page);
-  await page.setViewportSize({ width: 900, height: 800 });
+  await page.setViewportSize({ width: 840, height: 800 });
   await page.goto("/b-systems/crm?company=bsystems");
 
   const strip = page.locator(".nav-strip");
-  const users = strip.getByRole("link", { name: "Users", exact: true });
+  const users = strip.getByRole("link", { name: "Statements", exact: true });
   await expect(users).not.toBeInViewport();
 
   /* only the END chevron shows while the strip sits at its start */
@@ -51,8 +52,8 @@ test("the CRM menu strip slides at a narrow desktop width: the end chevron revea
     .toBeGreaterThan(100);
   await expect(back).toBeVisible();
 
-  /* repeated presses walk the whole strip: the clipped tail (Users is the
-     last section) comes into view, and once there is nothing further the
+  /* repeated presses walk the whole strip: the clipped tail (Statements is
+     the last section) comes into view, and once there is nothing further the
      forward arrow retires — chevrons only exist where they can act */
   for (let i = 0; i < 8 && (await forward.count()) > 0; i++) {
     await forward.click();

@@ -50,7 +50,7 @@ test("ByteForce screens (in the merged shell): clean console, no horizontal over
   await page.getByLabel("Email or phone").fill("sara@byteforce.example");
   await page.getByLabel("Password").fill("byteforce123");
   await page.getByRole("button", { name: "Sign in" }).click();
-  await afterSignIn(page, /\/b-systems\?company=byteforce$/);
+  await afterSignIn(page, /\/b-systems\/crm\?company=byteforce$/);
   await sweep(page, errors, [
     "/b-systems?company=byteforce",
     "/b-systems/leads?company=byteforce",
@@ -192,11 +192,13 @@ test("mobile menu reaches EVERY section of each app at 390px — and only that a
 
   const sheetLinks = () => page.getByRole("menu").locator(".nav-sheet-link");
   for (const [path, labels] of [
-    ["/b-systems/crm?company=bsystems", ["CRM", "Leads", "Calendar", "Won Leads", "Statements", "Users"]],
+    ["/b-systems/crm?company=bsystems", ["CRM", "Leads", "Calendar", "Won Leads", "Statements"]],
     ["/b-systems/crm?company=byteforce", ["CRM", "Leads", "Calendar", "Clients"]],
     ["/b-systems/partners-pipeline?company=bsystems", ["Pipeline", "Partners", "Agents", "Registrations"]],
-    /* the To-Do and the Reports pages are one-page apps: the sheet has no rows */
+    /* the To-Do, the Reports pages and Users (2026-11-08) are one-page apps:
+       the sheet has no rows */
     ["/b-systems/todo?company=bsystems", []],
+    ["/b-systems/users?company=bsystems", []],
     ["/b-systems?company=bsystems", []],
     ["/b-systems/daily-report?company=bsystems", []],
   ] as const) {

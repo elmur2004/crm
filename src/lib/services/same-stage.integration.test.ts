@@ -463,7 +463,14 @@ describe("(b2) the negotiation response row is its own kind, and nothing else mo
       data: { ownerType: "agent", ownerUserId: owner.id },
     });
 
-    const asSales = await todoFor({ brand: "bsystems", scope: { kind: "internal" }, now: NOW });
+    const seller = await db.user.create({
+      data: { name: "A Seller", phone: `+2010777900${seq++}`, passwordHash: "x" },
+    });
+    const asSales = await todoFor({
+      brand: "bsystems",
+      scope: { kind: "own", userId: seller.id },
+      now: NOW,
+    });
     expect(asSales.today).toEqual([]);
     const asOwner = await todoFor({
       brand: "bsystems",

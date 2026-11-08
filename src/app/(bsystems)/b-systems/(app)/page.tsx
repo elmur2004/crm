@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { narrowRoles, requireCompanyPage } from "@/lib/auth/page-guards";
 import { crmEngineRole } from "@/lib/api/bsystems";
+import { isCompanyAdmin } from "@/lib/auth/lead-scope";
 import { crmHomeFor } from "@/lib/crm/nav";
 import { crmQuery, crmRolesFor } from "@/lib/crm/company";
 import { parseRange } from "@/lib/dashboard/periods";
@@ -33,8 +34,13 @@ export default async function BSystemsHomePage({
   const locale = await getLocale();
 
   if (company === "byteforce") {
-    /* ByteForce staff see every ByteForce lead (SPEC §3) — the To-Do's
-       { kind: "all" } under brand byteforce */
+    /* Founder (2026-11-08, "assigned leads only") — the ByteForce dashboard
+       shows COMPANY-WIDE figures, so it is the ByteForce ADMIN's, exactly as the
+       B-Systems one is the B-Systems admin's. Every other teammate is sent to
+       his board (his first menu item — it accepts him by construction). */
+    if (!isCompanyAdmin(user, "byteforce")) {
+      redirect(`${crmHomeFor(company, null)}${crmQuery(company)}`);
+    }
     return (
       <DashboardBody
         company="byteforce"

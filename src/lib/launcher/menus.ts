@@ -64,6 +64,9 @@ export function appMenusFor(user: LauncherBearer): AppMenus {
     menus.vault = VAULT_SECTIONS.map((i) => i.href);
   }
   if (tiles.has("todo")) menus.todo = [];
+  /* Users (founder 2026-11-08): its own app with ONE page and so no menu — the
+     tile is the one way in, exactly like the To-Do */
+  if (tiles.has("users")) menus.users = [];
   if (tiles.has("reports")) menus.reports = reportsFor(user).map((r) => r.href);
   return menus;
 }

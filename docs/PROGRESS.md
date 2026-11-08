@@ -6609,3 +6609,315 @@ Unchanged from the previous entry:
   `next.config.ts` comment cites ADR-086. With ADR-096 and 097 now taken, it
   **needs ADR-098 or later**. It is local and uncommitted, so no contradiction
   has entered the repo.
+
+## 2026-11-08 — ADR-098–102: assigned leads only, ByteForce leads owned by accounts, the follow-up hand-over, the ownership backfill, and the Users app
+
+**Founder, verbatim:** *"Currently, all the unassigned leads are seen by
+everyone. I want them just to be seen by the admin. And whenever I assign a lead
+for a new user, a new sales especially the internal sales, they can see the lead
+then. They don't see the entire leads which is unassigned or whatever, just
+assigning for them. And also when I log a follow-up, I should be able to assign
+it to somebody so the have that follow-up in their follow-up column. Even if
+they are not assigned the lead from the first or from the beginning, I can like
+redirect the lead for them for follow-up. Through the system. Also the apps
+whenever I open the home page should use or have individual users tab not put
+the users inside B-System CRM, just separate it entirely into like an app or an
+icon in the home page."*
+
+His three answers:
+1. On follow-up assignment: **"The lead moves to them"**.
+2. On ByteForce: **"Both companies now"**.
+3. On the leads nobody owns today: **"Give them to whoever added them"**.
+
+**Built and tested, not yet pushed.** The work is uncommitted in the D:/CRM
+working tree. It ships in the next push, after the clean-worktree gate.
+
+### Done
+
+- **Assigned leads only (ADR-098).**
+  - **The rule:** the company admin sees every lead, unassigned included, and
+    everyone else who works leads sees only the leads he owns. It holds in both
+    companies and on every surface, enforced on the server.
+  - **ByteForce's admin** is an account holding `byteforce_staff` and
+    `bsystems_admin`. Today that is the founder.
+  - **One predicate family**, in the new `src/lib/auth/lead-scope.ts`:
+    `COMPANY_ADMIN_ROLES`, `isCompanyAdmin`, `companyAdminUserWhere`,
+    `leadScopeFor`, `scopeOwnerWhere` and `scopeReaches`.
+  - **The guards:** `requireLeadAccess`, plus the new `requireCompanyAdmin` and
+    `requireBrandLeadAccess` (staff → brand 404 → scope).
+  - **Sales' internal-bucket scope collapsed into "own".**
+  - **Company admin only:** the ByteForce dashboard, and exports and imports in
+    both companies. ByteForce Clients are scoped to the viewer's own leads.
+  - **Creation:** sales and ByteForce teammates own what they add. The ByteForce
+    admin gets an Owner picker. Data entry and imports still land unassigned.
+- **ByteForce leads are owned by staff accounts (ADR-099).**
+  - **A new route, `POST /api/byteforce/leads/[id]/assign`**, for the ByteForce
+    admin only.
+  - **One assignment path for both companies:** `resolveAssignee`,
+    `writeOwnerChange` and `assignLeadOwner(…, brand)`.
+  - **The Leads page:** owner cards plus Unassigned for the admin, "My leads"
+    for a teammate. The owner pages keep `/b-systems/leads/rep/[repId]`.
+  - **"Add rep" is gone**, and both `/reps` endpoints are admin-only.
+  - **The lead detail shows the Owner**, with Assign. To-Do rows get Assign and
+    Take it.
+  - **Rep cards and `salesRepId` are history.** The export keeps "Sales rep"
+    beside Owner.
+  - **ByteForce proposal edit stays refused** for everyone (ADR-078).
+- **"Hand this follow-up to" (ADR-100).**
+  - **The company admin only**, on every move that records a follow-up. Anyone
+    else gets a 403.
+  - **The follow-up and the new owner are written in one transaction**, with
+    the assignee re-checked inside it, an `assigned` history row and a
+    notification.
+  - **Undo gives the lead back.** No schema change.
+- **The ownership backfill (ADR-101).**
+  - `prisma/migrations/20261108120000_assigned_leads_only/migration.sql`, SQL
+    only. It touches only leads with no owner, and it is idempotent.
+  - **Each changed lead gets one `backfill_owner` history row**, with a derived
+    id. `updatedAt` is not bumped.
+  - **Tested by executing the file's own SQL.**
+- **The Users app (ADR-102).**
+  - **A launcher tile after Partners & Agents**, for the B-Systems admin only.
+  - It opens `/b-systems/users` with its own "Users" header and no menu.
+  - **Users is removed from the B-Systems CRM menu.**
+- **The seed:**
+  - Sara owns Cairo Fresh Foods, Textiles, Logistics and Medical Group
+    (ByteForce), and Omar owns the Delta equivalents (B-Systems);
+  - Grand Hotels and Motors stay unassigned in both companies;
+  - Sara now lands on her board. Journey 1 runs as the founder, and journey 2
+    uses the founder plus Sara.
+- **Files** (the implementing agent's list):
+  - **New:**
+    - `src/lib/auth/lead-scope.ts` and its test;
+    - `src/lib/services/assignees.ts`;
+    - `src/components/shared/AssignToField.tsx`;
+    - `src/lib/i18n/dict/owners.ts`;
+    - `src/app/api/byteforce/leads/[id]/assign/route.ts`;
+    - the migration folder above;
+    - `src/lib/services/assigned-only.integration.test.ts` and
+      `assigned-leads-backfill.integration.test.ts`;
+    - `e2e/follow-up-handover.spec.ts`.
+  - **Modified, services and API:**
+    - `src/lib/auth/guards.ts`;
+    - in `src/lib/services/`: `leads.ts`, `undo.ts`, `todo.ts`, `calendar.ts`,
+      `comments.ts`, `won-leads.ts`, `clients.ts`, `sales-reps.ts`,
+      `bsystems-admin.ts`, `users.ts` and `proposals.ts`;
+    - in `src/lib/crm/`: `search-hop.ts`, `leads-export.ts`, `leads-import.ts`
+      and `nav.ts`;
+    - in `src/lib/api/`: `internal-crm.ts`, `bsystems.ts`,
+      `leads-export-route.ts` and `leads-import-route.ts`;
+    - `src/lib/launcher/apps.ts` and `menus.ts`;
+      `src/lib/i18n/dict/launcher.ts` and `admin.ts`;
+    - the B-Systems lead-create, event and partner-leads routes;
+    - the ByteForce archive, no-answer, WhatsApp and proposal routes.
+  - **Modified, pages, components and CSS:**
+    - the B-Systems `(app)` pages: Home, To-Do, Calendar, Daily report, Leads,
+      the owner page, Clients and CRM, plus the layout;
+    - in `src/components/internal/`: `pages.tsx`, `forms.tsx`,
+      `InternalBoard.tsx`, `LeadEventPanel.tsx` and `historyPhrases.ts`;
+    - in `src/components/bsystems/`: `BsBoard.tsx`, `BsEventPanel.tsx`,
+      `TodoRowActions.tsx`, `leadActions.tsx`, and three page bodies;
+    - `src/components/partners/PartnerAddLead.tsx` and `pages.tsx`;
+    - `src/components/launcher/AppIcon.tsx` and `LauncherGrid.tsx`;
+    - `src/components/shared/CrmShellNav.tsx`;
+    - `src/themes/crm.css` and `launcher.css`.
+  - **Seed and tests:** `prisma/seed.ts`; 17 vitest files; about 27 e2e specs
+    and `e2e/helpers/after-sign-in.ts`.
+  - **`prisma/schema.prisma` is unchanged by this work.**
+- **SPEC.md notes added** (the original text is kept):
+  - "Amended by ADR-098 (assigned leads only)" at §3;
+  - "Amended by ADR-098/ADR-099" at the §6 intro and under §7.4 (A-6);
+  - "Amended by ADR-098" and "Amended by ADR-102 (the Users app)" after §7.1's
+    ADR-095 note.
+- **Docs written in this entry's round:**
+  - ADR-098 to ADR-102 in `DECISIONS.md`;
+  - Run 108 in `TESTING.md`, with its "Clean-gate (pushed set)" section left
+    PENDING;
+  - an entry in `IMPLEMENTATION.md`;
+  - a new top entry in `CHANGELOG.md`;
+  - this entry.
+  - **No `BUGS.md` entry:** no defect was found in shipped behaviour.
+
+### Verified (by the implementing agent; the gate is the authority)
+
+Full detail is in Run 108. The vitest figures are printed summaries, because
+this repo's vitest exits 0 on failure.
+
+- **`tsc`:** 0.
+- **vitest:** **105 files / 2387 passed**.
+- **Full Playwright:** **345 passed (39.0m), 9 skipped, 0 failed**, after two
+  earlier runs:
+  - the first had 3 failures: the hand-over label leaking into
+    `getByLabel("Owner")` (fixed in `AssignToField`), a stale rep-card
+    expectation, and a new test's locator;
+  - the second had 1: that new test again, fixed.
+- **spec-guardian found no server-side hole.** These were fixed on its
+  findings:
+  - the ByteForce-admin rule restated inside the mentions code;
+  - the ByteForce proposal edit the new admin flag would have allowed, now
+    explicitly refused;
+  - the partner add-lead "Assign to rep" select, removed;
+  - the assignee re-check inside the transaction, and a service-level admin
+    check;
+  - the `/reps` endpoints, made admin-only;
+  - an `assigned` row and a notification when the admin creates a lead into
+    someone's list;
+  - stale comments.
+- **brand-auditor passed.** These were fixed:
+  - the Arabic "U" monogram;
+  - the "My leads" subtitle class;
+  - the Arabic hint wording;
+  - the Users tab title and eyebrow;
+  - the ByteForce word for "Unassigned";
+  - the faint background figures in the Users icon;
+  - scoped 44px touch targets for the new selects;
+  - the hint's accessibility (`aria-describedby`, and the label via `htmlFor`).
+- **64 screenshots:** light/dark × EN/AR × 390/1440.
+- **Not yet run:** the clean-worktree gate (Run 108's "Clean-gate (pushed set)"
+  section).
+
+### In progress
+
+- **The coordinator's clean-worktree gate**, then the push.
+
+### Next steps
+
+1. **Clean-worktree gate → push → verify the deploy.**
+   - Assemble the push by explicit path, as in Runs 105 and 107, and fill in
+     Run 108's "Clean-gate (pushed set)".
+   - **This push carries a migration.** After the deploy, `/api/health` should
+     show `"schemaCurrent":true` and no pending migrations.
+   - **A probe for something that did not exist before:**
+     `POST /api/byteforce/leads/[id]/assign` should answer 404 before the push
+     and 401 to an anonymous caller after it, as the import routes did in Run
+     104.
+   - **The founder sees the rest on his next sign-in**, including the History
+     pill "Owner set when leads became assigned-only" on the leads that were
+     handed out.
+2. **Once the out-of-bounds files may be touched:**
+   - an `importBackup` twin of ADR-101's rule;
+   - whether a `bsystems_admin` who is not ByteForce's admin should get
+     ByteForce leads in a backup;
+   - a company on notifications.
+3. **Tidy-ups recorded, none blocking:**
+   - the API schemas still accept `salesRepId`;
+   - `listBsOwnerReps()` still mints B-Systems SalesRep rows for forms that no
+     longer read them (ADR-099 §4);
+   - the now-unused `unassignedPartnerLeads` keys (×2) are kept, under the
+     house rule.
+
+### Blockers
+
+None.
+
+### Needs founder confirmation
+
+**New this session: thirteen** (eleven from ADR-098–101, two from the leak review).
+
+ADR-098, assigned leads only (four):
+1. **ByteForce's admin is any account holding `byteforce_staff` and
+   `bsystems_admin`**, not only the founder.
+2. **When the ByteForce admin adds a lead straight into a teammate's list, the
+   teammate is notified.**
+3. **The ByteForce dashboard is admin-only.**
+4. **B-Systems' Unassigned filter covers every bucket.**
+
+ADR-099, ByteForce leads owned by accounts (four):
+1. **ByteForce proposal edit stays refused for everyone**, the admin included.
+2. **The export keeps "Sales rep" as history** beside Owner.
+3. **No screen writes rep cards any more, and partner-sourced leads have no
+   "Assign to rep".** This amends SPEC A-6.
+4. **The ByteForce Unassigned card reads "Unassigned"**, overtaking ADR-088's
+   item 1. This is the docs-keeper's finding from the code.
+
+ADR-100, the hand-over (two):
+1. **Undoing the follow-up also gives the lead back.** The notification stays.
+2. **It is offered on every follow-up-recording move, and the server accepts
+   any active B-Systems admin as the target.**
+
+ADR-101, the backfill (one):
+1. **The B-Systems card match does not exclude sales accounts that are also
+   admins.** It is harmless.
+
+ADR-102: none.
+
+The pre-push leak review (two). An independent read-only sweep of every lead
+read and write found no leak in ADR-098's code. It fixed BUG-033: the Agents
+page listed an agent's ByteForce leads. It also found two existing admin powers
+that reach around the new rule:
+1. **Any `bsystems_admin` can impersonate any account**, the founder's
+   included, and so see every ByteForce lead through it. Should impersonation
+   refuse an account holding roles the impersonator lacks?
+2. **Any `bsystems_admin` can grant himself `byteforce_staff`** from the Users
+   app, and with it become ByteForce's admin (ADR-098's rule). Should granting
+   ByteForce roles be the platform admin's alone?
+
+Both matter only if some account holds `bsystems_admin` without
+`byteforce_staff`. While every B-Systems admin is the founder, neither can
+happen.
+
+**Carried from the previous entry, unresolved: twenty-three.**
+
+- **ADR-096 (one):** the agents' and partners' own two meeting questions.
+- **ADR-097 (ten):**
+  1. the ByteForce accounting hero runs violet→orange;
+  2. the B-Systems hero's Arabic contrast;
+  3. link violet under ByteForce;
+  4. no sheen on ByteForce;
+  5. the keyboard drag;
+  6. the optimistic To-Do tick;
+  7. done tasks struck through;
+  8. the Calendar re-aligned;
+  9. "Mark ready to close" restyled;
+  10. the Vault filters without a reload.
+- **ADR-093 (five):**
+  1. Ink on orange, with no gloss;
+  2. Indigo Deep on pink;
+  3. the faint light-mode glow;
+  4. the sticky header;
+  5. only the phone menu and the bell animate out.
+- **ADR-094 (one):** the "file missing" page.
+- **ADR-095 (six):**
+  1. statement To-Do rows;
+  2. "ByteForce CRM" beside the B-Systems mark;
+  3. the To-Do tab order;
+  4. landings that still point at a dashboard;
+  5. page titles;
+  6. the header logos are no longer links, against Entry 019. The conflict
+     **stays open**.
+
+Also open: the `byteforce-brand` skill's "orange on white text" (the previous
+entry's Next steps 3).
+
+**Resolved or overtaken this session:**
+- **ADR-055's flag** (no assign controls on the ByteForce To-Do) is answered by
+  **"Both companies now"** (ADR-099 §6).
+- **ADR-088's item 1** (the card's name) is overtaken, and asked again as
+  ADR-099 item 4.
+- **ADR-078's item 1** (ByteForce proposal edit) is **not** resolved. It is
+  restated as ADR-099 item 1.
+
+### Carried forward, still open
+
+Every item in the previous entry's "Carried forward, still open" list stands
+unchanged:
+
+- ADR-090's five, ADR-091's fourteen and ADR-092's three;
+- BUG-027's plain-http LAN question;
+- ADR-089's four, and ADR-088's seven (item 1 overtaken, as above);
+- ADR-087's one;
+- ADR-086's three, ADR-085's two, ADR-084's three and ADR-083's three;
+- ADR-082's six, ADR-081's six, ADR-080's three and ADR-071's four;
+- ADR-063's one accepted false negative;
+- the hosting issue on `/api/health`'s `uploads` section;
+- and the rest of that list.
+
+### Left in the working tree
+
+- **ADR-098–102 are uncommitted in the working tree, and ship in the next
+  push**, assembled by explicit path from the files above. They account for
+  the many modified `e2e/`, `src/` and `prisma/seed.ts` paths in `git status`,
+  plus the new files.
+- **`prisma/schema.prisma` shows as modified, but not by this work**; the
+  implementing agent reports it unchanged. It stays out of this push, along
+  with the other local work recorded in the 2026-10-26 entries.

@@ -3,6 +3,7 @@ import type { CrmSurface } from "@/lib/crm/surface";
 import { listBsLeads, listOwnLeads } from "@/lib/services/bsystems-admin";
 import { listBsOwnerReps } from "@/lib/services/sales-reps";
 import { listCalendarPeople } from "@/lib/services/calendar";
+import { followUpAssignees } from "@/lib/services/assignees";
 import { LEAD_TYPES, type Brand } from "@/lib/pipeline-engine/constants";
 import { configForBrand } from "@/lib/pipeline-engine/configs/for-brand";
 import { orderMeetingColumn } from "@/lib/board-order";
@@ -24,8 +25,8 @@ import { oneValue, type CrmCompany } from "@/lib/crm/company";
 import type { BsFormRole } from "@/components/bsystems/roleForms";
 
 /* V2 §2.3 — THE board: colored columns, drag & drop with the stage's role-aware
-   form on drop. Admin filters by owner bucket (incl. Admins); sales sees the
-   internal bucket; agents/partners see only their own leads.
+   form on drop. Admin filters by owner bucket (incl. Admins); everybody else
+   — sales, agents, partners — sees only their own leads (founder 2026-11-08).
    Founder (filters round 3): "add the search and the filtrations on the CRM
    cards page, not just on the leads page" — the Leads sidebar's card, in its
    INLINE variant above the board (the board is a full-bleed breakout, so a
@@ -120,6 +121,7 @@ export async function BsCrmBoardBody({
   params,
   role,
   userId,
+  viewerName,
   switchedFrom,
   importCompany = null,
 }: {
@@ -129,6 +131,8 @@ export async function BsCrmBoardBody({
      guard out of its own engine role, never re-derived here */
   role: BsFormRole;
   userId: string;
+  /** the viewer's own name — the admin's "(me)" row of the hand-over select */
+  viewerName: string;
   /* ADR-085 — this board's own address and company, so the arrival notice after
      a cross-company search hop can announce itself and offer the way back. */
   switchedFrom?: { path: string; company: CrmCompany };
@@ -145,12 +149,13 @@ export async function BsCrmBoardBody({
     : "any";
   const narrow = { search, type };
 
+  /* Founder (2026-11-08, "assigned leads only"): the admin sees every lead
+     (the owner filter narrows it); EVERYBODY ELSE — internal sales included,
+     who used to see the whole internal bucket — sees only the leads they own. */
   const rows =
     role === "admin"
       ? await listBsLeads(ctx.brand, filter, narrow)
-      : role === "sales"
-        ? await listBsLeads(ctx.brand, "internal", narrow)
-        : await listOwnLeads(ctx.brand, userId, narrow);
+      : await listOwnLeads(ctx.brand, userId, narrow);
 
   /* the disclosure chip counts every control that is off its default */
   const activeCount = [search !== "", type !== "any", role === "admin" && filter !== "any"].filter(
@@ -217,6 +222,13 @@ export async function BsCrmBoardBody({
      ADR-073/074 — the SURFACE's brand, so a Mindoo meeting is offered Mindoo's
      people and occupies Mindoo's calendar, never the other company's. */
   const calendarPeople = await listCalendarPeople(ctx.brand);
+
+  /* Founder (2026-11-08) — the drop window's "Hand this follow-up to": the
+     ADMIN's only (the event route refuses an assignee from anybody else). */
+  const assignees =
+    role === "admin"
+      ? await followUpAssignees(ctx.brand, { id: userId, name: viewerName }, locale)
+      : undefined;
 
   return (
     <div className="space-y-6">
@@ -320,6 +332,7 @@ export async function BsCrmBoardBody({
           leadPathBase={`${ctx.basePath}/crm/lead`}
           leadQuery={ctx.query}
           people={calendarPeople}
+          assignees={assignees}
         />
       )}
     </div>

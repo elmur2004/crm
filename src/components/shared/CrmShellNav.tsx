@@ -9,15 +9,16 @@ import { crmAppContextFor, PARTNERS_COMPANY, type CrmAppContext } from "@/lib/cr
 /* ============================================================================
    The merged shell's chrome — which APP of the shell is on screen.
 
-   One way to each page (founder): the shell hosts five launcher apps — the two
-   CRMs, Partners & Agents, the To-Do and the Reports & Dashboards pages (the
-   two dashboards and the daily report) — and the header shows the menu of the
+   One way to each page (founder): the shell hosts six launcher apps — the two
+   CRMs, Partners & Agents, the To-Do, the Reports & Dashboards pages (the two
+   dashboards and the daily report) and Users (2026-11-08) — and the header shows the menu of the
    one you are in, or none:
 
      a CRM page               that company's CRM menu
      a Partners & Agents page the Partners & Agents menu (B-Systems admin only)
      the To-Do                no menu — one page
      a dashboard, the report  no menu — a page of Reports & Dashboards
+     Users                    no menu — its own app, one page (2026-11-08)
 
    and NAMES that app beside the mark, so the person always knows where he is:
    with the company switch gone, the name is what says "ByteForce CRM" or
@@ -71,8 +72,8 @@ export function CrmShellNav({
       ? (navs[company] ?? []).map((item) => ({ ...item, href: `${item.href}${crmQuery(company)}` }))
       : context === "partners"
         ? partners.map((item) => ({ ...item, href: `${item.href}${crmQuery(PARTNERS_COMPANY)}` }))
-        : /* the To-Do and the Reports pages have no menu of their own; the
-             phone sheet still opens, carrying the language, theme and log out */
+        : /* the To-Do, the Reports pages and Users have no menu of their own;
+             the phone sheet still opens, carrying the language, theme and log out */
           [];
   return <ShellNav items={items} extras={extras} />;
 }

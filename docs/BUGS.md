@@ -877,3 +877,21 @@ the moment a failure is found; close them with a reference to the fixing commit/
 - Regression: none reported. `crm.test.ts` requires logical properties
   throughout `crm.css`, which covers the bubble's corners but not the arrow.
 - Status: fixed (ref: ADR-097, Run 107)
+
+## BUG-033 — 2026-11-08 — the Agents page listed an agent's ByteForce leads beside his B-Systems ones
+
+- Severity: minor (a company-boundary slip on an admin-only page; needs an
+  account that is both a B-Systems agent and ByteForce staff)
+- Where: `src/lib/services/bsystems-admin.ts`, `listAgentsDetailed()` — the
+  `ownedLeads` relation read had no company filter.
+- Repro: give an agent's account the `byteforce_staff` role and make it own a
+  ByteForce lead. As a B-Systems admin who is not ByteForce staff, open
+  `/b-systems/agents`: the ByteForce lead's name, number and stage are listed
+  under that agent.
+- Found by: the pre-push leak review of ADR-098 (an independent read-only
+  sweep of every lead read and write). It predates ADR-098; nothing in that
+  change introduced it.
+- Fixed: `ownedLeads` now reads `where: { brand: "bsystems" }`.
+- Regression: `partners.integration.test.ts` — "the Agents page lists only an
+  agent's B-Systems leads, never ByteForce ones he also owns".
+- Status: fixed (ref: ADR-098, Run 108)

@@ -63,9 +63,11 @@ export const LEAD_CREATE_ROLES: Record<CrmCompany, readonly Role[]> = {
 };
 
 /** May these roles import a file of leads into THIS company? Both halves, and
-    the page half first. */
+    the page half first. Founder (2026-11-08): imports are the COMPANY ADMIN's
+    alone, like exports — and they land UNASSIGNED, i.e. in the admin's queue. */
 export function canImportLeads(roles: Role[], company: CrmCompany): boolean {
-  /* canExportLeads IS "can open this company's Leads page" — ADR-083's sweep */
+  /* canExportLeads IS "the company admin, on this company's Leads page" —
+     ADR-083's sweep, narrowed to the admin on 2026-11-08 */
   if (!canExportLeads(roles, company)) return false;
   return LEAD_CREATE_ROLES[company].some((r) => roles.includes(r));
 }

@@ -157,7 +157,7 @@ test("B-Systems board: a pressed chip with nothing today says so instead of 'emp
 });
 
 test("ByteForce board: full parity — same order, same chip (ADR-042)", async ({ page }) => {
-  await login(page, "sara@byteforce.example", "byteforce123", /\/b-systems\?company=byteforce$/);
+  await login(page, "sara@byteforce.example", "byteforce123", /\/b-systems\/crm\?company=byteforce$/);
   const ids = [
     await leadMeetingAt(page, "/api/byteforce", "BF Late Meeting", "0107780012", {
       date: cairoDate(1),

@@ -1,6 +1,7 @@
 import type { Msg } from "@/lib/i18n/core";
 import { history } from "@/lib/i18n/dict/internal";
 import { leadsImport } from "@/lib/i18n/dict/leads-import";
+import { ownerHistory } from "@/lib/i18n/dict/owners";
 import { agentsConfig, partnersConfig } from "@/lib/pipeline-engine/configs/partners";
 import type { PipelineConfig } from "@/lib/pipeline-engine/types";
 
@@ -35,6 +36,9 @@ export const TRIGGER_PHRASES: Record<string, Msg> = Object.fromEntries([
   /* the Excel import's create row — a LITERAL for the same reason: it is not a
      pipeline transition, it is how the lead arrived */
   ["leads_import", leadsImport.historyPill],
+  /* the one-time ownership backfill (migration 20261108120000) — a LITERAL for
+     the same reason: it is no pipeline move, it is how the lead got its owner */
+  ["backfill_owner", ownerHistory.backfill],
   ...NUMBER_ADDED_PIPELINES.map((config) => [
     /* the same default `transition.ts` stamps when a config declares no ids */
     config.triggers?.numberAdded ?? "PP-2",

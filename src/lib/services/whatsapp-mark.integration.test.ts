@@ -131,10 +131,12 @@ describe("POST …/whatsapp — authentication runs before the record lookup", (
 });
 
 describe("POST …/whatsapp — the wall, per role", () => {
-  it("bsystems_sales marks an INTERNAL lead and is refused an agent-owned one", async () => {
+  it("bsystems_sales marks a lead he OWNS and is refused an agent-owned or unassigned one", async () => {
     const sales = await makeUser("Sales Rep", "bsystems_sales");
     const agent = await makeUser("Agent Karim", "bsystems_agent");
-    const internal = await makeLead({ name: "Internal Lead" });
+    /* founder 2026-11-08 — a seller works the leads he owns, nothing else */
+    const internal = await makeLead({ name: "Internal Lead", ownerUserId: sales.id });
+    const unassigned = await makeLead({ name: "Nobody's Lead" });
     const agentLead = await makeLead({
       name: "Agent Lead",
       ownerType: "agent",
@@ -149,6 +151,8 @@ describe("POST …/whatsapp — the wall, per role", () => {
     const walled = await press("bs-lead", sales, agentLead.id);
     expect(walled.status).toBe(403);
     expect((await markOf(agentLead.id)).whatsappSentAt).toBeNull();
+    expect((await press("bs-lead", sales, unassigned.id)).status).toBe(403);
+    expect((await markOf(unassigned.id)).whatsappSentAt).toBeNull();
   });
 
   it("an agent reaches ONLY his own lead", async () => {
@@ -170,7 +174,8 @@ describe("POST …/whatsapp — the wall, per role", () => {
     const bfStaff = await makeUser("BF Staff", "byteforce_staff");
     const bsAdmin = await makeUser("BS Admin", "bsystems_admin");
     const bsLead = await makeLead({ name: "B-Systems Lead" });
-    const bfLead = await makeLead({ name: "ByteForce Lead", brand: "byteforce" });
+    /* his own ByteForce lead (a teammate who is not the admin works only those) */
+    const bfLead = await makeLead({ name: "ByteForce Lead", brand: "byteforce", ownerUserId: bfStaff.id });
 
     /* the BRAND comes from the ROUTE: a B-Systems id through /api/byteforce is
        404 — indistinguishable from a lead that does not exist */
@@ -209,7 +214,7 @@ describe("POST …/whatsapp — the wall, per role", () => {
   it("the actor is the SESSION's, never the request body's", async () => {
     const sales = await makeUser("Real Presser", "bsystems_sales");
     const someoneElse = await makeUser("Framed Colleague", "bsystems_sales");
-    const lead = await makeLead({ name: "Actor Probe" });
+    const lead = await makeLead({ name: "Actor Probe", ownerUserId: sales.id });
 
     const res = await press("bs-lead", sales, lead.id, {
       userId: someoneElse.id,
@@ -289,7 +294,7 @@ describe("the mark is the RECORD's, not the presser's", () => {
   it("a DIFFERENT user reads the same mark on the same lead", async () => {
     const presser = await makeUser("Omar Farouk", "bsystems_sales");
     const reader = await makeUser("Elmur", "bsystems_admin");
-    const lead = await makeLead({ name: "Shared Signal" });
+    const lead = await makeLead({ name: "Shared Signal", ownerUserId: presser.id });
 
     expect((await press("bs-lead", presser, lead.id)).status).toBe(200);
 

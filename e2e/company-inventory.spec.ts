@@ -53,14 +53,15 @@ test("every ByteForce screen has a home in the merged shell, and shows ITS OWN c
   await expect(page.locator('[data-deal-card="Cairo Textiles"]')).toBeVisible();
   await expect(page.locator('[data-deal-card="Delta Textiles"]')).toHaveCount(0);
 
-  /* 3. Leads — the REP DIRECTORY, not the B-Systems table. This is the screen
-     most easily lost to a merge that decides "Leads is the leads table". */
+  /* 3. Leads — the OWNER DIRECTORY (staff accounts, founder 2026-11-08), not
+     the B-Systems table. This is the screen most easily lost to a merge that
+     decides "Leads is the leads table". */
   await page.goto(`/b-systems/leads${BF}`);
-  await expect(page.getByRole("link", { name: /Laila Mostafa/ })).toBeVisible();
+  await expect(page.getByRole("link", { name: /Sara Hassan/ })).toBeVisible();
   await expect(page.locator("table")).toHaveCount(0);
 
-  /* 4. The per-rep drill-down, reached the way a person reaches it. */
-  await page.getByRole("link", { name: /Laila Mostafa/ }).click();
+  /* 4. The per-owner drill-down, reached the way a person reaches it. */
+  await page.getByRole("link", { name: /Sara Hassan/ }).click();
   await page.waitForURL(/\/b-systems\/leads\/rep\/[^/?]+\?company=byteforce$/);
   await expect(page.getByRole("link", { name: "Cairo Textiles" })).toBeVisible();
 

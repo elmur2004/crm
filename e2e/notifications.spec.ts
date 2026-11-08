@@ -146,16 +146,17 @@ test("an unread notification is MARKED, and opening it takes the mark away", asy
 
   /* ---- the OTHER brand: the same component, the same mark, ByteForce chrome.
      A ByteForce lead-chat mention is the notification that lands in that bell
-     (founder V5), so Sara raises one for the admin. ---- */
-  const bfLeadRes = await page.request.post("/api/byteforce/leads", {
+     (founder V5), so Sara raises one for the admin — on a lead of HER OWN
+     (founder 2026-11-08: a teammate who is not the admin opens only the leads
+     he owns; the ByteForce admin is mentionable on every one of them). ---- */
+  const saraCtx = await page.context().browser()!.newContext();
+  const saraPage = await saraCtx.newPage();
+  await login(saraPage, SARA.id, SARA.password, /\/b-systems\/crm\?company=byteforce$/);
+  const bfLeadRes = await saraPage.request.post("/api/byteforce/leads", {
     data: { name: "Unread Mark Gamma", number: "0107770003", type: "cold_call" },
   });
   expect(bfLeadRes.status()).toBe(201);
   const bfLead = (await bfLeadRes.json()) as { id: string };
-
-  const saraCtx = await page.context().browser()!.newContext();
-  const saraPage = await saraCtx.newPage();
-  await login(saraPage, SARA.id, SARA.password, /\/b-systems\?company=byteforce$/);
   const mention = await saraPage.request.post(`/api/byteforce/leads/${bfLead.id}/comments`, {
     data: { body: "@Elmur can you look at Unread Mark Gamma?" },
   });

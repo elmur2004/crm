@@ -155,6 +155,8 @@ describe("the menu-level doors each persona is shown (the founder's table)", () 
       "accounting",
       "vault",
       "todo",
+      /* founder 2026-11-08 — Users: its own app, one page, so no menu */
+      "users",
       "reports",
     ]);
     expect(strip(m["crm-byteforce"])).toEqual([
@@ -169,7 +171,6 @@ describe("the menu-level doors each persona is shown (the founder's table)", () 
       "/b-systems/calendar?company=bsystems",
       "/b-systems/won-leads?company=bsystems",
       "/b-systems/statements?company=bsystems",
-      "/b-systems/users?company=bsystems",
     ]);
     expect(strip(m.partners)).toEqual([
       "/b-systems/partners-pipeline?company=bsystems",
@@ -202,6 +203,10 @@ describe("the menu-level doors each persona is shown (the founder's table)", () 
       "/vault/archive",
     ]);
     expect(m.todo).toEqual([]);
+    expect(m.users).toEqual([]);
+    /* …so its tile is the ONE way to the Users page — and it is no CRM's */
+    const doors = doorsFor(PERSONAS.founder!).get("/b-systems/users?company=bsystems");
+    expect(doors).toEqual([{ app: "users", kind: "tile" }]);
     expect(m.reports).toEqual([
       "/b-systems?company=bsystems",
       "/b-systems?company=byteforce",
@@ -233,7 +238,8 @@ describe("the menu-level doors each persona is shown (the founder's table)", () 
   it("a ByteForce-only teammate", () => {
     const m = appMenusFor(PERSONAS.byteforceOnly!);
     expect(Object.keys(m)).toEqual(["crm-byteforce", "todo", "reports"]);
-    expect(m.reports).toEqual(["/b-systems?company=byteforce", "/b-systems/daily-report?company=byteforce"]);
+    /* founder 2026-11-08 — the ByteForce dashboard is the ByteForce admin's */
+    expect(m.reports).toEqual(["/b-systems/daily-report?company=byteforce"]);
   });
 
   it("data entry: one tile, no menu at all", () => {

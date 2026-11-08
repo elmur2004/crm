@@ -21,9 +21,12 @@ import { writeLog, type Actor } from "./activity";
    commission an agent is paid. A control that moves somebody's commission
    belongs to the person who owns the company, not to the person being paid.
 
-   `isAdmin` from `requireLeadAccess` is exactly that, per company: B-Systems'
-   admin, Mindoo's staff (which IS its whole staff, ADR-073), and — deliberately
-   — nobody on ByteForce, which has no admin role at all. Flagged for him.
+   On B-Systems that is `isAdmin` from `requireLeadAccess`. On ByteForce it is
+   — deliberately — NOBODY: ByteForce had no admin role at all when this was
+   decided. Since the founder's "assigned leads only" (2026-11-08) the ByteForce
+   ADMIN exists (lib/auth/lead-scope.ts) and `isAdmin` reports him, so the
+   ByteForce route states its refusal itself rather than inheriting the flag;
+   widening it to him is flagged for the founder.
 
    TWO FIELDS, service and amount: the things a person mistypes. `sent`/`sentAt`
    are deliberately not editable here — they record something that HAPPENED, and

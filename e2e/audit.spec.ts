@@ -54,7 +54,7 @@ test("audit: agent + public + byteforce", async ({ page }) => {
   await shoot(page, "agent-won", "/b-systems/won-leads");
   await shoot(page, "agent-profile", "/b-systems/profile");
   await page.goto("/login");
-  await login(page, "sara@byteforce.example", "byteforce123", /\/b-systems\?company=byteforce$/);
+  await login(page, "sara@byteforce.example", "byteforce123", /\/b-systems\/crm\?company=byteforce$/);
   await shoot(page, "bf-home", "/b-systems?company=byteforce");
   await shoot(page, "bf-crm", "/b-systems/crm?company=byteforce");
 });

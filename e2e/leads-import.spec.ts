@@ -332,7 +332,7 @@ test("Arabic: the result screen speaks Arabic", async ({ page }) => {
 
 /* -------------------------------------------------------------------------- */
 
-test("the wall: sales and data entry get no button and the server refuses them; ByteForce staff import ByteForce only", async ({
+test("the wall: sales, data entry and ByteForce staff get no button and the server refuses them; the ByteForce admin imports ByteForce", async ({
   page,
 }) => {
   const someFile = async () => {
@@ -352,12 +352,25 @@ test("the wall: sales and data entry get no button and the server refuses them; 
   expect((await page.request.get("/api/b-systems/leads/import/template")).status()).toBe(403);
   expect((await someFile()).status()).toBe(403);
 
-  /* a ByteForce-only teammate: one button, ByteForce's, and it works */
+  /* a ByteForce teammate who is not the admin: NO button, no template, no
+     import (founder 2026-11-08 — imports land unassigned, in the ADMIN's queue,
+     so they are the company admin's) */
   await page.context().clearCookies();
-  await login(page, "sara@byteforce.example", /\/b-systems\?company=byteforce$/, "byteforce123");
+  await login(page, "sara@byteforce.example", /\/b-systems\/crm\?company=byteforce$/, "byteforce123");
+  await page.goto(`/b-systems/leads${BF}`);
+  await expect(importButton(page, "ByteForce")).toHaveCount(0);
+  await expect(importButton(page, "B-Systems")).toHaveCount(0);
+  expect((await page.request.get("/api/byteforce/leads/import/template")).status()).toBe(403);
+  const staffPost = await page.request.post("/api/byteforce/leads/import", {
+    multipart: { file: { name: "x.xlsx", mimeType: XLSX, buffer: Buffer.from("PK") } },
+  });
+  expect(staffPost.status()).toBe(403);
+
+  /* the ByteForce ADMIN (the founder): ByteForce's button, and it works */
+  await page.context().clearCookies();
+  await login(page, "admin@byteforce.com", /\/b-systems$/);
   await page.goto(`/b-systems/leads${BF}`);
   await expect(importButton(page, "ByteForce")).toBeVisible();
-  await expect(importButton(page, "B-Systems")).toHaveCount(0);
   const template = await page.request.get("/api/byteforce/leads/import/template");
   expect(template.status()).toBe(200);
   const filled = fillTemplate(Buffer.from(await template.body()), [
@@ -373,11 +386,12 @@ test("the wall: sales and data entry get no button and the server refuses them; 
   await page.getByRole("link", { name: /Unassigned/ }).click();
   await expect(page.getByRole("link", { name: "E2E ByteForce Walk In" })).toBeVisible();
 
-  /* and the B-Systems import, typed by hand, refuses him */
+  /* and a ByteForce file on the B-Systems import is refused as the wrong
+     company — the route is the company */
   const theirs = await page.request.post("/api/b-systems/leads/import", {
     multipart: { file: { name: "bf.xlsx", mimeType: XLSX, buffer: filled } },
   });
-  expect(theirs.status()).toBe(403);
+  expect(theirs.status()).toBe(400);
 });
 
 test("the CRM board carries the same button beside Add lead — and only for whom the server would accept", async ({

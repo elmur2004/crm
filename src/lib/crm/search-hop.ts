@@ -5,6 +5,7 @@ import { leadSearchWhere, leadTypeWhere } from "@/lib/services/lead-search";
 import { bsLeadsWhere, ownLeadsWhere } from "@/lib/services/bsystems-admin";
 import { crmEngineRole } from "@/lib/api/bsystems";
 import { companiesFor, parseCompany, type CrmCompany } from "./company";
+import { leadScopeFor, scopeOwnerWhere, type LeadScope } from "@/lib/auth/lead-scope";
 
 /* ============================================================================
    ADR-085 — ONE SEARCH BOX, BOTH COMPANIES.
@@ -22,8 +23,9 @@ import { companiesFor, parseCompany, type CrmCompany } from "./company";
       companies `companiesFor(roles)` already reports, and the probe runs the
       TARGET BOARD'S OWN PREDICATE — `bsLeadsWhere` / `ownLeadsWhere` /
       the ByteForce board's `byteforceBoardWhere`, imported, never restated. An
-      agent's hop can therefore only find the agent's own card, and a
-      `bsystems_sales` hop only the internal bucket. The alternative — a
+      agent's hop can therefore only find the agent's own card, and since the
+      founder's "assigned leads only" (2026-11-08) a `bsystems_sales` or
+      non-admin ByteForce hop only that person's own cards too. The alternative — a
       brand-only `count` — would have told a partner that SOMEBODY ELSE'S lead
       matched, which is a disclosure even though it names nothing: it answers
       "does this number exist in the other company" for a person who may not
@@ -54,14 +56,21 @@ import { companiesFor, parseCompany, type CrmCompany } from "./company";
     for the reason ADR-085 §1 gives: the probe has to ask the board's own
     question. Kept beside the hop because this is the only other caller — the
     B-Systems twins live in `bsystems-admin.ts` with their queries. */
-export function byteforceBoardWhere(opts: {
-  search?: string;
-  type?: string;
-}): Prisma.LeadWhereInput {
+export function byteforceBoardWhere(
+  opts: {
+    search?: string;
+    type?: string;
+  },
+  /* founder (2026-11-08, "assigned leads only") — whose cards the board shows:
+     the ByteForce admin's whole company, or the viewer's OWN. Required, so the
+     board and the hop cannot disagree about it. */
+  scope: LeadScope,
+): Prisma.LeadWhereInput {
   return {
     brand: "byteforce",
     archived: false,
     stage: { in: [...INTERNAL_STAGES] },
+    ...scopeOwnerWhere(scope),
     ...leadSearchWhere(opts.search),
     ...leadTypeWhere(opts.type),
   };
@@ -108,18 +117,17 @@ export async function countMatchesIn(
   narrow: { search: string; type?: string },
 ): Promise<number> {
   if (company === "byteforce") {
-    /* `companiesFor` has already proved `byteforce_staff`, and that board shows
-       every ByteForce card — so its predicate IS the whole scope. */
-    return db.lead.count({ where: byteforceBoardWhere(narrow) });
+    /* `companiesFor` has already proved `byteforce_staff`; the board shows the
+       admin every card and everybody else his own — the same scope here. */
+    return db.lead.count({ where: byteforceBoardWhere(narrow, leadScopeFor(user, company)) });
   }
   const role = crmEngineRole(company, user);
   if (role === "bsystems_admin") {
     return db.lead.count({ where: bsLeadsWhere(company, "any", narrow) });
   }
-  if (role === "bsystems_sales") {
-    return db.lead.count({ where: bsLeadsWhere(company, "internal", narrow) });
-  }
-  if (role === "bsystems_agent" || role === "bsystems_partner") {
+  /* founder (2026-11-08) — internal sales sees only its OWN cards now, exactly
+     like an agent or a partner, so the three share the own-cards predicate */
+  if (role === "bsystems_sales" || role === "bsystems_agent" || role === "bsystems_partner") {
     return db.lead.count({ where: ownLeadsWhere(company, user.id, narrow) });
   }
   /* data-entry, or no B-Systems pipeline role at all: the board is not theirs

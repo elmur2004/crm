@@ -13,10 +13,11 @@ import { BYTEFORCE_CTX } from "../ctx";
 export const metadata = { title: "Leads — B-Systems CRM" };
 
 /* ADR-067 — the shared Leads address, and the two companies mean genuinely
-   different screens by it. ByteForce's Leads is a directory of SALES REP CARDS
-   with an Unassigned bucket and a per-rep drill-down (which is also the only
-   door to its archive); B-Systems' is a flat filterable table with owner
-   buckets. Two bodies, one address, chosen by the company — never merged into
+   different screens by it. ByteForce's Leads is (founder 2026-11-08) a
+   directory of OWNER cards — staff accounts — with an Unassigned bucket and a
+   per-owner drill-down (also the only door to its archive) for the admin, and a
+   teammate's OWN list for everybody else; B-Systems' is a flat filterable table
+   with owner buckets. Two bodies, one address, chosen by the company — never merged into
    "the leads table", which would quietly lose the rep directory.
 
    ADR-074 — the B-Systems body lives in components/bsystems/pages, so this
@@ -47,7 +48,12 @@ export default async function BsLeadsPage({
   const importCompany = canImportLeads(user.roles, company) ? company : null;
   if (company === "byteforce") {
     return (
-      <LeadsBody ctx={BYTEFORCE_CTX} exportCompanies={exportCompanies} importCompany={importCompany} />
+      <LeadsBody
+        ctx={BYTEFORCE_CTX}
+        viewer={user}
+        exportCompanies={exportCompanies}
+        importCompany={importCompany}
+      />
     );
   }
 

@@ -45,6 +45,11 @@ import {
   proposalFromForm,
   wonFromForm,
 } from "./LeadEventPanel";
+import {
+  AssignToField,
+  assignToFromForm,
+  type AssigneeOption,
+} from "@/components/shared/AssignToField";
 
 /* Founder (ADR-042) — the ByteForce board gains full B-Systems-board parity:
    drag with the drop-opens-stage-form modal, whole-card open, lift/clip
@@ -395,6 +400,7 @@ export function InternalBoard({
   basePath,
   query,
   apiBase,
+  assignees,
 }: {
   leads: InternalBoardLead[];
   reps: Rep[];
@@ -402,6 +408,10 @@ export function InternalBoard({
   /* ADR-067 — "?company=byteforce"; every card link keeps the company */
   query: string;
   apiBase: string;
+  /** Founder (2026-11-08) — "Hand this follow-up to", on the drop window into
+      Following Up: the ByteForce ADMIN's options, pre-translated. Absent for
+      everybody else (and the server refuses an assignee from them). */
+  assignees?: AssigneeOption[];
 }) {
   const locale = useLocale();
   const t = tFor(locale);
@@ -649,6 +659,10 @@ export function InternalBoard({
                   {
                     event: { type: "drag", to: pendingDrop.to },
                     group: payloadForTarget(pendingDrop.to, fd),
+                    assignTo:
+                      pendingDrop.to === internalCrmConfig.followUpStage
+                        ? assignToFromForm(fd)
+                        : undefined,
                   },
                   pendingDrop.leadId,
                   pendingDrop.to,
@@ -663,6 +677,9 @@ export function InternalBoard({
                   </p>
                 ) : null}
                 {fieldsForTarget(pendingDrop.to, pendingLead)}
+                {pendingDrop.to === internalCrmConfig.followUpStage ? (
+                  <AssignToField options={assignees} />
+                ) : null}
               </div>
               <div className="modal-foot">
                 <span className="modal-foot-note">

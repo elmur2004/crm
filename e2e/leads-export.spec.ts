@@ -57,10 +57,11 @@ test("the founder sees BOTH buttons on the Leads page — on either company's sc
   await expect(btn(page, "ByteForce")).toBeVisible();
   await expect(page.getByText("Every lead, ever — live, won, lost and archived.")).toBeVisible();
 
-  /* …and ByteForce's is the rep directory. Two different screens, one address,
-     and the pair of buttons belongs on both. */
+  /* …and ByteForce's is the OWNER directory (staff accounts, founder
+     2026-11-08). Two different screens, one address, and the pair of buttons
+     belongs on both. */
   await page.goto(`/b-systems/leads${BF}`);
-  await expect(page.getByRole("link", { name: /Laila Mostafa/ })).toBeVisible();
+  await expect(page.getByRole("link", { name: /Sara Hassan/ })).toBeVisible();
   await expect(btn(page, "B-Systems")).toBeVisible();
   await expect(btn(page, "ByteForce")).toBeVisible();
 
@@ -196,21 +197,24 @@ test("an agent cannot pull a company-wide list", async ({ page }) => {
   expect((await page.request.get("/api/byteforce/leads/export")).status()).toBe(403);
 });
 
-test("a ByteForce-only teammate gets ONE button, and the B-Systems URL refuses him", async ({
+test("a ByteForce teammate who is not the admin gets NO button, and both URLs refuse him", async ({
   page,
 }) => {
-  await login(page, "sara@byteforce.example", /\/b-systems\?company=byteforce$/, "byteforce123");
+  /* founder 2026-11-08 ("assigned leads only"): exports are the COMPANY
+     ADMIN's. Sara sees only her own leads anywhere in the product now — one
+     file of the whole book would undo that in a single click. */
+  await login(page, "sara@byteforce.example", /\/b-systems\/crm\?company=byteforce$/, "byteforce123");
   await page.goto(`/b-systems/leads${BF}`);
 
-  await expect(btn(page, "ByteForce")).toBeVisible();
+  await expect(btn(page, "ByteForce")).toHaveCount(0);
   await expect(btn(page, "B-Systems")).toHaveCount(0);
 
-  /* his own company's file works */
+  /* not even her own company's book … */
   const mine = await page.request.get("/api/byteforce/leads/export");
-  expect(mine.status()).toBe(200);
-  expect(sharedStrings(Buffer.from(await mine.body()))).toContain("<t>Cairo Textiles</t>");
+  expect(mine.status()).toBe(403);
+  expect(await mine.text()).not.toContain("Cairo Grand Hotels");
 
-  /* the other company's, typed by hand, does not — and leaks nothing */
+  /* … and the other company's, typed by hand, neither — and leaks nothing */
   const theirs = await page.request.get("/api/b-systems/leads/export");
   expect(theirs.status()).toBe(403);
   expect(await theirs.text()).not.toContain("Delta Medical Group");

@@ -21,7 +21,9 @@ import type { CrmCompany } from "@/lib/crm/company";
 
    THE WALL is `canImportLeads`, the same predicate the button is rendered
    from: can open that company's Leads page AND may create leads there. In
-   practice ByteForce → byteforce_staff, B-Systems → bsystems_admin. Enforced
+   practice (founder 2026-11-08, "assigned leads only") the COMPANY ADMIN of
+   each: B-Systems → bsystems_admin, ByteForce → its admin (byteforce_staff AND
+   bsystems_admin). The rows land unassigned — the admin's own queue. Enforced
    HERE, from the session, against roles re-read from the database on every
    request (ADR-017's `requireUser`) — the button is navigation, this is the
    boundary. Authentication comes first, so an anonymous caller is 401 before a
