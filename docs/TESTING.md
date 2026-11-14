@@ -8165,3 +8165,95 @@ test and the docs copied in):
 
 The fix is a single `where` on a relation read. The full suite above ran
 without it, and the targeted re-gate covers every spec that renders the page.
+
+## Run 109 — 2026-11-14 — ADR-103/104: the Users app for every account (My account), Assign on every row, and the pre-push review fixes, one push
+
+- Suites/commands:
+  - **In the working tree** (with the local landing work present): `npx tsc
+    --noEmit`, the full `npx vitest run`, and, after the review fixes, the
+    affected vitest files.
+  - **The clean-worktree gate** (the authority for the push, below): `npm ci`,
+    `prisma generate`, `tsc`, the full vitest twice, the full Playwright twice
+    and a targeted Playwright re-gate.
+  - **Reviews:** `spec-guardian` on the permissions and the SPEC, `brand-auditor`
+    on the new screens. Both returned FAIL; every required finding was fixed
+    before the gate's final run (ADR-103 §6).
+  - **Screenshots, from the gate's own build:** 72 — the launcher, All users,
+    the admin's My account, B-Systems Leads with Assign owner and its dialog,
+    ByteForce Unassigned with its Owner column, a sales rep's launcher and My
+    account, and an agent's My account — × light/dark × EN/AR × 390/1440. Each
+    page also asserted no horizontal page scroll: `8 passed (3.2m)`. Reviewed by
+    eye: the phone tables scroll inside their cards, as every table does.
+- Cases:
+  - **Working tree:** `tsc` clean; vitest `Test Files  106 passed (106)` /
+    `Tests  2406 passed (2406)` (it includes the local landing tests); after the
+    review fixes, the 19 affected files: `Tests  453 passed (453)`.
+  - **Clean gate:** see the table below.
+- Failures:
+  - **`e2e/users-app.spec.ts:45`** (a new test), in the gate's full run: a
+    strict-mode violation. `getByRole('alert')` resolved to TWO elements — the
+    form's own alert, which said exactly what it should ("That email belongs to
+    another account"), and Next's `#__next-route-announcer__`, a `role="alert"`
+    div that is on every hydrated page. **A bug in the new test, not in the
+    app, so there is no BUG id.** The spec now finds alerts and statuses by
+    their text (IMPLEMENTATION.md, the Users app's gotcha 6), and the re-gate
+    below is green.
+  - **BUG-034** (brand-auditor, open): the light neutral focus ring is under
+    3:1. It is older than this change and not fixed in it.
+- SPEC coverage touched: §3 (who may change what about an account — the admin
+  everybody's, everybody his own); §4.4, §6 intro, §7.1, §8.1, §8.4 and §11 A-10
+  (each with an "Amended by ADR-103/104" note); ADR-098's visibility rule
+  re-run unchanged (`assigned-only.integration.test.ts`, `follow-up-handover`,
+  `security-rbac`).
+- Verdict: **PASS.** On the pushed set: `tsc` clean, 1953 vitest cases, the
+  full Playwright suite (337 passed; the one red was a new test's locator, fixed
+  and re-gated green, 21 of 21), and no horizontal scroll in 72 screenshots.
+
+### What the new tests pin
+
+| File | Tests | Fails if… |
+|---|---|---|
+| `src/lib/services/my-account.integration.test.ts` | 20 | a person cannot rename himself or change his email/phone/password; a body's `roles`, module flags, `active`, approval or another account's id changes anything; a clash is not 409; both identifiers can go; an invalid value is accepted; an agent's name is not first + last, or his phone can go; a partner can rename his company's login; the pinned admin's email or password moves (My account or the admin's editor); a healer address can be taken (My account, Add user, the editor); an admin-made agent or a former agent is treated as an agent; a signed-out or deactivated caller gets through; a non-agent reaches the CV route; an impersonated edit is not labelled "(via …)" |
+| `src/lib/services/assign-roster.integration.test.ts` | 3 | the Assign dialog offers anyone outside each company's set (B-Systems: live agents, partners, internal sales; ByteForce: live staff, the admin as "(me)" only where asked), or anyone `resolveAssignee` would refuse, or labels in the wrong language |
+| `src/lib/launcher/launcher.integration.test.ts` (4 new) | — | `/users` lets in an anonymous, deactivated, pending or roleless account; the admin's default view is not All users or `?tab=me` is not his account; ANY `?tab=` gives a non-admin the table; the account shown is not the session's |
+| `src/lib/launcher/apps.test.ts`, `one-way.test.ts`, `src/lib/crm/nav.test.ts`, `legacy-routes.test.ts` | — | the Users tile is not every account's, last and neutral, at `/users`; a page gains a second door; Profile is back in a CRM menu; the old addresses do not map to `/users` and `/users?tab=me` |
+| `e2e/users-app.spec.ts` | 5 | the journeys above in a browser: a fresh sales account renames himself, changes phone and password and signs in by the new phone with the new password (and the admin's table shows the new password); an agent's profile fields and no Profile menu item; data entry's two tiles; Assign owner on a B-Systems Leads row and on a ByteForce Unassigned row, and the new owner then sees the lead; no Assign column on a teammate's own list |
+
+### Clean-gate (pushed set)
+
+The push's 53 changed or new paths and 8 deletions (the two shell pages, the
+three `/api/b-systems/profile` routes, `profileForms.tsx`, and the two Users
+components that moved to `src/components/users/`) were laid onto a fresh `git
+worktree` at `5440df3`: tracked files only, no landing work, none of the four
+locally-dirty files (`next.config.ts`, `prisma/schema.prisma`, `backup.ts`,
+`db-reset.ts`). A REAL `npm ci`, no junctions, no `.env` (a dummy
+`DATABASE_URL`, a throwaway `AUTH_SECRET`). No migration in this push; the
+schema is the committed one.
+
+| Check | Result (verbatim) |
+|---|---|
+| `npm ci` | `added 314 packages in 50s` / `exit 0` |
+| `npx prisma generate` | `generate exit 0` |
+| `npx tsc --noEmit` (before the review fixes) | `tsc exit 0` |
+| `npx vitest run` (before the review fixes) | `Test Files  92 passed (92)` / `Tests  1944 passed \| 3 skipped (1947)` |
+| `npx playwright test` (before the review fixes) | **stopped by hand at `[94/347]`, 0 failed**, to take the review fixes — not a result |
+| `npx tsc --noEmit` (final set) | `tsc exit 0` |
+| `npx vitest run` (final set) | `Test Files  93 passed (93)` / `Tests  1953 passed \| 3 skipped (1956)` (Duration 265.68s) |
+| `npx playwright test` (final set, FULL suite, its own build and seeded DB) | `1 failed` (`users-app.spec.ts:45`, above) / `9 skipped` / `337 passed (36.8m)` / `EXIT 1` |
+| re-gate after the test fix: `users-app`, `launcher`, `security-rbac` | `21 passed (3.0m)` / `EXIT 0`; `.last-run.json` `{"status": "passed", "failedTests": []}` |
+| byte-compare of the pushed code against the gate's copy (`cmp`) | `code files identical: 48, different: 0`; the 8 deletions absent from both trees. The docs (SPEC.md and `docs/`) were finished after the gate and are not code |
+
+The 3 skipped vitest cases are the same three as Run 108's gate.
+
+### NOT RUN, honestly
+
+- **Production.** The 2026-11-08 push (5440df3) has still not deployed (the
+  probe answers 404, the old build), so neither it nor this push has been seen
+  live. Verify after the host deploys: `POST /api/byteforce/leads/probe/assign`
+  → 401; anonymous `GET /users` → 307 to `/login` (404 on the old build);
+  `/b-systems/users` → 307 to `/users`; `/api/health` `schemaCurrent: true`,
+  `pendingMigrations: []`.
+- **No e-mail confirmation of a changed sign-in email** — there is no mail in
+  the product (ADR-103, needs founder confirmation).
+- **The screenshots were reviewed by eye and by the page's own checks** (no
+  horizontal scroll), not against a baseline.

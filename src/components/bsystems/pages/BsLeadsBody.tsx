@@ -16,7 +16,11 @@ import {
 } from "@/lib/i18n/dict/crm";
 import { StageBadge } from "@/components/shared/StageBadge";
 import { stageKey } from "@/components/bsystems/stageColors";
-import { BsAddLeadForm } from "@/components/bsystems/leadActions";
+import {
+  AssignLeadButton,
+  BsAddLeadForm,
+  type AssignableOwner,
+} from "@/components/bsystems/leadActions";
 import { FilterPanel } from "@/components/shared/FilterPanel";
 import { LeadsExportButtons } from "@/components/shared/LeadsExportButtons";
 import { LeadsImportMenu } from "@/components/shared/LeadsImportMenu";
@@ -69,6 +73,7 @@ export async function BsLeadsBody({
   params,
   exportCompanies = [],
   importCompany = null,
+  assignOwners = null,
 }: {
   ctx: CrmSurface;
   params: BsLeadsParams;
@@ -81,6 +86,12 @@ export async function BsLeadsBody({
      PAGE from the live roles (`canImportLeads`). Defaults to NONE, for the
      export's reason: a body cannot see a session. */
   importCompany?: CrmCompany | null;
+  /* ADR-104 — founder (2026-11-14): "the admin has a click or option for each
+     lead to assign it or to change the assignee of that lead". The Assign
+     roster, handed in by the PAGE for the company admin only (the route behind
+     it is his wall); none = no per-row control. Withheld on the archive, as on
+     the lead page. */
+  assignOwners?: AssignableOwner[] | null;
 }) {
   const locale = await getLocale();
   const t = tFor(locale);
@@ -269,10 +280,21 @@ export async function BsLeadsBody({
                         <td className="td-mono">{lead.number}</td>
                         <td>{lead.companyName ?? "—"}</td>
                         <td>
-                          <span className="owner-chip" data-owner-key={lead.ownerType}>
-                            {ownerTypeLabel(locale, lead.ownerType)}
-                            {lead.owner ? ` · ${lead.owner.name}` : ""}
-                            {lead.partner ? ` · ${lead.partner.companyName}` : ""}
+                          <span className="flex items-center gap-2 flex-wrap">
+                            <span className="owner-chip" data-owner-key={lead.ownerType}>
+                              {ownerTypeLabel(locale, lead.ownerType)}
+                              {lead.owner ? ` · ${lead.owner.name}` : ""}
+                              {lead.partner ? ` · ${lead.partner.companyName}` : ""}
+                            </span>
+                            {assignOwners && !archived && assignOwners.length > 0 ? (
+                              <AssignLeadButton
+                                leadId={lead.id}
+                                owners={assignOwners}
+                                currentOwnerUserId={lead.ownerUserId}
+                                apiBase={ctx.apiBase}
+                                small
+                              />
+                            ) : null}
                           </span>
                         </td>
                         <td>

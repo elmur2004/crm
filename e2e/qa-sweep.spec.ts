@@ -91,7 +91,7 @@ test("B-Systems admin: all twelve screens of the shell clean at every width", as
     "/b-systems/agents",
     "/b-systems/registrations",
     "/b-systems/statements",
-    "/b-systems/users",
+    "/users", // ADR-103 — the Users app, outside the CRM shell
     "/b-systems/calendar", // ADR-071
     "/b-systems/daily-report", // ADR-081
   ]);
@@ -195,10 +195,10 @@ test("mobile menu reaches EVERY section of each app at 390px — and only that a
     ["/b-systems/crm?company=bsystems", ["CRM", "Leads", "Calendar", "Won Leads", "Statements"]],
     ["/b-systems/crm?company=byteforce", ["CRM", "Leads", "Calendar", "Clients"]],
     ["/b-systems/partners-pipeline?company=bsystems", ["Pipeline", "Partners", "Agents", "Registrations"]],
-    /* the To-Do, the Reports pages and Users (2026-11-08) are one-page apps:
-       the sheet has no rows */
+    /* the To-Do and the Reports pages are one-page apps: the sheet has no
+       rows. (Users left this shell altogether — ADR-103, /users wears the
+       launcher's bar and has no sheet.) */
     ["/b-systems/todo?company=bsystems", []],
-    ["/b-systems/users?company=bsystems", []],
     ["/b-systems?company=bsystems", []],
     ["/b-systems/daily-report?company=bsystems", []],
   ] as const) {
@@ -297,7 +297,7 @@ test("B-Systems agent + public screens: clean console, no horizontal overflow", 
     "/b-systems/crm",
     "/b-systems/won-leads",
     "/b-systems/payments",
-    "/b-systems/profile",
+    "/users", // ADR-103 — his profile is My account now
   ]);
   expect(errors).toEqual([]);
 });

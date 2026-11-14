@@ -46,8 +46,8 @@ import { ROLES, type Role } from "@/lib/pipeline-engine/constants";
    i.e. THE NAV NEVER OFFERS A DOOR THE SERVER WOULD SHUT — for every CRM menu
    AND the Partners & Agents menu (its own launcher app since the one-way-in
    pass, living in this same shell). The converse is
-   deliberately NOT asserted: a guard wider than the nav is normal (Users
-   admits the four pipeline roles and then bounces non-admins itself), and a
+   deliberately NOT asserted: a guard wider than the nav is normal (B-Systems
+   Leads admits the four pipeline roles and then bounces non-admins itself), and a
    section reachable by URL but absent from a nav is a product choice, not a
    defect.
 
@@ -297,13 +297,13 @@ describe("one way to each page — the menus, exactly as approved", () => {
       "/b-systems/calendar",
       "/b-systems/won-leads",
     ]);
+    /* ADR-103 — Profile left both menus: it is "My account" in the Users app */
     for (const role of ["bsystems_agent", "bsystems_partner"] as const) {
       expect(hrefs(crmNavFor("bsystems", role))).toEqual([
         "/b-systems/crm",
         "/b-systems/calendar",
         "/b-systems/won-leads",
         "/b-systems/payments",
-        "/b-systems/profile",
       ]);
     }
     /* data entry: no menu — its one page is reached from its one tile */
@@ -322,12 +322,15 @@ describe("one way to each page — the menus, exactly as approved", () => {
     }
   });
 
-  it("Home, the To-Do, the Daily report, Users and the four Partners & Agents screens left every CRM menu", () => {
+  it("Home, the To-Do, the Daily report, Users, Profile and the four Partners & Agents screens left every CRM menu", () => {
     const left = [
       "/b-systems",
       "/b-systems/todo",
-      /* founder 2026-11-08 — Users is its own launcher app */
+      /* founder 2026-11-08 — Users is its own launcher app; ADR-103 took it,
+         and the agents' and partners' Profile, out of the shell altogether */
       "/b-systems/users",
+      "/b-systems/profile",
+      "/users",
       "/b-systems/daily-report",
       "/b-systems/partners-pipeline",
       "/b-systems/partners",
@@ -362,7 +365,6 @@ describe("which app of the shell a page belongs to — and the name the header g
       "/b-systems/statements",
       "/b-systems/statements/abc/document",
       "/b-systems/payments",
-      "/b-systems/profile",
       "/b-systems/entry",
       "/b-systems/crm/lead/abc",
       "/b-systems/crm/lead/abc/call",
@@ -388,9 +390,9 @@ describe("which app of the shell a page belongs to — and the name the header g
 
   it("the To-Do is its own app; the dashboards and the Daily report are Reports & Dashboards", () => {
     expect(crmAppContextFor("/b-systems/todo")).toBe("todo");
-    /* founder 2026-11-08 — Users is its own app, NOT a page of the B-Systems CRM */
-    expect(crmAppContextFor("/b-systems/users")).toBe("users");
-    expect(crmAppContextFor("/b-systems/users/")).toBe("users");
+    /* ADR-103 — Users has no context here at all: it is not a page of this
+       shell any more (the proxy sends /b-systems/users to /users, which wears
+       the launcher's bar — legacy-routes.test.ts) */
     expect(crmAppContextFor("/b-systems")).toBe("reports");
     expect(crmAppContextFor("/b-systems/")).toBe("reports");
     expect(crmAppContextFor("/b-systems/daily-report")).toBe("reports");
@@ -402,7 +404,6 @@ describe("which app of the shell a page belongs to — and the name the header g
     expect(crmAppNameFor("partners", "bsystems")).toBe(launcher.partners);
     expect(crmAppNameFor("todo", "byteforce")).toBe(launcher.todo);
     expect(crmAppNameFor("reports", "bsystems")).toBe(launcher.reports);
-    expect(crmAppNameFor("users", "bsystems")).toBe(launcher.users);
   });
 });
 

@@ -29,6 +29,36 @@ const BYTEFORCE_ROUTES: Array<[RegExp, string]> = [
   [/^\/byteforce\/leads\/lead\/([^/]+)\/call\/?$/, "/b-systems/leads/lead/$1/call"],
 ];
 
+/* ---- ADR-103: the two screens that LEFT the merged shell for the Users app --
+
+   Founder (2026-11-14): "The users currently for the entire systems are sitting
+   inside the bsystems CRM. Separate it … put it in a different app". Users and
+   the agents' and partners' Profile became ONE app at /users, outside every
+   CRM: the admin manages every account there, and everybody edits his own
+   ("My account") — so Profile is no longer a page of the B-Systems CRM either
+   (one way to each page).
+
+   The old addresses still land, for the reason the ByteForce map above is
+   forever: bookmarks, and a password-change link an agent may have saved. They
+   are answered HERE, at the edge and before the sign-in check, rather than by
+   a page left behind in the shell: a page there would be a screen with no menu
+   item and nothing to render, which is exactly what the one-way-in and
+   page-guard sweeps exist to refuse. The query string is DROPPED — `?company=`
+   means nothing outside the CRM — except that Profile opens My account, its
+   one meaning. Temporary (307) for the ByteForce map's reason. */
+const MOVED_TO_USERS_APP: Array<[RegExp, string]> = [
+  [/^\/b-systems\/users\/?$/, "/users"],
+  [/^\/b-systems\/profile\/?$/, "/users?tab=me"],
+];
+
+/** Where a screen that moved out of the merged shell lives now, or null. */
+export function movedOutOfShellPath(pathname: string): string | null {
+  for (const [re, to] of MOVED_TO_USERS_APP) {
+    if (re.test(pathname)) return to;
+  }
+  return null;
+}
+
 /** The merged address for a retired one, or null when this is not one. */
 export function mergedByteforcePath(pathname: string): string | null {
   if (!/^\/byteforce(\/|$)/.test(pathname)) return null;

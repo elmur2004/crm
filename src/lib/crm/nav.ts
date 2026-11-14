@@ -22,9 +22,11 @@ import { launcher } from "@/lib/i18n/dict/launcher";
      4. "Remove them" — a content link that repeats a menu is gone; a link to a
         RECORD stays, because it is the only way to reach that record.
 
-   So To-Do, the Daily report, the dashboards, Users (founder 2026-11-08) and
-   the four Partners & Agents screens are NOT in a CRM menu: each is its own launcher app (To-Do, Reports &
-   Dashboards, Partners & Agents). `lib/launcher/menus.ts` composes every app's
+   So To-Do, the Daily report, the dashboards, Users (founder 2026-11-08), the
+   agents' and partners' Profile (ADR-103: it is "My account" in the Users app
+   now) and the four Partners & Agents screens are NOT in a CRM menu: each is
+   its own launcher app (To-Do, Reports & Dashboards, Users, Partners & Agents).
+   `lib/launcher/menus.ts` composes every app's
    menu with the launcher tiles, and its guard test fails the day a page gains a
    second menu-level way in.
 
@@ -62,26 +64,28 @@ const BSYSTEMS_NAV: Record<string, CrmNavItem[]> = {
     { href: "/b-systems/won-leads", label: bsNav.wonLeads },
     { href: "/b-systems/statements", label: bsNav.statements },
     /* Users left this menu (founder 2026-11-08): it is its own launcher app,
-       with its own header — see crmAppContextFor's "users" */
+       and since ADR-103 its own page OUTSIDE this shell (/users) */
   ],
   bsystems_sales: [
     { href: "/b-systems/crm", label: bsNav.crm },
     { href: "/b-systems/calendar", label: calendarPage.navItem },
     { href: "/b-systems/won-leads", label: bsNav.wonLeads },
   ],
+  /* Profile left both menus (ADR-103, founder 2026-11-14): editing your own
+     name, phone and password is "My account" in the Users app, which every
+     account opens from its launcher tile — a menu item here as well would be
+     a second way to the same thing. */
   bsystems_agent: [
     { href: "/b-systems/crm", label: bsNav.crm },
     { href: "/b-systems/calendar", label: calendarPage.navItem },
     { href: "/b-systems/won-leads", label: bsNav.wonLeads },
     { href: "/b-systems/payments", label: bsNav.payments },
-    { href: "/b-systems/profile", label: bsNav.profile },
   ],
   bsystems_partner: [
     { href: "/b-systems/crm", label: bsNav.crm },
     { href: "/b-systems/calendar", label: calendarPage.navItem },
     { href: "/b-systems/won-leads", label: bsNav.wonLeads },
     { href: "/b-systems/payments", label: bsNav.payments },
-    { href: "/b-systems/profile", label: bsNav.profile },
   ],
   /* ADR-051 — the data-entry role has exactly ONE page, reached from its one
      launcher tile. A one-item menu would be a second way to the same page, so
@@ -148,15 +152,15 @@ export function partnersNavFor(bsRole: Role | null): CrmNavItem[] {
       todo      the To-Do: its own app with one page, so NO menu
       reports   the two dashboards and the Daily report: pages of Reports &
                 Dashboards, so NO menu (the launcher's Reports list is theirs)
-      users     /b-systems/users: the Users app (founder 2026-11-08), one page,
-                so NO menu — and NOT the B-Systems CRM around it */
-export type CrmAppContext = "crm" | "partners" | "todo" | "reports" | "users";
+
+    Users is not one of them any more: ADR-103 moved it OUT of this shell to
+    its own page (/users, beside the launcher), so no address here is it. */
+export type CrmAppContext = "crm" | "partners" | "todo" | "reports";
 
 export function crmAppContextFor(pathname: string): CrmAppContext {
   const p = pathname.replace(/\/+$/, "") || "/";
   if (p === "/b-systems" || p === "/b-systems/daily-report") return "reports";
   if (p === "/b-systems/todo") return "todo";
-  if (p === "/b-systems/users") return "users";
   if (/^\/b-systems\/(partners-pipeline|partners)(\/|$)/.test(p)) return "partners";
   if (p === "/b-systems/agents" || p === "/b-systems/registrations") return "partners";
   return "crm";
@@ -172,8 +176,6 @@ export function crmAppNameFor(context: CrmAppContext, company: CrmCompany): Msg 
       return launcher.todo;
     case "reports":
       return launcher.reports;
-    case "users":
-      return launcher.users;
     case "crm":
       return company === "byteforce" ? launcher.crmByteforce : launcher.crmBsystems;
   }

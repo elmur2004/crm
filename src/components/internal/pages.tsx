@@ -8,7 +8,7 @@ import { LEAD_TYPES } from "@/lib/pipeline-engine/constants";
 import { internalCrmConfig } from "@/lib/pipeline-engine/configs/internal-crm";
 import { orderMeetingColumn } from "@/lib/board-order";
 import { isNewestRecord } from "@/lib/crm/live-record";
-import { formatMsg, tFor } from "@/lib/i18n/core";
+import { tFor } from "@/lib/i18n/core";
 import { getLocale } from "@/lib/i18n/server";
 import { leadTypeLabel, stageLabel } from "@/lib/i18n/dict/labels";
 import {
@@ -26,10 +26,11 @@ import {
 } from "@/lib/services/sales-reps";
 import { listClients } from "@/lib/services/clients";
 import { listByteforceOwners } from "@/lib/services/users";
+import { assignRosterFor } from "@/lib/services/assign-roster";
 import { followUpAssignees } from "@/lib/services/assignees";
 import { byteforceBoardWhere } from "@/lib/crm/search-hop";
 import { isCompanyAdmin, leadScopeFor } from "@/lib/auth/lead-scope";
-import { bfLeadsPage, bfOwner, handOver } from "@/lib/i18n/dict/owners";
+import { bfLeadsPage, bfOwner } from "@/lib/i18n/dict/owners";
 import type { Role } from "@/lib/pipeline-engine/constants";
 import { getLeadDetail, latestProposalValue } from "@/lib/services/leads";
 import { formatEGP } from "@/lib/money";
@@ -54,7 +55,6 @@ import {
   ownerFilters,
 } from "@/lib/i18n/dict/crm";
 import { callSheet } from "@/lib/i18n/dict/call";
-import { regRoleBadges } from "@/lib/i18n/dict/admin";
 import { FilterPanel } from "@/components/shared/FilterPanel";
 import { SearchSwitchedNotice } from "@/components/shared/SearchSwitchedNotice";
 import { ArchiveButton } from "@/components/shared/ArchiveButton";
@@ -87,8 +87,6 @@ export interface InternalViewer {
   roles: Role[];
 }
 
-/* the ByteForce roster's one role, in the Registrations screen's own words */
-const bfStaffRole = regRoleBadges.byteforce_staff!;
 
 /* Mono eyebrow context line per brand (design spec §2.2 — additive, not a reword). */
 const BRAND_EYEBROW: Record<Brand, string> = {
@@ -236,6 +234,16 @@ export async function OwnerLeadsBody({
     orderBy: { createdAt: "desc" },
     include: { partner: { select: { companyName: true } } },
   });
+  /* ADR-104 — founder (2026-11-14): "the admin has a click or option for each
+     lead to assign it or to change the assignee of that lead". Every row of
+     the admin's list carries the lead page's own Assign control — the same
+     roster (the admin among it as "(me)", his "take it") and the same
+     company-admin route. Not on the archive: an archived lead is handed out
+     from its page after it is unarchived, exactly as there. */
+  const assignOwners =
+    admin && !archived
+      ? await assignRosterFor("byteforce", viewer, locale, { includeSelf: true })
+      : null;
 
   const mine = !admin && ownerId === viewer.id;
   const basePath = `${ctx.basePath}/leads/rep/${ownerId}`;
@@ -282,6 +290,7 @@ export async function OwnerLeadsBody({
                   <th>{t(leadsPage.thNumber)}</th>
                   <th>{t(leadsPage.thType)}</th>
                   <th>{t(leadsPage.thStage)}</th>
+                  {assignOwners ? <th>{t(leadsPage.thOwner)}</th> : null}
                 </tr>
               </thead>
               <tbody>
@@ -305,6 +314,18 @@ export async function OwnerLeadsBody({
                     <td>
                       <StageBadge stage={lead.stage} />
                     </td>
+                    {assignOwners ? (
+                      <td>
+                        <AssignLeadButton
+                          leadId={lead.id}
+                          owners={assignOwners}
+                          currentOwnerUserId={lead.ownerUserId}
+                          apiBase={ctx.apiBase}
+                          variant="byteforce"
+                          small
+                        />
+                      </td>
+                    ) : null}
                   </tr>
                 ))}
               </tbody>
@@ -335,23 +356,19 @@ export async function LeadDetailBody({ ctx, leadId }: { ctx: InternalAppCtx; lea
      scope (founder 2026-11-08, "assigned leads only"). */
   const { lead, history } = detail;
   const admin = access.isAdmin;
-  const [comments, mentionables, staff, assignees] = await Promise.all([
+  const [comments, mentionables, owners, assignees] = await Promise.all([
     listLeadComments(leadId),
     mentionableUsersFor(leadId),
     /* the Assign control's roster — the ByteForce admin's only: every live
-       staff account, the admin among them (that is his "take it") */
-    admin ? listByteforceOwners() : Promise.resolve([]),
+       staff account, the admin among them as "(me)" (that is his "take it") */
+    admin
+      ? assignRosterFor("byteforce", access.user, locale, { includeSelf: true })
+      : Promise.resolve([] as AssignableOwner[]),
     /* the follow-up forms' "Hand this follow-up to" — the admin's only */
     admin
       ? followUpAssignees(ctx.brand, { id: access.user.id, name: access.user.name }, locale)
       : Promise.resolve(undefined),
   ]);
-  const owners: AssignableOwner[] = staff.map((u) => ({
-    id: u.id,
-    name: u.id === access.user.id ? t(formatMsg(handOver.me, { name: u.name })) : u.name,
-    company: null,
-    roleLabel: t(bfStaffRole),
-  }));
   const latestMeeting = lead.meetings.at(-1);
 
   return (

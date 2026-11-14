@@ -8,6 +8,8 @@ import { canImportLeads } from "@/lib/crm/leads-import";
 import { BSYSTEMS_SURFACE } from "@/lib/crm/surface";
 import { LeadsBody } from "@/components/internal/pages";
 import { BsLeadsBody, type BsLeadsParams } from "@/components/bsystems/pages/BsLeadsBody";
+import { assignRosterFor } from "@/lib/services/assign-roster";
+import { getLocale } from "@/lib/i18n/server";
 import { BYTEFORCE_CTX } from "../ctx";
 
 export const metadata = { title: "Leads — B-Systems CRM" };
@@ -66,12 +68,19 @@ export default async function BsLeadsPage({
   const role = crmEngineRole(company, user);
   if (role !== "bsystems_admin") redirect(`${crmHomeFor(company, role)}${crmQuery(company)}`);
 
+  /* ADR-104 — every row's Assign control: the lead page's own roster, built
+     once here for the admin this page is (the bounce above is the wall) */
+  const assignOwners = await assignRosterFor("bsystems", user, await getLocale(), {
+    includeSelf: false,
+  });
+
   return (
     <BsLeadsBody
       ctx={BSYSTEMS_SURFACE}
       params={params}
       exportCompanies={exportCompanies}
       importCompany={importCompany}
+      assignOwners={assignOwners}
     />
   );
 }

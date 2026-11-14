@@ -4603,3 +4603,44 @@ lead to a non-admin through the CRM.
   ByteForce `assigned` notification in both bells.
 
 - Last updated: 2026-11-08 (ADR-098–101, TESTING Run 108)
+
+## The Users app: five gotchas (2026-11-14, ADR-103/104)
+
+1. **A screen that leaves the merged shell cannot leave a redirect page behind.**
+   - `page-company-guards.test.ts` requires every `page.tsx` under
+     `(bsystems)/b-systems/(app)` to AWAIT a company-aware guard, and
+     `one-way.test.ts` requires every static page there to have a menu-level
+     door for somebody. A page that only redirects fails the second, and
+     calling a guard just to satisfy the first is a lie in code.
+   - So moved addresses are answered at the EDGE: `movedOutOfShellPath` in
+     `src/lib/crm/legacy-routes.ts`, called by `src/proxy.ts` before the
+     sign-in check (the ByteForce map's pattern). `/b-systems/users` → `/users`,
+     `/b-systems/profile` → `/users?tab=me`.
+2. **The pinned bootstrap admin's email and password are the healer's.**
+   `ensureAdminExists` (bootstrap.ts) finds him BY EMAIL and re-asserts
+   `ADMIN_PASSWORD` on every sign-in. A self-service edit of either would be
+   undone (password) or would make the next sign-in create a SECOND admin
+   (email). `services/my-account.ts` refuses both with the reason; the form
+   locks them. Any future "edit yourself" surface must do the same.
+3. **The self-service schema IS the allow-list.** zod's default object drops
+   unknown keys, which is what keeps `roles`, `canAccess*`, `active` and
+   `registrationStatus` out of `PATCH /api/me`
+   (my-account.integration.test sends all of them). Never add
+   `.passthrough()` / `.loose()` to `myAccountSchema`.
+4. **A server page's view can be tested without a browser.** Calling an async
+   server component returns its element TREE (children unrendered), so
+   `launcher.integration.test.ts` walks it for `AllUsersBody` vs
+   `MyAccountBody` per persona and per `?tab=` value. Cheap, exact, and it
+   proves the admin check reads the live roles, not the address.
+5. **Playwright's `getByRole("heading", { name })` is a case-insensitive
+   SUBSTRING match.** `module-access.spec` asks for the heading "Users"; any
+   other heading containing "users" ("All users") would make it ambiguous.
+   That is why the two views are tabs (links), not headings, and the page has
+   exactly one `h1`.
+6. **Next keeps a `role="alert"` route announcer on every page** (a
+   `#__next-route-announcer__` div inside a shadow root, which Playwright
+   pierces). So `page.getByRole("alert")` ALONE is ambiguous on any hydrated
+   page — it failed `users-app.spec` in the clean-gate run (Run 109). Find an
+   alert or a status by its text: `getByRole("alert").filter({ hasText })`.
+
+- Last updated: 2026-11-14 (ADR-103/104)

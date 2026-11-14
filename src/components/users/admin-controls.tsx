@@ -6,8 +6,10 @@ import { btnGhost, btnPrimary, inputCls, labelCls } from "@/components/portal/gr
 import { tFor } from "@/lib/i18n/core";
 import { useLocale } from "@/components/shared/LocaleProvider";
 import { assignableRoleLabels, common, usersAdmin as d } from "@/lib/i18n/dict/admin";
+import { usersApp } from "@/lib/i18n/dict/users-app";
 
-/* V2 §2.10 — admin user management widgets. */
+/* V2 §2.10 — admin user management widgets, on the Users app's "All users"
+   view (ADR-103 moved them out of components/bsystems with the app itself). */
 
 /* ADR-075 — apiBase + assignableRoles come from the SURFACE that renders this.
 
@@ -186,7 +188,19 @@ export function EditUserButton({
               </label>
               <label className="block">
                 <span className={labelCls}>{t(d.fieldEmail)}</span>
-                <input type="email" name="email" defaultValue={user.email ?? ""} className={inputCls} />
+                {/* ADR-103 (review) — the pinned admin's email is the healer's
+                    key; the server refuses a change too (updateUser). Disabled,
+                    the field is not submitted, so the email is left alone. */}
+                <input
+                  type="email"
+                  name="email"
+                  defaultValue={user.email ?? ""}
+                  disabled={isBootstrapAdmin}
+                  className={inputCls}
+                />
+                {isBootstrapAdmin ? (
+                  <span className="field-hint block mt-1">{t(usersApp.pinnedEmailHint)}</span>
+                ) : null}
               </label>
               <label className="block">
                 <span className={labelCls}>{t(d.fieldPhone)}</span>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mergedByteforcePath } from "./legacy-routes";
+import { mergedByteforcePath, movedOutOfShellPath } from "./legacy-routes";
 
 /* ADR-067 — the promise to every bookmark, every emailed link and, above all,
    every web push ALREADY SITTING ON THE FOUNDER'S PHONE: nothing under
@@ -57,6 +57,41 @@ describe("mergedByteforcePath", () => {
       "/byteforce/leads/lead/x/call/extra",
     ]) {
       expect(mergedByteforcePath(p), p).toBe("/b-systems");
+    }
+  });
+});
+
+/* ADR-103 — Users and the agents' and partners' Profile LEFT the merged shell
+   for the Users app at /users. Their old addresses are answered at the edge
+   (src/proxy.ts), so a bookmark lands on the page and the shell keeps no
+   page-shaped leftover that renders nothing. */
+describe("movedOutOfShellPath", () => {
+  it("sends Users to the Users app and Profile to My account", () => {
+    expect(movedOutOfShellPath("/b-systems/users")).toBe("/users");
+    expect(movedOutOfShellPath("/b-systems/users/")).toBe("/users");
+    expect(movedOutOfShellPath("/b-systems/profile")).toBe("/users?tab=me");
+    expect(movedOutOfShellPath("/b-systems/profile/")).toBe("/users?tab=me");
+  });
+
+  it("leaves every other address alone — including the admin API it calls", () => {
+    for (const p of [
+      "/b-systems",
+      "/b-systems/crm",
+      "/b-systems/usersx",
+      "/b-systems/users/abc",
+      "/b-systems/profiles",
+      "/api/b-systems/users",
+      "/api/b-systems/users/abc",
+      "/users",
+      "/apps",
+    ]) {
+      expect(movedOutOfShellPath(p), p).toBeNull();
+    }
+  });
+
+  it("never overlaps the ByteForce map (each address has one answer)", () => {
+    for (const p of ["/b-systems/users", "/b-systems/profile"]) {
+      expect(mergedByteforcePath(p)).toBeNull();
     }
   });
 });

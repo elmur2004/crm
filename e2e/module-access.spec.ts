@@ -37,7 +37,7 @@ async function createAdmin(
   page: Page,
   opts: { name: string; email: string; vault: boolean; accounting: boolean },
 ) {
-  await page.goto("/b-systems/users");
+  await page.goto("/users");
   await page.getByRole("button", { name: "Add user" }).click();
   await page.getByLabel("Name").fill(opts.name);
   await page.getByLabel("Email").fill(opts.email);
@@ -137,7 +137,7 @@ test("the blocked admin still has ACCOUNTING and everything else", async ({ page
   expect((await page.request.get("/api/accounting/export?company=bsystems")).status()).toBe(200);
 
   /* the rest of the CRM is untouched — this is a module switch, not a demotion */
-  await page.goto("/b-systems/users");
+  await page.goto("/users");
   await expect(page.getByRole("heading", { name: "Users" })).toBeVisible();
   await page.goto("/b-systems/crm");
   await expect(page).toHaveURL(/\/b-systems\/crm$/);
@@ -178,7 +178,7 @@ test("an admin cannot take a module from HIMSELF — the boxes lock and the serv
   page,
 }) => {
   await loginAsFounder(page);
-  await page.goto("/b-systems/users");
+  await page.goto("/users");
   const me = page.getByRole("row", { name: /Elmur/ }).first();
   await me.getByRole("button", { name: "Edit" }).click();
 
@@ -212,7 +212,7 @@ test("taking the module away bites the NEXT click — the blocked admin is not s
   const founderCtx = await browser.newContext();
   const founderPage = await founderCtx.newPage();
   await loginAsFounder(founderPage);
-  await founderPage.goto("/b-systems/users");
+  await founderPage.goto("/users");
   await founderPage.getByRole("row", { name: /Rana Both/ }).getByRole("button", { name: "Edit" }).click();
   await founderPage
     .getByRole("group", { name: "Modules" })
@@ -226,7 +226,7 @@ test("taking the module away bites the NEXT click — the blocked admin is not s
   await page.goto("/vault");
   await page.waitForURL(/\/no-access\?module=vault/);
   /* still signed in, still an admin, still everything else */
-  await page.goto("/b-systems/users");
+  await page.goto("/users");
   await expect(page.getByRole("heading", { name: "Users" })).toBeVisible();
 
   await founderCtx.close();

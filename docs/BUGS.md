@@ -895,3 +895,21 @@ the moment a failure is found; close them with a reference to the fixing commit/
 - Regression: `partners.integration.test.ts` — "the Agents page lists only an
   agent's B-Systems leads, never ByteForce ones he also owns".
 - Status: fixed (ref: ADR-098, Run 108)
+
+## BUG-034 — 2026-11-14 — the keyboard focus ring is fainter than 3:1 in the light neutral scope (the launcher, the Users app, the sign-in)
+
+- Severity: minor (accessibility: a keyboard user's focus indicator; nothing
+  is hidden or broken)
+- Where: `src/app/globals.css` `:focus-visible` → `--color-focus-ring`. In the
+  LIGHT `neutral` scope that token is the 45% primary mix, measured about
+  2.9:1 on the canvas and 2.7:1 on the ground's halo — under the 3:1 a focus
+  indicator needs (WCAG 1.4.11, the project's `UI = 3`). Dark was already
+  fixed to a solid ring (the comment above the rule).
+- Repro: sign in, open `/apps` or `/users` in light mode, press Tab: the ring
+  around a tile or a tab is faint.
+- Found by: brand-auditor, auditing ADR-103's Users app (it predates that
+  change; the new tabs only inherit it).
+- Fix (not made in ADR-103's push — it moves a token every neutral page
+  reads, so it wants its own screenshot round): make the light neutral ring
+  solid, as dark's is, or deepen the mix until it clears 3:1 on the halo.
+- Status: open

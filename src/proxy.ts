@@ -1,7 +1,7 @@
 import NextAuth from "next-auth";
 import { NextResponse, type NextFetchEvent, type NextRequest } from "next/server";
 import { authConfig } from "@/lib/auth/config";
-import { mergedByteforcePath } from "@/lib/crm/legacy-routes";
+import { mergedByteforcePath, movedOutOfShellPath } from "@/lib/crm/legacy-routes";
 import type { Role } from "@/lib/pipeline-engine/constants";
 
 /* Coarse route-group gating ONLY (edge runtime — JWT roles, no DB). The real
@@ -88,6 +88,18 @@ const gate = auth((req) => {
     url.pathname = merged;
     if (merged === "/login") url.search = "";
     else url.searchParams.set("company", "byteforce");
+    return NextResponse.redirect(url);
+  }
+
+  /* ADR-103 — Users and Profile left the shell for the Users app (/users).
+     Before the sign-in check for the same reason as the map above: the visitor
+     is sent where the page IS, and /users asks him to sign in itself. */
+  const moved = movedOutOfShellPath(pathname);
+  if (moved) {
+    const [movedPath, movedQuery = ""] = moved.split("?");
+    const url = req.nextUrl.clone();
+    url.pathname = movedPath!;
+    url.search = movedQuery ? `?${movedQuery}` : "";
     return NextResponse.redirect(url);
   }
 

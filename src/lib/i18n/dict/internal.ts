@@ -69,6 +69,9 @@ export const leadsPage = {
   thNumber: { en: "Number", ar: "الرقم" },
   thType: { en: "Type", ar: "النوع" },
   thStage: { en: "Stage", ar: "المرحلة" },
+  /* ADR-104 — the admin's per-row Assign column (founder 2026-11-14: "a click
+     or option for each lead to assign it or to change the assignee") */
+  thOwner: { en: "Owner", ar: "المسؤول" },
 } satisfies Record<string, Msg>;
 
 /* ---- lead detail (§6.1/§6.2) ---- */

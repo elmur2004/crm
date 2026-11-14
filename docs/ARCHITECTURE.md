@@ -562,6 +562,14 @@ model ActivityLog {                         // §5.6 — product feature, not ju
   email or phone required. Rejected otherwise — no un-loginable accounts, no staff
   accounts drifting onto the portal provider. Becomes a DB CHECK constraint on the
   Postgres switch (ADR-002).
+  - **Updated by ADR-103 (2026-11-14), recording what the code enforces today.**
+    Every account needs an **email or a phone** (the admin's Add user and
+    editor, and everybody's My account); an **agent who has a phone keeps it**
+    (it is how he signs in); the "staff ⇒ email" half was never enforced by the
+    V2 Users screen and is not now — sign-in accepts either identifier for every
+    role (`lib/auth/index.ts`), so no account becomes un-loginable. Nobody but
+    the healer's own accounts may hold one of its addresses
+    (`RESERVED_ADMIN_EMAILS`, `services/bootstrap.ts`).
 - Sign-up (portal only, §8.1): Zod-validated, CV upload validated (type/size) before
   user creation; account active immediately (A-4), `active=false` kill-switch for
   admin (effective per ADR-017 above).

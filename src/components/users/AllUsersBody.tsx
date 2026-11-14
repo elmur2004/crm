@@ -5,7 +5,7 @@ import {
   CreateUserForm,
   DeleteUserButton,
   EditUserButton,
-} from "@/components/bsystems/users";
+} from "@/components/users/admin-controls";
 import { tFor } from "@/lib/i18n/core";
 import { getLocale } from "@/lib/i18n/server";
 import { common, roleBadges, usersAdmin as d } from "@/lib/i18n/dict/admin";
@@ -13,14 +13,21 @@ import { common, roleBadges, usersAdmin as d } from "@/lib/i18n/dict/admin";
 /* V2 §2.10 — every user; create with role/entity assignment; remove
    (deactivate, reversible); impersonate = open their account directly.
 
+   ADR-103 — the "All users" view of the Users app (/users), the B-Systems
+   admin's alone. Every type of account is on it — admins, internal sales,
+   agents, partners, data entry and ByteForce staff — because the app is the
+   platform's, not one company's. It used to be a page of the B-Systems CRM
+   (UsersBody); the page around it now draws the heading, the tabs and the
+   launcher's own bar, so this is the table and its one action.
+
    ADR-075 made this body take a SURFACE so two administrators could share one
    screen; ADR-080 removed the second administrator and the surface stays, minus
    its `scope`. What it still carries is real: the API namespace the writes go to
    and the roles this administrator may grant, both passed in rather than assumed.
 
    Every wall here is a courtesy. The SERVICE refuses an ungrantable role on its
-   own (`assertGrantable`), which is what makes the screen safe rather than
-   merely tidy. */
+   own (`assertGrantable`), and every write is `requireBsAdmin`, which is what
+   makes the screen safe rather than merely tidy. */
 
 export interface UsersSurface {
   apiBase: string;
@@ -33,21 +40,15 @@ export interface UsersSurface {
   impersonate?: (targetUserId: string) => Promise<void>;
 }
 
-export async function UsersBody({ ctx, viewerId }: { ctx: UsersSurface; viewerId: string }) {
+export async function AllUsersBody({ ctx, viewerId }: { ctx: UsersSurface; viewerId: string }) {
   const users = await listUsers();
   const locale = await getLocale();
   const t = tFor(locale);
 
   return (
-    <div className="space-y-6">
-      <div className="page-head">
-        <div>
-          <p className="u-eyebrow">{t(d.eyebrow)}</p>
-          <h1 className="u-h1">{t(d.title)}</h1>
-        </div>
-        <div className="page-actions">
-          <CreateUserForm apiBase={ctx.apiBase} assignableRoles={ctx.assignableRoles} />
-        </div>
+    <div className="space-y-4">
+      <div className="lx-section-actions">
+        <CreateUserForm apiBase={ctx.apiBase} assignableRoles={ctx.assignableRoles} />
       </div>
       <div className="card card--flush0">
         <div className="table-scroll">
@@ -146,8 +147,11 @@ export async function UsersBody({ ctx, viewerId }: { ctx: UsersSurface; viewerId
             </tbody>
           </table>
         </div>
+        {/* inside the card (solid data), not on the glass ground below it:
+            plain muted text on the ground's glow falls under 4.5:1 (the
+            brand audit, 2026-11-14) */}
+        {ctx.impersonate ? <p className="panel-hint">{t(d.impersonateFootnote)}</p> : null}
       </div>
-      {ctx.impersonate ? <p className="u-footnote">{t(d.impersonateFootnote)}</p> : null}
     </div>
   );
 }

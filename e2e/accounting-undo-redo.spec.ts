@@ -85,7 +85,7 @@ const loginAsFounder = (page: Page) =>
     module boxes stay ticked, so he is born with Accounting (module-access.spec
     covers withholding it). */
 async function createAdmin(page: Page, who: { name: string; email: string }) {
-  await page.goto("/b-systems/users");
+  await page.goto("/users");
   await page.getByRole("button", { name: "Add user" }).click();
   await page.getByLabel("Name").fill(who.name);
   await page.getByLabel("Email").fill(who.email);

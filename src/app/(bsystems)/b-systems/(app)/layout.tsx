@@ -56,7 +56,10 @@ import { regRoleBadges } from "@/lib/i18n/dict/admin";
    his answers: the company switch ("two CRM icons, no switch"), the module
    switcher and its phone bar (the launcher is the one way between apps), and
    the logo link (the grid icon is the one way back to the launcher). The
-   cross-company SEARCH hop (ADR-085) stays: it is automatic, not a menu. */
+   cross-company SEARCH hop (ADR-085) stays: it is automatic, not a menu.
+   ADR-103 (2026-11-14) took Users OUT of this shell — the founder: "separate
+   it, just put the users … in a different app" — so it hosts five now, and
+   /users wears the launcher's own bar instead of this header. */
 
 const ROLE_LABELS: Record<string, Msg> = roles;
 
@@ -148,7 +151,6 @@ export default async function BSystemsAppLayout({
               partners: t(launcher.partners),
               todo: t(launcher.todo),
               reports: t(launcher.reports),
-              users: t(launcher.users),
             }}
             fallback={fallback}
           />

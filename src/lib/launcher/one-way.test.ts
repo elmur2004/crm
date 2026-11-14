@@ -2,7 +2,14 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { ROLES, type Role } from "@/lib/pipeline-engine/constants";
-import { LAUNCHER_PATH, REPORTS_PATH, launcherTilesFor, reportsFor, type LauncherBearer } from "./apps";
+import {
+  LAUNCHER_PATH,
+  REPORTS_PATH,
+  USERS_PATH,
+  launcherTilesFor,
+  reportsFor,
+  type LauncherBearer,
+} from "./apps";
 import { appMenusFor, doorsFor, pageKey } from "./menus";
 
 /* ============================================================================
@@ -204,8 +211,9 @@ describe("the menu-level doors each persona is shown (the founder's table)", () 
     ]);
     expect(m.todo).toEqual([]);
     expect(m.users).toEqual([]);
-    /* …so its tile is the ONE way to the Users page — and it is no CRM's */
-    const doors = doorsFor(PERSONAS.founder!).get("/b-systems/users?company=bsystems");
+    /* …so its tile is the ONE way to the Users page — and it is no CRM's
+       (ADR-103: /users, outside the shell, with no company on it) */
+    const doors = doorsFor(PERSONAS.founder!).get(USERS_PATH);
     expect(doors).toEqual([{ app: "users", kind: "tile" }]);
     expect(m.reports).toEqual([
       "/b-systems?company=bsystems",
@@ -222,14 +230,16 @@ describe("the menu-level doors each persona is shown (the founder's table)", () 
     ]);
     for (const name of ["agent", "partner"]) {
       const m = appMenusFor(PERSONAS[name]!);
-      expect(Object.keys(m), name).toEqual(["crm-bsystems", "todo", "reports"]);
+      expect(Object.keys(m), name).toEqual(["crm-bsystems", "todo", "users", "reports"]);
+      /* ADR-103 — no Profile: it is My account, behind the Users tile, and a
+         menu item as well would be a second way to it */
       expect(strip(m["crm-bsystems"])).toEqual([
         "/b-systems/crm?company=bsystems",
         "/b-systems/calendar?company=bsystems",
         "/b-systems/won-leads?company=bsystems",
         "/b-systems/payments?company=bsystems",
-        "/b-systems/profile?company=bsystems",
       ]);
+      expect(doorsFor(PERSONAS[name]!).get(USERS_PATH)).toEqual([{ app: "users", kind: "tile" }]);
       /* his one report, which the Reports tile opens directly */
       expect(m.reports).toEqual(["/b-systems/daily-report?company=bsystems"]);
     }
@@ -237,15 +247,15 @@ describe("the menu-level doors each persona is shown (the founder's table)", () 
 
   it("a ByteForce-only teammate", () => {
     const m = appMenusFor(PERSONAS.byteforceOnly!);
-    expect(Object.keys(m)).toEqual(["crm-byteforce", "todo", "reports"]);
+    expect(Object.keys(m)).toEqual(["crm-byteforce", "todo", "users", "reports"]);
     /* founder 2026-11-08 — the ByteForce dashboard is the ByteForce admin's */
     expect(m.reports).toEqual(["/b-systems/daily-report?company=byteforce"]);
   });
 
-  it("data entry: one tile, no menu at all", () => {
-    expect(appMenusFor(PERSONAS.dataEntry!)).toEqual({ "crm-bsystems": [] });
+  it("data entry: its entry page and its account — two tiles, and no menu at all", () => {
+    expect(appMenusFor(PERSONAS.dataEntry!)).toEqual({ "crm-bsystems": [], users: [] });
     const doors = doorsFor(PERSONAS.dataEntry!);
-    expect([...doors.keys()]).toEqual(["/b-systems/entry?company=bsystems"]);
+    expect([...doors.keys()]).toEqual(["/b-systems/entry?company=bsystems", USERS_PATH]);
   });
 });
 
@@ -275,6 +285,8 @@ describe("every section page still has a way in — none orphaned", () => {
     ...staticPages(path.join(APP, "(accounting)")),
     ...staticPages(path.join(APP, "(vault)")),
     REPORTS_PATH,
+    /* ADR-103 — the Users app, beside the launcher in the (home) group */
+    USERS_PATH,
   ];
 
   it("the section list is real", () => {
@@ -361,6 +373,13 @@ describe("the controls one-way-in removed are gone, not hidden", () => {
     const code = read("src/app/(home)/apps/reports/page.tsx");
     expect(code.match(/href=\{LAUNCHER_PATH\}/g)?.length).toBe(1);
     expect(LAUNCHER_PATH).toBe("/apps");
+  });
+
+  it("…and from the Users app too (ADR-103) — which wears the launcher's bar, not a CRM header", () => {
+    const code = read("src/app/(home)/users/page.tsx");
+    expect(code.match(/href=\{LAUNCHER_PATH\}/g)?.length).toBe(1);
+    expect(code).toMatch(/<LauncherChrome /);
+    expect(code).not.toMatch(/app-header/);
   });
 });
 

@@ -10,7 +10,7 @@ import { formatCairo } from "@/lib/datetime";
 import { waHref } from "@/lib/phone-dial";
 import { WhatsappChip } from "@/components/shared/WhatsappChip";
 import { waSentLabel, whatsappMarkOf } from "@/components/shared/whatsappMark";
-import { tFor, type Msg } from "@/lib/i18n/core";
+import { tFor } from "@/lib/i18n/core";
 import { getLocale } from "@/lib/i18n/server";
 import { leadTypeLabel, ownerTypeLabel } from "@/lib/i18n/dict/labels";
 import { common, crmPage, leadDetail as m } from "@/lib/i18n/dict/crm";
@@ -31,9 +31,8 @@ import {
   EditLeadForm,
   type AssignableOwner,
 } from "@/components/bsystems/leadActions";
-import { listAssignableOwners } from "@/lib/services/users";
+import { assignRosterFor } from "@/lib/services/assign-roster";
 import { followUpAssignees } from "@/lib/services/assignees";
-import { roles as roleMsgs } from "@/lib/i18n/dict/crm";
 import { LeadChat } from "@/components/shared/LeadChat";
 import { listLeadComments, mentionableUsersFor } from "@/lib/services/comments";
 import type { BsFormRole } from "@/components/bsystems/roleForms";
@@ -100,21 +99,14 @@ export async function BsLeadDetailBody({
      "Also blocks" picker, so a literal here would offer B-Systems' people on a
      Mindoo meeting and make a Mindoo meeting occupy the wrong calendar. */
   const calendarPeople = await listCalendarPeople(ctx.brand);
-  /* founder: only the admin hands a lead to someone — labels resolved here so
-     the client component stays string-free (V5 bilingual rule) */
-  const roleLabels: Record<string, Msg> = roleMsgs;
-  /* ADR-073 — the roster is B-SYSTEMS' agents, partners and internal sales.
-     A Mindoo lead must never be assignable to one of them, so the control is
-     withheld outside B-Systems regardless of `isAdmin`. */
+  /* founder: only the admin hands a lead to someone — the shared roster
+     (services/assign-roster.ts), labels resolved on the server so the client
+     component stays string-free (V5 bilingual rule).
+     ADR-073 — the roster is B-SYSTEMS' agents, partners and internal sales.
+     A lead of any other company must never be assignable to one of them, so
+     the control is withheld outside B-Systems regardless of `isAdmin`. */
   const assignableOwners: AssignableOwner[] = access.isAdmin && ctx.brand === "bsystems"
-    ? (await listAssignableOwners()).map((o) => ({
-        id: o.id,
-        name: o.name,
-        company: o.company,
-        roleLabel: t(
-          roleLabels[o.roles.find((r) => roleLabels[r]) ?? ""] ?? roleMsgs.bsystems_agent,
-        ),
-      }))
+    ? await assignRosterFor("bsystems", access.user, locale, { includeSelf: false })
     : [];
   /* Founder (2026-11-08) — the follow-up forms' "Hand this follow-up to": the
      COMPANY ADMIN's only (the event route refuses an assignee from anyone else). */

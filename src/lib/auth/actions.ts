@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { signIn, signOut } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { identifierKind, normalizePhone } from "./phone";
-import { LAUNCHER_PATH } from "@/lib/launcher/apps";
+import { LAUNCHER_PATH, USERS_PATH } from "@/lib/launcher/apps";
 
 /* Consolidated sign-in (ADR-028): one action, one page. After authentication
    every account lands on the app launcher (ADR-090, founder: "Home after
@@ -69,7 +69,8 @@ export async function impersonate(targetUserId: string): Promise<void> {
   try {
     await signIn("impersonation", { token, redirect: false });
   } catch (err) {
-    if (err instanceof AuthError) redirect("/b-systems/users?error=impersonation");
+    /* back to the Users app it was started from (ADR-103), which says so */
+    if (err instanceof AuthError) redirect(`${USERS_PATH}?error=impersonation`);
     throw err;
   }
   redirect(LAUNCHER_PATH);

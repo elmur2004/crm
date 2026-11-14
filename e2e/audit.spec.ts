@@ -41,7 +41,7 @@ test("audit: admin pages", async ({ page }) => {
   await shoot(page, "admin-partnership", "/b-systems/partners-pipeline");
   await shoot(page, "admin-registrations", "/b-systems/registrations");
   await shoot(page, "admin-statements", "/b-systems/statements");
-  await shoot(page, "admin-users", "/b-systems/users");
+  await shoot(page, "admin-users", "/users");
 });
 
 test("audit: agent + public + byteforce", async ({ page }) => {
@@ -52,7 +52,7 @@ test("audit: agent + public + byteforce", async ({ page }) => {
   await login(page, "01001234567", "partner123", /\/b-systems\/crm$/);
   await shoot(page, "agent-crm", "/b-systems/crm");
   await shoot(page, "agent-won", "/b-systems/won-leads");
-  await shoot(page, "agent-profile", "/b-systems/profile");
+  await shoot(page, "agent-account", "/users");
   await page.goto("/login");
   await login(page, "sara@byteforce.example", "byteforce123", /\/b-systems\/crm\?company=byteforce$/);
   await shoot(page, "bf-home", "/b-systems?company=byteforce");

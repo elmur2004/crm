@@ -102,7 +102,7 @@ test("no lead, book, vault row or account of that company survives a search", as
   }
 
   /* the Users table: the retired account is not listed, under any tab */
-  await page.goto("/b-systems/users");
+  await page.goto("/users");
   await expect(page.getByText("admin@mindoo.com")).toHaveCount(0);
   await expect(page.getByText("mona@mindoo.example")).toHaveCount(0);
   /* the founder's own account is still listed, so an empty page cannot pass */

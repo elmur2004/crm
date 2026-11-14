@@ -7,6 +7,7 @@ import { isValidPhone, normalizePhone } from "@/lib/auth/phone";
 import { ROLES, type Role } from "@/lib/pipeline-engine/constants";
 import { storage } from "@/lib/storage";
 import { writeLog, type Actor } from "./activity";
+import { BOOTSTRAP_ADMIN_EMAILS, isReservedAdminEmail } from "./bootstrap";
 import { invalidateUndo } from "./undo";
 
 /* V2 §2.10 / §11 — Users management (admin): list everyone, create accounts with
@@ -133,6 +134,11 @@ export async function createUser(input: z.infer<typeof createUserSchema>, actor:
   if (email && (await db.user.findUnique({ where: { email } }))) {
     throw new ApiError(409, "An account with this email already exists");
   }
+  /* ADR-103 (review) — the healer's addresses are nobody's: an account on a
+     legacy one is renamed INTO the main admin when he is missing (bootstrap.ts) */
+  if (email && isReservedAdminEmail(email)) {
+    throw new ApiError(409, "That email is reserved for the main admin");
+  }
   if (phone && (await db.user.findUnique({ where: { phone } }))) {
     throw new ApiError(409, "An account with this phone already exists");
   }
@@ -198,6 +204,15 @@ export async function updateUser(
 
   const email = input.email?.trim().toLowerCase();
   const phone = input.phone ? normalizePhone(input.phone) : undefined;
+  /* ADR-103 (review) — the pinned admin's email is the key the healer finds
+     him by: moved, the next sign-in would CREATE a second admin. And no other
+     account may take one of the healer's addresses (bootstrap.ts). */
+  if (email && email !== user.email && user.email && BOOTSTRAP_ADMIN_EMAILS.includes(user.email)) {
+    throw new ApiError(400, "The main admin's email is fixed — the system recognises the admin by it");
+  }
+  if (email && email !== user.email && isReservedAdminEmail(email)) {
+    throw new ApiError(409, "That email is reserved for the main admin");
+  }
   if (email && email !== user.email) {
     const clash = await db.user.findUnique({ where: { email } });
     if (clash && clash.id !== userId) throw new ApiError(409, "That email belongs to another account");

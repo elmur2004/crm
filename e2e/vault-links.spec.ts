@@ -290,7 +290,7 @@ test("an admin blocked from the Data Vault reaches neither the page nor the API"
   await loginAsFounder(page);
 
   /* make him through the real Add-user form, with the Data Vault withheld */
-  await page.goto("/b-systems/users");
+  await page.goto("/users");
   await page.getByRole("button", { name: "Add user" }).click();
   await page.getByLabel("Name").fill("Links NoVault");
   await page.getByLabel("Email").fill(BLOCKED_EMAIL);

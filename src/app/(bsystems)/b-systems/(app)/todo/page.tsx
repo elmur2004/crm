@@ -7,14 +7,8 @@ import { TodoBody } from "@/components/shared/TodoBody";
 import { CompanyTabs } from "@/components/shared/CompanyTabs";
 import { workingCompaniesFor } from "@/lib/launcher/apps";
 import { TodoRowActions, type TodoAssign } from "@/components/bsystems/TodoRowActions";
-import { listAssignableOwners, listByteforceOwners } from "@/lib/services/users";
-import { tFor, type Msg } from "@/lib/i18n/core";
+import { assignRosterFor } from "@/lib/services/assign-roster";
 import { getLocale } from "@/lib/i18n/server";
-import { roles as roleMsgs } from "@/lib/i18n/dict/crm";
-import { regRoleBadges } from "@/lib/i18n/dict/admin";
-
-/* the ByteForce roster's one role, in the Registrations screen's own words */
-const bfStaffLabel: Msg = regRoleBadges.byteforce_staff!;
 
 /* its own app now (one way to each page): named as its launcher tile is */
 export const metadata = { title: "To-Do" };
@@ -67,21 +61,9 @@ export default async function BsTodoPage({
   let rowActions: ((item: TodoItem) => ReactNode) | undefined;
   if (isCompanyAdmin(user, company)) {
     const locale = await getLocale();
-    const t = tFor(locale);
-    const roleLabels: Record<string, Msg> = roleMsgs;
-    const owners =
-      company === "byteforce"
-        ? (await listByteforceOwners())
-            .filter((o) => o.id !== user.id)
-            .map((o) => ({ id: o.id, name: o.name, company: null, roleLabel: t(bfStaffLabel) }))
-        : (await listAssignableOwners()).map((o) => ({
-            id: o.id,
-            name: o.name,
-            company: o.company,
-            roleLabel: t(
-              roleLabels[o.roles.find((r) => roleLabels[r]) ?? ""] ?? roleMsgs.bsystems_agent,
-            ),
-          }));
+    /* the shared roster (services/assign-roster.ts) — WITHOUT the admin
+       himself here: every To-Do row carries its own Take it button */
+    const owners = await assignRosterFor(company, user, locale, { includeSelf: false });
     const assign: TodoAssign = { owners, selfUserId: user.id, locale, apiBase, company };
     rowActions = (item) => <TodoRowActions item={item} assign={assign} />;
   }

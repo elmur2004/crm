@@ -6921,3 +6921,158 @@ unchanged:
 - **`prisma/schema.prisma` shows as modified, but not by this work**; the
   implementing agent reports it unchanged. It stays out of this push, along
   with the other local work recorded in the 2026-10-26 entries.
+
+## 2026-11-14 — ADR-103/104: the Users app for every account (My account), Assign on every row, and a deploy that has not happened since 2026-11-08
+
+**Founder, verbatim:** *"the sales rep in byteforce or bsystems just sees the
+assigned leads for him Their unassigned leads just as seen by the admin and the
+admin has a click or option for each lead to assign it or to change the assignee
+of that lead … every sales Rep just sees the assigned lead for him if he adds any
+leads it will be automatically assigned by him … But if it's unassigned he cannot
+see it … then if the admin want to show them one of these assigned leads just
+assign it to them. Also make sure that in the main page the welcome page there is
+a dedicated icon for the users. The users currently for the entire systems are
+sitting inside the bsystems CRM. Separate it, just put the users, every single
+type of users, put it in a different app, or let's say an icon in the desktop
+page, and then for the admin he of course can change all the users and all of
+that. If it's for a normal user, he can click on it to change his information
+too, so he can change his name, he can change his password and all of that."*
+
+### Why he asked again: production never took 5440df3
+
+- **`crm.byteforceinc.com` still serves the build from before 2026-11-08.** On
+  2026-11-14 at 10:42Z the Run 108 probe still answered the old way:
+  `POST /api/byteforce/leads/probe/assign` → **404** (the new build answers
+  401), and `/b-systems/users` → 307 to sign-in. `/api/health` reads `ok: true`
+  and `schemaCurrent: true` against the OLD build's own migrations, with
+  `build.commit: null`.
+- **So the founder is looking at the old code**: unassigned leads in front of
+  everyone, Users inside the B-Systems CRM. The visibility half of today's
+  message is ADR-098, unchanged since its push on 2026-11-08.
+- **Checked from here, and unlikely:**
+  - a failed backfill: the SQL was re-read against the live columns, it has no
+    data-dependent failure, and `start.mjs` boots anyway;
+  - a Node-version API in 5440df3: none;
+  - an import-case mismatch: none (Run 108).
+- **Not visible from here:** whether the host built, failed or was never
+  triggered. It reports nothing to GitHub, and its response headers name no
+  host (Cloudflare in front, a container with `/app/uploads` behind it).
+- **Founder action needed:** open the hosting panel's deployments for the
+  2026-11-08 push. If it failed or never started, redeploy `main`. This
+  session's push is a fresh trigger, and it carries 5440df3 with it.
+
+### Done
+
+- **ADR-103 — the Users app, for every account.**
+  - Its own page at `/users`, in the `(home)` group beside the launcher, with
+    the launcher's bar, ground and "All apps" link, in the neutral scope.
+  - The tile goes to every account that holds a role.
+  - **The B-Systems admin** sees **All users** (every account of every type,
+    both companies) and **My account** (`?tab=me`).
+  - **Everybody else** sees **My account** only, whatever the address asks for.
+  - **My account** (`services/my-account.ts`, behind `PATCH /api/me`,
+    `POST /api/me/password` and `POST /api/me/cv`) covers:
+    - name (an agent's is first + last; a partner account's is its company's
+      and stays locked);
+    - email and phone (at least one stays; an agent who has a phone keeps it);
+    - the password, with the current one;
+    - an agent's address, speciality and CV.
+  - Roles, module flags and status are never sent or changed. The pinned
+    admin's email and password are refused.
+  - **Profile left the agent and partner menus.** `/b-systems/users` and
+    `/b-systems/profile` redirect at the edge (`movedOutOfShellPath`). The two
+    shell pages, the `/api/b-systems/profile/**` routes and `profileForms.tsx`
+    are deleted. The Users components moved to `src/components/users/`.
+  - **Resolves A-10's phone question.**
+- **ADR-104 — Assign owner on every row** of the admin's B-Systems Leads table
+  and of each ByteForce owner list, Unassigned included. It uses one roster,
+  `services/assign-roster.ts`, which the two lead pages and the To-Do now use
+  too.
+- **The pre-push reviews**, both FAIL and both fixed before the gate's final
+  run (ADR-103 §6):
+  - **spec-guardian:**
+    - a latent escalation through the healer's legacy address, now refused on
+      My account, Add user and the editor, with the pinned email locked in the
+      editor;
+    - notes added to SPEC §8.1 and A-10;
+    - "agent" now means the role AND the profile;
+    - impersonated edits are labelled "(via …)";
+    - a roster test added.
+  - **brand-auditor:**
+    - the footnote moved into its card;
+    - the selected tab is the solid house pill;
+    - an Arabic reset for table heads, labels, badges and modal eyebrows;
+    - **BUG-034** (the light neutral focus ring, older than this change)
+      logged, open.
+- **Docs:**
+  - ADR-103 and ADR-104;
+  - SPEC notes at §4.4, the §6 intro, §7.1 (×2), §8.1, §8.4 and §11 A-10;
+  - IMPLEMENTATION (the Users app's six gotchas);
+  - ARCHITECTURE §7 (the identifier rule as enforced);
+  - BUGS (BUG-034), CHANGELOG, TESTING Run 109, and this entry.
+
+### Verified (TESTING Run 109 — the clean-worktree gate on the pushed set)
+
+- **`tsc`:** exit 0.
+- **vitest:** `Test Files  93 passed (93)` / `Tests  1953 passed | 3 skipped
+  (1956)`. These are the same 3 skips as Run 108. This repo's vitest exits 0
+  even when tests fail, so these are the printed summaries.
+- **Full Playwright:** `337 passed (36.8m)`, `9 skipped`, `1 failed`.
+  - The failure was a new test's locator, `users-app.spec.ts:45`:
+    `getByRole('alert')` also matched Next's route announcer.
+  - The spec was fixed and re-gated: `users-app`, `launcher` and
+    `security-rbac` gave `21 passed (3.0m)`, `EXIT 0`.
+- **72 screenshots:** light/dark × EN/AR × 390/1440. There is no horizontal
+  scroll on any page (`8 passed (3.2m)`).
+
+### Next steps
+
+1. **The founder checks the host** (above). Then verify the deploy from outside:
+   - `POST /api/byteforce/leads/probe/assign`: 404 → 401;
+   - an anonymous `GET /users`: 404 on the old build → 307 to `/login`;
+   - `/b-systems/users`: 307 to `/users`;
+   - `/api/health`: `schemaCurrent: true` with `pendingMigrations: []`, since
+     5440df3's backfill migration runs at that boot.
+2. **BUG-034** (the light neutral focus ring), in its own small round with
+   screenshots.
+
+### Blockers
+
+- **The deploy.** It is outside the repo; only the founder's hosting panel can
+  say what happened.
+
+### Needs founder confirmation
+
+**New this session: five.**
+
+ADR-103 (four):
+1. The tile is labelled "Users" for everyone, and a non-admin's page says "My
+   account".
+2. A person can change his own sign-in email with no confirmation email.
+3. A partner account's name stays its company's.
+4. The current-password field shows what is typed (kept from Profile).
+
+ADR-104 (one):
+1. Assign on the board cards too?
+
+**Carried from 2026-11-08, unresolved: thirteen.**
+- ADR-098 (four), ADR-099 (four), ADR-100 (two) and ADR-101 (one).
+- The leak review's two admin powers:
+  - any `bsystems_admin` can impersonate any account;
+  - any `bsystems_admin` can grant himself `byteforce_staff`.
+
+They are unchanged; see that entry.
+
+**Carried from before that: twenty-three.** ADR-096 (one), ADR-097 (ten),
+ADR-093 (five), ADR-094 (one) and ADR-095 (six), as listed in the 2026-11-08
+entry. Its "Carried forward, still open" list also stands unchanged.
+
+**Resolved this session:** A-10's "phone change = ADR" (ADR-103).
+
+### Left in the working tree
+
+- The landing work and the four never-committed files (`next.config.ts`,
+  `prisma/schema.prisma`, `backup.ts`, `db-reset.ts`), as before.
+- **The landing work needs its own ADR number.** Its `next.config.ts` comment
+  cites "ADR-086", but the committed ADR-086 is the books' undo and redo. The
+  landing font decision needs **ADR-105 or later** when it ships.

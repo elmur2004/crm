@@ -202,7 +202,6 @@ test("internal sales: own leads only, no admin APIs; brands stay partitioned", a
   await staffPage.goto("/b-systems?company=bsystems");
   await expect(staffPage).toHaveURL(/company=byteforce/);
   for (const section of [
-    "/b-systems/users",
     "/b-systems/registrations",
     "/b-systems/statements",
     "/b-systems/won-leads",
@@ -210,7 +209,6 @@ test("internal sales: own leads only, no admin APIs; brands stay partitioned", a
     "/b-systems/partners-pipeline",
     "/b-systems/agents",
     "/b-systems/payments",
-    "/b-systems/profile",
     "/b-systems/entry",
   ]) {
     const res = await staffPage.goto(section);
@@ -218,6 +216,18 @@ test("internal sales: own leads only, no admin APIs; brands stay partitioned", a
        bsRoleOf turning a refusal into a 500 that merely looks like a refusal */
     expect(res?.status(), `${section} must refuse without erroring`).toBe(200);
     await expect(staffPage).toHaveURL(/company=byteforce/);
+  }
+  /* ADR-103 — the two addresses that LEFT the shell land on the Users app,
+     where a ByteForce teammate sees his own account and nobody else's */
+  for (const [old, to] of [
+    ["/b-systems/users", /\/users$/],
+    ["/b-systems/profile", /\/users\?tab=me$/],
+  ] as const) {
+    const res = await staffPage.goto(old);
+    expect(res?.status(), old).toBe(200);
+    await expect(staffPage).toHaveURL(to);
+    await expect(staffPage.getByRole("heading", { level: 1, name: "My account" })).toBeVisible();
+    await expect(staffPage.getByRole("button", { name: "Add user" })).toHaveCount(0);
   }
   const crossBrand = await staffPage.request.post("/api/b-systems/leads", {
     data: { name: "x", number: "1", type: "cold_call" },

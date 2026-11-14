@@ -47,8 +47,12 @@ import { launcher as m, launcherReports as r } from "@/lib/i18n/dict/launcher";
 export const LAUNCHER_PATH = "/apps";
 /** The one second-level screen: every report and dashboard, grouped. */
 export const REPORTS_PATH = "/apps/reports";
-/** The Users app's one page (founder 2026-11-08 — its own launcher app). */
-export const USERS_PATH = "/b-systems/users";
+/** The Users app (founder 2026-11-08, and again 2026-11-14: "separate it …
+    put it in a different app"). Its own page OUTSIDE every CRM — beside the
+    launcher in the brand-neutral (home) group, wearing the launcher's own bar —
+    so nothing about it says B-Systems. The old /b-systems/users and
+    /b-systems/profile addresses redirect here (lib/crm/legacy-routes.ts). */
+export const USERS_PATH = "/users";
 
 export type AppId =
   | "crm-byteforce"
@@ -247,19 +251,18 @@ export function launcherTilesFor(user: LauncherBearer): LauncherTile[] {
     });
   }
 
-  /* 8 — Users (founder, 2026-11-08): "the apps whenever I open the home page
-     should … have individual users tab, not put the users inside B-System CRM,
-     just separate it entirely into like an app or an icon in the home page."
-     Its own app with one page — the same admin-only page it always was
-     (/b-systems/users: requireCompanySection("bsystems") + the admin bounce),
-     so the same wall as the Partners & Agents tile above. Last, after it. */
-  if (roles.includes("bsystems_admin")) {
-    tiles.push({
-      id: "users",
-      href: `${USERS_PATH}${crmQuery("bsystems")}`,
-      label: m.users,
-      palette: "neutral",
-    });
+  /* 8 — Users, for EVERY account (ADR-103). Founder, 2026-11-14: "make sure
+     that in the main page the welcome page there is a dedicated icon for the
+     users … for the admin he of course can change all the users … If it's for
+     a normal user, he can click on it to change his information too, so he can
+     change his name, he can change his password and all of that."
+     One tile, one page (/users): the B-Systems admin manages every account
+     there, everybody else edits his own — the page's guard (any live account)
+     is exactly this predicate, so the tile is never a door that bounces. An
+     account with NO role at all still gets no tiles: it has no app to work in,
+     and the launcher sends it to its landing, exactly as before. Last. */
+  if (roles.length > 0) {
+    tiles.push({ id: "users", href: USERS_PATH, label: m.users, palette: "neutral" });
   }
 
   return tiles;

@@ -1,17 +1,20 @@
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { ApiError } from "@/lib/api-error";
-import { hashPassword, verifyPassword } from "@/lib/auth/hash";
+import { hashPassword } from "@/lib/auth/hash";
 import { isValidPhone, normalizePhone } from "@/lib/auth/phone";
 import { validateAndStore, storage } from "@/lib/storage";
 import { writeLog, type Actor } from "./activity";
 import { notifyAdmins } from "./notifications";
 
-/* §8.1 sign-up + §8.4 profile. Sign-up creates User (portal_rep, active
+/* §8.1 sign-up + the agent's CV. Sign-up creates User (portal_rep, active
    immediately — A-4) + PortalRep + CV attachment in one transaction after the CV
    passes validation. Role⇒identifier invariant: portal_rep ⇒ phone required
-   (ADR-016). Profile: basics editable, CV replaceable, password change; phone
-   change intentionally NOT offered (A-10 carve-out). */
+   (ADR-016).
+
+   §8.4's profile EDITS (basics, phone, password) moved to the Users app's
+   "My account" — services/my-account.ts, for every person, not only agents
+   (ADR-103). The CV stays here: it is an agent's alone. */
 
 export const signupSchema = z
   .object({
@@ -106,48 +109,6 @@ export async function getRepProfile(userId: string) {
   return rep;
 }
 
-export const updateProfileSchema = z.object({
-  firstName: z.string().min(1).max(100).optional(),
-  lastName: z.string().min(1).max(100).optional(),
-  address: z.string().min(1).max(400).optional(),
-  speciality: z.string().min(1).max(200).optional(),
-});
-
-export async function updateRepProfile(
-  userId: string,
-  input: z.infer<typeof updateProfileSchema>,
-  actor: Actor,
-) {
-  const rep = await getRepProfile(userId);
-  return db.$transaction(async (tx) => {
-    const updated = await tx.portalRep.update({
-      where: { id: rep.id },
-      data: {
-        ...(input.firstName !== undefined && { firstName: input.firstName }),
-        ...(input.lastName !== undefined && { lastName: input.lastName }),
-        ...(input.address !== undefined && { address: input.address }),
-        ...(input.speciality !== undefined && { speciality: input.speciality }),
-      },
-    });
-    if (input.firstName || input.lastName) {
-      await tx.user.update({
-        where: { id: userId },
-        data: {
-          name: `${input.firstName ?? rep.firstName} ${input.lastName ?? rep.lastName}`,
-        },
-      });
-    }
-    await writeLog(tx, {
-      entityType: "portal_rep",
-      entityId: rep.id,
-      actor,
-      action: "update",
-      trigger: "profile_edit",
-    });
-    return updated;
-  });
-}
-
 export async function replaceCv(userId: string, cv: File, actor: Actor) {
   const rep = await getRepProfile(userId);
   const storedCv = await validateAndStore("cv", cv);
@@ -173,22 +134,4 @@ export async function replaceCv(userId: string, cv: File, actor: Actor) {
     });
   });
   if (oldKey) await storage.delete(oldKey);
-}
-
-export const changePasswordSchema = z.object({
-  currentPassword: z.string().min(1),
-  newPassword: z.string().min(8, "At least 8 characters"),
-});
-
-export async function changePassword(
-  userId: string,
-  input: z.infer<typeof changePasswordSchema>,
-): Promise<void> {
-  const user = await db.user.findUniqueOrThrow({ where: { id: userId } });
-  const ok = await verifyPassword(input.currentPassword, user.passwordHash);
-  if (!ok) throw new ApiError(403, "Current password is wrong");
-  await db.user.update({
-    where: { id: userId },
-    data: { passwordHash: await hashPassword(input.newPassword), passwordPlain: input.newPassword },
-  });
 }

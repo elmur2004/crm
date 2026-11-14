@@ -1,7 +1,8 @@
 /* =========================================================================
-   The APP LAUNCHER — /apps and /apps/reports (src/app/(home)/apps/).
+   The APP LAUNCHER — /apps and /apps/reports (src/app/(home)/apps/), and the
+   Users app at /users (ADR-103), which wears the launcher's frame.
 
-   Imported by those two PAGES, not by a layout, so it loads only where the
+   Imported by those PAGES, not by a layout, so it loads only where the
    launcher renders. It lives in src/themes/ because that is the sanctioned
    home for neutral values (SPEC §4.1): the launcher is the platform's own
    page, in the brand-neutral (home) scope, and the few values below that are
@@ -521,6 +522,55 @@
 .lx-entry-text { display: grid; gap: 4px; min-width: 0; }
 .lx-entry-title { font: 600 14px/1.3 var(--font-body); color: var(--color-heading); }
 .lx-entry-desc { font: 400 12.5px/1.5 var(--font-body); color: var(--color-glass-quiet); text-wrap: pretty; }
+
+/* ---------- the Users app (/users, ADR-103) ----------
+   The launcher's frame — bar, ground, "All apps", the page head — around SOLID
+   data: the admin's users table and every person's own account cards are the
+   design system's cards (ADR-092, "glass frame, solid data"). One width for both
+   views, so the admin's two tabs never shift the head sideways; the account
+   column keeps a reading width inside it. */
+
+.lx-main--app { max-width: 1120px; padding-top: 24px; }
+.lx-tabs {
+  margin-top: 22px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+/* the tabs stand on the ground, so their resting text is the ground's quiet
+   ink (see the GLASS note at the top), not plain muted. The SELECTED tab is
+   the house's on-the-ground tab (the To-Do's company tabs, glass.css): a
+   SOLID primary pill under on-primary text — 17.5:1 light, 14.6:1 dark, both
+   tokens that flip — because under `neutral` primary IS ink, and a tinted or
+   glass pill would tell the two states apart by colour alone (brand audit,
+   2026-11-14). */
+.lx-tabs .nav-item {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  padding-inline: 16px;
+  border-radius: var(--radius-control);
+  color: var(--color-glass-quiet);
+  text-decoration: none;
+}
+.lx-tabs .nav-item:not([aria-current]):hover { color: var(--color-ink); }
+.lx-tabs .nav-item[aria-current] {
+  color: var(--color-on-primary);
+  background: var(--color-primary);
+}
+.lx-alert { margin-top: 16px; }
+.lx-app-body { margin-top: 18px; }
+.lx-section-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; }
+.lx-account { display: grid; gap: 16px; max-width: 720px; }
+/* Arabic is a joined script: the table heads, field labels, badges and the
+   modal eyebrows the bodies borrow from the design system set in tracked
+   capitals of the mono face, which has no Arabic — set them solid, in the body
+   face, as the modules do (modules.css §12, which this page does not load) */
+:lang(ar) .lx-app-body :is(.table th, .fields-label, .badge, .modal-eyebrow) {
+  letter-spacing: 0;
+  text-transform: none;
+  font-family: var(--font-body);
+}
 
 @media (max-width: 559px) {
   .lx-user { display: none; }

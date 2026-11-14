@@ -158,6 +158,8 @@ Rule of thumb: Raleway above, Inter below — anything longer than two lines is 
 
 Every page of Apps B and C reads unmistakably as B-Systems. **Amended by ADR-067:** the sentence this paragraph used to open with — that every page of App A reads unmistakably as ByteForce, and that switching between `/byteforce` and `/b-systems` demonstrates the theming layer — describes a shell the founder asked to be removed. `/byteforce` no longer exists as an interface (its addresses redirect), and ByteForce work is shown in the B-Systems shell under `?company=byteforce`. The theming layer is still demonstrated with no brand bleed, in the **accounting module**, whose `?company=` switch does swap the brand scope (ADR-054). **Needs founder confirmation** (PROGRESS Entry 062). `/brand-audit` (and the `brand-auditor` subagent) verify: no hardcoded hex/fonts outside `branding/` and `src/themes/`, B-Systems pink ≤ accent usage and no pure-white canvases, gradient confined to hero components, ByteForce palette discipline, RTL-safe layouts, no emoji in ByteForce UI copy.
 
+**Amended by ADR-103 (the Users app).** `/users` belongs to the platform, not to one company: like the app launcher beside it, it wears the neutral scope (`data-brand="neutral"`). So an agent's or partner's **My account**, which replaced the B-Systems-branded Profile, reads as the platform. Every other page of Apps B and C still reads as B-Systems.
+
 ---
 
 ## 5. Shared mechanics — the pipeline engine
@@ -216,6 +218,8 @@ Navigation: **Home (Dashboard) | Leads | CRM | Clients** — plus To-Do (ADR-041
 - **Every other teammate sees only the leads he owns.** His Leads page is "My leads", a lead he adds is his, and Clients shows only the clients of his own leads.
 - **There is no "Add rep".** Accounts are made in the Users app.
 - **The lead detail and the cards show the Owner** where §6.1 and §6.3 say rep. Rep cards and `salesRepId` stay as history and decide nothing.
+
+**Amended by ADR-104 (Assign on every row).** The ByteForce admin also hands a lead out from **every row of his Leads lists** — each teammate's list and Unassigned carry an Owner column with **Assign owner**, the lead page's own control. A teammate's own list has none. Not on the archive, not on the board.
 
 The text below is kept.
 
@@ -338,6 +342,10 @@ Identical to App A in structure and behavior (§6.1–§6.5), themed B-Systems, 
 **Amended by ADR-098 (assigned leads only).** B-Systems sales no longer see the whole internal bucket. Like agents and partners, a sales user sees and works only the leads he owns, and a lead he adds is his. **Unassigned** means no owner account, in any bucket, and only the admin sees it. The admin's Unassigned filter covers every bucket.
 
 **Amended by ADR-102 (the Users app).** **Users** is no longer in the B-Systems CRM admin menu, which is now **CRM | Leads | Calendar | Won Leads | Statements**. Users is its own launcher app, admin only, placed after Partners & Agents. It opens `/b-systems/users` with its own "Users" header and no menu. The page and its guard are unchanged.
+
+**Amended by ADR-103 (the Users app for every account).** Users is **every account's** launcher tile and its own page at **`/users`**, outside every CRM, in the launcher's own frame. The B-Systems admin sees **All users** (every account of every type, both companies: add, edit, roles, modules, remove, delete, impersonate) and **My account**; everybody else sees **My account** only — his name, email, phone and password (and, for an agent, his profile and CV). **Profile** left the agent and partner menus, which are now **CRM | Calendar | Won Leads | Payments**. `/b-systems/users` and `/b-systems/profile` redirect to `/users`.
+
+**Amended by ADR-104 (Assign on every row).** Every row of the admin's **Leads** table carries **Assign owner** beside its owner, the lead page's own control (not on the archive).
 
 ### 7.2 Partners Pipeline (partner acquisition board)
 **Seven columns, the SAME set for BOTH kinds of card** (partner and agent), in this order:
@@ -489,6 +497,8 @@ On success the rep lands in their portal (immediately active; admin approval is 
 
 **Portal navigation (rep):** **CRM | Won Deals | Profile**.
 
+**Amended by ADR-103.** Profile is no longer in any menu: an agent or a partner edits his details in **My account**, behind the Users icon on the launcher (§8.4, and §7.1's note for today's menus).
+
 ### 8.2 Rep CRM
 - Six columns: **Leads | Following Up | Meeting Setting | Proposal Sending | Won | Lost**.
 - **Trello-style drag & drop between all columns — except no card can be dragged into Won** (admin-only). Dropping into a stage opens that stage's field group; cancel reverts (§5.4).
@@ -515,6 +525,8 @@ On success the rep lands in their portal (immediately active; admin approval is 
 
 ### 8.4 Profile (rep)
 Shows all sign-up info (name, phone, address, speciality, CV download). Editable basics + CV replacement + password change (assumption A-10).
+
+**Amended by ADR-103 (My account).** This is now **My account** in the Users app (`/users`), for **every** account, not only reps: name (an agent's is his first + last name; a partner account keeps its company's name, which the admin changes), email, phone, password with the current one, and an agent's address, speciality and CV. At least one sign-in identifier must remain and an agent keeps his phone; **the phone can change** (resolves A-10's "phone change = ADR"). Roles, module flags and status are the admin's alone. The pinned main admin's email and password are not editable here.
 
 ### 8.5 Admin layer — four sections
 
@@ -649,6 +661,8 @@ already carrying `PA-1`…`PA-5` remain valid history and keep their original me
 | A-12 | UI language | English v1; architecture RTL-ready for Arabic (ByteForce brand is bilingual) |
 | A-13 | Brand asset files | Logos: founder drops into `/branding/*` (agent adapts to actual filenames). Fonts: Raleway/Inter/JetBrains Mono via Google Fonts; Lama Sans files pending → temporary system-sans fallback behind the same tokens |
 | A-14 | Should Qualified be reversible, now that an agent can be qualified without an account? | No — Qualified stays terminal, as it always was; a mis-qualified card is walked back with Undo inside its window, or deleted. **Needs founder confirmation** (ADR-059) |
+
+**Amended by ADR-103.** A-10's open part ("phone change = ADR") is decided: the phone **can** change — for agents too, who may not remove it — through My account (§8.4). The rest of A-10 is kept, and now holds for every account.
 
 ---
 

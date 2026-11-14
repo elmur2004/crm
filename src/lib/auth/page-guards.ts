@@ -168,7 +168,7 @@ export function narrowRoles(page: CompanyPage, ...roles: Role[]): CompanyPage {
     screen or, worse, the other company's data under this company's label.
 
     It runs BEFORE the section's own role narrowing on purpose: a ByteForce-only
-    teammate who types /b-systems/users must be redirected here, not fall
+    teammate who types /b-systems/statements must be redirected here, not fall
     through to `bsRoleOf` and turn into a 500.
 
     The role list is a REQUIRED parameter, typed as a NON-EMPTY tuple, so a

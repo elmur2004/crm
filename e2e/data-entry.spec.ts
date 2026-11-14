@@ -91,7 +91,6 @@ test("data entry: adds a lead and a card, owns neither, and is walled out of eve
     "/b-systems/agents",
     "/b-systems/registrations",
     "/b-systems/statements",
-    "/b-systems/users",
     "/b-systems/todo",
   ]) {
     await page.goto(path);

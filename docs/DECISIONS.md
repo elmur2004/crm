@@ -10294,3 +10294,96 @@ Every plan and every `UPDATE` is gated on `"ownerUserId" IS NULL`, and the log i
 
 - Resolves: one founder request. **No SPEC §11 A-#.** Amends ADR-095 §1 and ADR-090 §4/§5. **No migration, no schema change, no permission change.**
 - Status: Accepted. **Needs founder confirmation:** none.
+
+## ADR-103 — 2026-11-14 — THE USERS APP FOR EVERY ACCOUNT: its own page at /users outside every CRM, "All users" for the B-Systems admin and "My account" for everybody, Profile folded into it, and the old addresses redirected at the edge (amends ADR-102, ADR-090 §4/§5, ADR-095 and ADR-051's tile; resolves A-10's phone question)
+
+- Context: the founder, verbatim (2026-11-14): *"Also make sure that in the main page the welcome page there is a dedicated icon for the users. The users currently for the entire systems are sitting inside the bsystems CRM. Separate it, just put the users, every single type of users, put it in a different app, or let's say an icon in the desktop page, and then for the admin he of course can change all the users and all of that. If it's for a normal user, he can click on it to change his information too, so he can change his name, he can change his password and all of that."*
+  - ADR-102 (2026-11-08) had made Users a launcher tile, but for the B-Systems admin only, and its page stayed at `/b-systems/users` inside the B-Systems CRM shell (that shell's header and mark around it). That build is pushed but has never reached production (the host has not deployed since 2026-11-08 — PROGRESS), so the founder still sees Users in the B-Systems CRM menu.
+  - Editing your own details existed only for agents and partners (`/b-systems/profile`, V2 §8 / SPEC §8.4), with a password change and, for agents, the profile basics. Nobody else could change his own name or password; only the admin could, from Users.
+- Decision: **one Users app, for every account, outside every CRM.**
+
+### 1. THE PAGE — `/users`, beside the launcher
+
+- **`src/app/(home)/users/page.tsx`**, in the brand-neutral `(home)` group with `/apps`: the launcher's own bar (`LauncherChrome`), its glass ground, the "All apps" link back and the app icon in the head. No CRM header, no CRM menu, no company on the address (`USERS_PATH = "/users"`).
+- **The wall is the launcher's** (`requireLauncherUser`): any live, approved account. An account with no role at all is sent where the launcher sends it (`landingFor`).
+- **Two views, chosen by the LIVE roles, never by the address:**
+  - **the B-Systems admin** — "All users" by default (the existing table, now `src/components/users/AllUsersBody.tsx`: every account of every type, both companies; add, edit identity, roles and module flags, remove, delete, impersonate), and "My account" at `?tab=me`. The two tabs are links on the page (same-page controls, one-way.test.ts).
+  - **everybody else** — "My account", and only that: `?tab=` means nothing for him, so no address shows him the table. The writes the table makes are `requireBsAdmin` on the server either way.
+- **The tile**: tile 8, "Users", shown to **every account that holds a role**, last, neutral palette, opening `/users`. Its label is the founder's word for it for everybody; the page's heading says "Users" for the admin and "My account" for everyone else.
+
+### 2. MY ACCOUNT — what a person may change about himself
+
+`src/lib/services/my-account.ts`, behind `PATCH /api/me`, `POST /api/me/password` and `POST /api/me/cv`. The id is always the session's (there is none in the address or the body that counts):
+
+| Field | Who | Rule |
+|---|---|---|
+| Name | everyone but agents and partners | 1–200 characters, trimmed |
+| First name, last name, address, speciality | agents (the `bsystems_agent` role AND his profile) | the profile he signed up with; his account name is `first + last` |
+| Name | partner accounts (the `bsystems_partner` role AND the company's login) | **read-only**: it is the partner company's name, which the admin keeps ("ask the admin to change it") |
+| Email, phone | everyone | the sign-in identifiers. **At least one must remain**; each must be free (409 otherwise) and valid; an **agent who has a phone keeps it** (ADR-016); **nobody takes one of the healer's addresses** (§6) |
+| Password | everyone | the current one is required and the new one must differ (8–200); `passwordPlain` follows (the founder's standing rule that the admin sees every password) |
+| CV | agents | replaced, never removed (unchanged service, new route) |
+
+- **Never** roles, module flags, `active` or the approval status: the schema has no such keys and zod drops whatever it was not told about (my-account.integration.test sends them and proves nothing moves).
+- **The pinned admin** (`admin@byteforce.com`, bootstrap.ts) may rename himself, but **his email and his password are refused** with the reason: the healer finds him by that email (a new one would make the next sign-in create a second admin) and re-asserts `ADMIN_PASSWORD` on every sign-in (a change here would be silently undone). The page shows both as locked, with the hint.
+- A field that is not this person's to send (an address from a sales rep, a name from an agent) is **refused, not ignored**, so a form can never believe it saved something it did not.
+- Every save is on the record: `ActivityLog` `entityType "user"`, triggers `account_edit` and `password_changed`, actor the person.
+
+### 3. PROFILE IS FOLDED IN, AND THE OLD ADDRESSES LAND
+
+- **Profile left the agent and partner menus** of the B-Systems CRM (`src/lib/crm/nav.ts`): editing yourself is My account, behind the Users tile, and a menu item as well would be a second way to the same thing (ADR-095).
+- **The two shell pages are deleted** (`/b-systems/users`, `/b-systems/profile`), with their routes `/api/b-systems/profile`, `/profile/password`, `/profile/cv` and `components/portal/profileForms.tsx`. The profile-edit and password functions left `portal-reps.ts` for `my-account.ts`; sign-up and the CV stay.
+- **The old addresses redirect at the edge** (`movedOutOfShellPath` in `src/lib/crm/legacy-routes.ts`, called by `src/proxy.ts` before the sign-in check, like the ByteForce map): `/b-systems/users` → `/users`, `/b-systems/profile` → `/users?tab=me`, 307, the query dropped (`?company=` means nothing outside the CRM). Not a redirect PAGE left in the shell: a page there would be a screen with no door and nothing to render, which the one-way-in and page-guard sweeps exist to refuse.
+- `CrmAppContext` loses `"users"`: no address of the shell is the Users app any more.
+- A failed impersonation returns to `/users?error=impersonation`, which now says so.
+
+### 4. WHAT THIS DOES TO EARLIER DECISIONS (none is rewritten)
+
+- **ADR-102:** the tile is everyone's, not the admin's alone; the page left `/b-systems/users` and the shell's header for `/users` and the launcher's bar.
+- **ADR-090 §4/§5 (tile counts):** every account gains one tile — a sales rep, an agent, a partner and a ByteForce teammate have 4, data entry has 2 (its entry page and Users; **ADR-051**'s "one tile" becomes two), the founder still 8.
+- **ADR-095:** the agent and partner menus are **CRM | Calendar | Won Leads | Payments**.
+- **SPEC §8.4 and A-10:** the profile's editing lives in My account, for every account, and the phone can change (below).
+- SPEC §7.1 and §8.4 carry an "Amended by ADR-103" note.
+
+### 5. ITS BRAND SCOPE
+
+- **`/users` is the platform's, not one company's**: it wears the launcher's neutral scope (`data-brand="neutral"`, the `(home)` group), so an agent's or partner's My account — the B-Systems-branded Profile until now — reads as the platform, like the launcher it sits beside. Every other page of Apps B and C still reads as B-Systems. SPEC §4.4 carries an "Amended by ADR-103" note.
+- **Glass frame, solid data (ADR-092):** the bar, the head and the tabs stand on the glass ground; the table and the account cards are solid design-system cards. The admin's impersonation footnote sits INSIDE the table's card (`panel-hint`), and the selected tab is the house's solid primary pill (the To-Do's company tabs), both from the brand audit of this change.
+
+### 6. FROM THE PRE-PUSH REVIEWS (applied before the push)
+
+- **spec-guardian found a latent escalation, closed on every path.** My account let anyone take an unused email, and the healer RENAMES the account on its legacy address (`admin@b-systems.example`) into the main admin — name, pinned password, both roles — the first time `admin@byteforce.com` is missing at a sign-in; roles are re-read per request, so that session would become the admin's at once. Reachable only after the main admin's email moves, which the admin's own editor allowed. Now:
+  - `RESERVED_ADMIN_EMAILS` / `isReservedAdminEmail` (`services/bootstrap.ts`, one source): every administrator's email and its legacy address;
+  - refused (409) by **My account, the admin's Add user and the admin's editor** (`users.ts` `createUser` / `updateUser`);
+  - the pinned admin's **own** email is refused in the editor too (400), and its field is locked with the hint, as in My account.
+- **Agent and partner mean the role AND the record** (`kindOf`): an agent the admin made in Users has no profile and edits a plain name; a former agent with a leftover profile is a person, with no CV form. The phone rule is "an agent who HAS a phone keeps it", so an email-only agent made by the admin can still save.
+- **ADR-016(c)'s "staff ⇒ email" is not enforced**, as the V2 Users screen never enforced it; recorded in ARCHITECTURE.md §7.
+- **While the admin acts as someone**, My account's History rows read "<person> (via <admin>)", the chat's rule.
+- **Tests added:** the reserved set on all three paths, the two agent edge cases and the impersonation label (my-account.integration.test), and the shared roster against `resolveAssignee` (assign-roster.integration.test, ADR-104).
+- **brand-auditor:** the admin's impersonation footnote moved into the table's card, the selected tab became the house's solid pill, and Arabic table heads, labels, badges and modal eyebrows set solid in the body face. Its info finding — the light neutral focus ring under 3:1, older than this change — is **BUG-034**, open.
+
+- Alternatives considered:
+  - **Keep the tile admin-only and Profile in the CRM menu.** Rejected: the founder asked for one users icon that a normal user also opens "to change his information".
+  - **Two tiles, "Users" for the admin and "My account" for everyone.** Rejected: he asked for "a dedicated icon for the users", one, for every type of user.
+  - **Let a person edit himself through the admin's editor.** Rejected: that editor sets roles and module flags and needs no current password.
+  - **Leave redirect pages at the old addresses.** Rejected for the sweep reason in §3.
+  - **Let the pinned admin change his email or password here.** Rejected: the healer would undo or duplicate it.
+- Resolves: **A-10** — its "phone change = ADR": the phone may change, for agents too, and an agent may not remove it (it is how he signs in). The rest of A-10 (basics editable, CV replaceable, password change) is kept and now holds for every account.
+- Status: Accepted. **Needs founder confirmation:** (1) the tile is labelled "Users" for everybody (the page says "My account" to a non-admin); (2) a person can change his own sign-in email with no confirmation email (there is no mail sending in the product); (3) a partner account's name stays the company's and only the admin changes it; (4) the current password is shown as typed, kept from the Profile form's founder rule.
+
+## ADR-104 — 2026-11-14 — ASSIGN ON EVERY ROW: the company admin's Leads lists in both companies carry the lead page's own "Assign owner", built from one shared roster (extends ADR-099 and the To-Do's assign; ADR-098 unchanged)
+
+- Context: the founder, verbatim (2026-11-14): *"the sales rep in byteforce or bsystems just sees the assigned leads for him … the admin has a click or option for each lead to assign it or to change the assignee of that lead … every sales Rep just sees the assigned lead for him if he adds any leads it will be automatically assigned by him … But if it's unassigned he cannot see it … then if the admin want to show them one of these [un]assigned leads just assign it to them."*
+  - The visibility half is **ADR-098, unchanged**: built, tested and pushed on 2026-11-08, and not yet live only because the host has not deployed (PROGRESS). This message restates it exactly; nothing in it differs from what ADR-098 does.
+  - The "Assign owner" control existed on each lead's own page (both companies, ADR-099) and on every To-Do row, but not on the lists where the admin sees his leads in bulk.
+- Decision:
+  1. **B-Systems Leads** (the admin's flat table, `BsLeadsBody`): the Owner cell of every row carries "Assign owner" (compact), beside the owner chip. The page builds the roster once, for the admin it already is (non-admins are bounced before it).
+  2. **ByteForce Leads** — each owner's list and Unassigned (`OwnerLeadsBody`): an **Owner** column with "Assign owner" on every row, **for the admin only**; a teammate's own list ("My leads") has none.
+  3. **Not on the archive** (as on the lead page: an archived lead is handed out after it is unarchived), and **not on the boards**, whose cards are drag targets — the lead page, the To-Do and these lists cover every lead.
+  4. **One roster, `src/lib/services/assign-roster.ts` (`assignRosterFor`)**, now used by the two lead pages, the To-Do and the two lists, so the dialog offers the same people everywhere: B-Systems — live agents, partners and internal sales, admins absent (an unassigned lead sits in the admin bucket; the To-Do's "Take it" is how he keeps one); ByteForce — every live staff account, the admin as "(me)" except on the To-Do, whose rows carry their own Take it.
+  5. **Nothing about the wall changes:** the same routes (`/api/b-systems/leads/[id]/assign`, `/api/byteforce/leads/[id]/assign`), the same company-admin guards, and `resolveAssignee` re-checking the target inside the write.
+- Alternatives considered:
+  - **Assign on the board cards.** Not taken: the cards are drag handles and already carry a call, WhatsApp and the stage datum; a fourth control there crowds the phone layout. Open to the founder.
+  - **Bulk assign (tick many rows, one owner).** Not asked for; not built.
+- Resolves: none (no SPEC §11 assumption). SPEC §6 and §7.1 carry an "Amended by ADR-104" note.
+- Status: Accepted. **Needs founder confirmation:** whether he also wants Assign on the board cards.

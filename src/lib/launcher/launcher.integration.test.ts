@@ -49,10 +49,13 @@ vi.mock("next/headers", () => ({
 
 import { db } from "@/lib/db";
 import { resetDb } from "@/tests/db-reset";
-import { launcherTilesFor, reportsFor, REPORTS_PATH } from "./apps";
+import { launcherTilesFor, reportsFor, REPORTS_PATH, USERS_PATH } from "./apps";
 import { appMenusFor } from "./menus";
 import LauncherPage from "@/app/(home)/apps/page";
 import ReportsPage from "@/app/(home)/apps/reports/page";
+import UsersPage from "@/app/(home)/users/page";
+import { AllUsersBody } from "@/components/users/AllUsersBody";
+import { MyAccountBody } from "@/components/users/MyAccountBody";
 
 type Role =
   | "bsystems_admin"
@@ -106,14 +109,9 @@ const DESTINATIONS: Record<string, { shell?: Loader; page: Loader }> = {
     shell: CRM_SHELL,
     page: () => import("@/app/(bsystems)/b-systems/(app)/statements/page"),
   },
-  "/b-systems/users": { shell: CRM_SHELL, page: () => import("@/app/(bsystems)/b-systems/(app)/users/page") },
   "/b-systems/payments": {
     shell: CRM_SHELL,
     page: () => import("@/app/(bsystems)/b-systems/(app)/payments/page"),
-  },
-  "/b-systems/profile": {
-    shell: CRM_SHELL,
-    page: () => import("@/app/(bsystems)/b-systems/(app)/profile/page"),
   },
   "/b-systems/partners": {
     shell: CRM_SHELL,
@@ -178,6 +176,8 @@ const DESTINATIONS: Record<string, { shell?: Loader; page: Loader }> = {
   "/vault/employees": { shell: VAULT_SHELL, page: () => import("@/app/(vault)/vault/employees/page") },
   "/vault/archive": { shell: VAULT_SHELL, page: () => import("@/app/(vault)/vault/archive/page") },
   [REPORTS_PATH]: { page: () => import("@/app/(home)/apps/reports/page") },
+  /* ADR-103 — the Users app: beside the launcher, no shell of its own */
+  [USERS_PATH]: { page: () => import("@/app/(home)/users/page") },
 };
 
 /** Run a server render; return where it REDIRECTED, or null if it rendered.
@@ -414,12 +414,95 @@ describe("one way to each page — where a page bounce lands", () => {
     expect(await visit("/b-systems/crm?company=bsystems")).toBeNull();
     /* and an admin-only page bounces a non-admin to his board too */
     signInAs(personas.bsSales!);
-    expect(await visit("/b-systems/users?company=bsystems")).toBe("/b-systems/crm");
+    expect(await visit("/b-systems/leads?company=bsystems")).toBe("/b-systems/crm?company=bsystems");
   });
 
   it("an account with no app at all is sent to the sign-in page's error, unchanged", async () => {
     const nobody = await makeUser("Still Nobody", []);
     signInAs(nobody);
     expect(await redirectOf(() => LauncherPage())).toBe("/login?error=1");
+  });
+});
+
+/* ---------------------------------------------------------------------------
+   ADR-103 — THE USERS APP: one page, two views, chosen by the LIVE roles.
+
+   Founder (2026-11-14): "for the admin he of course can change all the users
+   … If it's for a normal user, he can click on it to change his information".
+   The page is rendered for real and its element tree read: the admin's default
+   view is the users table, everybody else's is his own account — and no
+   address (`?tab=all`, `?tab=anything`) gives a non-admin the table.
+   --------------------------------------------------------------------------- */
+
+/** Does a rendered server element tree contain an element of this component? */
+function contains(node: unknown, component: unknown): boolean {
+  if (Array.isArray(node)) return node.some((n) => contains(n, component));
+  if (!node || typeof node !== "object") return false;
+  const el = node as { type?: unknown; props?: { children?: unknown } };
+  if (el.type === component) return true;
+  return contains(el.props?.children, component);
+}
+
+const renderUsers = (tab?: string) =>
+  (UsersPage as unknown as (p: object) => Promise<unknown>)({
+    searchParams: Promise.resolve(tab === undefined ? {} : { tab }),
+  });
+
+describe("the Users app — the admin manages everyone, everybody else himself", () => {
+  it("is turned away anonymously, and for a deactivated or pending account, like the grid", async () => {
+    signInAs(null);
+    expect(await redirectOf(() => renderUsers())).toBe("/login");
+    const gone = await makeUser("Gone Again", ["bsystems_sales"], { active: false });
+    const pending = await makeUser("Pending Again", ["bsystems_agent"], { registrationStatus: "pending" });
+    for (const user of [gone, pending]) {
+      signInAs(user);
+      expect(await redirectOf(() => renderUsers())).toBe("/login");
+    }
+    /* no role, no app — the launcher's own answer */
+    signInAs(await makeUser("Roleless", []));
+    expect(await redirectOf(() => renderUsers())).toBe("/login?error=1");
+  });
+
+  it("the B-Systems admin opens on All users, and ?tab=me is his own account", async () => {
+    for (const name of ["founder", "adminNoAccounting", "adminNoModules"] as const) {
+      signInAs(personas[name]!);
+      const all = await renderUsers();
+      expect(contains(all, AllUsersBody), name).toBe(true);
+      expect(contains(all, MyAccountBody), name).toBe(false);
+      signInAs(personas[name]!);
+      const me = await renderUsers("me");
+      expect(contains(me, MyAccountBody), name).toBe(true);
+      expect(contains(me, AllUsersBody), name).toBe(false);
+    }
+  });
+
+  it("everybody else gets HIS OWN account — never the table, whatever the address asks", async () => {
+    for (const name of ["bsSales", "agent", "partner", "byteforceOnly", "dataEntry", "dataEntryPlusByteforce"] as const) {
+      for (const tab of [undefined, "all", "me", "users", "admin"]) {
+        signInAs(personas[name]!);
+        const tree = await renderUsers(tab);
+        expect(contains(tree, AllUsersBody), `${name} ?tab=${tab}`).toBe(false);
+        expect(contains(tree, MyAccountBody), `${name} ?tab=${tab}`).toBe(true);
+      }
+    }
+  });
+
+  it("the account it shows is the SESSION's — the page passes no id from the address", async () => {
+    signInAs(personas.bsSales!);
+    const tree = await renderUsers("me");
+    const find = (node: unknown): { props: { userId: string } } | null => {
+      if (Array.isArray(node)) {
+        for (const n of node) {
+          const hit = find(n);
+          if (hit) return hit;
+        }
+        return null;
+      }
+      if (!node || typeof node !== "object") return null;
+      const el = node as { type?: unknown; props?: { children?: unknown; userId?: string } };
+      if (el.type === MyAccountBody) return el as { props: { userId: string } };
+      return find(el.props?.children);
+    };
+    expect(find(tree)?.props.userId).toBe(personas.bsSales!.id);
   });
 });

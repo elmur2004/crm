@@ -23,7 +23,7 @@ test("admin impersonates an agent, sees their app, and snaps back to admin", asy
   await afterSignIn(page, /\/b-systems$/);
 
   /* Impersonate the seeded agent from Users. */
-  await page.goto("/b-systems/users");
+  await page.goto("/users");
   await page
     .getByRole("row", { name: /Karim Adel/ })
     .getByRole("button", { name: "Impersonate" })

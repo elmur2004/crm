@@ -179,13 +179,13 @@ test("each company's exclusive sections refuse the other rather than emptying", 
 }) => {
   await loginFounder(page);
 
-  /* ByteForce has no Won Leads, Statements, Users... — asking for them under
-     ByteForce lands on ByteForce's home, never on an empty foreign screen and
-     never on a stack trace. */
+  /* ByteForce has no Won Leads, Statements, Registrations... — asking for
+     them under ByteForce lands on ByteForce's home, never on an empty foreign
+     screen and never on a stack trace. (Users is not a CRM section at all any
+     more — ADR-103 — and is asserted below.) */
   for (const path of [
     "/b-systems/won-leads",
     "/b-systems/statements",
-    "/b-systems/users",
     "/b-systems/registrations",
     "/b-systems/agents",
     "/b-systems/partners",
@@ -194,6 +194,14 @@ test("each company's exclusive sections refuse the other rather than emptying", 
     const res = await page.goto(`${path}${BF}`);
     expect(res?.status(), `${path} must refuse without erroring`).toBe(200);
     await expect(page, path).toHaveURL(/\/b-systems\?company=byteforce$/);
+  }
+
+  /* ADR-103 — Users left the shell for its own app: under EITHER company the
+     old address lands on /users, the same page for both */
+  for (const query of [BF, "?company=bsystems"]) {
+    const res = await page.goto(`/b-systems/users${query}`);
+    expect(res?.status()).toBe(200);
+    await expect(page).toHaveURL(/\/users$/);
   }
 
   /* and the reverse: ByteForce's own screens are not B-Systems screens */

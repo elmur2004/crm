@@ -10,8 +10,9 @@ import { push as msg } from "@/lib/i18n/dict/admin";
 
    The control that asks his phone for permission, at the foot of the bell,
    which is the one place every role that HAS notifications can reach on a
-   phone without navigating (there is no per-account settings page for an
-   admin — /b-systems/profile exists for agents and partners only).
+   phone without navigating. (Every account has a My account page now — the
+   Users app, ADR-103 — but it is a page you open, and the bell is where the
+   notifications themselves already are.)
 
    IT RENDERS NOTHING AT ALL unless the server hands back a public VAPID key.
    With no keys configured — which is what production is until the founder sets

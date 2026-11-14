@@ -2816,3 +2816,60 @@ These couldn't be fixed in this round:
 
 **Still waiting from 26 October**
 - Every question in both 26 October updates is still open.
+
+## 14 November 2026 — Users is its own app for everyone, everyone can change their own name and password, and you can assign a lead from every row (goes live with the next push)
+
+You asked again for two things: that salespeople in both companies see only the leads given to them, with every unassigned lead in front of you alone and a way to assign each one; and that Users leaves the B-Systems CRM and becomes its own icon on the apps screen, where you manage everyone and anyone else changes his own name and password.
+
+### First: last week's update never went live
+
+- **The site is still running the version from before 8 November.** The hosting service hasn't deployed anything since then, which is why you still see unassigned leads in front of everyone and Users inside the B-Systems CRM.
+- **Everything you describe about leads was in that update**, and it is unchanged:
+  - salespeople and ByteForce teammates see only the leads they own;
+  - a lead nobody owns is yours alone;
+  - a lead someone adds is automatically his;
+  - you hand a lead to someone and he sees it.
+- **This push carries last week's update too.** When the host deploys, both arrive together.
+
+### Users is its own app, for everyone
+
+- **Every account has a Users icon on the apps screen now**, last in the row.
+- **It opens its own page, outside both CRMs**, with the apps screen's look and an "All apps" link back. Nothing about it says B-Systems.
+- **You see two tabs:**
+  - **All users** — every account in both companies: salespeople, agents, partners, data entry, ByteForce teammates and admins. You add people, edit them, change what they can open, block Accounting or the Data Vault, remove, delete, or open their account, as before.
+  - **My account** — your own details.
+- **Everyone else sees only My account.** No address shows them the list.
+- **Users and Profile are gone from the CRM menus.** Old links and bookmarks still work: they open the new page.
+
+### My account
+
+- **Anyone can change his own name, email, phone and password.** The password needs the current one first.
+- **An agent** changes his first and last name, address and speciality, and replaces his CV, the way his old Profile page did.
+- **A partner** sees his company's details. Its name is the company's, so only you change it.
+- **At least one of email or phone must stay**, since that is how people sign in, and an agent keeps his phone.
+- **Nobody can change his own access.** Roles and blocked modules are yours, in All users.
+- **On your own account**, your name can change, but your email and password stay fixed: the system resets them from its settings every time you sign in.
+- **You still see everyone's password in All users**, including one a person sets himself.
+
+### Assign from every row
+
+- **The B-Systems Leads list** has **Assign owner** on every row, next to who owns it.
+- **On ByteForce**, each teammate's list and Unassigned have an Owner column with **Assign owner**.
+- **Only you get it.** A teammate's own list has none.
+- **The lead page and the To-Do keep theirs**, so every lead can be handed out from three places.
+
+### Questions for you
+
+1. The icon is called **Users** for everyone; a salesperson's page is titled **My account**. Is that the name you want?
+2. People can change their **sign-in email** with no confirmation email, because the system doesn't send email. Is that OK?
+3. A **partner's** name stays its company's name, which only you change. Right?
+4. The **current password** field shows what you type, as the old Profile page did. Keep it?
+5. Do you want **Assign owner on the board cards** too?
+
+### Checks
+
+- **On a clean copy of exactly what is being pushed:** 1,953 automated checks and 337 browser tests passed, on phone, tablet and desktop. One of my new browser tests looked for its message the wrong way; I fixed it and re-ran it with the related tests, and all 21 passed.
+- **72 screenshots of the new screens**, in light and dark, English and Arabic, on a phone and a desktop. No page scrolls sideways.
+- **Two reviews before the push.**
+  - One found a rare way someone could have become the main admin: by giving his own account an old admin address the system still recognises. Every place that sets an email now refuses those addresses, and your own email is locked in the editor too.
+  - The other found two readability issues on the new page, and both are fixed.

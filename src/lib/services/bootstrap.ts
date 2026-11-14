@@ -73,6 +73,23 @@ function foreignRoles(self: BootstrapAdmin): Role[] {
     what makes "is this server running the new code" answerable from outside. */
 export const BOOTSTRAP_ADMIN_EMAILS: readonly string[] = ADMINS.map((a) => a.email);
 
+/** EVERY address this healer acts on: each administrator's own email AND the
+    legacy address it renames in place (ensureOne). Nobody else may ever hold
+    one (ADR-103, from its pre-push review): an account sitting on a legacy
+    address is renamed INTO the administrator — his name, his pinned password,
+    his roles — the first time the real one is missing at a sign-in, and the
+    roles are re-read on every request, so its session would become the admin's
+    at once. Every path that SETS an email refuses these — the admin's Add user
+    and editor (users.ts) and everybody's My account (my-account.ts). */
+export const RESERVED_ADMIN_EMAILS: readonly string[] = ADMINS.flatMap((a) =>
+  a.legacyEmail ? [a.email, a.legacyEmail] : [a.email],
+);
+
+/** Is this address one of the healer's (see RESERVED_ADMIN_EMAILS)? */
+export function isReservedAdminEmail(email: string | null | undefined): boolean {
+  return Boolean(email) && RESERVED_ADMIN_EMAILS.includes(email!.trim().toLowerCase());
+}
+
 function passwordFor(admin: BootstrapAdmin): string {
   return process.env[admin.passwordEnv] || admin.fallbackPassword || "password123";
 }

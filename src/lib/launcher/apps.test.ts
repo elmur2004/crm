@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import {
   LAUNCHER_PATH,
   REPORTS_PATH,
+  USERS_PATH,
   launcherTilesFor,
   reportsFor,
   reportsHrefFor,
@@ -70,16 +71,24 @@ describe("which tiles each person sees", () => {
       "/b-systems/todo?company=bsystems",
       REPORTS_PATH,
       "/b-systems/partners-pipeline?company=bsystems",
-      "/b-systems/users?company=bsystems",
+      /* ADR-103 — its own page OUTSIDE the CRM shell, with no company on it */
+      "/users",
     ]);
   });
 
-  it("Users is the B-Systems admin's alone — the same wall as its page", () => {
-    for (const u of [BS_SALES, AGENT, PARTNER, BYTEFORCE_ONLY, DATA_ENTRY]) {
-      expect(ids(u)).not.toContain("users");
+  it("Users is EVERY account's tile (ADR-103) — last, neutral, the same page for all", () => {
+    /* founder 2026-11-14: "a dedicated icon for the users … If it's for a
+       normal user, he can click on it to change his information too" */
+    for (const u of [FOUNDER, ADMIN_NO_ACCOUNTING, BS_SALES, AGENT, PARTNER, BYTEFORCE_ONLY, DATA_ENTRY]) {
+      const tiles = launcherTilesFor(u);
+      expect(tiles.at(-1), `[${u.roles.join(", ")}]`).toEqual({
+        id: "users",
+        href: USERS_PATH,
+        label: expect.anything(),
+        palette: "neutral",
+      });
     }
-    expect(ids(person(["bsystems_admin"]))).toContain("users");
-    expect(launcherTilesFor(FOUNDER).find((t) => t.id === "users")?.palette).toBe("neutral");
+    expect(USERS_PATH).toBe("/users");
   });
 
   it("Reports & Dashboards: the two CRM dashboards and the daily report — nothing from Accounting", () => {
@@ -111,8 +120,8 @@ describe("which tiles each person sees", () => {
     expect(ids(u)).toEqual(["crm-bsystems", "todo", "reports", "partners", "users"]);
   });
 
-  it("a B-Systems sales rep: the board, the To-Do, and his daily report — straight to it", () => {
-    expect(ids(BS_SALES)).toEqual(["crm-bsystems", "todo", "reports"]);
+  it("a B-Systems sales rep: the board, the To-Do, his daily report — straight to it — and his account", () => {
+    expect(ids(BS_SALES)).toEqual(["crm-bsystems", "todo", "reports", "users"]);
     /* one report is no choice: the tile opens it rather than a list of one */
     expect(reportsFor(BS_SALES).map((r) => r.id)).toEqual(["daily-report"]);
     expect(hrefOf(BS_SALES, "reports")).toBe("/b-systems/daily-report?company=bsystems");
@@ -120,13 +129,13 @@ describe("which tiles each person sees", () => {
 
   it("an agent and a partner see exactly what a sales rep sees — no modules, no Partners & Agents", () => {
     for (const u of [AGENT, PARTNER]) {
-      expect(ids(u)).toEqual(["crm-bsystems", "todo", "reports"]);
+      expect(ids(u)).toEqual(["crm-bsystems", "todo", "reports", "users"]);
       expect(hrefOf(u, "reports")).toBe("/b-systems/daily-report?company=bsystems");
     }
   });
 
   it("a ByteForce-only teammate sees ByteForce only — every href carries company=byteforce", () => {
-    expect(ids(BYTEFORCE_ONLY)).toEqual(["crm-byteforce", "todo", "reports"]);
+    expect(ids(BYTEFORCE_ONLY)).toEqual(["crm-byteforce", "todo", "reports", "users"]);
     expect(hrefOf(BYTEFORCE_ONLY, "todo")).toBe("/b-systems/todo?company=byteforce");
     /* founder 2026-11-08 — the ByteForce dashboard is the ByteForce ADMIN's
        (company-wide figures), so his one report is his day — straight to it */
@@ -137,9 +146,11 @@ describe("which tiles each person sees", () => {
     }
   });
 
-  it("data entry (ADR-051) gets ONE tile — its B-Systems CRM, which is its entry page, never the board", () => {
+  it("data entry (ADR-051) gets its B-Systems CRM — its entry page, never the board — and its account", () => {
     expect(launcherTilesFor(DATA_ENTRY)).toEqual([
       expect.objectContaining({ id: "crm-bsystems", href: "/b-systems/entry?company=bsystems" }),
+      /* ADR-103 — every account edits its own name and password */
+      expect.objectContaining({ id: "users", href: USERS_PATH }),
     ]);
     expect(reportsFor(DATA_ENTRY)).toEqual([]);
   });
@@ -284,6 +295,13 @@ describe("every tile's href resolves to a real route", () => {
     expect(resolves(REPORTS_PATH).map((r) => r.file)).toEqual([
       path.join("src", "app", "(home)", "apps", "reports", "page.tsx"),
     ]);
+    /* ADR-103 — the Users app beside them, in the brand-neutral group */
+    expect(resolves(USERS_PATH).map((r) => r.file)).toEqual([
+      path.join("src", "app", "(home)", "users", "page.tsx"),
+    ]);
+    /* …and the two shell pages it replaced are GONE (the proxy redirects) */
+    expect(resolves("/b-systems/users")).toEqual([]);
+    expect(resolves("/b-systems/profile")).toEqual([]);
     /* and it is not a pattern that matches anything */
     expect(resolves("/b-systems/nowhere")).toEqual([]);
   });
@@ -303,7 +321,7 @@ describe("every tile's href resolves to a real route", () => {
       "/b-systems/entry",
       "/b-systems/partners-pipeline",
       "/b-systems/todo",
-      "/b-systems/users",
+      "/users",
       "/vault",
     ]);
     for (const href of seen) {

@@ -38,30 +38,64 @@ test("the founder lands on the launcher and sees every app, in his order", async
 
 /* Founder (2026-11-08): "the apps whenever I open the home page should … have
    individual users tab not put the users inside B-System CRM, just separate it
-   entirely into like an app or an icon in the home page." */
-test("Users is its own app: its tile opens it, the header names it, and no CRM menu surrounds it", async ({
-  page,
-}) => {
+   entirely into like an app or an icon in the home page." And again
+   (2026-11-14, ADR-103): "Separate it, just put the users, every single type of
+   users, put it in a different app … for the admin he of course can change all
+   the users … If it's for a normal user, he can click on it to change his
+   information too". */
+test("Users is its own app, OUTSIDE every CRM: the admin's All users and My account", async ({ page }) => {
   await signIn(page, "admin@byteforce.com", "password123");
   await page.locator('[data-app="users"]').click();
-  await page.waitForURL(/\/b-systems\/users\?company=bsystems$/);
-  await expect(page.locator(".app-header .app-name")).toHaveText("Users");
-  await expect(page.locator(".app-header .app-name")).toHaveAttribute("data-app-context", "users");
-  /* no B-Systems CRM menu around it — and Users is in no CRM menu any more */
-  await expect(page.locator(".app-header .nav-strip").getByRole("link")).toHaveCount(0);
+  await page.waitForURL(/\/users$/);
+  /* the launcher's bar and ground — no CRM header, no CRM menu */
+  await expect(page.locator(".app-header")).toHaveCount(0);
+  await expect(page.locator(".lx-bar")).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Users" })).toBeVisible();
+  const tabs = page.getByRole("navigation", { name: "Users views" });
+  await expect(tabs.getByRole("link", { name: "All users" })).toHaveAttribute("aria-current", "page");
+  /* every type of account is on it — both companies' people */
+  for (const who of ["Elmur", "Sara Hassan", "Omar Farouk", "Karim Adel", "Hala Nabil"]) {
+    await expect(page.getByRole("row", { name: new RegExp(who) }).first(), who).toBeVisible();
+  }
+  await expect(page.getByRole("button", { name: "Add user" })).toBeVisible();
+  /* his own account is the second tab */
+  await tabs.getByRole("link", { name: "My account" }).click();
+  await page.waitForURL(/\/users\?tab=me$/);
+  await expect(tabs.getByRole("link", { name: "My account" })).toHaveAttribute("aria-current", "page");
+  await expect(page.getByRole("heading", { name: "Your details" })).toBeVisible();
+  /* the pinned admin: his email and password are the healer's (bootstrap.ts) */
+  await expect(page.getByLabel("Email")).toBeDisabled();
+  await expect(page.getByText("The admin password is pinned", { exact: false })).toBeVisible();
+  /* Users is in no CRM menu any more, and the one way back is All apps */
   await page.goto("/b-systems/crm?company=bsystems");
   await expect(page.locator(".app-header").getByRole("link", { name: "Users", exact: true })).toHaveCount(0);
-  /* the one way back is the All apps icon */
-  await page.goto("/b-systems/users?company=bsystems");
+  await page.goto("/users");
+  await expect(page.getByRole("link", { name: "All apps" })).toHaveCount(1);
   await page.getByRole("link", { name: "All apps" }).click();
   await page.waitForURL(LAUNCHER_URL);
 });
 
-test("the Users tile is the B-Systems admin's alone — the page keeps its own wall", async ({ page }) => {
+test("EVERY account has the Users tile — a teammate opens his own account, never the list", async ({ page }) => {
   await signIn(page, "sara@byteforce.example", "byteforce123");
-  await expect(page.locator('[data-app="users"]')).toHaveCount(0);
+  expect(await tileIds(page)).toEqual(["crm-byteforce", "todo", "reports", "users"]);
+  await page.locator('[data-app="users"]').click();
+  await page.waitForURL(/\/users$/);
+  await expect(page.getByRole("heading", { level: 1, name: "My account" })).toBeVisible();
+  await expect(page.getByLabel("Name", { exact: true })).toHaveValue("Sara Hassan");
+  await expect(page.getByLabel("Email")).toHaveValue("sara@byteforce.example");
+  /* no list, no tabs, no admin action — whatever the address asks for */
+  for (const path of ["/users", "/users?tab=all"]) {
+    await page.goto(path);
+    await expect(page.getByRole("link", { name: "All users" }), path).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Add user" }), path).toHaveCount(0);
+    await expect(page.getByRole("row", { name: /Omar Farouk/ }), path).toHaveCount(0);
+  }
+  /* the old addresses inside the CRM land here (ADR-103 — the proxy redirects) */
   await page.goto("/b-systems/users?company=bsystems");
-  await expect(page).not.toHaveURL(/\/b-systems\/users/);
+  await expect(page).toHaveURL(/\/users$/);
+  await page.goto("/b-systems/profile");
+  await expect(page).toHaveURL(/\/users\?tab=me$/);
+  await expect(page.getByRole("heading", { level: 1, name: "My account" })).toBeVisible();
 });
 
 test("a tile opens its app, and the header's All apps icon comes back", async ({ page }) => {
@@ -129,7 +163,8 @@ test("Reports & Dashboards lists the two CRM dashboards and the daily report —
 
 test("a sales rep sees only the apps the server lets him open", async ({ page }) => {
   await signIn(page, "omar@b-systems.example", "bsystems123");
-  expect(await tileIds(page)).toEqual(["crm-bsystems", "todo", "reports"]);
+  /* ADR-103 — Users is every account's: his own account */
+  expect(await tileIds(page)).toEqual(["crm-bsystems", "todo", "reports", "users"]);
   /* the doors the launcher withholds are really shut */
   await page.goto("/accounting");
   await expect(page).not.toHaveURL(/\/accounting/);
