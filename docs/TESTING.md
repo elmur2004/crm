@@ -8257,3 +8257,81 @@ The 3 skipped vitest cases are the same three as Run 108's gate.
   the product (ADR-103, needs founder confirmation).
 - **The screenshots were reviewed by eye and by the page's own checks** (no
   horizontal scroll), not against a baseline.
+
+### Run 109 — the deploy, NOT live yet (2026-11-14)
+
+`40e6ed7` went out fast-forward over `5440df3` at about 12:45Z. Neither push has
+deployed: at 21:13Z, about 8½ hours after this push and six days after
+`5440df3`'s, production still served the build from before 2026-11-08.
+
+| Probe (anonymous, 21:13Z) | Old build | `5440df3` / `40e6ed7` | Answered |
+|---|---|---|---|
+| `GET /users` | 404 | 307 to `/login` | **404** |
+| `POST /api/byteforce/leads/probe/assign` | 404 | 401 | **404** |
+| `GET /b-systems/users` | 307 to `/login` | 307 to `/users` | **307 to `/login`** |
+| `GET /login` | 200 | 200 | 200 |
+
+- **Two one-minute watches, 20:09Z–21:13Z.** The first ended on a false
+  "LIVE": curl printed `000` (no network) as this machine woke from sleep. The
+  second counted only a 307, 302 or 303 on `/users`, and ended `still old after
+  60 checks (21:13Z): last /users=404`.
+- **`/api/health` at 21:15Z:**
+  - HTTP 200, `ok: true`, `schemaCurrent: true` and `pendingMigrations: []`,
+    measured against the OLD build's own migration folders;
+  - `build.commit: null`, `knowsAdmins: ["admin@byteforce.com"]`;
+  - the admin present, active and approved;
+  - the headers say `Server: cloudflare` and name no host.
+- **Uploads (BUG-004's host action is still pending):** `uploads.dir`
+  `/app/uploads`, `persistentDirConfigured: false`, **9 attachments, 9
+  missing**. Every stored file is an `Attachment` row: recordings, CVs,
+  proposal and contract PDFs, payment proofs, vault files.
+  - So the coming redeploy erases nothing that still exists.
+  - Without a volume, every redeploy after it erases whatever was uploaded in
+    between.
+
+**Ruled out from the repo** (adds to Run 108's list):
+
+- **Build inputs.**
+  - Since `7b4c345`, the last push seen live (Run 107), the only change
+    outside `src/` and the docs is the migration
+    `20261108120000_assigned_leads_only`.
+  - `package.json`, `package-lock.json`, `scripts/` and the committed
+    `next.config.ts` are unchanged.
+  - The repo root has no host file: no Dockerfile, Procfile, nixpacks,
+    railway or render config.
+  - `/api/health` and `src/lib/storage` are unchanged too. `e2e/health.spec.ts`
+    passed in Run 109's gate: the new build answers 200 `ok: true` on a
+    migrated, seeded database.
+- **Letter case, which only Linux enforces.** All 2,843 local imports in the
+  634 committed source files at `40e6ed7` resolve with exact case. No two
+  committed paths differ only in case. The 22 imports that resolve to nothing
+  are `generated/prisma/client`, which `prisma generate` writes during the
+  build.
+- **The migration on real rows.**
+  - Both test setups run `prisma migrate deploy` on a fresh embedded
+    PostgreSQL 18 before any row exists.
+  - `assigned-leads-backfill.integration.test.ts` replays the file's own text,
+    `BEGIN`/`COMMIT` included, over sample leads, cards and accounts (two
+    cases, a second run included).
+  - Read by hand against the table as the migrations built it:
+    - The history insert fills every `NOT NULL` column of `ActivityLog`:
+      `id`, `entityType`, `entityId`, `actorLabel`, `action`, `trigger`,
+      `createdAt`. Its other three columns are nullable.
+    - Every column it fills is `TEXT`, so there is no enum cast.
+    - An id clash is `ON CONFLICT (id) DO NOTHING`.
+    - Every new owner id is read from `"User"`, so the foreign key holds.
+
+**Only the hosting panel can show:**
+
+- whether the host started a build for either push;
+- if it did, whether the build failed or the new container was refused at
+  start.
+
+A host that health-checks `/api/health` keeps the old container when the new
+one answers 503. The health route is unchanged, so the only new way to a 503 is
+an unapplied migration, and nothing above finds a way for this one to fail.
+
+**Founder action:** open the deployments for 2026-11-08 and 2026-11-14.
+
+- If there are none, reconnect the GitHub trigger or redeploy `main`.
+- If one failed, the last lines of its log say why.
