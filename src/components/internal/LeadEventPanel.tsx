@@ -22,8 +22,9 @@ import {
 
 /* §6.1/§6.2 — selecting a Next Action opens exactly that stage's field group right
    here; submitting fires ONE mutation (event + group payload). Cancel = nothing
-   happened. Meeting outcomes and proposal-sent are separate §5.3 events surfaced
-   contextually. Brand-agnostic: Apps A & B pass their own apiBase. */
+   happened. Proposal-sent is a separate §5.3 event surfaced contextually (ADR-108
+   removed the meeting outcome: a meeting is followed by an ordinary Next action).
+   Brand-agnostic: Apps A & B pass their own apiBase. */
 
 type Rep = { id: string; name: string };
 
@@ -238,7 +239,6 @@ export function LeadEventPanel({
   reps,
   latestProposalValue,
   hasUnsentProposal,
-  pendingMeeting,
   assignees,
 }: {
   apiBase: string;
@@ -247,7 +247,6 @@ export function LeadEventPanel({
   reps: Rep[];
   latestProposalValue: number | null;
   hasUnsentProposal: boolean;
-  pendingMeeting: boolean; // latest meeting exists with no outcome
   /** Founder (2026-11-08) — "Hand this follow-up to": the ByteForce ADMIN's
       options, pre-translated. Absent for everybody else (no select renders,
       and the server refuses an assignee from them regardless). */
@@ -257,8 +256,6 @@ export function LeadEventPanel({
   const locale = useLocale();
   const t = tFor(locale);
   const [action, setAction] = useState<string>("");
-  const [outcome, setOutcome] = useState<string>("");
-  const [destination, setDestination] = useState<string>("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -273,10 +270,6 @@ export function LeadEventPanel({
   const formTarget = (a: string) => (isSameStageAction(a) ? SAME_STAGE_FORM_TARGET[a] : a);
   /* the one form target that records a follow-up, and so can carry a hand-over */
   const followUpTarget = internalCrmConfig.followUpStage;
-  const attendedDestinations = internalCrmConfig.attendedDestinations("byteforce_staff");
-  /* ADR-059: the engine owns the cancelled-meeting destinations now — the UI
-     asks instead of composing the pair itself. Same answer as before here. */
-  const cancelledDestinations = internalCrmConfig.cancelledDestinations("byteforce_staff");
 
   async function submit(body: unknown) {
     setBusy(true);
@@ -293,8 +286,6 @@ export function LeadEventPanel({
       return;
     }
     setAction("");
-    setOutcome("");
-    setDestination("");
     router.refresh();
   }
 
@@ -365,87 +356,6 @@ export function LeadEventPanel({
               {t(events.sentMoveToFollowingUp)}
             </button>
           </form>
-        </div>
-      ) : null}
-
-      {stage === "meeting_setting" && pendingMeeting ? (
-        <div className="border border-brand-border rounded-brand-card p-4 bg-brand-surface-tint">
-          <p className="u-h3 mb-2">{t(events.meetingOutcome)}</p>
-          <select aria-label={t(events.meetingOutcome)} value={outcome} onChange={(e) => { setOutcome(e.target.value); setDestination(""); }} className={inputCls}>
-            <option value="">{t(events.chooseOutcome)}</option>
-            <option value="attended">{t(events.attended)}</option>
-            <option value="cancelled">{t(events.cancelled)}</option>
-            <option value="delayed">{t(events.delayed)}</option>
-          </select>
-
-          {outcome === "delayed" ? (
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                const fd = new FormData(e.currentTarget);
-                void submit({
-                  event: { type: "meeting_outcome", outcome: "delayed" },
-                  group: {
-                    group: "meeting_reschedule",
-                    data: { date: String(fd.get("date")), time: String(fd.get("time")) },
-                  },
-                });
-              }}
-              className="crm-reveal space-y-3 mt-3"
-            >
-              <p className="field-hint">{t(events.delayedSetNew)}</p>
-              <div className="grid grid-cols-2 gap-3">
-                <input type="date" name="date" required className={inputCls} />
-                <input type="time" name="time" required className={inputCls} />
-              </div>
-              <button type="submit" disabled={busy} className={btnPrimary}>
-                {t(events.saveNewDate)}
-              </button>
-            </form>
-          ) : null}
-
-          {outcome === "attended" || outcome === "cancelled" ? (
-            <div className="crm-reveal mt-3 space-y-3">
-              <label className="block">
-                <span className={labelCls}>
-                  {outcome === "attended" ? t(events.whereNext) : t(events.cancelledFollowUpOrLost)}
-                </span>
-                <select
-                  aria-label={t(events.destination)}
-                  value={destination}
-                  onChange={(e) => setDestination(e.target.value)}
-                  className={inputCls}
-                >
-                  <option value="">{t(events.choose)}</option>
-                  {(outcome === "attended" ? attendedDestinations : cancelledDestinations).map((d) => (
-                    <option key={d} value={d}>
-                      {stageLabel(locale, d)}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              {destination ? (
-                <form
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    const fd = new FormData(e.currentTarget);
-                    void submit({
-                      event: { type: "meeting_outcome", outcome, destination },
-                      group: groupForTarget(destination, fd),
-                      assignTo: destination === followUpTarget ? assignToFromForm(fd) : undefined,
-                    });
-                  }}
-                  className="crm-reveal space-y-3"
-                >
-                  {fieldsForTarget(destination)}
-                  {destination === followUpTarget ? <AssignToField options={assignees} /> : null}
-                  <button type="submit" disabled={busy} className={btnPrimary}>
-                    {t(events.confirmMoveTo)} {stageLabel(locale, destination)}
-                  </button>
-                </form>
-              ) : null}
-            </div>
-          ) : null}
         </div>
       ) : null}
 

@@ -2873,3 +2873,56 @@ You asked again for two things: that salespeople in both companies see only the 
 - **Two reviews before the push.**
   - One found a rare way someone could have become the main admin: by giving his own account an old admin address the system still recognises. Every place that sets an email now refuses those addresses, and your own email is locked in the editor too.
   - The other found two readability issues on the new page, and both are fixed.
+
+## 15 November 2026 — Assign many leads at once, Back to the CRM board, and two things removed (goes live with the next deploy)
+
+You asked for four things: a way to hand many leads to one person from Users; the "Back to the CRM" button on a lead; "Mark ready to close" gone; and the meeting outcome gone, since it can be written in the comments.
+
+**None of this is live yet.** The site is still on the version from before 8 November, so this arrives with the 8 and 14 November updates when the host deploys.
+
+### Assign many leads at once
+
+- **In Users → All users, everyone who can hold leads has Assign leads** on their row: sales, agents, partners and ByteForce staff.
+- **It lists the leads you can give them, from both CRMs.** By default it shows the unassigned ones and your own, still open.
+- **Narrow it** by CRM, by who owns it now, by stage, or with a search on name, company or number.
+- **To move a leaver's list,** pick their name under "Owner now" and select all.
+- **Tick the leads, or select all, and press "Assign N leads to …".** They are that person's at once:
+  - each lead's history records it;
+  - the person gets **one** notification for the lot.
+- **Changed your mind? Undo, at the bottom of the screen,** gives every lead back to its previous owner. If one of them has been worked on since, nothing is undone.
+- **Up to 500 leads at a time.**
+
+### Back to the CRM board
+
+- **A lead's page has "Back to the CRM board" again,** in both companies.
+- It went with the other back links on 26 October. This is the one you asked back; the others stay gone.
+
+### Removed: Mark ready to close
+
+- **Gone from the lead page and the board cards.** There is no badge and no notification any more.
+- **The dashboard's "Needs you" card** now shows only sign-ups waiting for approval.
+- **Leads that were already flagged** just stop showing it.
+
+### Removed: the meeting outcome
+
+- **No more Attended / Cancelled / Delayed** after a meeting.
+- **Write how the meeting went in the lead's comments,** then move the lead on with Next action as usual. Every stage the outcome offered is there, Postpone included.
+- **For a meeting that moves, use Reschedule meeting.**
+- **Past outcomes still show** in each lead's history.
+- **Partners & Agents cards lost it too.** They have no comments box, so a note goes in the card's description.
+
+### Questions for you
+
+1. **Default list.** The Assign leads list opens on unassigned leads and your own, open stages only. Is that the right default?
+2. **Batch size.** Is 500 leads per press enough?
+3. **Notifications.** A batch sends one notification ("Assigned to you: 23 leads") instead of one per lead. Is that OK?
+4. **Partners & Agents.** Those cards lost the meeting outcome too, and they have no comments box. Keep it that way, perhaps with a comments box added, or bring the outcome back there only?
+5. **To-Do.** When a meeting is rescheduled, its old task now shows under Done as "Superseded by a newer step", and the new meeting appears on its own day. Is that how you want it?
+
+### Checks
+
+- **On a clean copy of exactly what is being pushed,** 1,972 automated checks passed. On the full browser run, 339 tests passed.
+- **Three of my new browser tests failed on the first run.** Two mistakes in the tests themselves caused it: a lead created without the company name B-Systems requires, and a dropdown looked up the wrong way. Both are fixed, and the four tests pass.
+- **Three reviews before the push.**
+  - One fixed the new screen's tap sizes and contrast on phones.
+  - Two checked everything against the rules. They found nothing that lets anyone move a lead they shouldn't. They did find a list showing ByteForce leads B-Systems' stages, and wording that still described the removed features; all fixed.

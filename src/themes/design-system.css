@@ -379,6 +379,20 @@
 .page--detail { padding: 20px var(--page-pad) 44px; }
 .page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 18px; flex-wrap: wrap; margin-bottom: 20px; }
 .page-actions { display: flex; gap: 9px; flex-wrap: wrap; align-items: center; }
+/* ADR-106 — "Back to the CRM" on a lead's page: the launcher's .lx-back, for
+   the shells. Link ink, not muted: it sits on the glass ground (ADR-092),
+   where --color-muted falls under 4.5:1. 44px tall for touch. */
+.back-link {
+  display: inline-flex; align-items: center; gap: 8px; min-height: 44px;
+  padding-inline: 6px; margin-inline-start: -6px; border-radius: var(--radius-control);
+  font: 600 13px var(--font-body); color: var(--color-link); text-decoration: none;
+}
+.back-link:hover { text-decoration: underline; text-underline-offset: 3px; }
+.back-link-arrow {
+  width: 7px; height: 7px; border-inline-start: 2px solid currentColor;
+  border-block-end: 2px solid currentColor; transform: rotate(45deg);
+}
+[dir="rtl"] .back-link-arrow { transform: rotate(-45deg); }
 
 /* ---------- 2.3 stat tile ---------- */
 .tile {
@@ -908,7 +922,6 @@ label:has(input[required]) .dropzone-title::after {
 .badge { display: inline-block; font: 500 9.5px var(--font-mono); letter-spacing: .14em; text-transform: uppercase; border-radius: 5px; padding: 4px 8px; }
 .badge--partner, .badge--converted { background: var(--color-secondary-tint); color: var(--color-secondary-tint-ink); }
 .badge--rep { background: var(--color-primary-tint); color: var(--color-primary); }
-.badge--accent { background: var(--color-accent); color: var(--color-on-accent); }
 .badge--danger { font-size: 10px; letter-spacing: .1em; background: var(--color-danger-tint); color: var(--color-danger); border: 1px solid var(--color-danger-border); }
 /* founder (ADR-039): the "didn't answer" card marker — danger-tinted, token-driven */
 .badge--noanswer { background: var(--color-danger-tint); color: var(--color-danger); border: 1px solid var(--color-danger-border); }

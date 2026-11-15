@@ -36,8 +36,6 @@ export function BsEventPanel({
   apiBase,
   people = [],
   hasUnsentProposal,
-  pendingMeeting,
-  readyToClose,
   assignees,
 }: {
   leadId: string;
@@ -45,9 +43,9 @@ export function BsEventPanel({
   role: BsFormRole;
   reps: Array<{ id: string; name: string }>;
   /* ADR-073 — WHICH pipeline this lead runs on. Required, like BsBoard's: the
-     panel decides which next actions and which meeting-outcome destinations to
-     offer, and both are ROLE-GATED per company. Hardcoded to one company it
-     offers another company's staff no way to win their own deals. */
+     panel decides which next actions to offer, and they are ROLE-GATED per
+     company. Hardcoded to one company it offers another company's staff no way
+     to win their own deals. */
   company: Brand;
   /** ADR-074 — this surface's API namespace. Required rather than defaulted to
       the `/api/b-systems` literal, so no call site inherits a company: a panel
@@ -56,8 +54,6 @@ export function BsEventPanel({
   /** ADR-071 — the company roster for the meeting form's "Also blocks". */
   people?: Array<{ id: string; name: string }>;
   hasUnsentProposal: boolean;
-  pendingMeeting: boolean;
-  readyToClose: boolean;
   /** Founder (2026-11-08) — "Hand this follow-up to": the COMPANY ADMIN's
       options, pre-translated. Absent for everybody else, so no select renders
       (and the server refuses an assignee from them regardless). */
@@ -87,8 +83,6 @@ export function BsEventPanel({
             : "bsystems_partner";
   const light = isLight(role);
   const [action, setAction] = useState("");
-  const [outcome, setOutcome] = useState("");
-  const [destination, setDestination] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [meetingSent, setMeetingSent] = useState(false);
@@ -101,9 +95,6 @@ export function BsEventPanel({
      this go next" select — nothing moves when you press them. */
   const sameStageActions = nextActions.filter(isSameStageAction);
   const stageActions = nextActions.filter((a) => !isSameStageAction(a));
-  const attendedDestinations = config.attendedDestinations(engineRole);
-  /* ADR-059: read the slot, never compose the pair (see internal panel). */
-  const cancelledDestinations = config.cancelledDestinations(engineRole);
   /* a same-stage action reuses its stage's own field group (V2 §3 role-aware) */
   const formTarget = (a: string) => (isSameStageAction(a) ? SAME_STAGE_FORM_TARGET[a] : a);
   /* the form target that records a FOLLOW-UP — the only one that can carry a
@@ -125,8 +116,6 @@ export function BsEventPanel({
       return;
     }
     setAction("");
-    setOutcome("");
-    setDestination("");
     onOk?.();
     router.refresh();
   }
@@ -152,29 +141,10 @@ export function BsEventPanel({
         </p>
       ) : null}
 
-      {!readyToClose ? (
-        <button
-          type="button"
-          disabled={busy}
-          onClick={async () => {
-            setBusy(true);
-            await fetch(`${apiBase}/leads/${leadId}/ready`, { method: "POST" });
-            setBusy(false);
-            router.refresh();
-          }}
-          /* brand audit: the label was Signal Pink on the white card (3.12:1);
-             the border keeps the pink cue, the words take the Won chip's own
-             AA ink (crm.css .crm-ready) */
-          className="crm-ready border border-brand-accent rounded-brand-control px-3 py-1.5 text-sm font-medium"
-        >
-          {t(common.markReadyToClose)}
-        </button>
-      ) : (
-        <p className="text-sm">
-          <span className="badge badge--accent">{t(common.readyToClose)}</span>
-        </p>
-      )}
-
+      {/* ADR-107 — no "Mark ready to close" (founder: "remove the whole mark
+          ready to close thing"). ADR-108 — no meeting outcome either: what
+          happened in a meeting goes in the comments, and the card moves on by
+          Next action (Reschedule meeting covers a delay). */}
       {stage === "sending_proposal" && hasUnsentProposal ? (
         <div className="card card-pad space-y-3">
           <p className="u-h3">{t(msg.proposalReady)}</p>
@@ -208,102 +178,6 @@ export function BsEventPanel({
               </button>
             </form>
           )}
-        </div>
-      ) : null}
-
-      {stage === "meeting_setting" && pendingMeeting ? (
-        <div className="card card-pad space-y-3">
-          <p className="u-h3">{t(msg.meetingOutcome)}</p>
-          <select
-            aria-label={t(msg.meetingOutcome)}
-            value={outcome}
-            onChange={(e) => {
-              setOutcome(e.target.value);
-              setDestination("");
-            }}
-            className={inputCls}
-          >
-            <option value="">{t(msg.chooseOutcome)}</option>
-            <option value="attended">{t(msg.attended)}</option>
-            <option value="cancelled">{t(msg.cancelled)}</option>
-            <option value="delayed">{t(msg.delayed)}</option>
-          </select>
-
-          {outcome === "delayed" ? (
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                const fd = new FormData(e.currentTarget);
-                void submit({
-                  event: { type: "meeting_outcome", outcome: "delayed" },
-                  group: {
-                    group: "meeting_reschedule",
-                    data: { date: String(fd.get("date")), time: String(fd.get("time")) },
-                  },
-                });
-              }}
-              className="crm-reveal space-y-3 mt-3"
-            >
-              <div className="grid grid-cols-2 gap-3">
-                <input type="date" name="date" required className={inputCls} />
-                <input type="time" name="time" required className={inputCls} />
-              </div>
-              <button type="submit" disabled={busy} className={btnPrimary}>
-                {t(msg.saveNewDate)}
-              </button>
-            </form>
-          ) : null}
-
-          {outcome === "attended" || outcome === "cancelled" ? (
-            <div className="crm-reveal mt-3 space-y-3">
-              <select
-                aria-label={t(msg.destination)}
-                value={destination}
-                onChange={(e) => setDestination(e.target.value)}
-                className={inputCls}
-              >
-                <option value="">{t(msg.chooseDestination)}</option>
-                {(outcome === "attended" ? attendedDestinations : cancelledDestinations).map((d) => (
-                  <option key={d} value={d}>
-                    {stageLabel(locale, d)}
-                  </option>
-                ))}
-              </select>
-              {destination ? (
-                <form
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    const fd = new FormData(e.currentTarget);
-                    void submit({
-                      event: { type: "meeting_outcome", outcome, destination },
-                      group: buildGroupPayload(destination, fd, {
-                        light,
-                        agreed: formState.agreed,
-                        milestoneCount: formState.milestoneCount,
-                      }),
-                      assignTo: destination === followUpTarget ? assignToFromForm(fd) : undefined,
-                    });
-                  }}
-                  className="crm-reveal space-y-3"
-                >
-                  <GroupFieldsV2
-                    people={people}
-                    target={destination}
-                    role={role}
-                    reps={reps}
-                    agreed={formState.agreed}
-                    setAgreed={formState.setAgreed}
-                    milestoneCount={formState.milestoneCount}
-                    setMilestoneCount={formState.setMilestoneCount}
-                  />
-                  {destination === followUpTarget ? <AssignToField options={assignees} /> : null}
-                  <button type="submit" disabled={busy} className={btnPrimary}>
-                    {t(msg.confirmMoveTo).replace("{stage}", stageLabel(locale, destination))}
-                  </button>
-                </form>
-              ) : null}
-            </div>
-          ) : null}
         </div>
       ) : null}
 

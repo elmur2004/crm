@@ -83,6 +83,7 @@ Hard rules enforced server-side, not just hidden in UI:
 - ByteForce has no admin role of its own, so its admin is an account holding both `byteforce_staff` and `bsystems_admin` (A-8).
 - The ByteForce dashboard, and the leads export and import of both companies, are the company admin's alone.
 - Only the company admin hands a lead to someone, including with a follow-up (ADR-099, ADR-100).
+- **Amended by ADR-105.** He can also hand **many leads at once** to one person, from the Users app (All users → Assign leads), under the same rules.
 
 The table above is kept.
 
@@ -178,6 +179,8 @@ These behaviors are shared by all pipelines (App A CRM, App B CRM, App B Partner
 ### 5.3 Automatic transfers (side effects)
 Certain field events move the card without the user picking a Next Action, e.g. "Proposal → Sent ✓" auto-moves to Following Up; "Meeting → Attended ✓" forces a destination choice; a new number typed on a Didn't-Answer partner auto-returns it to Lead. All such triggers are enumerated in §10 and each must be integration-tested.
 
+**Amended by ADR-108 (no meeting outcome)** (founder, 2026-11-15: *"remove the meeting outcome thing it will be written just fine in the comments"*). "Meeting → Attended ✓" no longer exists: nothing asks how a meeting went. What happened goes in the lead's comments, and the card leaves Meeting Setting by an ordinary Next action or drag.
+
 ### 5.4 Drag & drop (Portal only, v1)
 - App C reps drag cards freely between columns like Trello, **except into Won**.
 - On drop into a stage, the stage's field-group form opens immediately; cancelling the form reverts the drop. Internal apps (A, B) are action-driven only in v1 (extension noted in A-7).
@@ -195,6 +198,7 @@ The founder's original wording is preserved in meaning but normalized in the UI 
 - The To-Do is a projection of **TODAY** (Cairo calendar day) over the records that already carry dates: lead follow-ups and arranged meetings that are their lead's latest record in the matching stage, plus — B-Systems admin only — pending statements and open milestones expected on or before today. No task rows exist as separate state; archived leads and the partners funnel project nothing (ADR-043, ADR-061).
 - **Every task row carries a checkbox.** A task completes in exactly two ways: **manually**, by checking the box (a completion mark keyed to the underlying record, written by whoever may see the task, enforced server-side with the projection's own scope wall), or **automatically**, when the CRM resolves it — the lead leaves the matching stage, a newer record supersedes it, the meeting receives an outcome, the statement is paid, the milestone is completed.
 - A meeting **delayed to another day** is a *moved* task, not a completed one: it leaves today's list and comes back to Today on its new date, without a Done row (delayed to later the same day, it simply stays in Today, unchecked). Of the three outcomes only `Attended` and `Cancelled` complete a meeting task.
+- **Amended by ADR-108.** A meeting task completes when the lead leaves Meeting Setting ("Moved to …") or when a newer meeting supersedes it — there is no outcome to receive. A meeting that moves is **Reschedule meeting** (a new meeting record, ADR-046): today's old task shows in Done as "Superseded by a newer step", and the new meeting is a task on its own day (later today, it is today's task again). A meeting resolved by an outcome before the change still reads that outcome. This **overturns ADR-062's reading (c)** ("a delayed meeting leaves Today with no Done row") and **retires the "rescheduled in place" case below**: no meeting is edited in place any more, so the due-instant snapshot only matters for a pre-change undo (needs founder confirmation).
 - Completed tasks leave the active list and appear in a **Done** section below Today (today only, rendered only when nonempty), visually distinguished and labelled with what completed them.
 - A **manual** completion can be unchecked back to Today; an **automatic** completion cannot — reversing it is a CRM action. Manual completion never mutates the underlying CRM or money record.
 - A new follow-up (or meeting) on the same lead is a **new task** and always arrives unchecked; a meeting rescheduled in place is likewise a fresh task (the mark snapshots the due instant and stops matching).
@@ -220,6 +224,10 @@ Navigation: **Home (Dashboard) | Leads | CRM | Clients** — plus To-Do (ADR-041
 - **The lead detail and the cards show the Owner** where §6.1 and §6.3 say rep. Rep cards and `salesRepId` stay as history and decide nothing.
 
 **Amended by ADR-104 (Assign on every row).** The ByteForce admin also hands a lead out from **every row of his Leads lists** — each teammate's list and Unassigned carry an Owner column with **Assign owner**, the lead page's own control. A teammate's own list has none. Not on the archive, not on the board.
+
+**Amended by ADR-105 (mass assign).** The admin also hands out **many leads at once, from the Users app**: on **All users**, the row of every live account that can own a lead carries **Assign leads**, which lists the leads of **both CRMs** that person could be given (filtered by CRM, current owner, stage and a search; by default the unassigned and the admin's own, open stages only, newest 500). One press hands every ticked lead over through the same rules as Assign owner, writes one history row per lead, sends the person **one** notification, and is **one** undo step (all or nothing).
+
+**Amended by ADR-106 (back to the board).** A lead's page carries **Back to the CRM board**, to that company's board — the one back link ADR-095's "Remove them" leaves.
 
 The text below is kept.
 
@@ -265,6 +273,8 @@ The text below is kept.
 **Amended by ADR-096.** The founder: *"شيل الخطوة دي ملهاش اي معنى خش في المعاد علطول"* (remove this step — it means nothing — go straight to the appointment) and *"شيل برضو ال technical support"*. The **Arranged?** checkbox and the **Technical support** field are gone from the internal meeting forms (ByteForce, and the B-Systems admin and sales forms, on the board's drop window and the lead page alike). Moving a card to Meeting Setting asks for the meeting itself — **Date & time and Mode are required** — and every meeting set there is stored as arranged. The data model is unchanged: `arranged` and `technical_support` stay on `Meeting`, so older records keep and show what they hold, and the agents' and partners' own flow (V2 §3: *"Did you agree with the client on a time?"*, whose "no" records a proposed slot for the admin to confirm, plus *"Do you need a technical colleague with you?"*) is untouched.
 
 Outcome logic: `Attended` → user **must** pick a destination stage (`Sending proposal` / `Won` / `Lost` / `Following up`) and the card auto-transfers, opening that stage's group (a Following-up destination opens with context `after_meeting`). `Delayed` → require a new date & time, card stays in Meeting Setting (assumption A-3). `Cancelled` → user picks `Following up` or `Lost` (assumption A-3).
+
+**Amended by ADR-108 (no meeting outcome)** (founder, 2026-11-15: *"remove the meeting outcome thing it will be written just fine in the comments"*). The `Meeting outcome` field and its Outcome logic are removed from every pipeline (ByteForce, B-Systems, and the Partners & Agents funnel). From Meeting Setting, **Next action** offers every stage the outcome used to — Sending Proposals, Negotiation (B-Systems), Won (where the role may), Lost, Following Up (with the *after meeting* context), and Postpone — and **Reschedule meeting** covers a delay. The `outcome` / `outcome_destination` columns stay (a backup restores rows verbatim) and old values still show in the history; only a backup restore (and an undo entry recorded before the change) writes them.
 
 **Sending proposal**
 
@@ -346,6 +356,12 @@ Identical to App A in structure and behavior (§6.1–§6.5), themed B-Systems, 
 **Amended by ADR-103 (the Users app for every account).** Users is **every account's** launcher tile and its own page at **`/users`**, outside every CRM, in the launcher's own frame. The B-Systems admin sees **All users** (every account of every type, both companies: add, edit, roles, modules, remove, delete, impersonate) and **My account**; everybody else sees **My account** only — his name, email, phone and password (and, for an agent, his profile and CV). **Profile** left the agent and partner menus, which are now **CRM | Calendar | Won Leads | Payments**. `/b-systems/users` and `/b-systems/profile` redirect to `/users`.
 
 **Amended by ADR-104 (Assign on every row).** Every row of the admin's **Leads** table carries **Assign owner** beside its owner, the lead page's own control (not on the archive).
+
+**Amended by ADR-105 (mass assign).** The admin also hands out **many leads at once, from the Users app**: on **All users**, the row of every live account that can own a lead carries **Assign leads**, which lists the leads of **both CRMs** that person could be given (filtered by CRM, current owner, stage and a search; by default the unassigned and the admin's own, open stages only, newest 500). One press hands every ticked lead over through the same rules as Assign owner, writes one history row per lead, sends the person **one** notification, and is **one** undo step (all or nothing).
+
+**Amended by ADR-106 (back to the board).** A lead's page carries **Back to the CRM board**, to that company's board — the one back link ADR-095's "Remove them" leaves.
+
+**Amended by ADR-107 (no ready to close).** V2 §3's **"Mark ready to close"** is removed (founder, 2026-11-15: *"remove the whole mark ready to close thing"*): no button on the lead page or the board cards, no badge, no admin notification, and no "Ready to close" group on the dashboard's Needs you card. The `readyToClose` column stays, read by nothing and written only by a backup restore (or an undo entry recorded before the change); old history rows (`B-RTC`) keep their phrase.
 
 ### 7.2 Partners Pipeline (partner acquisition board)
 **Seven columns, the SAME set for BOTH kinds of card** (partner and agent), in this order:
@@ -578,6 +594,8 @@ Shows all sign-up info (name, phone, address, speciality, CV download). Editable
 | `Attachment` | owner ref, kind (`cv`/`recording`), file, mime, size |
 | `ActivityLog` | entity ref, actor, action, from_stage?, to_stage?, trigger, at |
 
+**Amended by ADR-108.** `Meeting.outcome` and `outcome_destination` are kept as columns, written only by a backup restore (and an undo entry recorded before the change) since the meeting outcome was removed; past values stay readable.
+
 Field groups are separate child records (not columns on the card) so history accumulates per §5.2.
 
 ---
@@ -603,6 +621,8 @@ Every row below is a rule the code must implement and a test case §13 must cove
 | T-11 | Next action = Postpone / Not answering, **or a drag into the column** | Any active | Postpone / Not answering | **No field group and NO fields — the move commits immediately, by action or by drag, on both internal boards** (ADR-082, superseding ADR-072's always-asks-why popup; founder: "don't ask for anything just drop it there"). The stage is ORDINARY and ACTIVE — never terminal — so the lead comes back out to any active stage, each target keeping its own group. The "didn't answer" tally is the ONE destination that does **not** clear it (ADR-072 §2: the column's first reason is "not answering at all"). `PostponeInfo` rows written before ADR-082 remain and still render in History; no new ones are written |
 | T-12 | "Didn't answer" pressed on a lead in Following Up whose live follow-up is due **today** (Cairo) | Following Up | Following Up — no move | Besides counting the attempt (ADR-064), the system logs the NEXT follow-up, dated **tomorrow** (Cairo), inheriting the chase's method, "following up about" text, owner columns and context; date-only (`dueTimeSet = false`, 09:00 Cairo slot). Repeats on each press until he answers. **Not** when the follow-up is in the future, **not** when it has already fallen behind (founder: "keep it fallen behind in a separate column I will pick it up and make another follow up date"), and **not** from any other stage. One `group_added` / `FU-AUTO` ActivityLog row; the auto-created row is carried in the press's undo snapshot and is deleted by an undo (ADR-082) |
 
+**Amended by ADR-108 (no meeting outcome).** Rows **T-6, T-7 and T-8 are retired**: there is no `meeting_outcome` event (the engine and the API refuse it). After a meeting the card moves by Next action (T-1 … T-4, T-9, the Postpone row) or drag, and a delay is the same-stage Reschedule meeting (`MTG-RESCHEDULE`). History rows written under T-6/T-7/T-8 keep their meaning.
+
 ### 10.2 Partners & Agents Pipeline (App B) — one pipeline, two kinds of card
 
 **Seven columns for BOTH kinds: Lead | Contacted | Didn't Answer | Meeting Setting | Waiting |
@@ -622,6 +642,8 @@ Terminal stages are Qualified and Lost. (ADR-059 — supersedes the §10.2/§10.
 | PP-8 | "Record a follow-up" on an active card | Any active | Same stage | Writes a FollowUp (date, time, method, owner, following-up-with) and puts the card on the To-Do. **No stage implies a follow-up; this action is the only way one is created** (founder item 2.1). History reads "group added"; the card never moves |
 | PP-9 | Any transition | — | — | ActivityLog entry (actor, from → to, trigger, timestamp); the card stays **fully editable in every active stage, Waiting included** — no locked fields, the edit form always available |
 
+**Amended by ADR-108.** PP-3's "and every meeting outcome" is retired with the outcome: a prospect leaves Meeting Setting by Next action (Contacted / Waiting / Qualified / Lost) or drag, and Reschedule meeting covers a delay. Prospect cards have no comments box; a note on the meeting goes in the card's description (needs founder confirmation).
+
 ### 10.2a Agents Pipeline (App B) — superseded
 
 **Superseded by §10.2 (ADR-059).** PA-1…PA-5 are retired: agent cards run the same rows as partner
@@ -640,6 +662,8 @@ already carrying `PA-1`…`PA-5` remain valid history and keep their original me
 | P-6 | **Admin** moves deal to Won | Any | Won | Auto-create WonDeal record; auto-fill Name, Position, Number, Email, Company, Industry; appears in rep's Won Deals and admin's Won Deals management |
 | P-7 | Admin defines milestone count & values | — | — | N checkboxes generated; Milestone 1 value visible to rep; milestones ≥ 2 locked, values hidden |
 | P-8 | Admin checks milestone *i* | — | — | Milestone *i+1* unlocks for the rep (value revealed); ActivityLog entry; irreversible without admin unchecking (logged) |
+
+**Amended by ADR-108.** P-3 now means "the same groups and automatic rules as T-1 … T-5 and the Postpone row" (never Won — P-2/P-6 keep it the admin's), and **P-5 is retired** with the meeting outcome: a rep moves on from a meeting by Next action, which never offers him Won (P-2).
 
 ---
 
@@ -661,6 +685,8 @@ already carrying `PA-1`…`PA-5` remain valid history and keep their original me
 | A-12 | UI language | English v1; architecture RTL-ready for Arabic (ByteForce brand is bilingual) |
 | A-13 | Brand asset files | Logos: founder drops into `/branding/*` (agent adapts to actual filenames). Fonts: Raleway/Inter/JetBrains Mono via Google Fonts; Lama Sans files pending → temporary system-sans fallback behind the same tokens |
 | A-14 | Should Qualified be reversible, now that an agent can be qualified without an account? | No — Qualified stays terminal, as it always was; a mis-qualified card is walked back with Undo inside its window, or deleted. **Needs founder confirmation** (ADR-059) |
+
+**Amended by ADR-108.** A-3 (Delayed / Cancelled behaviour) is retired with the meeting outcome: a delay is Reschedule meeting; a cancelled meeting or a no-show is a Next action to Following Up, Postpone or Lost.
 
 **Amended by ADR-103.** A-10's open part ("phone change = ADR") is decided: the phone **can** change — for agents too, who may not remove it — through My account (§8.4). The rest of A-10 is kept, and now holds for every account.
 
@@ -702,6 +728,8 @@ Rules:
 3. B-Systems partner cycle: prospect with mp3 record → Didn't Answer → add Number 2 → auto-return to Lead → Contacted (no form at all) → Meeting → Waiting (still fully editable, moves out both ways) → Qualified gate blocks until the completeness fields are filled, never asking for an email or a password → Partner in directory with date joined → add partner lead → Next Action → CRM card bears "Partner: {Company}".
 4. Portal rep cycle: sign up with CV → log in → create deal → drag through stages with field groups → attempt drag into Won is blocked → sees only own deals.
 5. Portal admin cycle: log in → combined and per-rep CRM views → move deal to Won → WonDeal auto-created → set Estimated value, commission, 3 milestones → rep sees Milestone 1 only, 2 & 3 locked → admin checks 1 → rep sees Milestone 2 → Sales Team table and admin dashboard numbers correct.
+
+**Amended by ADR-108.** The T-6 attended-destination test, and journey 1's "attended → proposal", become the Next action from Meeting Setting to Sending Proposals; To-Do completion "by meeting outcome" is now completion by the move or by a newer meeting.
 
 **Seed script** — demo data for both brands and the portal (reps, leads across all stages, a converted partner with leads, a won deal with milestones) so every screen renders meaningfully on first run.
 

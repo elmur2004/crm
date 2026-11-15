@@ -87,16 +87,6 @@ function buildProspectConfig(slots: KindSlots): PipelineConfig {
       if (config.terminalStages.includes(stage)) return [];
       return [...activeActions(config, stage), ...sameStageExtras(config, stage)];
     },
-    attendedDestinations() {
-      /* ADR-010: no proposals stage here. Waiting joins the list because it is
-         an ordinary active stage — "we met them, now we wait" is exactly the
-         holding state the founder asked for. */
-      return ["contacted", "waiting", "qualified", "lost"];
-    },
-    cancelledDestinations() {
-      // A-3, minus Qualified: a cancelled meeting never qualifies anyone.
-      return ["contacted", "waiting", "lost"];
-    },
     dragEnabled: true, // founder V4: the Partners & Agents board is draggable
     wonRoles: null,
     wonRequiredGroup: slots.wonRequiredGroup,

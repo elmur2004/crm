@@ -15,6 +15,7 @@ import {
   getProspectDetail,
   listPartners,
   parseNumbers,
+  prospectEventSchema,
   prospectKindWhere,
   prospectSearchWhere,
   updatePartner,
@@ -128,7 +129,7 @@ describe("Partners pipeline (§10.2)", () => {
     expect(pp2).toBeNull();
   });
 
-  it("PP-3 + ADR-010: partners meeting-attended cannot target a proposals stage", async () => {
+  it("ADR-108 + ADR-010: after a meeting the card moves by Next action — never to a proposals stage, and no outcome", async () => {
     const p = await makeProspect();
     await applyProspectEvent({
       prospectId: p.id,
@@ -143,11 +144,24 @@ describe("Partners pipeline (§10.2)", () => {
     await expect(
       applyProspectEvent({
         prospectId: p.id,
-        event: { type: "meeting_outcome", outcome: "attended", destination: "sending_proposal" },
+        event: { type: "next_action", action: "sending_proposal" },
         actor,
         role,
       }),
     ).rejects.toThrow();
+    await applyProspectEvent({
+      prospectId: p.id,
+      event: { type: "next_action", action: "waiting" },
+      actor,
+      role,
+    });
+    expect((await getProspectDetail(p.id)).prospect.stage).toBe("waiting");
+    /* the retired event is refused at the API's own schema */
+    expect(
+      prospectEventSchema.safeParse({
+        event: { type: "meeting_outcome", outcome: "attended", destination: "waiting" },
+      }).success,
+    ).toBe(false);
   });
 
   it("PP-4: the Qualified gate blocks until every required field is present, then converts", async () => {

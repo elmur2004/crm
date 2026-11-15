@@ -25,7 +25,7 @@ async function login(page: Page, identifier: string, password: string, landing: 
   await afterSignIn(page, landing);
 }
 
-/** the menu row whose title starts with this text (rows are buttons) */
+/** the menu row that carries this text, in its title or its body (rows are buttons) */
 const row = (page: Page, title: string) =>
   page.locator(".bell-menu .bell-item", { hasText: title });
 
@@ -57,20 +57,33 @@ test("an unread notification is MARKED, and opening it takes the mark away", asy
 }) => {
   await login(page, ADMIN.id, ADMIN.password, /\/b-systems$/);
 
-  /* Two real notifications, made the way the app makes them: marking a lead
-     ready to close broadcasts to every admin (V2 §3). Two, because the whole
-     point is that an unread row is distinguishable from a read one AT THE SAME
-     TIME, in the same menu. */
+  /* Two real notifications, made the way the app makes them: a lead a
+     data-entry account adds belongs to nobody, so every admin is told it "needs
+     an owner", deep-linked to it (ADR-051). (This used "Mark ready to close"
+     until ADR-107 removed it.) Two, because the whole point is that an unread
+     row is distinguishable from a read one AT THE SAME TIME, in the same menu. */
+  const made = await page.request.post("/api/b-systems/users", {
+    data: {
+      name: "Unread Mark Entry",
+      email: "unread.mark.entry@b-systems.example",
+      password: "unread-entry-1",
+      roles: ["bsystems_data_entry"],
+    },
+  });
+  expect(made.status()).toBe(201);
+  const entryCtx = await page.context().browser()!.newContext();
+  const entry = await entryCtx.newPage();
+  await login(entry, "unread.mark.entry@b-systems.example", "unread-entry-1", /\/b-systems\/entry$/);
   const leads: string[] = [];
   for (const name of ["Unread Mark Alpha", "Unread Mark Beta"]) {
-    const created = await page.request.post("/api/b-systems/leads", {
+    const created = await entry.request.post("/api/b-systems/leads", {
       data: { name, number: "0107770001", type: "cold_call", companyName: `${name} SAE` },
     });
     expect(created.status()).toBe(201);
     const lead = (await created.json()) as { id: string };
     leads.push(lead.id);
-    expect((await page.request.post(`/api/b-systems/leads/${lead.id}/ready`)).ok()).toBe(true);
   }
+  await entryCtx.close();
 
   await page.goto("/b-systems");
   const bell = page.getByRole("button", { name: /^Notifications/ });
@@ -78,8 +91,8 @@ test("an unread notification is MARKED, and opening it takes the mark away", asy
   await expect(bell).toHaveAttribute("aria-label", /\(\d+ unread\)/);
   await bell.click();
 
-  const alpha = row(page, "Ready to close: Unread Mark Alpha");
-  const beta = row(page, "Ready to close: Unread Mark Beta");
+  const alpha = row(page, "Unread Mark Alpha");
+  const beta = row(page, "Unread Mark Beta");
   await expect(alpha).toHaveAttribute("data-unread", "true");
   await expect(beta).toHaveAttribute("data-unread", "true");
   /* the mark is a WORD, not only a colour — this is the accessible half */
@@ -119,12 +132,12 @@ test("an unread notification is MARKED, and opening it takes the mark away", asy
 
   await page.goto("/b-systems");
   await page.getByRole("button", { name: /^Notifications/ }).click();
-  const alphaAgain = row(page, "Ready to close: Unread Mark Alpha");
+  const alphaAgain = row(page, "Unread Mark Alpha");
   await expect(alphaAgain).toHaveAttribute("data-unread", "false");
   await expect(alphaAgain.getByRole("img", { name: "Unread" })).toHaveCount(0);
   /* ...while its neighbour, untouched, is still marked — the two states sit in
      the same menu and are told apart at a glance */
-  await expect(row(page, "Ready to close: Unread Mark Beta")).toHaveAttribute(
+  await expect(row(page, "Unread Mark Beta")).toHaveAttribute(
     "data-unread",
     "true",
   );
@@ -133,7 +146,7 @@ test("an unread notification is MARKED, and opening it takes the mark away", asy
   await page.getByRole("button", { name: "عربي" }).click();
   await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
   await page.getByRole("button", { name: /^الإشعارات/ }).click();
-  const betaAr = row(page, "Ready to close: Unread Mark Beta");
+  const betaAr = row(page, "Unread Mark Beta");
   await expect(betaAr.getByRole("img", { name: "غير مقروء" })).toBeVisible();
   const rtlBar = await betaAr.evaluate((el) => {
     const cs = getComputedStyle(el);

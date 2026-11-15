@@ -56,6 +56,7 @@ import ReportsPage from "@/app/(home)/apps/reports/page";
 import UsersPage from "@/app/(home)/users/page";
 import { AllUsersBody } from "@/components/users/AllUsersBody";
 import { MyAccountBody } from "@/components/users/MyAccountBody";
+import { MassAssignBody } from "@/components/users/MassAssignBody";
 
 type Role =
   | "bsystems_admin"
@@ -484,6 +485,27 @@ describe("the Users app — the admin manages everyone, everybody else himself",
         expect(contains(tree, AllUsersBody), `${name} ?tab=${tab}`).toBe(false);
         expect(contains(tree, MyAccountBody), `${name} ?tab=${tab}`).toBe(true);
       }
+    }
+  });
+
+  /* ADR-105 — "Assign leads" is a view of All users: the admin's, nobody else's */
+  const renderWith = (params: Record<string, string>) =>
+    (UsersPage as unknown as (p: object) => Promise<unknown>)({ searchParams: Promise.resolve(params) });
+
+  it("?assign=<id> opens the admin's mass assign for that person — and never for anybody else", async () => {
+    const seller = await makeUser("Mass Target", ["bsystems_sales"]);
+    signInAs(personas.founder!);
+    const tree = await renderWith({ assign: seller.id });
+    expect(contains(tree, MassAssignBody)).toBe(true);
+    expect(contains(tree, AllUsersBody)).toBe(false);
+    /* My account wins over it, as the tab says */
+    signInAs(personas.founder!);
+    expect(contains(await renderWith({ assign: seller.id, tab: "me" }), MassAssignBody)).toBe(false);
+    for (const name of ["bsSales", "agent", "partner", "byteforceOnly", "dataEntry"] as const) {
+      signInAs(personas[name]!);
+      const other = await renderWith({ assign: seller.id });
+      expect(contains(other, MassAssignBody), name).toBe(false);
+      expect(contains(other, MyAccountBody), name).toBe(true);
     }
   });
 

@@ -133,7 +133,6 @@ export const dash = {
 
   /* ---- W9 */
   needsYou: { en: "Needs you", ar: "بانتظارك" },
-  readyToClose: { en: "Ready to close: {n}", ar: "جاهزة للإغلاق: {n}" },
   registrationsWaiting: { en: "Registrations waiting: {n}", ar: "تسجيلات بانتظار الموافقة: {n}" },
   reviewRegistrations: { en: "Review registrations", ar: "مراجعة التسجيلات" },
   nothingWaiting: { en: "Nothing is waiting on you.", ar: "لا شيء بانتظارك." },

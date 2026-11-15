@@ -5,8 +5,8 @@ import type { PipelineConfig } from "../types";
    agent / partner / admin leads) run on it.
    - negotiation is a stage (group: a note).
    - Won is reserved for bsystems_admin ("confirm win") and bsystems_sales (their
-     forms mirror ByteForce, which includes Won). Agents/partners never reach Won —
-     they flag "ready to close" instead (service-level, not a transition).
+     forms mirror ByteForce, which includes Won). Agents/partners never reach Won
+     (their "ready to close" flag went with ADR-107).
    - Drag & drop is enabled for every role; a drop is validated exactly like the
      matching next action.
    - Won opens the V2 milestone tab (group "won_deal": estimated value, commission
@@ -50,16 +50,6 @@ export const bsystemsCrmConfig: PipelineConfig = {
     ];
     const all = WON_ROLES.includes(role as (typeof WON_ROLES)[number]) ? [...base, "won"] : base;
     return [...all, ...sameStageExtras(stage)];
-  },
-  attendedDestinations(role) {
-    const base = ["sending_proposal", "negotiation", "lost", "following_up"];
-    return WON_ROLES.includes(role as (typeof WON_ROLES)[number]) ? [...base, "won"] : base;
-  },
-  cancelledDestinations() {
-    /* T-8 / A-3, plus ADR-072 — a no-show is recorded as a cancelled meeting,
-       and "no show in the meeting" is one of the founder's three reasons to
-       park a lead, so Postpone has to be reachable from here. */
-    return ["following_up", "postponed", "lost"];
   },
   dragEnabled: true, // V2 §3 — all roles drag; drop opens the stage form
   wonRoles: WON_ROLES,

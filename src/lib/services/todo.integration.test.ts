@@ -621,7 +621,8 @@ describe("To-Do completion — the Done section (ADR-062)", () => {
     await checkNow("meeting", m.id);
     expect((await adminLists()).done.map((i) => i.recordId)).toEqual([m.id]);
 
-    /* the reschedule path edits the SAME row in place (leads.ts) */
+    /* the SAME row with a new datetime — the snapshot mechanism (since ADR-108
+       only a pre-change undo does this; Reschedule meeting writes a new record) */
     await db.meeting.update({
       where: { id: m.id },
       data: { datetime: cairoToUtc("2026-08-20", "17:00") },
@@ -677,7 +678,7 @@ describe("To-Do completion — the Done section (ADR-062)", () => {
     expect(done?.done).toEqual({ by: "auto", reason: "superseded" }); // auto wins over the mark
   });
 
-  it("AUTO by meeting outcome: the resolved meeting reads its outcome, not the stage it left for", async () => {
+  it("AUTO after a meeting (ADR-108): Next action moves the lead on, and the meeting task reads 'moved'", async () => {
     const lead = await makeLead({ name: "Outcome Lead", stage: "meeting_setting" });
     await db.meeting.create({
       data: { leadId: lead.id, arranged: true, datetime: cairoToUtc("2026-08-20", "15:00") },
@@ -685,7 +686,7 @@ describe("To-Do completion — the Done section (ADR-062)", () => {
     await applyLeadEvent({
       brand: "bsystems",
       leadId: lead.id,
-      event: { type: "meeting_outcome", outcome: "attended", destination: "sending_proposal" },
+      event: { type: "next_action", action: "sending_proposal" },
       group: { group: "proposal", data: { service: "ERP rollout", sent: false } },
       actor: elmur,
       role: "bsystems_admin",
@@ -693,11 +694,52 @@ describe("To-Do completion — the Done section (ADR-062)", () => {
     const lists = await adminLists();
     expect(lists.today).toEqual([]);
     expect(lists.done).toHaveLength(1);
-    expect(lists.done[0]!.done).toEqual({
-      by: "auto",
-      reason: "meeting_outcome",
-      outcome: "attended",
+    expect(lists.done[0]!.done).toEqual({ by: "auto", reason: "moved", stage: "sending_proposal" });
+  });
+
+  it("ADR-108: Reschedule meeting supersedes today's meeting task — to tomorrow it leaves Today; to later today the NEW one is today's task", async () => {
+    const away = await makeLead({ name: "Moved Away", stage: "meeting_setting" });
+    const stay = await makeLead({ name: "Later Today", stage: "meeting_setting" });
+    for (const lead of [away, stay]) {
+      await db.meeting.create({
+        data: { leadId: lead.id, arranged: true, datetime: cairoToUtc("2026-08-20", "10:00") },
+      });
+    }
+    const reschedule = (leadId: string, date: string, time: string) =>
+      applyLeadEvent({
+        brand: "bsystems",
+        leadId,
+        event: { type: "next_action", action: "reschedule_meeting" },
+        group: { group: "meeting", data: { arranged: true, date, time, mode: "online" } },
+        actor: elmur,
+        role: "bsystems_admin",
+      });
+    await reschedule(away.id, "2026-08-21", "11:00");
+    await reschedule(stay.id, "2026-08-20", "20:00");
+    const lists = await adminLists();
+    const newest = await db.meeting.findFirstOrThrow({ where: { leadId: stay.id }, orderBy: { createdAt: "desc" } });
+    expect(lists.today.map((i) => i.recordId)).toEqual([newest.id]); // unchecked
+    expect(lists.done.map((i) => i.done)).toEqual([
+      { by: "auto", reason: "superseded" },
+      { by: "auto", reason: "superseded" },
+    ]);
+  });
+
+  it("LEGACY: a meeting resolved by an outcome BEFORE ADR-108 still reads its outcome", async () => {
+    const lead = await makeLead({ name: "Old Outcome Lead", stage: "sending_proposal" });
+    /* written by the old build: the column stays, nothing writes it now */
+    await db.meeting.create({
+      data: {
+        leadId: lead.id,
+        arranged: true,
+        datetime: cairoToUtc("2026-08-20", "15:00"),
+        outcome: "attended",
+        outcomeDestination: "sending_proposal",
+      },
     });
+    const lists = await adminLists();
+    expect(lists.done).toHaveLength(1);
+    expect(lists.done[0]!.done).toEqual({ by: "auto", reason: "meeting_outcome", outcome: "attended" });
   });
 
   it("MONEY: a checked statement hides for TODAY only — tomorrow it is back unchecked (money never vanishes); paid/completed land as auto-dones", async () => {

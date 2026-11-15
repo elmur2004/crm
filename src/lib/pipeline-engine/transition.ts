@@ -42,9 +42,9 @@ export function followUpContextFor(config: PipelineConfig, fromStage: string): F
 export const SAME_STAGE_GROUPS: Record<SameStageAction, RequiredGroup> = {
   follow_up_again: { group: "follow_up", context: "initial" },
   negotiation_follow_up: { group: "follow_up", context: "after_negotiation" },
-  /* NOT the "meeting_reschedule" GROUP (T-7 edits the existing meeting in
-     place): this records a NEW meeting, so the boards and the To-Do — which
-     both read the LATEST record — swap to it and the old one stops counting. */
+  /* a NEW meeting record (never an edit of the old one): the boards and the
+     To-Do both read the LATEST record, so they swap to it and the old one
+     stops counting. ADR-108 made this the only way to move a meeting. */
   reschedule_meeting: { group: "meeting" },
 };
 
@@ -250,84 +250,9 @@ export function transition(
       });
     }
 
-    /* ------------- Meeting outcome (T-6 / T-7 / T-8, P-5) ------------- */
-    case "meeting_outcome": {
-      if (from !== config.meetingStage) {
-        return reject("event_invalid_for_stage", "Meeting outcome applies in Meeting Setting only");
-      }
-      /* ADR-021: ActivityLog.trigger always cites the OWNING pipeline's §10 row —
-         partners meeting outcomes are PP-3 ("same logic as T-6–T-8"); portal
-         delayed/cancelled fall under P-3's "same rules as T-1…T-8". */
-      const outcomeTrigger = (internalRow: string): string =>
-        config.kind === "internal"
-          ? internalRow
-          : config.kind === "partners"
-            ? (config.triggers?.generic ?? "PP-3")
-            : "B-7";
-
-      if (event.outcome === "delayed") {
-        // T-7 (A-3): require a new date & time; card stays
-        return ok({
-          fromStage: from,
-          toStage: from,
-          requiredGroup: { group: "meeting_reschedule" },
-          logTrigger: outcomeTrigger("T-7"),
-        });
-      }
-      if (event.outcome === "cancelled") {
-        /* T-8 (A-3): the user picks where the card lands. The destinations come
-           from the CONFIG (ADR-059) — the lead pipelines still answer
-           [followUpStage, lostStage]; the prospect pipeline answers
-           Contacted / Waiting / Lost, because it has no follow-up stage at all
-           and "Lost or nothing" would be a cliff the founder never asked for. */
-        const allowed = config.cancelledDestinations(ctx.role);
-        if (!event.destination) {
-          return reject("destination_required", "Cancelled meeting: choose a destination");
-        }
-        if (!allowed.includes(event.destination)) {
-          return reject(
-            "destination_invalid",
-            `"${event.destination}" is not a valid destination for a cancelled meeting`,
-          );
-        }
-        return ok({
-          fromStage: from,
-          toStage: event.destination,
-          requiredGroup: requiredGroupForTarget(config, from, event.destination),
-          logTrigger: outcomeTrigger("T-8"),
-        });
-      }
-      // attended — T-6 / P-5: destination choice is MANDATORY
-      if (!event.destination) {
-        return reject("destination_required", "Attended meeting: a destination stage is required");
-      }
-      const destinations = config.attendedDestinations(ctx.role);
-      if (!destinations.includes(event.destination)) {
-        if (event.destination === config.wonStage && !canSetWon(config, ctx)) {
-          return reject("won_forbidden", "Only an admin can move a lead to Won");
-        }
-        return reject("destination_invalid", `"${event.destination}" is not a valid destination`);
-      }
-      const attendedTrigger =
-        config.kind === "internal"
-          ? "T-6"
-          : config.kind === "partners"
-            ? (config.triggers?.generic ?? "PP-3")
-            : event.destination === config.wonStage
-              ? "B-9" // attended → confirm win (V2 §4)
-              : "B-7";
-      return ok({
-        fromStage: from,
-        toStage: event.destination,
-        requiredGroup: requiredGroupForTarget(config, from, event.destination),
-        sideEffects:
-          event.destination === config.wonStage && config.wonSideEffect
-            ? [config.wonSideEffect]
-            : [],
-        logTrigger: attendedTrigger,
-        auto: true,
-      });
-    }
+    /* ADR-108 — the meeting outcome (T-6 / T-7 / T-8, P-5) is gone: a meeting
+       is followed by an ordinary Next action (every destination it offered
+       is one), and a delay is the same-stage Reschedule meeting. */
 
     /* ------------- new number on a Didn't-Answer partner (PP-2 — §5.3) ------------- */
     case "number_added": {
@@ -347,5 +272,9 @@ export function transition(
       });
     }
 
+    /* an event this engine does not know (ADR-108 retired meeting_outcome) is
+       refused, never answered with nothing; the API schemas refuse it first */
+    default:
+      return reject("unknown_action", "This event is not part of the pipeline");
   }
 }

@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 import { afterSignIn } from "./helpers/after-sign-in";
 
 /* SPEC §13 journey 1 — ByteForce full cycle:
-   owner card → add lead → Following Up → Meeting (attended → proposal) → Sent ✓ →
+   owner card → add lead → Following Up → Meeting → Next action: proposal → Sent ✓ →
    auto Following Up (after proposal) → Won → Client card exists → dashboard numbers
    correct. Runs first against the freshly seeded e2e DB (absolute assertions).
 
@@ -87,12 +87,13 @@ test("journey 1: ByteForce full cycle to Won", async ({ page }) => {
   await page.getByRole("button", { name: "Save & move" }).click();
   await expect(page.getByRole("heading", { level: 1 }).getByText("Meeting Setting")).toBeVisible();
 
-  /* Meeting outcome: attended → destination Sending Proposals (T-6) with proposal group. */
-  await page.getByLabel("Meeting outcome").selectOption("attended");
-  await page.getByLabel("Destination").selectOption("sending_proposal");
+  /* ADR-108 — no meeting outcome: what happened goes in the comments, and the
+     card moves on by Next action (Sending Proposals, with the proposal group). */
+  await expect(page.getByLabel("Meeting outcome")).toHaveCount(0);
+  await page.getByLabel("Next action").selectOption("sending_proposal");
   await page.getByLabel("Service").fill("Full brand campaign");
   await page.getByLabel("Estimated value (EGP)").fill("5000");
-  await page.getByRole("button", { name: /Confirm — move to Sending Proposals/ }).click();
+  await page.getByRole("button", { name: "Save & move" }).click();
   await expect(page.getByRole("heading", { level: 1 }).getByText("Sending Proposals")).toBeVisible();
 
   /* Mark proposal as sent (T-5) — auto Following Up with after-proposal group. */

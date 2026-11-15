@@ -17,7 +17,6 @@ export const undoLabels = {
   movedTo: { en: "Moved {name} to {stage}", ar: "نقل {name} إلى {stage}" },
   flaggedNoAnswer: { en: "Flagged {name} as no answer", ar: "تعليم {name} بأنه لم يرد" },
   clearedNoAnswer: { en: "Cleared no answer on {name}", ar: "إزالة علامة عدم الرد عن {name}" },
-  markedReady: { en: "Marked {name} ready to close", ar: "تحديد {name} كجاهز للإغلاق" },
   archived: { en: "Archived {name}", ar: "أرشفة {name}" },
   unarchived: { en: "Unarchived {name}", ar: "إلغاء أرشفة {name}" },
   edited: { en: "Edited {name}", ar: "تعديل {name}" },
@@ -38,4 +37,10 @@ export const undoLabels = {
   /* founder: hand a lead to an agent or a partner — undo returns it to the
      previous owner (the referral attribution was never touched either way) */
   assigned: { en: "Assigned {name} to {owner}", ar: "إسناد {name} إلى {owner}" },
+  /* ADR-105 — the Users app's mass hand-over: ONE step back for the whole
+     batch, every lead to the owner it had before */
+  assignedMany: {
+    en: "Assigned {count} leads to {owner}",
+    ar: "إسناد {count} من العملاء المحتملين إلى {owner}",
+  },
 } satisfies Record<string, Msg>;

@@ -456,11 +456,9 @@ describe("W10 Recent wins · W8 tasks · W9 Needs you", () => {
     expect(all.bf!.tasks.todayCount).toBe(0);
   });
 
-  it("Needs you is the B-Systems admin's alone", () => {
-    expect(all.bsAdmin!.needsYou).toEqual({
-      readyToClose: { count: 1, leads: [{ id: w.b3.id, name: "BS3 Negotiation Co" }] },
-      pendingRegistrations: 1,
-    });
+  it("Needs you is the B-Systems admin's alone — and since ADR-107 it is the sign-ups only", () => {
+    /* b3 still carries an old ready-to-close flag in its column: nothing reads it */
+    expect(all.bsAdmin!.needsYou).toEqual({ pendingRegistrations: 1 });
     for (const k of ["bsSales", "g1", "g2", "p1", "bf"]) expect(all[k]!.needsYou, k).toBeNull();
   });
 });

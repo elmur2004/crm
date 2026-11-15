@@ -164,47 +164,11 @@ function assertNotArchived(lead: { archived: boolean }) {
   if (lead.archived) throw new ApiError(400, "Unarchive this lead first");
 }
 
-/* V2 §3 — the always-available "Mark ready to close" flag: card marker + admin
-   notification; not a stage transition. */
-export async function markReadyToClose(brand: Brand, leadId: string, actor: Actor) {
-  const lead = await getLead(brand, leadId);
-  assertNotArchived(lead);
-  if (lead.readyToClose) return lead;
-  const updated = await db.$transaction(async (tx) => {
-    const fresh = await tx.lead.update({
-      where: { id: lead.id },
-      data: { readyToClose: true },
-    });
-    await writeLog(tx, {
-      entityType: "lead",
-      entityId: lead.id,
-      actor,
-      action: "update",
-      trigger: "B-RTC",
-    });
-    const undoLabel = formatMsg(undoLabels.markedReady, { name: lead.name });
-    await recordUndo({
-      tx,
-      actor,
-      kind: "lead_ready",
-      entityType: "lead",
-      entityId: lead.id,
-      fingerprint: fresh.updatedAt,
-      label: undoLabel.en,
-      labelAr: undoLabel.ar,
-      payload: { readyToClose: false },
-    });
-    return fresh;
-  });
-  await notifyAdmins({
-    brand,
-    type: "ready_to_close",
-    title: `Ready to close: ${lead.name}`,
-    body: `${actor.label} marked "${lead.name}" as ready to close (stage: ${lead.stage}).`,
-    leadId: lead.id,
-  });
-  return updated;
-}
+/* ADR-107 — "Mark ready to close" (V2 §3) is gone: founder, 2026-11-15,
+   "remove the whole mark ready to close thing". `Lead.readyToClose` stays as
+   a column (a backup restores rows verbatim — ADR-064's reason), written by
+   nothing and read by nothing; the history's old `B-RTC` rows keep their
+   phrase in the daily report. */
 
 /* Founder directive (ADR-039) — the "didn't answer" flag: a card marker only
    ("just so we know"); deliberately NOT a stage (the partnership pipeline's
@@ -616,19 +580,29 @@ export async function writeOwnerChange(
      lead YOURSELF (the To-Do's "take it" self-assign) must not ping yourself —
      the activity log and the undo entry still record the move. */
   if (target.id !== actor.id) {
-    const company = lead.companyName ? ` (${lead.companyName})` : "";
-    await notifyUser(tx, {
-      userId: target.id,
-      type: "assigned",
-      title: `Assigned to you: ${lead.name}`,
-      body:
-        note === "follow_up"
-          ? `${actor.label} handed you the follow-up on "${lead.name}"${company} — you are now its owner.`
-          : `${actor.label} made you the owner of "${lead.name}"${company}.`,
-      leadId: lead.id,
-    });
+    await notifyUser(tx, { userId: target.id, ...assignedNotice(lead, actor, note) });
   }
   return fresh;
+}
+
+/** The new owner's bell for ONE lead — shared by the hand-over above and by
+    the Users app's mass assign when its batch is a single lead (ADR-105), so
+    one lead given either way reads the same. */
+export function assignedNotice(
+  lead: { id: string; name: string; companyName: string | null },
+  actor: Actor,
+  note: "assigned" | "follow_up",
+) {
+  const company = lead.companyName ? ` (${lead.companyName})` : "";
+  return {
+    type: "assigned" as const,
+    title: `Assigned to you: ${lead.name}`,
+    body:
+      note === "follow_up"
+        ? `${actor.label} handed you the follow-up on "${lead.name}"${company} — you are now its owner.`
+        : `${actor.label} made you the owner of "${lead.name}"${company}.`,
+    leadId: lead.id,
+  };
 }
 
 /** Admin-only (the routes enforce the COMPANY admin: requireBsAdmin on
@@ -837,11 +811,8 @@ export const leadEventSchema = z.object({
     z.object({ type: z.literal("next_action"), action: z.string() }),
     z.object({ type: z.literal("drag"), to: z.string() }), // V2 §2.3 board
     z.object({ type: z.literal("proposal_sent") }),
-    z.object({
-      type: z.literal("meeting_outcome"),
-      outcome: z.enum(["attended", "cancelled", "delayed"]),
-      destination: z.string().optional(),
-    }),
+    /* ADR-108 — no "meeting_outcome": the event is refused (400) like any
+       unknown type. A meeting is followed by an ordinary Next action. */
   ]),
   group: groupPayloadSchema.optional(),
   /* Founder (2026-11-08) — "when I log a follow-up, I should be able to assign
@@ -895,8 +866,8 @@ export async function applyLeadEvent(opts: {
   /* Founder (2026-11-08) — the follow-up HAND-OVER. Only a move that records a
      follow-up can carry one ("Hand this follow-up to"): the engine's demand is
      the test, so the same-stage "another follow-up", the negotiation's response
-     date, a meeting outcome back to Following Up and a proposal's Sent all
-     qualify, and nothing else does. The target is validated BEFORE the
+     date, a Next action to Following Up (from Meeting Setting too, since
+     ADR-108) and a proposal's Sent all qualify, and nothing else does. The target is validated BEFORE the
      transaction with the assignment's own refusals (resolveAssignee). */
   let handTo: Assignee | null = null;
   if (opts.assignTo) {
@@ -959,28 +930,6 @@ export async function applyLeadEvent(opts: {
         data: { sent: true, sentAt: new Date() },
       });
     }
-    if (opts.event.type === "meeting_outcome") {
-      const meeting = await tx.meeting.findFirst({
-        where: { leadId: lead.id },
-        orderBy: { createdAt: "desc" },
-      });
-      if (!meeting) throw new ApiError(400, "No meeting recorded on this lead");
-      updated.push({
-        model: "meeting",
-        id: meeting.id,
-        datetime: meeting.datetime ? meeting.datetime.toISOString() : null,
-        outcome: meeting.outcome,
-        outcomeDestination: meeting.outcomeDestination,
-      });
-      await tx.meeting.update({
-        where: { id: meeting.id },
-        data: {
-          outcome: opts.event.outcome,
-          outcomeDestination: opts.event.destination ?? null,
-        },
-      });
-    }
-
     const writes = await persistGroup(
       tx,
       { leadId: lead.id },
@@ -1092,9 +1041,9 @@ export async function applyLeadEvent(opts: {
     }
 
     /* Founder same-stage records: the card did not move, so the history reads
-       "group added" with no from → to arrow. Every OTHER same-stage case (T-7's
-       delayed meeting, re-selecting the current stage) keeps its existing
-       stage_change wording byte-for-byte. */
+       "group added" with no from → to arrow. Every OTHER same-stage case
+       (re-selecting the current stage; T-7's delayed meeting until ADR-108)
+       keeps its existing stage_change wording byte-for-byte. */
     await writeLog(tx, {
       entityType: "lead",
       entityId: lead.id,
@@ -1271,32 +1220,6 @@ export async function persistGroup(
       data: { ...parent, reason: payload.data.reason, note: payload.data.note || null },
     });
     writes.created.push({ model: "postponeInfo", id: row.id });
-  } else if (payload.group === "meeting_reschedule" && group === "meeting_reschedule") {
-    const key = parent.leadId
-      ? { leadId: parent.leadId }
-      : parent.partnerProspectId
-        ? { partnerProspectId: parent.partnerProspectId }
-        : { portalDealId: parent.portalDealId };
-    const meeting = await tx.meeting.findFirst({
-      where: key as never,
-      orderBy: { createdAt: "desc" },
-    });
-    if (!meeting) throw new ApiError(400, "No meeting to reschedule");
-    writes.updated.push({
-      model: "meeting",
-      id: meeting.id,
-      datetime: meeting.datetime ? meeting.datetime.toISOString() : null,
-      outcome: meeting.outcome,
-      outcomeDestination: meeting.outcomeDestination,
-    });
-    await tx.meeting.update({
-      where: { id: meeting.id },
-      data: {
-        datetime: cairoToUtc(payload.data.date, payload.data.time),
-        outcome: null, // rescheduled — outcome pending again (T-7)
-        outcomeDestination: null,
-      },
-    });
   } else if (payload.group === "proposal" && group === "proposal") {
     if (payload.data.sent) {
       // Sent is a separate event (T-5) so the auto-move always fires — see IMPLEMENTATION.md

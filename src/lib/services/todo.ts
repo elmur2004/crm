@@ -105,10 +105,10 @@ export type TodoDoneInfo =
   | { by: "manual"; name: string }
   | { by: "auto"; reason: "moved"; stage: string }
   | { by: "auto"; reason: "superseded" }
-  /* attended / cancelled — the outcomes that COMPLETE a meeting. A DELAYED
-     meeting is a moved task, not a completed one (SPEC §5.8): T-7 nulls the
-     outcome as it writes the new datetime, so the row leaves today's window
-     and returns to Today on its new date. */
+  /* LEGACY (ADR-108 removed the meeting outcome): a meeting the OLD build
+     resolved with "attended" / "cancelled" still reads that way. Nothing writes
+     an outcome now; a meeting is completed by the lead moving on ("moved") or by
+     a newer meeting ("superseded"). */
   | { by: "auto"; reason: "meeting_outcome"; outcome: string }
   | { by: "auto"; reason: "statement_paid" }
   | { by: "auto"; reason: "milestone_completed" };
@@ -459,9 +459,10 @@ export async function todoFor(opts: {
   }
 
   /* MANUAL: subtract marked rows from Today. A mark is honoured only while its
-     dueAt snapshot equals the record's CURRENT due instant — a meeting
-     rescheduled in place (same id, new datetime) therefore returns unchecked
-     with zero hooks in the reschedule path. Scope is inherited: marks join
+     dueAt snapshot equals the record's CURRENT due instant — a meeting whose
+     datetime changed under the same id (since ADR-108 only a pre-change undo
+     can do that; Reschedule meeting writes a NEW record) therefore returns
+     unchecked with zero hooks anywhere. Scope is inherited: marks join
      against rows the caller's projection already produced, nothing else. */
   const today: TodoItem[] = [];
   const done: TodoDoneItem[] = [];

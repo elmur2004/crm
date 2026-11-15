@@ -298,8 +298,8 @@ model Meeting {                             // §6.2
   mode               String?                // online | offline
   withAttendees      String?
   technicalSupport   String?
-  outcome            String?                // attended | cancelled | delayed
-  outcomeDestination String?                // T-6/T-8 destination once outcome set
+  outcome            String?                // LEGACY (ADR-108): attended | cancelled | delayed — written by nothing now
+  outcomeDestination String?                // LEGACY (ADR-108): the old T-6/T-8 destination
   lead               Lead?            @relation(fields: [leadId], references: [id], onDelete: Cascade)
   prospect           PartnerProspect? @relation(fields: [partnerProspectId], references: [id], onDelete: Cascade)
   deal               PortalDeal?      @relation(fields: [portalDealId], references: [id], onDelete: Cascade)

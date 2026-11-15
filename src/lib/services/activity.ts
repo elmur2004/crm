@@ -34,6 +34,28 @@ export async function writeLog(
   });
 }
 
+/** `writeLog` for many entities in ONE statement — the same columns, mapped the
+    same way. ADR-105: a mass hand-over writes one history row per lead, and
+    hundreds of sequential inserts would outlast the transaction. */
+export async function writeLogMany(
+  tx: Prisma.TransactionClient,
+  entries: Array<Parameters<typeof writeLog>[1]>,
+): Promise<void> {
+  if (entries.length === 0) return;
+  await tx.activityLog.createMany({
+    data: entries.map((entry) => ({
+      entityType: entry.entityType,
+      entityId: entry.entityId,
+      actorId: entry.actor.id,
+      actorLabel: entry.actor.label,
+      action: entry.action,
+      fromStage: entry.fromStage ?? null,
+      toStage: entry.toStage ?? null,
+      trigger: entry.trigger,
+    })),
+  });
+}
+
 export async function getHistory(
   db: Prisma.TransactionClient,
   entityType: LogEntityType,

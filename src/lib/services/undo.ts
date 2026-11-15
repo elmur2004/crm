@@ -1,7 +1,7 @@
 import { db } from "@/lib/db";
 import type { Prisma } from "../../../generated/prisma/client";
 import { ApiError } from "@/lib/api-error";
-import { writeLog, type Actor } from "./activity";
+import { writeLog, writeLogMany, type Actor } from "./activity";
 import { partnersConfigFor } from "@/lib/pipeline-engine/configs/partners";
 
 /* ============================================================================
@@ -59,11 +59,12 @@ export function isAcctUndoKind(kind: string): boolean {
 export type UndoKind =
   | "lead_event"
   | "lead_no_answer"
-  | "lead_ready"
+  | "lead_ready" // LEGACY (ADR-107 removed ready to close): nothing records it now; an entry recorded before the deploy still undoes
   | "lead_archive"
   | "lead_update"
   | "lead_create"
   | "lead_assign" // founder: hand a lead to an agent/partner — restores the prior owner
+  | "lead_assign_bulk" // ADR-105: the Users app's mass assign — every lead back to its prior owner, or none
   | "prospect_event"
   | "vault_archive"; // ADR-053: archive/restore of a vault record — the SAFE vault mutations
 
@@ -307,6 +308,14 @@ export async function performUndo(actor: Actor): Promise<{ label: string; labelA
       throw new ApiError(400, "This action cannot be undone");
     }
 
+    /* ADR-105 — the one entry that covers MANY leads. It writes its own
+       history rows (one per lead), so it returns before the single-entity
+       log below. */
+    if ((entry.kind as UndoKind) === "lead_assign_bulk") {
+      await undoBulkAssign(tx, entry, actor);
+      return;
+    }
+
     if (entry.entityType === "lead") {
       const lead = await tx.lead.findUnique({ where: { id: entry.entityId } });
       if (!lead) throw new ApiError(400, CHANGED_SINCE);
@@ -358,9 +367,77 @@ export async function performUndo(actor: Actor): Promise<{ label: string; labelA
       action: "update",
       trigger: "undo",
     });
-  });
+    /* ADR-105 — a mass assign's undo puts back up to 500 leads; give it the
+       same ceiling as the write it reverses */
+  }, { timeout: 30_000, maxWait: 10_000 });
 
   return { label: entry.label, labelAr: entry.labelAr };
+}
+
+/** ADR-105 — the inverse of one mass assign: what each lead's two OWNERSHIP
+    columns held before, for every lead the batch moved. */
+export interface BulkAssignSnapshot {
+  leads: Array<{ id: string; ownerUserId: string | null; ownerType: string }>;
+}
+
+const BULK_CHANGED_SINCE =
+  "One of these leads has changed since — undo is no longer safe, so nothing was undone";
+
+/* ALL OR NOTHING. The batch wrote every lead with the same `updatedAt` (the
+   entry's fingerprint), so one comparison per lead tells whether anybody has
+   touched it since — the new owner working it, a later reassignment, an edit.
+   One changed lead refuses the whole undo: putting back the others would leave
+   a batch that is half his and half not, with nothing on any screen to say
+   which half. The throw rolls the claim back, so the entry stays as it was. */
+async function undoBulkAssign(
+  tx: Prisma.TransactionClient,
+  entry: { entityId: string; fingerprint: string; payload: Prisma.JsonValue },
+  actor: Actor,
+): Promise<void> {
+  const raw = (entry.payload as Partial<BulkAssignSnapshot> | null)?.leads;
+  const items = Array.isArray(raw) ? raw : [];
+  if (items.length === 0) throw new ApiError(400, "This action cannot be undone");
+  const ids = items.map((i) => String(i.id));
+  const rows = await tx.lead.findMany({
+    where: { id: { in: ids } },
+    select: { id: true, updatedAt: true },
+  });
+  if (rows.length !== ids.length) throw new ApiError(409, BULK_CHANGED_SINCE);
+  if (rows.some((r) => r.updatedAt.toISOString() !== entry.fingerprint)) {
+    throw new ApiError(409, BULK_CHANGED_SINCE);
+  }
+  /* every account the leads go back to must still exist — a previous owner
+     deleted since would otherwise fail the write half-way (a 500, and a pill
+     that keeps offering it) */
+  const priors = [...new Set(items.map((i) => (i.ownerUserId ? String(i.ownerUserId) : null)))].filter(
+    (id): id is string => id !== null,
+  );
+  if (priors.length > 0 && (await tx.user.count({ where: { id: { in: priors } } })) !== priors.length) {
+    throw new ApiError(
+      409,
+      "One of the previous owners no longer exists — undo is no longer safe, so nothing was undone",
+    );
+  }
+  /* one write per distinct prior owner — usually one or two, never one per lead */
+  const groups = new Map<string, { ownerUserId: string | null; ownerType: string; ids: string[] }>();
+  for (const item of items) {
+    const ownerUserId = item.ownerUserId ? String(item.ownerUserId) : null;
+    const ownerType = String(item.ownerType);
+    const key = `${ownerUserId ?? ""}\u0000${ownerType}`;
+    const group = groups.get(key) ?? { ownerUserId, ownerType, ids: [] };
+    group.ids.push(String(item.id));
+    groups.set(key, group);
+  }
+  for (const group of groups.values()) {
+    await tx.lead.updateMany({
+      where: { id: { in: group.ids } },
+      data: { ownerUserId: group.ownerUserId, ownerType: group.ownerType },
+    });
+  }
+  await writeLogMany(
+    tx,
+    ids.map((id) => ({ entityType: "lead" as const, entityId: id, actor, action: "update" as const, trigger: "undo" })),
+  );
 }
 
 async function undoLead(

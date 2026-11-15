@@ -111,7 +111,6 @@ test("data entry: adds a lead and a card, owns neither, and is walled out of eve
     ["post", `/api/b-systems/leads/${adminLead.id}/event`, { event: { type: "next_action", action: "won" } }],
     ["post", `/api/b-systems/leads/${adminLead.id}/assign`, { userId: "any" }],
     ["post", `/api/b-systems/leads/${adminLead.id}/archive`, { archived: true }],
-    ["post", `/api/b-systems/leads/${adminLead.id}/ready`, {}],
     ["post", `/api/b-systems/leads/${adminLead.id}/no-answer`, { noAnswer: true }],
     ["patch", `/api/b-systems/leads/${adminLead.id}`, { name: "Poached" }],
     ["post", `/api/b-systems/leads/${adminLead.id}/comments`, { body: "hello" }],

@@ -89,7 +89,7 @@ export async function assertCanCorrect(
 
 /** Founder: what a data-entry user adds "will be with no owner until the admin
     decides which owner is these leads" — so the admin has to LEARN it exists.
-    Same broadcast the ready-to-close flag uses, deep-linked through leadId. */
+    An admin broadcast, deep-linked through leadId. */
 export async function notifyAdminsOfEntry(input: {
   leadId: string;
   leadName: string;

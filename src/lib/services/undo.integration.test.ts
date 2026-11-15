@@ -5,7 +5,6 @@ import {
   applyLeadEvent,
   createLead,
   deleteLead,
-  markReadyToClose,
   setArchived,
   setNoAnswer,
   updateLead,
@@ -90,7 +89,7 @@ describe("Undo — the allowlisted kinds restore the prior state", () => {
     await expect(performUndo(actor)).rejects.toThrow(/Nothing to undo/);
   });
 
-  it("restores the no-answer flag, the ready-to-close flag, and the archive flag", async () => {
+  it("restores the no-answer flag, a LEGACY ready-to-close flag, and the archive flag", async () => {
     const actor = await makeUser();
     const lead = await makeLead(actor);
 
@@ -98,7 +97,21 @@ describe("Undo — the allowlisted kinds restore the prior state", () => {
     await performUndo(actor);
     expect((await db.lead.findUniqueOrThrow({ where: { id: lead.id } })).noAnswer).toBe(false);
 
-    await markReadyToClose("bsystems", lead.id, actor);
+    /* ADR-107 removed "Mark ready to close"; an entry recorded just BEFORE the
+       deploy (the window is minutes) must still undo, so the inverse stays */
+    const flagged = await db.lead.update({ where: { id: lead.id }, data: { readyToClose: true } });
+    await db.undoEntry.create({
+      data: {
+        userId: actor.id!,
+        kind: "lead_ready",
+        entityType: "lead",
+        entityId: lead.id,
+        label: "Marked Undo Corp ready to close",
+        labelAr: "تحديد Undo Corp كجاهز للإغلاق",
+        fingerprint: flagged.updatedAt.toISOString(),
+        payload: { readyToClose: false },
+      },
+    });
     expect((await pendingUndoFor(actor.id!))?.label).toBe("Marked Undo Corp ready to close");
     await performUndo(actor);
     expect((await db.lead.findUniqueOrThrow({ where: { id: lead.id } })).readyToClose).toBe(false);

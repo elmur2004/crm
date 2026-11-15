@@ -70,21 +70,22 @@ test("journey 3: partnership acquisition to attributed CRM lead (V2 numbers flow
   await page.getByRole("button", { name: "Save & move" }).click();
   await expect(page.getByRole("heading", { level: 1 }).getByText("Meeting Setting")).toBeVisible();
 
-  /* Attended → Qualified: the completeness gate blocks until every §7.2 field is
-     present — and (ADR-059) it never asks for an email or a password. */
-  await page.getByLabel("Meeting outcome").selectOption("attended");
-  await page.getByLabel("Destination").selectOption("qualified");
+  /* After the meeting → Qualified, by Next action (ADR-108: no meeting outcome).
+     The completeness gate blocks until every §7.2 field is present — and
+     (ADR-059) it never asks for an email or a password. */
+  await expect(page.getByLabel("Meeting outcome")).toHaveCount(0);
+  await page.getByLabel("Next action").selectOption("qualified");
   await expect(
     page.getByText("Qualified saves only when the partner record is complete"),
   ).toBeVisible();
   const gate = page.locator("form").filter({ hasText: "Qualified saves only when" });
   await expect(gate.getByLabel("Password")).toHaveCount(0);
-  await page.getByRole("button", { name: /Confirm — move to Qualified/ }).click();
+  await page.getByRole("button", { name: "Save & move" }).click();
   await expect(page.getByRole("heading", { level: 1 }).getByText("Meeting Setting")).toBeVisible(); // gate held
 
   await page.getByLabel("Key person role").fill("Managing Director");
   await page.getByLabel("Address").fill("7 Port Said St, Alexandria");
-  await page.getByRole("button", { name: /Confirm — move to Qualified/ }).click();
+  await page.getByRole("button", { name: "Save & move" }).click();
   await expect(page.getByRole("heading", { level: 1 }).getByText("Qualified")).toBeVisible();
   await expect(page.getByRole("heading", { level: 1 }).getByText("Converted")).toBeVisible(); // A-5 badge
 

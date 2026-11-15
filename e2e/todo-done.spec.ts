@@ -163,13 +163,13 @@ test("agent: checks HIS own task; the server wall 403s him off a lead he cannot 
   await agentCtx.close();
 });
 
-/* SPEC §5.8 (review clarification) — of the three meeting outcomes only
-   Attended and Cancelled COMPLETE the task. Delayed reschedules it: T-7 nulls
-   the outcome as it writes the new datetime, so the row leaves today's list
-   and returns to Today on its new date, with no Done row. Pinned here because
-   the alternative reading (a "Meeting delayed" Done row) is flagged for the
-   founder and would show up as a diff right here. */
-test("a meeting delayed to ANOTHER day leaves Today with no Done row; delayed to later TODAY it stays, unchecked", async ({
+/* ADR-108 — the meeting outcome is gone (founder: "it will be written just
+   fine in the comments"), and with it T-7's in-place "Delayed". A meeting that
+   moves is RESCHEDULED (ADR-046's same-stage button): a NEW meeting record,
+   which supersedes the old one. So today's old task lands in Done as
+   "Superseded by a newer step", and the new meeting is a task on ITS day —
+   later today it is today's task again, unchecked. */
+test("a meeting rescheduled to ANOTHER day leaves Today (superseded); rescheduled to later TODAY it is today's task, unchecked", async ({
   page,
 }) => {
   await login(page, "admin@byteforce.com", "password123", /\/b-systems$/);
@@ -203,20 +203,32 @@ test("a meeting delayed to ANOTHER day leaves Today with no Done row; delayed to
     page.getByRole("checkbox", { name: "Mark done: Delayed Same Day Lead" }),
   ).toBeVisible();
 
-  const delay = (leadId: string, date: string, time: string) =>
+  /* the retired event is refused outright */
+  const retired = await page.request.post(`/api/b-systems/leads/${awayId}/event`, {
+    data: {
+      event: { type: "meeting_outcome", outcome: "delayed" },
+      group: { group: "meeting_reschedule", data: { date: cairoDate(1), time: "11:00" } },
+    },
+  });
+  expect(retired.status()).toBe(400);
+
+  const reschedule = (leadId: string, date: string, time: string) =>
     page.request.post(`/api/b-systems/leads/${leadId}/event`, {
       data: {
-        event: { type: "meeting_outcome", outcome: "delayed" },
-        group: { group: "meeting_reschedule", data: { date, time } },
+        event: { type: "next_action", action: "reschedule_meeting" },
+        group: { group: "meeting", data: { arranged: true, date, time, mode: "online" } },
       },
     });
-  expect((await delay(awayId, cairoDate(1), "11:00")).ok()).toBeTruthy();
-  expect((await delay(stayId, cairoDate(), "20:00")).ok()).toBeTruthy();
+  expect((await reschedule(awayId, cairoDate(1), "11:00")).ok()).toBeTruthy();
+  expect((await reschedule(stayId, cairoDate(), "20:00")).ok()).toBeTruthy();
 
   await page.goto("/b-systems/todo");
-  /* moved out of today entirely — not in Today, and NOT in Done either */
-  await expect(page.getByText("Delayed Away Lead")).toHaveCount(0);
-  /* still today's task, still waiting to be ticked */
+  /* no longer one of today's open tasks — today's old meeting was superseded */
+  await expect(page.getByRole("checkbox", { name: "Mark done: Delayed Away Lead" })).toHaveCount(0);
+  await expect(page.locator(".todo-row--done", { hasText: "Delayed Away Lead" })).toContainText(
+    "Superseded by a newer step",
+  );
+  /* the new meeting later today is today's task, waiting to be ticked */
   const sameDay = page.getByRole("checkbox", { name: "Mark done: Delayed Same Day Lead" });
   await expect(sameDay).toBeVisible();
   await expect(sameDay).not.toBeChecked();

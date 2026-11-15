@@ -100,8 +100,9 @@ describe("setTodoDone — check / uncheck round-trip", () => {
     const before = await db.todoDone.findUniqueOrThrow({ where: { meetingId: m.id } });
     expect(before.dueAt.getTime()).toBe(cairoToUtc("2026-08-20", "10:00").getTime());
 
-    /* the ONE record edited in place (leads.ts meeting_reschedule): same id,
-       new datetime — the stale snapshot stops matching (the projection resets
+    /* a record whose datetime changed under the same id (the old in-place
+       reschedule, which ADR-108 retired; a pre-change undo still can) — the
+       stale snapshot stops matching (the projection resets
        it to unchecked); checking again snapshots the NEW instant */
     await db.meeting.update({
       where: { id: m.id },

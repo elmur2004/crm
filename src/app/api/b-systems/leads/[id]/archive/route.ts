@@ -2,8 +2,8 @@ import { z } from "zod";
 import { handleRoute, requireLeadAccess } from "@/lib/auth/guards";
 import { setArchived } from "@/lib/services/leads";
 
-/* Founder (ADR-043) — archive/unarchive a lead: same wall as /ready
-   (admin any / sales internal / agent+partner own leads only). */
+/* Founder (ADR-043) — archive/unarchive a lead: requireLeadAccess, the
+   lead-scope wall (admin any / everyone else their own leads only). */
 export const POST = handleRoute(
   async (req: Request, ctx: { params: Promise<{ id: string }> }) => {
     const { id } = await ctx.params;

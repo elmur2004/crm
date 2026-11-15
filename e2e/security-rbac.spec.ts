@@ -125,8 +125,6 @@ test("an agent cannot mutate another agent's lead (403, nothing changes)", async
     data: { event: { type: "drag", to: "lost" } },
   });
   expect(event.status()).toBe(403);
-  const ready = await pageB.request.post(`/api/b-systems/leads/${leadId}/ready`);
-  expect(ready.status()).toBe(403);
   const noAnswer = await pageB.request.post(`/api/b-systems/leads/${leadId}/no-answer`, {
     data: { value: true },
   });

@@ -93,7 +93,7 @@ async function buildALifetime() {
   await applyLeadEvent({
     brand: "bsystems",
     leadId: lead.id,
-    event: { type: "meeting_outcome", outcome: "attended", destination: "sending_proposal" },
+    event: { type: "next_action", action: "sending_proposal" }, // ADR-108: no outcome step
     group: {
       group: "proposal",
       data: { service: "Logistics platform", estimatedValue: 500_000_00, sent: false },

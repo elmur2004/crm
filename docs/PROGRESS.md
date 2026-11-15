@@ -7076,3 +7076,113 @@ entry. Its "Carried forward, still open" list also stands unchanged.
 - **The landing work needs its own ADR number.** Its `next.config.ts` comment
   cites "ADR-086", but the committed ADR-086 is the books' undo and redo. The
   landing font decision needs **ADR-105 or later** when it ships.
+
+## 2026-11-15 — ADR-105–108: mass assign from Users, Back to the CRM board, "Mark ready to close" and the meeting outcome removed
+
+**Founder, verbatim (four messages, one session):**
+1. *"add a way to mass assign leads to someone I can choose them in the users section and select mass assign and select from the crms both crms or if you find any other better way do it"*
+2. *"in the lead I don't see back to the crm button"*
+3. *"remove the whole mark rerady to close thing"*
+4. *"and remove the meeting outcome thing it will be written just fine in the comments"*
+
+### Production
+
+- **Still the build from before 2026-11-08** at 22:21Z on 2026-11-14. Three pushes (5440df3, 40e6ed7, 59bef4f) did not deploy.
+- **Ruled out from the repo** (TESTING Run 109, "the deploy, NOT live yet"):
+  - build inputs;
+  - Linux letter case;
+  - the backfill migration on real rows.
+- **What is left needs the hosting panel's deployment log.** The founder was told. This push carries the 8 and 14 November work too.
+
+### Done
+
+- **ADR-105 — mass assign.**
+  - Every live account that can own leads gets **Assign leads** on its All users row. It opens `/users?assign=<id>`, a third, admin-only view of the Users page.
+  - **The list:** both CRMs' live leads the person could be given.
+  - **Filters:** CRM, Owner now (default "Unassigned or yours"), Stage (from the engine, per company; default Open) and Search. It shows the newest 500.
+  - **One press:** `POST /api/users/[id]/assign-leads` (`services/mass-assign.ts`) — the single hand-over's rules in one transaction:
+    - only leads of companies the viewer administers are read;
+    - `resolveAssignee` checks the person, per company;
+    - archived leads are refused;
+    - one `assigned` history row per lead;
+    - **one** notification;
+    - **one** undo step (`lead_assign_bulk`, all or nothing).
+  - **Shared pieces:** `writeLogMany`, `assignedNotice` and `BSYSTEMS_OWNER_ROLES`.
+- **ADR-106 — "Back to the CRM board"** on both lead pages. It is the one named exception to ADR-095's back-link removal (`one-way.test.ts` `BACK_TO_BOARD`), styled by a shared `.back-link`.
+- **ADR-107 — "Mark ready to close" removed.** Gone:
+  - the route, the service and the buttons and badges;
+  - the admin notification type;
+  - the dashboard's Needs-you group.
+
+  **Kept:** the column, the legacy `lead_ready` undo and the `B-RTC` history phrase.
+- **ADR-108 — the meeting outcome removed** from all three pipelines.
+  - **Gone:**
+    - the engine event;
+    - the config slots;
+    - the `meeting_reschedule` group;
+    - the API schemas' outcome types;
+    - the three panels' outcome card.
+  - **The engine now refuses an unknown event** (`unknown_action`) instead of returning nothing.
+  - **Next action from Meeting Setting** reaches every former destination, and **Reschedule meeting** covers a delay.
+  - **Kept:** the columns, and the history and To-Do readers of past outcomes.
+- **Reviews:**
+  - **brand-auditor** passed the back link and failed the mass-assign view on touch targets, the selected row's contrast and the checkbox accent. All fixed. BUG-035 and BUG-036 were logged, and both predate this change.
+  - **spec-guardian on ADR-105 failed** on:
+    - stage names hand-written instead of taken from the engine;
+    - a 404 versus 403 difference that told a B-Systems-only admin which ByteForce lead ids exist;
+    - the one-way sweep not seeing `/users`;
+    - the undo's time limit and checks;
+    - docs.
+
+    All fixed, with seven more tests.
+  - **spec-guardian on ADR-107/108 passed the code** and failed the paperwork:
+    - the P-3 note;
+    - §5.8's in-place reschedule and ADR-062 (c);
+    - the founder flags;
+    - stale comments;
+    - two test gaps.
+
+    All fixed.
+- **Docs:**
+  - DECISIONS: ADR-105 to ADR-108;
+  - SPEC notes: §3, §5.3, §5.8, §6, §6.2, §7.1 (×3), §9, §10.1, §10.2, §10.3, §11 and §13;
+  - the pipeline-engine skill contract;
+  - ARCHITECTURE, IMPLEMENTATION (seven gotchas), BUGS (BUG-035 and BUG-036), CHANGELOG, TESTING Run 110, and this entry.
+
+### Verified
+
+TESTING Run 110: the clean-worktree gate on the pushed set.
+
+### Next steps
+
+1. The founder checks the hosting panel. After a deploy, verify from outside:
+   - `/users` → 307;
+   - the assign probe → 401;
+   - `POST /api/users/x/assign-leads` → 401 anonymously.
+2. BUG-034, BUG-035 and BUG-036 (neutral focus ring, toast icon, undo pill touch size), in one small screenshot round.
+
+### Blockers
+
+- The deploy (outside the repo).
+
+### Needs founder confirmation
+
+**New this session: six.**
+- **ADR-105 (three):**
+  1. The default list is "Unassigned or yours", open stages.
+  2. 500 leads per press.
+  3. One summary notification per batch.
+- **ADR-108 (two):**
+  1. The Partners & Agents funnel lost the outcome too, and it has no comments box. Keep the removal there (with a comments box?), or restore the outcome on the funnel only?
+  2. A rescheduled meeting's old task now shows in Done as "Superseded by a newer step". This supersedes ADR-062 (c).
+- **ADR-106 (none). ADR-107 (none).**
+
+**Carried, unchanged:**
+- the five from 2026-11-14 (ADR-103/104);
+- the thirteen from 2026-11-08;
+- the twenty-three from before that.
+
+### Left in the working tree
+
+- The landing work and the four never-committed files, as before.
+- **The landing work needs its own ADR number:** ADR-109 or later now. Its `next.config.ts` comment still cites ADR-086.

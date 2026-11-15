@@ -369,20 +369,23 @@ export async function LeadDetailBody({ ctx, leadId }: { ctx: InternalAppCtx; lea
       ? followUpAssignees(ctx.brand, { id: access.user.id, name: access.user.name }, locale)
       : Promise.resolve(undefined),
   ]);
-  const latestMeeting = lead.meetings.at(-1);
 
   return (
     <div className="space-y-6">
       <div className="page-head">
         <div>
-          {/* no "Back to the board": the board is the menu's first item, the
-              one way to it (one way to each page) */}
+          {/* ADR-106 — founder (2026-11-15): "in the lead I don't see back to
+              the crm button". Back on the lead page, to this company's board
+              (the menu's first item); ADR-095's other back links stay gone. */}
+          <Link href={`${ctx.basePath}/crm${ctx.query}`} prefetch={false} className="back-link">
+            <span className="back-link-arrow" aria-hidden="true" />
+            {t(leadDetail.backToBoard)}
+          </Link>
           <p className="u-eyebrow">{BRAND_EYEBROW[ctx.brand]} · {t(board.eyebrowCrm)}</p>
         </div>
         <div className="page-actions">
           {/* founder: the dial entry point — opens the phone-first call sheet.
-              PRIMARY, not accent: calling the lead is the page's one true
-              action, and accent is already the Ready-to-close cue here. */}
+              PRIMARY: calling the lead is the page's one true action. */}
           <Link href={`${ctx.basePath}/leads/lead/${lead.id}/call${ctx.query}`} className="btn-primary">
             {t(callSheet.navLabel)}
           </Link>
@@ -490,7 +493,6 @@ export async function LeadDetailBody({ ctx, leadId }: { ctx: InternalAppCtx; lea
                   assignees={assignees}
                   latestProposalValue={latestProposalValue(lead.proposals)}
                   hasUnsentProposal={lead.proposals.some((p) => !p.sent)}
-                  pendingMeeting={Boolean(latestMeeting && latestMeeting.outcome === null && latestMeeting.arranged)}
                 />
               )}
             </div>

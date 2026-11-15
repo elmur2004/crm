@@ -10387,3 +10387,105 @@ Every plan and every `UPDATE` is gated on `"ownerUserId" IS NULL`, and the log i
   - **Bulk assign (tick many rows, one owner).** Not asked for; not built.
 - Resolves: none (no SPEC §11 assumption). SPEC §6 and §7.1 carry an "Amended by ADR-104" note.
 - Status: Accepted. **Needs founder confirmation:** whether he also wants Assign on the board cards.
+
+## ADR-105 — 2026-11-15 — MASS ASSIGN FROM THE USERS APP: a person's row opens the leads of both CRMs he could be given, ticked in bulk and handed over in one press — one history row per lead, one bell, one undo step (extends ADR-099/ADR-104's hand-over and ADR-045's undo allowlist; amends ADR-103 §1)
+
+- Context: the founder, verbatim (2026-11-15): *"add a way to mass assign leads to someone — I can choose them in the users section and select mass assign and select from the crms both crms or if you find any other better way do it"*.
+  - Until now a lead changed hands one at a time: the lead page, the To-Do, and every row of the admin's two Leads lists (ADR-104, whose alternatives named "Bulk assign … Not asked for; not built").
+  - Every unowned lead is the admin's alone (ADR-098), so handing out an import or a leaver's list meant one dialog per lead.
+- Decision:
+  1. **Where.** On the admin's **All users** table, every row of a live, approved account that can own a lead of a company the admin runs carries **Assign leads**.
+     - B-Systems: an agent, partner or internal sales account (the Assign roster's rule, now one constant, `BSYSTEMS_OWNER_ROLES` in `services/users.ts`).
+     - ByteForce: a staff account.
+     - Data entry, admins without a selling role, removed and pending accounts have none.
+  2. **What it opens.** `/users?assign=<id>` is a **third view of the Users page, the admin's alone** (amends ADR-103 §1, which had two views). It is a same-page view like `?tab=me`, not a door; "Close" and the All users tab lead back, and `one-way.test.ts` now sweeps links to `/users` too. For anybody else the parameter is ignored and My account shows.
+     - It lists every live (not archived) lead of the companies he can own, **both CRMs together** when he can own both, that is not already his.
+     - It is filtered by a plain GET form:
+       - **CRM**: both, B-Systems or ByteForce, shown only when there are two.
+       - **Owner now**: **Unassigned or yours** (the default: the pile the admin hands out, because an admin-added B-Systems lead sits in his bucket, owned by him), Unassigned, Yours, Anyone, and each person who owns one of these leads now, with a count. The last option is how a leaver's whole list moves. A named person is validated before the list is read, so the select and the list always agree.
+       - **Stage**: from the ENGINE, per company (§5.1): the named stages are each pipeline's own (ByteForce is never offered Negotiation), and the default **Open** hides each pipeline's own terminal stages, so "select all" never sweeps up closed deals.
+       - **Search**: on name, company or number.
+     - It shows the newest **500**, with a note when there are more ("Hand these over and the next ones appear").
+  3. **The write.** It is the single hand-over, many times, in one transaction, never a second set of rules (`services/mass-assign.ts`, `POST /api/users/[id]/assign-leads`):
+     - **Who may give:** the route's first wall is the Users app's own (`requireBsAdmin`). The service then reads **only leads of companies the viewer administers** (ByteForce's admin is `byteforce_staff` AND `bsystems_admin`, the single assign route's wall), from the live roles. A lead of another company answers exactly like a lead that does not exist (404), so the difference tells nothing.
+     - **Who may receive:** `resolveAssignee`, per company, with the Assign button's own refusals and words (deactivated, pending, not that company's role). B-Systems derives the bucket from his role (an admin who also sells lands leads in the admin bucket, as everywhere); ByteForce keeps the lead's own.
+     - **All or nothing:** a missing lead (404), an archived one (400) or an unownable company refuses the whole batch, and nothing is written.
+     - **What it writes:** the two ownership columns, **one `assigned` history row per lead** (`writeLogMany`, one statement), and one `updatedAt` for the whole batch. A lead already exactly his is counted ("already theirs"), not rewritten.
+     - **Who is told:** the new owner, **once**. One lead gets the single hand-over's own notice, deep-linked (`assignedNotice`, now shared by both paths). A batch gets one summary: "Assigned to you: N leads", naming the first three. Taking leads yourself rings nobody.
+     - **Undo:** `lead_assign_bulk` joins ADR-045's allowlist — **one step for the whole batch**. One lead is the single `lead_assign` entry, word for word. All or nothing:
+       - if any lead of the batch has changed since (its `updatedAt` differs from the batch's), or was deleted, or a previous owner no longer exists, the undo refuses ("… undo is no longer safe, so nothing was undone") and the entry stays;
+       - otherwise every lead goes back to **its own** previous owner, with an `undo` history row each.
+       - Only the admin who did it can undo it (ADR-045's ownership guard). The floating Undo pill now also shows on the assign view.
+  4. **At most 500 leads per press** (the Zod schema and the service). The write and its undo each get a 30-second transaction ceiling, and the writes are grouped (one `updateMany` per bucket, one `createMany` for the history), so the cost does not grow with one round-trip per lead.
+- Alternatives considered:
+  - **Tick boxes on the two Leads lists, then "Assign to…"** (lead first, then person). Not taken now: the founder described the person-first flow, and this view already is a filtered lead list of both CRMs. It can be added on the lists later from the same service.
+  - **One bell row per lead.** Rejected: 200 rows in a salesperson's bell, and 200 web pushes, for one act.
+  - **Mass assign not undoable** (retire the admin's undo, ADR-045's honesty rule). Rejected: a mistaken mass assign is exactly when undo matters most.
+  - **A partial undo** (put back the leads nobody touched). Rejected: half a batch back, with nothing on screen to say which half.
+  - **A cross-filter selection** (tick, search again, tick more). Not built: the selection is what is on screen. It can come later if he asks.
+- Resolves: none (no SPEC §11 assumption). SPEC §3, §6 and §7.1 carry an "Amended by ADR-105" note.
+- Status: Accepted. **Needs founder confirmation:**
+  1. The default list is "Unassigned or yours", open stages.
+  2. 500 leads per press.
+  3. One summary notification for a batch.
+
+## ADR-106 — 2026-11-15 — "BACK TO THE CRM BOARD" RETURNS ON A LEAD'S PAGE, in both companies — the one exception to ADR-095's "Remove them" (amends ADR-095 §2)
+
+- Context: the founder, verbatim (2026-11-15): *"in the lead I don't see back to the crm button"*.
+  - ADR-095 (2026-10-26) removed every back link, the two lead pages' "Back to board" among them, on his answer "Remove them".
+  - Every lead page is a record reached from the board, the Leads lists, the To-Do, the calendar, a notification or a search. Without a back link, the way back is the browser's, or the header's CRM menu.
+- Decision:
+  1. Both lead pages get a **"Back to the CRM board"** link above the eyebrow, to that surface's own board (`${ctx.basePath}/crm${ctx.query}`, the CRM menu's first item):
+     - the B-Systems lead page (`BsLeadDetailBody`, which agents and partners use too);
+     - the ByteForce lead page (`internal/pages.tsx`).
+     - The wording is the dictionary's, kept since ADR-095 ("Back to the CRM board").
+  2. **A shared `.back-link` style** (design-system.css): the launcher's `.lx-back` for the shells, in link ink rather than muted (it sits on the glass ground, ADR-092), 44px tall, with an arrow that flips for Arabic.
+  3. **Only those two.** The rest of ADR-095's removals stand: Back to Won Leads, Back to all reps, Back to pipeline, Back to all partners, the statement's Back. `one-way.test.ts` names the exception (`BACK_TO_BOARD`: exactly these two files, exactly the board), checks each lead page has exactly one, and fails any other `.back-link`.
+- Alternatives considered:
+  - **A history "Back"** (wherever he came from). Not taken: he asked for the way back to the CRM, and a history step out of a deep link lands outside the app.
+  - **Restoring every ADR-095 back link.** Not asked for; the others stay gone.
+- Resolves: none. SPEC §6/§7.1 carry an "Amended by ADR-106" note.
+- Status: Accepted.
+
+## ADR-107 — 2026-11-15 — "MARK READY TO CLOSE" IS REMOVED: no button, no badge, no admin notification, no Needs-you group — the column stays, inert (retires V2 §3's flag, ADR-030's ready-to-close part)
+
+- Context: the founder, verbatim (2026-11-15): *"remove the whole mark rerady to close thing"*.
+  - V2 §3 (ADR-030) gave every B-Systems role a "Mark ready to close" flag on any active lead: a button on the lead page and on each board card, a pink badge (lead page, card, call sheet), a broadcast to the admins (`ready_to_close`), an undo entry (`lead_ready`), and the dashboard's "Needs you" listed the flagged deals. ByteForce never had it.
+- Decision:
+  1. **Removed:** the route (`POST /api/b-systems/leads/[id]/ready`), `markReadyToClose`, the lead page's button and badge, the board card's badge and inline button, the call sheet's badge, the dashboard's ready-to-close group (Needs you is the sign-ups now), the `ready_to_close` notification type, the `markedReady` undo label, the dictionary strings and the `.crm-ready` / `.badge--accent` styles.
+  2. **Kept, on purpose:**
+     - the `Lead.readyToClose` column — a backup restores rows verbatim (ADR-064's reason), so dropping it would break restoring any backup taken before today. Nothing writes or reads it; leads already flagged simply stop showing it;
+     - the `lead_ready` undo kind and its inverse — an entry recorded minutes before the deploy still undoes;
+     - the daily report's phrase for the `B-RTC` trigger — the history is append-only and its old rows must still read;
+     - old `ready_to_close` rows in the admins' bells — a plain bell row, like any other.
+  3. **The tests that used the flag to make a notification** now use another real source: the notifications e2e uses a data-entry lead's "needs an owner" broadcast; the push tests use `meeting_request`.
+- Alternatives considered:
+  - **Drop the column with a migration.** Rejected: it would break restoring every existing backup, for no gain.
+  - **Hide the button but keep the notification.** Not what he asked: "the whole … thing".
+- Resolves: none. SPEC §7.1 carries an "Amended by ADR-107" note (SPEC itself never named the flag; V2 §3 did).
+- Status: Accepted.
+
+## ADR-108 — 2026-11-15 — NO MEETING OUTCOME: Attended / Cancelled / Delayed is removed from every pipeline — the card moves on by Next action, a delay is Reschedule meeting, and what happened goes in the comments (retires SPEC §10.1 T-6/T-7/T-8, §10.3 P-5, PP-3's outcome clause and A-3; amends ADR-010, ADR-021, ADR-046, ADR-062, ADR-072 and ADR-100's outcome paths)
+
+- Context: the founder, verbatim (2026-11-15): *"remove the meeting outcome thing it will be written just fine in the comments"*.
+  - On a lead (or prospect) in Meeting Setting with an arranged meeting, the Next-action card offered a "Meeting outcome" select: **Attended** (pick a destination: Sending Proposals / Won / Lost / Following Up, plus Negotiation on B-Systems; T-6, B-7/B-9), **Cancelled** (Following Up / Postpone / Lost; T-8) and **Delayed** (a new date and time, edited in place; T-7).
+  - It was never required: Next action and drag already left Meeting Setting freely, and ADR-046's same-stage **Reschedule meeting** already recorded a new meeting.
+- Decision:
+  1. **The engine has no `meeting_outcome` event.** `EngineEvent`, the configs' `attendedDestinations` / `cancelledDestinations` slots, the `meeting_reschedule` group and the `destination_*` reject codes are gone; an unknown event is now refused (`unknown_action`) rather than answered with nothing. The API schemas (`leadEventSchema`, `prospectEventSchema`, `groupPayloadSchema`) refuse it with 400.
+  2. **The three panels lose the outcome card**: ByteForce (`LeadEventPanel`), B-Systems (`BsEventPanel`, every role) and the Partners & Agents funnel (`ProspectEventPanel`). The pages stop computing `pendingMeeting`.
+  3. **What replaces each outcome:**
+     - **Attended** → Next action (or drag) to the next stage. Every former destination is a Next action from Meeting Setting, each opening its own group; a follow-up from Meeting Setting still carries the *after meeting* context; Won stays admin/sales-only on B-Systems and is never offered to a rep (P-2).
+     - **Cancelled / no-show** → Next action to Following Up, Postpone or Lost.
+     - **Delayed** → **Reschedule meeting** (ADR-046): a NEW meeting record. On the To-Do the old meeting's task shows in Done as "Superseded by a newer step", and the new meeting is a task on its own day. This **supersedes ADR-062's reading (c)** ("a delayed meeting leaves Today with no Done row", itself awaiting his confirmation) and retires SPEC §5.8's "rescheduled in place" case: no meeting is edited in place any more.
+     - An agent's or partner's Reschedule meeting sends the admins a "Meeting request" (it always did — ADR-046); the old Delayed did not. Now the only way to move a meeting, so the admins hear of every rep's moved meeting. SPEC is silent; kept (§11 default: the existing behaviour).
+     - **What happened** → the lead's comments (the lead chat, ADR-036's `LeadComment`).
+  4. **Kept, on purpose:** the `Meeting.outcome` / `outcomeDestination` columns (backups restore rows verbatim); the history's display of a past outcome (GroupHistory's "Outcome: …", the calendar's struck-through cancelled chip); the To-Do's reading of a meeting the old build resolved (`reason: "meeting_outcome"`, now LEGACY); the undo's `UpdatedRef` meeting fields; the daily report's T-6/T-7/B-7 phrases for old rows.
+  5. **The Partners & Agents funnel too**, so all three pipelines behave the same — although a prospect card has **no comments box**: a note on the meeting goes in the card's description. His reason ("written in the comments") does not quite hold there, so this is **for his confirmation**: keep the removal on the funnel (and add a comments box?), or bring the outcome back there only.
+- Alternatives considered:
+  - **Keep it on the prospect funnel**, which has no comments. Not taken: one engine, one behaviour; the funnel's Next action reaches every destination the outcome did. Flagged for him.
+  - **Keep "Delayed" only** (an in-place date change). Rejected: Reschedule meeting already does it, and two ways to move a meeting is one too many.
+  - **Drop the columns.** Rejected: breaks restoring every existing backup.
+- Resolves: retires A-3 (Delayed / Cancelled behaviour). SPEC §5.3, §5.8, §6.2, §9, §10.1, §10.2, §10.3, §11 and §13 carry an "Amended by ADR-108" note; the `pipeline-engine` skill's non-negotiable rows are updated.
+- Status: Accepted. **Needs founder confirmation:**
+  1. The Partners & Agents funnel: keep the removal there (with or without a comments box), or restore the outcome on the funnel only.
+  2. A rescheduled meeting's old task now shows in Done as "Superseded by a newer step" (supersedes ADR-062 (c)).

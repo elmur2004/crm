@@ -88,12 +88,6 @@ export const meetingSchema = z
   });
 export type MeetingInput = z.infer<typeof meetingSchema>;
 
-export const meetingRescheduleSchema = z.object({
-  date: dateStr,
-  time: timeStr,
-});
-export type MeetingRescheduleInput = z.infer<typeof meetingRescheduleSchema>;
-
 export const proposalSchema = z.object({
   service: z.string().min(1).max(300),
   estimatedValue: money.optional(),
@@ -287,7 +281,6 @@ export type NumbersInput = z.infer<typeof numbersSchema>;
 export const groupPayloadSchema = z.discriminatedUnion("group", [
   z.object({ group: z.literal("follow_up"), data: followUpSchema }),
   z.object({ group: z.literal("meeting"), data: meetingSchema }),
-  z.object({ group: z.literal("meeting_reschedule"), data: meetingRescheduleSchema }),
   z.object({ group: z.literal("proposal"), data: proposalSchema }),
   z.object({ group: z.literal("lost"), data: lostSchema }),
   z.object({ group: z.literal("postpone"), data: postponeSchema }), // ADR-072

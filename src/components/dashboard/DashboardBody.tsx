@@ -48,8 +48,8 @@ import { cssVars, makeCtx, type DashCtx } from "./ctx";
    Reports & Dashboards, and it no longer carries shortcuts to pages that are
    in a menu — no "Open the board", no "Add lead", no KPI card that is a link
    to Leads, the board or Won Leads, no roster link to Agents or Partners.
-   The links to RECORDS stay (a task's lead, a win, an activity row, a lead
-   ready to close): the dashboard is where those records are listed.
+   The links to RECORDS stay (a task's lead, a win, an activity row): the
+   dashboard is where those records are listed.
    ========================================================================== */
 
 const BRAND_EYEBROW: Record<CrmCompany, string> = {

@@ -7,6 +7,7 @@ import {
   createLeadSchema,
   getLeadDetail,
   latestProposalValue,
+  leadEventSchema,
 } from "./leads";
 import { LEAD_TYPES, LEAD_TYPE_LABELS } from "@/lib/pipeline-engine/constants";
 import { leadTypeLabel } from "@/lib/i18n/dict/labels";
@@ -16,7 +17,7 @@ import type { Actor } from "./activity";
 
 /* Service-level integration tests against the real SQLite schema — the §13
    "integration tests — automatic side effects" obligations for Apps A/B:
-   T-5 auto-move, T-6 attended flow, T-7 reschedule, T-9 client auto-creation
+   T-5 auto-move, the meeting follow-on (ADR-108 replaced T-6/T-7), T-9 client auto-creation
    (A-1 mapping), activity log writes (T-10), ADR-012 metric semantics, and every
    §6.5 dashboard formula against a fixture with known expected numbers. */
 
@@ -166,7 +167,9 @@ describe("internal CRM service transitions", () => {
     expect(auto!.action).toBe("auto_transfer");
   });
 
-  it("T-6: attended meeting transfers to the chosen destination and records the outcome", async () => {
+  /* ADR-108 — founder, 2026-11-15: "remove the meeting outcome thing it will
+     be written just fine in the comments". These two replace T-6 and T-7. */
+  it("ADR-108: after a meeting, an ordinary Next action moves the lead on — the meeting keeps no outcome", async () => {
     const lead = await makeLead();
     await applyLeadEvent({
       brand: "byteforce",
@@ -179,24 +182,27 @@ describe("internal CRM service transitions", () => {
       actor,
       role,
     });
-
     await applyLeadEvent({
       brand: "byteforce",
       leadId: lead.id,
-      event: { type: "meeting_outcome", outcome: "attended", destination: "sending_proposal" },
+      event: { type: "next_action", action: "sending_proposal" },
       group: { group: "proposal", data: { service: "Campaign", sent: false } },
       actor,
       role,
     });
-
-    const { lead: detail, history } = await getLeadDetail("byteforce", lead.id);
+    const { lead: detail } = await getLeadDetail("byteforce", lead.id);
     expect(detail.stage).toBe("sending_proposal");
-    expect(detail.meetings[0]!.outcome).toBe("attended");
-    expect(detail.meetings[0]!.outcomeDestination).toBe("sending_proposal");
-    expect(history.find((h) => h.trigger === "T-6")).toBeTruthy();
+    expect(detail.meetings[0]!.outcome).toBeNull();
+    expect(detail.meetings[0]!.outcomeDestination).toBeNull();
+    /* and the event itself is gone from the API's vocabulary */
+    expect(
+      leadEventSchema.safeParse({
+        event: { type: "meeting_outcome", outcome: "attended", destination: "sending_proposal" },
+      }).success,
+    ).toBe(false);
   });
 
-  it("T-7: delayed meeting stays and gets the new date & time, outcome reset", async () => {
+  it("ADR-108: a delayed meeting is Reschedule meeting — a NEW meeting record, the lead stays", async () => {
     const lead = await makeLead();
     await applyLeadEvent({
       brand: "byteforce",
@@ -212,18 +218,27 @@ describe("internal CRM service transitions", () => {
     const r = await applyLeadEvent({
       brand: "byteforce",
       leadId: lead.id,
-      event: { type: "meeting_outcome", outcome: "delayed" },
-      group: { group: "meeting_reschedule", data: { date: "2026-09-09", time: "16:30" } },
+      event: { type: "next_action", action: "reschedule_meeting" },
+      group: {
+        group: "meeting",
+        data: { arranged: true, date: "2026-09-09", time: "16:30", mode: "offline" },
+      },
       actor,
       role,
     });
     expect(r.toStage).toBe("meeting_setting");
     const { lead: detail } = await getLeadDetail("byteforce", lead.id);
-    expect(detail.meetings).toHaveLength(1);
-    expect(detail.meetings[0]!.outcome).toBeNull(); // pending again after reschedule
-    // 16:30 Cairo (UTC+3) = 13:30 UTC
-    expect(detail.meetings[0]!.datetime!.toISOString()).toBe("2026-09-09T13:30:00.000Z");
+    expect(detail.meetings).toHaveLength(2);
+    /* the newest record is the one the board and the To-Do read; 16:30 Cairo (UTC+3) = 13:30 UTC */
+    expect(detail.meetings.at(-1)!.datetime!.toISOString()).toBe("2026-09-09T13:30:00.000Z");
+    expect(
+      leadEventSchema.safeParse({
+        event: { type: "meeting_outcome", outcome: "delayed" },
+        group: { group: "meeting_reschedule", data: { date: "2026-09-09", time: "16:30" } },
+      }).success,
+    ).toBe(false);
   });
+
 
   it("T-9 + A-1: winning creates WonInfo and the mapped Client card atomically", async () => {
     const lead = await makeLead();

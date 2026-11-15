@@ -12,7 +12,6 @@ export type PipelineKind = "internal" | "partners" | "bsystems";
 export type RequiredGroup =
   | { group: "follow_up"; context: FollowUpContext }
   | { group: "meeting" }
-  | { group: "meeting_reschedule" } // T-7: new date & time on the existing meeting
   | { group: "proposal" }
   | { group: "lost" }
   | { group: "postpone" } // ADR-072 — the three reasons + Other
@@ -35,11 +34,10 @@ export type EngineEvent =
   | { type: "next_action"; action: string } // §5.1 — T-1…T-4/T-9, PP-1/PP-3/PP-4, P-3
   | { type: "drag"; to: string } // §5.4 — P-1/P-2 (portal only)
   | { type: "proposal_sent" } // §5.3 — T-5 / P-4
-  | {
-      type: "meeting_outcome"; // T-6 / T-7 / T-8, P-5
-      outcome: "attended" | "cancelled" | "delayed";
-      destination?: string;
-    }
+  /* ADR-108 — no `meeting_outcome` (T-6/T-7/T-8, P-5): founder, 2026-11-15,
+     "remove the meeting outcome thing it will be written just fine in the
+     comments". A meeting is followed by an ordinary Next action, and a delay is
+     the same-stage Reschedule meeting (ADR-046). */
   | { type: "number_added"; slot: 2 | 3 }; // PP-2
 export interface EngineContext {
   role: Role;
@@ -64,8 +62,6 @@ export type TransitionReject = {
     | "terminal_stage"
     | "unknown_action"
     | "won_forbidden"
-    | "destination_required"
-    | "destination_invalid"
     | "event_invalid_for_stage"
     | "drag_not_supported";
   message: string;
@@ -97,14 +93,8 @@ export interface PipelineConfig {
   lostStage: string;
   /** next-action ids offered from a stage for a role (drives UI + validation) */
   nextActions(stage: string, role: Role): readonly string[];
-  /** T-6/P-5 destinations after outcome=attended, per role (ADR-010 for partners) */
-  attendedDestinations(role: Role): readonly string[];
-  /** T-8/A-3 destinations after outcome=cancelled. A SLOT rather than the
-      hardcoded [followUpStage, lostStage] pair the core used to compose: with
-      no follow-up stage on the prospect pipeline (ADR-059) that pair would
-      collapse to Lost alone. The three lead pipelines return the same pair
-      they always did. */
-  cancelledDestinations(role: Role): readonly string[];
+  /* ADR-108 removed the two meeting-outcome slots (attended / cancelled
+     destinations) with the outcome itself. */
   dragEnabled: boolean; // portal only in v1 (A-7)
   /** roles allowed to move a card into Won (portal: admin only — P-2/P-6) */
   wonRoles: readonly Role[] | null; // null = any role with pipeline access

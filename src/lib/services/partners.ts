@@ -366,11 +366,7 @@ export const prospectEventSchema = z.object({
   event: z.discriminatedUnion("type", [
     z.object({ type: z.literal("next_action"), action: z.string() }),
     z.object({ type: z.literal("drag"), to: z.string() }), // founder V4 board
-    z.object({
-      type: z.literal("meeting_outcome"),
-      outcome: z.enum(["attended", "cancelled", "delayed"]),
-      destination: z.string().optional(),
-    }),
+    /* ADR-108 — no "meeting_outcome" (refused, 400): Next action follows a meeting */
   ]),
   group: groupPayloadSchema.optional(),
 });
@@ -427,25 +423,6 @@ export async function applyProspectEvent(opts: {
     const created: CreatedRef[] = [];
     const updated: UpdatedRef[] = [];
     let numbersBefore: string | undefined;
-
-    if (opts.event.type === "meeting_outcome") {
-      const meeting = await tx.meeting.findFirst({
-        where: { partnerProspectId: prospect.id },
-        orderBy: { createdAt: "desc" },
-      });
-      if (!meeting) throw new ApiError(400, "No meeting recorded on this prospect");
-      updated.push({
-        model: "meeting",
-        id: meeting.id,
-        datetime: meeting.datetime ? meeting.datetime.toISOString() : null,
-        outcome: meeting.outcome,
-        outcomeDestination: meeting.outcomeDestination,
-      });
-      await tx.meeting.update({
-        where: { id: meeting.id },
-        data: { outcome: opts.event.outcome, outcomeDestination: opts.event.destination ?? null },
-      });
-    }
 
     /* V2 §6: moving to Didn't Answer records WHICH number(s) went unanswered. */
     if (result.requiredGroup?.group === "numbers" && opts.group?.group === "numbers") {

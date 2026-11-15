@@ -16,10 +16,11 @@ import type { Brand } from "@/lib/pipeline-engine/constants";
 /** Every kind of news this system can deliver. `needs_owner` is ADR-051 (a
     data-entry user added a lead that belongs to nobody until the admin assigns
     it); `mention` is the lead-chat @mention (founder V5); `assigned` is the
-    lead handover. */
+    lead handover. ADR-107 removed `ready_to_close` with the feature: nothing
+    writes it any more, and an old row of it is just a plain bell row (the bell
+    renders every type the same way). */
 export type NotificationType =
   | "meeting_request"
-  | "ready_to_close"
   | "registration"
   | "needs_owner"
   | "assigned"
@@ -76,10 +77,7 @@ async function writeNotification(
    speaking for, which is the only way this stays true. */
 export async function notifyAdmins(input: {
   brand: Brand;
-  type: Extract<
-    NotificationType,
-    "meeting_request" | "ready_to_close" | "registration" | "needs_owner"
-  >;
+  type: Extract<NotificationType, "meeting_request" | "registration" | "needs_owner">;
   title: string;
   body: string;
   leadId?: string;

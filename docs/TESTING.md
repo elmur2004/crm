@@ -8335,3 +8335,62 @@ an unapplied migration, and nothing above finds a way for this one to fail.
 
 - If there are none, reconnect the GitHub trigger or redeploy `main`.
 - If one failed, the last lines of its log say why.
+
+## Run 110 — 2026-11-15 — ADR-105–108: mass assign from Users, Back to the CRM board, "Mark ready to close" and the meeting outcome removed
+
+- **Suites:** tsc, the full vitest, and the full Playwright suite (its own build and seeded DB). Then a re-gate after the second spec review's doc and comment fixes and an e2e helper fix.
+- **Where:** a fresh `git worktree` at `59bef4f` with the push set laid on it:
+  - tracked files only;
+  - no landing work, and none of the four locally dirty files;
+  - a REAL `npm ci` (`added 314 packages in 50s`), no junctions;
+  - a dummy `DATABASE_URL` and a throwaway `AUTH_SECRET`.
+  - No migration in this push.
+
+### New and changed tests
+
+| Where | Tests | What they pin |
+|---|---|---|
+| `mass-assign.integration.test.ts` (new) | 18 | Both CRMs handed over in one press:<br>- the owner bucket rule per company, with an admin who also sells landing in the admin bucket;<br>- one `assigned` row per lead;<br>- ONE summary bell, and a single lead's own deep-linked bell;<br>- a lead already his is counted, not rewritten;<br>- self-take rings nobody.<br>Undo:<br>- one step, every lead back to its own previous owner, across both companies;<br>- all or nothing when one lead was touched or deleted, or a previous owner deleted;<br>- only the author can undo.<br>Refusals:<br>- another company's lead reads as 404, like a missing one;<br>- an unownable company, an archived lead, a deactivated person and a non-admin are refused;<br>- 1 to 500 leads per request.<br>The list:<br>- who gets the button;<br>- the candidate list and its filters;<br>- stages per pipeline (ByteForce never Negotiation; Open = each pipeline's own terminals);<br>- filter parsing. |
+| `launcher.integration.test.ts` | +1 | `?assign=` renders the mass-assign view for the admin only. `?tab=me` wins, and every other persona gets My account. |
+| `one-way.test.ts` | +1, and the sweep widened | `BACK_TO_BOARD` (ADR-106): exactly one back link on each lead page and none elsewhere. The sweep now sees `/users` links (`${USERS_PATH}`). |
+| `transition.test.ts` | rewritten | T-6/T-7/T-8, B-7, the PP-3 outcome rows, the no-show and attended-postpone rows are replaced by ADR-108's:<br>- Next action from Meeting Setting reaches every former destination, each with its group (`after_meeting` on both lead pipelines);<br>- Reschedule meeting is a new record;<br>- `meeting_outcome` is refused (`unknown_action`) on all three pipelines;<br>- Won stays walled for reps. |
+| `leads` / `partners` / `todo` / `daily-report` / `backup-lead-log` integration | updated | The outcome steps become Next action or Reschedule meeting:<br>- the API schemas refuse `meeting_outcome`;<br>- the To-Do reads "moved" after a meeting, "superseded" after a reschedule (to tomorrow it leaves Today; later today the new meeting is the task);<br>- a LEGACY outcome still reads. |
+| `bsystems` / `undo` / `dashboard` / `push` / `daily-report` integration, `push.test`, `daily-report-phrases.test` | updated | Ready to close is gone:<br>- a LEGACY `lead_ready` entry still undoes;<br>- Needs you is the sign-ups only;<br>- the push types are five;<br>- old `B-RTC` rows still read. |
+| `e2e/mass-assign.spec.ts` (new) | 4 | Users row → Assign leads → search → select all → assign three leads of both CRMs. Then:<br>- the person sees them on both boards with one bell;<br>- Undo gives them back.<br>Also:<br>- data entry has no button, and the address says why;<br>- a sales account gets My account and a 403 from the API;<br>- Back to the CRM board in both companies. |
+| `notifications.spec.ts` | rewritten setup | The two unread rows now come from a data-entry account's "needs an owner" broadcast. They used ready to close. |
+| `journey1`, `journey3`, `journey4`, `todo-done`, `security-rbac`, `data-entry` | updated | Next action instead of the outcome; no "Mark ready to close"; the reschedule supersedes; the retired `/ready` route is no longer probed. |
+
+### Clean-gate (pushed set)
+
+| Check | Result (verbatim) |
+|---|---|
+| `npx prisma generate` | `generate exit 0` |
+| `npx tsc --noEmit` | `tsc exit 0` |
+| `npx vitest run` | `Test Files  94 passed (94)` / `Tests  1971 passed \| 3 skipped (1974)` |
+| `npx playwright test` (FULL suite) | `3 failed` / `9 skipped` / `339 passed (38.2m)` / `EXIT 1` |
+
+**The 3 failures were one test-helper bug, in the new spec only.** `e2e/mass-assign.spec.ts`'s `makeLead` posted a B-Systems lead without `companyName`, which B-Systems requires (`Expected: 201 / Received: 400`, "create MassPick BS One"). It stopped three of its four tests before they began. Fixed by giving every lead a company name.
+
+### Re-gate (after the second spec review's fixes and the helper fix)
+
+The review's fixes were SPEC/ADR/IMPLEMENTATION text, code COMMENTS, and unit and integration tests; no behaviour changed. 21 files changed after the first copy.
+
+| Check | Result (verbatim) |
+|---|---|
+| `npx tsc --noEmit` | `tsc2 exit 0` |
+| `npx vitest run` | `Test Files  94 passed (94)` / `Tests  1972 passed \| 3 skipped (1975)` |
+| `npx playwright test` mass-assign, users-app, todo-done, journey1, journey3, launcher, security-rbac | `1 failed` / `30 passed (4.4m)`: `mass-assign.spec.ts:48`, `getByLabel('CRM', { exact: true })` — element(s) not found. A locator bug: the combobox is there, but its wrapping label's text also holds the options. Now looked up by role. |
+| `npx playwright test e2e/mass-assign.spec.ts` (after the locator fix) | `4 passed (1.5m)` |
+| byte-compare of the pushed set against the gate's copy (`cmp`) | `identical: 76, different: 0`; the deleted `/ready` route is absent from both |
+
+The 3 skipped vitest cases are the same three as Runs 108 and 109.
+
+### Locally (the working tree, with the landing work in it)
+
+- **vitest:** `Test Files  108 passed (108)` / `Tests  2433 passed (2433)`.
+- **A targeted Playwright run here did not start.** The webServer build passed its 300 s timeout in this tree, which also holds the landing pages. The clean worktree builds within it.
+
+### NOT RUN
+
+- **Production.** The host still serves the build from before 2026-11-08 (Run 109's deploy section). None of this has been seen live.
+- **Screenshots of the new view** were not taken this round. The brand audit read the code and the tokens; `e2e/mass-assign.spec.ts` drives the view at the default desktop size only.

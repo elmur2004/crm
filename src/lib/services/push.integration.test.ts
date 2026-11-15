@@ -204,9 +204,9 @@ describe("who a push may reach — the same wall the bell enforces", () => {
 const notification = (over: Partial<NotificationForPush> = {}): NotificationForPush => ({
   id: "n-1",
   userId: null,
-  type: "ready_to_close",
-  title: "Ready to close: Nile Foods",
-  body: "Elmur marked \"Nile Foods\" as ready to close (stage: negotiation).",
+  type: "meeting_request",
+  title: "Meeting request: Nile Foods",
+  body: "Karim asked for a meeting with \"Nile Foods\".",
   leadId: null,
   ...over,
 });
@@ -228,7 +228,7 @@ describe("delivering to real devices", () => {
       "https://push.example/tablet",
     ]);
     /* the payload carries the row's own words, and a link into the app */
-    expect(sent[0]!.payload.title).toBe("Ready to close: Nile Foods");
+    expect(sent[0]!.payload.title).toBe("Meeting request: Nile Foods");
     expect(sent[0]!.payload.url).toBe("/b-systems");
   });
 
@@ -307,7 +307,7 @@ describe("delivering to real devices", () => {
 /* --------------------------------------------- every type, and the flag off */
 
 describe("EVERY notification type reaches the phone (the one central hook)", () => {
-  it("pushes for each of the six types, because they all write through one place", async () => {
+  it("pushes for each of the five types, because they all write through one place", async () => {
     configureKeys();
     const admin = await makeUser("Elmur", "bsystems_admin", {
       email: "push-admin@example.test",
@@ -318,13 +318,8 @@ describe("EVERY notification type reaches the phone (the one central hook)", () 
     const sent = fakeSender();
     const actor: Actor = { id: admin.id, label: admin.name };
 
-    /* the four admin broadcasts */
-    for (const type of [
-      "meeting_request",
-      "ready_to_close",
-      "registration",
-      "needs_owner",
-    ] as const) {
+    /* the three admin broadcasts (ADR-107 retired ready_to_close) */
+    for (const type of ["meeting_request", "registration", "needs_owner"] as const) {
       await notifyAdmins({ brand: "bsystems", type, title: `${type} title`, body: `${type} body` });
     }
     /* the addressed one */
@@ -353,19 +348,18 @@ describe("EVERY notification type reaches the phone (the one central hook)", () 
 
     const titles = sent.map((s) => s.payload.title);
     expect(titles).toContain("meeting_request title");
-    expect(titles).toContain("ready_to_close title");
     expect(titles).toContain("registration title");
     expect(titles).toContain("needs_owner title");
     expect(titles).toContain("Assigned to you: Push Corp");
     expect(titles).toContain("Elmur mentioned you");
-    /* six rows written, six pushes out — one per notification, no type missed */
-    expect(await db.notification.count()).toBe(6);
-    expect(sent).toHaveLength(6);
+    /* five rows written, five pushes out — one per notification, no type missed */
+    expect(await db.notification.count()).toBe(5);
+    expect(sent).toHaveLength(5);
 
     /* and each went to the RIGHT phone: the broadcasts to the admin, the two
        addressed ones to the agent */
     const byTitle = Object.fromEntries(sent.map((s) => [s.payload.title, s.endpoint]));
-    expect(byTitle["ready_to_close title"]).toBe("https://push.example/admin-phone");
+    expect(byTitle["meeting_request title"]).toBe("https://push.example/admin-phone");
     expect(byTitle["Assigned to you: Push Corp"]).toBe("https://push.example/agent-phone");
     expect(byTitle["Elmur mentioned you"]).toBe("https://push.example/agent-phone");
   });
@@ -376,7 +370,7 @@ describe("EVERY notification type reaches the phone (the one central hook)", () 
     await saveSubscription(admin.id, sub("https://push.example/inert"));
     const sent = fakeSender();
 
-    await notifyAdmins({ brand: "bsystems", type: "ready_to_close", title: "Quiet", body: "No phone rings" });
+    await notifyAdmins({ brand: "bsystems", type: "meeting_request", title: "Quiet", body: "No phone rings" });
     await db.$transaction(async (tx) => {
       await notifyUser(tx, {
         userId: admin.id,
@@ -408,7 +402,7 @@ describe("EVERY notification type reaches the phone (the one central hook)", () 
 
     /* schedulePush is fire-and-forget: the notification must still be written
        and the caller must never see the failure */
-    await notifyAdmins({ brand: "bsystems", type: "ready_to_close", title: "Survives", body: "the explosion" });
+    await notifyAdmins({ brand: "bsystems", type: "meeting_request", title: "Survives", body: "the explosion" });
     await expect(pushDeliveriesSettled()).resolves.toBeDefined();
     expect(await db.notification.count()).toBe(1);
     expect(await db.pushSubscription.count()).toBe(1); // a crash is not a goodbye

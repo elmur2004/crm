@@ -44,13 +44,14 @@ const move = (trigger: string, from: string, to: string) => mk("stage_change", t
 const auto = (trigger: string, from: string, to: string) => mk("auto_transfer", trigger, from, to);
 const group = (trigger: string) => mk("group_added", trigger);
 
-/** Every lead-touching trigger, with the ROW SHAPE the product really writes. */
+/** Every lead-touching trigger, with the ROW SHAPE the product writes — or, for the
+    rows marked LEGACY, wrote before a change retired them (the history keeps them). */
 const INVENTORY: Array<{ why: string; row: InteractionRow }> = [
   /* ---- services/leads.ts, the flat triggers */
   { why: "leads.ts:105 create", row: mk("create", "create", null, "new") },
   { why: "leads.ts:105 partner attribution", row: mk("create", "PP-5", null, "new") },
   { why: "leads-import.ts the Excel import (createLead trigger)", row: mk("create", "leads_import", null, "new") },
-  { why: "leads.ts:150 ready to close", row: mk("update", "B-RTC") },
+  { why: "LEGACY ready to close (removed by ADR-107; old rows still read)", row: mk("update", "B-RTC") },
   { why: "leads.ts:224 didn't answer", row: mk("update", "no_answer") },
   { why: "leads.ts:224 answered", row: mk("update", "no_answer_cleared") },
   { why: "leads.ts:734 auto-clear inside a move", row: mk("update", "no_answer_cleared") },
@@ -74,14 +75,15 @@ const INVENTORY: Array<{ why: string; row: InteractionRow }> = [
   { why: "T-0 the generic internal move", row: move("T-0", "following_up", "new") },
   { why: "T-0 postpone (ADR-072)", row: move("T-0", "following_up", "postponed") },
   { why: "T-5 the automatic proposal-sent return", row: auto("T-5", "sending_proposal", "following_up") },
-  /* the ATTENDED branch of `meeting_outcome` returns `auto: true`, so the row the
-     product really writes is an `auto_transfer` — and T-6 is reachable NO other
+  /* LEGACY (ADR-108 retired the meeting outcome; these rows stay in the history).
+     The ATTENDED branch of `meeting_outcome` returned `auto: true`, so the row the
+     product wrote is an `auto_transfer` — and T-6 is reachable NO other
      way (`triggerForAction` never returns it). Review, Run 097: the first draft
      of this inventory listed it as a `stage_change` and so never saw the phrase
      the screen actually printed. */
-  { why: "T-6 meeting attended (auto row, destination chosen by him)", row: auto("T-6", "meeting_setting", "sending_proposal") },
-  { why: "T-7 meeting delayed (same stage)", row: move("T-7", "meeting_setting", "meeting_setting") },
-  { why: "T-8 meeting cancelled", row: move("T-8", "meeting_setting", "following_up") },
+  { why: "LEGACY T-6 meeting attended (auto row, destination chosen by him)", row: auto("T-6", "meeting_setting", "sending_proposal") },
+  { why: "LEGACY T-7 meeting delayed (same stage)", row: move("T-7", "meeting_setting", "meeting_setting") },
+  { why: "LEGACY T-8 meeting cancelled", row: move("T-8", "meeting_setting", "following_up") },
 
   /* ---- the B-Systems pipeline */
   { why: "B-1 the generic move", row: move("B-1", "new", "following_up") },
@@ -89,10 +91,10 @@ const INVENTORY: Array<{ why: string; row: InteractionRow }> = [
   { why: "B-4 negotiation", row: move("B-4", "sending_proposal", "negotiation") },
   { why: "B-9 won", row: move("B-9", "negotiation", "won") },
   { why: "B-6 the automatic proposal-sent return", row: auto("B-6", "sending_proposal", "following_up") },
-  { why: "B-7 meeting delayed (same stage)", row: move("B-7", "meeting_setting", "meeting_setting") },
-  { why: "B-7 meeting cancelled", row: move("B-7", "meeting_setting", "following_up") },
-  { why: "B-7 meeting attended (auto row)", row: auto("B-7", "meeting_setting", "sending_proposal") },
-  { why: "B-9 attended → won (auto row)", row: auto("B-9", "meeting_setting", "won") },
+  { why: "LEGACY B-7 meeting delayed (same stage)", row: move("B-7", "meeting_setting", "meeting_setting") },
+  { why: "LEGACY B-7 meeting cancelled", row: move("B-7", "meeting_setting", "following_up") },
+  { why: "LEGACY B-7 meeting attended (auto row)", row: auto("B-7", "meeting_setting", "sending_proposal") },
+  { why: "LEGACY B-9 attended → won (auto row)", row: auto("B-9", "meeting_setting", "won") },
 
   /* ---- the same-stage records (SAME_STAGE_TRIGGERS), action `group_added` */
   { why: "FU-AGAIN another follow-up", row: group("FU-AGAIN") },
@@ -150,7 +152,7 @@ describe("ADR-081 — every interaction the product records has a phrase, in bot
   });
 
   it("and a move HE chose the destination for is not claimed as the engine's", () => {
-    /* the attended meeting outcome: `auto: true` on the row, but the destination
+    /* LEGACY (ADR-108) — the attended meeting outcome: `auto: true` on the row, but the destination
        came out of the form he filled in, so the automatic wording would be the
        exact inversion of the one above (review, Run 097) */
     expect(interactionPhrase("en", auto("T-6", "meeting_setting", "sending_proposal"))).toBe(

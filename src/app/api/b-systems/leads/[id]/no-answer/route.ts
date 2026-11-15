@@ -3,7 +3,7 @@ import { handleRoute, requireLeadAccess } from "@/lib/auth/guards";
 import { setNoAnswer } from "@/lib/services/leads";
 
 /* Founder directive (ADR-039) — the "didn't answer" card marker: any role with
-   lead access can toggle it, same wall as /ready; a flag, never a stage move.
+   lead access can toggle it (requireLeadAccess); a flag, never a stage move.
    ADR-064 — the wire is unchanged and stays server-validated: `true` is one
    more attempt (it COUNTS now), `false` is the Answered press that resets the
    tally. The response carries the new number back. */

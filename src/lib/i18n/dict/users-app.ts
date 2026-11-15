@@ -54,3 +54,63 @@ export const usersApp = {
   noCv: { en: "No CV on file yet.", ar: "لا توجد سيرة ذاتية محفوظة بعد." },
   companyTitle: { en: "Your company", ar: "شركتك" },
 } satisfies Record<string, Msg>;
+
+/* ADR-105 — mass assign, on the admin's "All users" view: a person's row opens
+   the leads he could be given, from both CRMs, to tick and hand over at once. */
+export const massAssign = {
+  rowButton: { en: "Assign leads", ar: "إسناد عملاء محتملين" },
+  title: { en: "Assign leads to {name}", ar: "إسناد عملاء محتملين إلى {name}" },
+  sub: {
+    en: "Tick the leads {name} should work, then hand them over in one go. Each lead's history records it, and {name} gets one notification.",
+    ar: "حدّد العملاء المحتملين الذين سيعمل عليهم {name}، ثم سلّمهم دفعة واحدة. يُسجَّل ذلك في سجل كل عميل محتمل، ويصل إلى {name} إشعار واحد.",
+  },
+  close: { en: "Close", ar: "إغلاق" },
+  filtersAria: { en: "Which leads to show", ar: "العملاء المحتملون المعروضون" },
+  crm: { en: "CRM", ar: "إدارة العملاء" },
+  bothCrms: { en: "Both CRMs", ar: "كلتا الشركتين" },
+  owner: { en: "Owner now", ar: "المالك الحالي" },
+  ownerFree: { en: "Unassigned or yours", ar: "غير مُسند أو لك" },
+  ownerUnassigned: { en: "Unassigned", ar: "غير مُسند" },
+  ownerMine: { en: "Yours", ar: "لك" },
+  ownerAny: { en: "Anyone", ar: "أي شخص" },
+  ownerCount: { en: "{name} ({count})", ar: "{name} ({count})" },
+  stage: { en: "Stage", ar: "المرحلة" },
+  stageOpen: { en: "Open (not won or lost)", ar: "مفتوحة (غير مكسوبة ولا خاسرة)" },
+  stageAny: { en: "Any stage", ar: "أي مرحلة" },
+  search: { en: "Search", ar: "بحث" },
+  searchPlaceholder: { en: "Name, company or number", ar: "الاسم أو الشركة أو الرقم" },
+  apply: { en: "Apply", ar: "تطبيق" },
+  clear: { en: "Clear filters", ar: "مسح الفلاتر" },
+  thLead: { en: "Lead", ar: "العميل المحتمل" },
+  thAdded: { en: "Added", ar: "تاريخ الإضافة" },
+  you: { en: "You", ar: "أنت" },
+  showing: { en: "{n} leads", ar: "{n} من العملاء المحتملين" },
+  showingOne: { en: "1 lead", ar: "عميل محتمل واحد" },
+  capped: {
+    en: "Showing the newest {shown} of {total}. Hand these over and the next ones appear.",
+    ar: "يُعرض أحدث {shown} من أصل {total}. سلّم هؤلاء وسيظهر الباقون.",
+  },
+  empty: { en: "No leads match these filters.", ar: "لا يوجد عملاء محتملون يطابقون هذه الفلاتر." },
+  selectAll: { en: "Select every lead shown", ar: "تحديد كل العملاء المحتملين المعروضين" },
+  selectRow: { en: "Select {name}", ar: "تحديد {name}" },
+  selected: { en: "{n} selected", ar: "تم تحديد {n}" },
+  submitNone: { en: "Assign to {name}", ar: "إسناد إلى {name}" },
+  submitOne: { en: "Assign 1 lead to {name}", ar: "إسناد عميل محتمل واحد إلى {name}" },
+  submitMany: { en: "Assign {n} leads to {name}", ar: "إسناد {n} من العملاء المحتملين إلى {name}" },
+  working: { en: "Assigning…", ar: "جارٍ الإسناد…" },
+  doneOne: { en: "1 lead is now {name}'s.", ar: "أصبح عميل محتمل واحد لدى {name}." },
+  doneMany: { en: "{n} leads are now {name}'s.", ar: "أصبح {n} من العملاء المحتملين لدى {name}." },
+  undoHint: {
+    en: "Changed your mind? Undo, at the bottom of the screen, gives every lead back to its previous owner.",
+    ar: "غيّرت رأيك؟ زر التراجع أسفل الشاشة يعيد كل عميل محتمل إلى مالكه السابق.",
+  },
+  notFound: { en: "That account no longer exists.", ar: "هذا الحساب لم يعد موجودًا." },
+  inactive: {
+    en: "{name}'s account is removed or still awaiting approval — reactivate it before giving it leads.",
+    ar: "حساب {name} مُزال أو ما زال بانتظار الموافقة — أعد تفعيله قبل إسناد عملاء محتملين إليه.",
+  },
+  cannotOwn: {
+    en: "{name} can't be given leads — only sales, agents, partners and ByteForce staff can own one.",
+    ar: "لا يمكن إسناد عملاء محتملين إلى {name} — فقط المبيعات والوكلاء والشركاء وفريق ByteForce يمكنهم امتلاكهم.",
+  },
+} satisfies Record<string, Msg>;

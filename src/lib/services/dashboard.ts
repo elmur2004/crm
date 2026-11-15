@@ -23,7 +23,7 @@ import { leadScopeWhere, ownerNameOf, todoFor, type TodoItem, type TodoScope } f
    and none writes an owner filter of its own (dashboard spec §2.3). The money
    records (WonInfo, WonDeal, Client, Milestone) are reached THROUGH their lead,
    so they inherit the same wall. Under ByteForce the agent / partner roster,
-   the "Needs you" card (ready-to-close, registrations) and the milestone money
+   the "Needs you" card (registrations; ADR-107 retired ready-to-close) and the milestone money
    are never computed at all — not hidden, absent. (The shared lead selects
    still name the partner and WonDeal relations, through the scoped lead; for a
    ByteForce lead they are always empty.)
@@ -141,7 +141,6 @@ export interface ActivityRow {
 }
 
 export interface NeedsYou {
-  readyToClose: { count: number; leads: Array<{ id: string; name: string }> };
   pendingRegistrations: number;
 }
 
@@ -225,7 +224,7 @@ export async function dashboardFor(input: DashboardInput): Promise<DashboardData
     }),
     todoFor({ brand, scope, now }),
     isAdminBs ? adminExternal(brand) : Promise.resolve(null),
-    isAdminBs ? needsYouFor(brand, scope) : Promise.resolve(null),
+    isAdminBs ? needsYouFor() : Promise.resolve(null),
     activityFor(brand, scope),
   ]);
 
@@ -427,21 +426,13 @@ export async function dashboardFor(input: DashboardInput): Promise<DashboardData
 
 /* ---------------------------------------------------------------- W9 */
 
-async function needsYouFor(brand: Brand, scope: TodoScope): Promise<NeedsYou> {
-  const config = configForBrand(brand);
-  const where = {
-    ...leadScopeWhere(brand, scope),
-    archived: false,
-    readyToClose: true,
-    stage: { notIn: [config.wonStage, config.lostStage] },
-  };
-  const [count, leads, pendingRegistrations] = await Promise.all([
-    db.lead.count({ where }),
-    db.lead.findMany({ where, select: { id: true, name: true }, orderBy: { updatedAt: "desc" }, take: 5 }),
-    /* the Registrations page's own "Awaiting approval" set */
-    db.user.count({ where: { registrationStatus: "pending" } }),
-  ]);
-  return { readyToClose: { count, leads }, pendingRegistrations };
+/* ADR-107 — the deals flagged ready to close left with the flag; what waits on
+   the admin here is the sign-ups (the caller asks only for the B-Systems
+   admin). */
+async function needsYouFor(): Promise<NeedsYou> {
+  /* the Registrations page's own "Awaiting approval" set */
+  const pendingRegistrations = await db.user.count({ where: { registrationStatus: "pending" } });
+  return { pendingRegistrations };
 }
 
 /* ---------------------------------------------------------------- W10 */

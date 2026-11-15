@@ -45,17 +45,6 @@ export const internalCrmConfig: PipelineConfig = {
     if (stage === "won" || stage === "lost") return [];
     return [...ACTIVE_ACTIONS, ...sameStageExtras(stage)];
   },
-  attendedDestinations() {
-    // T-6: destination choice is mandatory
-    return ["sending_proposal", "won", "lost", "following_up"];
-  },
-  cancelledDestinations() {
-    /* T-8 / A-3, plus ADR-072. The founder named "no show in the meeting" as one
-       of the three reasons to park a lead, so the cancelled outcome — which is
-       where a no-show is recorded — must be able to land there directly. The
-       original pair is untouched and still first. */
-    return ["following_up", "postponed", "lost"];
-  },
   dragEnabled: true, // founder (ADR-042): overrides A-7 — the board drags like the B-Systems one
   wonRoles: null, // any staff member of the owning brand (brand scoping in guards)
   wonRequiredGroup: { group: "won" },

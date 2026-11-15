@@ -59,6 +59,14 @@ export function listUsers() {
   });
 }
 
+/** The roles that make an account a B-Systems lead OWNER — the Assign roster
+    below and the Users app's mass assign (ADR-105) read this one list. */
+export const BSYSTEMS_OWNER_ROLES: readonly Role[] = [
+  "bsystems_agent",
+  "bsystems_partner",
+  "bsystems_sales",
+];
+
 /* Founder (lead assignment) — the accounts a lead may be handed to: live,
    approved agents, partners and internal sales. Admins are deliberately absent:
    the admin bucket is where an UNASSIGNED lead sits, not a person's workload. */
@@ -67,7 +75,7 @@ export async function listAssignableOwners() {
     where: {
       active: true,
       registrationStatus: "approved",
-      roles: { some: { role: { in: ["bsystems_agent", "bsystems_partner", "bsystems_sales"] } } },
+      roles: { some: { role: { in: [...BSYSTEMS_OWNER_ROLES] } } },
     },
     include: { roles: true, partner: { select: { companyName: true } } },
     orderBy: { name: "asc" },

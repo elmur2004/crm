@@ -913,3 +913,29 @@ the moment a failure is found; close them with a reference to the fixing commit/
   reads, so it wants its own screenshot round): make the light neutral ring
   solid, as dark's is, or deepen the mix until it clears 3:1 on the halo.
 - Status: open
+
+## BUG-035 — 2026-11-15 — the success toast's icon disappears in the neutral scope (the Vault, and now the Users app's assign view)
+
+- Severity: trivial (a decorative circle; the toast's words read at 17.5:1)
+- Where: `src/themes/design-system.css` `.toast--ok .toast-icon` fills its
+  circle with `--color-success`, which in the `neutral` scope equals the toast
+  surface (both #1A191C light, both #ECEAE5 dark), so only the "!" shows.
+- Repro: undo something on a neutral page (the Data Vault, or Users → Assign
+  leads → Undo): the success toast's icon has no circle.
+- Found by: brand-auditor, auditing ADR-105's mass-assign view (it predates
+  that change; the Vault already had it).
+- Fix: `[data-brand="neutral"] .toast--ok .toast-icon { background:
+  var(--color-toast-ink); color: var(--color-toast-surface); }`, with a
+  screenshot round.
+- Status: open
+
+## BUG-036 — 2026-11-15 — the floating Undo pill is under 44px tall on touch screens (every shell)
+
+- Severity: minor (touch target; the pill works, it is small)
+- Where: `src/themes/design-system.css` `.undo-btn` — about 34px tall under
+  `(pointer: coarse)`.
+- Found by: brand-auditor, auditing ADR-105 (the pill predates it; the assign
+  view only shows it too).
+- Fix: `@media (pointer: coarse) { .undo-btn { min-block-size: 44px } }`, with
+  the device sweep re-run.
+- Status: open

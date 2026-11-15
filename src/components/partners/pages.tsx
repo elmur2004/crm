@@ -249,7 +249,6 @@ export async function ProspectDetailBody({ prospectId }: { prospectId: string })
   const { prospect, history } = data;
   const locale = await getLocale();
   const t = tFor(locale);
-  const latestMeeting = prospect.meetings.at(-1);
   const agent = prospect.kind === "agent";
   /* ADR-057 — this card's OWN pipeline: never compare a stage against a
      literal that only one of the two kinds happens to use. */
@@ -547,9 +546,6 @@ export async function ProspectDetailBody({ prospectId }: { prospectId: string })
             <ProspectEventPanel
               prospectId={prospect.id}
               stage={prospect.stage}
-              pendingMeeting={Boolean(
-                latestMeeting && latestMeeting.outcome === null && latestMeeting.arranged,
-              )}
               defaults={gateDefaults}
               cardNumbers={[prospect.number, ...parseNumbers(prospect.alternativeNumbers)]}
             />

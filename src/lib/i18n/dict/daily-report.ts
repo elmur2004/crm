@@ -156,7 +156,9 @@ export const dailyReport = {
 /** The two actions that carry stages. Everything else is phrased by its trigger. */
 const MOVE_ACTIONS = new Set(["stage_change", "auto_transfer"]);
 
-/* AN `auto_transfer` ROW WHOSE DESTINATION HE CHOSE HIMSELF.
+/* AN `auto_transfer` ROW WHOSE DESTINATION HE CHOSE HIMSELF — LEGACY since ADR-108
+   (2026-11-15) retired the meeting outcome: nothing writes these rows now, and the
+   history's old ones still read correctly through this set.
 
    The engine stamps `auto: true` on an ATTENDED meeting outcome (transition.ts's
    `meeting_outcome` / attended branch: T-6 internally, B-7 or B-9 under
@@ -174,8 +176,8 @@ const USER_CHOSEN_DESTINATION = new Set(["T-6", "B-7", "B-9"]);
 
 /* A record written IN PLACE — the card did not move, so "Moved to …" would be a
    lie. Two shapes reach here: `group_added` (the founder's three same-stage
-   buttons) and a meeting outcome whose destination is the stage it is already in
-   (T-7's delayed meeting, which requires a new date and time). */
+   buttons) and — LEGACY since ADR-108 — a meeting outcome whose destination was the
+   stage it was already in (T-7's delayed meeting, which required a new date and time). */
 const IN_PLACE_BY_TRIGGER: Record<string, Msg> = {
   "FU-AGAIN": dailyReport.loggedAnotherFollowUp,
   "FU-AUTO": dailyReport.autoLoggedNextFollowUp, // ADR-082

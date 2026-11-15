@@ -408,17 +408,34 @@ const SAME_PAGE: Record<string, string[]> = {
   "src/app/(accounting)/accounting/clients/page.tsx": ["/accounting/clients"],
   "src/app/(accounting)/accounting/departments/page.tsx": ["/accounting/departments"],
   "src/app/(vault)/vault/links/page.tsx": ["/vault/links"],
+  /* ADR-103/105 — the Users app's tabs, its mass-assign view (a view OF the
+     page: ?assign=) and that view's Close and Clear */
+  "src/app/(home)/users/page.tsx": ["/users"],
+  "src/components/users/AllUsersBody.tsx": ["/users"],
+  "src/components/users/MassAssignBody.tsx": ["/users"],
+};
+
+/* ADR-106 — the founder's one exception to "Remove them" (2026-11-15: "in the
+   lead I don't see back to the crm button"): a lead's page links back to its
+   board. Exactly these two files, exactly that page; every other back link
+   ADR-095 removed stays removed, and this sweep still catches it. */
+const BACK_TO_BOARD: Record<string, string[]> = {
+  "src/components/bsystems/pages/BsLeadDetailBody.tsx": ["/b-systems/crm"],
+  "src/components/internal/pages.tsx": ["/b-systems/crm"],
 };
 
 /** The path an `href` literal names, or null when it names a RECORD (a
     dynamic segment) or something that is not an app page. */
 function literalPath(raw: string): string | null {
-  const s = raw.replace(/\$\{ctx\.basePath\}/g, "/b-systems");
+  const s = raw
+    .replace(/\$\{ctx\.basePath\}/g, "/b-systems")
+    /* ADR-105 (review): the Users app's own constant, so a link to it is seen */
+    .replace(/\$\{USERS_PATH\}/g, "/users");
   const dyn = s.indexOf("${");
   const head = dyn >= 0 ? s.slice(0, dyn) : s;
   if (dyn >= 0 && (head.endsWith("/") || head === "")) return null; // a record id, or wholly dynamic
   const p = head.split("?")[0]!.replace(/\/+$/, "") || "/";
-  return /^\/(b-systems|accounting|vault|apps)(\/|$)/.test(p) ? p : null;
+  return /^\/(b-systems|accounting|vault|apps|users)(\/|$)/.test(p) ? p : null;
 }
 
 describe("no content link repeats a menu-level way in", () => {
@@ -435,6 +452,8 @@ describe("no content link repeats a menu-level way in", () => {
     expect(literalPath("${ctx.basePath}/crm${ctx.query}")).toBe("/b-systems/crm");
     expect(literalPath("/b-systems/crm/lead/${lead.id}${ctx.query}")).toBeNull();
     expect(literalPath("/accounting/import${acctQuery(view)}")).toBe("/accounting/import");
+    expect(MENU_PAGES.has("/users")).toBe(true);
+    expect(literalPath("${USERS_PATH}?assign=${u.id}")).toBe("/users");
   });
 
   it("every literal href to a menu page is that page's own same-page control", () => {
@@ -445,11 +464,25 @@ describe("no content link repeats a menu-level way in", () => {
         const p = literalPath(m[2]!);
         if (!p || !MENU_PAGES.has(p)) continue;
         expect(
-          SAME_PAGE[rel] ?? [],
+          [...(SAME_PAGE[rel] ?? []), ...(BACK_TO_BOARD[rel] ?? [])],
           `${rel} links to ${p}, a page that is already in a menu — remove it (one way to each page), ` +
             "or, if it is a control on that same page, list it in SAME_PAGE",
         ).toContain(p);
       }
+    }
+  });
+
+  it("ADR-106 — each company's lead page has its one way back to the board, and nothing else does", () => {
+    for (const rel of Object.keys(BACK_TO_BOARD)) {
+      const code = read(rel).replace(/\/\*[\s\S]*?\*\//g, "");
+      const backs = code.match(/className="back-link"/g) ?? [];
+      expect(backs.length, rel).toBe(1);
+      expect(code, rel).toMatch(/href=\{`\$\{ctx\.basePath\}\/crm\$\{ctx\.query\}`\} prefetch=\{false\} className="back-link"/);
+    }
+    for (const file of files) {
+      const rel = path.relative(process.cwd(), file).split(path.sep).join("/");
+      if (BACK_TO_BOARD[rel]) continue;
+      expect(readFileSync(file, "utf8").includes('className="back-link"'), rel).toBe(false);
     }
   });
 });

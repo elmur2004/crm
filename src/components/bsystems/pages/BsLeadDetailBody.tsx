@@ -113,7 +113,6 @@ export async function BsLeadDetailBody({
   const assignees = access.isAdmin
     ? await followUpAssignees(ctx.brand, { id: access.user.id, name: access.user.name }, locale)
     : undefined;
-  const latestMeeting = lead.meetings.at(-1);
   /* ADR-077's lesson, applied here too: `getLeadDetail` orders every group
      `createdAt asc` because the detail reads as a HISTORY, so the NEWEST
      proposal is the LAST one. `.at(0)` would annotate the original quote while
@@ -136,14 +135,18 @@ export async function BsLeadDetailBody({
     <div className="space-y-6">
       <div className="page-head">
         <div>
-          {/* no "Back to the board": the board is the CRM menu's first item,
-              the one way to it (one way to each page) */}
+          {/* ADR-106 — founder (2026-11-15): "in the lead I don't see back to
+              the crm button". Back on the lead page, to this surface's board
+              (the CRM menu's first item); ADR-095's other back links stay gone. */}
+          <Link href={`${ctx.basePath}/crm${ctx.query}`} prefetch={false} className="back-link">
+            <span className="back-link-arrow" aria-hidden="true" />
+            {t(m.backToBoard)}
+          </Link>
           <p className="u-eyebrow">{t(crmPage.eyebrow)}</p>
         </div>
         <div className="page-actions">
           {/* founder: the dial entry point — opens the phone-first call sheet.
-              PRIMARY, not accent: calling the lead is the page's one true
-              action, and accent is already the Ready-to-close cue here. */}
+              PRIMARY: calling the lead is the page's one true action. */}
           <Link
             /* ADR-074 — the call sheet of THIS surface. Under B-Systems
                `ctx.query` names the company; under Mindoo it is empty. */
@@ -198,9 +201,6 @@ export async function BsLeadDetailBody({
           <h1 className="identity-name flex items-center gap-3 flex-wrap">
             {lead.name}
             <StageBadge stage={lead.stage} header />
-            {lead.readyToClose ? (
-              <span className="badge badge--accent">{t(common.readyToClose)}</span>
-            ) : null}
             <NoAnswerBadge locale={locale} count={lead.noAnswerCount} />
             {lead.archived ? (
               <span className="badge badge--archived">{t(archiveMsgs.archived)}</span>
@@ -286,10 +286,6 @@ export async function BsLeadDetailBody({
                   apiBase={ctx.apiBase}
                   people={calendarPeople}
                   hasUnsentProposal={lead.proposals.some((p) => !p.sent)}
-                  pendingMeeting={Boolean(
-                    latestMeeting && latestMeeting.outcome === null && latestMeeting.arranged,
-                  )}
-                  readyToClose={lead.readyToClose}
                   assignees={assignees}
                 />
               )}

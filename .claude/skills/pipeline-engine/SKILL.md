@@ -15,7 +15,7 @@ copies; do not scatter stage strings through components.
 1. **Pure transition core.** `transition(card, event, ctx) → { nextStage, requiredGroup,
    sideEffects[] } | REJECT`. Pipeline configs declare: stage set, terminal stages,
    allowed next-actions per stage/role, and which events auto-move (proposal-sent,
-   meeting-attended, new-number-added, admin-won).
+   new-number-added, admin-won; ADR-108 retired meeting-attended).
 2. **Field groups are child records, not columns** — FollowUp (with `context`:
    `initial` / `after_proposal` / `after_meeting`), Meeting, Proposal, LostInfo, WonInfo.
    History accumulates; nothing is overwritten (SPEC §5.2, A-2).
@@ -38,9 +38,11 @@ copies; do not scatter stage strings through components.
 
 - T-5 / P-4: Proposal `Sent` ✓ → auto-move to Following Up, open follow-up with context
   `after_proposal`, proposal data retained.
-- T-6 / P-5: Meeting `Attended` → destination choice is mandatory (rep destinations
-  exclude Won); Following-up destination gets context `after_meeting`.
-- T-7/T-8: Delayed → new datetime, stays; Cancelled → Following Up or Lost (A-3).
+- T-6 / T-7 / T-8 / P-5 are RETIRED (ADR-108, founder 2026-11-15: no meeting outcome). There is
+  no `meeting_outcome` event — the engine and the API refuse it. After a meeting the card moves
+  by Next action or drag (a follow-up from Meeting Setting still gets context `after_meeting`;
+  reps are still never offered Won), and a delay is the same-stage `reschedule_meeting`
+  (a NEW meeting record, MTG-RESCHEDULE).
 - PP-2: non-empty Number 2/3 saved while in Didn't Answer → auto-return to Lead, logged.
 - PP-3: Contacted and Waiting open NO field group — the move commits immediately, both kinds.
 - PP-4: a PARTNER's Qualified is savable only when the §7.2 gate fields are complete → Partner

@@ -50,7 +50,7 @@ import {
 /* V2 §2.3/§3 — THE B-Systems board, prototype treatment (spec §2.7): tinted
    wells with accent bars, mono column titles, count pills, lift-on-drag cards.
    A drop opens the stage's role-aware form (modal §2.10); cancel reverts. Won
-   is admin/sales-only; "Ready to close" flags any active card. */
+   is admin/sales-only. (ADR-107 removed "Ready to close" from the cards.) */
 
 export interface BsBoardLead {
   id: string;
@@ -59,7 +59,6 @@ export interface BsBoardLead {
   stage: string;
   ownerType: string;
   ownerLabel: string;
-  readyToClose: boolean;
   noAnswer: boolean;
   /** ADR-064 — how many times we tried; 0 = no marker. `noAnswer` above stays
       the is-flagged truth (count > 0) for every existing reader. */
@@ -117,7 +116,6 @@ function LeadCardBody({
       {/* founder (phone): the card scrolls, THIS drags. Lives in the body so
           the DragOverlay clone is identical to the card it stands in for. */}
       <CardGrip drag={drag} label={t(common.dragHandle)} />
-      {lead.readyToClose ? <span className="bcard-badge">{t(common.readyToClose)}</span> : null}
       <div className="bcard-name-row">
         <Link
           href={`${leadPathBase}/${lead.id}${leadQuery}`}
@@ -164,27 +162,10 @@ function LeadCardBody({
           <span className="bcard-meta-dot" aria-hidden />
           <span className="min-w-0">
             {lead.keyDatum}
-            {!lead.readyToClose && lead.stage !== "won" && lead.stage !== "lost" ? (
-              <button
-                type="button"
-                disabled={busy}
-                onClick={async (e) => {
-                  e.stopPropagation();
-                  setBusy(true);
-                  await fetch(`${apiBase}/leads/${lead.id}/ready`, { method: "POST" });
-                  setBusy(false);
-                  router.refresh();
-                }}
-                onPointerDown={(e) => e.stopPropagation()}
-                className="underline underline-offset-2 ms-1 disabled:opacity-50"
-              >
-                {t(common.markReadyToClose)}
-              </button>
-            ) : null}
             {lead.stage !== "won" && lead.stage !== "lost" ? (
               /* founder (ADR-039): "didn't answer" — a marker "just so we
-                 know"; never a stage move. Same click guards as the RTC button
-                 so it neither drags nor opens the lead.
+                 know"; never a stage move. Click guards so it neither drags
+                 nor opens the lead.
                  founder (ADR-064): it is a COUNTER, so "Didn't answer" is
                  always offered — every press is one more try — and the
                  Answered button appears beside it once there is a tally to

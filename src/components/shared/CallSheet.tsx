@@ -123,9 +123,6 @@ export async function CallSheet({
         {lead.companyName ? <p className="call-company">{lead.companyName}</p> : null}
         <p className="call-badges">
           <StageBadge stage={lead.stage} />
-          {lead.readyToClose ? (
-            <span className="badge badge--accent">{t(crmCommon.readyToClose)}</span>
-          ) : null}
           {/* ADR-064 — mid-call, "we tried 3 times" is exactly the context the
               caller needs, so the sheet carries the tally too */}
           <NoAnswerBadge locale={locale} count={lead.noAnswerCount} />

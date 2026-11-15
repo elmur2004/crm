@@ -30,7 +30,7 @@ const idFromHref = (href: string) => new URL(href, "http://x").pathname.split("/
    sign up with CV → land on /b-systems/crm → sees only own leads → add a lead →
    drag through stages with the LIGHT forms (day-only follow-up, no owner/with) →
    Won is blocked in UI and at the API → meeting request shows the WhatsApp
-   confirmation → mark ready to close flags the card. */
+   confirmation. (ADR-107 removed "Mark ready to close".) */
 
 const PDF = Buffer.concat([Buffer.from("%PDF-1.7 journey"), Buffer.alloc(1024, 4)]);
 
@@ -46,8 +46,8 @@ async function dragTo(page: Page, card: Locator, column: Locator) {
   const from = (await card.boundingBox())!;
   const to = (await column.boundingBox())!;
   /* grab the card's middle-right edge — clear of the top-left link AND the
-     bottom "Mark ready to close" button (both stop pointer propagation) — and
-     cross the pointer-sensor activation distance before travelling */
+     bottom row's buttons (they stop pointer propagation) — and cross the
+     pointer-sensor activation distance before travelling */
   await page.mouse.move(from.x + from.width - 10, from.y + from.height / 2);
   await page.mouse.down();
   await page.mouse.move(from.x + from.width - 10, from.y + from.height / 2 + 12, { steps: 4 });
@@ -189,7 +189,6 @@ test("journey 4: agent requests to join, admin approves, agent works the board w
     page.getByText("Your request was received — we'll confirm on WhatsApp."),
   ).toBeVisible();
 
-  /* Mark ready to close — always available, flags the card (V2 §3). */
-  await page.getByRole("button", { name: "Mark ready to close" }).click();
-  await expect(page.getByText("Ready to close").first()).toBeVisible();
+  /* ADR-107 — "Mark ready to close" is gone, from the lead page and the card */
+  await expect(page.getByRole("button", { name: "Mark ready to close" })).toHaveCount(0);
 });

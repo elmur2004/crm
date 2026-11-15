@@ -6,9 +6,14 @@ import {
   DeleteUserButton,
   EditUserButton,
 } from "@/components/users/admin-controls";
+import Link from "next/link";
 import { tFor } from "@/lib/i18n/core";
 import { getLocale } from "@/lib/i18n/server";
 import { common, roleBadges, usersAdmin as d } from "@/lib/i18n/dict/admin";
+import { massAssign } from "@/lib/i18n/dict/users-app";
+import { massAssignCompaniesFor } from "@/lib/services/mass-assign";
+import { USERS_PATH } from "@/lib/launcher/apps";
+import type { Role } from "@/lib/pipeline-engine/constants";
 
 /* V2 §2.10 — every user; create with role/entity assignment; remove
    (deactivate, reversible); impersonate = open their account directly.
@@ -40,7 +45,17 @@ export interface UsersSurface {
   impersonate?: (targetUserId: string) => Promise<void>;
 }
 
-export async function AllUsersBody({ ctx, viewerId }: { ctx: UsersSurface; viewerId: string }) {
+export async function AllUsersBody({
+  ctx,
+  viewerId,
+  viewerRoles,
+}: {
+  ctx: UsersSurface;
+  viewerId: string;
+  /** ADR-105 — whose companies' leads this admin may hand out (the row's
+      "Assign leads" shows only where both sides allow it) */
+  viewerRoles: readonly Role[];
+}) {
   const users = await listUsers();
   const locale = await getLocale();
   const t = tFor(locale);
@@ -119,6 +134,22 @@ export async function AllUsersBody({ ctx, viewerId }: { ctx: UsersSurface; viewe
                         isBootstrapAdmin={ctx.bootstrapAdminEmails.includes(u.email ?? "")}
                         isSelf={u.id === viewerId}
                       />
+                      {/* ADR-105 — founder: "I can choose them in the users
+                          section and select mass assign". Only on a live
+                          account that can own a lead of a company this admin
+                          runs; the view re-checks, the write re-checks again. */}
+                      {massAssignCompaniesFor(
+                        { ...u, roles: u.roles.map((r) => r.role) },
+                        { roles: viewerRoles },
+                      ).length > 0 ? (
+                        <Link
+                          href={`${USERS_PATH}?assign=${u.id}`}
+                          prefetch={false}
+                          className="btn-ghost btn--sm"
+                        >
+                          {t(massAssign.rowButton)}
+                        </Link>
+                      ) : null}
                       {/* ADR-075 — impersonation is offered only where the
                           surface has an action for it. B-Systems has had one
                           since V2 §2.10; a surface with nobody

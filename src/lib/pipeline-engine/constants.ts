@@ -230,8 +230,8 @@ export type FollowUpMethod = (typeof FOLLOW_UP_METHODS)[number];
 export const MEETING_MODES = ["online", "offline"] as const;
 export type MeetingMode = (typeof MEETING_MODES)[number];
 
-export const MEETING_OUTCOMES = ["attended", "cancelled", "delayed"] as const;
-export type MeetingOutcome = (typeof MEETING_OUTCOMES)[number];
+/* ADR-108 — MEETING_OUTCOMES left with the meeting outcome. Old meetings keep
+   what `Meeting.outcome` holds, and the history still shows it. */
 
 export const IMPORTANCE_LEVELS = ["high", "medium", "low"] as const;
 export type Importance = (typeof IMPORTANCE_LEVELS)[number];

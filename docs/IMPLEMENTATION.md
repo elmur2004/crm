@@ -4644,3 +4644,46 @@ lead to a non-admin through the CRM.
    alert or a status by its text: `getByRole("alert").filter({ hasText })`.
 
 - Last updated: 2026-11-14 (ADR-103/104)
+
+## Mass assign, the back link, and two removals: six gotchas (2026-11-15, ADR-105–108)
+
+1. **A batch write must not be a loop of the single write.** Prisma's
+   interactive transaction times out at 5 s by default; 500 leads × (update +
+   history insert) over a remote database is far past it. `massAssignLeads`
+   groups the writes — one `updateMany` per bucket, one `createMany` for the
+   history (`writeLogMany`) — and sets `{ timeout: 30_000 }`, and so does
+   `performUndo` for the batch's inverse.
+2. **One `updatedAt` for the whole batch is the undo's fingerprint.** The
+   `updateMany` sets `updatedAt: now` explicitly (Prisma accepts an explicit
+   value for an `@updatedAt` column), so `undoBulkAssign` compares every lead
+   to the entry's single fingerprint. ms precision survives the round trip
+   (`TIMESTAMP(3)`). Any later touch of any lead refuses the whole undo.
+3. **`ownerUserId: { not: x }` is not "everything except x".** SQL's `<>`
+   drops NULLs, so the candidate list spells it
+   `OR: [{ ownerUserId: null }, { ownerUserId: { not: targetId } }]` — the
+   unassigned leads are the whole point of the list.
+4. **The engine returned `undefined` for an event it did not know.** Its
+   `switch (event.type)` had no `default`, so removing `meeting_outcome` from
+   the union would have made a stray client's event crash the caller instead
+   of being refused. It now ends in `default: reject("unknown_action", …)`,
+   and the API schemas refuse the type first.
+5. **Removing a feature keeps its column.** `Lead.readyToClose` and
+   `Meeting.outcome` / `outcomeDestination` stay (backup restore recreates
+   rows verbatim — ADR-064's reason). So do the readers of HISTORY: the daily
+   report's `B-RTC` / T-6 / T-7 / B-7 phrases, GroupHistory's "Outcome: …",
+   the To-Do's legacy `meeting_outcome` done reason, the undo kinds
+   `lead_ready` and the meeting `UpdatedRef`. Delete the writers, keep the
+   readers.
+6. **"Vitest failed to find the runner" on every file = the drive letter.**
+   With the session's cwd as `d:\CRM` (lower-case), every vitest file fails
+   before it starts; `cd "D:/CRM"` fixes it (memory: vitest-drive-letter).
+   The local Playwright webServer build also outlived its 300 s timeout here
+   (the landing work is in this tree); the clean-worktree gate builds within
+   it.
+
+7. **Older notes in this file still name `meeting_outcome` and
+   `meeting_reschedule`** (the module notes near the top: the engine's event
+   list, the in-place reschedule). They describe the build before ADR-108 and
+   are kept as history; the engine has neither since 2026-11-15.
+
+- Last updated: 2026-11-15 (ADR-105–108)

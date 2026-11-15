@@ -6,6 +6,8 @@ import { LauncherChrome } from "@/components/launcher/LauncherChrome";
 import { AppGround } from "@/components/shared/AppGround";
 import { AllUsersBody } from "@/components/users/AllUsersBody";
 import { MyAccountBody } from "@/components/users/MyAccountBody";
+import { MassAssignBody } from "@/components/users/MassAssignBody";
+import { UndoControl } from "@/components/shared/UndoControl";
 import { impersonate } from "@/lib/auth/actions";
 import { landingFor } from "@/lib/auth/landing";
 import { BOOTSTRAP_ADMIN_EMAILS } from "@/lib/services/bootstrap";
@@ -58,7 +60,16 @@ export async function generateMetadata() {
 export default async function UsersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string; error?: string }>;
+  searchParams: Promise<{
+    tab?: string;
+    error?: string;
+    /* ADR-105 — the mass-assign view of All users, and its filters */
+    assign?: string;
+    company?: string;
+    owner?: string;
+    stage?: string;
+    q?: string;
+  }>;
 }) {
   const user = await requireLauncherUser();
   if (user.roles.length === 0) redirect(landingFor(user.roles));
@@ -66,6 +77,13 @@ export default async function UsersPage({
   const params = await searchParams;
   const admin = user.roles.includes("bsystems_admin");
   const view: "all" | "me" = admin && params.tab !== "me" ? "all" : "me";
+  /* ADR-105 — "Assign leads" from a row: a view of All users, so the admin's
+     alone, and only while the All users tab is the one open. Everybody else's
+     page ignores the parameter exactly as it ignores `?tab=all`. */
+  const assignTo =
+    view === "all" && typeof params.assign === "string" && /^[\w-]{1,64}$/.test(params.assign)
+      ? params.assign
+      : null;
   const locale = await getLocale();
   const t = tFor(locale);
 
@@ -114,7 +132,13 @@ export default async function UsersPage({
           </p>
         ) : null}
         <div className="lx-app-body">
-          {view === "all" ? (
+          {assignTo ? (
+            <MassAssignBody
+              viewer={{ id: user.id, roles: user.roles }}
+              targetId={assignTo}
+              params={{ company: params.company, owner: params.owner, stage: params.stage, q: params.q }}
+            />
+          ) : view === "all" ? (
             <AllUsersBody
               ctx={{
                 apiBase: "/api/b-systems",
@@ -123,12 +147,16 @@ export default async function UsersPage({
                 impersonate,
               }}
               viewerId={user.id}
+              viewerRoles={user.roles}
             />
           ) : (
             <MyAccountBody userId={user.id} />
           )}
         </div>
       </main>
+      {/* ADR-105 — a mass assign is ONE undo step; the shells' own floating
+          pill offers it right here, where it happened */}
+      {assignTo ? <UndoControl userId={user.id} /> : null}
     </div>
   );
 }

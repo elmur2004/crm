@@ -5,7 +5,6 @@ import {
   applyLeadEvent,
   createLead,
   deleteLead,
-  markReadyToClose,
   setArchived,
   setNoAnswer,
   updateLead,
@@ -39,7 +38,7 @@ import { verifyPassword } from "@/lib/auth/hash";
 import type { Actor } from "./activity";
 
 /* REQUIREMENTS-V2 integration obligations: B-9 confirm-win → WonDeal+milestones,
-   ready-to-close notification, the agent light flow (day-only follow-up, meeting
+   (ready-to-close retired by ADR-107), the agent light flow (day-only follow-up, meeting
    request notification, form-free proposal return), commission visibility,
    statements end-to-end, PP-4 account provisioning, impersonation tokens. */
 
@@ -160,22 +159,6 @@ describe("Confirm-win → milestone tab (V2 §4, trigger B-9)", () => {
     expect(await db.wonDeal.count()).toBe(0);
     expect(await db.milestone.count()).toBe(0);
     expect(await db.statement.count()).toBe(0);
-  });
-});
-
-describe("Ready to close (V2 §3, trigger B-RTC)", () => {
-  it("flags the card and broadcasts an admin notification with the lead link", async () => {
-    const lead = await makeLead();
-    await markReadyToClose("bsystems", lead.id, admin);
-    const fresh = await db.lead.findUniqueOrThrow({ where: { id: lead.id } });
-    expect(fresh.readyToClose).toBe(true);
-    const note = await db.notification.findFirstOrThrow({ where: { leadId: lead.id } });
-    expect(note.type).toBe("ready_to_close");
-    expect(note.userId).toBeNull(); // admin broadcast
-
-    /* Idempotent: flagging again adds no second notification. */
-    await markReadyToClose("bsystems", lead.id, admin);
-    expect(await db.notification.count()).toBe(1);
   });
 });
 
@@ -312,9 +295,6 @@ describe("Archive (founder, ADR-043)", () => {
       role: "bsystems_admin" as const,
     };
     await expect(applyLeadEvent(event)).rejects.toThrow("Unarchive this lead first");
-    await expect(markReadyToClose("bsystems", lead.id, admin)).rejects.toThrow(
-      "Unarchive this lead first",
-    );
     await expect(setNoAnswer("bsystems", lead.id, true, admin)).rejects.toThrow(
       "Unarchive this lead first",
     );

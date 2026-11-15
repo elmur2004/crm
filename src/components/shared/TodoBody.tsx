@@ -66,12 +66,11 @@ export async function TodoBody({
       case "superseded":
         return t(m.doneSuperseded);
       case "meeting_outcome":
-        /* Attended and Cancelled are the outcomes that COMPLETE a meeting.
-           "Delayed" normally never reaches here — T-7 nulls the outcome in the
-           same transaction as the reschedule (SPEC §5.8: a delayed meeting is
-           a moved task, not a completed one) — but the state does exist on the
-           undo path (BUG-013), so the row stays readable rather than falling
-           through to "Meeting attended", which would be a lie. */
+        /* LEGACY (ADR-108 removed the meeting outcome): a meeting the old
+           build resolved as Attended or Cancelled still reads so. "Delayed"
+           exists only on the old undo path (BUG-013), so the row stays
+           readable rather than falling through to "Meeting attended", which
+           would be a lie. Nothing writes an outcome now. */
         return t(
           d.outcome === "cancelled"
             ? m.doneMeetingCancelled

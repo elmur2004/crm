@@ -103,7 +103,6 @@ describe("where tapping a push lands (ADR-065 decision F)", () => {
     expect(deepLinkFor({ type: "registration", leadId: null }, null)).toBe(
       "/b-systems/registrations",
     );
-    expect(deepLinkFor({ type: "ready_to_close", leadId: null }, null)).toBe("/b-systems");
     expect(deepLinkFor({ type: "meeting_request", leadId: null }, null)).toBe("/b-systems");
     expect(deepLinkFor({ type: "needs_owner", leadId: null }, null)).toBe("/b-systems");
   });
@@ -111,11 +110,11 @@ describe("where tapping a push lands (ADR-065 decision F)", () => {
   it("falls back to an app landing when the lead has since been deleted", () => {
     /* leadId set but no brand resolved = the row is gone; never build a link to
        a lead that will 404 */
-    expect(deepLinkFor({ type: "ready_to_close", leadId: "gone" }, null)).toBe("/b-systems");
+    expect(deepLinkFor({ type: "meeting_request", leadId: "gone" }, null)).toBe("/b-systems");
   });
 
   it("only ever produces a relative in-app path — never an absolute URL", () => {
-    for (const type of ["assigned", "mention", "registration", "ready_to_close"]) {
+    for (const type of ["assigned", "mention", "registration", "meeting_request"]) {
       for (const brand of ["bsystems", "byteforce", null] as const) {
         for (const leadId of ["lead-1", null]) {
           const url = deepLinkFor({ type, leadId }, brand);

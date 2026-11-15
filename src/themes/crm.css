@@ -115,7 +115,7 @@
       0 2px 8px -4px color-mix(in srgb, var(--color-surface-dark) 8%, transparent);
   }
   .bcard-name { text-underline-offset: 3px; text-decoration-thickness: 1px; }
-  /* the card's quiet actions (Mark ready to close · Didn't answer · Answered):
+  /* the card's quiet actions (Didn't answer · Answered):
      a hairline underline in their own ink that firms up under the pointer */
   .bcard-meta button {
     text-decoration-color: color-mix(in srgb, currentColor 35%, transparent);
@@ -278,13 +278,6 @@
   }
   .page .chat-msg--mine { border-radius: 12px; border-end-end-radius: 4px; }
 
-  /* the Ready-to-close badge: what reads on Signal Pink is Indigo Deep, not
-     white (5.84:1 against 3.12:1 — brand audit); the frame's own pair */
-  .page .badge--accent { color: var(--frame-on-accent, var(--color-on-accent)); }
-  /* "Mark ready to close" on the lead's Next-action card: a pink-edged cue
-     whose words read (the Won chip's ink — AA on the card in both themes) */
-  .page .crm-ready { color: var(--color-stage-won-chip-ink); background: var(--color-surface-card); }
-  .page .crm-ready:not(:disabled):hover { background: var(--color-stage-won); }
   /* a stage form that opens under the Next-action select (crm-reveal) */
   .page form.crm-reveal.card { border-color: color-mix(in srgb, var(--color-primary) 16%, var(--color-border)); }
 

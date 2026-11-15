@@ -177,7 +177,6 @@ export async function BsCrmBoardBody({
     stage: l.stage,
     ownerType: l.ownerType,
     ownerLabel: ownerLabel(locale, l),
-    readyToClose: l.readyToClose,
     noAnswer: l.noAnswer,
     noAnswerCount: l.noAnswerCount, // ADR-064 — the card says how many tries
     keyDatum: keyDatum(locale, l, ctx.brand),

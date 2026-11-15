@@ -83,110 +83,56 @@ describe("Internal CRM (§10.1)", () => {
     expect(r.ok).toBe(false);
   });
 
-  it("T-6: attended requires a destination; each destination opens its group", () => {
-    const noDest = transition(
-      internal,
-      { stage: "meeting_setting" },
-      { type: "meeting_outcome", outcome: "attended" },
-      staff,
-    );
-    expect(noDest.ok).toBe(false);
-    expect(!noDest.ok && noDest.code).toBe("destination_required");
-
-    const toProposal = expectOk(
-      transition(
-        internal,
-        { stage: "meeting_setting" },
-        { type: "meeting_outcome", outcome: "attended", destination: "sending_proposal" },
-        staff,
-      ),
-    );
-    expect(toProposal.toStage).toBe("sending_proposal");
+  /* ADR-108 (replaces T-6 / T-7 / T-8) — founder, 2026-11-15: "remove the
+     meeting outcome thing it will be written just fine in the comments". What
+     happened in the meeting goes in the lead chat; the card moves on by an
+     ordinary Next action, which offers every destination the outcome did. */
+  it("ADR-108: after a meeting, Next action reaches every former outcome destination, each with its own group", () => {
+    const offered = internal.nextActions("meeting_setting", staff.role);
+    for (const to of ["sending_proposal", "won", "lost", "following_up", "postponed"]) {
+      expect(offered).toContain(to);
+    }
+    const toProposal = expectOk(transition(internal, { stage: "meeting_setting" }, act("sending_proposal"), staff));
     expect(toProposal.requiredGroup).toEqual({ group: "proposal" });
-    expect(toProposal.logTrigger).toBe("T-6");
-
-    const toFollowUp = expectOk(
-      transition(
-        internal,
-        { stage: "meeting_setting" },
-        { type: "meeting_outcome", outcome: "attended", destination: "following_up" },
-        staff,
-      ),
-    );
+    const toFollowUp = expectOk(transition(internal, { stage: "meeting_setting" }, act("following_up"), staff));
+    /* the follow-up still knows it comes after a meeting */
     expect(toFollowUp.requiredGroup).toEqual({ group: "follow_up", context: "after_meeting" });
-
-    const toWon = expectOk(
-      transition(
-        internal,
-        { stage: "meeting_setting" },
-        { type: "meeting_outcome", outcome: "attended", destination: "won" },
-        staff,
-      ),
-    );
+    const toWon = expectOk(transition(internal, { stage: "meeting_setting" }, act("won"), staff));
     expect(toWon.requiredGroup).toEqual({ group: "won" });
     expect(toWon.sideEffects).toContain("create_client");
-
-    const toLost = expectOk(
-      transition(
-        internal,
-        { stage: "meeting_setting" },
-        { type: "meeting_outcome", outcome: "attended", destination: "lost" },
-        staff,
-      ),
-    );
+    const toLost = expectOk(transition(internal, { stage: "meeting_setting" }, act("lost"), staff));
     expect(toLost.requiredGroup).toEqual({ group: "lost" });
+    /* a no-show parks the lead, asked nothing (ADR-082) */
+    const parked = expectOk(transition(internal, { stage: "meeting_setting" }, act("postponed"), staff));
+    expect(parked.requiredGroup).toBeNull();
   });
 
-  it("T-7: delayed → stays in Meeting Setting, requires new date & time (A-3)", () => {
-    const r = expectOk(
-      transition(internal, { stage: "meeting_setting" }, { type: "meeting_outcome", outcome: "delayed" }, staff),
-    );
+  it("ADR-108: a delayed meeting is the same-stage Reschedule meeting — a NEW meeting, the card stays", () => {
+    expect(internal.nextActions("meeting_setting", staff.role)).toContain("reschedule_meeting");
+    const r = expectOk(transition(internal, { stage: "meeting_setting" }, act("reschedule_meeting"), staff));
     expect(r.toStage).toBe("meeting_setting");
-    expect(r.requiredGroup).toEqual({ group: "meeting_reschedule" });
-    expect(r.logTrigger).toBe("T-7");
+    expect(r.requiredGroup).toEqual({ group: "meeting" });
+    expect(r.logTrigger).toBe("MTG-RESCHEDULE");
   });
 
-  it("T-8: cancelled → Following Up or Lost only (A-3)", () => {
-    const toFU = expectOk(
-      transition(
-        internal,
+  it("ADR-108: the meeting outcome is no longer an event the engine knows — refused, on every pipeline", () => {
+    const retired = { type: "meeting_outcome", outcome: "attended", destination: "won" };
+    for (const config of [internal, bsystems, partners]) {
+      const r = transition(
+        config,
         { stage: "meeting_setting" },
-        { type: "meeting_outcome", outcome: "cancelled", destination: "following_up" },
+        retired as unknown as Parameters<typeof transition>[2],
         staff,
-      ),
-    );
-    expect(toFU.toStage).toBe("following_up");
-    expect(toFU.logTrigger).toBe("T-8");
-
-    const toLost = expectOk(
-      transition(
-        internal,
-        { stage: "meeting_setting" },
-        { type: "meeting_outcome", outcome: "cancelled", destination: "lost" },
-        staff,
-      ),
-    );
-    expect(toLost.toStage).toBe("lost");
-    expect(toLost.requiredGroup).toEqual({ group: "lost" });
-
-    const noDest = transition(
-      internal,
-      { stage: "meeting_setting" },
-      { type: "meeting_outcome", outcome: "cancelled" },
-      staff,
-    );
-    expect(noDest.ok).toBe(false);
-    expect(!noDest.ok && noDest.code).toBe("destination_required");
-
-    const toProposal = transition(
-      internal,
-      { stage: "meeting_setting" },
-      { type: "meeting_outcome", outcome: "cancelled", destination: "sending_proposal" },
-      staff,
-    );
-    expect(toProposal.ok).toBe(false);
-    expect(!toProposal.ok && toProposal.code).toBe("destination_invalid");
+      );
+      expect(r.ok).toBe(false);
+      expect(!r.ok && r.code).toBe("unknown_action");
+    }
+    /* and a B-Systems follow-up out of a meeting still knows where it came from */
+    const fromMeeting = transition(bsystems, { stage: "meeting_setting" }, act("following_up"), admin);
+    expect(fromMeeting.ok && fromMeeting.requiredGroup).toEqual({ group: "follow_up", context: "after_meeting" });
   });
+
+
 
   it("T-9: Won from any active stage requires the Won group and creates a Client (A-1, ADR-011)", () => {
     for (const stage of ["new", "following_up", "meeting_setting", "sending_proposal"]) {
@@ -202,12 +148,7 @@ describe("Internal CRM (§10.1)", () => {
     const results = [
       transition(internal, { stage: "new" }, act("following_up"), staff),
       transition(internal, { stage: "sending_proposal" }, { type: "proposal_sent" }, staff),
-      transition(
-        internal,
-        { stage: "meeting_setting" },
-        { type: "meeting_outcome", outcome: "attended", destination: "won" },
-        staff,
-      ),
+      transition(internal, { stage: "meeting_setting" }, act("won"), staff),
     ];
     for (const r of results) {
       const okr = expectOk(r);
@@ -324,12 +265,6 @@ describe("Prospect pipeline (§10.2) — one stage set, both kinds", () => {
         partners.nextActions(stage, "bsystems_admin"),
       );
     }
-    expect(agents.attendedDestinations("bsystems_admin")).toEqual(
-      partners.attendedDestinations("bsystems_admin"),
-    );
-    expect(agents.cancelledDestinations("bsystems_admin")).toEqual(
-      partners.cancelledDestinations("bsystems_admin"),
-    );
   });
 
   it("the old split vocabularies are gone — no card can sit in following_up or won", () => {
@@ -541,102 +476,23 @@ describe("Prospect pipeline (§10.2) — one stage set, both kinds", () => {
     expect(dragged.logTrigger).toBe(chosen.logTrigger);
   });
 
-  it("PP-3 + ADR-010: attended destinations are Contacted / Waiting / Qualified / Lost", () => {
+  it("ADR-108 (replaces PP-3's meeting outcomes): after a meeting, Next action reaches Contacted / Waiting / Qualified / Lost", () => {
     for (const [kind, config] of bothKinds) {
-      expect(config.attendedDestinations("bsystems_admin")).toEqual([
-        "contacted",
-        "waiting",
-        "qualified",
-        "lost",
-      ]);
-
-      const toWaiting = expectOk(
-        transition(
-          config,
-          { stage: "meeting_setting" },
-          { type: "meeting_outcome", outcome: "attended", destination: "waiting" },
-          bstaff,
-        ),
-      );
-      expect(toWaiting.toStage).toBe("waiting");
+      const offered = config.nextActions("meeting_setting", "bsystems_admin");
+      for (const to of ["contacted", "waiting", "qualified", "lost"]) expect(offered).toContain(to);
+      const toWaiting = expectOk(transition(config, { stage: "meeting_setting" }, act("waiting"), bstaff));
       expect(toWaiting.requiredGroup).toBeNull();
-      expect(toWaiting.logTrigger).toBe("PP-3"); // ADR-021: the owning pipeline's row
-
-      const toQualified = expectOk(
-        transition(
-          config,
-          { stage: "meeting_setting" },
-          { type: "meeting_outcome", outcome: "attended", destination: "qualified" },
-          bstaff,
-        ),
-      );
-      expect(toQualified.requiredGroup).toEqual(
-        kind === "partner" ? { group: "won_partner" } : null,
-      );
+      expect(toWaiting.logTrigger).toBe("PP-3");
+      const toQualified = expectOk(transition(config, { stage: "meeting_setting" }, act("qualified"), bstaff));
+      expect(toQualified.requiredGroup).toEqual(kind === "partner" ? { group: "won_partner" } : null);
       expect(toQualified.sideEffects).toEqual(kind === "partner" ? ["create_partner"] : []);
-
-      /* no proposals stage, and the retired vocabulary is not a destination */
+      /* no proposals stage, and the retired vocabulary is not an action */
       for (const bad of ["sending_proposal", "following_up", "won"]) {
-        expect(
-          transition(
-            config,
-            { stage: "meeting_setting" },
-            { type: "meeting_outcome", outcome: "attended", destination: bad },
-            bstaff,
-          ).ok,
-        ).toBe(false);
+        expect(transition(config, { stage: "meeting_setting" }, act(bad), bstaff).ok).toBe(false);
       }
-      const noDestination = transition(
-        config,
-        { stage: "meeting_setting" },
-        { type: "meeting_outcome", outcome: "attended" },
-        bstaff,
-      );
-      expect(noDestination.ok).toBe(false);
-      expect(!noDestination.ok && noDestination.code).toBe("destination_required");
     }
   });
 
-  it("PP-3: delayed stays put; cancelled goes to Contacted / Waiting / Lost — never Qualified", () => {
-    for (const [, config] of bothKinds) {
-      const delayed = expectOk(
-        transition(
-          config,
-          { stage: "meeting_setting" },
-          { type: "meeting_outcome", outcome: "delayed" },
-          bstaff,
-        ),
-      );
-      expect(delayed.toStage).toBe("meeting_setting");
-      expect(delayed.requiredGroup).toEqual({ group: "meeting_reschedule" });
-      expect(delayed.logTrigger).toBe("PP-3");
-
-      expect(config.cancelledDestinations("bsystems_admin")).toEqual([
-        "contacted",
-        "waiting",
-        "lost",
-      ]);
-      for (const dest of ["contacted", "waiting", "lost"]) {
-        const cancelled = expectOk(
-          transition(
-            config,
-            { stage: "meeting_setting" },
-            { type: "meeting_outcome", outcome: "cancelled", destination: dest },
-            bstaff,
-          ),
-        );
-        expect(cancelled.toStage).toBe(dest);
-      }
-      const toQualified = transition(
-        config,
-        { stage: "meeting_setting" },
-        { type: "meeting_outcome", outcome: "cancelled", destination: "qualified" },
-        bstaff,
-      );
-      expect(toQualified.ok).toBe(false);
-      expect(!toQualified.ok && toQualified.code).toBe("destination_invalid");
-    }
-  });
 
   it("PP-9: Qualified and Lost are terminal — no further transitions, no next actions", () => {
     for (const [, config] of bothKinds) {
@@ -718,50 +574,20 @@ describe("Prospect pipeline (§10.2) — one stage set, both kinds", () => {
   });
 });
 
-/* The prospect pipeline gained a `cancelledDestinations` SLOT. The three lead
-   pipelines must answer exactly what the core used to compose for them. */
+/* The lead pipelines' own regression net. (ADR-108 retired the meeting-outcome
+   slots this block used to pin; what a meeting leads to is now Next action.) */
 describe("The lead pipelines are unchanged (§10.1 / V2 regression net)", () => {
-  it("cancelled-meeting destinations are Following Up, Postpone or Lost (ADR-072 added the middle one)", () => {
+  it("from Meeting Setting, Next action offers Following Up, Postpone and Lost — a no-show's three roads (ADR-108)", () => {
     for (const config of [internal, bsystems]) {
-      /* ADR-072 widened this pair by exactly one member, at the founder's
-         instruction: "no show in the meeting" is one of his three reasons to
-         park a lead, and a no-show is recorded as a CANCELLED meeting — so
-         Postpone has to be reachable from the outcome that records it. The
-         original two are untouched and still first, so every stored history
-         and every existing path keeps its meaning. */
-      expect(config.cancelledDestinations("bsystems_admin")).toEqual([
-        "following_up",
-        "postponed",
-        "lost",
-      ]);
-      expect(config.cancelledDestinations("bsystems_agent")).toEqual([
-        "following_up",
-        "postponed",
-        "lost",
-      ]);
+      for (const role of ["bsystems_admin", "bsystems_agent"] as const) {
+        const offered = config.nextActions("meeting_setting", role);
+        for (const to of ["following_up", "postponed", "lost"]) expect(offered).toContain(to);
+      }
       expect(config.followUpStage).toBe("following_up");
     }
-    const cancelled = expectOk(
-      transition(
-        internal,
-        { stage: "meeting_setting" },
-        { type: "meeting_outcome", outcome: "cancelled", destination: "following_up" },
-        staff,
-      ),
-    );
-    expect(cancelled.toStage).toBe("following_up");
-    expect(cancelled.requiredGroup).toEqual({ group: "follow_up", context: "after_meeting" });
-    expect(
-      transition(
-        internal,
-        { stage: "meeting_setting" },
-        { type: "meeting_outcome", outcome: "cancelled", destination: "won" },
-        staff,
-      ).ok,
-    ).toBe(false);
   });
 
-  it("their next actions and attended destinations are the exact arrays they were", () => {
+  it("their next actions are the exact arrays they were", () => {
     /* ADR-072 inserted `postponed` between the funnel and the terminal pair —
        the only change to this array, and in the board's own column order. */
     expect(internal.nextActions("new", staff.role)).toEqual([
@@ -771,19 +597,6 @@ describe("The lead pipelines are unchanged (§10.1 / V2 regression net)", () => 
       "postponed",
       "won",
       "lost",
-    ]);
-    expect(internal.attendedDestinations(staff.role)).toEqual([
-      "sending_proposal",
-      "won",
-      "lost",
-      "following_up",
-    ]);
-    expect(bsystems.attendedDestinations(admin.role)).toEqual([
-      "sending_proposal",
-      "negotiation",
-      "lost",
-      "following_up",
-      "won",
     ]);
   });
 });
@@ -818,14 +631,10 @@ describe("B-Systems unified CRM (REQUIREMENTS-V2)", () => {
       const drag = transition(bsystems, { stage: "negotiation" }, { type: "drag", to: "won" }, who);
       expect(drag.ok).toBe(false);
       expect(!drag.ok && drag.code).toBe("won_forbidden");
-      const dest = transition(
-        bsystems,
-        { stage: "meeting_setting" },
-        { type: "meeting_outcome", outcome: "attended", destination: "won" },
-        who,
-      );
-      expect(dest.ok).toBe(false);
-      expect(!dest.ok && dest.code).toBe("won_forbidden");
+      /* ADR-108 — and straight out of a meeting, the same wall */
+      const fromMeeting = transition(bsystems, { stage: "meeting_setting" }, act("won"), who);
+      expect(fromMeeting.ok).toBe(false);
+      expect(!fromMeeting.ok && fromMeeting.code).toBe("won_forbidden");
     }
   });
 
@@ -842,27 +651,16 @@ describe("B-Systems unified CRM (REQUIREMENTS-V2)", () => {
     }
   });
 
-  it("B-7: meeting outcomes — attended destinations include negotiation; Won only for admin/sales", () => {
-    expect(bsystems.attendedDestinations(admin.role)).toContain("won");
-    expect(bsystems.attendedDestinations(agent.role)).not.toContain("won");
-    expect(bsystems.attendedDestinations(agent.role)).toContain("negotiation");
-
-    const toNeg = expectOk(
-      transition(
-        bsystems,
-        { stage: "meeting_setting" },
-        { type: "meeting_outcome", outcome: "attended", destination: "negotiation" },
-        agent,
-      ),
-    );
+  it("ADR-108 (replaces B-7): after a meeting, Next action offers negotiation to every role; Won to admin/sales only", () => {
+    expect(bsystems.nextActions("meeting_setting", admin.role)).toContain("won");
+    expect(bsystems.nextActions("meeting_setting", agent.role)).not.toContain("won");
+    expect(bsystems.nextActions("meeting_setting", agent.role)).toContain("negotiation");
+    const toNeg = expectOk(transition(bsystems, { stage: "meeting_setting" }, act("negotiation"), agent));
     expect(toNeg.requiredGroup).toEqual({ group: "negotiation" });
-    expect(toNeg.logTrigger).toBe("B-7");
-
-    const delayed = expectOk(
-      transition(bsystems, { stage: "meeting_setting" }, { type: "meeting_outcome", outcome: "delayed" }, agent),
-    );
-    expect(delayed.requiredGroup).toEqual({ group: "meeting_reschedule" });
-    expect(delayed.logTrigger).toBe("B-7");
+    expect(toNeg.logTrigger).toBe("B-4");
+    const resched = expectOk(transition(bsystems, { stage: "meeting_setting" }, act("reschedule_meeting"), agent));
+    expect(resched.toStage).toBe("meeting_setting");
+    expect(resched.requiredGroup).toEqual({ group: "meeting" });
   });
 
   it("terminal stages accept nothing; drag to intake needs no group", () => {
@@ -912,7 +710,7 @@ describe("Same-stage records (founder)", () => {
     expect(partners.nextActions("waiting", admin.role)).not.toContain("negotiation_follow_up");
   });
 
-  it("reschedule_meeting: records a NEW meeting (not T-7's in-place edit) and stays put", () => {
+  it("reschedule_meeting: records a NEW meeting and stays put (ADR-108: the only way to move one)", () => {
     for (const [config, ctx] of [
       [internal, staff],
       [bsystems, agent],
@@ -923,7 +721,7 @@ describe("Same-stage records (founder)", () => {
         transition(config, { stage: "meeting_setting" }, act("reschedule_meeting"), ctx),
       );
       expect(r.toStage).toBe("meeting_setting");
-      expect(r.requiredGroup).toEqual({ group: "meeting" }); // NOT meeting_reschedule
+      expect(r.requiredGroup).toEqual({ group: "meeting" }); // a new record, never an edit
       expect(r.logTrigger).toBe("MTG-RESCHEDULE");
     }
   });
@@ -1004,42 +802,18 @@ describe("Postpone / Not answering (ADR-072, amended by ADR-082)", () => {
     }
   });
 
-  it("a NO-SHOW parks the lead straight from the cancelled meeting outcome", () => {
+  it("a NO-SHOW parks the lead straight from Meeting Setting, by Next action (ADR-108)", () => {
     for (const [config, ctx] of [
       [internal, staff],
       [bsystems, admin],
     ] as const) {
-      const noShow = expectOk(
-        transition(
-          config,
-          { stage: "meeting_setting" },
-          { type: "meeting_outcome", outcome: "cancelled", destination: "postponed" },
-          ctx,
-        ),
-      );
+      const noShow = expectOk(transition(config, { stage: "meeting_setting" }, act("postponed"), ctx));
       expect(noShow.toStage).toBe("postponed");
-      /* ADR-082 — a no-show lands on the shelf and is asked nothing, by this
-         route as much as by the action and the drag */
+      /* ADR-082 — a no-show lands on the shelf and is asked nothing */
       expect(noShow.requiredGroup).toBeNull();
     }
   });
 
-  it("an ATTENDED meeting can never land in Postpone — that is what the outcome means", () => {
-    for (const [config, ctx] of [
-      [internal, staff],
-      [bsystems, admin],
-    ] as const) {
-      expect(config.attendedDestinations(ctx.role)).not.toContain("postponed");
-      expect(
-        transition(
-          config,
-          { stage: "meeting_setting" },
-          { type: "meeting_outcome", outcome: "attended", destination: "postponed" },
-          ctx,
-        ).ok,
-      ).toBe(false);
-    }
-  });
 
   it("the partners funnel and the portal never gain it", () => {
     /* the founder scoped this to the two internal CRMs; a stage that appears on
@@ -1116,12 +890,10 @@ describe("Postpone / Not answering (ADR-072, amended by ADR-082)", () => {
          InternalBoard/LeadEventPanel  follow_up meeting proposal lost won
          BsBoard/roleForms             follow_up meeting proposal lost negotiation won_deal
          PartnersBoard/ProspectEvent-  follow_up meeting lost won_partner numbers
-       plus `meeting_reschedule`, which only a meeting OUTCOME opens (never an
-       action), and is rendered inline by all three panels. */
+       (ADR-108 retired `meeting_reschedule` with the meeting outcome). */
     const RENDERABLE = new Set([
       "follow_up",
       "meeting",
-      "meeting_reschedule",
       "proposal",
       "lost",
       "negotiation",

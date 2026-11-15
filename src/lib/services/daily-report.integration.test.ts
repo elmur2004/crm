@@ -7,7 +7,6 @@ import {
   assignLeadOwner,
   createLead,
   deleteLead,
-  markReadyToClose,
   setArchived,
   setNoAnswer,
   updateLead,
@@ -23,7 +22,7 @@ import {
   type DailyReport,
   type ReportCompany,
 } from "./daily-report";
-import type { Actor } from "./activity";
+import { writeLog, type Actor } from "./activity";
 
 /* ============================================================================
    ADR-081 — THE DAILY REPORT, tested from the two sides that can be wrong.
@@ -84,6 +83,15 @@ async function makeLead(
    happened is controlled, because `createdAt` defaults to now(). Two rows
    written in ONE transaction keep the identical instant here exactly as they do
    in production. */
+/* ADR-107 — "Mark ready to close" is gone, but the history keeps every row it
+   ever wrote (trigger B-RTC), and the report must still read them. This writes
+   exactly the row the removed service wrote. */
+function legacyReadyToClose(leadId: string, actor: Actor) {
+  return db.$transaction((tx) =>
+    writeLog(tx, { entityType: "lead", entityId: leadId, actor, action: "update", trigger: "B-RTC" }),
+  );
+}
+
 async function at<T>(when: Date, fn: () => Promise<T>): Promise<T> {
   const before = new Set((await db.activityLog.findMany({ select: { id: true } })).map((r) => r.id));
   const result = await fn();
@@ -202,7 +210,7 @@ describe("THE COUNT: distinct leads, never actions (he asked for the number twic
       addLeadComment({ leadId: lead.id, body: "rang again", author: { id: me.id!, name: me.label } }),
     );
     await at(cairoToUtc(TODAY, "12:00"), () => markLeadWhatsappSent("bsystems", lead.id, me));
-    await at(cairoToUtc(TODAY, "13:00"), () => markReadyToClose("bsystems", lead.id, me));
+    await at(cairoToUtc(TODAY, "13:00"), () => legacyReadyToClose(lead.id, me));
 
     const report = await dailyReportFor({ actorId: me.id!, companies: ALL, now: NOW });
     const today = dayOf(report, TODAY);
@@ -282,11 +290,11 @@ describe("THE COUNT: distinct leads, never actions (he asked for the number twic
 /* -------------------------------------------------------------- the inventory */
 
 describe("THE INVENTORY — every place the product records that he touched a lead", () => {
-  it("B-Systems: create, ready-to-close, didn't-answer + clear, archive + unarchive, assign, edit", async () => {
+  it("B-Systems: create, a legacy ready-to-close row, didn't-answer + clear, archive + unarchive, assign, edit", async () => {
     const me = await makeUser("Inventory Admin", ["bsystems_admin"]);
     const agent = await makeUser("Inventory Agent", ["bsystems_agent"]);
     const lead = await at(cairoToUtc(TODAY, "08:00"), () => makeLead("bsystems", me, "Inventory Co"));
-    await at(cairoToUtc(TODAY, "08:05"), () => markReadyToClose("bsystems", lead.id, me));
+    await at(cairoToUtc(TODAY, "08:05"), () => legacyReadyToClose(lead.id, me));
     await at(cairoToUtc(TODAY, "08:10"), () => setNoAnswer("bsystems", lead.id, true, me));
     await at(cairoToUtc(TODAY, "08:15"), () => setNoAnswer("bsystems", lead.id, false, me));
     await at(cairoToUtc(TODAY, "08:20"), () => setArchived("bsystems", lead.id, true, me));
@@ -399,21 +407,14 @@ describe("THE INVENTORY — every place the product records that he touched a le
     expect(await db.activityLog.count({ where: { entityType: "won_deal" } })).toBe(1);
   });
 
-  it("B-Systems: the meeting outcomes, and Postpone", async () => {
+  it("B-Systems: a rescheduled meeting, and Postpone (ADR-108: no meeting outcome any more)", async () => {
     const me = await makeUser("Outcome Admin", ["bsystems_admin"]);
     const lead = await at(cairoToUtc(TODAY, "08:00"), () => makeLead("bsystems", me, "Outcome Co"));
     await at(cairoToUtc(TODAY, "08:05"), () =>
       move("bsystems", lead.id, "meeting_setting", me, meeting(TODAY, "10:00")),
     );
     await at(cairoToUtc(TODAY, "08:10"), () =>
-      applyLeadEvent({
-        brand: "bsystems",
-        leadId: lead.id,
-        event: { type: "meeting_outcome", outcome: "delayed" },
-        group: { group: "meeting_reschedule", data: { date: TODAY, time: "19:00" } } as never,
-        actor: me,
-        role: "bsystems_admin",
-      }),
+      move("bsystems", lead.id, "reschedule_meeting", me, meeting(TODAY, "19:00")),
     );
     await at(cairoToUtc(TODAY, "08:15"), () =>
       move("bsystems", lead.id, "postponed", me, {
@@ -423,7 +424,7 @@ describe("THE INVENTORY — every place the product records that he touched a le
     );
 
     const report = await dailyReportFor({ actorId: me.id!, companies: ALL, now: NOW });
-    expect(triggersOn(report, TODAY, lead.id)).toEqual(["B-1", "B-1", "B-7", "create"]);
+    expect(triggersOn(report, TODAY, lead.id)).toEqual(["B-1", "B-1", "MTG-RESCHEDULE", "create"]);
     const rows = dayOf(report, TODAY).leads[0]!.interactions;
     expect(rows.filter((r) => r.toStage === "postponed")).toHaveLength(1);
   });

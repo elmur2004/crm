@@ -9,7 +9,7 @@ import {
   isSameStageAction,
 } from "@/lib/pipeline-engine/constants";
 import { partnersConfigFor } from "@/lib/pipeline-engine/configs/partners";
-import { requiredGroupFor, requiredGroupForTarget } from "@/lib/pipeline-engine/transition";
+import { requiredGroupFor } from "@/lib/pipeline-engine/transition";
 import type { RequiredGroup } from "@/lib/pipeline-engine/types";
 import { BusinessActivityField, businessActivityFrom } from "./forms";
 import { tFor } from "@/lib/i18n/core";
@@ -343,13 +343,11 @@ export function ProspectGroupFields({
 export function ProspectEventPanel({
   prospectId,
   stage,
-  pendingMeeting,
   defaults,
   cardNumbers,
 }: {
   prospectId: string;
   stage: string;
-  pendingMeeting: boolean;
   defaults: ProspectGateDefaults;
   /** all numbers on the card (primary + alternatives) — V2 §6 dialed selection */
   cardNumbers: string[];
@@ -358,8 +356,6 @@ export function ProspectEventPanel({
   const locale = useLocale();
   const t = tFor(locale);
   const [action, setAction] = useState("");
-  const [outcome, setOutcome] = useState("");
-  const [destination, setDestination] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -373,8 +369,6 @@ export function ProspectEventPanel({
      for the same-stage records too, so "Record a follow-up" still renders the
      follow-up form with no stage playing the follow-up role. */
   const groupForAction = (a: string) => requiredGroupFor(config, stage, a);
-  const attendedDestinations = config.attendedDestinations("bsystems_admin");
-  const cancelledDestinations = config.cancelledDestinations("bsystems_admin");
 
   async function submit(body: unknown) {
     setBusy(true);
@@ -391,12 +385,9 @@ export function ProspectEventPanel({
       return;
     }
     setAction("");
-    setOutcome("");
-    setDestination("");
     router.refresh();
   }
 
-  const groupForDestination = (target: string) => requiredGroupForTarget(config, stage, target);
   const fieldsFor = (group: RequiredGroup | null, target?: string) => (
     <ProspectGroupFields
       group={group}
@@ -422,91 +413,8 @@ export function ProspectEventPanel({
         </p>
       ) : null}
 
-      {stage === config.meetingStage && pendingMeeting ? (
-        <div className="bg-brand-surface-tint rounded-brand-card shadow-brand-card p-4">
-          <p className="u-h3 mb-2">{t(pPanel.meetingOutcome)}</p>
-          <select
-            aria-label={t(pPanel.meetingOutcome)}
-            value={outcome}
-            onChange={(e) => {
-              setOutcome(e.target.value);
-              setDestination("");
-            }}
-            className={inputCls}
-          >
-            <option value="">{t(pPanel.chooseOutcome)}</option>
-            <option value="attended">{t(pPanel.attended)}</option>
-            <option value="cancelled">{t(pPanel.cancelled)}</option>
-            <option value="delayed">{t(pPanel.delayed)}</option>
-          </select>
-
-          {outcome === "delayed" ? (
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                const fd = new FormData(e.currentTarget);
-                void submit({
-                  event: { type: "meeting_outcome", outcome: "delayed" },
-                  group: {
-                    group: "meeting_reschedule",
-                    data: { date: String(fd.get("date")), time: String(fd.get("time")) },
-                  },
-                });
-              }}
-              className="crm-reveal space-y-3 mt-3"
-            >
-              <div className="grid grid-cols-2 gap-3">
-                <input type="date" name="date" required className={inputCls} />
-                <input type="time" name="time" required className={inputCls} />
-              </div>
-              <button type="submit" disabled={busy} className={btnPrimary}>
-                {t(pPanel.saveNewDate)}
-              </button>
-            </form>
-          ) : null}
-
-          {outcome === "attended" || outcome === "cancelled" ? (
-            <div className="crm-reveal mt-3 space-y-3">
-              <select
-                aria-label={t(pPanel.destination)}
-                value={destination}
-                onChange={(e) => setDestination(e.target.value)}
-                className={inputCls}
-              >
-                <option value="">{t(pPanel.chooseDestination)}</option>
-                {(outcome === "attended" ? attendedDestinations : cancelledDestinations).map(
-                  (d) => (
-                    <option key={d} value={d}>
-                      {stageLabel(locale, d)}
-                    </option>
-                  ),
-                )}
-              </select>
-              {destination ? (
-                <form
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    void submit({
-                      event: { type: "meeting_outcome", outcome, destination },
-                      group: prospectGroupPayload(
-                        groupForDestination(destination),
-                        new FormData(e.currentTarget),
-                      ),
-                    });
-                  }}
-                  className="crm-reveal space-y-3"
-                >
-                  {fieldsFor(groupForDestination(destination), destination)}
-                  <button type="submit" disabled={busy} className={btnPrimary}>
-                    {t(pPanel.confirmMoveTo).replace("{stage}", stageLabel(locale, destination))}
-                  </button>
-                </form>
-              ) : null}
-            </div>
-          ) : null}
-        </div>
-      ) : null}
-
+      {/* ADR-108 — no meeting outcome: a meeting is followed by Next action,
+          and a delay is Reschedule meeting. */}
       {/* founder: the partnership pipeline has Following Up and Meeting Setting
           too — same buttons, same engine actions, no card movement. */}
       {sameStageActions.length > 0 ? (
