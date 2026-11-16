@@ -8394,3 +8394,27 @@ The 3 skipped vitest cases are the same three as Runs 108 and 109.
 
 - **Production.** The host still serves the build from before 2026-11-08 (Run 109's deploy section). None of this has been seen live.
 - **Screenshots of the new view** were not taken this round. The brand audit read the code and the tokens; `e2e/mass-assign.spec.ts` drives the view at the default desktop size only.
+
+### Runs 108–110 — the deploys, verified (2026-11-15 and 2026-11-16)
+
+The host started deploying again after six days without a deploy (Run 109, "the deploy, NOT live yet"). Nothing on the repo side changed; presumably the founder acted in the hosting panel.
+
+| Probe (anonymous) | Old build | Answered |
+|---|---|---|
+| `POST /api/byteforce/leads/probe/assign` (5440df3+) | 404 | **401** at 2026-11-15 23:23Z |
+| `GET /users` (40e6ed7+) | 404 | **307 to `/login`** at 2026-11-15 23:23Z |
+| `GET /b-systems/users` (40e6ed7+) | 307 to `/login` | **307 to `/users`** |
+| `POST /api/users/probe/assign-leads` (224dfd0+) | 404 | 404 at 23:23Z; **401** at 2026-11-16 09:19Z |
+| `POST /api/b-systems/leads/probe/ready` (removed by 224dfd0) | 401 | **404** at 2026-11-16 09:19Z |
+
+- **`/api/health`:**
+  - at 23:23Z and again at 09:19Z: `ok: true`, `schemaCurrent: true`, `pendingMigrations: []`;
+  - so `20261108120000_assigned_leads_only` (ADR-101's backfill) applied at the 40e6ed7 boot, and the 224dfd0 build, which has no migration, booted clean.
+- **When 224dfd0 went live:** after 23:23Z and by 09:19Z. The one-minute watch printed `LIVE after 49 checks (09:19Z)`, so this machine slept during the watch; the time it went live is not narrower than that.
+- **Uploads (BUG-004) are unchanged:** 9 attachments, 9 missing, `persistentDirConfigured: false`. The host action is still pending.
+- **Not verifiable from outside:**
+  - the mass-assign view;
+  - the back link;
+  - the removed panels.
+
+  They need a session. The founder sees them on his next sign-in.
