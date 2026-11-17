@@ -268,6 +268,39 @@
   font-family: var(--font-body); font-size: 12px;
 }
 
+/* ADR-109 — the company admin's "whose leads" switch, at the top of both CRM
+   boards: the same anatomy as the tabs above (a label that says what it is,
+   then the control), with the solid .field-input every filter uses as the
+   control, because a roster does not fit in segments. Zero new tokens. */
+.person-switch { display: flex; align-items: center; gap: 8px; }
+.person-switch-label {
+  font: 700 10.5px var(--font-mono); letter-spacing: .1em; text-transform: uppercase;
+  color: var(--color-muted); white-space: nowrap;
+}
+/* two classes, so this beats `.field-input`'s `width: 100%` and padding,
+   which come later in this file at the same one-class weight */
+.person-switch .person-switch-select {
+  inline-size: auto; min-inline-size: 11rem; max-inline-size: 20rem;
+  padding-block: 8px; cursor: pointer;
+}
+.person-switch[data-pending] .person-switch-select { cursor: progress; }
+:lang(ar) .person-switch-label {
+  letter-spacing: 0; text-transform: none;
+  font-family: var(--font-body); font-size: 12px;
+}
+/* the house 44px thumb target — the select, and the empty search's
+   "Show everyone's leads" */
+@media (max-width: 820px), (pointer: coarse) {
+  .person-switch .person-switch-select,
+  .person-switch-reset { min-block-size: 44px; }
+}
+/* at phone width the head's actions take the full row; the select takes the
+   rest of it, so a long name never pushes the page sideways */
+@media (max-width: 820px) {
+  .person-switch { inline-size: 100%; }
+  .person-switch .person-switch-select { flex: 1 1 auto; min-inline-size: 0; max-inline-size: 100%; }
+}
+
 .user { display: flex; align-items: center; gap: 9px; padding-inline-start: 6px; margin-inline-start: auto; flex: none; }
 .user-avatar {
   width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; flex: none;

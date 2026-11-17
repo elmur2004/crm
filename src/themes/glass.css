@@ -430,6 +430,8 @@
   }
   .company-tabs .switcher-seg:not([aria-current]) { color: var(--color-glass-quiet); }
   .company-tabs-label { color: var(--color-glass-quiet); }
+  /* ADR-109 — the board's person switch sits on the same ground */
+  .person-switch-label { color: var(--color-glass-quiet); }
 
   /* ======================================================== side panels
      The filter panel (FilterPanel) frames the list: a glass panel over the

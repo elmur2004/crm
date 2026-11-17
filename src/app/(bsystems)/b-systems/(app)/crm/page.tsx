@@ -122,6 +122,7 @@ export default async function BsCrmPage({
       params={params}
       role={role}
       userId={user.id}
+      viewerRoles={user.roles}
       viewerName={user.name}
       switchedFrom={{ path: BS_CRM_PATH, company }}
       importCompany={importCompany}

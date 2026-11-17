@@ -1,10 +1,15 @@
 import Link from "next/link";
 import type { CrmSurface } from "@/lib/crm/surface";
-import { listBsLeads, listOwnLeads } from "@/lib/services/bsystems-admin";
+import {
+  bsLeadsWhere,
+  countBsLeads,
+  listBsLeads,
+  listOwnLeads,
+} from "@/lib/services/bsystems-admin";
 import { listBsOwnerReps } from "@/lib/services/sales-reps";
 import { listCalendarPeople } from "@/lib/services/calendar";
 import { followUpAssignees } from "@/lib/services/assignees";
-import { LEAD_TYPES, type Brand } from "@/lib/pipeline-engine/constants";
+import { LEAD_TYPES, type Brand, type Role } from "@/lib/pipeline-engine/constants";
 import { configForBrand } from "@/lib/pipeline-engine/configs/for-brand";
 import { orderMeetingColumn } from "@/lib/board-order";
 import { isNewestRecord } from "@/lib/crm/live-record";
@@ -15,7 +20,19 @@ import { waSentLabel, whatsappMarkOf } from "@/components/shared/whatsappMark";
 import { tFor, type Locale, type Msg } from "@/lib/i18n/core";
 import { getLocale } from "@/lib/i18n/server";
 import { leadTypeLabel, ownerTypeLabel } from "@/lib/i18n/dict/labels";
-import { common, crmPage as m, leadsFilters as lf, ownerFilters } from "@/lib/i18n/dict/crm";
+import {
+  boardPerson as bp,
+  common,
+  crmPage as m,
+  leadsFilters as lf,
+  ownerFilters,
+} from "@/lib/i18n/dict/crm";
+import {
+  boardPersonNarrowing,
+  boardPersonNoMatches,
+  boardPersonView,
+} from "@/lib/crm/board-person-menu";
+import { BoardPersonReset, BoardPersonSwitch } from "@/components/shared/BoardPersonSwitch";
 import { BsBoard, type BsBoardLead } from "@/components/bsystems/BsBoard";
 import { BsAddLeadForm } from "@/components/bsystems/leadActions";
 import { LeadsImportMenu } from "@/components/shared/LeadsImportMenu";
@@ -34,6 +51,8 @@ import type { BsFormRole } from "@/components/bsystems/roleForms";
    Owner for the admin; no Stage (the columns ARE the stages), no Sort (the
    board is not a list), no Archived view (ADR-043: archived leaves the board).
    All narrowing is server-side, in the same services the Leads list uses.
+   ADR-109 adds the admin's "Showing" switch (Everyone / Mine / Unassigned /
+   one person) in the head, on top of the panel's filters.
 
    ADR-074 — extracted from the page, so the board is a BODY a route renders at
    own address. The board component stays statically bound to BSYSTEMS_STAGES,
@@ -111,8 +130,9 @@ export interface BsBoardParams {
      (ADR-085 — it used to reach `.trim()` and 500) */
   q?: string | string[];
   type?: string;
-  /* ADR-085 — the cross-company search hop's marker. Read only by the arrival
-     notice and the loop guard; this board narrows by nothing on it. */
+  /* ADR-085 — the cross-company search hop's marker. Read by the arrival
+     notice and the loop guard, and by ADR-109's switch: on a hop's arrival the
+     board shows everyone's cards, so the card the hop found is on it. */
   switched?: string;
 }
 
@@ -121,6 +141,7 @@ export async function BsCrmBoardBody({
   params,
   role,
   userId,
+  viewerRoles,
   viewerName,
   switchedFrom,
   importCompany = null,
@@ -131,6 +152,9 @@ export async function BsCrmBoardBody({
      guard out of its own engine role, never re-derived here */
   role: BsFormRole;
   userId: string;
+  /** the viewer's live roles — ADR-109's switch asks `isCompanyAdmin` of them
+      itself rather than trusting `role` alone */
+  viewerRoles: readonly Role[];
   /** the viewer's own name — the admin's "(me)" row of the hand-over select */
   viewerName: string;
   /* ADR-085 — this board's own address and company, so the arrival notice after
@@ -149,18 +173,46 @@ export async function BsCrmBoardBody({
     : "any";
   const narrow = { search, type };
 
+  /* ADR-109 — founder (2026-11-17): "a button on top of the CRMs … just
+     visible for the admin … either mine or either this person". The admin's
+     remembered choice of whose leads, resolved on the server; nobody else's
+     board reads it at all (`boardPersonView` answers null to anybody but the
+     company admin). A search hop's arrival shows everyone, so the card the hop
+     found is on the board (board-person.ts, rule 4). */
+  const personView =
+    role === "admin"
+      ? await boardPersonView({
+          company: ctx.brand,
+          viewer: { id: userId, roles: viewerRoles },
+          boardWhere: bsLeadsWhere(ctx.brand, "any", {}),
+          switched: params.switched,
+          locale,
+        })
+      : null;
+  const personNarrow = boardPersonNarrowing(personView, userId);
+
   /* Founder (2026-11-08, "assigned leads only"): the admin sees every lead
-     (the owner filter narrows it); EVERYBODY ELSE — internal sales included,
-     who used to see the whole internal bucket — sees only the leads they own. */
+     (the owner filter and the person switch narrow it); EVERYBODY ELSE —
+     internal sales included, who used to see the whole internal bucket — sees
+     only the leads they own. */
   const rows =
     role === "admin"
-      ? await listBsLeads(ctx.brand, filter, narrow)
+      ? await listBsLeads(ctx.brand, filter, narrow, personNarrow)
       : await listOwnLeads(ctx.brand, userId, narrow);
 
   /* the disclosure chip counts every control that is off its default */
   const activeCount = [search !== "", type !== "any", role === "admin" && filter !== "any"].filter(
     Boolean,
   ).length;
+
+  /* ADR-109 — a search that came back empty BECAUSE of the switch says so and
+     offers Everyone. Asked only then, and only of the same filters without the
+     switch: if everyone's leads would not match either, the board's own "No
+     leads match" is the truth. */
+  const personNoMatches =
+    personView && personNarrow && rows.length === 0 && activeCount > 0
+      ? boardPersonNoMatches(personView, await countBsLeads(ctx.brand, filter, narrow), locale)
+      : null;
 
   /* ADR-064 — the instant the Meeting Setting card SHOWS (its keyDatum above),
      which is also the instant its column is ordered and filtered by. One
@@ -246,6 +298,17 @@ export async function BsCrmBoardBody({
           <h1 className="u-h1">{t(m.title)}</h1>
         </div>
         <div className="page-actions">
+          {/* ADR-109 — first in the head, the admin's only */}
+          {personView ? (
+            <BoardPersonSwitch
+              company={ctx.brand}
+              value={personView.value}
+              fixed={personView.fixed}
+              people={personView.people}
+              label={t(bp.label)}
+              teamLabel={t(bp.team)}
+            />
+          ) : null}
           {importCompany ? (
             <LeadsImportMenu company={importCompany} />
           ) : null}
@@ -320,7 +383,17 @@ export async function BsCrmBoardBody({
         </form>
       </FilterPanel>
       {orderedLeads.length === 0 && activeCount > 0 ? (
-        <p className="empty empty--search">{t(m.noMatches)}</p>
+        personNoMatches ? (
+          /* ADR-109 — say that the switch is part of why, and offer the way out */
+          <div className="empty empty--search">
+            <p>{personNoMatches}</p>
+            <p className="mt-3">
+              <BoardPersonReset company={ctx.brand} label={t(bp.showEveryone)} />
+            </p>
+          </div>
+        ) : (
+          <p className="empty empty--search">{t(m.noMatches)}</p>
+        )
       ) : (
         <BsBoard
           leads={orderedLeads}

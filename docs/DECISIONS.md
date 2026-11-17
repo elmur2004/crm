@@ -10489,3 +10489,42 @@ Every plan and every `UPDATE` is gated on `"ownerUserId" IS NULL`, and the log i
 - Status: Accepted. **Needs founder confirmation:**
   1. The Partners & Agents funnel: keep the removal there (with or without a comments box), or restore the outcome on the funnel only.
   2. A rescheduled meeting's old task now shows in Done as "Superseded by a newer step" (supersedes ADR-062 (c)).
+
+## ADR-109 — 2026-11-17 — WHOSE LEADS THE BOARD SHOWS: the company admin gets a "Showing" switch at the top of both CRM boards (Everyone, Mine, Unassigned, or one person), remembered per company (extends ADR-098's "assigned leads only" and ADR-099's owner accounts; ADR-085's hop unchanged)
+
+- Context: the founder, verbatim (2026-11-17): *"I need to add like a button on top of the CRMs, both CRMs, called main. It's just visible for the admin because all other users just see their CRM by default. And the button I can change it either mine or either this person or this person, so I can basically filter by person the CRM, the entire CRM."*
+  - **Two readings, both flagged for confirmation:**
+    - "called main" is read as **Mine** (voice dictation): the options he lists are "mine", "this person", "this person". The control is labelled **Showing**, so its label can say whose leads are on screen, and Mine is one of its options.
+    - "the entire CRM" is read as **the whole board**, every column at once. The Leads list, To-Do, Calendar, Daily report and dashboards are not filtered.
+  - Since ADR-098 everybody but the company admin sees only the leads they own; the admin sees the whole company. The B-Systems board had an owner-**bucket** filter (Internal / Agents / Partners / Admins / Unassigned) inside the collapsed filter panel; the ByteForce board had no owner filter at all. Neither could show one **person's** cards.
+- Decision:
+  1. **A "Showing" select at the top of both boards**, first in the page head's actions, for the **company admin only**. Options:
+     - **Everyone** (the default, what the admin sees today), **Mine**, **Unassigned**;
+     - then, under **Team**, every person who can be handed that company's leads (ByteForce staff; B-Systems agents, partners and internal sales, shown with role and partner company), **plus anybody still owning a lead on that board**. That covers another B-Systems admin who holds leads, and an account that was removed but keeps its leads until they are handed on, which is marked "removed";
+     - each with **how many leads they hold on that board** ("Ahmed (12)"), counted over the whole board, before any search, Type or Owner filter.
+     - It narrows **every column at once**. The search, Type and (on B-Systems) Owner filters still apply on top of it.
+  2. **Remembered, per company.** The choice is an httpOnly cookie per company (`board_person_bsystems`, `board_person_byteforce`), written by one server action (`setBoardPerson`) and read on the server. He opens a lead and comes back with "Back to the CRM board", or comes back tomorrow, and the board still shows whom he chose. The two companies keep separate choices, because they have different people.
+  3. **It only ever narrows, and only the admin's board reads it.**
+     - `boardPersonView` asks `isCompanyAdmin` itself and answers null to anybody else: no roster, no counts, no narrowing, whatever the cookie says.
+     - The narrowing is composed with the board's own predicate under an `AND`, never spread into it, so it cannot replace an owner the predicate already set.
+     - The integration test asks it as B-Systems sales, an agent, a ByteForce teammate, a B-Systems-only admin on ByteForce and a two-company seller. The e2e gives an agent and a ByteForce teammate hand-written cookies, and each sees exactly his own cards.
+  4. **A choice no longer on offer is Everyone.** A stored person with no account on the roster and no lead on the board reads as Everyone, so the select never shows one thing while the board shows another. The admin's own id reads as Mine.
+  5. **A search hop lands on Everyone.** ADR-085 moves a search with no result to the other company "and it will show me the lead". That board's own choice could hide the card the hop found, so on **arrival** the board shows everyone's cards.
+     - An arrival is `switched` naming the **other** company. The notice's way back marks `switched` with the board it returns to, which ADR-085 calls "nothing to announce", so the choice applies there.
+     - When he picks someone on an arrival page, the switch drops `switched` from the address, so the choice applies at once. That cannot start a second hop: the search already found its card on that board.
+     - On the page the notice's "Back" opens, `switched` is the loop guard and stays: the switch only refreshes there (dropping it would hop him straight back to the other company, since that board found nothing).
+     - The hop's probe still asks of the admin's whole company, as it ignores the B-Systems Owner filter. A match the switch hides is "found here" and does not hop.
+  6. **A search the switch emptied says so.** When the switch is on Mine, Unassigned or a person, a search comes back empty, and everyone's leads **would** have matched, the board says "None of your leads match these filters." or "None of Ahmed's leads match these filters." Below that is one button, **Show everyone's leads**, which sets the switch back to Everyone. If nobody's leads match, the board's usual "No leads match" shows instead. With no search, a person with no leads shows empty columns, and the select's "(0)" says why.
+  7. **The B-Systems Owner filter stays**, in the panel, in the address. The two overlap: both offer Unassigned, and Admins overlaps Mine. A contradictory pair (Owner = Unassigned, Showing = a person) shows an empty board. If the Owner filter alone would find leads, the board says the switch hid them and offers Show everyone's leads; Clear filters resets the Owner filter. Folding the bucket filter into the switch would change a shipped URL (`leads-filters.spec.ts`), so it is not done here.
+  8. **Against ADR-067 and ADR-095:**
+     - ADR-067 rejected a per-user "last company" cookie because "the same URL would show different things … and a link he sends somebody would not carry what he was looking at". Here that cost is accepted, and it stays small. The cookie is a **view preference, not a scope**: the company is still in the address, nobody else's board reads it, and the select at the top always says what it is applying.
+     - ADR-095 removed **switches between pages** (one way to each page). This is a filter on the same page, like the To-Do's company tabs. It has no link and adds no way to any page (`one-way.test.ts` unchanged).
+- Alternatives considered:
+  - **The address (`?person=`).** Not taken: every link back to the board (the lead page's Back to the CRM board, the CRM menu, the launcher tile) carries only the company, so he would be back on Everyone after every lead he opens.
+  - **Inside the collapsed filter panel.** Not taken: he asked for a button "on top", and a choice that changes the whole board should be visible while it is on.
+  - **One choice for both companies.** Not taken: the two companies have different people, so Ahmed on B-Systems means nothing on the ByteForce board.
+  - **Default Mine.** Not taken without asking: it would hide every other card the first time he opens the board. Because the choice is remembered, picking Mine once keeps it.
+- Resolves: none. SPEC §6.3 and §7.1 carry an "Amended by ADR-109" note.
+- Status: Accepted. **Needs founder confirmation:**
+  1. "Called main" read as **Mine**, with the control labelled **Showing** and opening on **Everyone** until he picks; after that it remembers. Should it open on Mine instead?
+  2. "The entire CRM" read as the whole **board**. Should the same choice also filter Leads, To-Do and Calendar?

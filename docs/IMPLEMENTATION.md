@@ -4687,3 +4687,46 @@ lead to a non-admin through the CRM.
    are kept as history; the engine has neither since 2026-11-15.
 
 - Last updated: 2026-11-15 (ADR-105–108)
+
+## The admin's "Showing" switch: five gotchas (2026-11-17, ADR-109)
+
+1. **Narrow with `AND`, never with a spread.** The ByteForce board's
+   predicate already spreads `scopeOwnerWhere(scope)` — `{ ownerUserId:
+   viewer }` for a non-admin. Spreading the person narrowing after it
+   (`{ ...board, ...personWhere }`) would REPLACE that owner with whichever
+   person the cookie named: a salesperson with a hand-written cookie would
+   read someone else's board. Both boards compose it as
+   `{ AND: [boardWhere, personNarrow] }`, and `listBsLeads` takes it as a
+   separate `narrowTo` argument for the same reason.
+2. **The wall lives in the helper, not in the callers.** The first draft
+   checked "is this the admin?" only in the two boards' ternaries and passed
+   `isAdmin: true` into the rules; a third caller that forgot the ternary
+   would have shown a salesperson the whole roster with every person's lead
+   count. `boardPersonView` now takes the viewer's roles, asks
+   `isCompanyAdmin` itself and returns null for anybody else (the spec
+   review's finding B).
+3. **A filter that must survive "Back to the CRM board" cannot live in the
+   address.** Every way back to the board — the lead page's back link
+   (`${ctx.basePath}/crm${ctx.query}`), the CRM menu, the launcher tile —
+   carries only `?company=`. It is an httpOnly cookie per company, written by
+   one server action (`setBoardPerson`, the `setTheme` pattern) and read on
+   the server.
+4. **`router.refresh()` keeps the address, and the address can disable the
+   choice.** On a page a search hop landed on, `switched` is on the URL and
+   the board shows everyone (rule 4). A refresh after picking someone kept
+   `switched`, so the pick did nothing until some later page without it —
+   the spec review's finding A. The switch now drops the marker with
+   `router.replace` when it is present, and refreshes otherwise; and an
+   arrival is only `switched` naming the OTHER company, because ADR-085's
+   notice marks its way back with the board it returns to. The client cannot
+   import `SWITCHED_PARAM` (search-hop.ts reads the database), so
+   board-person.ts spells it as `HOP_MARKER_PARAM` and the integration test
+   pins the two together.
+5. **A `<label>` that wraps a `<select>` puts the options in the label's
+   text** (ADR-105's e2e hit it: `getByLabel("CRM", { exact: true })`
+   missed). The switch uses `<label htmlFor>` with `useId()`, so its
+   accessible name is exactly "Showing". And `.person-switch-select` alone
+   lost to `.field-input`'s `width: 100%` (same weight, later in the file);
+   the rule is spelled `.person-switch .person-switch-select`.
+
+- Last updated: 2026-11-17 (ADR-109)

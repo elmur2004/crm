@@ -310,6 +310,8 @@ On saving Won fields, a Client card is auto-created/linked (assumption A-1, defa
 - **The Today chip (ADR-061, extended by ADR-064).** The Following Up and Meeting Setting column heads each carry a Today toggle: it names how many of that column's cards fall on today's **Cairo** calendar day and, pressed, shows only those. Default off, client-side over the loaded cards, and a filtered column still accepts drops — a card that LANDS in the column releases the filter, so a drop is never swallowed by it (the Meeting Setting drop form used to default to "not arranged", which stores no time and so could never match "today"; since ADR-096 it always asks for the date and time). Pressed with no matches, the column says so rather than claiming to be empty.
 - **The "didn't answer" marker is a tally (ADR-039, extended by ADR-064).** A card marker, never a stage: each press of "Didn't answer" records one more attempt, "Answered" resets it to none, and **any** stage move clears it with the flag. The badge shows the count from the second attempt on. Undo restores the exact previous count.
 
+**Amended by ADR-109 (whose leads).** The company admin's board carries a **Showing** select at the top: **Everyone** (the default), **Mine**, **Unassigned**, or any one person who can hold that company's leads (or still holds one), each with the number of leads they hold on the board. It narrows every column at once, is remembered for each company separately, and is never shown to, or read for, anybody else.
+
 ### 6.4 Clients section
 Cards, one per client:
 
@@ -362,6 +364,8 @@ Identical to App A in structure and behavior (§6.1–§6.5), themed B-Systems, 
 **Amended by ADR-106 (back to the board).** A lead's page carries **Back to the CRM board**, to that company's board — the one back link ADR-095's "Remove them" leaves.
 
 **Amended by ADR-107 (no ready to close).** V2 §3's **"Mark ready to close"** is removed (founder, 2026-11-15: *"remove the whole mark ready to close thing"*): no button on the lead page or the board cards, no badge, no admin notification, and no "Ready to close" group on the dashboard's Needs you card. The `readyToClose` column stays, read by nothing and written only by a backup restore (or an undo entry recorded before the change); old history rows (`B-RTC`) keep their phrase.
+
+**Amended by ADR-109 (whose leads).** The B-Systems board gets the same admin-only **Showing** select as App A's (§6.3): Everyone, Mine, Unassigned or one person, remembered for B-Systems separately.
 
 ### 7.2 Partners Pipeline (partner acquisition board)
 **Seven columns, the SAME set for BOTH kinds of card** (partner and agent), in this order:

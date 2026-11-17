@@ -147,9 +147,13 @@ export function listBsLeads(
   brand: Brand,
   ownerType?: string,
   opts?: { archived?: boolean; search?: string; type?: string },
+  /* ADR-109 — the admin's person switch. Under an AND, never spread into the
+     predicate, so it can only narrow what `bsLeadsWhere` already allows. */
+  narrowTo?: Prisma.LeadWhereInput,
 ) {
+  const where = bsLeadsWhere(brand, ownerType, opts);
   return db.lead.findMany({
-    where: bsLeadsWhere(brand, ownerType, opts),
+    where: narrowTo ? { AND: [where, narrowTo] } : where,
     include: {
       owner: { select: { name: true } },
       salesRep: { select: { name: true } },
@@ -164,6 +168,17 @@ export function listBsLeads(
     },
     orderBy: { updatedAt: "desc" },
   });
+}
+
+/** ADR-109 — how many cards the admin's board would show with these filters
+    and no person switch: asked only when the switch emptied a search, to tell
+    "nobody's leads match" from "this person's don't". */
+export function countBsLeads(
+  brand: Brand,
+  ownerType?: string,
+  opts?: { search?: string; type?: string },
+) {
+  return db.lead.count({ where: bsLeadsWhere(brand, ownerType, opts) });
 }
 
 /** Owner's own board (agent/partner) — same search/type narrowing as the

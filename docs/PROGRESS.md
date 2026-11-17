@@ -7186,3 +7186,82 @@ TESTING Run 110: the clean-worktree gate on the pushed set.
 
 - The landing work and the four never-committed files, as before.
 - **The landing work needs its own ADR number:** ADR-109 or later now. Its `next.config.ts` comment still cites ADR-086.
+
+## 2026-11-17 — ADR-109: the company admin's "Showing" switch on both CRM boards
+
+**Founder, verbatim:** *"I need to add like a button on top of the CRMs, both CRMs, called main. It's just visible for the admin because all other users just see their CRM by default. And the button I can change it either mine or either this person or this person, so I can basically filter by person the CRM, the entire CRM."*
+
+### Production
+
+- 224dfd0 (ADR-105–108) was verified live at 09:19Z on 2026-11-16 (TESTING "Runs 108–110"). The founder was told.
+
+### Done
+
+- **ADR-109 — "Showing", at the top of both boards, for the company admin only.**
+  - **Options:** Everyone (default), Mine, Unassigned, then under Team:
+    - every person who can be handed that company's leads;
+    - anybody still owning a lead on that board ("removed" for a removed account).
+
+    Each shows its lead count on the board.
+  - **It narrows every column.** Search, Type and the B-Systems Owner filter still apply on top.
+  - **Remembered per company** in an httpOnly cookie (`board_person_bsystems`, `board_person_byteforce`), written by one server action (`setBoardPerson`), so it survives Back to the CRM board.
+  - **Pure rules:** `src/lib/crm/board-person.ts`:
+    - parse / serialise;
+    - `boardPersonWhere`;
+    - `arrivedByHop`;
+    - `resolveBoardPerson`.
+  - **Server half:** `board-person-menu.ts`. `boardPersonView` asks `isCompanyAdmin` itself and returns null for anybody else, then builds the roster and the counts. `boardPersonNarrowing` and `boardPersonNoMatches` sit beside it.
+  - **The switch:** `components/shared/BoardPersonSwitch.tsx`.
+  - **Wired into** `BsCrmBoardBody` (new `viewerRoles` prop) and the ByteForce `CrmBoardBody`. The narrowing sits under an `AND`, and `listBsLeads` gained `narrowTo`.
+  - **The hop:** a search-hop arrival shows Everyone. Picking someone on an arrival page drops `switched`; on the notice's Back page the loop guard stays.
+  - **The empty search:** a search the switch emptied says so and offers "Show everyone's leads". It says nothing when nobody's leads match (`countBsLeads`).
+- **Reviews:**
+  - **brand-auditor: FAIL, then fixed.**
+    - The reset button was under 44px.
+    - The select's width and padding rule lost to `.field-input`.
+  - **spec-guardian, three rounds.** No path widens anyone's view.
+    - **Round 1** found:
+      - (A) the switch stuck on a hop page;
+      - (B) the admin check living only in the callers;
+      - (C) stale comments;
+      - (D) the empty-search sentence blaming the switch wrongly;
+      - (E–G) the ADR, the SPEC paragraph break, and the roster comment.
+    - **Round 2** found that A's fix bounced the notice's Back page to the other company.
+    - **Round 3:** PASS.
+- **Docs:**
+  - DECISIONS ADR-109;
+  - SPEC §6.3 and §7.1 notes;
+  - IMPLEMENTATION (five gotchas);
+  - CHANGELOG;
+  - TESTING Run 111;
+  - this entry.
+
+### Verified
+
+TESTING Run 111: the clean-worktree gate and re-gate on the pushed set.
+
+### Next steps
+
+1. After the deploy, check from outside that the boards still answer, then let the founder try the switch. A server action has no anonymous probe; the board is behind a session.
+2. BUG-034, BUG-035 and BUG-036, in one small screenshot round (carried).
+
+### Blockers
+
+- None in the repo. Uploads still need the founder's persistent volume and `UPLOADS_DIR` (BUG-004).
+
+### Needs founder confirmation
+
+**New this session: two (ADR-109).**
+1. "Called main" read as **Mine**. The control is labelled **Showing** and opens on Everyone until he picks; then it remembers. Should it open on Mine?
+2. "The entire CRM" read as the whole **board**. Should the choice also filter Leads, To-Do and Calendar?
+
+**Carried, unchanged:**
+- the five from 2026-11-15 (ADR-105 ×3, ADR-108 ×2);
+- the five from 2026-11-14;
+- the thirteen from 2026-11-08;
+- the twenty-three from before that.
+
+### Left in the working tree
+
+- The landing work and the four never-committed files, as before.
+- **The landing work's ADR number is now ADR-110 or later.** Its `next.config.ts` comment still cites ADR-086.

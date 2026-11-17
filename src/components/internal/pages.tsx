@@ -50,10 +50,17 @@ import { listLeadComments, mentionableUsersFor } from "@/lib/services/comments";
 import { requireLeadAccess } from "@/lib/auth/guards";
 import {
   archiveMsgs,
+  boardPerson,
   common as crmCommon,
   leadsFilters,
   ownerFilters,
 } from "@/lib/i18n/dict/crm";
+import {
+  boardPersonNarrowing,
+  boardPersonNoMatches,
+  boardPersonView,
+} from "@/lib/crm/board-person-menu";
+import { BoardPersonReset, BoardPersonSwitch } from "@/components/shared/BoardPersonSwitch";
 import { callSheet } from "@/lib/i18n/dict/call";
 import { FilterPanel } from "@/components/shared/FilterPanel";
 import { SearchSwitchedNotice } from "@/components/shared/SearchSwitchedNotice";
@@ -545,8 +552,9 @@ export async function LeadDetailBody({ ctx, leadId }: { ctx: InternalAppCtx; lea
    `byteforceBoardWhere` (INTERNAL_STAGES), the board's one predicate. */
 
 /* Founder (filters round 3): the same search/type narrowing the B-Systems board
-   got — Search + Type only here (ByteForce has no owner buckets; owners have
-   their own pages). Server-side, through the shared lead-search helpers. */
+   got — Search + Type only in the filter panel (ByteForce has no owner
+   buckets). Server-side, through the shared lead-search helpers. ADR-109 adds
+   the admin's "Showing" switch over whose cards, in the head — see below. */
 export async function CrmBoardBody({
   ctx,
   viewer,
@@ -580,10 +588,27 @@ export async function CrmBoardBody({
   /* Founder (2026-11-08, "assigned leads only") — the board's rows are the
      search hop's own predicate (`byteforceBoardWhere`, ADR-085), scoped to the
      viewer: the admin every card, everybody else only the cards he owns. One
-     predicate, so the board and the hop cannot disagree. */
+     predicate, so the board and the hop cannot disagree — except, on purpose,
+     for an admin whose ADR-109 switch has narrowed the board to one person:
+     the hop still asks of his whole company (see search-hop.ts). */
   const admin = isCompanyAdmin(viewer, ctx.brand);
+  /* ADR-109 — founder (2026-11-17): "a button on top of the CRMs … just
+     visible for the admin … either mine or either this person". The admin's
+     remembered choice of whose cards, under an AND with his scope so it can
+     only narrow; nobody else's board reads it (`boardPersonView` answers null
+     to anybody but the company admin). A search hop's arrival shows everyone,
+     so the card the hop found is on the board. */
+  const personView = await boardPersonView({
+    company: ctx.brand,
+    viewer,
+    boardWhere: byteforceBoardWhere({}, { kind: "all" }),
+    switched: params?.switched,
+    locale,
+  });
+  const personNarrow = boardPersonNarrowing(personView, viewer.id);
+  const boardWhere = byteforceBoardWhere({ search, type }, leadScopeFor(viewer, ctx.brand));
   const leads = await db.lead.findMany({
-    where: byteforceBoardWhere({ search, type }, leadScopeFor(viewer, ctx.brand)),
+    where: personNarrow ? { AND: [boardWhere, personNarrow] } : boardWhere,
     include: {
       owner: { select: { name: true } },
       partner: { select: { companyName: true } },
@@ -599,6 +624,12 @@ export async function CrmBoardBody({
     },
     orderBy: { updatedAt: "desc" },
   });
+  /* ADR-109 — a search that came back empty BECAUSE of the switch says so and
+     offers Everyone; asked only then, of the same filters without the switch */
+  const personNoMatches =
+    personView && personNarrow && leads.length === 0 && activeCount > 0
+      ? boardPersonNoMatches(personView, await db.lead.count({ where: boardWhere }), locale)
+      : null;
 
   function keyDatum(lead: (typeof leads)[number]): string {
     switch (lead.stage) {
@@ -704,6 +735,17 @@ export async function CrmBoardBody({
             one (the picker defaults to Unassigned, a state this board already
             renders and the Leads page already buckets). */}
         <div className="page-actions">
+          {/* ADR-109 — first in the head, the admin's only */}
+          {personView ? (
+            <BoardPersonSwitch
+              company={ctx.brand}
+              value={personView.value}
+              fixed={personView.fixed}
+              people={personView.people}
+              label={t(boardPerson.label)}
+              teamLabel={t(boardPerson.team)}
+            />
+          ) : null}
           {importCompany ? (
             <LeadsImportMenu company={importCompany} />
           ) : null}
@@ -761,7 +803,17 @@ export async function CrmBoardBody({
         </form>
       </FilterPanel>
       {orderedCards.length === 0 && activeCount > 0 ? (
-        <p className="empty empty--search">{t(board.noMatches)}</p>
+        personNoMatches ? (
+          /* ADR-109 — say that the switch is part of why, and offer the way out */
+          <div className="empty empty--search">
+            <p>{personNoMatches}</p>
+            <p className="mt-3">
+              <BoardPersonReset company={ctx.brand} label={t(boardPerson.showEveryone)} />
+            </p>
+          </div>
+        ) : (
+          <p className="empty empty--search">{t(board.noMatches)}</p>
+        )
       ) : (
         <InternalBoard
           leads={orderedCards}

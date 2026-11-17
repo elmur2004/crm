@@ -528,3 +528,36 @@ export const leadsExport = {
   yes: { en: "Yes", ar: "نعم" },
   no: { en: "No", ar: "لا" },
 } satisfies Record<string, Msg>;
+
+/* ADR-109 — founder (2026-11-17): "a button on top of the CRMs, both CRMs …
+   just visible for the admin … either mine or either this person or this
+   person". The company admin's switch over whose leads the board shows. Both
+   boards read it from here, so the two companies use the same words. */
+export const boardPerson = {
+  label: { en: "Showing", ar: "عرض" },
+  everyone: { en: "Everyone", ar: "الجميع" },
+  mine: { en: "Mine", ar: "الخاصة بي" },
+  unassigned: ownerFilters.unassigned,
+  /* the optgroup over the people */
+  team: { en: "Team", ar: "الفريق" },
+  /* "Ahmed (12)" — the count is how many leads the person has on this board */
+  withCount: { en: "{name} ({count})", ar: "{name} ({count})" },
+  /* an account that was removed but still holds leads here — the Users app's
+     own word for it */
+  removed: { en: "removed", ar: "مُزال" },
+  /* the board's empty search, when the switch is what hid the match */
+  noMatchesMine: {
+    en: "None of your leads match these filters.",
+    ar: "لا يطابق أيٌّ من العملاء المحتملين الخاصين بك هذه الفلاتر.",
+  },
+  noMatchesUnassigned: {
+    en: "No unassigned leads match these filters.",
+    ar: "لا يطابق أيٌّ من العملاء المحتملين غير المُسندين هذه الفلاتر.",
+  },
+  noMatchesPerson: {
+    en: "None of {name}'s leads match these filters.",
+    ar: "لا يطابق أيٌّ من العملاء المحتملين لدى {name} هذه الفلاتر.",
+  },
+  /* the one-press way out of that empty search */
+  showEveryone: { en: "Show everyone's leads", ar: "اعرض العملاء المحتملين للجميع" },
+} satisfies Record<string, Msg>;

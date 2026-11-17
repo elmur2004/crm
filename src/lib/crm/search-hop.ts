@@ -55,7 +55,14 @@ import { leadScopeFor, scopeOwnerWhere, type LeadScope } from "@/lib/auth/lead-s
 /** The ByteForce board's predicate, named here rather than inline in the board
     for the reason ADR-085 §1 gives: the probe has to ask the board's own
     question. Kept beside the hop because this is the only other caller — the
-    B-Systems twins live in `bsystems-admin.ts` with their queries. */
+    B-Systems twins live in `bsystems-admin.ts` with their queries.
+
+    ADR-109: the company admin's board may be narrowed further by his
+    "Showing" switch (one person, Mine, Unassigned). The probe deliberately
+    does NOT apply it — like the B-Systems Owner filter, it is a view over the
+    company, not a wall — so a match hidden by the switch is "found here" and
+    does not hop; the board then says the switch hid it and offers Everyone.
+    And a board the hop LANDS on shows everyone (board-person.ts, rule 4). */
 export function byteforceBoardWhere(
   opts: {
     search?: string;
@@ -204,7 +211,8 @@ export async function searchHop(opts: {
 
   /* §2 — only an EMPTY result hops. Asked of the same predicate the board
      itself will run, so "the board found nothing" and "the probe thinks the
-     board found nothing" cannot disagree. */
+     board found nothing" cannot disagree — the one exception being ADR-109's
+     admin switch, which the probe ignores on purpose (see byteforceBoardWhere). */
   if ((await countMatchesIn(opts.current, opts.user, narrow)) > 0) return null;
 
   const matches = await countMatchesIn(candidate, opts.user, narrow);

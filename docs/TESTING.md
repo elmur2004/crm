@@ -8418,3 +8418,67 @@ The host started deploying again after six days without a deploy (Run 109, "the 
   - the removed panels.
 
   They need a session. The founder sees them on his next sign-in.
+
+## Run 111 — 2026-11-17 — ADR-109: the company admin's "Showing" switch on both CRM boards
+
+- **Suites:**
+  - tsc, the full vitest and the full Playwright suite (its own build and seeded DB);
+  - then a re-gate after the second and third spec reviews' fixes: tsc, the full vitest, and nine Playwright specs.
+- **Where:** a fresh `git worktree` at `0079723` with the push set laid on it:
+  - tracked files only;
+  - no landing work, and none of the four locally dirty files;
+  - a REAL `npm ci` (`added 314 packages … in 52s`), no junctions;
+  - a dummy `DATABASE_URL` and a throwaway `AUTH_SECRET`.
+  - No migration in this push.
+
+### New tests
+
+| Where | Tests | What they pin |
+|---|---|---|
+| `src/lib/crm/board-person.test.ts` (new) | 10 | The pure rules:<br>- the wire value round-trips, and junk reads as Everyone;<br>- one cookie per company;<br>- the narrowing per choice;<br>- a non-admin is ignored;<br>- a hop's arrival is Everyone;<br>- a person not on offer is Everyone;<br>- the admin by id is Mine;<br>- `arrivedByHop` is true only for the OTHER company. |
+| `src/lib/crm/board-person.integration.test.ts` (new) | 11 | With real rows:<br>- the B-Systems options and counts (roster, a removed owner marked "removed", no ByteForce-only account, archived and other-company leads not counted);<br>- a remembered person narrows to exactly their cards;<br>- the `AND` never widens;<br>- the hop and Back cases;<br>- the empty-search sentence only when everyone's leads would match;<br>- null for sales, an agent, a ByteForce teammate, a B-Systems-only admin on ByteForce and a two-company seller;<br>- `HOP_MARKER_PARAM` equals `SWITCHED_PARAM`;<br>- ByteForce reads its own cookie;<br>- Arabic labels;<br>- the action writes an httpOnly cookie, stores junk as Everyone, and ignores an unknown company. |
+| `e2e/board-person.spec.ts` (new) | 2 | **The admin:**<br>- B-Systems opens on Everyone, then one person, Mine and Unassigned;<br>- the choice survives a lead page and Back to the CRM board;<br>- ByteForce keeps its own choice;<br>- a search hop lands on Everyone, and picking someone there drops `switched`;<br>- an empty search offers "Show everyone's leads";<br>- on the notice's Back page a pick stays on that company and keeps the guard.<br>**Everyone else:** an agent and a ByteForce teammate with hand-written cookies see only their own cards and no switch. |
+
+### Clean gate (first copy)
+
+| Check | Result (verbatim) |
+|---|---|
+| `npx prisma generate` | `Generated Prisma Client (7.9.1)` |
+| `npx tsc --noEmit` | `tsc2 exit 0` |
+| `npx vitest run` | `Test Files  96 passed (96)` / `Tests  1993 passed \| 3 skipped (1996)` |
+| `npx playwright test` (FULL suite, 353) | `1 failed` / `9 skipped` / `343 passed (39.3m)` / `e2e exit 1` |
+
+**The one failure was a server timeout under load, not this change.**
+- **What failed:** `postpone.spec.ts:351` (Arabic). Its setup posts a `next_action` event, which answered 500.
+- **The server log:** `P2028 … The timeout for this transaction was 5000 ms, however 8345 ms passed`.
+- **Why:** I was running vitest and tsc in the main tree on the same machine at that moment.
+- **Not this change:** the event route and the engine are untouched by it.
+- **Passed on the re-run** with nothing else running (below).
+
+### Re-gate (after the review fixes)
+
+**What changed after the first copy:**
+- `BoardPersonSwitch.tsx`: `showChoice`, which drops the hop marker only on an arrival page;
+- `board-person.ts`: `arrivedByHop`, and the `BRANDS` table;
+- the board bodies' comments;
+- the e2e spec's Back-page case;
+- the ADR text.
+
+| Check | Result (verbatim) |
+|---|---|
+| `npx tsc --noEmit` | `tsc3 exit 0` |
+| `npx vitest run` | `Test Files  96 passed (96)` / `Tests  1993 passed \| 3 skipped (1996)` |
+| `npx playwright test` board-person, postpone, search-cross-company, leads-filters, byteforce-board, company-switch, qa-sweep, device-sweep, glass-frame | `57 passed (13.5m)` / `e2e-regate exit 0` |
+| byte-compare of the pushed code and tests against the re-gate's copy (`cmp`) | `identical: 15, different: 0` (the six docs are not compared; SPEC, DECISIONS and IMPLEMENTATION are also identical) |
+
+The 3 skipped vitest cases are the same three as Runs 108–110.
+
+### Before the gate
+
+- The first e2e run of the new spec failed once, on the test's own mistake: the back link returns to `/b-systems/crm?company=bsystems`, and the spec expected no `?company`. Fixed, then `2 passed (1.5m)`.
+
+### NOT RUN
+
+- **Production.** It goes live with the next deploy. The switch is behind a session, so there is no anonymous probe for it.
+- **Screenshots.** The brand audit read the code and the tokens.
+- **The sweeps cover only the B-Systems board's switch.** qa-sweep's "B-Systems admin" case signs in as the admin and loads `/b-systems/crm`, with the switch, at six widths: clean console, no horizontal overflow. Its ByteForce sweep signs in as a teammate who is not the admin, so the ByteForce switch was not swept for overflow. `board-person.spec.ts` drives it at the default desktop size only.

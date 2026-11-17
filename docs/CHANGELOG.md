@@ -2926,3 +2926,30 @@ You asked for four things: a way to hand many leads to one person from Users; th
 - **Three reviews before the push.**
   - One fixed the new screen's tap sizes and contrast on phones.
   - Two checked everything against the rules. They found nothing that lets anyone move a lead they shouldn't. They did find a list showing ByteForce leads B-Systems' stages, and wording that still described the removed features; all fixed.
+
+## 17 November 2026 — Choose whose leads the board shows (goes live with the next deploy)
+
+You asked for a button at the top of both CRMs, for the admin only, to show your own leads or one person's.
+
+### "Showing", at the top of both CRM boards
+
+- **Top right of the B-Systems board and the ByteForce board,** beside Add lead. Only you, as the admin, have it. Everyone else still sees only their own leads, and the server ignores the setting for them.
+- **Pick Everyone, Mine, Unassigned, or any one person.** The whole board, every column, changes to show only those leads.
+- **Each name shows how many leads that person has** on that board, for example "Ahmed (12)".
+- **The list covers everyone who can hold leads in that company.** It also includes anyone removed who still holds leads (marked "removed"), so you can find them and hand them on.
+- **The board remembers your choice.** Open a lead and press Back to the CRM board, or come back tomorrow, and it still shows the same person. Each board keeps its own choice.
+- **Search and Type still work inside the choice.** If a search finds nothing only because of the choice, the board says so ("None of your leads match these filters.") and offers **Show everyone's leads**.
+- **A search that jumps to the other company** shows everyone's leads there, so the lead it found is always on the board.
+
+### Questions for you
+
+1. **Opening view.** I read "called main" as **Mine**. The button is labelled "Showing" and opens on Everyone until you pick someone, then remembers your choice. Should it open on Mine instead?
+2. **Other pages.** I read "the entire CRM" as the whole board. Should the same choice also filter Leads, To-Do and Calendar?
+
+### Checks
+
+- **On a clean copy of exactly what is being pushed,** 1,993 automated checks passed.
+- **The full browser run:** 343 tests passed and one failed. The failure was a timeout: the computer was busy with other tests at that moment. Re-run on its own, it passed, along with 56 others covering the boards, search and page layouts.
+- **Three reviews.**
+  - **Design:** the "Show everyone's leads" button was too small to tap on a phone. Fixed.
+  - **Rules:** no way was found for anyone to see more than before. The reviews did find two problems after a search moved you between companies: choosing a person there didn't take effect, and the first fix sent you back to the other company. Both are fixed and tested.
